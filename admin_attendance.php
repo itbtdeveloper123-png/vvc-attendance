@@ -212,7 +212,7 @@ function ensure_core_tables($mysqli) {
         $admin_pass = defined('DEFAULT_ADMIN_PASSWORD') ? DEFAULT_ADMIN_PASSWORD : 'adminpass';
         $pass_hash = password_hash($admin_pass, PASSWORD_DEFAULT);
         $expiry = date('Y-m-d H:i:s', strtotime('+10 years'));
-        $mysqli->query("INSERT INTO users (employee_id, password, name, user_role, access_mode, expiry_datetime, is_super_admin) 
+        $mysqli->query("INSERT INTO users (employee_id, password, name, user_role, access_mode, expiry_datetime, is_super_admin)
                         VALUES ('$admin_id', '$pass_hash', 'System Admin', 'Admin', 'Paid', '$expiry', 1)");
     }
 }
@@ -311,12 +311,12 @@ function ensure_noted_column($mysqli) {
 // Helper: Ensure push_subscriptions table exists
 function ensure_push_subscriptions_table($mysqli) {
     $mysqli->query("CREATE TABLE IF NOT EXISTS push_subscriptions (
-        id INT AUTO_INCREMENT PRIMARY KEY, 
-        employee_id VARCHAR(50) NOT NULL, 
-        endpoint TEXT NOT NULL, 
-        p256dh VARCHAR(255) NOT NULL, 
-        auth VARCHAR(255) NOT NULL, 
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, 
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        employee_id VARCHAR(50) NOT NULL,
+        endpoint TEXT NOT NULL,
+        p256dh VARCHAR(255) NOT NULL,
+        auth VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE KEY (endpoint(255))
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 }
@@ -379,7 +379,7 @@ function ensure_employment_columns_and_logs($mysqli) {
 // Output buffering and other PHP settings
 @ini_set('zlib.output_compression', '1');
 
-ob_start(); 
+ob_start();
 // ត្រូវប្រាកដថាគ្មាន Space, BOM, ឬ Output ណាផ្សេងមុនបន្ទាត់នេះទេ!
 session_start();
 // ===============================================
@@ -416,9 +416,9 @@ $admin_pages_list = [
     'payroll' => [
         'payroll' => 'Payroll',
     ],
-    'requests' => [ 
+    'requests' => [
         'requests' => 'គ្រប់គ្រងសំណើរ (Manage Requests)',
-    ], 
+    ],
     'notifications' => [
         'send_notifications' => 'ផ្ញើការជូនដំណឹងទៅអ្នកប្រើប្រាស់',
     ],
@@ -430,7 +430,7 @@ $admin_pages_list = [
     'categories' => [
         'categories' => 'គ្រប់គ្រងប្រភេទ (Folders)',
     ],
-    'tokens' => [ 
+    'tokens' => [
         'global_settings' => 'Global Token Settings',
         'active_sessions' => 'បញ្ជី Session សកម្ម',
     ],
@@ -512,7 +512,7 @@ function initialize_default_user_fields($mysqli, $adminId) {
 
 
 function get_setting($mysqli, $adminId, $key, $default = '') {
-    static $settings_cache = []; 
+    static $settings_cache = [];
     $cache_key = $adminId . '_' . $key;
     if (isset($settings_cache[$cache_key])) return $settings_cache[$cache_key];
 
@@ -538,7 +538,7 @@ function get_setting($mysqli, $adminId, $key, $default = '') {
  * @return bool
  */
 function update_system_setting($mysqli, $key, $value) {
-    $sql = "INSERT INTO app_settings (admin_id, setting_key, setting_value) VALUES ('SYSTEM_WIDE', ?, ?) 
+    $sql = "INSERT INTO app_settings (admin_id, setting_key, setting_value) VALUES ('SYSTEM_WIDE', ?, ?)
             ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)";
     if ($stmt = $mysqli->prepare($sql)) {
         $stmt->bind_param("ss", $key, $value);
@@ -742,7 +742,7 @@ function initialize_sidebar_settings($mysqli, $adminId) {
 $panel_title = 'Admin Panel'; // Default value
 $panel_logo_path = '';
 $show_title_with_logo = true;
-$footer_text = ''; 
+$footer_text = '';
 
 // ===============================================
 // END: DATABASE & SETTINGS HELPERS
@@ -793,7 +793,7 @@ function hasPageAccess($mysqli, $page, $action, $adminId) {
         if (in_array($page, $perms, true) || in_array($action, $perms, true)) { return true; }
         return false; // deny if not explicitly allowed
     }
-    
+
     // Normal admin: consult DB page_access_settings
     // First, check for exact match
     $sql = "SELECT 1 FROM page_access_settings WHERE employee_id = ? AND page_key = ? AND action_key = ? LIMIT 1";
@@ -868,7 +868,7 @@ function compressAndMoveImage($source, &$destination, $quality = 80, $maxWidth =
     if (!function_exists('imagecreatefromjpeg')) {
         return move_uploaded_file($source, $destination);
     }
-    
+
     $info = @getimagesize($source);
     if ($info === false) {
         return move_uploaded_file($source, $destination);
@@ -923,7 +923,7 @@ function compressAndMoveImage($source, &$destination, $quality = 80, $maxWidth =
         // Update destination extension to .webp
         $info_p = pathinfo($destination);
         $new_dest = $info_p['dirname'] . DIRECTORY_SEPARATOR . $info_p['filename'] . '.webp';
-        
+
         // Save as WebP
         if (imagewebp($resampled, $new_dest, $quality)) {
             $destination = $new_dest;
@@ -934,18 +934,18 @@ function compressAndMoveImage($source, &$destination, $quality = 80, $maxWidth =
     // Fallback to original mime if WebP failed or not supported
     if (!$success) {
         switch ($mime) {
-            case 'image/jpeg': 
+            case 'image/jpeg':
                 imageinterlace($resampled, 1); // Progressive JPEG
-                $success = imagejpeg($resampled, $destination, $quality); 
+                $success = imagejpeg($resampled, $destination, $quality);
                 break;
-            case 'image/png':  
-                $success = imagepng($resampled, $destination, 6); 
+            case 'image/png':
+                $success = imagepng($resampled, $destination, 6);
                 break;
-            case 'image/gif':  
-                $success = imagegif($resampled, $destination); 
+            case 'image/gif':
+                $success = imagegif($resampled, $destination);
                 break;
-            case 'image/webp': 
-                $success = imagewebp($resampled, $destination, $quality); 
+            case 'image/webp':
+                $success = imagewebp($resampled, $destination, $quality);
                 break;
             default:
                 $success = move_uploaded_file($source, $destination);
@@ -974,7 +974,7 @@ function attemptAdminLogin($mysqli, $id, $password) {
 
 		if ($result->num_rows == 1) {
 			$user = $result->fetch_assoc();
-			
+
 			if (password_verify($password, $user['password'])) {
 				// កំណត់ Session
 				$_SESSION['admin_logged_in'] = true;
@@ -1063,9 +1063,9 @@ function sendTelegramNotification($chatId, $message) {
     if (TELEGRAM_BOT_TOKEN === 'YOUR_TELEGRAM_BOT_TOKEN' || empty($chatId)) {
         // សម្រាប់តេស្ត
         error_log("Telegram Notification Sent (Simulated) to Chat ID: {$chatId}. Message: {$message}");
-        return true; 
+        return true;
     }
-    
+
     $url = 'https://api.telegram.org/bot' . TELEGRAM_BOT_TOKEN . '/sendMessage';
     $data = [
         'chat_id' => $chatId,
@@ -1080,11 +1080,11 @@ function sendTelegramNotification($chatId, $message) {
             'content' => http_build_query($data),
         ],
     ];
-    
+
     // uncomment to enable real telegram sending
     // $context  = stream_context_create($options);
     // $result = @file_get_contents($url, false, $context);
-    
+
     // return ($result !== false);
     return true; // Return true for simulation
 }
@@ -1099,22 +1099,22 @@ function sendTelegramNotification($chatId, $message) {
 function checkAccessExpiry($mysqli, $adminId) {
     // កែប្រែ: ទាញយក expiry_datetime និង expiry_notification_sent
     $sql = "SELECT access_mode, expiry_datetime, telegram_chat_id, expiry_notification_sent FROM users WHERE employee_id = ? AND user_role = 'Admin' LIMIT 1";
-    
+
     if ($stmt = $mysqli->prepare($sql)) {
         $stmt->bind_param("s", $adminId);
         $stmt->execute();
         $result = $stmt->get_result();
-        
+
         if ($result->num_rows === 0) {
             return ['status' => 'ok', 'message' => 'Cannot find Admin ID. Access granted by default.'];
         }
-        
+
         $admin = $result->fetch_assoc();
         $expiry_datetime_str = $admin['expiry_datetime'];
         $access_mode = $admin['access_mode'];
         $telegram_chat_id = $admin['telegram_chat_id'];
         $notification_sent = (bool)$admin['expiry_notification_sent'];
-        
+
         // កំណត់ Timezone ទៅភ្នំពេញ ដើម្បីឱ្យម៉ោង Server ត្រឹមត្រូវ
         date_default_timezone_set('Asia/Phnom_Penh');
         $current_dt = new DateTime();
@@ -1128,7 +1128,7 @@ function checkAccessExpiry($mysqli, $adminId) {
         }
 
         $expiry_dt = new DateTime($expiry_datetime_str);
-        
+
         // 1. ពិនិត្យមើលថាផុតកំណត់ហើយឬនៅ (ពិនិត្យទាំងម៉ោង)
         if ($current_dt > $expiry_dt) {
             $expired_message = 'ការចូលប្រើប្រាស់របស់អ្នក **បានផុតកំណត់** នៅថ្ងៃ ' . $expiry_dt->format('d-M-Y H:i:s') . ' ហើយ!';
@@ -1139,7 +1139,7 @@ function checkAccessExpiry($mysqli, $adminId) {
                 sendTelegramNotification($telegram_chat_id, $telegram_message);
                 sendWebPushNotification($mysqli, $adminId, "Subscription Expired", "Admin Panel access expired at " . $expiry_dt->format('d-M-Y H:i:s'));
             }
-            
+
             // 3. Update Database ទៅជា Expired និងសម្គាល់ថាបានផ្ញើសារហើយ
             $update_sql = "UPDATE users SET access_mode = 'Expired', expiry_notification_sent = 1 WHERE employee_id = ?";
             if ($update_stmt = $mysqli->prepare($update_sql)) {
@@ -1147,7 +1147,7 @@ function checkAccessExpiry($mysqli, $adminId) {
                 $update_stmt->execute();
                 $update_stmt->close();
             }
-            
+
             return ['status' => 'expired', 'message' => $expired_message];
         }
 
@@ -1158,14 +1158,14 @@ function checkAccessExpiry($mysqli, $adminId) {
         if ($days_left <= 7) {
             // សារព្រមាននេះនៅតែផ្ញើដដែល ដើម្បីឱ្យ Admin ដឹងខ្លួនមុន
             $telegram_warning_message = "🔔 **ការជូនដំណឹងជិតផុតកំណត់**\n\nការចូលប្រើប្រាស់ប្រព័ន្ធ Admin Panel នឹងផុតកំណត់នៅថ្ងៃ **" . $expiry_dt->format('d-M-Y H:i:s') . "** (នៅសល់តែ {$days_left} ថ្ងៃ)។\n\nសូម Log In ចូល Admin Panel ហើយចុចបន្តថ្ងៃខែឆ្នាំប្រើប្រាស់។";
-            
+
             if (!empty($telegram_chat_id)) {
-                // To avoid spamming, this simple logic sends it once a day if they log in. 
+                // To avoid spamming, this simple logic sends it once a day if they log in.
                 // A more complex system would use a cron job.
                 sendTelegramNotification($telegram_chat_id, $telegram_warning_message);
                 sendWebPushNotification($mysqli, $adminId, "Subscription Warning", "Admin Panel access will expire in {$days_left} days.");
             }
-            
+
             return ['status' => 'warning', 'message' => "ការចូលប្រើប្រាស់របស់អ្នកនឹងផុតកំណត់ក្នុងរយៈពេល **{$days_left} ថ្ងៃ** (នៅថ្ងៃ " . $expiry_dt->format('d-M-Y H:i:s') . ")។ សូមបន្តប្រើប្រាស់!"];
         }
 
@@ -1225,17 +1225,17 @@ if ($result = $mysqli->query("SELECT COUNT(*) as count FROM users WHERE user_rol
 // ----------------------------------------------------
 
 if ($_SERVER["REQUEST_METHOD"] == "POST" && !isset($_POST['ajax_action'])) {
-	
+
 	// 1. Initial Setup Handler (បើមិនទាន់មាន Admin)
 	if ($admin_count == 0 && isset($_POST['initial_admin_register'])) {
 		$admin_id = trim($_POST['admin_id'] ?? '');
 		$admin_pass_plain = $_POST['admin_password'] ?? '';
 		$admin_name = trim($_POST['admin_name'] ?? '');
-		
+
 		if (!empty($admin_id) && !empty($admin_pass_plain) && !empty($admin_name)) {
 			$admin_pass = hashPassword($admin_pass_plain);
 			// កែប្រែ៖ ប្រើ expiry_datetime
-			$initial_expiry_datetime = date('Y-m-d H:i:s', strtotime('+1 year')); 
+			$initial_expiry_datetime = date('Y-m-d H:i:s', strtotime('+1 year'));
 			$sql = "INSERT INTO users (employee_id, password, name, user_role, access_mode, expiry_datetime, is_super_admin, created_by_admin_id) VALUES (?, ?, ?, 'Admin', 'Paid', ?, TRUE, NULL)";
 
 			if ($stmt = $mysqli->prepare($sql)) {
@@ -1245,7 +1245,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && !isset($_POST['ajax_action'])) {
                     initialize_default_user_fields($mysqli, $admin_id); // NEW: បង្កើត Fields ដំបូង
 					// បន្ទាប់ពី Setup ជោគជ័យ ព្យាយាម Login ភ្លាមៗ
 					if (attemptAdminLogin($mysqli, $admin_id, $admin_pass_plain)) {
-						ob_end_clean();	
+						ob_end_clean();
 						header("Location: admin_attendance.php?page=dashboard");
 						exit;
 					} else {
@@ -1261,8 +1261,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && !isset($_POST['ajax_action'])) {
 		} else {
 			$error = "សូមបំពេញគ្រប់ទិន្នន័យទាំងអស់សម្រាប់ Admin ដំបូង!";
 		}
-	}	
-	
+	}
+
     // 2. Sub User Login via normal POST (no AJAX)
     elseif ($admin_count > 0 && isset($_POST['sub_user_login'])) {
         $parent_emp = trim($_POST['parent_employee_id'] ?? '');
@@ -1308,7 +1308,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && !isset($_POST['ajax_action'])) {
 
             // Deprecated combined mode flag from AJAX sub login flow (kept for backward compatibility)
             $subFlag = isset($_POST['sub_user_logged_in']) && $_POST['sub_user_logged_in'] === '1';
-		
+
             if (attemptAdminLogin($mysqli, $id, $pass)) {
                 // If a sub user was logged in beforehand, keep its session values (attemptAdminLogin won't clear them) but mark a combined mode flag.
                 if ($subFlag && isset($_SESSION['sub_user_id'])) {
@@ -1316,7 +1316,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && !isset($_POST['ajax_action'])) {
                 }
 			// Check Access Expiry AFTER successful login
 			$access_check = checkAccessExpiry($mysqli, $_SESSION['admin_id']);
-			
+
 			if ($access_check['status'] === 'expired') {
 				// Log out the user or restrict access
 				unset($_SESSION['admin_logged_in']);
@@ -1372,21 +1372,21 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && !isset($_POST['ajax_action'])) {
 // ----------------------------------------------------
 if (isset($_POST['ajax_action'])) {
 	// សំអាត Output Buffer មុន Output JSON
-	ob_clean();	
+	ob_clean();
 
 	header('Content-Type: application/json');
 	$response = ['status' => 'error', 'message' => 'Internal Server Error'];
 	$action = $_POST['ajax_action'];
 	$is_logged_in = checkAdminLogin($mysqli);
-	
+
 	$is_super_admin = isSuperAdmin(); // កំណត់តម្លៃឱ្យអថេរ $is_super_admin នៅទីនេះ
 	$can_manage_admin = isSuperAdmin(); // រក្សាទុកកូដនេះដដែល
     $current_admin_id = $_SESSION['admin_id'] ?? null;
     // FIX: Define $admin_id_check used later in hasPageAccess() checks (avoid undefined variable)
     $admin_id_check = $current_admin_id;
-	
+
 	// Admin Actions (Requires Login)
-	if ($is_logged_in && $current_admin_id) { 
+	if ($is_logged_in && $current_admin_id) {
 		switch ($action) {
             case 'get_column_visibility':
                 // Return column visibility for this admin on reports page
@@ -1625,8 +1625,8 @@ if (isset($_POST['ajax_action'])) {
                 ensure_push_subscriptions_table($mysqli);
                 $sub = json_decode($_POST['subscription'] ?? '{}', true);
                 if ($sub && isset($sub['endpoint'])) {
-                    $sql = "INSERT INTO push_subscriptions (employee_id, endpoint, p256dh, auth) 
-                            VALUES (?, ?, ?, ?) 
+                    $sql = "INSERT INTO push_subscriptions (employee_id, endpoint, p256dh, auth)
+                            VALUES (?, ?, ?, ?)
                             ON DUPLICATE KEY UPDATE employee_id = VALUES(employee_id), p256dh = VALUES(p256dh), auth = VALUES(auth)";
                     if ($stmt = $mysqli->prepare($sql)) {
                         $stmt->bind_param("ssss", $_SESSION['admin_id'], $sub['endpoint'], $sub['keys']['p256dh'], $sub['keys']['auth']);
@@ -1674,27 +1674,27 @@ if (isset($_POST['ajax_action'])) {
                         } else { $response=['status'=>'error','message'=>'Invalid sub user credentials']; }
                     }
                     break;
-			
+
 			case 'save_admin_page_access':
 				if (!$can_manage_admin) {
 					$response = ['status' => 'error', 'message' => "អ្នកមិនមែនជា Super Admin! មិនមានសិទ្ធិចូលប្រើមុខងារនេះទេ។"];
 					break;
 				}
-				
+
 				$target_admin_id = trim($_POST['target_admin_id'] ?? '');
-				$allowed_actions = $_POST['allowed_actions'] ?? []; 
-				
+				$allowed_actions = $_POST['allowed_actions'] ?? [];
+
 				if (empty($target_admin_id)) {
 					$response = ['status' => 'error', 'message' => "មិនមាន Admin ID គោលដៅទេ។"];
 					break;
 				}
-				
+
 				$mysqli->query("DELETE FROM page_access_settings WHERE employee_id = '{$mysqli->real_escape_string($target_admin_id)}'");
-				
+
 				$sql = "INSERT INTO page_access_settings (employee_id, page_key, action_key) VALUES (?, ?, ?)";
 				$success_count = 0;
 				if ($stmt = $mysqli->prepare($sql)) {
-                    
+
                     global $admin_pages_list;
                     $page_action_map = [];
                     foreach ($admin_pages_list as $page_key => $actions) {
@@ -1702,15 +1702,15 @@ if (isset($_POST['ajax_action'])) {
                             $page_action_map[$action_key] = $page_key;
                         }
                     }
-                    
+
 					foreach ($allowed_actions as $action_key) {
                         $page_key = $page_action_map[$action_key] ?? null;
 
                         if (!$page_key || ($page_key === 'users' && $action_key === 'create_admin')) {
                             continue;
                         }
-                        if ($page_key === 'dashboard') continue; 
-                        
+                        if ($page_key === 'dashboard') continue;
+
 						$stmt->bind_param("sss", $target_admin_id, $page_key, $action_key);
 						if ($stmt->execute()) {
 							$success_count++;
@@ -1722,13 +1722,13 @@ if (isset($_POST['ajax_action'])) {
 					$response = ['status' => 'error', 'message' => "មានកំហុស Database ពេលបញ្ចូល: " . $mysqli->error];
 				}
 				break;
-			
+
 			case 'update_admin_subscription_settings':
             	if (!$can_manage_admin) {
 					$response = ['status' => 'error', 'message' => "អ្នកមិនមែនជា Super Admin! មិនមានសិទ្ធិកែប្រែ Subscription នេះទេ។"];
 					break;
 				}
-				
+
 				$target_admin_id = trim($_POST['target_admin_id'] ?? '');
                 $new_mode = trim($_POST['access_mode'] ?? 'Free');
                 $new_expiry_datetime_str = trim($_POST['expiry_datetime'] ?? null);
@@ -1745,14 +1745,14 @@ if (isset($_POST['ajax_action'])) {
                 }
 
                 $expiry_datetime_sql = $new_expiry_datetime_str ? "'" . $mysqli->real_escape_string(date('Y-m-d H:i:s', strtotime($new_expiry_datetime_str))) . "'" : "NULL";
-                
-                $sql = "UPDATE users SET 
-                            access_mode = ?, 
-                            expiry_datetime = {$expiry_datetime_sql}, 
+
+                $sql = "UPDATE users SET
+                            access_mode = ?,
+                            expiry_datetime = {$expiry_datetime_sql},
                             telegram_chat_id = ?,
-                            expiry_notification_sent = 0 
+                            expiry_notification_sent = 0
                         WHERE employee_id = ?";
-                
+
                 if ($stmt = $mysqli->prepare($sql)) {
                     $stmt->bind_param("sss", $new_mode, $new_telegram_chat_id, $target_admin_id);
                     if ($stmt->execute()) {
@@ -1765,16 +1765,16 @@ if (isset($_POST['ajax_action'])) {
                     $response = ['status' => 'error', 'message' => "Database error: " . $mysqli->error];
                 }
                 break;
-                
+
             case 'extend_admin_subscription':
             	if (!isSuperAdmin()) {
 					$response = ['status' => 'error', 'message' => "អ្នកមិនមែនជា Super Admin! មិនមានសិទ្ធិបន្ត Subscription នេះទេ។"];
 					break;
 				}
-				
+
 				$target_admin_id = trim($_POST['target_admin_id'] ?? '');
                 $days_to_add = (int)($_POST['days_to_add'] ?? 365);
-                
+
                 $current_date_query = $mysqli->query("SELECT expiry_datetime FROM users WHERE employee_id = '{$target_admin_id}' LIMIT 1");
                 $current_date_row = $current_date_query->fetch_assoc();
                 $current_expiry_datetime = $current_date_row['expiry_datetime'] ?? null;
@@ -1789,10 +1789,10 @@ if (isset($_POST['ajax_action'])) {
                         $base_dt = $current_expiry_dt;
                     }
                 }
-                
+
                 $base_dt->modify("+{$days_to_add} days");
                 $new_expiry_datetime = $base_dt->format('Y-m-d H:i:s');
-                
+
                 $sql = "UPDATE users SET expiry_datetime = ?, access_mode = 'Paid', expiry_notification_sent = 0 WHERE employee_id = ?";
                 if ($stmt = $mysqli->prepare($sql)) {
                     $stmt->bind_param("ss", $new_expiry_datetime, $target_admin_id);
@@ -1845,7 +1845,7 @@ if (isset($_POST['ajax_action'])) {
                             $custom_data_json = json_encode($custom_data_array, JSON_UNESCAPED_UNICODE);
 
                             $sql = "INSERT INTO users (employee_id, password, name, custom_data, user_role, access_mode, created_by_admin_id) VALUES (?, ?, ?, ?, 'User', 'Free', ?)";
-                            
+
                             if ($stmt = $mysqli->prepare($sql)) {
                                 $stmt->bind_param("sssss", $new_id, $new_pass_hash, $new_name, $custom_data_json, $current_admin_id);
                                 if ($stmt->execute()) { $response = ['status' => 'success', 'message' => "អ្នកប្រើប្រាស់ថ្មី (User) ត្រូវបានបង្កើត។ (សូមកំណត់ច្បាប់ម៉ោង!)"]; }
@@ -2338,7 +2338,7 @@ if (isset($_POST['ajax_action'])) {
                 }
                 $response = ['status' => ($updated>0?'success':'error'), 'message' => "បានកំណត់ក្រុម {$updated} នាក់; បរាជ័យ {$failed}"];
                 break;
-            
+
             case 'bulk_delete_logs':
                 // Permanently delete multiple checkin_logs by PK (scoped to admin unless super admin)
                 $raw_ids = $_POST['log_ids'] ?? [];
@@ -2398,13 +2398,13 @@ if (isset($_POST['ajax_action'])) {
                     $response = ['status' => 'error', 'message' => 'DB delete failed: ' . $mysqli->error];
                 }
                 break;
-				
+
 			case 'add_admin':
 				if (!$can_manage_admin) {
 					$response = ['status' => 'error', 'message' => "អ្នកមិនមែនជា Super Admin! មិនមានសិទ្ធិចូលប្រើមុខងារនេះទេ។"];
 					break;
 				}
-				
+
 				$admin_id = trim($_POST['admin_id'] ?? '');
 				$admin_pass_plain = $_POST['admin_password'] ?? '';
 				$admin_name = trim($_POST['admin_name'] ?? '');
@@ -2441,7 +2441,7 @@ if (isset($_POST['ajax_action'])) {
 					}
 				}
 				break;
-            
+
             // START: AJAX Handlers ថ្មីสำหรับ Request Fields
             case 'add_request_field':
                 if (!hasPageAccess($mysqli, 'settings', 'manage_request_fields', $current_admin_id)) {
@@ -2457,7 +2457,7 @@ if (isset($_POST['ajax_action'])) {
                     $response = ['status' => 'error', 'message' => 'សូមបំពេញ Label និងជ្រើសរើសប្រភេទសំណើរ។'];
                     break;
                 }
-                
+
                 $key = 'custom_' . strtolower(preg_replace('/[^a-zA-Z0-9]/', '_', $label)) . '_' . uniqid();
 
                 $sql = "INSERT INTO request_form_fields (admin_id, request_type, field_key, field_label, field_type, is_required) VALUES (?, ?, ?, ?, ?, ?)";
@@ -2493,7 +2493,7 @@ if (isset($_POST['ajax_action'])) {
                     $stmt->close();
                 }
                 break;
-            
+
             case 'toggle_request_field_status':
                 if (!hasPageAccess($mysqli, 'settings', 'manage_request_fields', $current_admin_id)) {
                     $response = ['status' => 'error', 'message' => 'Permission Denied.'];
@@ -2525,7 +2525,7 @@ if (isset($_POST['ajax_action'])) {
          // NEW: Thêm AJAX cases สำหรับจัดการ fields
             case 'add_user_field':
                 $label = trim($_POST['field_label'] ?? '');
-                
+
                 if (empty($label)) {
                     $response = ['status' => 'error', 'message' => 'ឈ្មោះ Field (Label) មិនអាចទទេបានទេ។'];
                     break;
@@ -2539,7 +2539,7 @@ if (isset($_POST['ajax_action'])) {
 
                 $type = $_POST['field_type'] ?? 'text';
                 $is_required = isset($_POST['is_required']) ? 1 : 0;
-                
+
                 $sql = "INSERT INTO user_form_fields (admin_id, field_key, field_label, field_type, is_required) VALUES (?, ?, ?, ?, ?)";
                 if($stmt = $mysqli->prepare($sql)) {
                     // ត្រូវប្រាកដថា Connection របស់អ្នកគឺ utf8mb4
@@ -2628,9 +2628,9 @@ if (isset($_POST['ajax_action'])) {
                     $response = ['status' => 'error', 'message' => 'Invalid data provided for status update.'];
                     break;
                 }
-                
+
                 $check_permission_sql = "
-                    SELECT rl.id 
+                    SELECT rl.id
                     FROM requests_logs rl
                     JOIN users u ON rl.employee_id = u.employee_id
                     WHERE rl.id = ?
@@ -2659,7 +2659,7 @@ if (isset($_POST['ajax_action'])) {
                 $update_sql = "UPDATE requests_logs SET request_status = ? WHERE id = ?";
                 if ($stmt_update = $mysqli->prepare($update_sql)) {
                     $stmt_update->bind_param("si", $new_status, $request_id); //កែប្រែទីតាំងអថេរ
-                
+
                     if ($stmt_update->execute()) {
                         $action_text = ($new_status == 'Approved') ? 'approved' : 'rejected';
                         $response = ['status' => 'success', 'message' => "Request #{$request_id} has been successfully {$action_text}."];
@@ -2678,12 +2678,12 @@ if (isset($_POST['ajax_action'])) {
                 $employee_id = $_POST['rule_employee_id'] ?? '';
 				$rules_json = $_POST['rules_json'] ?? '[]';
 				$rules = json_decode($rules_json, true);
-				
+
 				if (empty($employee_id)) {
 					$response = ['status' => 'error', 'message' => "មិនមាន ID បុគ្គលិកទេ។"];
 					break;
 				}
-				
+
 				$sql_delete = "DELETE FROM attendance_rules WHERE employee_id = ? AND (created_by_admin_id = ? OR ? = TRUE)";
 				if ($stmt_delete = $mysqli->prepare($sql_delete)) {
 					$stmt_delete->bind_param("ssi", $employee_id, $current_admin_id, $is_super_admin);
@@ -2692,17 +2692,17 @@ if (isset($_POST['ajax_action'])) {
 				}
 
 				$has_error = false;
-				
+
 				if (!empty($rules)) {
 					$sql_insert = "INSERT INTO attendance_rules (employee_id, type, start_time, end_time, status, created_by_admin_id) VALUES (?, ?, ?, ?, ?, ?)";
-					
+
 					if ($stmt = $mysqli->prepare($sql_insert)) {
 						foreach ($rules as $rule) {
 							$type = $rule['type'] ?? '';
 							$start = $rule['start'] ?? '';
 							$end = $rule['end'] ?? '';
 							$status = $rule['status'] ?? 'Good';
-							
+
 							if (!empty($start) && !empty($end) && !empty($type)) {
 								$stmt->bind_param("ssssss", $employee_id, $type, $start, $end, $status, $current_admin_id);
 								if (!$stmt->execute()) {
@@ -2715,7 +2715,7 @@ if (isset($_POST['ajax_action'])) {
 						$stmt->close();
 					}
 				}
-				
+
 				if (!$has_error) {
 					$response = ['status' => 'success', 'message' => "ច្បាប់ម៉ោងសម្រាប់បុគ្គលិក {$employee_id} ត្រូវបានរក្សាទុកដោយជោគជ័យ។", 'refresh_url' => "admin_attendance.php?page=users&action=edit_rules&id={$employee_id}"];
 				}
@@ -2742,12 +2742,12 @@ if (isset($_POST['ajax_action'])) {
 
 			case 'set_global_max_tokens':
 				$new_max_tokens = (int)($_POST['global_max_tokens'] ?? 1);
-				
+
 				if ($new_max_tokens < 1 || $new_max_tokens > 10) {
 					$response = ['status' => 'error', 'message' => "ចំនួន Token ត្រូវតែចន្លោះពី 1 ដល់ 10!"];
 					break;
 				}
-				
+
 				$sql = "UPDATE users SET global_max_tokens = ? WHERE employee_id = ?";
 				if ($stmt = $mysqli->prepare($sql)) {
 					$stmt->bind_param("is", $new_max_tokens, $current_admin_id);
@@ -2822,24 +2822,24 @@ if (isset($_POST['ajax_action'])) {
                     $stmt->close();
                 }
                 break;
-				
+
 			case 'assign_user_location':
 				$employee_ids = $_POST['employee_ids'] ?? [];
 				$location_ids = $_POST['location_ids'] ?? [];
 				$custom_radius = (int)($_POST['custom_radius_meters'] ?? 100);
-				
+
 				if (empty($employee_ids) || empty($location_ids)) {
 					$response = ['status' => 'error', 'message' => "សូមជ្រើសរើសបុគ្គលិកយ៉ាងតិចម្នាក់ និងទីតាំងយ៉ាងតិចមួយ!"];
 					break;
 				}
-				
+
 				$sql = "INSERT INTO user_locations (employee_id, location_id, custom_radius_meters, created_by_admin_id) VALUES (?, ?, ?, ?)
 							ON DUPLICATE KEY UPDATE custom_radius_meters = VALUES(custom_radius_meters)";
-				
+
 				if ($stmt = $mysqli->prepare($sql)) {
 					$success_count = 0;
 					$error_count = 0;
-					
+
 					foreach ($employee_ids as $employee_id) {
 						foreach ($location_ids as $location_id) {
 							$stmt->bind_param("siis", $employee_id, $location_id, $custom_radius, $current_admin_id);
@@ -2851,7 +2851,7 @@ if (isset($_POST['ajax_action'])) {
 						}
 					}
 					$stmt->close();
-					
+
 					$message = "បានបង្កើត/Update ការកំណត់ចំនួន **{$success_count}** ដោយជោគជ័យ។";
 					if ($error_count > 0) {
 						$message .= " មានកំហុសក្នុងការបង្កើត/អัปដេតការកំណត់ **{$error_count}** ផងដែរ។";
@@ -2900,7 +2900,7 @@ if (isset($_POST['ajax_action'])) {
 					$stmt->close();
 				}
 				break;
-				
+
 			case 'revoke_token':
                 $revoke_token = $_POST['token'] ?? '';
                 // Permission: Super Admin can revoke any; normal admin only their users or themselves
@@ -3000,7 +3000,7 @@ if (isset($_POST['ajax_action'])) {
                 log_user_event($mysqli,$emp,'status_change');
                 $response=['status'=>'success','message'=>'Employment status updated'];
                 break;
-            
+
             case 'save_panel_settings':
                 $title = $_POST['panel_title'] ?? 'Admin Panel';
                 $show_title = isset($_POST['show_title_with_logo']) ? '1' : '0';
@@ -3034,7 +3034,7 @@ if (isset($_POST['ajax_action'])) {
                         $allowed_types = ['image/png', 'image/jpeg', 'image/gif', 'image/svg+xml'];
                         if (in_array($_FILES['panel_logo']['type'], $allowed_types)) {
                             if (!is_dir('uploads')) { mkdir('uploads', 0755, true); }
-                            
+
                             $file_extension = strtolower(pathinfo($_FILES['panel_logo']['name'], PATHINFO_EXTENSION));
                             $new_filename = 'logo_' . $current_admin_id . '_' . time() . '.' . $file_extension;
                             $destination = 'uploads/' . $new_filename;
@@ -3074,102 +3074,130 @@ if (isset($_POST['ajax_action'])) {
                     break;
                 }
                 @set_time_limit(300); // Allow up to 5 minutes
-                
-                // Helper to compress local file
-                $process_image = function($path) {
-                    $quality = 75; $maxWidth = 1200; $maxHeight = 1200;
-                    if (!file_exists($path)) return false;
-                    
+
+                /**
+                 * Compress a single image file in-place.
+                 * @param string $path      Full path to image
+                 * @param int    $maxWidth  Max output width in px
+                 * @param int    $maxHeight Max output height in px
+                 * @param int    $quality   JPEG/WebP quality (0-100)
+                 * @param int    $skipBytes Skip compression if file already < this bytes
+                 * @return bool  true = compressed, false = skipped or error
+                 */
+                $process_image = function(string $path, int $maxWidth, int $maxHeight, int $quality, int $skipBytes) {
+                    if (!is_file($path)) return false;
                     $info = @getimagesize($path);
                     if (!$info) return false;
-                    
-                    $mime = $info['mime'];
-                    $width = $info[0];
-                    $height = $info[1];
+
+                    $mime   = $info['mime'];
+                    $width  = (int)$info[0];
+                    $height = (int)$info[1];
                     $fileSize = filesize($path);
-                    
-                    // Skip if small enough (e.g. < 300KB) AND dimensions are okay
-                    if ($fileSize < 300 * 1024 && $width <= $maxWidth && $height <= $maxHeight) {
-                        return false; // No need to compress
+
+                    // Skip if already small enough
+                    if ($fileSize < $skipBytes && $width <= $maxWidth && $height <= $maxHeight) {
+                        return false;
                     }
-                    
-                    // Calculate new dimensions
-                    $newWidth = $width;
+
+                    // Compute new dimensions preserving aspect ratio
+                    $newWidth  = $width;
                     $newHeight = $height;
                     if ($width > $maxWidth || $height > $maxHeight) {
                         $ratio = $width / $height;
-                        if ($ratio > 1) {
-                            $newWidth = $maxWidth;
-                            $newHeight = $maxWidth / $ratio;
-                        } else {
+                        if ($ratio >= 1) { // landscape / square
+                            $newWidth  = $maxWidth;
+                            $newHeight = (int)round($maxWidth / $ratio);
+                        } else { // portrait
                             $newHeight = $maxHeight;
-                            $newWidth = $maxHeight * $ratio;
+                            $newWidth  = (int)round($maxHeight * $ratio);
                         }
                     }
-                    
+
+                    // Load source image
                     $srcImg = null;
                     switch ($mime) {
                         case 'image/jpeg': $srcImg = @imagecreatefromjpeg($path); break;
-                        case 'image/png':  $srcImg = @imagecreatefrompng($path); break;
+                        case 'image/png':  $srcImg = @imagecreatefrompng($path);  break;
                         case 'image/webp': $srcImg = @imagecreatefromwebp($path); break;
+                        default: return false;
                     }
                     if (!$srcImg) return false;
-                    
+
+                    // Create destination canvas
                     $newImg = imagecreatetruecolor($newWidth, $newHeight);
-                     // Preserve transparency
-                    if ($mime == 'image/png' || $mime == 'image/webp') {
+                    // Preserve transparency for PNG/WebP
+                    if ($mime === 'image/png' || $mime === 'image/webp') {
                         imagecolortransparent($newImg, imagecolorallocatealpha($newImg, 0, 0, 0, 127));
                         imagealphablending($newImg, false);
                         imagesavealpha($newImg, true);
+                    } else {
+                        // White background for JPEG (no alpha)
+                        $white = imagecolorallocate($newImg, 255, 255, 255);
+                        imagefilledrectangle($newImg, 0, 0, $newWidth, $newHeight, $white);
                     }
-                    
+
                     imagecopyresampled($newImg, $srcImg, 0, 0, 0, 0, $newWidth, $newHeight, $width, $height);
-                    
-                    // Overwrite
+
+                    // Save back to same path
                     $saved = false;
                     switch ($mime) {
                         case 'image/jpeg': $saved = imagejpeg($newImg, $path, $quality); break;
-                        case 'image/png':  $saved = imagepng($newImg, $path, 6); break;
+                        case 'image/png':  $saved = imagepng($newImg, $path, 7); break;   // 0-9; 7=good compression
                         case 'image/webp': $saved = imagewebp($newImg, $path, $quality); break;
                     }
-                    
+
                     imagedestroy($srcImg);
                     imagedestroy($newImg);
-                    
                     return $saved;
                 };
 
-                $dirs = ['uploads/', 'uploads/avatars/'];
-                $files = [];
-                foreach ($dirs as $dir) {
-                    if (is_dir($dir)) {
-                        $files = array_merge($files, glob($dir . '*.{jpg,jpeg,png,webp,JPG,JPEG,PNG,WEBP}', GLOB_BRACE));
+                // ── Directory configs ──────────────────────────────────────────
+                // Avatars are profile pictures — displayed small, so 400×400 is plenty
+                // General uploads (logos, etc.) allow 800×800
+                $dir_configs = [
+                    'uploads/avatars/' => ['maxW' => 400,  'maxH' => 400,  'quality' => 78, 'skip' => 80  * 1024], // skip if <80KB
+                    'uploads/'         => ['maxW' => 800,  'maxH' => 800,  'quality' => 80, 'skip' => 200 * 1024], // skip if <200KB
+                ];
+
+                $totalFiles    = 0;
+                $totalProcessed = 0;
+                $totalSkipped  = 0;
+                $totalSaved    = 0; // bytes saved
+                $details       = [];
+
+                foreach ($dir_configs as $dir => $cfg) {
+                    if (!is_dir($dir)) continue;
+                    // Only files directly in this dir (non-recursive) — avatars/ is already separate
+                    $pattern = $dir . '*.{jpg,jpeg,png,webp,JPG,JPEG,PNG,WEBP}';
+                    $files   = glob($pattern, GLOB_BRACE) ?: [];
+
+                    $dirProcessed = 0; $dirSkipped = 0; $dirSaved = 0;
+
+                    foreach ($files as $file) {
+                        if (!is_file($file)) continue;
+                        $before = filesize($file);
+                        $result = $process_image($file, $cfg['maxW'], $cfg['maxH'], $cfg['quality'], $cfg['skip']);
+                        clearstatcache(true, $file);
+                        $after = filesize($file);
+
+                        if ($result) { $dirProcessed++; $dirSaved += ($before - $after); }
+                        else         { $dirSkipped++; }
+                        $totalFiles++;
                     }
+
+                    $totalProcessed += $dirProcessed;
+                    $totalSkipped   += $dirSkipped;
+                    $totalSaved     += $dirSaved;
+                    $details[] = sprintf('%s → Compressed: %d, Skipped: %d, Saved: %.2f MB',
+                        $dir, $dirProcessed, $dirSkipped, $dirSaved / 1048576);
                 }
-                
-                $count = 0;
-                $processed = 0;
-                $skipped = 0;
-                $initialSize = 0;
-                $finalSize = 0;
-                
-                foreach ($files as $file) {
-                     if (!is_file($file)) continue;
-                     $initialSize += filesize($file);
-                     if ($process_image($file)) {
-                         $processed++;
-                     } else {
-                         $skipped++;
-                     }
-                     clearstatcache();
-                     $finalSize += filesize($file);
-                     $count++;
-                }
-                
-                $savedBytes = $initialSize - $finalSize;
-                $savedMB = number_format($savedBytes / 1048576, 2);
-                
-                $response = ['status' => 'success', 'message' => "បានដំណើរការ {$count} រូបភាព។ Compressed: {$processed}, Skipped: {$skipped}។ ចំណេញទំហំ: {$savedMB} MB។"];
+
+                $savedMBTotal = number_format($totalSaved / 1048576, 2);
+                $response = [
+                    'status'  => 'success',
+                    'message' => "✅ ដំណើរការ {$totalFiles} រូបភាព — Compressed: {$totalProcessed}, Skipped: {$totalSkipped}. "
+                               . "ចំណេញទំហំ: {$savedMBTotal} MB. " . implode(' | ', $details)
+                ];
                 break;
 
             case 'save_login_page_settings':
@@ -3177,7 +3205,7 @@ if (isset($_POST['ajax_action'])) {
                     $response = ['status' => 'error', 'message' => 'អ្នកមិនមានសិទ្ធិរក្សាទុកការកំណត់នេះទេ។'];
                     break;
                 }
-                
+
                 $mysqli->begin_transaction();
                 try {
                     // Save title and icon class
@@ -3190,7 +3218,7 @@ if (isset($_POST['ajax_action'])) {
                         $allowed_types = ['image/png', 'image/jpeg', 'image/gif', 'image/svg+xml'];
                         if (in_array($_FILES['login_page_logo']['type'], $allowed_types)) {
                             if (!is_dir('uploads')) { mkdir('uploads', 0755, true); }
-                            
+
                             $file_extension = pathinfo($_FILES['login_page_logo']['name'], PATHINFO_EXTENSION);
                             $new_filename = 'login_logo_SYSTEM_WIDE_' . time() . '.' . $file_extension;
                             $destination = 'uploads/' . $new_filename;
@@ -3260,7 +3288,7 @@ if (isset($_POST['ajax_action'])) {
                     $mysqli->rollback();
                     $response = ['status' => 'error', 'message' => 'Database error: ' . $e->getMessage()];
                 }
-                
+
                 break;
 
             case 'save_sidebar_visibility':
@@ -3287,7 +3315,7 @@ if (isset($_POST['ajax_action'])) {
                     $response = ['status'=>'error','message'=>'DB prepare failed: '.$mysqli->error];
                 }
                 break;
-                
+
                case 'save_app_scan_settings':
                 if (!hasPageAccess($mysqli, 'settings', 'manage_app_scan', $current_admin_id)) {
                     $response = ['status' => 'error', 'message' => 'អ្នកមិនមានសិទ្ធិរក្សាទុកការកំណត់នេះទេ។'];
@@ -3344,7 +3372,7 @@ if (isset($_POST['ajax_action'])) {
                         $allowed_types = ['image/png', 'image/jpeg', 'image/gif', 'image/svg+xml'];
                         if (in_array($_FILES['header_logo']['type'], $allowed_types)) {
                             if (!is_dir('uploads')) { mkdir('uploads', 0755, true); }
-                            
+
                             $file_extension = pathinfo($_FILES['header_logo']['name'], PATHINFO_EXTENSION);
                             // កែប្រែ៖ ตั้งชื่อไฟล์ให้เฉพาะสำหรับ Admin คนนั้นๆ
                             $new_filename = 'app_scan_logo_' . $current_admin_id . '_' . time() . '.' . $file_extension;
@@ -3526,19 +3554,19 @@ if (isset($_POST['ajax_action'])) {
                     $response = ['status' => 'error', 'message' => 'Permission Denied.'];
                     break;
                 }
-                
+
                 $recipient_type = $_POST['recipient_type'] ?? '';
                 $specific_users = $_POST['specific_users'] ?? [];
                 $group_id = (int)($_POST['group_id'] ?? 0);
                 $title = trim($_POST['notification_title'] ?? '');
                 $message = trim($_POST['notification_message'] ?? '');
                 $expiry_date = trim($_POST['expiry_date'] ?? '');
-                
+
                 if (empty($title) || empty($message)) {
                     $response = ['status' => 'error', 'message' => 'សូមបំពេញប្រធានបទ និងខ្លឹមសារការជូនដំណឹង។'];
                     break;
                 }
-                
+
                 // Get recipients based on type
                 $recipients = [];
                 if ($recipient_type === 'all') {
@@ -3566,8 +3594,8 @@ if (isset($_POST['ajax_action'])) {
                         $stmt->close();
                     }
                 } elseif ($recipient_type === 'group' && $group_id > 0) {
-                    $sql = "SELECT u.employee_id, u.name FROM users u 
-                            JOIN user_skill_groups g ON JSON_CONTAINS(u.custom_data, JSON_QUOTE(g.id), '$.group_id') 
+                    $sql = "SELECT u.employee_id, u.name FROM users u
+                            JOIN user_skill_groups g ON JSON_CONTAINS(u.custom_data, JSON_QUOTE(g.id), '$.group_id')
                             WHERE g.id = ? AND u.created_by_admin_id = ?";
                     if ($stmt = $mysqli->prepare($sql)) {
                         $stmt->bind_param("is", $group_id, $current_admin_id);
@@ -3579,12 +3607,12 @@ if (isset($_POST['ajax_action'])) {
                         $stmt->close();
                     }
                 }
-                
+
                 if (empty($recipients)) {
                     $response = ['status' => 'error', 'message' => 'មិនមានអ្នកទទួលដែលត្រូវនឹងលក្ខខណ្ឌទេ។'];
                     break;
                 }
-                
+
                 // Create notifications table if not exists
                 $create_table_sql = "CREATE TABLE IF NOT EXISTS notifications (
                     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -3598,7 +3626,7 @@ if (isset($_POST['ajax_action'])) {
                     status ENUM('sent', 'expired') DEFAULT 'sent'
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
                 $mysqli->query($create_table_sql);
-                
+
                 // Create user_notifications table
                 $create_user_table_sql = "CREATE TABLE IF NOT EXISTS user_notifications (
                     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -3609,7 +3637,7 @@ if (isset($_POST['ajax_action'])) {
                     FOREIGN KEY (notification_id) REFERENCES notifications(id) ON DELETE CASCADE
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
                 $mysqli->query($create_user_table_sql);
-                
+
                 // Insert notification
                 $recipient_info = '';
                 if ($recipient_type === 'all') {
@@ -3629,12 +3657,12 @@ if (isset($_POST['ajax_action'])) {
                     }
                     $recipient_info = 'ក្រុម: ' . $group_name;
                 }
-                
+
                 $expiry_datetime = null;
                 if (!empty($expiry_date)) {
                     $expiry_datetime = date('Y-m-d H:i:s', strtotime($expiry_date));
                 }
-                
+
                 $insert_sql = "INSERT INTO notifications (admin_id, title, message, recipient_type, recipient_info, expiry_date) VALUES (?, ?, ?, ?, ?, ?)";
                 $notification_id = null;
                 if ($stmt = $mysqli->prepare($insert_sql)) {
@@ -3644,12 +3672,12 @@ if (isset($_POST['ajax_action'])) {
                     }
                     $stmt->close();
                 }
-                
+
                 if (!$notification_id) {
                     $response = ['status' => 'error', 'message' => 'មានកំហុសក្នុងការរក្សាទុកការជូនដំណឹង។'];
                     break;
                 }
-                
+
                 // Insert user notifications
                 $user_insert_sql = "INSERT INTO user_notifications (notification_id, employee_id) VALUES (?, ?)";
                 $success_count = 0;
@@ -3664,7 +3692,7 @@ if (isset($_POST['ajax_action'])) {
                     }
                     $stmt->close();
                 }
-                
+
                 $response = ['status' => 'success', 'message' => "ការជូនដំណឹងត្រូវបានផ្ញើទៅអ្នកប្រើប្រាស់ {$success_count} នាក់ដោយជោគជ័យ។"];
                 break;
 
@@ -3673,7 +3701,7 @@ if (isset($_POST['ajax_action'])) {
                     $response = ['status' => 'error', 'message' => 'Permission Denied.'];
                     break;
                 }
-                
+
                 $sql = "SELECT id, title, recipient_info, sent_at, status FROM notifications WHERE admin_id = ? ORDER BY sent_at DESC LIMIT 50";
                 $data = [];
                 if ($stmt = $mysqli->prepare($sql)) {
@@ -3691,7 +3719,7 @@ if (isset($_POST['ajax_action'])) {
                     }
                     $stmt->close();
                 }
-                
+
                 $response = ['status' => 'success', 'data' => $data];
                 break;
 
@@ -3760,7 +3788,7 @@ if ($show_admin_pages) {
 
     // ពិនិត្យ Subscription នៅគ្រប់ Page Load ទាំងអស់សម្រាប់អ្នកដែល Logged In
     $access_check = checkAccessExpiry($mysqli, $current_admin_id);
-    
+
     // 1. បើផុតកំណត់ (Expired) គឺត្រូវ Log Out ភ្លាមៗ
     if ($access_check['status'] === 'expired') {
         unset($_SESSION['admin_logged_in']);
@@ -3773,7 +3801,7 @@ if ($show_admin_pages) {
         header("Location: admin_attendance.php?expired_msg=" . urlencode($access_check['message']));
         exit;
     }
-    
+
     // 2. បើជិតផុតកំណត់ (Warning) គឺត្រូវបង្ហាញសារព្រមាន
     elseif ($access_check['status'] === 'warning') {
         $admin_subscription_warning = $access_check['message'];
@@ -3783,15 +3811,15 @@ if ($show_admin_pages) {
     $panel_title = get_setting($mysqli, $current_admin_id, 'panel_title', 'Admin Panel');
     $panel_logo_path = get_setting($mysqli, $current_admin_id, 'panel_logo_path', '');
     $show_title_with_logo = (bool)get_setting($mysqli, $current_admin_id, 'show_title_with_logo', '1');
-    
+
     $default_footer = '&copy; ' . date("Y") . ' **Attendance Check-In System**. រៀបចំដោយ <a href="#" target="_blank">Your Company Name</a>. រក្សាសិទ្ធិគ្រប់យ៉ាង។';
     $footer_text = get_setting($mysqli, $current_admin_id, 'footer_text', $default_footer);
-    
+
 	if ($current_page == 'login' || $current_page == 'setup') {
 		$current_page = 'dashboard';
         $current_action = 'dashboard';
 	}
-	
+
     // Check Access Permission for Non-Super Admins
     $admin_id_check = $_SESSION['admin_id'] ?? '';
     if (!$is_super_admin && !hasPageAccess($mysqli, $current_page, $current_action, $admin_id_check)) {
@@ -3800,7 +3828,7 @@ if ($show_admin_pages) {
         header("Location: admin_attendance.php?page=dashboard");
         exit;
     }
-    
+
     // រាប់ PENDING REQUESTS
 	$pending_requests_count = 0;
 	if (hasPageAccess($mysqli, 'requests', 'requests', $_SESSION['admin_id'])) {
@@ -3839,7 +3867,7 @@ if ($show_admin_pages) {
 	$active_sessions_count = 0;
 	$today_good_count = 0;
 	$today_late_count = 0;
-	
+
     // Scope dashboard queries by admin_id
     $admin_scope_sql_users = " WHERE user_role = 'User' ";
     $admin_scope_sql_locations = "";
@@ -3847,7 +3875,7 @@ if ($show_admin_pages) {
         $admin_scope_sql_users .= " AND (created_by_admin_id = '{$current_admin_id}') ";
         $admin_scope_sql_locations .= " WHERE created_by_admin_id = '{$current_admin_id}' ";
     }
-	
+
     // Total Users
     if ($result = $mysqli->query("SELECT COUNT(*) as count FROM users" . $admin_scope_sql_users)) {
         $total_users = $result->fetch_assoc()['count'];
@@ -3886,7 +3914,7 @@ if ($show_admin_pages) {
 
 	// Today Attendance Summary (Good and Late)
     $today_summary_sql = "
-		SELECT 
+		SELECT
 			SUM(CASE WHEN status = 'Good' THEN 1 ELSE 0 END) as good_count,
 			SUM(CASE WHEN status = 'Late' THEN 1 ELSE 0 END) as late_count
 		FROM checkin_logs
@@ -3925,12 +3953,12 @@ ob_end_flush();
     <link rel="dns-prefetch" href="//code.jquery.com">
     <link rel="preconnect" href="https://i.ibb.co" crossorigin>
     <link rel="dns-prefetch" href="//i.ibb.co">
-	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
 	<link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:wght@300;400;600;700&display=swap" rel="stylesheet">
     <!-- Local Momo Trust Display font (Latin only) -->
 	<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 	<link rel="icon" href="https://i.ibb.co/kRJFYbC/Logo.png">
-    
+
     <?php
     if (!$show_admin_pages) :
     ?>
@@ -4087,7 +4115,7 @@ ob_end_flush();
 	<style>
         :root {
             --primary-color: #3498db;
-            --primary-color-hover: #2980b9; 
+            --primary-color-hover: #2980b9;
         }
         body {
             /* Apply Momo for English (Latin), Khmer falls back to Kantumruy */
@@ -4248,10 +4276,10 @@ ob_end_flush();
     .reports-table-wrapper { background: #ffffff; border: 1px solid #e6e9ef; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.04); overflow: auto; max-height: 65vh; content-visibility: auto; contain-intrinsic-size: 600px; }
         .reports-table-wrapper .table { margin: 0; box-shadow: none; border-radius: 0; min-width: 100%; }
         /* Prevent text wrapping in table cells for better specific dense data display */
-        .reports-table-wrapper .table th, 
+        .reports-table-wrapper .table th,
         .reports-table-wrapper .table td { white-space: nowrap; vertical-align: middle; }
         /* Allow wrapping specifically for potentially long text columns */
-        .reports-table-wrapper .table td.col-late_reason, 
+        .reports-table-wrapper .table td.col-late_reason,
         .reports-table-wrapper .table td.col-noted { white-space: normal; min-width: 180px; max-width: 300px; }
         .reports-table-wrapper thead th { position: sticky; top: 0; z-index: 2; background: #ecf0f1; }
         .table tbody tr:hover { background-color: #f6fbff; }
@@ -4394,17 +4422,17 @@ ob_end_flush();
         .time-rule-row:hover { border-color: #3182ce; box-shadow: 0 4px 15px rgba(0,0,0,0.06); transform: translateY(-1px); background: #fff; }
         .time-rule-row[data-type="checkin"] { border-left: 6px solid #3182ce; }
         .time-rule-row[data-type="checkout"] { border-left: 6px solid #2f855a; }
-        .time-rule-row label { 
-            font-size: 0.8rem; font-weight: 700; color: #4a5568; 
+        .time-rule-row label {
+            font-size: 0.8rem; font-weight: 700; color: #4a5568;
             background: #f7fafc; padding: 5px 12px; border-radius: 20px;
             display: flex; align-items: center; gap: 5px; white-space: nowrap;
         }
         .time-rule-row[data-type="checkout"] label { background: #f0fff4; color: #276749; }
-        .time-rule-row input[type="time"].form-control, .time-rule-row select.form-control { 
-            height: 42px; border-radius: 10px; border: 1px solid #e2e8f0; 
+        .time-rule-row input[type="time"].form-control, .time-rule-row select.form-control {
+            height: 42px; border-radius: 10px; border: 1px solid #e2e8f0;
             font-weight: 600; color: #2d3748; background: #fff;
         }
-        .time-rule-row .remove-rule { 
+        .time-rule-row .remove-rule {
             height: 40px; width: 40px; border-radius: 10px; border: none;
             background: #fff5f5; color: #e53e3e; transition: all 0.2s; display: flex; align-items: center; justify-content: center;
         }
@@ -4671,7 +4699,7 @@ ob_end_flush();
         line-height: 1;
     }
 
-    
+
 
     /* Mobile sidebar overlay */
     .sidebar-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 90; display: none; }
@@ -4873,7 +4901,7 @@ if (!$show_admin_pages) :
 		<div class="login-box">
 			<?php if (!empty($success)): ?><div class="alert alert-success"><i class="fa-solid fa-circle-check"></i> <?php echo $success; ?></div><?php endif; ?>
 			<?php if (!empty($error)): ?><div class="alert alert-danger"><i class="fa-solid fa-circle-exclamation"></i> <?php echo $error; ?></div><?php endif; ?>
-			
+
 			<?php if ($admin_count == 0): ?>
 				<div class="login-header">
 					<div class="icon setup-icon"><i class="fa-solid fa-gears"></i></div>
@@ -4930,7 +4958,7 @@ if (!$show_admin_pages) :
                         </div>
                         <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 10px;">ចូលប្រព័ន្ធ (Admin)</button>
                 </form>
-                
+
                 <!-- Sub User Login: standard POST form (no AJAX) -->
                 <form id="subUserLoginForm" method="POST" action="admin_attendance.php" onsubmit="return true;" style="margin-top:12px; display:none;">
                     <input type="hidden" name="sub_user_login" value="1">
@@ -5187,13 +5215,13 @@ endif;
                 <?php endif; ?>
             </div>
         </div>
-		
+
 		<?php if ($is_super_admin): ?>
 			<p style="text-align: center; color: #f1c40f; font-weight: 700; border-bottom: 1px solid #f1c40f; padding-bottom: 10px; margin: 0 20px 20px;">
 				<i class="fa-solid fa-star"></i> SUPER ADMIN <i class="fa-solid fa-star"></i>
 			</p>
 		<?php endif; ?>
-		
+
 		<?php
 		$admin_id_check = $_SESSION['admin_id'] ?? '';
 		$is_users_page = ($current_page == 'users');
@@ -5203,7 +5231,7 @@ endif;
 		$is_locations_page = ($current_page == 'locations');
 		$is_categories_page = ($current_page == 'categories');
         $is_tokens_page = ($current_page == 'tokens');
-        $is_settings_page = ($current_page == 'settings'); 
+        $is_settings_page = ($current_page == 'settings');
 
         $can_see_users = false; foreach($admin_pages_list['users'] as $action => $name) { if (hasPageAccess($mysqli, 'users', $action, $admin_id_check)) { $can_see_users = true; break; } }
         $can_see_reports = hasPageAccess($mysqli, 'reports', 'reports', $admin_id_check);
@@ -5212,7 +5240,7 @@ endif;
         $can_see_locations = false; foreach($admin_pages_list['locations'] as $action => $name) { if (hasPageAccess($mysqli, 'locations', $action, $admin_id_check)) { $can_see_locations = true; break; } }
         $can_see_categories = hasPageAccess($mysqli, 'categories', 'categories', $admin_id_check);
         $can_see_tokens = false; foreach($admin_pages_list['tokens'] as $action => $name) { if (hasPageAccess($mysqli, 'tokens', $action, $admin_id_check)) { $can_see_tokens = true; break; } }
-        
+
         $can_see_settings = false;
         foreach($admin_pages_list['settings'] as $action => $name) {
             if (hasPageAccess($mysqli, 'settings', $action, $admin_id_check)) {
@@ -5220,7 +5248,7 @@ endif;
                 break;
             }
         }
-        
+
         $sidebar_menu_items = [];
         $menu_stmt = $mysqli->prepare("SELECT menu_key, menu_text, icon_class FROM sidebar_settings WHERE admin_id = ? ORDER BY menu_order ASC");
         $menu_stmt->bind_param("s", $current_admin_id);
@@ -5248,7 +5276,7 @@ endif;
 
         <div class="sidebar-menu" role="navigation" aria-label="Main menu">
 
-        <?php 
+        <?php
         foreach($sidebar_menu_items as $key => $menu):
             $page_key = $key;
             $menu_text = htmlspecialchars($menu['menu_text']);
@@ -5284,7 +5312,7 @@ endif;
                     break;
 
                 case 'reports':
-                    if ($can_see_reports && !isSidebarHidden($mysqli, $current_admin_id, 'reports')): 
+                    if ($can_see_reports && !isSidebarHidden($mysqli, $current_admin_id, 'reports')):
                         $reports_active = ($current_page == 'reports'); ?>
                         <div class="sidebar-item has-submenu <?php echo $reports_active ? 'active open' : ''; ?>">
                             <a href="?page=reports" class="<?php echo $reports_active ? 'active' : ''; ?>"><i class="<?php echo $menu_icon; ?>"></i> <?php echo $menu_text; ?></a>
@@ -5334,7 +5362,7 @@ endif;
                         </div>
                     <?php endif;
                     break;
-                
+
                 case 'categories':
                     if ($can_see_categories && !isSidebarHidden($mysqli, $current_admin_id, 'categories')): ?>
                         <a href="?page=categories" class="<?php echo ($current_page == 'categories') ? 'active' : ''; ?>"><i class="<?php echo $menu_icon; ?>"></i> <?php echo $menu_text; ?></a>
@@ -5360,7 +5388,7 @@ endif;
                         </div>
                     <?php endif;
                     break;
-                
+
                 case 'settings':
                     if ($can_see_settings && !isSidebarHidden($mysqli, $current_admin_id, 'settings')):
                         $settings_action = $_GET['action'] ?? 'panel_settings'; ?>
@@ -5379,7 +5407,7 @@ endif;
                                 <?php if (hasPageAccess($mysqli, 'settings', 'login_page_settings', $admin_id_check) && !isSidebarHidden($mysqli, $current_admin_id, 'settings', 'login_page_settings')): ?>
                                 <li><a href="?page=settings&action=login_page_settings" class="<?php echo ($is_settings_page && $settings_action == 'login_page_settings') ? 'sub-active' : ''; ?>"><?php echo htmlspecialchars($submenu_texts['settings']['login_page_settings'] ?? 'ការកំណត់ Login Page'); ?></a></li>
                                 <?php endif; ?>
-                                
+
                                 <?php if (hasPageAccess($mysqli, 'settings', 'manage_user_fields', $admin_id_check) && !isSidebarHidden($mysqli, $current_admin_id, 'settings', 'manage_user_fields')): ?>
                                 <li><a href="?page=settings&action=manage_user_fields" class="<?php echo ($is_settings_page && $settings_action == 'manage_user_fields') ? 'sub-active' : ''; ?>"><?php echo htmlspecialchars($submenu_texts['settings']['manage_user_fields'] ?? 'គ្រប់គ្រង Fields អ្នកប្រើប្រាស់'); ?></a></li>
                                 <?php endif; ?>
@@ -5429,11 +5457,11 @@ endif;
                 </div>
             <?php endif; ?>
             </div>
-            
+
             <?php if ($current_page == 'dashboard'): ?>
                 <h2><i class="fa-solid fa-chart-line"></i> ទិន្នន័យសង្ខេបប្រចាំថ្ងៃ: <?php echo date('d/m/Y'); ?></h2>
-                
-                
+
+
                 <div class="card-container">
                     <div class="dashboard-card card-today-good">
                         <span class="card-title">វត្តមានទាន់ពេល (Good) ថ្ងៃនេះ</span>
@@ -5446,25 +5474,25 @@ endif;
                         <p class="card-number"><?php echo number_format($today_late_count); ?></p>
                         <i class="fa-solid fa-hourglass-end card-icon" style="color: #f39c12;"></i>
                     </div>
-                    
+
                     <div class="dashboard-card card-users">
                         <span class="card-title">បុគ្គលិកសរុប (User)</span>
                         <p class="card-number"><?php echo number_format($total_users); ?></p>
                         <i class="fa-solid fa-users card-icon"></i>
                     </div>
-                    
+
                     <div class="dashboard-card card-locations">
                         <span class="card-title">ទីតាំង Check-In សរុប</span>
                         <p class="card-number"><?php echo number_format($total_locations); ?></p>
                         <i class="fa-solid fa-map-marker-alt card-icon" style="color: #2ecc71;"></i>
                     </div>
-                    
+
                     <div class="dashboard-card card-sessions">
                         <span class="card-title">Session កំពុងប្រើប្រាស់</span>
                         <p class="card-number"><?php echo number_format($active_sessions_count); ?></p>
                         <i class="fa-solid fa-key card-icon" style="color: #e74c3c;"></i>
                     </div>
-                    
+
                     <?php if ($is_super_admin): ?>
                     <div class="dashboard-card card-admins">
                         <span class="card-title">គណនី Admin សរុប</span>
@@ -5478,12 +5506,12 @@ endif;
 
            <?php if ($current_page == 'reports' && ($current_action == 'reports' || $current_action == '')): ?>
     <?php
-    $dates_query_sql = "SELECT DISTINCT DATE(cl.log_datetime) as attendance_date 
+    $dates_query_sql = "SELECT DISTINCT DATE(cl.log_datetime) as attendance_date
                         FROM checkin_logs cl
-                        JOIN users u ON cl.employee_id = u.employee_id" . 
-                       ($is_super_admin ? "" : " WHERE u.created_by_admin_id = ?") . 
+                        JOIN users u ON cl.employee_id = u.employee_id" .
+                       ($is_super_admin ? "" : " WHERE u.created_by_admin_id = ?") .
                        " ORDER BY attendance_date DESC";
-    
+
     $dates_stmt = $mysqli->prepare($dates_query_sql);
     if (!$is_super_admin) { $dates_stmt->bind_param("s", $current_admin_id); }
     $dates_stmt->execute();
@@ -5495,7 +5523,7 @@ endif;
         }
     }
     $dates_stmt->close();
-    
+
     $filter_date = $_GET['filter_date'] ?? ($available_dates[0] ?? date('Y-m-d'));
     $filter_status = $_GET['filter_status'] ?? 'All';
     $filter_department = $_GET['filter_department'] ?? 'department';
@@ -5504,7 +5532,7 @@ endif;
     $late_summary = [];
     $start_dt = $filter_date . ' 00:00:00';
     $end_dt   = $filter_date . ' 23:59:59';
-    
+
     $late_sql = "SELECT u.employee_id, u.name, COUNT(*) as late_count
                  FROM checkin_logs cl
                  JOIN users u ON cl.employee_id = u.employee_id
@@ -5530,17 +5558,17 @@ endif;
     if (!empty($late_summary)) {
         $late_user_ids = array_column($late_summary, 'employee_id');
         $placeholders = implode(',', array_fill(0, count($late_user_ids), '?'));
-        
+
         // 1. Fetch ALL late entries for these users on this date
         $all_entries = [];
-        $entries_sql = "SELECT cl.employee_id, cl.location_name, cl.log_datetime 
-                        FROM checkin_logs cl 
-                        JOIN users u ON cl.employee_id = u.employee_id 
-                        WHERE cl.employee_id IN ($placeholders) 
-                        AND cl.log_datetime BETWEEN ? AND ? 
-                        AND cl.status = 'Late'" . ($is_super_admin ? "" : " AND u.created_by_admin_id = ?") . " 
+        $entries_sql = "SELECT cl.employee_id, cl.location_name, cl.log_datetime
+                        FROM checkin_logs cl
+                        JOIN users u ON cl.employee_id = u.employee_id
+                        WHERE cl.employee_id IN ($placeholders)
+                        AND cl.log_datetime BETWEEN ? AND ?
+                        AND cl.status = 'Late'" . ($is_super_admin ? "" : " AND u.created_by_admin_id = ?") . "
                         ORDER BY cl.log_datetime ASC";
-        
+
         if ($stmt_e = $mysqli->prepare($entries_sql)) {
             $e_types = str_repeat('s', count($late_user_ids)) . 'ss';
             $e_params = array_merge($late_user_ids, [$start_dt, $end_dt]);
@@ -5561,8 +5589,8 @@ endif;
 
         // 2. Fetch ALL checkin rules for these users
         $all_rules = [];
-        $rules_sql = "SELECT employee_id, type, start_time, end_time, status 
-                      FROM attendance_rules 
+        $rules_sql = "SELECT employee_id, type, start_time, end_time, status
+                      FROM attendance_rules
                       WHERE employee_id IN ($placeholders) AND type = 'checkin'";
         if ($stmt_r = $mysqli->prepare($rules_sql)) {
             $stmt_r->bind_param(str_repeat('s', count($late_user_ids)), ...$late_user_ids);
@@ -5580,16 +5608,16 @@ endif;
         foreach ($late_summary as &$usr) {
             $eid = $usr['employee_id'];
             $usr['entries'] = $all_entries[$eid] ?? [];
-            
+
             if (!empty($usr['entries'])) {
                 foreach ($usr['entries'] as &$entry) {
                     $entry['late_minutes'] = null;
                     $log_hms = date('H:i:s', strtotime($entry['log_datetime']));
-                    
+
                     // Pivot logic matching scan.php
                     $pivot_time = '';
                     $u_rules = $all_rules[$eid] ?? [];
-                    
+
                     // Try to find Good end_time <= log_time
                     $best_good = null;
                     foreach ($u_rules as $r) {
@@ -5634,13 +5662,13 @@ endif;
     if ($current_p_page < 1) { $current_p_page = 1; }
     $offset = ($current_p_page - 1) * $records_per_page;
 
-    $count_sql = "SELECT COUNT(*) as total 
-                  FROM checkin_logs cl 
-                  JOIN users u ON cl.employee_id = u.employee_id 
+    $count_sql = "SELECT COUNT(*) as total
+                  FROM checkin_logs cl
+                  JOIN users u ON cl.employee_id = u.employee_id
                   WHERE cl.log_datetime BETWEEN ? AND ?";
     $count_params = [$start_dt, $end_dt];
     $count_types = "ss";
-    
+
     if ($filter_status !== 'All') {
         $count_sql .= " AND cl.status = ?";
         $count_params[] = $filter_status;
@@ -5660,7 +5688,7 @@ endif;
         $count_params[] = $current_admin_id;
         $count_types .= "s";
     }
-    
+
     $total_records = 0;
     if ($stmt_count = $mysqli->prepare($count_sql)) {
         if(!empty($count_types)) $stmt_count->bind_param($count_types, ...$count_params);
@@ -5669,9 +5697,9 @@ endif;
         if ($count_result) $total_records = $count_result->fetch_assoc()['total'];
         $stmt_count->close();
     }
-    
+
     $total_pages = ceil($total_records / $records_per_page);
-    
+
     // [កូដដែលបានកែសម្រួល] เพิ่ม cl.custom_fields_data
     $sql = "SELECT cl.*, u.custom_data, cl.custom_fields_data
             FROM checkin_logs cl
@@ -5754,7 +5782,7 @@ endif;
      <h2><i class="fa-solid fa-chart-line"></i> របាយការណ៍វត្តមានបុគ្គលិក</h2>
 
     <!-- Date/status filter moved below department tabs -->
-    
+
     <div style="margin-top: 24px; background: linear-gradient(135deg, #fff5f5 0%, #fef2f2 100%); border: 1px solid #fecaca; border-radius: 16px; box-shadow: 0 8px 24px rgba(239,68,68,0.12); padding: 24px; position: relative; overflow: hidden;">
         <!-- Decorative background element -->
         <div style="position: absolute; top: 0; right: 0; width: 120px; height: 120px; background: radial-gradient(circle, rgba(239,68,68,0.08) 0%, transparent 70%); border-radius: 50%; transform: translate(40px, -40px);"></div>
@@ -5891,7 +5919,7 @@ endif;
         </div>
     </div>
 
-    
+
 
     <div class="reports-heading" style="margin-top: 24px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
@@ -5990,7 +6018,7 @@ endif;
             <?php if (empty($report_data)): ?>
                 <tr><td colspan="<?php echo 11 + count($dynamic_headers); ?>" style="text-align: center; font-style: italic;">មិនមានទិន្នន័យវត្តមានសម្រាប់ថ្ងៃដែលបានជ្រើសរើសទេ។</td></tr>
             <?php else: ?>
-                <?php foreach ($report_data as $log): 
+                <?php foreach ($report_data as $log):
                     // [កូដដែលបានកែសម្រួល] Decode ข้อมูล JSON ที่បានบันทึกไว้
                     $saved_custom_data = json_decode($log['custom_fields_data'] ?? '{}', true);
                     // NEW: per-row late minutes calculation (cached per employee)
@@ -6024,7 +6052,7 @@ endif;
                                 }
                             }
                             if ($pivot_time_row !== '' && preg_match('/^\d{1,2}:\d{2}$/', $pivot_time_row)) { $pivot_time_row .= ':00'; }
-                            $et_final = $pivot_time_row; 
+                            $et_final = $pivot_time_row;
                             if ($et_final !== '') {
                                 $base_dt_row = date('Y-m-d', strtotime($log['log_datetime'])) . ' ' . $et_final;
                                 $late_secs_row = strtotime($log['log_datetime']) - strtotime($base_dt_row);
@@ -6053,8 +6081,8 @@ endif;
                         <td class="col-log_time"><?php echo date('h:i:s A', strtotime($log['log_datetime'])); ?></td>
                         <td class="col-status">
                             <?php
-                            $status_class = (strtolower($log['status'] ?? '') == 'late') ? 'status-late' : 'status-good'; 
-                            $status_icon = (strtolower($log['status'] ?? '') == 'late') ? '<i class="fa-solid fa-hourglass-end"></i> ' : '<i class="fa-solid fa-circle-check"></i> '; 
+                            $status_class = (strtolower($log['status'] ?? '') == 'late') ? 'status-late' : 'status-good';
+                            $status_icon = (strtolower($log['status'] ?? '') == 'late') ? '<i class="fa-solid fa-hourglass-end"></i> ' : '<i class="fa-solid fa-circle-check"></i> ';
                             $status_text_render = htmlspecialchars($log['status'] ?? 'Good');
                             if ($late_status_minutes !== null) { $status_text_render .= ' (' . format_late_minutes($late_status_minutes) . ')'; }
                             echo "<span class='{$status_class}'>" . $status_icon . $status_text_render . "</span>";
@@ -6062,7 +6090,7 @@ endif;
                         </td>
                         <td class="col-late_reason late-reason-cell"><?php echo htmlspecialchars($log['late_reason'] ?? 'N/A'); ?></td>
                         <td class="col-noted noted-cell" contenteditable="true" data-log-id="<?php echo $log_pk_val; ?>">
-                            <?php 
+                            <?php
                             $noted = $log['noted'] ?? '';
                             if (filter_var($noted, FILTER_VALIDATE_URL)) {
                                 echo '<a href="' . htmlspecialchars($noted) . '" target="_blank" rel="noopener noreferrer">' . htmlspecialchars($noted) . '</a>';
@@ -6146,7 +6174,7 @@ endif;
             <?php if (empty($export_data)): ?>
                 <tr><td colspan="<?php echo 9 + count($dynamic_headers); ?>">មិនមានទិន្នន័យ</td></tr>
             <?php else: ?>
-                <?php foreach ($export_data as $log): 
+                <?php foreach ($export_data as $log):
                     // [UPDATED] Include late minutes calc + row data attributes for fullscreen cloning
                     $saved_custom_data = json_decode($log['custom_fields_data'] ?? '{}', true);
                     $status_raw = trim($log['status'] ?? 'Good');
@@ -6217,7 +6245,7 @@ endif;
                         <td class="col-status"><?php echo $status_text; ?></td>
                         <td class="col-late_reason"><?php echo $late_reason; ?></td>
                         <td class="col-noted">
-                            <?php 
+                            <?php
                             $noted = $log['noted'] ?? '';
                             if (filter_var($noted, FILTER_VALIDATE_URL)) {
                                 echo '<a href="' . htmlspecialchars($noted) . '" target="_blank" rel="noopener noreferrer">' . htmlspecialchars($noted) . '</a>';
@@ -6419,7 +6447,7 @@ endif;
                 const start = this.start_date.value;
                 const end = this.end_date.value;
                 const dept = this.filter_department_select.value;
-                
+
                 let params = new URLSearchParams();
                 if (type === 'daily') {
                     params.append('page', 'reports');
@@ -6481,7 +6509,7 @@ function openColumnVisibility() {
     foreach ($all_users as $user) {
         $cdata = json_decode($user['custom_data'] ?? '{}', true);
         $dept = $cdata['department'] ?? 'Other';
-        
+
         // Filter by department
         if ($filter_department === 'worker' && $dept !== 'Worker') continue;
         if ($filter_department === 'department' && $dept === 'Worker') continue;
@@ -6522,7 +6550,7 @@ function openColumnVisibility() {
                     if ($late_secs > 0) {
                         $mins = (int)floor($late_secs / 60);
                         if ($mins === 0) $mins = 1;
-                        
+
                         if ($mins < 15) $stats['under15']++;
                         elseif ($mins < 60) $stats['under1h']++;
                         else $stats['over1h']++;
@@ -6532,7 +6560,7 @@ function openColumnVisibility() {
             }
             $stmt_l->close();
         }
-         
+
         $report_rows[] = [
             'id' => $user['employee_id'],
             'name' => $user['name'],
@@ -6599,9 +6627,9 @@ function openColumnVisibility() {
                 </tr>
             </thead>
             <tbody>
-                <?php 
-                    $total15=0; $totalH=0; $totalH1=0; $totalAll=0; 
-                    if (empty($report_rows)): 
+                <?php
+                    $total15=0; $totalH=0; $totalH1=0; $totalAll=0;
+                    if (empty($report_rows)):
                 ?>
                     <tr><td colspan="9" style="text-align:center;">មិនមានទិន្នន័យ</td></tr>
                 <?php else: ?>
@@ -6618,11 +6646,11 @@ function openColumnVisibility() {
                             <td style="text-align:center; font-weight:bold; color:<?php echo $row['stats']['over1h']>0?'#d35400':'#7f8c8d'; ?>"><?php echo $row['stats']['over1h']; ?></td>
                             <td style="text-align:center; font-weight:bold; background:#fdf2f2; color:#c0392b;"><?php echo $row['stats']['total']; ?></td>
                         </tr>
-                        <?php 
-                            $total15 += $row['stats']['under15']; 
-                            $totalH += $row['stats']['under1h']; 
-                            $totalH1 += $row['stats']['over1h']; 
-                            $totalAll += $row['stats']['total']; 
+                        <?php
+                            $total15 += $row['stats']['under15'];
+                            $totalH += $row['stats']['under1h'];
+                            $totalH1 += $row['stats']['over1h'];
+                            $totalAll += $row['stats']['total'];
                         ?>
                     <?php endforeach; ?>
                 <?php endif; ?>
@@ -6683,7 +6711,7 @@ function openColumnVisibility() {
                 // (Check-In, Check-In) -> Forgot Out
                 // (Check-Out, Check-Out) -> Forgot In
                 // (Check-In, Check-In, Check-Out) -> Forgot Out
-                
+
                 $prev = null;
                 foreach ($actions as $action) {
                     $action_norm = (stripos($action, 'In') !== false) ? 'IN' : 'OUT';
@@ -6704,7 +6732,7 @@ function openColumnVisibility() {
                 }
             }
         }
-        
+
         if ($forgot_in > 0 || $forgot_out > 0) {
             $report_rows[] = [
                 'id' => $user['employee_id'],
@@ -6774,9 +6802,9 @@ function openColumnVisibility() {
                 </tr>
             </thead>
             <tbody>
-                <?php 
+                <?php
                     $totalIn=0; $totalOut=0; $totalAll=0;
-                    if (empty($report_rows)): 
+                    if (empty($report_rows)):
                 ?>
                     <tr><td colspan="8" style="text-align:center;">មិនមានទិន្នន័យ</td></tr>
                 <?php else: ?>
@@ -6792,10 +6820,10 @@ function openColumnVisibility() {
                             <td style="text-align:center; font-weight:bold; color:#2980b9;"><?php echo $row['forgot_out']; ?></td>
                             <td style="text-align:center; font-weight:bold; background:#fdf2f2; color:#c0392b;"><?php echo $row['total']; ?></td>
                         </tr>
-                        <?php 
-                            $totalIn += $row['forgot_in']; 
-                            $totalOut += $row['forgot_out']; 
-                            $totalAll += $row['total']; 
+                        <?php
+                            $totalIn += $row['forgot_in'];
+                            $totalOut += $row['forgot_out'];
+                            $totalAll += $row['total'];
                         ?>
                     <?php endforeach; ?>
                 <?php endif; ?>
@@ -6884,7 +6912,7 @@ function openColumnVisibility() {
     </script>
 
 <?php endif; ?>
-            
+
            <?php
 if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests', $admin_id_check)): ?>
     <?php
@@ -6895,13 +6923,13 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
     $current_p_page = isset($_GET['p']) ? (int)$_GET['p'] : 1;
     $offset = ($current_p_page - 1) * $records_per_page;
 
-    $count_sql = "SELECT COUNT(rl.id) as total 
+    $count_sql = "SELECT COUNT(rl.id) as total
                   FROM `requests_logs` rl
                   JOIN `users` u ON rl.employee_id = u.employee_id
                   WHERE 1=1";
     $count_params = [];
     $count_types = "";
-    
+
     if ($filter_req_status !== 'All') {
         $count_sql .= " AND rl.`request_status` = ?";
         $count_params[] = $filter_req_status;
@@ -6917,7 +6945,7 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
         $count_params[] = $current_admin_id;
         $count_types .= "s";
     }
-    
+
     $total_records = 0;
     if ($stmt_count = $mysqli->prepare($count_sql)) {
         if (!empty($count_types)) $stmt_count->bind_param($count_types, ...$count_params);
@@ -6925,16 +6953,16 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
         $total_records = $stmt_count->get_result()->fetch_assoc()['total'];
         $stmt_count->close();
     }
-    
+
     $total_pages = ceil($total_records / $records_per_page);
 
-    $sql = "SELECT rl.* 
+    $sql = "SELECT rl.*
             FROM `requests_logs` rl
             JOIN `users` u ON rl.employee_id = u.employee_id
             WHERE 1=1";
     $params = [];
     $types = "";
-    
+
     if ($filter_req_status !== 'All') {
         $sql .= " AND rl.`request_status` = ?";
         $params[] = $filter_req_status;
@@ -6991,7 +7019,7 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
             </div>
         </div>
     </form>
-    
+
     <h3 style="margin-top: 40px;"><i class="fa-solid fa-list-ul"></i> បញ្ជីសំណើទាំងអស់</h3>
 
     <table class="table">
@@ -7035,7 +7063,7 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
         </tbody>
     </table>
 
-   
+
 
 
 
@@ -7069,12 +7097,12 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
 
             <?php if ($current_page == 'notifications' && hasPageAccess($mysqli, 'notifications', 'send_notifications', $admin_id_check)): ?>
                 <h2><i class="fa-solid fa-bell"></i> ផ្ញើការជូនដំណឹង</h2>
-                
+
                 <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 5px rgba(0,0,0,0.05); margin-bottom: 30px;">
                     <h3><i class="fa-solid fa-paper-plane"></i> ផ្ញើការជូនដំណឹងទៅអ្នកប្រើប្រាស់</h3>
                     <form id="sendNotificationForm" class="ajax-form">
                         <input type="hidden" name="ajax_action" value="send_notification">
-                        
+
                         <div class="form-group">
                             <label><i class="fa-solid fa-users"></i> ជ្រើសរើសអ្នកទទួល:</label>
                             <select name="recipient_type" id="recipient_type" class="form-control" required>
@@ -7083,7 +7111,7 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
                                 <option value="group">ក្រុមជំនាញ</option>
                             </select>
                         </div>
-                        
+
                         <div class="form-group" id="specific_users_group" style="display: none;">
                             <label><i class="fa-solid fa-user-check"></i> ជ្រើសរើសអ្នកប្រើប្រាស់:</label>
                             <select name="specific_users[]" multiple class="form-control" style="height: 150px;">
@@ -7100,7 +7128,7 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
                             </select>
                             <small class="form-text text-muted">ចុច Ctrl ដើម្បីជ្រើសរើសច្រើន</small>
                         </div>
-                        
+
                         <div class="form-group" id="group_selection_group" style="display: none;">
                             <label><i class="fa-solid fa-layer-group"></i> ជ្រើសរើសក្រុម:</label>
                             <select name="group_id" class="form-control">
@@ -7118,26 +7146,26 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
                                 ?>
                             </select>
                         </div>
-                        
+
                         <div class="form-group">
                             <label><i class="fa-solid fa-heading"></i> ប្រធានបទ:</label>
                             <input type="text" name="notification_title" class="form-control" required placeholder="ឧ. ការជូនដំណឹងសំខាន់">
                         </div>
-                        
+
                         <div class="form-group">
                             <label><i class="fa-solid fa-message"></i> ខ្លឹមសារ:</label>
                             <textarea name="notification_message" class="form-control" rows="5" required placeholder="សរសេរខ្លឹមសារការជូនដំណឹងនៅទីនេះ..."></textarea>
                         </div>
-                        
+
                         <div class="form-group">
                             <label><i class="fa-solid fa-calendar"></i> កាលបរិច្ឆេទផុតកំណត់ (Optional):</label>
                             <input type="datetime-local" name="expiry_date" class="form-control">
                         </div>
-                        
+
                         <button type="submit" class="btn btn-primary"><i class="fa-solid fa-paper-plane"></i> ផ្ញើការជូនដំណឹង</button>
                     </form>
                 </div>
-                
+
                 <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 5px rgba(0,0,0,0.05);">
                     <h3><i class="fa-solid fa-history"></i> ប្រវត្តិការជូនដំណឹង</h3>
                     <table class="table">
@@ -7155,7 +7183,7 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
                         </tbody>
                     </table>
                 </div>
-                
+
                 <script>
                 $(document).ready(function() {
                     // Toggle recipient selection
@@ -7169,11 +7197,11 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
                             $('#group_selection_group').show();
                         }
                     });
-                    
+
                     // Load notifications history
                     loadNotificationsHistory();
                 });
-                
+
                 function loadNotificationsHistory() {
                     $.ajax({
                         url: '',
@@ -7203,7 +7231,7 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
                 </script>
             <?php endif; ?>
 
-            <?php if ($current_page == 'users'): 
+            <?php if ($current_page == 'users'):
                 $user_action = $_GET['action'] ?? 'list_users';
             ?>
                 <?php if ($is_super_admin && ($user_action == 'edit_admin_access' || $user_action == 'edit_admin_subscription') && isset($_GET['id'])):
@@ -7228,7 +7256,7 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
                     ?>
                         <h2><i class="fa-solid fa-sitemap"></i> កំណត់ Page/Action Access សម្រាប់: **<?php echo $admin_name_display; ?>**</h2>
                         <p class="alert alert-info">Admin ID: **<?php echo htmlspecialchars($target_admin_id); ?>** | តួនាទី: **<?php echo $is_super_admin_target ? 'Super Admin' : 'Admin ធម្មតា'; ?>**</p>
-                        
+
                         <a href="?page=users&action=list_users#user-row-<?php echo htmlspecialchars($target_admin_id); ?>" class="btn btn-primary" style="margin-bottom: 20px;"><i class="fa-solid fa-arrow-left"></i> ត្រឡប់ទៅបញ្ជី Admin</a>
 
                         <?php if ($is_super_admin_target): ?>
@@ -7237,14 +7265,14 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
                             <form id="pageAccessForm" class="ajax-form">
                                 <input type="hidden" name="ajax_action" value="save_admin_page_access">
                                 <input type="hidden" name="target_admin_id" value="<?php echo htmlspecialchars($target_admin_id); ?>">
-                                
+
                                 <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 5px rgba(0,0,0,0.05);">
                                     <label><i class="fa-solid fa-list-check"></i> ជ្រើសរើស **Actions/Subpages** ដែល Admin **<?php echo $admin_name_display; ?>** អាចឃើញ:</label>
-                                    
-                                    <?php 
-                                    foreach ($admin_pages_list as $page_key => $actions): 
-                                        if ($page_key === 'dashboard') continue; 
-                                        
+
+                                    <?php
+                                    foreach ($admin_pages_list as $page_key => $actions):
+                                        if ($page_key === 'dashboard') continue;
+
                                         $has_allowed_action = false;
                                         foreach ($actions as $action_key => $name) {
                                             if (in_array($action_key, $allowed_action_keys)) {
@@ -7258,7 +7286,7 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
                                                 <i class="fa-solid fa-folder"></i> <?php echo htmlspecialchars(ucfirst($page_key)); ?>
                                             </summary>
                                             <div class="checkbox-container subpage-access" style="max-height: none; background: white; border-left: none;">
-                                                <?php foreach ($actions as $action_key => $name): 
+                                                <?php foreach ($actions as $action_key => $name):
                                                     if ($page_key === 'users' && $action_key === 'create_admin') continue;
 
                                                     $is_checked = in_array($action_key, $allowed_action_keys);
@@ -7271,7 +7299,7 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
                                             </div>
                                         </details>
                                     <?php endforeach; ?>
-                                    
+
                                     <div class="checkbox-item" style="flex: 1 1 45%; color: #2ecc71; margin-top: 15px;">
                                         <i class="fa-solid fa-circle-check"></i> **Dashboard** (Allowed by Default)
                                     </div>
@@ -7281,7 +7309,7 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
                             </form>
                         <?php endif; ?>
 
-                    <?php elseif ($user_action == 'edit_admin_subscription'): 
+                    <?php elseif ($user_action == 'edit_admin_subscription'):
                         $sub_info = $target_admin_info;
                         $expiry_input_value = '';
                         if (!empty($sub_info['expiry_datetime'])) {
@@ -7294,11 +7322,11 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
 
                         <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 5px rgba(0,0,0,0.05); margin-bottom: 30px;">
 							<h3 style="margin-top: 0; color: var(--primary-color);"><i class="fa-solid fa-calendar-check"></i> កំណត់ Subscription Access</h3>
-							
+
 							<form id="updateSubscriptionForm" class="ajax-form">
 								<input type="hidden" name="ajax_action" value="update_admin_subscription_settings">
                                 <input type="hidden" name="target_admin_id" value="<?php echo htmlspecialchars($target_admin_id); ?>">
-								
+
 								<div class="form-group">
 									<label for="access_mode"><i class="fa-solid fa-toggle-on"></i> របៀបចូលប្រើប្រាស់:</label>
 									<select name="access_mode" id="access_mode" class="form-control" onchange="toggleExpiryField(this.value)">
@@ -7312,7 +7340,7 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
 									<label for="expiry_datetime"><i class="fa-solid fa-calendar-alt"></i> ថ្ងៃ និងម៉ោងផុតកំណត់:</label>
 									<input type="datetime-local" name="expiry_datetime" id="expiry_datetime" class="form-control" value="<?php echo htmlspecialchars($expiry_input_value); ?>">
 								</div>
-								
+
 								<div class="form-group">
 									<label for="telegram_chat_id"><i class="fa-brands fa-telegram"></i> Telegram Chat ID (សម្រាប់ជូនដំណឹងជិតផុតកំណត់):</label>
 									<input type="text" name="telegram_chat_id" id="telegram_chat_id" class="form-control" placeholder="បញ្ចូល Chat ID របស់អ្នក" value="<?php echo htmlspecialchars($sub_info['telegram_chat_id'] ?? ''); ?>">
@@ -7323,7 +7351,7 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
 							</form>
 
 							<hr>
-							
+
 							<div id="subscription-renewal-area">
 								<h4 style="margin-top: 0;"><i class="fa-solid fa-repeat"></i> បន្តថ្ងៃប្រើប្រាស់</h4>
 								<p>បន្តថ្ងៃប្រើប្រាស់បន្ថែម **365 ថ្ងៃ** (1 ឆ្នាំ) ទៅលើថ្ងៃផុតកំណត់ដែលមានស្រាប់ ឬពីថ្ងៃនេះប្រសិនបើផុតកំណត់ហើយ។</p>
@@ -7360,7 +7388,7 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
                     $rules_stmt->execute();
                     $current_rules = $rules_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
                     $rules_stmt->close();
-                    
+
                     $ci_rules = array_filter($current_rules, fn($r) => $r['type'] == 'checkin');
                     $co_rules = array_filter($current_rules, fn($r) => $r['type'] == 'checkout');
                 ?>
@@ -7374,7 +7402,7 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
                                 <i class="fa-solid fa-arrow-left"></i> ត្រឡប់ទៅបញ្ជី
                             </a>
                         </div>
-                        
+
                         <!-- Quick Actions Card: Copy Feature -->
                         <div class="copy-feature-card" style="background: linear-gradient(135deg, #f6f8fa 0%, #edf2f7 100%); padding: 20px; border-radius: 16px; margin-bottom: 25px; border: 1px solid #e2e8f0; display: flex; align-items: center; gap: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.03);">
                             <div style="background: #3182ce; color: white; width: 45px; height: 45px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0;">
@@ -7405,12 +7433,12 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
                                 </button>
                             </div>
                         </div>
-                        
+
                         <form id="timeRulesForm" class="ajax-form">
                             <input type="hidden" name="ajax_action" value="save_time_rules">
                             <input type="hidden" name="rule_employee_id" value="<?php echo htmlspecialchars($employee_id); ?>">
                             <input type="hidden" id="rulesJsonInput" name="rules_json">
-                            
+
                             <div style="display: grid; grid-template-columns: 1fr; gap: 30px;">
                                 <!-- Check-in Section -->
                                 <div class="rules-section-card" style="background: white; padding: 25px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); border: 1px solid #edf2f7;">
@@ -7438,7 +7466,7 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
                                         <i class="fa-solid fa-plus-circle"></i> បន្ថែមចន្លោះម៉ោងចូល (Add Check-in Range)
                                     </button>
                                 </div>
-                                
+
                                 <!-- Check-out Section -->
                                 <div class="rules-section-card" style="background: white; padding: 25px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); border: 1px solid #edf2f7;">
                                     <h3 style="color: #2f855a; margin-top: 0; display: flex; align-items: center; gap: 10px; border-bottom: 2px solid #f0fff4; padding-bottom: 15px; margin-bottom: 20px;">
@@ -7532,7 +7560,7 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
                                 }
                                 $grp_stmt->close();
                             ?>
-                            
+
                             <?php
                                 // NEW: Dynamically generate form fields
                                 $fields_stmt = $mysqli->prepare("SELECT field_key, field_label, field_type, is_required FROM user_form_fields WHERE admin_id = ? ORDER BY field_order ASC");
@@ -7553,8 +7581,8 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
                                 }
                                 $fields_stmt->close();
                             ?>
-                            
-                 
+
+
                             <button type="submit" class="btn btn-primary" id="userFormSubmitBtn"><i class="fa-solid fa-circle-plus"></i> <span id="userFormSubmitLabel">បង្កើត User</span></button>
                         </form>
                         <script>
@@ -7617,7 +7645,7 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
                             });
                         })();
                     </script>
-                
+
                 <?php elseif ($user_action === 'create_admin' && hasPageAccess($mysqli, 'users', 'create_admin', $admin_id_check)): ?>
                     <h2 id="create-admin-form"><i class="fa-solid fa-user-secret"></i> បង្កើតគណនី Admin ថ្មី (សម្រាប់ Admin Panel)</h2>
                     <?php if ($is_super_admin): ?>
@@ -7640,13 +7668,13 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
                     $base_query = "SELECT employee_id, name, user_role, is_super_admin, access_mode, expiry_datetime, employment_status, leave_date, custom_data FROM users ";
                     $where_clause = "";
                     $selected_group_id = isset($_GET['group_id']) ? (int)$_GET['group_id'] : 0;
-                    
+
                     if (!$is_super_admin) {
                         $where_clause = " WHERE created_by_admin_id = '{$mysqli->real_escape_string($current_admin_id)}' OR employee_id = '{$mysqli->real_escape_string($current_admin_id)}' ";
                     }
-                    
+
                     $users_list = $mysqli->query($base_query . $where_clause . " ORDER BY employee_id ASC");
-                    
+
                     // ទាញយក Field Labels ទាំងអស់ម្តង ដើម្បីឱ្យដំណើរការលឿន
                     $admin_fields_map = [];
                     $fields_sql = "SELECT field_key, field_label FROM user_form_fields WHERE admin_id = ? ORDER BY id ASC";
@@ -7659,7 +7687,7 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
                         }
                         $fields_stmt->close();
                     }
-                    
+
                     if ($users_list && $users_list->num_rows > 0):
                     ?>
                     <div class="user-toolbar" role="toolbar" aria-label="User bulk/group actions">
@@ -7821,7 +7849,7 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
                                     } else {
                                         // Show avatar (if any) + up to 2 custom fields
                                         echo $avatar_html;
-                                        $display_parts = array_slice($info_parts, 0, 2); 
+                                        $display_parts = array_slice($info_parts, 0, 2);
                                         echo implode('<br>', $display_parts);
                                         if (count($info_parts) > 2) {
                                             echo '<br><small>...</small>';
@@ -7831,8 +7859,8 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
                                 </td>
                                 <td class="user-role-cell">
 									<span class='status-<?php echo strtolower($user['user_role'] ?? 'user'); ?>' style="background: <?php echo (strtolower($user['user_role'] ?? 'user') == 'admin') ? ($user['is_super_admin'] ? '#c0392b' : 'var(--primary-color)') : '#2ecc71'; ?>; padding: 4px 8px; border-radius: 4px; color: white; font-weight: 600;">
-										<?php 
-											if ($user['user_role'] == 'Admin') { echo $user['is_super_admin'] ? 'Super Admin' : 'Admin'; } 
+										<?php
+											if ($user['user_role'] == 'Admin') { echo $user['is_super_admin'] ? 'Super Admin' : 'Admin'; }
                                             else { echo htmlspecialchars($user['user_role'] ?? 'User'); }
 										?>
 									</span>
@@ -7840,7 +7868,7 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
                                 <td class="user-sub-cell">
                                     <?php if ($user['user_role'] == 'Admin'): ?>
                                         <span style="font-weight: 600; color: <?php echo $user['access_mode'] == 'Expired' ? '#e74c3c' : ($user['access_mode'] == 'Paid' ? '#2980b9' : '#e67e22'); ?>">
-                                            <?php echo htmlspecialchars($user['access_mode'] ?? 'Free'); ?> 
+                                            <?php echo htmlspecialchars($user['access_mode'] ?? 'Free'); ?>
                                             <?php echo ($user['access_mode'] == 'Paid' && $user['expiry_datetime']) ? '('.date('d/M/Y H:i', strtotime($user['expiry_datetime'])).')' : ''; ?>
                                         </span>
                                     <?php else: ?>
@@ -7873,7 +7901,7 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
                                         <span style="color:#7f8c8d; font-style:italic;">N/A</span>
                                     <?php endif; ?>
                                 </td>
-                                
+
                                 <td>
                                     <?php if ($user['user_role'] == 'User' && canManageTimeRules($mysqli, $admin_id_check)): ?>
                                         <a href="?page=users&action=edit_rules&id=<?php echo $user['employee_id']; ?>" class="btn btn-primary btn-sm"><i class="fa-solid fa-clock"></i> គ្រប់គ្រងច្បាប់ម៉ោង</a>
@@ -7927,12 +7955,12 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
                 <?php endif; ?>
 
             <?php endif; ?>
-            
-            <?php if ($current_page == 'locations'): 
+
+            <?php if ($current_page == 'locations'):
                 $location_action = $_GET['action'] ?? 'list_locations';
             ?>
                 <h2><i class="fa-solid fa-location-dot"></i> គ្រប់គ្រងទីតាំង និង QR Code</h2>
-              
+
                 <?php if ($location_action === 'create_location' && hasPageAccess($mysqli, 'locations', 'create_location', $admin_id_check)): ?>
                     <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 5px rgba(0,0,0,0.05); margin-bottom: 30px;">
                         <h3 style="margin-top: 0;"><i class="fa-solid fa-square-plus"></i> បង្កើតទីតាំង Check-In/Out ថ្មី</h3>
@@ -7970,7 +7998,7 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
                                     <details>
                                         <summary>ចុចដើម្បីជ្រើសរើសបុគ្គលិក</summary>
                                         <div class="checkbox-container">
-                                            <?php if ($users_only_list && $users_only_list->num_rows > 0): 
+                                            <?php if ($users_only_list && $users_only_list->num_rows > 0):
                                                 $users_only_list->data_seek(0);
                                                 while ($user = $users_only_list->fetch_assoc()): ?>
                                             <div class="checkbox-item">
@@ -7988,7 +8016,7 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
                                     <details>
                                         <summary>ចុចដើម្បីជ្រើសរើសទីតាំង</summary>
                                         <div class="checkbox-container">
-                                            <?php if ($locations_selection && $locations_selection->num_rows > 0): 
+                                            <?php if ($locations_selection && $locations_selection->num_rows > 0):
                                                 $locations_selection->data_seek(0);
                                                 while ($loc = $locations_selection->fetch_assoc()): ?>
                                             <div class="checkbox-item">
@@ -8018,13 +8046,13 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
                     if(!$is_super_admin) $loc_list_stmt->bind_param("s", $current_admin_id);
                     $loc_list_stmt->execute();
                     $locations_list = $loc_list_stmt->get_result();
-                    
+
                     if ($locations_list && $locations_list->num_rows > 0):
                     ?>
                     <table class="table">
                         <thead><tr><th>ID</th><th>ឈ្មោះទីតាំង</th><th>GPS (Lat, Lon)</th><th>រង្វង់ Default (m)</th><th>QR Code</th><th>សកម្មភាព</th></tr></thead>
                         <tbody>
-                        <?php while ($loc = $locations_list->fetch_assoc()): 
+                        <?php while ($loc = $locations_list->fetch_assoc()):
                                $qr_data_array = ['location_id' => $loc['id'], 'secret' => $loc['qr_secret']];
                                $qr_data_string = json_encode($qr_data_array);
                                $qr_url_small = 'https://quickchart.io/qr?size=80x80&text=' . urlencode($qr_data_string);
@@ -8062,9 +8090,9 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
                     <?php $locations_list->close(); else: ?>
                            <p style="font-style: italic;">មិនទាន់មានទីតាំង Check-In ណាមួយត្រូវបានបង្កើតនៅឡើយទេ។</p>
                     <?php endif; ?>
-                    
+
                     <hr style="border-top: 2px dashed #bdc3c7;">
-                    
+
                     <h3><i class="fa-solid fa-people-arrows"></i> បញ្ជីកំណត់ទីតាំងសម្រាប់បុគ្គលិក</h3>
                     <?php
                     $assigned_sql = "
@@ -8078,7 +8106,7 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
                     if(!$is_super_admin) $assigned_stmt->bind_param("s", $current_admin_id);
                     $assigned_stmt->execute();
                     $assigned_list = $assigned_stmt->get_result();
-                    
+
                     if ($assigned_list && $assigned_list->num_rows > 0):
                     ?>
                     <table class="table">
@@ -8108,13 +8136,13 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
 
             <?php endif; ?>
 
-           <?php if ($current_page == 'tokens'): 
+           <?php if ($current_page == 'tokens'):
     $token_action = $_GET['action'] ?? 'global_settings';
 ?>
     <h2><i class="fa-solid fa-lock-open"></i> គ្រប់គ្រង Token និង Session</h2>
 
     <?php if ($token_action === 'global_settings' && hasPageAccess($mysqli, 'tokens', 'global_settings', $admin_id_check)): ?>
-        
+
         <div class="tokens-page-section" style="background: white; padding: 25px; border-radius: 8px; box-shadow: 0 0 5px rgba(0,0,0,0.05);">
             <h3 style="margin-top: 0; margin-bottom: 20px;"><i class="fa-solid fa-key"></i> កំណត់ចំនួន Token អតិបរមា</h3>
             <?php
@@ -8139,7 +8167,7 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
                 <button type="submit" class="btn btn-primary"><i class="fa-solid fa-save"></i> រក្សាទុកការកំណត់</button>
             </form>
         </div>
-        
+
         <div class="tokens-page-section info-box">
             <h3 style="margin-top: 0; margin-bottom: 15px;"><i class="fa-solid fa-info-circle"></i> ព័ត៌មានបន្ថែម</h3>
             <ul>
@@ -8148,7 +8176,7 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
                 <li><strong>ផលប៉ះពាល់:</strong> ការកំណត់នេះនឹងអនុវត្តលើ User ទាំងអស់ដែលស្ថិតក្រោមការគ្រប់គ្រងរបស់អ្នក (Per-Admin)</li>
             </ul>
         </div>
-        
+
     <?php elseif ($token_action === 'active_sessions' && hasPageAccess($mysqli, 'tokens', 'active_sessions', $admin_id_check)): ?>
         <?php
         // Restrict visible sessions to this admin's users unless Super Admin
@@ -8166,7 +8194,7 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
         ?>
         <div class="tokens-page-section" style="background: white; padding: 25px; border-radius: 8px; box-shadow: 0 0 5px rgba(0,0,0,0.05);">
             <h3 style="margin-top: 0; margin-bottom: 20px;"><i class="fa-solid fa-list"></i> បញ្ជី Session សកម្ម</h3>
-            
+
             <?php if ($session_count > 0): ?>
                 <div class="session-count-info">
                     <i class="fa-solid fa-info-circle"></i> មាន <strong><?php echo $session_count; ?></strong> Session សកម្មសរុប។
@@ -8288,17 +8316,17 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
                 </form>
             <?php endif; ?>
 
-            <?php if ($current_page == 'settings'): 
+            <?php if ($current_page == 'settings'):
                 $settings_action = $_GET['action'] ?? 'panel_settings';
             ?>
                 <h2><i class="fa-solid fa-cogs"></i> ការកំណត់ប្រព័ន្ធ</h2>
-                
+
                 <?php if ($settings_action === 'panel_settings' && hasPageAccess($mysqli, 'settings', 'panel_settings', $admin_id_check)): ?>
                     <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 5px rgba(0,0,0,0.05); margin-bottom: 30px;">
                         <h3 style="margin-top: 0;"><i class="fa-solid fa-palette"></i> ការកំណត់ Panel ទូទៅ</h3>
                         <form id="panelSettingsForm" class="ajax-form" enctype="multipart/form-data">
                             <input type="hidden" name="ajax_action" value="save_panel_settings">
-                            
+
                             <div class="form-group">
                                 <label for="panel_title"><i class="fa-solid fa-pen-to-square"></i> ឈ្មោះ Admin Panel:</label>
                                 <input type="text" id="panel_title" name="panel_title" class="form-control" value="<?php echo htmlspecialchars($panel_title); ?>">
@@ -8322,7 +8350,7 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
                             </div>
                             <button type="submit" class="btn btn-primary"><i class="fa-solid fa-save"></i> រក្សាទុកការកំណត់ Panel</button>
                         </form>
-                        
+
                         <form id="compressImagesForm" style="margin-top: 30px; border-top: 1px dashed #ccc; padding-top: 20px;">
                             <h4 style="margin-top: 0; color: #e67e22;"><i class="fa-solid fa-compress"></i> Optimize Storage (Compress Images)</h4>
                             <p class="text-muted" style="font-size: 13px;">
@@ -8345,7 +8373,7 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
                         })();
                         </script>
                     </div>
-                <?php elseif ($settings_action === 'menu_settings' && hasPageAccess($mysqli, 'settings', 'menu_settings', $admin_id_check)): 
+                <?php elseif ($settings_action === 'menu_settings' && hasPageAccess($mysqli, 'settings', 'menu_settings', $admin_id_check)):
                     $menu_settings_stmt = $mysqli->prepare("SELECT menu_key, menu_text, menu_order FROM sidebar_settings WHERE admin_id = ? ORDER BY menu_order ASC");
                     $menu_settings_stmt->bind_param("s", $current_admin_id);
                     $menu_settings_stmt->execute();
@@ -8437,11 +8465,11 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
                         })();
                         </script>
                     </div>
-                
+
                 <?php elseif ($settings_action === 'manage_user_fields' && hasPageAccess($mysqli, 'settings', 'manage_user_fields', $admin_id_check)): ?>
                     <h2><i class="fa-solid fa-tasks"></i> គ្រប់គ្រង Fields សម្រាប់ទម្រង់បង្កើតអ្នកប្រើប្រាស់</h2>
                     <p>នៅទីនេះអ្នកអាចបន្ថែម, កែសម្រួល, ឬលុប Fields ដែលនឹងបង្ហាញនៅក្នុងទម្រង់ "បង្កើតអ្នកប្រើប្រាស់ថ្មី"។</p>
-                    
+
                     <div style="background: #ecf0f1; padding: 20px; border-radius: 8px; margin-bottom: 30px;">
                         <h3 style="margin-top:0"><i class="fa-solid fa-plus-circle"></i> បន្ថែម Field ថ្មី</h3>
                         <form id="addUserFieldForm" class="ajax-form">
@@ -8512,12 +8540,12 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
                             ?>
                         </tbody>
                      </table>
-                
+
                 <!-- START: បន្ថែមទំព័រថ្មីសម្រាប់គ្រប់គ្រង Fields សំណើរ -->
                 <?php elseif ($settings_action === 'manage_request_fields' && hasPageAccess($mysqli, 'settings', 'manage_request_fields', $admin_id_check)): ?>
                     <h2><i class="fa-solid fa-clipboard-list"></i> គ្រប់គ្រង Fields សម្រាប់ទម្រង់សំណើរ</h2>
                     <p>កំណត់ Fields បន្ថែមសម្រាប់ទម្រង់ស្នើសុំនីមួយៗ (សុំច្បាប់, OT ។ល។) ដែលនឹងបង្ហាញនៅលើ App របស់ User។</p>
-                    
+
                     <div style="background: #ecf0f1; padding: 20px; border-radius: 8px; margin-bottom: 30px;">
                         <h3 style="margin-top:0"><i class="fa-solid fa-plus-circle"></i> បន្ថែម Field សំណើរថ្មី</h3>
                         <form id="addRequestFieldForm" class="ajax-form">
@@ -8608,16 +8636,16 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
                             }
                             $fields_stmt->close();
                             ?>
-                      
+
                         </tbody>
                      </table>
                 <!-- END: បន្ថែមទំព័រថ្មី -->
-                
+
                   <!-- START: បន្ថែមកូដថ្មី -->
                 <?php elseif ($settings_action === 'manage_app_scan' && hasPageAccess($mysqli, 'settings', 'manage_app_scan', $current_admin_id)): ?>
                     <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 5px rgba(0,0,0,0.05); margin-bottom: 30px;">
                         <h3 style="margin-top: 0;"><i class="fa-solid fa-mobile-screen-button"></i> ការកំណត់សម្រាប់ App Scan (scan.php)</h3>
-                  
+
 
                         <form id="appScanSettingsForm" class="ajax-form" enctype="multipart/form-data">
                             <input type="hidden" name="ajax_action" value="save_app_scan_settings">
@@ -8653,7 +8681,7 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
                                 }
                             </script>
                             <div class="tab-divider"></div>
-                            
+
                             <div id="tab-header" class="form-section appscan-tab-panel active">
                                 <h4><i class="fa-solid fa-window-maximize"></i> ការកំណត់ Header</h4>
                                 <div class="form-group">
@@ -8674,7 +8702,7 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
                                 <div class="form-group">
                                     <label>Upload Logo (នឹងបង្ហាញជំនួសឈ្មោះបើបានជ្រើសរើស):</label>
                                     <input type="file" name="header_logo" class="form-control" accept="image/png, image/jpeg, image/gif, image/svg+xml">
-                                    <?php 
+                                    <?php
                                     $current_logo = get_app_scan_setting($mysqli, $current_admin_id, 'header_logo_path', '');
                                     if (!empty($current_logo) && file_exists($current_logo)): ?>
                                         <div style="margin-top: 10px;">Logo បច្ចុប្បន្ន: <img src="<?php echo htmlspecialchars($current_logo); ?>" alt="Current App Logo" style="max-height: 40px; background: #ddd; padding: 5px; border-radius: 4px;"></div>
@@ -8682,7 +8710,7 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
                                 </div>
                             </div>
 
-                            
+
                             <div id="tab-vis-skill" class="form-section appscan-tab-panel" style="border:1px dashed #dcdcdc; padding:12px; border-radius:8px; background:#f9fbfd;">
                                 <h4 style="margin-top:0;"><i class="fa-solid fa-user-graduate"></i> Visibility Overrides (Skill)</h4>
                                 <small class="text-muted" style="font-size:12px;">Fallback ទៅ Base បើមិនជ្រើស</small>
@@ -8694,9 +8722,9 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
                                         <option value="all" <?php echo ($skillMode == 'all') ? 'selected' : ''; ?>>បង្ហាញទាំងអស់ (All)</option>
                                         <option value="specific" <?php echo ($skillMode == 'specific') ? 'selected' : ''; ?>>ជ្រើសរើសបុគ្គលិក (Specific)</option>
                                     </select>
-                                    <input type="text" id="manual_scan_users_skill" name="manual_scan_specific_users__skill" class="form-control" 
-                                           placeholder="ID បុគ្គលិក (ចែកដោយសញ្ញាក្បៀស , )" 
-                                           value="<?php echo htmlspecialchars(get_app_scan_setting($mysqli, $current_admin_id, 'manual_scan_specific_users__skill', '')); ?>" 
+                                    <input type="text" id="manual_scan_users_skill" name="manual_scan_specific_users__skill" class="form-control"
+                                           placeholder="ID បុគ្គលិក (ចែកដោយសញ្ញាក្បៀស , )"
+                                           value="<?php echo htmlspecialchars(get_app_scan_setting($mysqli, $current_admin_id, 'manual_scan_specific_users__skill', '')); ?>"
                                            style="display: <?php echo ($skillMode == 'specific') ? 'block' : 'none'; ?>;">
                                 </div>
                                 <div class="checkbox-item"><input type="checkbox" name="show_attendance_card__skill" value="1" <?php echo (get_app_scan_setting($mysqli, $current_admin_id, 'show_attendance_card__skill', '') == '1') ? 'checked' : ''; ?>> Attendance Card</div>
@@ -8717,9 +8745,9 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
                                         <option value="all" <?php echo ($workerMode == 'all') ? 'selected' : ''; ?>>បង្ហាញទាំងអស់ (All)</option>
                                         <option value="specific" <?php echo ($workerMode == 'specific') ? 'selected' : ''; ?>>ជ្រើសរើសបុគ្គលិក (Specific)</option>
                                     </select>
-                                    <input type="text" id="manual_scan_users_worker" name="manual_scan_specific_users__worker" class="form-control" 
-                                           placeholder="ID បុគ្គលិក (ចែកដោយសញ្ញាក្បៀស , )" 
-                                           value="<?php echo htmlspecialchars(get_app_scan_setting($mysqli, $current_admin_id, 'manual_scan_specific_users__worker', '')); ?>" 
+                                    <input type="text" id="manual_scan_users_worker" name="manual_scan_specific_users__worker" class="form-control"
+                                           placeholder="ID បុគ្គលិក (ចែកដោយសញ្ញាក្បៀស , )"
+                                           value="<?php echo htmlspecialchars(get_app_scan_setting($mysqli, $current_admin_id, 'manual_scan_specific_users__worker', '')); ?>"
                                            style="display: <?php echo ($workerMode == 'specific') ? 'block' : 'none'; ?>;">
                                 </div>
                                 <div class="checkbox-item"><input type="checkbox" name="show_attendance_card__worker" value="1" <?php echo (get_app_scan_setting($mysqli, $current_admin_id, 'show_attendance_card__worker', '') == '1') ? 'checked' : ''; ?>> Attendance Card</div>
@@ -8729,8 +8757,8 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
                                 <div class="checkbox-item"><input type="checkbox" name="show_profile_footer__worker" value="1" <?php echo (get_app_scan_setting($mysqli, $current_admin_id, 'show_profile_footer__worker', '') == '1') ? 'checked' : ''; ?>> Profile Footer</div>
                                 <div class="checkbox-item"><input type="checkbox" name="show_home_footer__worker" value="1" <?php echo (get_app_scan_setting($mysqli, $current_admin_id, 'show_home_footer__worker', '') == '1') ? 'checked' : ''; ?>> Home Footer</div>
                             </div>
-                            
-                            
+
+
                             <div id="tab-labels-skill" class="form-section appscan-tab-panel" style="border:1px dashed #dcdcdc; padding:12px; border-radius:8px; background:#f4f8fa;">
                                 <h4 style="margin-top:0;"><i class="fa-solid fa-user-graduate"></i> Label Overrides (Skill)</h4>
                                 <div class="form-group"><label>Greeting (Skill):</label><input type="text" name="greeting_text__skill" class="form-control" value="<?php echo htmlspecialchars(get_app_scan_setting($mysqli, $current_admin_id, 'greeting_text__skill', '')); ?>" placeholder="Fallback: Base"></div>
@@ -9020,11 +9048,11 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
                         })();
                         </script>
                     </div>
-            
-            
+
+
                 <!-- END: បន្ថែមកូដថ្មី -->
-                
-                <?php elseif ($settings_action === 'login_page_settings' && hasPageAccess($mysqli, 'settings', 'login_page_settings', $admin_id_check)): 
+
+                <?php elseif ($settings_action === 'login_page_settings' && hasPageAccess($mysqli, 'settings', 'login_page_settings', $admin_id_check)):
                     $current_login_title = get_setting($mysqli, 'SYSTEM_WIDE', 'login_page_title', 'Admin Panel Login');
                     $current_login_logo = get_setting($mysqli, 'SYSTEM_WIDE', 'login_page_logo_path', '');
                     $current_login_icon = get_setting($mysqli, 'SYSTEM_WIDE', 'login_page_icon_class', 'fa-solid fa-user-shield');
@@ -9035,7 +9063,7 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
 
                         <form id="loginPageSettingsForm" class="ajax-form" enctype="multipart/form-data">
                             <input type="hidden" name="ajax_action" value="save_login_page_settings">
-                            
+
                             <div class="form-group">
                                 <label for="login_page_title"><i class="fa-solid fa-pen-to-square"></i> ចំណងជើងទំព័រ Login:</label>
                                 <input type="text" id="login_page_title" name="login_page_title" class="form-control" value="<?php echo htmlspecialchars($current_login_title); ?>">
@@ -9054,7 +9082,7 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
                                 <input type="text" id="login_page_icon_class" name="login_page_icon_class" class="form-control" value="<?php echo htmlspecialchars($current_login_icon); ?>" placeholder="ឧ. fa-solid fa-building-shield">
                                 <small class="form-text">ប្រើ Icon នេះប្រសិនបើគ្មានការ Upload Logo ទេ។ អាចរក Class បានពី <a href="https://fontawesome.com/search?o=r&m=free" target="_blank">Font Awesome</a>។</small>
                             </div>
-                            
+
                             <button type="submit" class="btn btn-primary"><i class="fa-solid fa-save"></i> រក្សាទុកការកំណត់ Login Page</button>
                         </form>
                     </div>
@@ -9065,7 +9093,7 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
 
         </div>
     </div>
-    
+
     <div class="footer">
         <?php echo $footer_text; ?>
     </div>
@@ -9177,7 +9205,7 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
         <div class="modal-body">
             <form id="editLocationForm" class="ajax-form">
                 <input type="hidden" name="ajax_action" value="update_location">
-                <input type="hidden" name="edit_loc_id" id="edit_loc_id">	
+                <input type="hidden" name="edit_loc_id" id="edit_loc_id">
                 <div class="form-group"><label><i class="fa-solid fa-map-pin"></i> ឈ្មោះទីតាំង:</label><input type="text" name="edit_loc_name" id="edit_loc_name" class="form-control" required></div>
                 <div style="display: flex; gap: 20px;">
                     <div class="form-group" style="flex: 1;"><label><i class="fa-solid fa-globe"></i> Latitude:</label><input type="text" name="edit_latitude" id="edit_latitude" class="form-control" required></div>
@@ -9234,7 +9262,7 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
             </div>
             <!-- Placeholder for Custom Data -->
             <div id="modal_req_custom_data_container"></div>
-            
+
             <h4 style="margin-top: 20px; margin-bottom: 5px; color: #34495e;"><i class="fa-solid fa-comment-dots"></i> មូលហេតុលម្អិត</h4>
             <div id="modal_req_reason" class="reason-box"></div>
         </div>
@@ -9482,7 +9510,7 @@ function showQrModal(qrUrl, filename) {
 	const qrImage = document.getElementById('qr-image-display');
 	const downloadLink = document.getElementById('download-link');
 	const locationName = filename.replace('QR_', '').replace('_ID', ' ID:').replace('.png', '');
-	qrImage.src = qrUrl;	
+	qrImage.src = qrUrl;
 	downloadLink.href = qrUrl;
 	downloadLink.download = filename;
 	document.getElementById('qr-modal-title').textContent = `QR Code: ${locationName}`;
@@ -9548,7 +9576,7 @@ function editUserModal(userId) {
                     formHtml += `<input type="${field.field_type}" name="custom[${field.field_key}]" class="form-control" value="${value}" ${required_attr}>`;
                     formHtml += `</div>`;
                 });
-                
+
                 formHtml += '<button type="submit" class="btn btn-success" style="width: 100%; margin-top: 15px;"><i class="fa-solid fa-save"></i> រក្សាទុកការកែសម្រួល</button>';
                 formHtml += '</form>';
                 container.html(formHtml);
@@ -9592,11 +9620,11 @@ function showRequestDetailsModal(requestData) {
     document.getElementById('modal_req_submitted').textContent = submittedDate;
     document.getElementById('modal_req_event_date').textContent = eventDate;
     document.getElementById('modal_req_reason').textContent = requestData.reason_detail || '(No reason provided)';
-    
+
     // NEW: Handle and display custom data
     const customContainer = document.getElementById('modal_req_custom_data_container');
     customContainer.innerHTML = ''; // Clear previous data
-    
+
     if (requestData.custom_data) {
         try {
             const customData = JSON.parse(requestData.custom_data);
@@ -9606,7 +9634,7 @@ function showRequestDetailsModal(requestData) {
                 for (const key in customData) {
                     let label = key.replace(/_/g, ' ').replace('custom ', '');
                     label = label.charAt(0).toUpperCase() + label.slice(1);
-                    
+
                     customHtml += `<div>${label}</div><div>${customData[key] || 'N/A'}</div>`;
                 }
                 customHtml += '</div>';
@@ -9631,7 +9659,7 @@ function showRequestDetailsModal(requestData) {
 function handleRequestAction(newStatus) {
     const requestId = document.getElementById('modal_req_id').value;
     const actionText = newStatus === 'Approved' ? 'យល់ព្រម' : 'បដិសេធ';
-    
+
     if (confirm(`តើអ្នកពិតជាចង់ "${actionText}" សំណើរនេះមែនទេ?`)) {
         $.ajax({
             type: 'POST', url: 'admin_attendance.php',
@@ -9640,7 +9668,7 @@ function handleRequestAction(newStatus) {
             success: function(response) {
                 if (response.status === 'success') {
                     showAjaxMessage('success', response.message);
-                    setTimeout(() => { window.location.reload(); }, 1500);
+                    smartPageRefresh(1500);
                 } else {
                     showAjaxMessage('error', response.message);
                 }
@@ -9991,12 +10019,64 @@ function showAjaxMessage(status, message) {
 	if (status === 'success') { setTimeout(() => container.fadeOut(500), 5000); }
 }
 
+/**
+ * Smart page refresh — reloads only the .main-content area via fetch
+ * instead of a full window.location.reload(). Falls back to full reload
+ * if partial fetch fails or the page structure has changed significantly.
+ */
+let _smartRefreshInProgress = false;
+function smartPageRefresh(delay = 0) {
+    if (delay > 0) {
+        setTimeout(() => smartPageRefresh(0), delay);
+        return;
+    }
+    if (_smartRefreshInProgress) return;
+    _smartRefreshInProgress = true;
+
+    const url = window.location.href;
+    fetch(url, { credentials: 'same-origin', headers: { 'X-Requested-With': 'smartRefresh' } })
+        .then(res => {
+            if (!res.ok) throw new Error('fetch failed: ' + res.status);
+            return res.text();
+        })
+        .then(html => {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            // Refresh main-content area only
+            const newMain = doc.querySelector('.main-content');
+            const curMain = document.querySelector('.main-content');
+            if (newMain && curMain) {
+                curMain.innerHTML = newMain.innerHTML;
+                // Re-init any inline scripts inside the refreshed content
+                curMain.querySelectorAll('script').forEach(oldScript => {
+                    const s = document.createElement('script');
+                    if (oldScript.src) s.src = oldScript.src;
+                    else s.textContent = oldScript.textContent;
+                    oldScript.parentNode.replaceChild(s, oldScript);
+                });
+                // Update pending badge if present
+                const newBadge = doc.querySelector('#pendingRequestsBadge');
+                const curBadge = document.querySelector('#pendingRequestsBadge');
+                if (newBadge && curBadge) curBadge.outerHTML = newBadge.outerHTML;
+                _smartRefreshInProgress = false;
+            } else {
+                // Structure mismatch — fall back to full reload
+                window.location.reload();
+            }
+        })
+        .catch(() => {
+            _smartRefreshInProgress = false;
+            window.location.reload();
+        });
+}
+
+
 function submitAjaxForm(formElement, initialResponse = null) {
 	const $form = $(formElement), action = $form.find('[name="ajax_action"]').val();
 	if (initialResponse) {
         if (initialResponse.status === 'success') {
             showAjaxMessage('success', initialResponse.message);
-            setTimeout(() => { window.location.reload(); }, 1500);
+            smartPageRefresh(1500);
         } else {
             showAjaxMessage('error', initialResponse.message);
         }
@@ -10019,9 +10099,9 @@ function submitAjaxForm(formElement, initialResponse = null) {
 			if (response.status === 'success') {
 				showAjaxMessage('success', response.message);
 				$form.closest('.modal').hide();
-                setTimeout(() => { 
-                    if(response.refresh_url) { window.location.href = response.refresh_url; } 
-                    else { window.location.reload(); }
+                setTimeout(() => {
+                    if(response.refresh_url) { window.location.href = response.refresh_url; }
+                    else { smartPageRefresh(0); }
                 }, 1500);
 			} else { showAjaxMessage('error', response.message); }
 		},
@@ -10041,7 +10121,7 @@ function submitAjaxFormWithFile(formElement) {
 		success: function(response) {
 			if (response.status === 'success') {
 				showAjaxMessage('success', response.message);
-                setTimeout(() => { window.location.reload(); }, 1500);
+                smartPageRefresh(1500);
 			} else { showAjaxMessage('error', response.message); }
 		},
         error: function(xhr) { showAjaxMessage('error', `មានកំហុស: ${xhr.responseText.substring(0, 100)}...`); },
@@ -10183,7 +10263,7 @@ $(document).ready(function() {
         e.preventDefault();
         submitAjaxForm(this);
     });
-	
+
 	$(document).on('click', '.ajax-delete-link', function(e) {
 		e.preventDefault();
 		const $this = $(this), message = $this.data('confirm') || 'តើអ្នកពិតជាចង់លុបទិន្នន័យនេះមែនទេ?';
@@ -10201,7 +10281,7 @@ $(document).ready(function() {
 				success: function(response) {
                     if (response.status === 'success') {
                         showAjaxMessage('success', response.message);
-                        setTimeout(() => { window.location.reload(); }, 1500);
+                        smartPageRefresh(1500);
                     } else {
                         showAjaxMessage('error', response.message);
                     }
@@ -10220,7 +10300,7 @@ $(document).ready(function() {
 			addTimeRule('checkout', '16:00:00', '16:59:59', 'Late');
 		}
 	}
-	
+
 	$('.submenu-toggle').on('click', function(event) {
         event.preventDefault();
         const parentItem = $(this).closest('.sidebar-item');
@@ -10288,7 +10368,7 @@ $(document).ready(function() {
         const logId = $cell.data('log-id');
         const noted = $cell.text().trim();
         if (!logId) return;
-        
+
         // Visual indicator: Saving...
         const originalBg = $cell.css('backgroundColor');
         $cell.css('backgroundColor', '#fef9c3'); // Light yellow indicating pending
@@ -10305,11 +10385,11 @@ $(document).ready(function() {
                         displayHtml = '<a href="' + noted.replace(/"/g, '&quot;') + '" target="_blank" rel="noopener noreferrer">' + noted.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</a>';
                     }
                     $cell.html(displayHtml);
-                    
+
                     // Success indicator: Flash green then fade back
                     $cell.css('backgroundColor', '#dcfce7'); // Light green
                     setTimeout(() => { $cell.css('backgroundColor', originalBg); }, 1000);
-                    
+
                     // Do NOT call showAjaxMessage to prevent scroll jump
                     // showAjaxMessage('success', 'Noted updated successfully.');
                 } else {
@@ -10379,7 +10459,7 @@ $(document).ready(function() {
             success: function(res) {
                 if (res.status === 'success') {
                     showAjaxMessage('success', res.message);
-                    setTimeout(() => { window.location.reload(); }, 1200);
+                    smartPageRefresh(1200);
                 } else {
                     showAjaxMessage('error', res.message || 'លុបបរាជ័យ');
                 }
@@ -10404,7 +10484,7 @@ $(document).ready(function() {
             success: function(res){
                 if (res.status === 'success') {
                     showAjaxMessage('success', res.message || 'បានកំណត់ក្រុម');
-                    setTimeout(()=> window.location.reload(), 1000);
+                    smartPageRefresh(1000);
                 } else {
                     showAjaxMessage('error', res.message || 'បរាជ័យក្នុងការកំណត់ក្រុម');
                 }
@@ -10663,15 +10743,15 @@ $(document).ready(function() {
         e.preventDefault();
         const dept = $(this).data('dept');
         if (!dept) return;
-        
+
         // Update active state
         $('#departmentTabs .nav-link').removeClass('active');
         $(this).addClass('active');
-        
+
         // Get current URL parameters
         const urlParams = new URLSearchParams(window.location.search);
         urlParams.set('filter_department', dept);
-        
+
         // Navigate to new URL
         const newUrl = window.location.pathname + '?' + urlParams.toString();
         window.location.href = newUrl;
@@ -10958,7 +11038,7 @@ function _aglTick(){
 var _aglVisible=false,_aglLastShow=0,_aglForceHideTimer=null,_aglAjaxDelayTimer=null,_aglBatchTimer=null,_aglActiveAjax=0;
 var _aglMinDisplay=140,_aglMaxDisplay=8000; // ms (shorter minimum & lower max to avoid long spins)
 // Thresholds for grouping multiple ajax calls
-var _aglShowDelay=120,_aglBatchWindow=160; // wait a short window to see if more calls join
+var _aglShowDelay=280,_aglBatchWindow=200; // increased delay to avoid flash on fast AJAX
 function showAdminLoader(message){
     var el=document.getElementById('adminGlobalLoader'); if(!el) return;
     var textEl=document.getElementById('adminGlobalLoaderText');
@@ -11030,7 +11110,7 @@ if(window.jQuery){(function($){
     $(document).ajaxSuccess(ajaxComplete);
     $(document).ajaxError(function(){ ajaxComplete(); });
     $(document).ajaxComplete(function(){ ajaxComplete(); });
-})(jQuery);} 
+})(jQuery);}
 // Hide on various lifecycle events
 document.addEventListener('DOMContentLoaded', function(){ hideAdminLoader(); });
 window.addEventListener('load', function(){ hideAdminLoader(); });
@@ -11038,53 +11118,96 @@ window.addEventListener('pageshow', function(){ hideAdminLoader(); });
 </script>
 
 <script>
-// Bind loader to page navigations and non-AJAX form submits
+// Bind loader ONLY to real full-page navigations — NOT dropdowns, tabs, modals, etc.
 (function(){
-    function shouldShowForLink(a){
-        if (!a) return false;
+    /**
+     * Returns true ONLY if clicking this <a> will cause the browser
+     * to navigate away from the current page (full page load).
+     */
+    function isRealNavigation(a) {
+        if (!a || a.tagName !== 'A') return false;
+
+        // External tab → browser handles it, no overlay needed
         if (a.target && a.target === '_blank') return false;
-        const href = a.getAttribute('href') || '';
-        if (!href || href === '#' || href.startsWith('javascript:') || href.startsWith('tel:') || href.startsWith('mailto:')) return false;
-        // Skip ajax-only or UI toggle links
-        if (a.classList.contains('ajax-delete-link') || a.dataset.toggle || a.dataset.bsToggle) return false;
-        // Typically our admin pages use admin_attendance.php; allow same-page anchors to pass
+
+        const href = (a.getAttribute('href') || '').trim();
+
+        // Empty / pure hash anchors (#, #section) — scroll only, no navigation
+        if (!href || href === '#' || /^#[^/]/.test(href)) return false;
+
+        // Non-http schemes
+        if (/^(javascript|tel|mailto|sms|data):/i.test(href)) return false;
+
+        // Bootstrap 4/5 toggle attributes → UI-only interaction
+        if (a.dataset.toggle || a.dataset.bsToggle ||
+            a.dataset.target || a.dataset.bsTarget ||
+            a.dataset.dismiss || a.dataset.bsDismiss ||
+            a.getAttribute('data-bs-toggle') ||
+            a.getAttribute('data-toggle')) return false;
+
+        // Element is inside a Bootstrap dropdown menu, tab-content, modal, sidebar toggle etc.
+        if (a.closest('.dropdown-menu') ||
+            a.closest('[role="menu"]') ||
+            a.closest('.modal') ||
+            a.closest('.offcanvas') ||
+            a.classList.contains('dropdown-item') ||
+            a.classList.contains('dropdown-toggle') ||
+            a.classList.contains('nav-link') ||   // Bootstrap tab nav links (handled by JS)
+            a.classList.contains('ajax-delete-link') ||
+            a.classList.contains('no-loader')) return false;
+
+        // aria roles that indicate UI-only
+        const role = (a.getAttribute('role') || '').toLowerCase();
+        if (role === 'button' || role === 'tab' || role === 'menuitem') return false;
+
+        // Has onclick that likely returns false (JS-driven, not real nav)
+        // We can't inspect the function, but if defaultPrevented fires we cancel anyway
+
+        // Must contain admin_attendance.php or a relative path (same-site)
+        // Absolute external URLs → let browser handle without loader
+        if (/^https?:\/\//i.test(href) && !href.includes(window.location.hostname)) return false;
+
         return true;
     }
 
+    var _navLoaderTimer = null;
+
     // Capture link clicks early to show loader before navigation
-    document.addEventListener('click', function(e){
+    document.addEventListener('click', function(e) {
         const a = e.target && e.target.closest ? e.target.closest('a') : null;
-        if (!a) return;
-        if (!shouldShowForLink(a)) return;
-        
-        showAdminLoader('កំពុងផ្ទុកទំព័រ...');
-        
-        // Safety: If the page doesn't unload within 10 seconds, hide the loader (maybe server error or heavy file download)
-        setTimeout(function(){
-            hideAdminLoader();
-        }, 10000);
+        if (!a || !isRealNavigation(a)) return;
+
+        // Don't show loader if the event is going to be prevented (e.g. AJAX intercept)
+        // Use a tiny delay so preventDefault() by other listeners fires first
+        _navLoaderTimer = setTimeout(function() {
+            if (!e.defaultPrevented) {
+                showAdminLoader('កំពុងផ្ទុកទំព័រ...');
+                // Safety hide if page doesn't unload (file download, server error, js cancelled it)
+                setTimeout(function(){ hideAdminLoader(); }, 10000);
+            }
+        }, 30); // 30ms — enough for other listeners to preventDefault, tiny for UX
     }, true);
 
     // Non-AJAX form submits
-    document.addEventListener('submit', function(e){
+    document.addEventListener('submit', function(e) {
         const form = e.target;
         if (!(form && form.tagName === 'FORM')) return;
-        if (form.classList && form.classList.contains('ajax-form')) return;
-        
+        // Skip AJAX forms
+        if (form.classList && (form.classList.contains('ajax-form') || form.dataset.ajaxForm)) return;
+        // Skip forms handled by submitAjaxForm / submitAjaxFormWithFile
+        if (form.querySelector('[name="ajax_action"]')) return;
+
         showAdminLoader('កំពុងដំណើរការ...');
-        
-        // Safety: hide after 15s if it feels stuck
-        setTimeout(function(){
-            hideAdminLoader();
-        }, 15000);
+        setTimeout(function(){ hideAdminLoader(); }, 15000);
     }, true);
 
-    // As a safety net, show loader on page unload transitions
-    window.addEventListener('beforeunload', function(){
+    // Safety net: show on actual browser unload
+    window.addEventListener('beforeunload', function() {
         try { if (typeof showAdminLoader === 'function') showAdminLoader('កំពុងផ្ទុកទំព័រ...'); } catch(_){}
     });
 })();
 </script>
+
 
     <!-- QRCode Styling Library -->
     <script src="https://cdn.jsdelivr.net/npm/qr-code-styling@1.6.0/lib/qr-code-styling.js"></script>
@@ -11611,27 +11734,27 @@ window.addEventListener('pageshow', function(){ hideAdminLoader(); });
 
     </script>
 
-    
+
     <script>
     (function() {
         const searchBtn = document.getElementById('searchUserBtn');
         const idInput = document.getElementById('searchUserID');
         const nameInput = document.getElementById('searchUserName');
-        
+
         if (!searchBtn || !idInput || !nameInput) return;
 
         function filterUsers() {
             const idQuery = idInput.value.toLowerCase().trim();
             const nameQuery = nameInput.value.toLowerCase().trim();
             const rows = document.querySelectorAll('#usersTableBody tr.user-row');
-            
+
             rows.forEach(row => {
                 const idText = (row.cells[1] ? row.cells[1].textContent : '').toLowerCase();
                 const nameText = (row.cells[2] ? row.cells[2].textContent : '').toLowerCase();
-                
+
                 const matchesId = idQuery === '' || idText.includes(idQuery);
                 const matchesName = nameQuery === '' || nameText.includes(nameQuery);
-                
+
                 if (matchesId && matchesName) {
                     row.style.display = '';
                 } else {
@@ -11714,7 +11837,7 @@ window.addEventListener('pageshow', function(){ hideAdminLoader(); });
             background: #fff;
         }
         @page { size: A4; margin: 10mm; }
-        
+
         /* Ensure table styles carry over */
         .print-table th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         .print-table tr:nth-child(even) { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -11727,10 +11850,10 @@ window.addEventListener('pageshow', function(){ hideAdminLoader(); });
     .print-header { text-align: center; margin-bottom: 20px; }
     .print-logo-text { font-family: 'Khmer OS Moul', 'Khmer OS Siemreap', sans-serif; color: #b7950b; font-weight: bold; font-size: 28px; margin-bottom: 2px; }
     .print-company { font-weight: bold; font-size: 20px; color: #b7950b; margin-bottom: 15px; letter-spacing: 2px; }
-    
+
     .print-title-block { background: #1e2d4a !important; color: #ffc107 !important; padding: 15px; text-align: center; border-radius: 4px; margin-bottom: 5px; }
     .print-title-block h1 { margin: 0; font-size: 24px; font-weight: bold; font-family: 'Khmer OS Moul', sans-serif; }
-    
+
     .print-subtitle-block { background: #1e2d4a !important; color: #fff !important; padding: 10px; text-align: center; border-radius: 4px; margin-bottom: 20px; }
     .print-info { color: #f1c40f !important; font-size: 15px; font-weight: bold; margin-bottom: 5px; }
     .print-range { font-size: 13px; }
@@ -11742,13 +11865,13 @@ window.addEventListener('pageshow', function(){ hideAdminLoader(); });
     .print-table td:nth-child(3), .print-table td:nth-child(5) { text-align: left; }
     .print-table tr:nth-child(even) { background-color: #fff9e6 !important; }
     .print-table tfoot td { background: #ffc107 !important; color: #000 !important; font-weight: bold; padding: 8px; border: 1px solid #000; }
-    
+
     .print-footer { display: flex; justify-content: space-between; margin-top: 40px; padding: 0 40px; }
     .sig-block { text-align: center; width: 40%; }
     .sig-title { font-weight: bold; margin-bottom: 80px; font-size: 14px; line-height: 1.6; }
     .sig-name { font-weight: bold; border-top: 1px solid #000; display: inline-block; width: 220px; padding-top: 5px; margin-top: 10px; }
     .sig-date { font-size: 12px; margin-top: 5px; }
-    
+
     .print-date-location { text-align: right; width: 100%; font-size: 12px; margin-bottom: 20px; padding-right: 40px; }
     </style>
 
@@ -11761,7 +11884,7 @@ window.addEventListener('pageshow', function(){ hideAdminLoader(); });
         let tableId = '';
         let rangeStr = '';
         let deptStr = '';
-        
+
         if (type === 'late') {
             title = 'របាយការណ៍បុគ្គលិកមកយឺត';
             tableId = 'lateReportSummaryTable';
@@ -11778,7 +11901,7 @@ window.addEventListener('pageshow', function(){ hideAdminLoader(); });
         const endDate = document.querySelector('input[name="end_date"]')?.value || '';
         const activeTab = document.querySelector('.nav-link.active');
         const dept = activeTab ? activeTab.textContent.trim() : '';
-        
+
         rangeStr = `គិតចាប់ពីថ្ងៃទី ${startDate} ដល់ថ្ងៃទី ${endDate}`;
         deptStr = `សម្រាប់បុគ្គលិក${dept}`;
 
@@ -11798,7 +11921,7 @@ window.addEventListener('pageshow', function(){ hideAdminLoader(); });
             <table class="print-table">
                 ${sourceTable.innerHTML}
             </table>
-            
+
             <div class="print-date-location">
                 ថ្ងៃអង្គារ ៦កើត ខែបុស្ស ឆ្នាំរោង ឆស័ក ព.ស.២៥៦៩<br>
                 រាជធានីភ្នំពេញ, ថ្ងៃទី .... ខែ .... ឆ្នាំ ២០២៦
@@ -11827,17 +11950,17 @@ window.addEventListener('pageshow', function(){ hideAdminLoader(); });
         var dataType = 'application/vnd.ms-excel';
         var tableSelect = document.getElementById(tableID);
         if (!tableSelect) return;
-        
+
         var tableHTML = tableSelect.outerHTML.replace(/ /g, '%20');
-        
+
         // Specify file name
         filename = filename ? filename + '.xls' : 'excel_data.xls';
-        
+
         // Create download link element
         downloadLink = document.createElement("a");
-        
+
         document.body.appendChild(downloadLink);
-        
+
         if(navigator.msSaveOrOpenBlob){
             var blob = new Blob(['\ufeff', tableHTML], {
                 type: dataType
@@ -11846,10 +11969,10 @@ window.addEventListener('pageshow', function(){ hideAdminLoader(); });
         } else {
             // Create a link to the file
             downloadLink.href = 'data:' + dataType + ', ' + tableHTML;
-        
+
             // Setting the file name
             downloadLink.download = filename;
-            
+
             //triggering the function
             downloadLink.click();
         }

@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 session_start();
 
 // ===============================================
@@ -17,7 +17,7 @@ use Minishlink\WebPush\Subscription;
 
 function sendWebPushNotification($mysqli, $target_employee_id, $title, $body) {
     if (!$target_employee_id) return false;
-    
+
     // 1. Fetch subscriptions for the target user
     $sql = "SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE employee_id = ?";
     if ($stmt = $mysqli->prepare($sql)) {
@@ -35,7 +35,7 @@ function sendWebPushNotification($mysqli, $target_employee_id, $title, $body) {
             ]);
         }
         $stmt->close();
-        
+
         if (empty($subscriptions)) {
             error_log("[WebPush] No subscriptions found for employee: " . $target_employee_id);
             return false;
@@ -53,7 +53,7 @@ function sendWebPushNotification($mysqli, $target_employee_id, $title, $body) {
 
         try {
             $webPush = new WebPush($auth);
-            
+
             $payload = json_encode([
                 'title' => $title,
                 'body' => $body
@@ -164,12 +164,12 @@ $mysqli->query("CREATE TABLE IF NOT EXISTS users (
 
 // 2. Ensure push_subscriptions table exists
 $mysqli->query("CREATE TABLE IF NOT EXISTS push_subscriptions (
-    id INT AUTO_INCREMENT PRIMARY KEY, 
-    employee_id VARCHAR(50) NOT NULL, 
-    endpoint TEXT NOT NULL, 
-    p256dh VARCHAR(255) NOT NULL, 
-    auth VARCHAR(255) NOT NULL, 
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, 
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    employee_id VARCHAR(50) NOT NULL,
+    endpoint TEXT NOT NULL,
+    p256dh VARCHAR(255) NOT NULL,
+    auth VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY (endpoint(255))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
@@ -181,7 +181,7 @@ function haversine_distance($lat1, $lon1, $lat2, $lon2) {
     $lat2 = floatval($lat2); $lon2 = floatval($lon2);
     $dLat = deg2rad($lat2 - $lat1); $dLon = deg2rad($lon2 - $lon1);
     $lat1 = deg2rad($lat1); $lat2 = deg2rad($lat2);
-    $a = sin($dLat / 2) * sin($dLat / 2) + sin($dLon / 2) * sin($dLon / 2) * cos($lat1) * cos($lat2); 
+    $a = sin($dLat / 2) * sin($dLat / 2) + sin($dLon / 2) * sin($dLon / 2) * cos($lat1) * cos($lat2);
     $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
     return EARTH_RADIUS_KM * $c * 1000;
 }
@@ -352,7 +352,7 @@ if ($mysqli->connect_error) {
         exit;
     } else {
         // For standard page load, show the error
-        die("Database Connection Failed: Please check configuration. Error: " . $mysqli->connect_error); 
+        die("Database Connection Failed: Please check configuration. Error: " . $mysqli->connect_error);
     }
 }
 // -----------------------------------------------
@@ -465,7 +465,7 @@ function get_setting_typed($key, $default = '') {
 function is_manual_scan_allowed() {
     // 1. Check global mode ('all', 'specific', 'disabled' or old boolean '0'/'1' fallback)
     $mode = get_setting_typed('manual_scan_mode', 'disabled');
-    
+
     // Fallback for transition: if user had old boolean 'manual_scan_enabled' set to '1' but no mode set
     if ($mode === 'disabled') {
         $old_enabled = get_setting_typed('manual_scan_enabled', '0');
@@ -478,7 +478,7 @@ function is_manual_scan_allowed() {
     if ($mode === 'specific') {
         $current_id = $_SESSION['employee_id'] ?? '';
         if ($current_id === '') return false;
-        
+
         $allowed_list_str = get_setting_typed('manual_scan_specific_users', '');
         $allowed_ids = array_map('trim', explode(',', $allowed_list_str));
         // Simple case-insensitive check
@@ -622,7 +622,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'api_login') {
 // Helper function to remove white background using PHP GD
 function remove_white_background($base64_image) {
     global $mysqli; // Use the connection established above
-    
+
     // Check if GD is available first
     if (!extension_loaded('gd')) {
         return ['success' => false, 'message' => 'PHP GD extension is not loaded.'];
@@ -646,14 +646,14 @@ function remove_white_background($base64_image) {
 
     imagealphablending($img, false);
     imagesavealpha($img, true);
-    
+
     // Increased Tolerance to handle off-white/gray paper (40 is a good starting point)
-    $tolerance = 40; 
-    $white_threshold = 255 - $tolerance; 
-    
+    $tolerance = 40;
+    $white_threshold = 255 - $tolerance;
+
     $width = imagesx($img);
     $height = imagesy($img);
-    
+
     for ($x = 0; $x < $width; $x++) {
         for ($y = 0; $y < $height; $y++) {
             $color = imagecolorat($img, $x, $y);
@@ -682,9 +682,9 @@ function remove_white_background($base64_image) {
     imagedestroy($img);
 
     $base64 = 'data:' . $final_mime . ';base64,' . base64_encode($binary);
-    
+
     return [
-        'success' => true, 
+        'success' => true,
         'filePath' => $base64
     ];
 }
@@ -705,22 +705,22 @@ if (isset($_POST['action']) && $_POST['action'] === 'upload_signature') {
 
     if ($base64_data && is_string($base64_data)) {
         if (preg_match('/^data:image\/(png|jpeg|gif);base64,([a-zA-Z0-9\+\/]+={0,2})$/', $base64_data)) {
-            
+
             // Check approximate size (Base64 is ~1.33x binary size)
-            if (strlen($base64_data) > 5 * 1024 * 1024 * 1.5) { 
+            if (strlen($base64_data) > 5 * 1024 * 1024 * 1.5) {
                  $response['message'] = 'ទិន្នន័យរូបភាពធំពេក។ ទំហំអតិបរមា 5MB (Binary size).';
             } else {
                  $result = remove_white_background($base64_data);
-                 
+
                  if ($result['success']) {
                       // *** NEW: Save Processed Signature to History ***
                       $signature_base64_final = $result['filePath'];
                       // FIX: Use LONGTEXT field if signature is large (over 65KB). Ensure DB column is large enough.
                       $insert_sql = "INSERT INTO signature_history (employee_id, signature_base64) VALUES (?, ?)";
-                      
+
                       if ($stmt_insert = $mysqli->prepare($insert_sql)) {
                           $stmt_insert->bind_param("ss", $employee_id, $signature_base64_final);
-                          
+
                           if ($stmt_insert->execute()) {
                               // Delete oldest signatures if count > 5 (Cleanup)
                               $delete_old_sql = "DELETE FROM signature_history WHERE employee_id = ? AND created_at < (SELECT MIN(created_at) FROM (SELECT created_at FROM signature_history WHERE employee_id = ? ORDER BY created_at DESC LIMIT 5) AS T)";
@@ -733,7 +733,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'upload_signature') {
                               $response = [
                                   'success' => true,
                                   'message' => 'ហត្ថលេខាត្រូវបានកាត់ផ្ទៃខាងក្រោយដោយជោគជ័យ និងរក្សាទុក!',
-                                  'filePath' => $signature_base64_final 
+                                  'filePath' => $signature_base64_final
                               ];
                           } else {
                               $response['message'] = 'GD ជោគជ័យ ប៉ុន្តែរក្សាទុក DB បរាជ័យ៖ ' . $stmt_insert->error;
@@ -770,9 +770,9 @@ if (isset($_POST['action']) && $_POST['action'] === 'fetch_signature_history') {
     if (isset($_SESSION['employee_id'])) {
         $employee_id = $_SESSION['employee_id'];
         // Get the latest 5 signatures
-        $sql = "SELECT id, signature_base64, created_at FROM signature_history 
-                 WHERE employee_id = ? 
-                 ORDER BY created_at DESC 
+        $sql = "SELECT id, signature_base64, created_at FROM signature_history
+                 WHERE employee_id = ?
+                 ORDER BY created_at DESC
                  LIMIT 5";
 
         if ($stmt = $mysqli->prepare($sql)) {
@@ -789,7 +789,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'fetch_signature_history') {
                 ];
             }
             $stmt->close();
-            
+
             $response['success'] = true;
             $response['message'] = 'Successfully fetched signature history.';
             $response['data'] = $signatures;
@@ -816,28 +816,28 @@ if (isset($_POST['action']) && $_POST['action'] === 'fetch_last_action') {
 
         // Get the latest check-in/out record for today
         $today_start = date('Y-m-d 00:00:00');
-        $sql = "SELECT action_type FROM checkin_logs 
-                WHERE employee_id = ? 
+        $sql = "SELECT action_type FROM checkin_logs
+                WHERE employee_id = ?
                 AND log_datetime >= ?
-                ORDER BY log_datetime DESC 
+                ORDER BY log_datetime DESC
                 LIMIT 1";
 
         if ($stmt = $mysqli->prepare($sql)) {
             $stmt->bind_param("ss", $employee_id, $today_start);
             $stmt->execute();
             $result = $stmt->get_result();
-            
+
             $last_action = 'Check-Out'; // Default: If no log found today, the last action was 'Check-Out' yesterday.
 
             if ($row = $result->fetch_assoc()) {
                 $last_action = $row['action_type'];
             }
-            
+
             $stmt->close();
-            
+
             $response['success'] = true;
             // Send the LAST action performed. Frontend will calculate the NEXT suggested action.
-            $response['last_action'] = $last_action; 
+            $response['last_action'] = $last_action;
         } else {
             $response['message'] = "Database query preparation error: " . $mysqli->error;
         }
@@ -931,8 +931,8 @@ if (isset($_POST['ajax_action']) && $_POST['ajax_action'] === 'mark_notification
         $employee_id = $_SESSION['employee_id'];
         $notification_id = (int)$_POST['notification_id'];
 
-        $sql = "UPDATE user_notifications 
-                SET is_read = 1, read_at = NOW() 
+        $sql = "UPDATE user_notifications
+                SET is_read = 1, read_at = NOW()
                 WHERE notification_id = ? AND employee_id = ?";
 
         if ($stmt = $mysqli->prepare($sql)) {
@@ -965,13 +965,13 @@ if (isset($_POST['ajax_action']) && $_POST['ajax_action'] === 'mark_notification
 if (isset($_POST['action']) && $_POST['action'] === 'submit_request') {
     header('Content-Type: application/json');
     $response = ['success' => false, 'message' => 'កំហុស: មិនអាចដំណើរការសំណើបានទេ។'];
-    
+
     if (!isset($_SESSION['employee_id'])) {
         $response['message'] = 'User not authenticated. Please login again.';
         echo json_encode($response);
         exit;
     }
-    
+
     if (!isset($_POST['requestType']) || !isset($_POST['formDataJson'])) {
         $response['message'] = 'ទិន្នន័យសំណើមិនពេញលេញទេ។';
         echo json_encode($response);
@@ -980,16 +980,16 @@ if (isset($_POST['action']) && $_POST['action'] === 'submit_request') {
 
     $request_type = trim($_POST['requestType']);
     $employee_id = $_SESSION['employee_id'];
-    $name = ''; 
-    
+    $name = '';
+
     $request_date = date('Y-m-d H:i:s');
     $form_data_json = $_POST['formDataJson']; // Raw JSON from frontend
     $request_status = 'Pending';
-    
+
     $form_data_array = json_decode($form_data_json, true);
-    
+
     // ================== START: MAP FORM DATA TO NEW DB COLUMNS ==================
-    
+
     // 1. Initialize all specific fields to NULL
     $event_date = $event_start_time = $event_end_time = $contact_number = NULL;
     $leave_makeup_date = $leave_makeup_hours = $leave_total_hours = $leave_handoff_to = NULL;
@@ -1004,9 +1004,9 @@ if (isset($_POST['action']) && $_POST['action'] === 'submit_request') {
     else if($request_type === 'Forget-Attendance') $signature_field_key = 'signature_path_forget';
     else if($request_type === 'Late') $signature_field_key = 'signature_path_late';
     else if($request_type === 'Change-Day-Off') $signature_field_key = 'signature_path_cdo';
-    
+
     $signature_path = $form_data_array[$signature_field_key] ?? NULL;
-    
+
     // 3. Map Data based on Request Type
     if ($request_type === 'Leave') {
         $event_date = $form_data_array['leave_date'] ?? NULL;
@@ -1035,19 +1035,19 @@ if (isset($_POST['action']) && $_POST['action'] === 'submit_request') {
         $event_date = $form_data_array['late_date'] ?? NULL;
         $event_start_time = $form_data_array['actual_check_in_time'] ?? NULL;
         $reason_detail = $form_data_array['late_reason_text'] ?? '';
-        
+
     } else if ($request_type === 'Change-Day-Off') {
         $reason_detail = $form_data_array['change_day_off_reason'] ?? '';
         $original_day_off = $form_data_array['original_day_off'] ?? NULL;
         $new_work_day = $form_data_array['new_work_day'] ?? NULL;
         $new_day_off = $form_data_array['new_day_off'] ?? NULL;
     }
-    
+
     // Ensure reason_detail is not empty (since DB column is NOT NULL)
     if (empty($reason_detail)) {
         $reason_detail = "N/A - Request Type: " . $request_type;
     }
-    
+
     // Generate human-readable summary for Telegram/Logging (reusing old logic, slightly modified)
     $request_summary_text = '';
     if (is_array($form_data_array)) {
@@ -1061,7 +1061,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'submit_request') {
         }
         $request_summary_text = implode("\n", $summary_parts);
     }
-    
+
     // =================== END: MAP FORM DATA TO NEW DB COLUMNS ===================
 
 
@@ -1073,7 +1073,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'submit_request') {
            if ($result_name->num_rows == 1) $name = $result_name->fetch_assoc()['name'];
            $stmt_name->close();
     }
-    
+
     if (empty($name)) {
         $response['message'] = 'កំហុស: រកមិនឃើញឈ្មោះបុគ្គលិកទេ។';
         echo json_encode($response);
@@ -1087,26 +1087,26 @@ if (isset($_POST['action']) && $_POST['action'] === 'submit_request') {
         leave_makeup_date, leave_makeup_hours, leave_total_hours, leave_handoff_to,
         forget_type, forgot_count, original_day_off, new_work_day, new_day_off
     ) VALUES (
-        ?, ?, ?, ?, ?, ?, 
-        ?, ?, ?, ?, ?, 
-        ?, ?, ?, ?, 
+        ?, ?, ?, ?, ?, ?,
+        ?, ?, ?, ?, ?,
+        ?, ?, ?, ?,
         ?, ?, ?, ?, ?
     )";
-    
+
     if ($stmt_insert = $mysqli->prepare($insert_sql)) {
         // **MODIFIED BIND PARAMETERS** (20 parameters for 20 columns)
         // Using 's' for most columns as they come from form input and MySQL can handle conversion
-        $stmt_insert->bind_param("ssssssssssssssssssss", 
+        $stmt_insert->bind_param("ssssssssssssssssssss",
             $employee_id, $name, $request_type, $request_status, $request_date, $signature_path,
             $event_date, $event_start_time, $event_end_time, $reason_detail, $contact_number,
             $leave_makeup_date, $leave_makeup_hours, $leave_total_hours, $leave_handoff_to,
             $forget_type, $forgot_count, $original_day_off, $new_work_day, $new_day_off
         );
-        
+
         if ($stmt_insert->execute()) {
             $response['success'] = true;
             $response['message'] = "ការស្នើសុំ{$request_type}ត្រូវបានដាក់ស្នើជោគជ័យ! រង់ចាំការអនុម័ត។";
-            
+
             // --- Send Telegram Notification ---
             // Build request telegram message from template
             $tpl = get_setting('telegram_tpl_request', '<b>[NEW REQUEST]</b>\n<b>ប្រភេទ:</b> {{request_type}}\n<b>ឈ្មោះ:</b> {{name}}\n<b>ID:</b> {{employee_id}}\n<b>ព័ត៌មានលម្អិត:</b> {{summary}}\n<b>ម៉ោង:</b> {{time}}');
@@ -1143,7 +1143,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'submit_request') {
             $admin_id_to_notify = get_current_admin_id($mysqli);
             sendWebPushNotification($mysqli, $admin_id_to_notify, "New Request: {$request_type}", strip_tags(str_replace('\n', "\n", $telegram_msg)));
             // ---------------------------------
-            
+
         } else {
             $response['message'] = "កំហុសពេលបញ្ចូល DB: " . $stmt_insert->error;
             error_log("DB INSERT ERROR for request: " . $stmt_insert->error);
@@ -1167,17 +1167,17 @@ if (isset($_POST['action']) && $_POST['action'] === 'fetch_requests') {
 
     if (isset($_SESSION['employee_id'])) {
         $employee_id = $_SESSION['employee_id'];
-        
+
         // **MODIFIED SQL STATEMENT**
-        $sql = "SELECT 
-            request_type, request_status, submitted_at, 
-            event_date, event_start_time, event_end_time, 
-            reason_detail, forget_type, 
-            original_day_off, new_day_off, 
+        $sql = "SELECT
+            request_type, request_status, submitted_at,
+            event_date, event_start_time, event_end_time,
+            reason_detail, forget_type,
+            original_day_off, new_day_off,
             leave_makeup_date, leave_total_hours
-        FROM requests_logs 
-        WHERE employee_id = ? 
-        ORDER BY submitted_at DESC 
+        FROM requests_logs
+        WHERE employee_id = ?
+        ORDER BY submitted_at DESC
         LIMIT 20";
 
         if ($stmt = $mysqli->prepare($sql)) {
@@ -1214,7 +1214,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'fetch_requests') {
                     $new = $row['new_day_off'] ?? 'N/A';
                     $reason_summary = "CDO {$original} -> {$new}";
                 }
-                
+
                 $requests[] = [
                     'type' => $request_type,
                     'status' => $row['request_status'],
@@ -1223,7 +1223,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'fetch_requests') {
                 ];
             }
             $stmt->close();
-            
+
             $response['success'] = true;
             $response['message'] = 'Successfully fetched request logs.';
             $response['data'] = $requests;
@@ -1247,7 +1247,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'fetch_request_counts') {
     if (isset($_SESSION['employee_id'])) {
         $employee_id = $_SESSION['employee_id'];
         $request_counts_ajax = ['Pending' => 0, 'Approved' => 0, 'Rejected' => 0];
-        
+
         $sql_counts = "SELECT request_status, COUNT(*) as count FROM requests_logs WHERE employee_id = ? GROUP BY request_status";
         if ($stmt_counts = $mysqli->prepare($sql_counts)) {
             $stmt_counts->bind_param("s", $employee_id);
@@ -1345,12 +1345,12 @@ if (isset($_POST['action']) && $_POST['action'] === 'fetch_locations') {
         }
 
         // Fetch locations created by the same admin, including radius and assignment status
-        $sql = "SELECT l.id, l.location_name, l.latitude, l.longitude, 
+        $sql = "SELECT l.id, l.location_name, l.latitude, l.longitude,
                        COALESCE(ul.custom_radius_meters, l.radius_meters) AS final_radius,
                        CASE WHEN ul.employee_id IS NOT NULL THEN 1 ELSE 0 END AS is_assigned
-                FROM locations l 
-                LEFT JOIN user_locations ul ON l.id = ul.location_id AND ul.employee_id = ? 
-                WHERE l.created_by_admin_id = ? 
+                FROM locations l
+                LEFT JOIN user_locations ul ON l.id = ul.location_id AND ul.employee_id = ?
+                WHERE l.created_by_admin_id = ?
                 ORDER BY is_assigned DESC, l.location_name";
         if ($stmt = $mysqli->prepare($sql)) {
             $stmt->bind_param("ss", $employee_id, $created_by_admin_id);
@@ -1361,7 +1361,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'fetch_locations') {
                 $locations[] = $row;
             }
             $stmt->close();
-            
+
             $response['success'] = true;
             $response['message'] = 'Successfully fetched locations.';
             $response['data'] = $locations;
@@ -1384,9 +1384,9 @@ if (isset($_POST['action']) && $_POST['action'] === 'fetch_attendance_logs') {
     if (isset($_SESSION['employee_id'])) {
         $employee_id = $_SESSION['employee_id'];
         $selected_date = $_POST['selected_date'] ?? date('Y-m-d');
-        
-        $sql = "SELECT log_datetime, action_type, location_name, status 
-                FROM checkin_logs 
+
+        $sql = "SELECT log_datetime, action_type, location_name, status
+                FROM checkin_logs
                 WHERE employee_id = ? AND DATE(log_datetime) = ?
                 ORDER BY log_datetime DESC";
 
@@ -1455,7 +1455,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'evaluate_check_status') {
             $location_name_log = 'Manual Check';
             if ($user_location_raw && strpos($user_location_raw, ',') !== false) {
                 list($user_lat, $user_lon) = array_map('floatval', array_map('trim', explode(',', $user_location_raw)));
-                
+
                 // Find closest location
                 $created_by_admin_id = '';
                 $u_sql = "SELECT created_by_admin_id FROM users WHERE employee_id = ? LIMIT 1";
@@ -1469,8 +1469,8 @@ if (isset($_POST['action']) && $_POST['action'] === 'evaluate_check_status') {
 
                 $sql_locs = "SELECT l.latitude, l.longitude, l.location_name, COALESCE(ul.custom_radius_meters, l.radius_meters) AS final_radius,
                              CASE WHEN ul.employee_id IS NOT NULL THEN 1 ELSE 0 END AS is_assigned
-                             FROM locations l 
-                             LEFT JOIN user_locations ul ON l.id = ul.location_id AND ul.employee_id = ? 
+                             FROM locations l
+                             LEFT JOIN user_locations ul ON l.id = ul.location_id AND ul.employee_id = ?
                              WHERE l.created_by_admin_id = ?";
                 if ($stmt_l = $mysqli->prepare($sql_locs)) {
                     $stmt_l->bind_param("ss", $employee_id, $created_by_admin_id);
@@ -1596,12 +1596,12 @@ if (isset($_POST['ajax_action']) && $_POST['ajax_action'] === 'save_push_subscri
         if ($subscription && isset($subscription['endpoint'])) {
             // Create table if not exists (defensive)
             $mysqli->query("CREATE TABLE IF NOT EXISTS push_subscriptions (
-                id INT AUTO_INCREMENT PRIMARY KEY, 
-                employee_id VARCHAR(50) NOT NULL, 
-                endpoint TEXT NOT NULL, 
-                p256dh VARCHAR(255) NOT NULL, 
-                auth VARCHAR(255) NOT NULL, 
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, 
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                employee_id VARCHAR(50) NOT NULL,
+                endpoint TEXT NOT NULL,
+                p256dh VARCHAR(255) NOT NULL,
+                auth VARCHAR(255) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE KEY (endpoint(255))
             )");
 
@@ -1609,10 +1609,10 @@ if (isset($_POST['ajax_action']) && $_POST['ajax_action'] === 'save_push_subscri
             $p256dh   = $subscription['keys']['p256dh'] ?? '';
             $auth     = $subscription['keys']['auth'] ?? '';
 
-            $sql = "INSERT INTO push_subscriptions (employee_id, endpoint, p256dh, auth) 
-                    VALUES (?, ?, ?, ?) 
+            $sql = "INSERT INTO push_subscriptions (employee_id, endpoint, p256dh, auth)
+                    VALUES (?, ?, ?, ?)
                     ON DUPLICATE KEY UPDATE employee_id = ?, p256dh = ?, auth = ?";
-            
+
             if ($stmt = $mysqli->prepare($sql)) {
                 $stmt->bind_param("sssssss", $employee_id, $endpoint, $p256dh, $auth, $employee_id, $p256dh, $auth);
                 if ($stmt->execute()) {
@@ -1649,7 +1649,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'fetch_client_config') {
             $res = $stmt->get_result();
             if ($user = $res->fetch_assoc()) {
                 $custom_data = json_decode($user['custom_data'] ?? '{}', true) ?: [];
-                
+
                 // 2. Check Manual Scan Permission
                 $manual_allowed = is_manual_scan_allowed();
 
@@ -1698,17 +1698,17 @@ if (isset($_GET['logout'])) {
         }
     }
     session_destroy();
-    setcookie("auth_token", "", time() - 3600, "/"); 
-    setcookie("scan_user_type", "", time() - 3600, "/"); 
+    setcookie("auth_token", "", time() - 3600, "/");
+    setcookie("scan_user_type", "", time() - 3600, "/");
     header("location: scan.php"); exit;
 }
 
 // --- Auto-Login via Token ---
 $token = $_SESSION['auth_token'] ?? ($_COOKIE['auth_token'] ?? null);
 if ($token) {
-    $sql = "SELECT u.employee_id, u.name, u.custom_data 
-            FROM users u 
-            JOIN active_tokens at ON u.employee_id = at.employee_id 
+    $sql = "SELECT u.employee_id, u.name, u.custom_data
+            FROM users u
+            JOIN active_tokens at ON u.employee_id = at.employee_id
             WHERE at.auth_token = ?";
     if ($stmt = $mysqli->prepare($sql)) {
         $stmt->bind_param("s", $token); $stmt->execute();
@@ -1751,7 +1751,7 @@ if (!$is_logged_in && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['logi
         $result = $stmt->get_result();
         if ($result->num_rows == 1) {
             $user_db = $result->fetch_assoc();
-            $max_tokens = (int)($user_db['max_tokens_allowed'] ?? 1); 
+            $max_tokens = (int)($user_db['max_tokens_allowed'] ?? 1);
             $count_sql = "SELECT COUNT(*) FROM active_tokens WHERE employee_id = ?";
             $stmt_count = $mysqli->prepare($count_sql);
             $stmt_count->bind_param("s", $employee_id); $stmt_count->execute();
@@ -1781,13 +1781,13 @@ if (!$is_logged_in && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['logi
                     if (!$dept_ok) {
                         $error_message = "នាយកដ្ឋានរបស់អ្នក (" . htmlspecialchars($normalized_dept) . ") មិនមានក្នុងបញ្ជីអនុញ្ញាតសម្រាប់ប្រភេទនេះទេ។";
                     } elseif (empty($error_message)) {
-                        $new_token = bin2hex(random_bytes(32)); 
+                        $new_token = bin2hex(random_bytes(32));
                         $insert_token_sql = "INSERT INTO active_tokens (employee_id, auth_token) VALUES (?, ?)";
                         if ($insert_stmt = $mysqli->prepare($insert_token_sql)) {
                             $insert_stmt->bind_param("ss", $employee_id, $new_token); $insert_stmt->execute(); $insert_stmt->close();
                             $_SESSION['employee_id'] = $employee_id; $_SESSION['auth_token'] = $new_token; $_SESSION['scan_user_type'] = $scan_user_type;
-                            setcookie("auth_token", $new_token, time() + (86400 * 365), "/"); 
-                            setcookie("scan_user_type", $scan_user_type, time() + (86400 * 365), "/"); 
+                            setcookie("auth_token", $new_token, time() + (86400 * 365), "/");
+                            setcookie("scan_user_type", $scan_user_type, time() + (86400 * 365), "/");
                             $user_data = $user_db;
                             $custom_data = json_decode($user_db['custom_data'] ?? '{}', true);
                             $is_logged_in = true;
@@ -1821,7 +1821,7 @@ if ($is_logged_in && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['actio
     $log_datetime = date('Y-m-d H:i:s'); $current_time = date('H:i:s', strtotime($log_datetime));
     $late_reason = trim($_POST['late_reason'] ?? ''); $log_status = 'Good';
     $location_validity = 'Invalid QR'; $min_distance_m = 0.0;
-    
+
     $assigned_loc = null;
     $location_name_log = 'Unknown/Invalid Location';
     if ($qr_secret === 'manual') {
@@ -1837,7 +1837,7 @@ if ($is_logged_in && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['actio
         $min_distance_m = floatval($_POST['manual_distance'] ?? 0);
         if (strpos($user_location_raw, ',') !== false && $user_location_raw !== '0,0') {
             list($user_lat, $user_lon) = array_map('floatval', array_map('trim', explode(',', $user_location_raw)));
-            
+
             // Find closest location
             $created_by_admin_id = '';
             $u_sql = "SELECT created_by_admin_id FROM users WHERE employee_id = ? LIMIT 1";
@@ -1851,8 +1851,8 @@ if ($is_logged_in && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['actio
 
             $sql_locs = "SELECT l.latitude, l.longitude, l.location_name, COALESCE(ul.custom_radius_meters, l.radius_meters) AS final_radius,
                          CASE WHEN ul.employee_id IS NOT NULL THEN 1 ELSE 0 END AS is_assigned
-                         FROM locations l 
-                         LEFT JOIN user_locations ul ON l.id = ul.location_id AND ul.employee_id = ? 
+                         FROM locations l
+                         LEFT JOIN user_locations ul ON l.id = ul.location_id AND ul.employee_id = ?
                          WHERE l.created_by_admin_id = ?";
             if ($stmt_l = $mysqli->prepare($sql_locs)) {
                 $stmt_l->bind_param("ss", $employee_id, $created_by_admin_id);
@@ -1914,7 +1914,7 @@ if ($is_logged_in && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['actio
         } else { $error_message = "កំហុស QR: QR ID នេះមិនមាន ឬមិនត្រូវបានអនុញ្ញាតសម្រាប់លោកអ្នកទេ។"; }
             $stmt_qr->close();
         }
-        
+
         if ($location_validity === 'QR Valid' && strpos($user_location_raw, ',') !== false) {
             list($user_lat, $user_lon) = array_map('floatval', array_map('trim', explode(',', $user_location_raw)));
             $distance_m = haversine_distance($user_lat, $user_lon, $assigned_loc['latitude'], $assigned_loc['longitude']);
@@ -1923,7 +1923,7 @@ if ($is_logged_in && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['actio
             else { $error_message = "កំហុស Geo: អ្នកនៅឆ្ងាយពីទីតាំងដែលបានស្កេន ({$min_distance_m}m / Max: {$assigned_loc['final_radius']}m)។"; $location_validity = 'Too Far'; }
         } elseif ($location_validity === 'QR Valid') { $error_message = "កំហុស GPS: មិនអាចទាញយកទីតាំងបច្ចុប្បន្នបានទេ។"; $location_validity = 'No GPS'; }
     }
-    
+
     $sql_rules = "SELECT status, start_time FROM attendance_rules WHERE employee_id = ? AND type = ? AND start_time <= ? AND end_time >= ? ORDER BY start_time DESC";
     $matched_rule_start = '';
     if ($stmt_rules = $mysqli->prepare($sql_rules)) {
@@ -1967,7 +1967,7 @@ if ($is_logged_in && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['actio
            // [កូដដែលបានកែសម្រួល] បម្លែងข้อมูล $custom_data ទៅជា JSON string
     $custom_fields_json = json_encode($custom_data, JSON_UNESCAPED_UNICODE);
 
-    $status_value_sql = "'" . $mysqli->real_escape_string($status_for_db) . "'"; 
+    $status_value_sql = "'" . $mysqli->real_escape_string($status_for_db) . "'";
 
     // CALCULATE LATE MINUTES (Moved here to save to DB)
     $late_minutes_val = 0;
@@ -1978,7 +1978,7 @@ if ($is_logged_in && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['actio
 
         $p_time = $matched_rule_start;
 
-        // If for some reason we don't have a matched rule start (shouldn't happen if status is Late), 
+        // If for some reason we don't have a matched rule start (shouldn't happen if status is Late),
         // fallback to the old logic of finding the latest Good slot or the first slot.
         if ($p_time === '') {
             // 1) Primary rule: take the latest end_time of a Good slot that ends <= current time
@@ -2026,14 +2026,14 @@ if ($is_logged_in && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['actio
 
     // [កូដដែលបានកែសម្រួល] បន្ថែម `custom_fields_data` និង `late_minutes` ទៅក្នុង INSERT statement
     $insert_sql = "INSERT INTO checkin_logs (employee_id, name, action_type, workplace, branch, log_datetime, late_reason, area, location_data, status, distance_m, location_name, custom_fields_data, late_minutes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, {$status_value_sql}, ?, ?, ?, ?)";
-        
+
     if ($stmt_insert = $mysqli->prepare($insert_sql)) {
         // Bind types: 9 strings, 1 double, 1 string, 1 string, 1 int
         $stmt_insert->bind_param("sssssssssdssi", $employee_id, $name, $action, $workplace, $branch, $log_datetime, $late_reason, $area, $location_log, $min_distance_m, $location_name_log, $custom_fields_json, $late_minutes_val);
-            
+
         if ($stmt_insert->execute()) {
                 $success_message = "{$action} បានសម្រេច! (ស្ថានភាព: {$status_for_db})";
-                
+
                 // Dynamic status icon (Good / Late) from admin settings, fallback to defaults
                 $icon_good = get_setting('status_icon_good', '🔵');
                 $icon_late = get_setting('status_icon_late', '🔴');
@@ -2108,7 +2108,7 @@ if ($is_logged_in && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['actio
                 sendTelegramMessage($mysqli, $telegram_msg, 'attendance_force');
                 $admin_id_to_notify = get_current_admin_id($mysqli);
                 sendWebPushNotification($mysqli, $admin_id_to_notify, "Attendance: {$action}", strip_tags(str_replace('\n', "\n", $telegram_msg)));
-                
+
             } else { $error_message = "Error: មិនអាចបញ្ចូលទិន្នន័យបានទេ " . $stmt_insert->error; }
             $stmt_insert->close();
         } else { $error_message = "កំហុស Prepared Statement របស់ Check-In: " . $mysqli->error; }
@@ -2146,16 +2146,16 @@ if ($is_logged_in) {
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Attendance_App">
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/11693/11693253.png">
-    
+
     <link rel="manifest" href="manifest.json">
 
-    
+
     <meta name="theme-color" content="#007aff">
     <title>ប្រព័ន្ធគ្រប់គ្រងបុគ្គលិក</title>
     <script src="https://unpkg.com/html5-qrcode/html5-qrcode.min.js"></script>
-    
+
     <link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <style>
         /* Local Momo Trust Display (Latin only) */
         @font-face {
@@ -2183,7 +2183,7 @@ if ($is_logged_in) {
             --header-height: 86px; --footer-height: 76px;
             --glass-bg: rgba(255, 255, 255, 0.8); --glass-border: rgba(255, 255, 255, 0.2);
         }
-        
+
         /***************************************/
         /* START: DARK THEME STYLES */
         /***************************************/
@@ -2305,7 +2305,7 @@ if ($is_logged_in) {
         }
 
 
-        
+
         html[data-theme='dark'] .card-text h3 { color: #ffffff; }
         html[data-theme='dark'] .card-text p { color: #8e8e93; }
         html[data-theme='dark'] #request-logs-table th,
@@ -2634,7 +2634,7 @@ if ($is_logged_in) {
         .scanner-frame .top-right { top: 0; right: 0; border-left: none; border-bottom: none; border-top-right-radius: 30px; }
         .scanner-frame .bottom-left { bottom: 0; left: 0; border-right: none; border-top: none; border-bottom-left-radius: 30px; }
         .scanner-frame .bottom-right { bottom: 0; right: 0; border-left: none; border-top: none; border-bottom-right-radius: 30px; }
-        .scanner-laser { position: absolute; top: 20px; left: 20px; right: 20px; height: 3px; background: linear-gradient(90deg, transparent, #ef4444, transparent); box-shadow: 0 0 15px rgba(239, 68, 68, 0.6); border-radius: 5px; animation: scan 2.5s infinite ease-in-out; } 
+        .scanner-laser { position: absolute; top: 20px; left: 20px; right: 20px; height: 3px; background: linear-gradient(90deg, transparent, #ef4444, transparent); box-shadow: 0 0 15px rgba(239, 68, 68, 0.6); border-radius: 5px; animation: scan 2.5s infinite ease-in-out; }
         @keyframes scan { 0%, 100% { top: 20px; opacity: 0.5; } 50% { top: calc(100% - 20px); opacity: 1; } }
         #scanner-ui-elements { width: 100%; text-align: center; color: white; position: relative; z-index: 10; }
         .scanner-text { margin-top: 30px; font-size: 1.1em; text-shadow: 0 1px 3px rgba(0,0,0,0.5); }
@@ -2642,10 +2642,10 @@ if ($is_logged_in) {
         .close-scanner-btn { position: absolute; top: 25px; right: 25px; font-size: 1.5em; color: var(--text-on-primary); cursor: pointer; width: 44px; height: 44px; background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: background-color 0.2s ease, transform 0.2s ease; z-index: 20; }
         .close-scanner-btn:hover { background-color: rgba(0,0,0,0.5); transform: scale(1.1); }
         /* NEW: Styles for Select in Popup (Keep it clean and visible) */
-        .select-action-container { 
-            display: flex; 
-            justify-content: center; 
-            margin: 0 auto; 
+        .select-action-container {
+            display: flex;
+            justify-content: center;
+            margin: 0 auto;
             max-width: 250px;
         }
         .select-action-container .mobile-input {
@@ -2700,7 +2700,7 @@ if ($is_logged_in) {
             margin: 0 auto;
             max-width: 280px;
         }
-        
+
         #submission-loading .upload-spinner {
             border: 4px solid rgba(255, 255, 255, 0.2);
             border-left-color: #fff;
@@ -2710,7 +2710,7 @@ if ($is_logged_in) {
             margin: 0 auto 12px;
             position: relative;
         }
-        
+
         #submission-loading p {
             color: #fff;
             font-size: 0.9rem;
@@ -2718,7 +2718,7 @@ if ($is_logged_in) {
             text-shadow: 0 1px 2px rgba(0,0,0,0.5);
             font-weight: 500;
         }
-        
+
         @keyframes fadeInUp {
             from {
                 opacity: 0;
@@ -2735,7 +2735,7 @@ if ($is_logged_in) {
             from { opacity: 0; }
             to { opacity: 1; }
         }
-        
+
         @keyframes slideUp {
             from {
                 opacity: 0;
@@ -3256,7 +3256,7 @@ if ($is_logged_in) {
             <div class="header-content">
             <div class="brand">
                 <h1 class="header-title" aria-label="App title">
-                <?php 
+                <?php
                 $header_type = get_setting('header_type', 'title');
                 $header_logo_path = get_setting('header_logo_path', '');
 
@@ -3312,16 +3312,16 @@ if ($is_logged_in) {
                             </div>
                         </div>
                         <div class="form-group">
-                            <input type="text" id="employee_id" name="employee_id" class="mobile-input" placeholder="Employee ID" required> 
+                            <input type="text" id="employee_id" name="employee_id" class="mobile-input" placeholder="Employee ID" required>
                         </div>
                         <button type="submit" class="mobile-button primary-button">ចូល</button>
                     </form>
                 </div>
-           
+
                <?php else: ?>
                 <div id="card-menu-view" class="main-view active">
                     <h2><?php echo htmlspecialchars(get_setting_typed('greeting_text', 'សួស្តី')); ?>, <span class="user-name"><?php echo htmlspecialchars($user_data['name'] ?? ''); ?>!</span></h2>
-                    
+
                     <div class="card-menu">
                         <?php if (get_setting_typed('show_attendance_card', '1') == '1'): ?>
                         <div class="menu-card" onclick="startAttendanceProcess()">
@@ -3423,7 +3423,7 @@ if ($is_logged_in) {
                                 </div>
 
                                 <div id="dynamic-form-container">
-                                    
+
                                     <div id="form-Leave" class="request-form-fields">
                                         <div class="form-section">
                                             <div class="form-section-header"><i class="fas fa-user"></i><h4>ព័ត៌មានបុគ្គលិក</h4></div>
@@ -3470,7 +3470,7 @@ if ($is_logged_in) {
                                         </div>
                                         <!-- Signature input removed per request: no signature required for Overtime -->
                                     </div>
-                                    
+
                                     <div id="form-Forget-Attendance" class="request-form-fields">
                                         <div class="form-section">
                                             <div class="form-section-header"><i class="fas fa-history"></i><h4>ព័ត៌មានភ្លេចស្កេន</h4></div>
@@ -3517,7 +3517,7 @@ if ($is_logged_in) {
                                         </div>
                                         <!-- Signature input removed per request: no signature required for Late -->
                                     </div>
-                                    
+
                                     <div id="form-Change-Day-Off" class="request-form-fields">
                                         <div class="form-section">
                                             <div class="form-section-header"><i class="fas fa-sync"></i><h4>ប្តូរថ្ងៃសម្រាក</h4></div>
@@ -3562,7 +3562,7 @@ if ($is_logged_in) {
                             <p id="rejected-count"><?php echo $request_counts['Rejected']; ?> សំណើ</p>
                         </div>
                     </div>
-                    
+
                     <h3 style="margin-top: 30px; font-weight: 600; font-size: 1.2em;">កំណត់ត្រាសំណើថ្មីៗ</h3>
                     <div id="request-list-container" class="form-section" style="padding: 10px; margin-top: 10px;">
                         <div class="request-list-placeholder" id="request-list-loading" style="display:none; text-align:center; padding: 20px;">
@@ -3585,7 +3585,7 @@ if ($is_logged_in) {
                             <input type="date" id="log-selected-date" class="mobile-input" value="<?php echo date('Y-m-d'); ?>" style="flex: 1;">
                             <button type="button" class="mobile-button" onclick="loadAttendanceLogs()" style="width: auto; padding: 0 20px;">មើល</button>
                         </div>
-                        
+
                         <div id="logs-list-container">
                             <div class="request-list-placeholder" id="logs-list-loading" style="display:none; text-align:center; padding: 20px;">
                                 <div class="upload-spinner" style="position: relative; margin: 0 auto 10px; border: 4px solid rgba(0, 122, 255, 0.2); border-left-color: var(--primary-color);"></div>
@@ -3600,7 +3600,7 @@ if ($is_logged_in) {
                     </div>
                 </div>
 
-                
+
                 <div id="my-locations-view" class="main-view">
                     <h2>ទីតាំងដែលបានអនុញ្ញាត</h2>
                     <div id="locations-list-container" class="form-section">
@@ -3817,7 +3817,7 @@ if ($is_logged_in) {
                 transform: scale(1.15);
                 filter: drop-shadow(0 4px 8px rgba(0, 122, 255, 0.3));
             }
-            
+
             /* Dark mode nav footer */
             html[data-theme='dark'] .app-footer {
                 background: linear-gradient(180deg, rgba(28, 28, 30, 0.94), rgba(10, 10, 10, 0.98));
@@ -3972,7 +3972,7 @@ if ($is_logged_in) {
             <!-- Central Manual Attendance Button -->
             <?php if (is_manual_scan_allowed()): ?>
             <a role="menuitem" class="footer-btn manual-attendance-btn" onclick="startManualAttendanceProcess()" aria-label="វត្តមានដោយដៃ">
-                
+
                 <i class="fas fa-hand-pointer" aria-hidden="true"></i>
                 <span>វត្តមានដោយដៃ</span>
             </a>
@@ -4021,7 +4021,7 @@ if ($is_logged_in) {
         </script>
     </footer>
     <?php endif; ?>
-    
+
     <!-- ========== AI-ASSISTED QR SCANNER POPUP ========== -->
     <style>
     /* AI Scanner Overlay Styles */
@@ -4671,7 +4671,7 @@ hr { border: none; border-top: 1px solid rgba(0,0,0,0.06); margin: 12px 0; }
                 <i class="fas fa-map-location-dot" style="color: var(--primary-color); font-size: 1.1em;"></i>
                 <span>ទីតាំងដែលបានអនុញ្ញាត</span>
             </button>
-            
+
             <a href="scan.php?logout=true" class="sidebar-menu-btn" style="display: flex; align-items: center; gap: 12px; width: 100%; padding: 14px; background: #fff5f5; border: none; border-radius: 12px; color: #e74c3c; font-weight: 600; cursor: pointer; text-decoration: none; transition: all 0.2s;">
                 <i class="fas fa-sign-out-alt"></i>
                 <span>ចាកចេញពីគណនី</span>
@@ -4688,7 +4688,7 @@ hr { border: none; border-top: 1px solid rgba(0,0,0,0.06); margin: 12px 0; }
                     <i class="fas fa-moon"></i> Dark
                 </button>
             </div>
-            
+
             <button class="mobile-button" onclick="showLocalNotification('តេស្តការជូនដំណឹង', 'នេះគឺជាការសាកល្បងការជូនដំណឹងលើទូរសព្ទរបស់លោកអ្នក។')" style="margin-top: 15px; width: 100%; font-size: 0.85rem; padding: 10px;">
                 <i class="fa-solid fa-bell"></i> តេស្តការជូនដំណឹង (Test Notification)
             </button>
@@ -4764,7 +4764,7 @@ hr { border: none; border-top: 1px solid rgba(0,0,0,0.06); margin: 12px 0; }
     }
 
 
-    const html5QrCode = new Html5Qrcode("camera-preview", { 
+    const html5QrCode = new Html5Qrcode("camera-preview", {
         formatsToSupport: [ Html5QrcodeSupportedFormats.QR_CODE ],
         experimentalFeatures: {
             useBarCodeDetectorIfSupported: true
@@ -4781,7 +4781,7 @@ hr { border: none; border-top: 1px solid rgba(0,0,0,0.06); margin: 12px 0; }
     // Lightweight profiling flags
     let cameraToFirstDecodeTimerRunning = false;
     let decodeToSubmitTimerRunning = false;
-    
+
     // ===== START: កូដបន្ថែមថ្មីសម្រាប់ Real-time Update =====
     let requestUpdateInterval = null; // អថេរសម្រាប់เก็บตัวកំណត់เวลา (Timer)
     // ===== END: កូដបន្ថែមថ្មីសម្រាប់ Real-time Update =====
@@ -4844,17 +4844,17 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
     const previewImg = wrapper.querySelector('.signature-preview-img');
     const placeholder = wrapper.querySelector('.upload-placeholder');
     const spinner = wrapper.querySelector('.upload-spinner');
-    
+
     if (input.files && input.files[0]) {
         const file = input.files[0];
-        
+
         // Check file size on client-side before processing
         if (file.size > 10 * 1024 * 1024) { // 10MB limit
             showResultPopup('ទំហំរូបភាពធំពេក! សូមជ្រើសរើសរូបភាពក្រោម 10MB។', false);
             input.value = ''; // Reset file input
             return;
         }
-        
+
         placeholder.style.display = 'none';
         previewImg.style.display = 'none';
         spinner.style.display = 'block';
@@ -4862,22 +4862,22 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
 
         const reader = new FileReader();
         reader.onload = async function (e) {
-            let originalBase64 = e.target.result; 
+            let originalBase64 = e.target.result;
             let processedBase64 = originalBase64;
-            
+
             try {
                 // **STEP 1: AUTO-COMPRESS/RESIZE THE IMAGE IN THE BROWSER**
                 processedBase64 = await compressImage(originalBase64, 800, 800, 0.75);
                 console.log(`Image compressed. Original: ${originalBase64.length} chars, Compressed: ${processedBase64.length} chars`);
-            
+
             } catch(error) {
                 console.error('Compression Error:', error);
             }
-            
+
             // --- 2. Call PHP with the COMPRESSED image data ---
             const formData = new FormData();
             formData.append('signature_base64', processedBase64); // Use the compressed data
-            formData.append('action', 'upload_signature'); 
+            formData.append('action', 'upload_signature');
 
             try {
                 const response = await fetch('scan.php', {
@@ -4892,14 +4892,14 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
                     try {
                         const jsonError = JSON.parse(errorText);
                            if (jsonError.message) {
-                               errorMessage = jsonError.message; 
+                               errorMessage = jsonError.message;
                            }
                     } catch(e) { /* Not a JSON error, use the status text */ }
                     throw new Error(errorMessage);
                 }
-                
+
                 const result = await response.json();
-                
+
                 spinner.style.display = 'none';
 
                 if (result.success && result.filePath) {
@@ -4908,7 +4908,7 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
                 } else {
                     placeholder.style.display = 'flex';
                     showResultPopup(result.message || 'Error processing signature.', false);
-                    input.value = ''; 
+                    input.value = '';
                 }
             } catch (error) {
                 spinner.style.display = 'none';
@@ -4919,19 +4919,19 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
                 input.value = '';
             }
         };
-        
-        reader.readAsDataURL(file); 
+
+        reader.readAsDataURL(file);
     }
 }
-    
+
     // Function to update signature preview state - KEY FUNCTION FOR FILLING DATA
     function updateSignaturePreview(base64Image, hiddenInput, previewImg, placeholder, fileInput) {
-        hiddenInput.value = base64Image; 
-        
+        hiddenInput.value = base64Image;
+
         previewImg.src = base64Image;
         previewImg.style.display = 'block';
         placeholder.style.display = 'none';
-        
+
         if (fileInput) fileInput.value = '';
     }
 
@@ -5000,7 +5000,7 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
         const fileInput = wrapper.querySelector('.signature-file-input');
 
         updateSignaturePreview(base64Image, hiddenInput, previewImg, placeholder, fileInput);
-        
+
         closeHistoryPopup();
     }
 
@@ -5051,7 +5051,7 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
         setTimeout(() => {
             showView(viewId);
         }, 120);
-        
+
         // ជំហានទី 2: ពិនិត្យប្រសិនបើទំព័រដែលត្រូវទៅគឺ 'my-requests-view'
         if (viewId === 'my-requests-view') {
             console.log('Starting real-time updates for My Requests view...');
@@ -5059,7 +5059,7 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
             Promise.all([loadRequestLogs(), updateRequestCounts()])
                    .catch(()=>{})
                    .finally(() => hidePageLoader());
-            
+
             // ជំហានទី 3: ចាប់ផ្តើម Polling (សួរ Server រៀងរាល់ 10 វិនាទី)
             requestUpdateInterval = setInterval(() => {
                 console.log('Polling for new request data...');
@@ -5112,12 +5112,12 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
             darkThemeBtn?.classList.remove('active');
         }
     }
-    
+
     // ===============================================
     // END: NEW SIDEBAR & THEME FUNCTIONS
     // ===============================================
 
-    
+
     document.addEventListener('DOMContentLoaded', function() {
 
         // --- NEW: Theme initialization logic ---
@@ -5140,7 +5140,7 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
             footerNavigate(null, requestedView);
         } else if (document.getElementById('card-menu-view')) {
             showView('card-menu-view');
-            
+
             const homeButton = document.querySelector('.footer-btn[data-view="card-menu-view"]');
             if (homeButton) {
                 homeButton.classList.add('active');
@@ -5154,7 +5154,7 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
                 startLatestScanPolling();
             }
         }
-        
+
         document.querySelectorAll('.request-form-fields').forEach(form => {
              disableFormFields(form, true);
         });
@@ -5177,7 +5177,7 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
     function showStatusInPopup(message, isError = false, showLoading = false) {
         const statusEl = document.getElementById('status_msg_popup');
         const loadingEl = document.getElementById('submission-loading');
-        
+
         if (showLoading) {
             loadingEl.style.display = 'block';
             statusEl.textContent = message;
@@ -5343,7 +5343,7 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
                         }
                     } catch(e) { /* ignore */ }
                     callback(true);
-                }, 
+                },
                 (error) => {
                     gpsDataGlobal = 'Error: GPS_FAIL';
                     let errorMessage = 'GPS បរាជ័យ! សូមពិនិត្យ Permission។';
@@ -5352,7 +5352,7 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
                     updateGpsChip('bad', 'GPS ✗');
                     showStatusInPopup(errorMessage, true);
                     callback(false);
-                }, 
+                },
                 { timeout: 10000, enableHighAccuracy: true, maximumAge: 30000 }
             );
         } else {
@@ -5363,8 +5363,8 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
     }
 
     function startCamera() {
-        const config = { 
-            fps: 50, 
+        const config = {
+            fps: 50,
             // Full Screen Scanning: Set qrbox to match viewfinder dimensions
             qrbox: function(viewfinderWidth, viewfinderHeight) {
                 return { width: viewfinderWidth, height: viewfinderHeight };
@@ -5375,13 +5375,13 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
             },
             videoConstraints: {
                 facingMode: "environment",
-                width: { ideal: 1280 }, 
+                width: { ideal: 1280 },
                 height: { ideal: 720 },
-                focusMode: "continuous" 
+                focusMode: "continuous"
             }
         };
         const startScanner = (cameraConfig) => {
-             html5QrCode.start(cameraConfig, config, onLocationScanSuccess, (errorMessage) => { 
+             html5QrCode.start(cameraConfig, config, onLocationScanSuccess, (errorMessage) => {
                  // This error callback is for non-critical scan errors, so we can often ignore it.
                  // console.warn('QR scan error:', errorMessage);
                  })
@@ -5390,9 +5390,9 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
                  // SHOW MANUAL BUTTON IF CAMERA FAILS
                  const manBtn = document.getElementById('camPopupManualBtn');
                  if(manBtn) manBtn.style.display = 'block';
-                 
+
                  // Do not immediately close popup so user sees the button
-                 // stopCamera(); 
+                 // stopCamera();
                  });
         }
         if (selectedCameraDeviceId) {
@@ -5405,7 +5405,7 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
                     // Quick selection: prefer back camera, fallback to first available
                     let chosen = devices[0].id;
                     for (let device of devices) {
-                        if ((device.label || '').toLowerCase().includes('back') || 
+                        if ((device.label || '').toLowerCase().includes('back') ||
                             (device.label || '').toLowerCase().includes('rear')) {
                             chosen = device.id;
                             break;
@@ -5414,11 +5414,11 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
                     selectedCameraDeviceId = chosen;
                     startScanner({ deviceId: { exact: chosen } });
                 } else {
-                     startScanner({ facingMode: "environment" }); 
+                     startScanner({ facingMode: "environment" });
                 }
-            }).catch(err => { 
+            }).catch(err => {
                  // Fallback for browsers that might not support getCameras well
-                 startScanner({ facingMode: "environment" }); 
+                 startScanner({ facingMode: "environment" });
             });
         }
 
@@ -5573,7 +5573,7 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
         };
         setTimeout(dismiss, 1800);
     }
-    // --- END: AI Black Screen Detector ---      
+    // --- END: AI Black Screen Detector ---
     function stopCamera() {
         stopLiveDistancePolling();
         updateGpsChip('spin', 'GPS...');
@@ -5599,14 +5599,14 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
              document.getElementById('global-loading-overlay').style.display = 'none'; // Hide global loading
         }
     }
-    
+
     // NEW FUNCTION: Auto Selects Check-In/Out based on last action
     function autoSelectAction(lastActionToday) {
         const selectEl = document.getElementById('actionSelectInPopup');
         if (!selectEl) return;
-        
+
         let nextAction = (lastActionToday === 'Check-In') ? 'Check-Out' : 'Check-In';
-        
+
         selectEl.value = nextAction;
         console.log(`Auto selected action: ${nextAction} (Last action was ${lastActionToday})`);
     }
@@ -5633,12 +5633,12 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
         updateDistanceMeter(null, null); // hide distance meter until GPS ready
         // Start profiling for camera to first decode
         try { if (!cameraToFirstDecodeTimerRunning) { console.time('camera_to_first_decode'); cameraToFirstDecodeTimerRunning = true; } } catch(e) {}
-        
+
         // Start the camera right away
         startCamera();
 
         // --- STEP 2: PARALLEL ACTIONS (Run in the background) ---
-        
+
         // A. Fetch the last check-in/out action using cache (to avoid extra network if fresh)
         getLastActionCached()
             .then(action => autoSelectAction(action || 'Check-Out'))
@@ -5651,7 +5651,7 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
             }
         });
     }
-    
+
     // =======================================================================
     // *** MODIFIED FUNCTION: onLocationScanSuccess (With GPS Check) ***
     // =======================================================================
@@ -5697,11 +5697,11 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
     async function proceedWithQr(decodedText) {
         if (!isScanning) return; // guard
         isScanning = false; // Stop further scans
-        
+
         // Close camera popup immediately and show global loading
         stopCamera();
         document.getElementById('global-loading-overlay').style.display = 'flex';
-        
+
         // Start profiling for decode to submit
         try { if (!decodeToSubmitTimerRunning) { console.time('decode_to_submit'); decodeToSubmitTimerRunning = true; } } catch(e) {}
 
@@ -5831,8 +5831,8 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
 
         // Automatically determine location based on GPS (STRICT)
         let locationName = 'Manual Check';
-        let distanceValue = 0; 
-        
+        let distanceValue = 0;
+
         try {
             const formData = new FormData();
             formData.append('action', 'fetch_locations');
@@ -5849,7 +5849,7 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
                     data.data.forEach(location => {
                         if (location.latitude && location.longitude) {
                             const distance = haversineDistance(userCoords[0], userCoords[1], parseFloat(location.latitude), parseFloat(location.longitude));
-                            
+
                             // Prioritize assigned locations if the user is within their radius
                             if (location.is_assigned == 1 && distance <= parseFloat(location.final_radius)) {
                                 if (!assignedNearby || distance < assignedNearby.distance) {
@@ -5877,7 +5877,7 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
                         // Update Area field in the form to match the detected location
                         const arEl = document.getElementById('area');
                         if (arEl) arEl.value = locationName;
-                        
+
                         // STRICT LOCATION CHECK
                         if (distanceValue > parseFloat(closestLocation.final_radius)) {
                             document.getElementById('global-loading-overlay').style.display = 'none';
@@ -6041,13 +6041,13 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
         }
         popup.style.display = 'none';
     }
-    
+
     document.getElementById('requestType')?.addEventListener('change', function(event) {
         document.querySelectorAll('.request-form-fields').forEach(form => {
              form.style.display = 'none';
-             disableFormFields(form, true); 
+             disableFormFields(form, true);
         });
-        
+
         document.querySelectorAll('.processed-signature-path').forEach(input => { input.value = ''; });
         document.querySelectorAll('.signature-preview-img').forEach(img => { img.style.display = 'none'; img.src = ''; });
         document.querySelectorAll('.upload-placeholder').forEach(ph => { ph.style.display = 'flex'; });
@@ -6058,10 +6058,10 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
         if (selectedForm) {
             const formIdToShow = 'form-' + selectedForm;
             const formToShow = document.getElementById(formIdToShow);
-            if (formToShow) { 
+            if (formToShow) {
                  disableFormFields(formToShow, false);
-                 formToShow.style.display = 'block'; 
-                 
+                 formToShow.style.display = 'block';
+
                  if (selectedForm === 'Forget-Attendance') {
                      document.getElementById('forgetType').dispatchEvent(new Event('change'));
                  }
@@ -6078,7 +6078,7 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
         const checkOutInput = checkOutGroup.querySelector('input');
         const forgotCountGroup = document.getElementById('forgot-count-group');
         const forgotCountInput = forgotCountGroup.querySelector('input');
-        
+
         timeInputsContainer.style.display = 'none';
         checkInGroup.style.display = 'none';
         checkOutGroup.style.display = 'none';
@@ -6118,13 +6118,13 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
     });
 
     async function submitRequest(event) {
-        event.preventDefault(); 
+        event.preventDefault();
 
         const requestForm = document.getElementById('requestForm');
-        
+
         const requestType = document.getElementById('requestType').value;
         const formIdToShow = 'form-' + requestType;
-        
+
         // 1. **SIGNATURE VALIDATION**
         let signatureFieldName = '';
         if(requestType === 'Leave') signatureFieldName = 'signature_path_leave';
@@ -6134,20 +6134,20 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
         else if(requestType === 'Change-Day-Off') signatureFieldName = 'signature_path_cdo';
 
         const signaturePathInput = document.querySelector(`input[name="${signatureFieldName}"]`);
-        
+
         // Check the HIDDEN input value (where base64 is stored)
         if (signaturePathInput && !signaturePathInput.value) {
             showResultPopup('សូមបញ្ចូលហត្ថលេខា ឬជ្រើសរើសពីប្រវត្តិ!', false);
-            return; 
+            return;
         }
 
         // 2. Trigger browser's native validation on the rest of the form.
         if (!requestForm.reportValidity()) {
-             return; 
+             return;
         }
 
         const activeFormContainer = document.getElementById(formIdToShow);
-        
+
         // 3. Collect data only from the active and enabled form fields
         const formData = {};
         requestForm.querySelectorAll('input:not([readonly]), select:not([readonly]), textarea:not([readonly])').forEach(field => {
@@ -6158,7 +6158,7 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
 
         // 4. Prepare the AJAX data payload (Sending the full data as JSON for PHP mapping)
         const ajaxData = new FormData();
-        ajaxData.append('action', 'submit_request'); 
+        ajaxData.append('action', 'submit_request');
         ajaxData.append('requestType', requestType);
         ajaxData.append('formDataJson', JSON.stringify(formData)); // Send full form data to PHP for mapping
 
@@ -6173,14 +6173,14 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
                 method: 'POST',
                 body: ajaxData
             });
-            
+
             if (!response.ok) {
                  const errorText = await response.text();
                  console.error('Server Error Response Body:', errorText);
                  try {
                      const jsonError = JSON.parse(errorText);
                        if (!jsonError.success && jsonError.message) {
-                            throw new Error(jsonError.message); 
+                            throw new Error(jsonError.message);
                         }
                  } catch(e) {
                       throw new Error(`Server responded with status ${response.status}: ${response.statusText}. Check server logs for details.`);
@@ -6197,17 +6197,17 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
 
             if (result.success) {
                 showResultPopup(result.message, true);
-                
-                footerNavigate(null, 'card-menu-view'); 
+
+                footerNavigate(null, 'card-menu-view');
                 document.getElementById('requestForm').reset();
-                
+
                 document.querySelectorAll('.request-form-fields').forEach(form => {
                     form.style.display = 'none';
-                    disableFormFields(form, true); 
+                    disableFormFields(form, true);
                 });
                 document.getElementById('time-inputs-container').style.display = 'none';
                 document.getElementById('forgot-count-group').style.display = 'none';
-                
+
                 document.querySelectorAll('.processed-signature-path').forEach(input => { input.value = ''; });
                 document.querySelectorAll('.signature-preview-img').forEach(img => { img.style.display = 'none'; img.src = ''; });
                 document.querySelectorAll('.upload-placeholder').forEach(ph => { ph.style.display = 'flex'; });
@@ -6227,7 +6227,7 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
             showResultPopup('កំហុសប្រព័ន្ធ: មិនអាចភ្ជាប់ទៅ Server បានទេ។ ឬទម្រង់ទិន្ន្ន័យមានបញ្ហា។ ' + error.message, false);
         }
     }
-    
+
     // ===== START: កូដបន្ថែមថ្មីសម្រាប់ Real-time Update =====
     /**
      * Function ថ្មីសម្រាប់ទាញយកតែចំនួនសំណើ (Pending, Approved, Rejected)
@@ -6259,10 +6259,10 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
         try {
             const response = await fetch('scan.php', { method: 'POST', body: formData });
             const result = await response.json();
-            
+
             if (result.success && result.data) {
                 const data = result.data;
-                
+
                 // 1. Update Global Config Variable
                 if (typeof SERVER_CUSTOM_DATA !== 'undefined') {
                     // Update in place
@@ -6274,7 +6274,7 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
                 const allowed = data.config.manual_scan_allowed;
                 const manualFooterBtn = document.querySelector('.manual-attendance-btn');
                 const manualPopupBtn = document.getElementById('camPopupManualBtn');
-                
+
                 if (manualFooterBtn) {
                     manualFooterBtn.style.display = allowed ? 'flex' : 'none';
                     // Trigger footer layout recalculation if possible
@@ -6289,8 +6289,8 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
                 }
                 if (manualPopupBtn) {
                     // Force style override for popup button to ensure it shows/hides correctly
-                    manualPopupBtn.style.cssText = allowed 
-                        ? "margin-top:15px; width:100%; display:block; background: rgba(255,255,255,0.2); backdrop-filter: blur(10px); color: white; border: 1px solid rgba(255,255,255,0.4);" 
+                    manualPopupBtn.style.cssText = allowed
+                        ? "margin-top:15px; width:100%; display:block; background: rgba(255,255,255,0.2); backdrop-filter: blur(10px); color: white; border: 1px solid rgba(255,255,255,0.4);"
                         : "display: none;";
                 }
 
@@ -6304,7 +6304,7 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
                 if (metaContainer) {
                     let metaHTML = '';
                     const avatarKeys = ['avatar_path','profile_image','avatar','photo','picture'];
-                    
+
                     if (data.custom_data && Object.keys(data.custom_data).length > 0) {
                         for (const [key, value] of Object.entries(data.custom_data)) {
                             if (value === null || value === '') continue;
@@ -6312,17 +6312,17 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
 
                             let label = key.replace(/_/g, ' ');
                             label = label.charAt(0).toUpperCase() + label.slice(1);
-                            
+
                             let displayVal = String(value);
                             if (displayVal.length > 120) displayVal = displayVal.substring(0, 117) + '...';
-                            
+
                             const safeLabel = label.replace(/[&<>"']/g, function(m){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#039;'}[m] });
                             const safeVal = displayVal.replace(/[&<>"']/g, function(m){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#039;'}[m] });
 
                             metaHTML += `<div class="meta-item"><strong>${safeLabel}</strong><span>${safeVal}</span></div>`;
                         }
                     }
-                    
+
                     if (metaHTML) {
                         metaContainer.innerHTML = metaHTML;
                     } else {
@@ -6351,36 +6351,36 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
         const loadingEl = document.getElementById('request-list-loading');
         const emptyEl = document.getElementById('request-list-empty');
         const tableEl = document.getElementById('request-logs-table');
-        
+
         loadingEl.style.display = 'block';
         emptyEl.style.display = 'none';
         tableEl.style.display = 'none';
         // tableEl.innerHTML = '';  // យើងមិនលុបភ្លាមៗទេ ដើម្បីកុំឱ្យ UI លោតពេលកំពុង update
 
         const ajaxData = new FormData();
-        ajaxData.append('action', 'fetch_requests'); 
+        ajaxData.append('action', 'fetch_requests');
 
         try {
             const response = await fetch('scan.php', {
                 method: 'POST',
                 body: ajaxData
             });
-            
+
             if (!response.ok) {
                  const errorText = await response.text();
                  console.error('Server Error Response Body:', errorText);
                  try {
                      const jsonError = JSON.parse(errorText);
                        if (!jsonError.success && jsonError.message) {
-                            throw new Error(jsonError.message); 
+                            throw new Error(jsonError.message);
                         }
                  } catch(e) {
                       throw new Error(`Server responded with status ${response.status}.`);
                  }
             }
-            
+
             const result = await response.json();
-            
+
             loadingEl.style.display = 'none';
 
             if (result.success && result.data.length > 0) {
@@ -6394,11 +6394,11 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
                     </thead>
                     <tbody>
                 `;
-                
-                
-                
+
+
+
                 result.data.forEach(item => {
-                    const statusClass = `badge-${item.status.replace(/[^a-zA-Z]/g, '')}`; 
+                    const statusClass = `badge-${item.status.replace(/[^a-zA-Z]/g, '')}`;
                     tableHTML += `
                         <tr>
                             <td>${item.type}</td>
@@ -6407,10 +6407,10 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
                         </tr>
                     `;
                 });
-                
+
                 tableHTML += `</tbody>`;
                 tableEl.innerHTML = tableHTML;
-                tableEl.style.display = 'table'; 
+                tableEl.style.display = 'table';
             } else {
                 tableEl.style.display = 'none';
                 emptyEl.style.display = 'block';
@@ -6429,7 +6429,7 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
         const loadingEl = document.getElementById('logs-list-loading');
         const emptyEl = document.getElementById('logs-list-empty');
         const contentEl = document.getElementById('attendance-logs-content');
-        
+
         loadingEl.style.display = 'block';
         emptyEl.style.display = 'none';
         contentEl.innerHTML = '';
@@ -6441,7 +6441,7 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
         try {
             const response = await fetch('scan.php', { method: 'POST', body: ajaxData });
             const result = await response.json();
-            
+
             loadingEl.style.display = 'none';
 
             if (result.success && result.data.length > 0) {
@@ -6457,7 +6457,7 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
                             </thead>
                             <tbody>
                 `;
-                
+
                 result.data.forEach(log => {
                     const statusClass = `status-${log.status.replace(/[^a-zA-Z]/g, '')}`;
                     html += `
@@ -6475,7 +6475,7 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
                         </tr>
                     `;
                 });
-                
+
                 html += `</tbody></table></div>`;
                 contentEl.innerHTML = html;
             } else {
@@ -6493,7 +6493,7 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
         const loadingEl = document.getElementById('locations-list-loading');
         const emptyEl = document.getElementById('locations-list-empty');
         const contentEl = document.getElementById('locations-list-content');
-        
+
         loadingEl.style.display = 'block';
         emptyEl.style.display = 'none';
         contentEl.innerHTML = '';
@@ -6504,7 +6504,7 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
         try {
             const response = await fetch('scan.php', { method: 'POST', body: ajaxData });
             const result = await response.json();
-            
+
             loadingEl.style.display = 'none';
 
             if (result.success && result.data.length > 0) {
@@ -6775,7 +6775,7 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
         .then(response => response.json())
         .then(data => {
             loading.style.display = 'none';
-            
+
             if (data.status === 'success' && data.notifications.length > 0) {
                 list.innerHTML = '';
                 data.notifications.forEach(notification => {
@@ -6791,14 +6791,14 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
                         transition: all 0.2s ease;
                         box-shadow: 0 1px 3px rgba(0,0,0,0.1);
                     `;
-                    
+
                     if (!notification.is_read) {
                         item.style.borderLeft = '4px solid #e74c3c';
                         item.style.background = 'linear-gradient(135deg, #fff5f5 0%, white 100%)';
                     } else {
                         item.style.borderLeft = '4px solid #f39c12';
                     }
-                    
+
                     item.innerHTML = `
                         <div style="display: flex; justify-content: space-between; align-items: start;">
                             <div style="flex: 1;">
@@ -6862,14 +6862,14 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
                 item.className = 'notification-item read';
                 item.style.borderLeft = '4px solid #f39c12';
                 item.style.background = 'white';
-                
+
                 // Update the indicator
                 const indicator = item.querySelector('.unread-indicator');
                 if (indicator) {
                     indicator.className = 'read-indicator';
                     indicator.style.background = '#f39c12';
                 }
-                
+
                 // Remove the button
                 buttonElement.remove();
 
@@ -6999,12 +6999,12 @@ if ((!empty($success_message) || !empty($error_message)) && !$suppress_time_erro
     document.addEventListener('gesturestart', function (e) {
         e.preventDefault();
     });
-    
+
     // សម្រាប់ Browser ចាស់ៗដែលប្រើ touchmove
     document.addEventListener('touchmove', function (event) {
         // ពិនិត្យមើលថាតើមានម្រាមដៃលើសពីមួយនៅលើអេក្រង់ទេ? (Pinch)
-        if (event.scale !== 1) { 
-            event.preventDefault(); 
+        if (event.scale !== 1) {
+            event.preventDefault();
         }
     }, { passive: false });
 </script>
@@ -7047,7 +7047,7 @@ if ((!empty($success_message) || !empty($error_message)) && !$suppress_time_erro
         navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' })
           .then(registration => {
             console.log('ServiceWorker registration successful with scope: ', registration.scope);
-            
+
             // 1. Manually check for updates on page load
             registration.update();
 
@@ -7063,7 +7063,7 @@ if ((!empty($success_message) || !empty($error_message)) && !$suppress_time_erro
                     };
                 }
             };
-            
+
             // Ask for Notification permission
             if ('Notification' in window) {
               Notification.requestPermission().then(permission => {
@@ -7109,9 +7109,9 @@ if ((!empty($success_message) || !empty($error_message)) && !$suppress_time_erro
                 userVisibleOnly: true,
                 applicationServerKey: urlBase64ToUint8Array(publicVapidKey)
             });
-            
+
             console.log('User is subscribed to Push:', subscription);
-            
+
             // Send subscription to server
             await fetch('', {
                 method: 'POST',
@@ -7136,7 +7136,7 @@ if ((!empty($success_message) || !empty($error_message)) && !$suppress_time_erro
             icon: 'https://cdn-icons-png.flaticon.com/512/11693/11693253.png',
             badge: 'https://cdn-icons-png.flaticon.com/512/11693/11693253.png',
             vibrate: [200, 100, 200],
-            tag: notifId ? 'notif-' + notifId : 'attendance-notification-' + Date.now(), 
+            tag: notifId ? 'notif-' + notifId : 'attendance-notification-' + Date.now(),
             renotify: true,
             requireInteraction: false
         };
@@ -7165,12 +7165,12 @@ if ((!empty($success_message) || !empty($error_message)) && !$suppress_time_erro
     document.addEventListener('gesturestart', function (e) {
         e.preventDefault();
     });
-    
+
     // សម្រាប់ Browser ចាស់ៗដែលប្រើ touchmove
     document.addEventListener('touchmove', function (event) {
         // ពិនិត្យមើលថាតើមានម្រាមដៃលើសពីមួយនៅលើអេក្រង់ទេ? (Pinch)
-        if (event.scale !== 1) { 
-            event.preventDefault(); 
+        if (event.scale !== 1) {
+            event.preventDefault();
         }
     }, { passive: false });
 </script>
