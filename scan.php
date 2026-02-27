@@ -173,54 +173,6 @@ $mysqli->query("CREATE TABLE IF NOT EXISTS push_subscriptions (
     UNIQUE KEY (endpoint(255))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
-// 3. Ensure active_tokens table exists (Self-heal naming mismatch)
-$mysqli->query("CREATE TABLE IF NOT EXISTS active_tokens (
-    token_id INT AUTO_INCREMENT PRIMARY KEY,
-    employee_id VARCHAR(64) NOT NULL,
-    auth_token VARCHAR(255) NOT NULL UNIQUE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    last_used TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    scan_user_type VARCHAR(20) DEFAULT NULL,
-    KEY idx_token (auth_token)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
-
-if ($res = $mysqli->query("SHOW COLUMNS FROM active_tokens LIKE 'id'")) {
-    if ($res->num_rows > 0) {
-        $mysqli->query("ALTER TABLE active_tokens CHANGE COLUMN `id` `token_id` INT AUTO_INCREMENT");
-    }
-    $res->close();
-}
-if ($res = $mysqli->query("SHOW COLUMNS FROM active_tokens LIKE 'token'")) {
-    if ($res->num_rows > 0) {
-        $mysqli->query("ALTER TABLE active_tokens CHANGE COLUMN `token` `auth_token` VARCHAR(255) NOT NULL");
-    }
-    $res->close();
-}
-if ($res = $mysqli->query("SHOW COLUMNS FROM active_tokens LIKE 'created_at'")) {
-    if ($res->num_rows == 0) {
-         $mysqli->query("ALTER TABLE active_tokens ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
-    }
-    $res->close();
-}
-if ($res = $mysqli->query("SHOW COLUMNS FROM active_tokens LIKE 'last_used'")) {
-    if ($res->num_rows == 0) {
-         $mysqli->query("ALTER TABLE active_tokens ADD COLUMN last_used TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP");
-    }
-    $res->close();
-}
-if ($res = $mysqli->query("SHOW COLUMNS FROM active_tokens LIKE 'scan_user_type'")) {
-    if ($res->num_rows == 0) {
-         $mysqli->query("ALTER TABLE active_tokens ADD COLUMN scan_user_type VARCHAR(20) DEFAULT NULL");
-    }
-    $res->close();
-}
-if ($res = $mysqli->query("SHOW COLUMNS FROM active_tokens LIKE 'expires_at'")) {
-    if ($res->num_rows > 0) {
-         $mysqli->query("ALTER TABLE active_tokens DROP COLUMN expires_at");
-    }
-    $res->close();
-}
-
 
 
 
@@ -638,8 +590,8 @@ if (isset($_POST['action']) && $_POST['action'] === 'api_login') {
             }
 
             $new_token = bin2hex(random_bytes(32));
-            if ($ins = $mysqli->prepare('INSERT INTO active_tokens (employee_id, auth_token, scan_user_type) VALUES (?, ?, ?)')) {
-                $ins->bind_param('sss', $employee_id, $new_token, $scan_user_type);
+            if ($ins = $mysqli->prepare('INSERT INTO active_tokens (employee_id, auth_token) VALUES (?, ?)')) {
+                $ins->bind_param('ss', $employee_id, $new_token);
                 if ($ins->execute()) {
                     echo json_encode([
                         'success' => true,
@@ -1830,9 +1782,9 @@ if (!$is_logged_in && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['logi
                         $error_message = "នាយកដ្ឋានរបស់អ្នក (" . htmlspecialchars($normalized_dept) . ") មិនមានក្នុងបញ្ជីអនុញ្ញាតសម្រាប់ប្រភេទនេះទេ។";
                     } elseif (empty($error_message)) {
                         $new_token = bin2hex(random_bytes(32));
-                        $insert_token_sql = "INSERT INTO active_tokens (employee_id, auth_token, scan_user_type) VALUES (?, ?, ?)";
+                        $insert_token_sql = "INSERT INTO active_tokens (employee_id, auth_token) VALUES (?, ?)";
                         if ($insert_stmt = $mysqli->prepare($insert_token_sql)) {
-                            $insert_stmt->bind_param("sss", $employee_id, $new_token, $scan_user_type); $insert_stmt->execute(); $insert_stmt->close();
+                            $insert_stmt->bind_param("ss", $employee_id, $new_token); $insert_stmt->execute(); $insert_stmt->close();
                             $_SESSION['employee_id'] = $employee_id; $_SESSION['auth_token'] = $new_token; $_SESSION['scan_user_type'] = $scan_user_type;
                             setcookie("auth_token", $new_token, time() + (86400 * 365), "/");
                             setcookie("scan_user_type", $scan_user_type, time() + (86400 * 365), "/");
