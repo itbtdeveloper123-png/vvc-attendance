@@ -1721,11 +1721,8 @@ if ($token) {
                 $_SESSION['scan_user_type'] = $_COOKIE['scan_user_type'];
             }
         } else {
-            // JS Clear: Token invalid? Clear and redirect via JS to avoid "Headers already sent" white screens
-            session_destroy();
-            setcookie("auth_token", "", time() - 3600, "/");
-            echo '<script>localStorage.clear(); window.location.href="scan.php";</script>';
-            exit;
+            $error_message = "Token Invalid ឬត្រូវបានលុបចោលដោយ Admin! សូមចូលម្តងទៀត។";
+            session_destroy(); setcookie("auth_token", "", time() - 3600, "/");
         }
         $stmt->close();
     }
