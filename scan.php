@@ -1972,77 +1972,71 @@ if ($is_logged_in && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['actio
     $custom_fields_json = json_encode($custom_data, JSON_UNESCAPED_UNICODE);
 
     $status_value_sql = "'" . $mysqli->real_escape_string($status_for_db) . "'"; 
-    // [កូដដែលបានកែសម្រួល] បន្ថែម `custom_fields_data` ទៅใน INSERT statement
-    $insert_sql = "INSERT INTO checkin_logs (employee_id, name, action_type, workplace, branch, log_datetime, late_reason, area, location_data, status, distance_m, location_name, custom_fields_data) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, {$status_value_sql}, ?, ?, ?)";
+
+    // CALCULATE LATE MINUTES (Moved here to save to DB)
+    $late_minutes_val = 0;
+    $late_minutes_display = '';
+    if (strcasecmp($status_for_db, 'Late') === 0) {
+        $type = (strcasecmp($action, 'Check-In') === 0) ? 'checkin' : 'checkout';
+        $current_hms = date('H:i:s', strtotime($log_datetime));
+
+        $p_time = '';
+        // 1) Primary rule: take the latest end_time of a Good slot that ends <= current time
+        if ($stmt_pv = $mysqli->prepare("SELECT end_time FROM attendance_rules WHERE employee_id = ? AND type = ? AND status = 'Good' AND end_time <= ? ORDER BY end_time DESC LIMIT 1")) {
+            $stmt_pv->bind_param('sss', $employee_id, $type, $current_hms);
+            if ($stmt_pv->execute()) {
+                $res_pv = $stmt_pv->get_result();
+                if ($row_pv = $res_pv->fetch_assoc()) {
+                    $p_time = $row_pv['end_time'];
+                }
+            }
+            $stmt_pv->close();
+        }
+
+        // 2) Fallback: first start_time for this type
+        if ($p_time === '' && $stmt_ec = $mysqli->prepare("SELECT start_time FROM attendance_rules WHERE employee_id = ? AND type = ? ORDER BY start_time ASC LIMIT 1")) {
+            $stmt_ec->bind_param('ss', $employee_id, $type);
+            if ($stmt_ec->execute()) {
+                $res_ec = $stmt_ec->get_result();
+                if ($row_ec = $res_ec->fetch_assoc()) {
+                    $p_time = $row_ec['start_time'];
+                }
+            }
+            $stmt_ec->close();
+        }
+
+        if ($p_time !== '') {
+            $expected_dt = date('Y-m-d', strtotime($log_datetime)) . ' ' . $p_time;
+            $diff_seconds = strtotime($log_datetime) - strtotime($expected_dt);
+            if ($diff_seconds > 0) {
+                // FIX: Use ceil for accurate minutes (e.g., 3m 25s -> 4m)
+                $late_minutes_val = (int)ceil($diff_seconds / 60);
+                if ($late_minutes_val >= 60) {
+                    $h = intdiv($late_minutes_val, 60);
+                    $m = $late_minutes_val % 60;
+                    $late_minutes_display = ($m === 0) ? ($h . ' ម៉ោង') : ($h . ' ម៉ោង ' . $m . ' នាទី');
+                } else {
+                    $late_minutes_display = $late_minutes_val . ' នាទី';
+                }
+                $status_for_db_with_minutes = 'Late ( ' . $late_minutes_display . ' )';
+            }
+        }
+    }
+
+    // [កូដដែលបានកែសម្រួល] បន្ថែម `custom_fields_data` និង `late_minutes` ទៅក្នុង INSERT statement
+    $insert_sql = "INSERT INTO checkin_logs (employee_id, name, action_type, workplace, branch, log_datetime, late_reason, area, location_data, status, distance_m, location_name, custom_fields_data, late_minutes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, {$status_value_sql}, ?, ?, ?, ?)";
         
-         if ($stmt_insert = $mysqli->prepare($insert_sql)) {
-        // [កូដដែលបានកែសម្រួល] បន្ថែម 's' สำหรับ JSON string ហើយបញ្ជូនអថេរ $custom_fields_json
-        // Bind types: 9 strings, 1 double, 1 string, 1 string (สำหรับ JSON)
-        $stmt_insert->bind_param("sssssssssdss", $employee_id, $name, $action, $workplace, $branch, $log_datetime, $late_reason, $area, $location_log, $min_distance_m, $location_name_log, $custom_fields_json);
+    if ($stmt_insert = $mysqli->prepare($insert_sql)) {
+        // Bind types: 9 strings, 1 double, 1 string, 1 string, 1 int
+        $stmt_insert->bind_param("sssssssssdssi", $employee_id, $name, $action, $workplace, $branch, $log_datetime, $late_reason, $area, $location_log, $min_distance_m, $location_name_log, $custom_fields_json, $late_minutes_val);
             
-            if ($stmt_insert->execute()) {
+        if ($stmt_insert->execute()) {
                 $success_message = "{$action} បានសម្រេច! (ស្ថានភាព: {$status_for_db})";
                 
                 // Dynamic status icon (Good / Late) from admin settings, fallback to defaults
                 $icon_good = get_setting('status_icon_good', '🔵');
                 $icon_late = get_setting('status_icon_late', '🔴');
                 $status_icon = ($status_for_db === 'Good') ? $icon_good : $icon_late;
-                    // NEW: Calculate late minutes if status is Late
-                    // CHANGE: Use attendance_rules boundaries (Good -> Late transition) instead of a fixed "expected" time
-                    $late_minutes_display = '';
-                    if (strcasecmp($status_for_db, 'Late') === 0) {
-                        $type = (strcasecmp($action, 'Check-In') === 0) ? 'checkin' : 'checkout';
-                        $current_hms = date('H:i:s', strtotime($log_datetime));
-
-                        $pivot_time = '';
-                        // 1) Primary rule: take the latest end_time of a Good slot that ends <= current time
-                        // MODIFIED: Select 'end_time' (Start of Late) instead of 'start_time' (Work Start)
-                        if ($stmt_pv = $mysqli->prepare("SELECT end_time FROM attendance_rules WHERE employee_id = ? AND type = ? AND status = 'Good' AND end_time <= ? ORDER BY end_time DESC LIMIT 1")) {
-                            $stmt_pv->bind_param('sss', $employee_id, $type, $current_hms);
-                            if ($stmt_pv->execute()) {
-                                $res_pv = $stmt_pv->get_result();
-                                if ($row_pv = $res_pv->fetch_assoc()) {
-                                    $pivot_time = $row_pv['end_time'];
-                                }
-                            }
-                            $stmt_pv->close();
-                        }
-
-                        // 2) Fallback: first start_time for this type (rare but keeps backward-compat)
-                        if ($pivot_time === '' && $stmt_ec = $mysqli->prepare("SELECT start_time FROM attendance_rules WHERE employee_id = ? AND type = ? ORDER BY start_time ASC LIMIT 1")) {
-                            $stmt_ec->bind_param('ss', $employee_id, $type);
-                            if ($stmt_ec->execute()) {
-                                $res_ec = $stmt_ec->get_result();
-                                if ($row_ec = $res_ec->fetch_assoc()) {
-                                    $pivot_time = $row_ec['start_time'];
-                                }
-                            }
-                            $stmt_ec->close();
-                        }
-
-                        if ($pivot_time !== '') {
-                            // Build full datetime with today's date
-                            $expected_dt = date('Y-m-d', strtotime($log_datetime)) . ' ' . $pivot_time;
-                            $late_seconds = strtotime($log_datetime) - strtotime($expected_dt);
-                            if ($late_seconds > 0) {
-                                $late_minutes = (int)floor($late_seconds / 60);
-                                if ($late_minutes === 0) { $late_minutes = 1; }
-                                // Format as hours+minutes when >= 60 minutes
-                                if ($late_minutes >= 60) {
-                                    $hours = intdiv($late_minutes, 60);
-                                    $rem = $late_minutes % 60;
-                                    if ($rem === 0) {
-                                        $late_minutes_display = $hours . ' ម៉ោង';
-                                    } else {
-                                        $late_minutes_display = $hours . ' ម៉ោង ' . $rem . ' នាទី';
-                                    }
-                                } else {
-                                    $late_minutes_display = $late_minutes . ' នាទី';
-                                }
-                                $status_for_db_with_minutes = 'Late ( ' . $late_minutes_display . ' )';
-                            }
-                        }
-                    }
                 $map_url = '';
                 $map_link_markup = '';
                 if (!empty($user_location_raw) && strpos($user_location_raw, ',') !== false) {

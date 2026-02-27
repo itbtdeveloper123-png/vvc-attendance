@@ -3454,35 +3454,39 @@ if (isset($_POST['ajax_action'])) {
 						// Calculate late minutes if Late
 						$late_status_minutes = null;
 						if (isset($log['status']) && strcasecmp($log['status'], 'Late') === 0) {
-							$empIdCalc = $log['employee_id'];
-							$current_hms = date('H:i:s', strtotime($log['log_datetime']));
-							$pivot_time_row = '';
-							if ($stmt_pv_r = $mysqli->prepare("SELECT end_time FROM attendance_rules WHERE employee_id = ? AND type = 'checkin' AND status = 'Good' AND end_time <= ? ORDER BY end_time DESC LIMIT 1")) {
-								$stmt_pv_r->bind_param('sss', $empIdCalc, 'checkin', $current_hms);
-								if ($stmt_pv_r->execute()) {
-									$res_pv_r = $stmt_pv_r->get_result();
-									if ($row_pv_r = $res_pv_r->fetch_assoc()) { $pivot_time_row = $row_pv_r['end_time']; }
-								}
-								$stmt_pv_r->close();
-							}
-							if ($pivot_time_row === '') {
-								if ($stmt_ec_r = $mysqli->prepare("SELECT start_time FROM attendance_rules WHERE employee_id = ? AND type='checkin' ORDER BY start_time ASC LIMIT 1")) {
-									$stmt_ec_r->bind_param('s', $empIdCalc);
-									if ($stmt_ec_r->execute()) {
-										$res_ec_r = $stmt_ec_r->get_result();
-										if ($row_ec_r = $res_ec_r->fetch_assoc()) { $pivot_time_row = trim($row_ec_r['start_time'] ?? ''); }
+							// Prefer stored late_minutes if available
+							if (isset($log['late_minutes']) && (int)$log['late_minutes'] > 0) {
+								$late_status_minutes = (int)$log['late_minutes'];
+							} else {
+								$empIdCalc = $log['employee_id'];
+								$current_hms = date('H:i:s', strtotime($log['log_datetime']));
+								$pivot_time_row = '';
+								if ($stmt_pv_r = $mysqli->prepare("SELECT end_time FROM attendance_rules WHERE employee_id = ? AND type = 'checkin' AND status = 'Good' AND end_time <= ? ORDER BY end_time DESC LIMIT 1")) {
+									$stmt_pv_r->bind_param('sss', $empIdCalc, 'checkin', $current_hms);
+									if ($stmt_pv_r->execute()) {
+										$res_pv_r = $stmt_pv_r->get_result();
+										if ($row_pv_r = $res_pv_r->fetch_assoc()) { $pivot_time_row = $row_pv_r['end_time']; }
 									}
-									$stmt_ec_r->close();
+									$stmt_pv_r->close();
 								}
-							}
-							if ($pivot_time_row !== '' && preg_match('/^\d{1,2}:\d{2}$/', $pivot_time_row)) { $pivot_time_row .= ':00'; }
-							if ($pivot_time_row !== '') {
-								$base_dt_row = date('Y-m-d', strtotime($log['log_datetime'])) . ' ' . $pivot_time_row;
-								$late_secs_row = strtotime($log['log_datetime']) - strtotime($base_dt_row);
-								if ($late_secs_row > 0) {
-									$mins_row = (int)floor($late_secs_row / 60);
-									if ($mins_row === 0) { $mins_row = 1; }
-									$late_status_minutes = $mins_row;
+								if ($pivot_time_row === '') {
+									if ($stmt_ec_r = $mysqli->prepare("SELECT start_time FROM attendance_rules WHERE employee_id = ? AND type='checkin' ORDER BY start_time ASC LIMIT 1")) {
+										$stmt_ec_r->bind_param('s', $empIdCalc);
+										if ($stmt_ec_r->execute()) {
+											$res_ec_r = $stmt_ec_r->get_result();
+											if ($row_ec_r = $res_ec_r->fetch_assoc()) { $pivot_time_row = trim($row_ec_r['start_time'] ?? ''); }
+										}
+										$stmt_ec_r->close();
+									}
+								}
+								if ($pivot_time_row !== '' && preg_match('/^\d{1,2}:\d{2}$/', $pivot_time_row)) { $pivot_time_row .= ':00'; }
+								if ($pivot_time_row !== '') {
+									$base_dt_row = date('Y-m-d', strtotime($log['log_datetime'])) . ' ' . $pivot_time_row;
+									$late_secs_row = strtotime($log['log_datetime']) - strtotime($base_dt_row);
+									if ($late_secs_row > 0) {
+										// FIX: Use ceil for accuracy
+										$late_status_minutes = (int)ceil($late_secs_row / 60);
+									}
 								}
 							}
 						}
@@ -5613,8 +5617,8 @@ endif;
                         $base_dt = date('Y-m-d', strtotime($entry['log_datetime'])) . ' ' . $pivot_time;
                         $late_secs = strtotime($entry['log_datetime']) - strtotime($base_dt);
                         if ($late_secs > 0) {
-                            $mins = (int)floor($late_secs / 60);
-                            if ($mins === 0) { $mins = 1; }
+                            // FIX: Use ceil for accuracy
+                            $mins = (int)ceil($late_secs / 60);
                             $entry['late_minutes'] = $mins;
                         }
                     }
@@ -5992,40 +5996,42 @@ endif;
                     // NEW: per-row late minutes calculation (cached per employee)
                     static $expected_checkin_cache = [];
                     $late_status_minutes = null;
-                    if (isset($log['status']) && strcasecmp($log['status'], 'Late') === 0) {
-                        $empIdCalc = $log['employee_id'];
-                        // Compute pivot per-log using same rule as scan.php (latest Good end_time <= log time, fallback to earliest start_time)
-                        $et_final = '';
-                        $current_hms = date('H:i:s', strtotime($log['log_datetime']));
-                        $pivot_time_row = '';
-                        $type = 'checkin';
-                        if ($stmt_pv_r = $mysqli->prepare("SELECT end_time FROM attendance_rules WHERE employee_id = ? AND type = ? AND status = 'Good' AND end_time <= ? ORDER BY end_time DESC LIMIT 1")) {
-                            $stmt_pv_r->bind_param('sss', $empIdCalc, $type, $current_hms);
-                            if ($stmt_pv_r->execute()) {
-                                $res_pv_r = $stmt_pv_r->get_result();
-                                if ($row_pv_r = $res_pv_r->fetch_assoc()) { $pivot_time_row = $row_pv_r['end_time']; }
-                            }
-                            $stmt_pv_r->close();
-                        }
-                        if ($pivot_time_row === '') {
-                            if ($stmt_ec_r = $mysqli->prepare("SELECT start_time FROM attendance_rules WHERE employee_id = ? AND type='checkin' ORDER BY start_time ASC LIMIT 1")) {
-                                $stmt_ec_r->bind_param('s', $empIdCalc);
-                                if ($stmt_ec_r->execute()) {
-                                    $res_ec_r = $stmt_ec_r->get_result();
-                                    if ($row_ec_r = $res_ec_r->fetch_assoc()) { $pivot_time_row = trim($row_ec_r['start_time'] ?? ''); }
+                    if (strcasecmp($log['status'] ?? '', 'Late') === 0) {
+                        // Prefer stored late_minutes
+                        if (isset($log['late_minutes']) && (int)$log['late_minutes'] > 0) {
+                            $late_status_minutes = (int)$log['late_minutes'];
+                        } else {
+                            $empIdCalc = $log['employee_id'] ?? '';
+                            $current_hms = date('H:i:s', strtotime($log['log_datetime']));
+                            $pivot_time_row = '';
+                            $type = 'checkin';
+                            if ($stmt_pv_r = $mysqli->prepare("SELECT end_time FROM attendance_rules WHERE employee_id = ? AND type = ? AND status = 'Good' AND end_time <= ? ORDER BY end_time DESC LIMIT 1")) {
+                                $stmt_pv_r->bind_param('sss', $empIdCalc, $type, $current_hms);
+                                if ($stmt_pv_r->execute()) {
+                                    $res_pv_r = $stmt_pv_r->get_result();
+                                    if ($row_pv_r = $res_pv_r->fetch_assoc()) { $pivot_time_row = $row_pv_r['end_time']; }
                                 }
-                                $stmt_ec_r->close();
+                                $stmt_pv_r->close();
                             }
-                        }
-                        if ($pivot_time_row !== '' && preg_match('/^\d{1,2}:\d{2}$/', $pivot_time_row)) { $pivot_time_row .= ':00'; }
-                        $et_final = $pivot_time_row; // may be ''
-                        if ($et_final !== '') {
-                            $base_dt_row = date('Y-m-d', strtotime($log['log_datetime'])) . ' ' . $et_final;
-                            $late_secs_row = strtotime($log['log_datetime']) - strtotime($base_dt_row);
-                            if ($late_secs_row > 0) {
-                                $mins_row = (int)floor($late_secs_row / 60);
-                                if ($mins_row === 0) { $mins_row = 1; }
-                                $late_status_minutes = $mins_row;
+                            if ($pivot_time_row === '') {
+                                if ($stmt_ec_r = $mysqli->prepare("SELECT start_time FROM attendance_rules WHERE employee_id = ? AND type='checkin' ORDER BY start_time ASC LIMIT 1")) {
+                                    $stmt_ec_r->bind_param('s', $empIdCalc);
+                                    if ($stmt_ec_r->execute()) {
+                                        $res_ec_r = $stmt_ec_r->get_result();
+                                        if ($row_ec_r = $res_ec_r->fetch_assoc()) { $pivot_time_row = trim($row_ec_r['start_time'] ?? ''); }
+                                    }
+                                    $stmt_ec_r->close();
+                                }
+                            }
+                            if ($pivot_time_row !== '' && preg_match('/^\d{1,2}:\d{2}$/', $pivot_time_row)) { $pivot_time_row .= ':00'; }
+                            $et_final = $pivot_time_row; 
+                            if ($et_final !== '') {
+                                $base_dt_row = date('Y-m-d', strtotime($log['log_datetime'])) . ' ' . $et_final;
+                                $late_secs_row = strtotime($log['log_datetime']) - strtotime($base_dt_row);
+                                if ($late_secs_row > 0) {
+                                    // FIX: Use ceil for accuracy
+                                    $late_status_minutes = (int)ceil($late_secs_row / 60);
+                                }
                             }
                         }
                     }
@@ -6150,40 +6156,44 @@ endif;
                     $late_status_minutes = null;
                     $empIdCalc = $log['employee_id'] ?? '';
                     if (strcasecmp($status_raw, 'Late') === 0 && $empIdCalc !== '') {
-                        if (!isset($expected_checkin_cache_export[$empIdCalc])) {
-                            $et = '';
-                            // Use pivot logic: latest end_time with status='Good' that is <= current log time (H:i:s)
-                            $current_hms_row = date('H:i:s', strtotime($log['log_datetime']));
-                            if ($stmt_pivot = $mysqli->prepare("SELECT end_time FROM attendance_rules WHERE employee_id = ? AND type='checkin' AND status = 'Good' AND end_time <= ? ORDER BY end_time DESC LIMIT 1")) {
-                                $stmt_pivot->bind_param('ss', $empIdCalc, $current_hms_row);
-                                if ($stmt_pivot->execute()) {
-                                    $res_pivot = $stmt_pivot->get_result();
-                                    if ($row_pivot = $res_pivot->fetch_assoc()) { $et = trim($row_pivot['end_time'] ?? ''); }
-                                }
-                                $stmt_pivot->close();
-                            }
-                            // Fallback to earliest start_time if pivot not found
-                            if ($et === '') {
-                                if ($stmt_f = $mysqli->prepare("SELECT start_time FROM attendance_rules WHERE employee_id = ? AND type='checkin' ORDER BY start_time ASC LIMIT 1")) {
-                                    $stmt_f->bind_param('s', $empIdCalc);
-                                    if ($stmt_f->execute()) {
-                                        $res_f = $stmt_f->get_result();
-                                        if ($row_f = $res_f->fetch_assoc()) { $et = trim($row_f['start_time'] ?? ''); }
+                        // Prefer stored late_minutes
+                        if (isset($log['late_minutes']) && (int)$log['late_minutes'] > 0) {
+                            $late_status_minutes = (int)$log['late_minutes'];
+                        } else {
+                            if (!isset($expected_checkin_cache_export[$empIdCalc])) {
+                                $et = '';
+                                // Use pivot logic: latest end_time with status='Good' that is <= current log time (H:i:s)
+                                $current_hms_row = date('H:i:s', strtotime($log['log_datetime']));
+                                if ($stmt_pivot = $mysqli->prepare("SELECT end_time FROM attendance_rules WHERE employee_id = ? AND type='checkin' AND status = 'Good' AND end_time <= ? ORDER BY end_time DESC LIMIT 1")) {
+                                    $stmt_pivot->bind_param('ss', $empIdCalc, $current_hms_row);
+                                    if ($stmt_pivot->execute()) {
+                                        $res_pivot = $stmt_pivot->get_result();
+                                        if ($row_pivot = $res_pivot->fetch_assoc()) { $et = trim($row_pivot['end_time'] ?? ''); }
                                     }
-                                    $stmt_f->close();
+                                    $stmt_pivot->close();
                                 }
+                                // Fallback to earliest start_time if pivot not found
+                                if ($et === '') {
+                                    if ($stmt_f = $mysqli->prepare("SELECT start_time FROM attendance_rules WHERE employee_id = ? AND type='checkin' ORDER BY start_time ASC LIMIT 1")) {
+                                        $stmt_f->bind_param('s', $empIdCalc);
+                                        if ($stmt_f->execute()) {
+                                            $res_f = $stmt_f->get_result();
+                                            if ($row_f = $res_f->fetch_assoc()) { $et = trim($row_f['start_time'] ?? ''); }
+                                        }
+                                        $stmt_f->close();
+                                    }
+                                }
+                                if ($et !== '' && preg_match('/^\d{1,2}:\d{2}$/', $et)) { $et .= ':00'; }
+                                $expected_checkin_cache_export[$empIdCalc] = $et; // may be ''
                             }
-                            if ($et !== '' && preg_match('/^\d{1,2}:\d{2}$/', $et)) { $et .= ':00'; }
-                            $expected_checkin_cache_export[$empIdCalc] = $et; // may be ''
-                        }
-                        $et_final = $expected_checkin_cache_export[$empIdCalc];
-                        if ($et_final !== '') {
-                            $base_dt_row = date('Y-m-d', strtotime($log['log_datetime'])) . ' ' . $et_final;
-                            $late_secs_row = strtotime($log['log_datetime']) - strtotime($base_dt_row);
-                            if ($late_secs_row > 0) {
-                                $mins_row = (int)floor($late_secs_row / 60);
-                                if ($mins_row === 0) { $mins_row = 1; }
-                                $late_status_minutes = $mins_row;
+                            $et_final = $expected_checkin_cache_export[$empIdCalc];
+                            if ($et_final !== '') {
+                                $base_dt_row = date('Y-m-d', strtotime($log['log_datetime'])) . ' ' . $et_final;
+                                $late_secs_row = strtotime($log['log_datetime']) - strtotime($base_dt_row);
+                                if ($late_secs_row > 0) {
+                                    // FIX: Use ceil for accuracy
+                                    $late_status_minutes = (int)ceil($late_secs_row / 60);
+                                }
                             }
                         }
                     }
