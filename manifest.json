@@ -1,0 +1,22 @@
+{
+  "name": "ប្រព័ន្ធគ្រប់គ្រងបុគ្គលិក (Attendance)",
+  "short_name": "Attendance",
+  "description": "កម្មវិធីសម្រាប់គ្រប់គ្រងវត្តមាន និងសំណើសុំច្បាប់របស់បុគ្គលិក",
+  "start_url": "scan.php",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#007aff",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/11693/11693253.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/11693/11693253.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

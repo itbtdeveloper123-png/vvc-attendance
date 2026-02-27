@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="km">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ឯកសារគម្រោង</title>
+    
+    <!-- Modern CSS: Google Fonts + variables + responsive layout -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Noto+Sans+Khmer:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root{
+            --bg: #f6f8fb;
+            --card: #ffffff;
+            --muted: #6b7280;
+            --text: #0f172a;
+            --accent: #0ea5ff; /* sky-500 */
+            --accent-2: #06b6d4; /* teal */
+            --radius: 12px;
+            --shadow-sm: 0 6px 18px rgba(2,6,23,0.06);
+            --max-width: 980px;
+        }
+
+        html,body{height:100%;}
+        body {
+            font-family: 'Noto Sans Khmer', 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+            line-height: 1.65;
+            margin: 0;
+            color: var(--text);
+            background: linear-gradient(180deg, var(--bg), #ffffff);
+            -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+        }
+
+        /* Top bar for small screens, sidebar for large screens */
+        #navbar{
+            position: fixed;
+            top: 18px;
+            left: 18px;
+            width: 300px;
+            max-width: calc(33vw);
+            height: calc(100% - 36px);
+            background: var(--card);
+            border-radius: 14px;
+            box-shadow: var(--shadow-sm);
+            border: 1px solid rgba(15,23,42,0.04);
+            overflow-y: auto;
+            padding: 8px;
+            z-index: 30;
+        }
+
+        #navbar header{
+            font-size: 1.15rem;
+            font-weight: 700;
+            padding: 14px 12px;
+            text-align: left;
+            color: var(--text);
+            letter-spacing: .2px;
+            border-bottom: 1px solid rgba(15,23,42,0.04);
+            margin-bottom: 6px;
+            display:flex; align-items:center; gap:10px;
+        }
+
+        #navbar ul{ list-style:none; padding:6px; margin:0; }
+        #navbar li{ margin:6px 0; }
+
+        .nav-link{
+            display:flex; align-items:center; gap:10px;
+            padding:10px 12px; border-radius:10px; text-decoration:none; color:var(--text);
+            transition:all .18s ease; background:transparent; font-weight:600;
+        }
+        .nav-link:hover{ transform: translateY(-2px); background: linear-gradient(90deg, rgba(14,165,255,0.06), rgba(6,182,212,0.04)); }
+        .nav-link.active{ background: linear-gradient(90deg, rgba(14,165,255,0.10), rgba(6,182,212,0.06)); color:var(--accent-2); box-shadow: inset 0 1px 0 rgba(255,255,255,0.6); }
+
+        /* Main content centered and readable */
+        #main-doc{ margin-left: 340px; padding: 40px 24px; max-width: var(--max-width); margin-right: auto; }
+
+        .main-section{ margin-bottom: 40px; }
+        .main-section header{ font-size:1.5rem; font-weight:700; margin-bottom:12px; color:var(--text); }
+
+        .card{ background:var(--card); border-radius: var(--radius); padding:16px; box-shadow: var(--shadow-sm); border:1px solid rgba(15,23,42,0.04); }
+
+        p{ margin:0 0 14px 0; color: #263241; }
+
+        code{ background:#0f172a; color:#e6eef8; padding:6px 8px; border-radius:8px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', monospace; }
+        pre{ background: #0b1220; color:#e6eef8; padding:14px; border-radius:10px; overflow:auto; }
+
+        ol,ul{ padding-left: 24px; }
+
+        /* Buttons */
+        .btn{ display:inline-flex; align-items:center; gap:8px; padding:8px 14px; border-radius:10px; border: none; cursor:pointer; font-weight:600; }
+        .btn.primary{ background: linear-gradient(90deg,var(--accent),var(--accent-2)); color: #fff; box-shadow: 0 8px 26px rgba(6,95,125,0.08); }
+        .btn.ghost{ background: transparent; color: var(--text); border: 1px solid rgba(15,23,42,0.06); }
+
+        /* Copy row */
+        .copy-row{ display:flex; gap:10px; align-items:center; margin:10px 0 18px; }
+        .copy-input{ flex:1; padding:10px 12px; border-radius:10px; border:1px solid rgba(15,23,42,0.06); background: #fbfdff; }
+
+        img{ border-radius:10px; box-shadow: 0 6px 18px rgba(2,6,23,0.04); max-width:100%; height:auto; display:block; }
+        .screenshot{ margin-bottom:12px; }
+
+        /* Screenshots row: small, consistent thumbnails in a row */
+        .screens-list{ display:flex; gap:12px; flex-wrap:wrap; list-style:none; padding:0; margin:8px 0 0 0; }
+        .screens-list li{ flex: 0 0 auto; }
+    /* Do not crop images: use contain so the whole image is visible; add subtle background */
+        /* Slightly larger thumbnails (more visible) without cropping */
+        .screens-list img{ max-width: 100%; height:468px;  background: #f0f4f8; }
+        /* Responsive thumbnails */
+        @media (max-width:900px){
+            .screens-list img{ max-width: 100%; height:268px;  background: #f0f4f8; }
+        }
+        @media (max-width:520px){
+            .screens-list{ gap:10px; }
+            /* stack two per row on small phones */
+            .screens-list img{ max-width: 100%; height:268px;  background: #f0f4f8; }
+            .screens-list li{ width:48%; }
+        }
+        @media (max-width:360px){
+            .screens-list img{ max-width: 100%; height:auto;  background: #f0f4f8; }
+            .screens-list li{ width:100%; }
+        }
+
+    /* Contact row */
+    .contact-row{ display:flex; gap:15px; flex-wrap:wrap; margin-top:8px; }
+    .contact-link{ text-decoration:none; }
+    .social-icon{ width:20px; height:20px; }
+    .btn.telegram{ background:#0088cc; color:#fff; }
+    .btn.gmail{ background:#ea4335; color:#fff; }
+    .btn.fb{ background:#1877f3; color:#fff; }
+
+        /* Responsive: collapse navbar to top on small screens */
+        @media (max-width: 900px){
+            #navbar{ position: static; width:100%; height:auto; max-width:100%; margin: 12px 12px 0 12px; }
+            #main-doc{ margin-left:0; padding:20px 16px; }
+        }
+
+        @media (max-width: 420px){
+            :root{ --radius:10px; }
+            #navbar{ padding:8px; }
+            .nav-link{ padding:12px; font-size:0.95rem; }
+            #main-doc{ padding:16px 12px; }
+        }
+    </style>
+</head>
+<body>
+    <nav id="navbar">
+        <header>ឯកសារគម្រោង</header>
+        <ul>
+            <li><a class="nav-link" href="#សេចក្តីផ្តើម">សេចក្តីផ្តើម</a></li>
+            <li><a class="nav-link" href="#ការតម្លើង">ការតម្លើង</a></li>
+            <li><a class="nav-link" href="#របៀបប្រើប្រាស់">របៀបប្រើប្រាស់</a></li>
+            <!-- <li><a class="nav-link" href="#ការដោះស្រាយបញ្ហា">ការដោះស្រាយបញ្ហា</a></li> -->
+            <li><a class="nav-link" href="#ការចូលរួមចំណែក">ការចូលរួមចំណែក</a></li>
+        </ul>
+    </nav>
+
+    <main id="main-doc">
+        <section class="main-section" id="សេចក្តីផ្តើម">
+            <header>សេចក្តីផ្តើម</header>
+            <article>
+                <p>សូមស្វាគមន៍មកកាន់ការអភិវឌ្ឍន៍ថ្មី នៃកម្មវិធីស្កេនវត្តមាន <strong>ដែលយើងបានអភិវឌ្ឍលើមុខងារច្រើននិងដោះស្រាយបញ្ហាកម្មវិធីចាស់ដែលកើតមានកន្លងមក</strong>។ ឯកសារខាងក្រោមនេះនឹងណែនាំអ្នកពីរបៀបតម្លើង និងប្រើប្រាស់កម្មវិធីនេះ។</p>
+                
+            </article>
+        </section>
+
+        <section class="main-section" id="ការតម្លើង">
+            <header>ការតម្លើង</header>
+            <article>
+                <p>ដើម្បីតម្លើងកម្មវិធីនេះ សូមអនុវត្តតាមជំហានខាងក្រោម៖</p>
+                <ol>
+                    <li>សូមចុច ប៊ូតុង ចម្លងខាងក្រោមដើម្បីចម្លង Link ទុកទៅ Past នៅលើ Browser របស់អ្នក: សម្រាប់ លើ iPhone មានដូចជា Safari, Chrome; សម្រាប់ Android មានដូចជា Chrome, Firefox។</li>
+                    <li>
+                        <div class="copy-row">
+                            <input type="text" id="copyLinkInput" value="https://app.vvc.asia/vvc-attendance/scan.php" readonly class="copy-input" aria-label="App link" placeholder="App link">
+                            <button onclick="copyLink()" class="btn primary">ចម្លង</button>
+                        </div>
+                        <script>
+                        function copyLink() {
+                            const input = document.getElementById('copyLinkInput');
+                            input.select();
+                            input.setSelectionRange(0, 99999); // For mobile devices
+                            try { document.execCommand('copy'); alert('បានចម្លង Link ទៅ Clipboard!'); }
+                            catch(e){ navigator.clipboard && navigator.clipboard.writeText(input.value).then(()=>alert('បានចម្លង Link ទៅ Clipboard!')); }
+                        }
+                        </script>
+                    </li>
+                    <li>រូបភាពតំណាង
+                        <ul class="screens-list">
+                            <li><img src="https://i.ibb.co/G6vCFbm/image.png" alt="Screenshot" class="screenshot"></li>
+                            <li><img src="https://i.ibb.co/V0N5KcCc/image.png" alt="Screenshot" class="screenshot"></li>
+                            <li><img src="https://i.ibb.co/4wbLvd33/image.png" alt="Screenshot" class="screenshot"></li>
+                        </ul>
+                    </li>
+                    <li>
+                        ជំហានបន្ទាប់គ្រាន់តែ រើសប្រភេទបុគ្គលិក (ជំនាញ / កម្មករ) និងបញ្ជូល ID និងចុចប៊ូតុងចូល
+                        <ul class="screens-list">
+                            <li><img src="https://i.ibb.co/9mhfqRw7/image.png" alt="" class="screenshot"></li>
+                            <li><img src="https://i.ibb.co/Y4z7P5d6/image.png" alt="" class="screenshot"></li>
+                        </ul>
+                    </li>
+                </ol>
+            </article>
+        </section>
+
+        <section class="main-section" id="របៀបប្រើប្រាស់">
+            <header>របៀបប្រើប្រាស់</header>
+            <article>
+                <p>បន្ទាប់ពីការតម្លើងបានជោគជ័យ អ្នកអាចដំណើរការប្រើប្រាស់ខាងមាននៅក្រោមនេះ៖</p>
+                <p>ចុចលើ <mark>ស្កេនវត្តមាន</mark> វានិងបង្ហាញ popup Camera សម្រាប់ស្កេន QR Code វត្តមាន ដែលនៅក្នុងនិងយើងមានជ្រើសរើសប្រភេទ ស្កេនចូល និងចេញ ។ សូមពិនិត្យ​​​​ឱ្យបានច្បាស់លាស់មុននិងស្កេនវត្តមាន</p>
+                <div class="screens-list">
+                    <img src="https://i.ibb.co/hFpHn1Bk/image.png" alt="" class="screenshot">
+                    <img src="https://i.ibb.co/VYFgPw1g/image.png" alt="" class="screenshot">
+                </div>
+            </article>
+        </section>
+
+        
+
+        <!-- <section class="main-section" id="ការដោះស្រាយបញ្ហា">
+            <header>ការដោះស្រាយបញ្ហា</header>
+            <article>
+                <p>ប្រសិនបើអ្នកជួបប្រទះបញ្ហា លើបញ្ហាទីតាំង ការគាំងទិន្នន័យ សូមធ្វើតាមវិធីខាងក្រោមនេះ</p>
+                <ul>
+                    <li><strong>បញ្ហា៖</strong> ការស្កេនមិនលោតទីតាំង ឬ ក៏ Camera យើងត្រូវចូលទៅកម្មវិធី Google map ដើម្បីឆែកថាទីតាំងរបស់យើងបាននៅនិងមែនអត់ និងចូលទៅក្នុង Setting របស់ទូរសព្ទរបស់អ្នក ចុចលើប៊ូតុងស្វែងរកកម្មវិធីនៅខាងលើ ហើយស្វែងរក Browser ដែលបាន Past Link កម្មវិធីស្កេនវត្តមាននិងចូល ដើម្បីទៅបើកការអនុញ្ញាតក្នុងប្រើប្រាស់ទីតាំង</li>
+                    <li><strong>ដំណោះស្រាយ៖</strong> [ដំណោះស្រាយសម្រាប់បញ្ហាទី១]</li>
+                    <li><strong>បញ្ហា៖</strong> [បញ្ហាទូទៅទី២]</li>
+                    <li><strong>ដំណោះស្រាយ៖</strong> [ដំណោះស្រាយសម្រាប់បញ្ហាទី២]</li>
+                </ul>
+            </article>
+        </section> -->
+
+        <section class="main-section" id="ការចូលរួមចំណែក">
+            <header>ទំនាក់ទំនង មកកាន់ IT</header>
+            <article>
+                <p>សម្រាប់ការទំនាក់ទំនង IT សូមប្រើប៊ូតុងខាងក្រោម៖</p>
+                <div class="contact-row">
+                    <a href="https://t.me/Sao_Som_Bath" target="_blank" rel="noopener noreferrer" class="contact-link">
+                        <button class="btn telegram">
+                            <img src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/telegram.svg" alt="Telegram" class="social-icon">
+                            Telegram
+                        </button>
+                    </a>
+                </div>
+            </article>
+        </section>
+    </main>
+
+    <!-- ================== JavaScript Code ================== -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Smooth scrolling for navigation links
+            const navLinks = document.querySelectorAll('.nav-link');
+
+            navLinks.forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const targetId = e.target.getAttribute('href');
+                    const targetSection = document.querySelector(targetId);
+                    if (targetSection) {
+                        window.scrollTo({
+                            top: targetSection.offsetTop,
+                            behavior: 'smooth'
+                        });
+                    }
+                });
+            });
+
+            // Highlight active nav link on scroll
+            const sections = document.querySelectorAll('.main-section');
+            const navLi = document.querySelectorAll('#navbar ul li a');
+
+            window.addEventListener('scroll', () => {
+                let current = '';
+                sections.forEach(section => {
+                    const sectionTop = section.offsetTop;
+                    if (pageYOffset >= sectionTop - 60) {
+                        current = '#' + section.getAttribute('id');
+                    }
+                });
+
+                navLi.forEach(a => {
+                    a.classList.remove('active');
+                    if (a.getAttribute('href') === current) {
+                        a.classList.add('active');
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>
