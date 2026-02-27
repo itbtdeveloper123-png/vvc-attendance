@@ -1708,8 +1708,8 @@ $token = $_SESSION['auth_token'] ?? ($_COOKIE['auth_token'] ?? null);
 if ($token) {
     $sql = "SELECT u.employee_id, u.name, u.custom_data
             FROM users u
-            JOIN active_tokens at ON u.employee_id = at.employee_id
-            WHERE at.auth_token = ?";
+            JOIN active_tokens atk ON u.employee_id = atk.employee_id
+            WHERE atk.auth_token = ?";
     if ($stmt = $mysqli->prepare($sql)) {
         $stmt->bind_param("s", $token); $stmt->execute();
         $result = $stmt->get_result();

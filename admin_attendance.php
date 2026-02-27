@@ -2905,7 +2905,7 @@ if (isset($_POST['ajax_action'])) {
                 $revoke_token = $_POST['token'] ?? '';
                 // Permission: Super Admin can revoke any; normal admin only their users or themselves
                 $can_revoke = false;
-                $check_sql = "SELECT u.employee_id FROM active_tokens at JOIN users u ON at.employee_id = u.employee_id WHERE at.auth_token = ?";
+                $check_sql = "SELECT u.employee_id FROM active_tokens atk JOIN users u ON atk.employee_id = u.employee_id WHERE atk.auth_token = ?";
                 if ($stmt = $mysqli->prepare($check_sql)) {
                     $stmt->bind_param("s", $revoke_token);
                     $stmt->execute();
@@ -3902,7 +3902,7 @@ if ($show_admin_pages) {
             $result->close();
         }
     } else {
-        $sql = "SELECT COUNT(*) as count FROM active_tokens at JOIN users u ON at.employee_id = u.employee_id WHERE u.created_by_admin_id = ?";
+        $sql = "SELECT COUNT(*) as count FROM active_tokens atk JOIN users u ON atk.employee_id = u.employee_id WHERE u.created_by_admin_id = ?";
         if ($stmt = $mysqli->prepare($sql)) {
             $stmt->bind_param("s", $current_admin_id);
             $stmt->execute();
@@ -8651,14 +8651,14 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
         <?php
         // Restrict visible sessions to this admin's users unless Super Admin
         $active_sessions_sql = "
-            SELECT at.*, u.name as user_name, u.employee_id, u.user_role
-            FROM active_tokens at
-            JOIN users u ON at.employee_id = u.employee_id";
+            SELECT atk.*, u.name as user_name, u.employee_id, u.user_role
+            FROM active_tokens atk
+            JOIN users u ON atk.employee_id = u.employee_id";
         if (!$is_super_admin) {
             $adminEsc = $mysqli->real_escape_string($current_admin_id);
             $active_sessions_sql .= " WHERE (u.created_by_admin_id = '" . $adminEsc . "' OR u.employee_id = '" . $adminEsc . "')";
         }
-        $active_sessions_sql .= " ORDER BY at.created_at DESC";
+        $active_sessions_sql .= " ORDER BY atk.created_at DESC";
         $active_sessions_query = $mysqli->query($active_sessions_sql);
         $session_count = $active_sessions_query ? $active_sessions_query->num_rows : 0;
         ?>
