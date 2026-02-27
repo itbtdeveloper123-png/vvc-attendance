@@ -1,0 +1,12 @@
+# EditorConfig — prevent UTF-8 BOM on all files
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.php]
+charset = utf-8
+# Never add BOM to PHP files — BOM before <?php breaks output

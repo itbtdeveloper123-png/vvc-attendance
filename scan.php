@@ -4022,44 +4022,242 @@ if ($is_logged_in) {
     </footer>
     <?php endif; ?>
     
+    <!-- ========== AI-ASSISTED QR SCANNER POPUP ========== -->
+    <style>
+    /* AI Scanner Overlay Styles */
+    #aiScannerOverlay {
+        position: absolute;
+        top: 0; left: 0; right: 0;
+        padding: 12px 14px 8px;
+        z-index: 10;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        pointer-events: none;
+    }
+    .ai-scanner-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+    }
+    .ai-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        background: linear-gradient(135deg, rgba(0,122,255,0.92), rgba(90,50,255,0.88));
+        color: #fff;
+        font-size: 0.72rem;
+        font-weight: 700;
+        padding: 4px 10px;
+        border-radius: 20px;
+        letter-spacing: 0.5px;
+        box-shadow: 0 4px 12px rgba(0,122,255,0.35);
+        border: 1px solid rgba(255,255,255,0.25);
+        pointer-events: auto;
+    }
+    .ai-badge .ai-dot {
+        width: 6px; height: 6px;
+        border-radius: 50%;
+        background: #4ade80;
+        animation: aiPulse 1.2s ease-in-out infinite;
+    }
+    @keyframes aiPulse {
+        0%,100%{ opacity:1; transform: scale(1); }
+        50%{ opacity:0.5; transform: scale(0.7); }
+    }
+    /* GPS Accuracy Bar */
+    .gps-accuracy-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        background: rgba(0,0,0,0.55);
+        backdrop-filter: blur(8px);
+        color: #fff;
+        font-size: 0.7rem;
+        font-weight: 600;
+        padding: 4px 10px;
+        border-radius: 20px;
+        border: 1px solid rgba(255,255,255,0.18);
+        pointer-events: auto;
+    }
+    .gps-dot { width: 8px; height: 8px; border-radius: 50%; background: #6b7280; flex-shrink:0; }
+    .gps-dot.gps-good { background: #4ade80; box-shadow: 0 0 6px rgba(74,222,128,0.6); }
+    .gps-dot.gps-warn { background: #fbbf24; box-shadow: 0 0 6px rgba(251,191,36,0.6); }
+    .gps-dot.gps-bad  { background: #f87171; box-shadow: 0 0 6px rgba(248,113,113,0.6); }
+    .gps-dot.gps-spin {
+        background: transparent;
+        border: 2px solid rgba(255,255,255,0.4);
+        border-top-color: #60a5fa;
+        animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to{ transform: rotate(360deg); } }
+
+    /* AI Status Bar below scanner */
+    #aiStatusBar {
+        position: absolute;
+        bottom: 0;
+        left: 0; right: 0;
+        padding: 10px 14px 6px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        pointer-events: none;
+        z-index: 10;
+    }
+    .ai-status-msg {
+        text-align: center;
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: #fff;
+        text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+        min-height: 18px;
+    }
+    .ai-tips-row {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+    .ai-tip-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        background: rgba(0,0,0,0.48);
+        backdrop-filter: blur(6px);
+        color: rgba(255,255,255,0.88);
+        font-size: 0.68rem;
+        padding: 3px 8px;
+        border-radius: 12px;
+        border: 1px solid rgba(255,255,255,0.12);
+    }
+    /* Smart scanner frame animation */
+    .scanner-frame.ai-detecting .corner {
+        border-color: #60a5fa !important;
+        box-shadow: 0 0 12px rgba(96,165,250,0.5);
+    }
+    .scanner-frame.ai-success .corner {
+        border-color: #4ade80 !important;
+        box-shadow: 0 0 18px rgba(74,222,128,0.7) !important;
+        animation: successPulse 0.5s ease;
+    }
+    @keyframes successPulse {
+        0%{ transform: scale(1); } 50%{ transform: scale(1.04); } 100%{ transform: scale(1); }
+    }
+    /* Distance Meter */
+    .distance-meter {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: rgba(0,0,0,0.52);
+        backdrop-filter: blur(8px);
+        border: 1px solid rgba(255,255,255,0.14);
+        border-radius: 14px;
+        padding: 7px 12px;
+        pointer-events: auto;
+    }
+    .distance-meter .dm-icon { font-size: 1rem; }
+    .distance-meter .dm-label { font-size: 0.7rem; color: rgba(255,255,255,0.7); }
+    .distance-meter .dm-value { font-size: 0.85rem; font-weight: 700; color: #fff; }
+    .distance-meter .dm-bar-wrap {
+        flex: 1;
+        height: 4px;
+        background: rgba(255,255,255,0.15);
+        border-radius: 4px;
+        overflow: hidden;
+    }
+    .distance-meter .dm-bar {
+        height: 100%;
+        border-radius: 4px;
+        transition: width 0.4s ease, background 0.4s ease;
+        background: linear-gradient(90deg, #4ade80, #22c55e);
+    }
+    /* Action select inside popup */
+    .ai-action-row {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 10px;
+        pointer-events: auto;
+    }
+    </style>
+
     <div id="cameraPopup" class="popup-overlay">
-        <div class="popup-content camera-popup-content">
-            <a role="button" onclick="stopCamera()" class="close-scanner-btn" aria-label="Close Scanner"><i class="fa-solid fa-xmark"></i></a>
-            <!-- Move instruction text to top -->
-            <div id="scanner-ui-elements" style="position: absolute; top: 10%; width: 100%;">
-                <p class="scanner-text" style="margin:0 0 12px; font-weight:600; font-size:1.05rem;">សូមដាក់ QR Code ឱ្យចំកណ្តាលប្រអប់</p>
-                <div id="submission-loading" style="display: none;">
-                    <div class="upload-spinner"></div>
-                    <p>កំពុងបញ្ជូនទិន្នន័យ...</p>
+        <div class="popup-content camera-popup-content" style="padding:0; overflow:hidden; display:flex; flex-direction:column;">
+
+            <!-- Close Button -->
+            <a role="button" onclick="stopCamera()" class="close-scanner-btn" aria-label="Close Scanner" style="z-index:20;"><i class="fa-solid fa-xmark"></i></a>
+
+            <!-- AI Overlay TOP -->
+            <div id="aiScannerOverlay">
+                <div class="ai-scanner-header">
+                    <div class="ai-badge">
+                        <span class="ai-dot"></span>
+                        🤖 AI Scanner
+                    </div>
+                    <div class="gps-accuracy-chip" id="gpsChip">
+                        <span class="gps-dot gps-spin" id="gpsDot"></span>
+                        <span id="gpsChipText">GPS...</span>
+                    </div>
                 </div>
-                <p id="status_msg_popup" style="min-height:20px; margin:0; font-size:0.85rem; font-weight:500;"></p>
+                <!-- Submission Loading -->
+                <div id="submission-loading" style="display:none; flex-direction:row; align-items:center; justify-content:center; gap:10px; background:rgba(0,0,0,0.6); backdrop-filter:blur(8px); border-radius:12px; padding:8px 14px;">
+                    <div class="upload-spinner" style="width:20px;height:20px;border-width:3px;"></div>
+                    <p style="margin:0; color:#fff; font-size:0.85rem; font-weight:600;">កំពុងផ្ទៀងផ្ទាត់...</p>
+                </div>
             </div>
-            <div id="scanner-container">
-                <div id="camera-preview-container"><div id="camera-preview"></div></div>
-                <div class="scanner-frame">
+
+            <!-- Camera Preview Container -->
+            <div id="scanner-container" style="flex:1; position:relative;">
+                <div id="camera-preview-container" style="width:100%; height:100%;"><div id="camera-preview"></div></div>
+                <div class="scanner-frame" id="aiScannerFrame">
                     <div class="corner top-left"></div><div class="corner top-right"></div>
                     <div class="corner bottom-left"></div><div class="corner bottom-right"></div>
                     <div class="scanner-laser"></div>
                 </div>
             </div>
-            <!-- NEW: Manual Scan Fallback Button (Inside Camera Popup) -->
-            <?php if (is_manual_scan_allowed()): ?>
-            <button id="camPopupManualBtn" onclick="stopCamera(); startManualAttendanceProcess();" class="mobile-button" style="margin-top:15px; width:100%; display:none; background: rgba(255,255,255,0.2); backdrop-filter: blur(10px); color: white; border: 1px solid rgba(255,255,255,0.4);">
-                <i class="fas fa-hand-pointer"></i> ស្កេនដោយដៃ (Manual Scan)
-            </button>
-            <?php endif; ?>
-            <!-- Action select moved below camera -->
-            <div id="scanner-ui-elements" style="position: absolute; bottom: 10%; width: 100%;">
-                <div class="form-group select-action-container" style="margin-top:6px;">
+
+            <!-- AI Status Bar BOTTOM -->
+            <div id="aiStatusBar">
+                <!-- Status Message -->
+                <div class="ai-status-msg" id="status_msg_popup">កំពុងបើកកាមេរ៉ា...</div>
+
+                <!-- Distance Meter (hidden until GPS ready) -->
+                <div class="distance-meter" id="distanceMeter" style="display:none;">
+                    <span class="dm-icon">📍</span>
+                    <div style="flex:1;">
+                        <div class="dm-label">ចម្ងាយពីទីតាំង</div>
+                        <div class="dm-value" id="dmValue">--</div>
+                    </div>
+                    <div class="dm-bar-wrap"><div class="dm-bar" id="dmBar" style="width:0%;"></div></div>
+                </div>
+
+                <!-- Smart tips row -->
+                <div class="ai-tips-row" id="aiTipsRow">
+                    <div class="ai-tip-chip"><span>💡</span> ដាក់ QR ឱ្យស្មើ</div>
+                    <div class="ai-tip-chip"><span>☀️</span> ពន្លឺគ្រប់គ្រាន់</div>
+                    <div class="ai-tip-chip"><span>📏</span> ចម្ងាយ 10-30 cm</div>
+                </div>
+
+                <!-- Action Select -->
+                <div class="ai-action-row" style="margin-top:4px;">
                     <span id="actionSelectIcon" class="action-select-icon" aria-hidden="true"><i class="fa-solid fa-right-to-bracket"></i></span>
                     <select id="actionSelectInPopup" class="mobile-input" aria-label="Select attendance action">
                         <option value="Check-In" selected>Check-In (ចូល)</option>
                         <option value="Check-Out">Check-Out (ចេញ)</option>
                     </select>
                 </div>
+
+                <!-- Manual Scan Fallback -->
+                <?php if (is_manual_scan_allowed()): ?>
+                <button id="camPopupManualBtn" onclick="stopCamera(); startManualAttendanceProcess();" class="mobile-button" style="margin-top:6px; width:100%; display:none; background: rgba(255,255,255,0.18); backdrop-filter: blur(10px); color: white; border: 1px solid rgba(255,255,255,0.35); font-size:0.85rem;">
+                    <i class="fas fa-hand-pointer"></i> ស្កេនដោយដៃ (Manual Scan)
+                </button>
+                <?php endif; ?>
             </div>
         </div>
     </div>
+    <!-- ========== END AI-ASSISTED QR SCANNER POPUP ========== -->
 
     <!-- Manual Attendance Popup -->
     <div id="manualPopup" class="popup-overlay" style="display: none;">
@@ -5011,12 +5209,120 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
         return R * c * 1000; // Return distance in meters
     }
 
+    // ===== AI SCANNER HELPERS =====
+    /**
+     * Update the GPS chip UI in the AI scanner overlay
+     * @param {'spin'|'good'|'warn'|'bad'} state
+     * @param {string} text
+     */
+    function updateGpsChip(state, text) {
+        const dot = document.getElementById('gpsDot');
+        const chipText = document.getElementById('gpsChipText');
+        if (!dot || !chipText) return;
+        dot.className = 'gps-dot gps-' + state;
+        chipText.textContent = text;
+    }
+
+    /**
+     * Update the live distance meter in the AI scanner
+     * @param {number|null} distanceM - distance in meters, or null to hide
+     * @param {number|null} radiusM - allowed radius in meters
+     */
+    function updateDistanceMeter(distanceM, radiusM) {
+        const meter = document.getElementById('distanceMeter');
+        const valEl = document.getElementById('dmValue');
+        const barEl = document.getElementById('dmBar');
+        if (!meter || !valEl || !barEl) return;
+        if (distanceM === null || distanceM === undefined) {
+            meter.style.display = 'none';
+            return;
+        }
+        meter.style.display = 'flex';
+        const d = Math.round(distanceM);
+        valEl.textContent = d >= 1000 ? (d/1000).toFixed(1) + ' km' : d + ' m';
+        // Bar: 0% = at location, 100% = at 3x radius (bad)
+        const maxDist = radiusM ? radiusM * 3 : 300;
+        const pct = Math.min(100, (distanceM / maxDist) * 100);
+        // Color: green < radius, yellow < 1.5x, red beyond
+        let barColor;
+        if (radiusM && distanceM <= radiusM) barColor = 'linear-gradient(90deg, #4ade80, #22c55e)';
+        else if (radiusM && distanceM <= radiusM * 1.5) barColor = 'linear-gradient(90deg, #fbbf24, #f59e0b)';
+        else barColor = 'linear-gradient(90deg, #f87171, #ef4444)';
+        barEl.style.width = pct + '%';
+        barEl.style.background = barColor;
+    }
+
+    /**
+     * Flash the scanner frame with an AI feedback color
+     * @param {'detecting'|'success'|'error'} type
+     */
+    function aiScannerFrameFlash(type) {
+        const frame = document.getElementById('aiScannerFrame');
+        if (!frame) return;
+        frame.classList.remove('ai-detecting','ai-success');
+        void frame.offsetWidth; // force reflow
+        if (type === 'success') {
+            frame.classList.add('ai-success');
+            setTimeout(() => frame.classList.remove('ai-success'), 600);
+        } else if (type === 'detecting') {
+            frame.classList.add('ai-detecting');
+        }
+    }
+
+    /**
+     * Compute live distance from gpsDataGlobal to the nearest known location
+     * and update the distance meter in the AI scanner overlay.
+     */
+    let _distancePollInterval = null;
+    function startLiveDistancePolling() {
+        if (_distancePollInterval) return; // already running
+        async function pollDistance() {
+            if (!gpsDataGlobal || gpsDataGlobal.startsWith('Error:')) return;
+            try {
+                const fd = new FormData();
+                fd.append('action', 'fetch_locations');
+                const resp = await fetch(window.location.pathname, { method: 'POST', body: fd, credentials: 'same-origin' });
+                if (!resp.ok) return;
+                const data = await resp.json();
+                if (!data.success || !data.data || !data.data.length) return;
+                const coords = gpsDataGlobal.split(',').map(parseFloat);
+                if (coords.length < 2 || isNaN(coords[0])) return;
+                let minDist = Infinity, minRadius = 100, assignedDist = null, assignedRadius = null;
+                data.data.forEach(loc => {
+                    if (!loc.latitude || !loc.longitude) return;
+                    const d = haversineDistance(coords[0], coords[1], parseFloat(loc.latitude), parseFloat(loc.longitude));
+                    if (loc.is_assigned == 1) { assignedDist = d; assignedRadius = parseFloat(loc.final_radius) || 100; }
+                    if (d < minDist) { minDist = d; minRadius = parseFloat(loc.final_radius) || 100; }
+                });
+                const useDist = assignedDist !== null ? assignedDist : minDist;
+                const useRadius = assignedDist !== null ? assignedRadius : minRadius;
+                updateDistanceMeter(useDist, useRadius);
+            } catch(e) { /* silent */ }
+        }
+        pollDistance();
+        _distancePollInterval = setInterval(pollDistance, 8000); // 8s: reduce server load
+    }
+
+    function stopLiveDistancePolling() {
+        if (_distancePollInterval) { clearInterval(_distancePollInterval); _distancePollInterval = null; }
+        updateDistanceMeter(null, null);
+    }
+    // ===== END AI SCANNER HELPERS =====
+
     function getLocation(callback) {
         showStatusInPopup('កំពុងស្វែងរកទីតាំង GPS...');
+        updateGpsChip('spin', 'GPS...');
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(
                 (position) => {
                     gpsDataGlobal = `${position.coords.latitude},${position.coords.longitude}`;
+                    const acc = position.coords.accuracy;
+                    let gpsState = 'good', gpsText = 'GPS ✓';
+                    if (acc <= 20) { gpsState = 'good'; gpsText = 'GPS ±' + Math.round(acc) + 'm'; }
+                    else if (acc <= 60) { gpsState = 'warn'; gpsText = 'GPS ±' + Math.round(acc) + 'm'; }
+                    else { gpsState = 'warn'; gpsText = 'GPS ±' + Math.round(acc) + 'm'; }
+                    updateGpsChip(gpsState, gpsText);
+                    startLiveDistancePolling();
                     showStatusInPopup('GPS រួចរាល់!');
                     // If we had a decoded QR waiting for GPS, proceed automatically now
                     try {
@@ -5043,6 +5349,7 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
                     let errorMessage = 'GPS បរាជ័យ! សូមពិនិត្យ Permission។';
                     if (error.code === 1) errorMessage = 'សូមអនុញ្ញាតឱ្យ App ប្រើប្រាស់ទីតាំង។';
                     if (error.code === 2) errorMessage = 'រកមិនឃើញសេវា GPS របស់អ្នកទេ។';
+                    updateGpsChip('bad', 'GPS ✗');
                     showStatusInPopup(errorMessage, true);
                     callback(false);
                 }, 
@@ -5114,9 +5421,163 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
                  startScanner({ facingMode: "environment" }); 
             });
         }
+
+        // ================================================================
+        // AI BLACK-SCREEN DETECTOR
+        // Detects if the camera video feed is black/frozen after startup.
+        // If so, automatically switches to manual attendance mode.
+        // ================================================================
+        aiStartBlackScreenDetector();
     }
 
+    // --- AI Black Screen Detector Implementation ---
+    let _blackScreenTimer = null;
+
+    function aiStartBlackScreenDetector() {
+        // Clear any previous timer
+        if (_blackScreenTimer) { clearTimeout(_blackScreenTimer); _blackScreenTimer = null; }
+
+        // Wait 3s for camera to initialize, then check brightness
+        _blackScreenTimer = setTimeout(() => {
+            if (!isScanning) return; // Camera already stopped, no need to check
+            const brightness = aiSampleVideoBrightness();
+            console.log('[AI Camera Check] Average brightness:', brightness);
+
+            if (brightness === null) {
+                // Could not sample (no video element yet) — try again in 2s
+                _blackScreenTimer = setTimeout(() => {
+                    if (!isScanning) return;
+                    const b2 = aiSampleVideoBrightness();
+                    console.log('[AI Camera Check] Retry brightness:', b2);
+                    if (b2 !== null && b2 < 12) {
+                        aiHandleBlackScreen();
+                    }
+                }, 2000);
+                return;
+            }
+
+            // Threshold: average pixel brightness < 12 out of 255 = essentially black
+            if (brightness < 12) {
+                aiHandleBlackScreen();
+            }
+        }, 3000); // Check after 3 seconds
+    }
+
+    /**
+     * Samples brightness of the active camera video feed.
+     * Returns average brightness (0-255), or null if video not available.
+     */
+    function aiSampleVideoBrightness() {
+        try {
+            // html5-qrcode renders a <video> inside #camera-preview
+            const video = document.querySelector('#camera-preview video');
+            if (!video || video.readyState < 2 || video.videoWidth === 0) return null;
+
+            // Sample a small region (64x64) from center for speed
+            const canvas = document.createElement('canvas');
+            const sampleW = 64, sampleH = 64;
+            canvas.width = sampleW;
+            canvas.height = sampleH;
+            const ctx = canvas.getContext('2d');
+
+            // Draw center of the video frame
+            const sx = (video.videoWidth / 2)  - (sampleW / 2);
+            const sy = (video.videoHeight / 2) - (sampleH / 2);
+            ctx.drawImage(video, sx, sy, sampleW, sampleH, 0, 0, sampleW, sampleH);
+
+            const imgData = ctx.getImageData(0, 0, sampleW, sampleH);
+            const pixels = imgData.data; // RGBA flat array
+            let total = 0;
+            const count = pixels.length / 4;
+            for (let i = 0; i < pixels.length; i += 4) {
+                // Luminance formula
+                total += 0.299 * pixels[i] + 0.587 * pixels[i+1] + 0.114 * pixels[i+2];
+            }
+            return total / count; // average brightness 0-255
+        } catch (e) {
+            console.warn('[AI Camera Check] Sample error:', e);
+            return null;
+        }
+    }
+
+    /**
+     * Handles confirmed black-screen: stops camera and auto-switches to manual mode.
+     */
+    function aiHandleBlackScreen() {
+        if (!isScanning) return; // Already handled
+        console.warn('[AI Camera Check] Black screen detected — switching to manual attendance.');
+
+        // Reset cached camera device so next time it tries fresh
+        selectedCameraDeviceId = null;
+
+        // Show AI notification toast before switching
+        showAiCameraFallbackToast(() => {
+            stopCamera();
+            // Small delay so toast is visible briefly
+            setTimeout(() => {
+                if (typeof startManualAttendanceProcess === 'function') {
+                    startManualAttendanceProcess();
+                }
+            }, 800);
+        });
+    }
+
+    /**
+     * Show a dismissable AI toast explaining the auto-switch to manual.
+     * @param {Function} onAutoClose - called when toast auto-hides or is dismissed
+     */
+    function showAiCameraFallbackToast(onAutoClose) {
+        // Remove any existing toast
+        const old = document.getElementById('ai-cam-fallback-toast');
+        if (old) old.remove();
+
+        const toast = document.createElement('div');
+        toast.id = 'ai-cam-fallback-toast';
+        toast.style.cssText = `
+            position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%);
+            z-index: 9999; max-width: 320px; width: 90%;
+            background: linear-gradient(135deg, rgba(30,30,50,0.97), rgba(20,20,40,0.97));
+            color: #fff; border-radius: 18px;
+            padding: 14px 16px; box-shadow: 0 12px 36px rgba(0,0,0,0.45);
+            border: 1px solid rgba(96,165,250,0.35);
+            backdrop-filter: blur(16px);
+            display: flex; gap: 12px; align-items: flex-start;
+            animation: toastSlideUp 0.35s cubic-bezier(0.34,1.56,0.64,1) both;
+        `;
+        toast.innerHTML = `
+            <style>
+            @keyframes toastSlideUp {
+                from { opacity:0; transform: translateX(-50%) translateY(24px) scale(0.95); }
+                to   { opacity:1; transform: translateX(-50%) translateY(0)    scale(1); }
+            }
+            </style>
+            <div style="font-size:1.6rem; line-height:1; flex-shrink:0;">🤖</div>
+            <div style="flex:1;">
+                <div style="font-weight:700; font-size:0.88rem; margin-bottom:4px; color:#93c5fd;">
+                    AI បានរកឃើញ Camera ស្រអាប់
+                </div>
+                <div style="font-size:0.78rem; color:rgba(255,255,255,0.82); line-height:1.5;">
+                    Camera បង្ហាញអេក្រង់ខ្មៅ — AI នឹងប្ដូរទៅ <strong style="color:#4ade80;">ស្កេនដោយដៃ</strong> ដោយស្វ័យប្រវត្តិ...
+                </div>
+            </div>
+        `;
+        document.body.appendChild(toast);
+
+        // Auto-dismiss and trigger callback after 1.8s
+        const dismiss = () => {
+            toast.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateX(-50%) translateY(12px)';
+            setTimeout(() => { try { toast.remove(); } catch(e){} }, 320);
+            if (typeof onAutoClose === 'function') { onAutoClose(); onAutoClose = null; }
+        };
+        setTimeout(dismiss, 1800);
+    }
+    // --- END: AI Black Screen Detector ---      
     function stopCamera() {
+        stopLiveDistancePolling();
+        updateGpsChip('spin', 'GPS...');
+        if (_blackScreenTimer) { clearTimeout(_blackScreenTimer); _blackScreenTimer = null; } // Clear black screen detector
         if (isScanning && html5QrCode && html5QrCode.isScanning) {
             html5QrCode.stop().then(() => {
                 isScanning = false;
@@ -5166,6 +5627,10 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
         document.getElementById('submission-loading').style.display = 'none'; // Hide any previous loading
         document.getElementById('global-loading-overlay').style.display = 'none'; // Hide global loading
         showStatusInPopup('កំពុងបើកកាមេរ៉ា...');
+        // AI: reset GPS chip and set detecting frame state
+        updateGpsChip('spin', 'GPS...');
+        aiScannerFrameFlash('detecting');
+        updateDistanceMeter(null, null); // hide distance meter until GPS ready
         // Start profiling for camera to first decode
         try { if (!cameraToFirstDecodeTimerRunning) { console.time('camera_to_first_decode'); cameraToFirstDecodeTimerRunning = true; } } catch(e) {}
         
@@ -5193,6 +5658,7 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
     async function onLocationScanSuccess(decodedText, decodedResult) {
         if (!isScanning) return;
         navigator.vibrate?.(100);
+        aiScannerFrameFlash('success'); // AI visual feedback: green flash on detect
 
         // Stop camera-to-first-decode timer
         try { if (cameraToFirstDecodeTimerRunning) { console.timeEnd('camera_to_first_decode'); cameraToFirstDecodeTimerRunning = false; } } catch(e) {}
@@ -5869,11 +6335,17 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
         }
     }
 
+    // ===== CLIENT CONFIG POLLING (with storable interval) =====
+    let _clientConfigInterval = null;
     function startClientConfigPolling() {
-        updateClientConfig(); // Immediate run
-        setInterval(updateClientConfig, 15000); // Increased to 15 seconds to save battery/CPU
+        if (_clientConfigInterval) return; // prevent double-start
+        updateClientConfig(); // run immediately
+        _clientConfigInterval = setInterval(updateClientConfig, 30000); // 30s: config rarely changes
     }
-    // ===== END: REAL-TIME CLIENT CONFIG UPDATE =====
+    function stopClientConfigPolling() {
+        if (_clientConfigInterval) { clearInterval(_clientConfigInterval); _clientConfigInterval = null; }
+    }
+    // ===== END: REAL-TIME CLIENT CONFIG UPDATE ====
 
     async function loadRequestLogs() {
         const loadingEl = document.getElementById('request-list-loading');
@@ -6419,13 +6891,10 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
             notificationBtn.addEventListener('click', showNotificationsPopup);
         }
 
-        // Load initial notification badge
-        loadNotificationBadge();
-        
-        // Start real-time config polling (updates user data, manual scan permission)
+        // Unified polling startup — ONE place, avoid duplicate calls
+        // loadNotificationBadge fires via setInterval below (first tick is immediate via flag)
+        // startClientConfigPolling already calls updateClientConfig() on first run
         startClientConfigPolling();
-
-
     });
 
 
@@ -6472,11 +6941,22 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
         });
     }
 
-    // Set polling for notifications - Optimized to 20 seconds
-    setInterval(loadNotificationBadge, 20000);
+    // Notification badge polling — 30s is sufficient; notifications are non-urgent
+    // NOTE: setInterval runs immediately on page load via this declaration
+    let _notifBadgeInterval = null;
+    (function startNotifPolling() {
+        loadNotificationBadge(); // first immediate call
+        _notifBadgeInterval = setInterval(loadNotificationBadge, 30000); // every 30s
+    })();
 
     window.addEventListener('beforeunload', () => {
         if (isScanning) { stopCamera(); }
+        // Clean up all polling intervals gracefully
+        stopClientConfigPolling();
+        stopLiveDistancePolling();
+        if (_notifBadgeInterval) clearInterval(_notifBadgeInterval);
+        if (requestUpdateInterval) clearInterval(requestUpdateInterval);
+        if (latestScanInterval) clearInterval(latestScanInterval);
     });
 </script>
 
