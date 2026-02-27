@@ -1721,10 +1721,8 @@ if ($token) {
                 $_SESSION['scan_user_type'] = $_COOKIE['scan_user_type'];
             }
         } else {
-            // Silently clear invalid or expired tokens (common after hosting migrations) and redirect to login
-            session_destroy();
-            setcookie("auth_token", "", time() - 3600, "/");
-            header("Location: scan.php"); exit;
+            $error_message = "Token Invalid ឬត្រូវបានលុបចោលដោយ Admin! សូមចូលម្តងទៀត។";
+            session_destroy(); setcookie("auth_token", "", time() - 3600, "/");
         }
         $stmt->close();
     }
