@@ -1722,16 +1722,18 @@ if ($token) {
             }
         } else {
             // Token not found in DB → clear ALL cookies & session, redirect to login automatically
+            $_SESSION = []; // unset all session variables first
             session_destroy();
-            setcookie("auth_token",      "", time() - 3600, "/");
-            setcookie("scan_user_type",  "", time() - 3600, "/");
-            setcookie("PHPSESSID",       "", time() - 3600, "/");
-            header("Location: scan.php");
+            setcookie("auth_token",     "", time() - 3600, "/");
+            setcookie("scan_user_type", "", time() - 3600, "/");
+            setcookie("PHPSESSID",      "", time() - 3600, "/");
+            header("Location: scan.php?cleared=1");
             exit;
         }
         $stmt->close();
     }
 }
+// Stop re-processing if we just cleared (token=null now, skip this block entirely)
 
 // --- Login via Form ---
 if (!$is_logged_in && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['login_id'])) {
