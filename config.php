@@ -5,7 +5,7 @@
 //          DATABASE CONFIGURATION (Auto-Detect)
 // ===============================================
 $is_localhost = (
-    in_array($_SERVER['REMOTE_ADDR'] ?? '', ['127.0.0.1', '::1']) || 
+    in_array($_SERVER['REMOTE_ADDR'] ?? '', ['127.0.0.1', '::1']) ||
     in_array($_SERVER['SERVER_NAME'] ?? '', ['localhost', '127.0.0.1', '::1']) ||
     (stripos($_SERVER['HTTP_HOST'] ?? '', 'localhost') !== false) ||
     (PHP_OS_FAMILY === 'Windows')
@@ -16,7 +16,7 @@ if ($is_localhost) {
     define('DB_SERVER', 'localhost');
     define('DB_USERNAME', 'root');           // សម្រាប់ localhost ជាទូទៅប្រើ root
     define('DB_PASSWORD', '');               // សម្រាប់ localhost ជាទូទៅគ្មាន password
-    define('DB_NAME', 'samann1_attendance_db'); 
+    define('DB_NAME', 'samann1_attendance_db');
 } else {
     // --- HOSTING SETTINGS ---
     define('DB_SERVER', 'localhost');
@@ -41,4 +41,3 @@ define('TOLERANCE', 100);
 
 // Set timezone
 date_default_timezone_set('Asia/Phnom_Penh');
-?>

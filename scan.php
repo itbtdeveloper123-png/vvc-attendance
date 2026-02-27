@@ -1,4 +1,8 @@
 ﻿<?php
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+ob_start();
 session_start();
 
 // ===============================================
@@ -7,11 +11,12 @@ session_start();
 
 // ENHANCEMENT: Activate error reporting for debugging
 require_once __DIR__ . '/config.php';
-ini_set('display_errors', 0);     // <--- FIXED: Stop displaying PHP errors to browser
-ini_set('display_startup_errors', 0); // <--- FIXED: Stop displaying PHP errors to browser
-error_reporting(E_ALL);
 
+if (!file_exists(__DIR__ . '/vendor/autoload.php')) {
+    die("Error: vendor/autoload.php missing. Please run 'composer install'.");
+}
 require_once __DIR__ . '/vendor/autoload.php';
+// echo "DEBUG: AUTOLOAD LOADED";
 use Minishlink\WebPush\WebPush;
 use Minishlink\WebPush\Subscription;
 
@@ -81,10 +86,7 @@ function sendWebPushNotification($mysqli, $target_employee_id, $title, $body) {
     return false;
 }
 
-// Enable output compression for faster data transmission
-if (!ob_start('ob_gzhandler')) {
-    ob_start();
-}
+// Output buffering already started at the top.
 
 // FORCE NO-CACHE: Prevent browser from storing old version of this page
 header("Cache-Control: no-cache, no-store, must-revalidate"); // HTTP 1.1.
