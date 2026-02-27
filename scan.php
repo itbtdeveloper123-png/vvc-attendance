@@ -173,6 +173,34 @@ $mysqli->query("CREATE TABLE IF NOT EXISTS push_subscriptions (
     UNIQUE KEY (endpoint(255))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
+// 3. Ensure active_tokens table exists (Self-heal naming mismatch)
+$mysqli->query("CREATE TABLE IF NOT EXISTS active_tokens (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    employee_id VARCHAR(64) NOT NULL,
+    auth_token VARCHAR(255) NOT NULL UNIQUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_token (auth_token)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+if ($res = $mysqli->query("SHOW COLUMNS FROM active_tokens LIKE 'token'")) {
+    if ($res->num_rows > 0) {
+        $mysqli->query("ALTER TABLE active_tokens CHANGE COLUMN `token` `auth_token` VARCHAR(255) NOT NULL");
+    }
+    $res->close();
+}
+if ($res = $mysqli->query("SHOW COLUMNS FROM active_tokens LIKE 'created_at'")) {
+    if ($res->num_rows == 0) {
+         $mysqli->query("ALTER TABLE active_tokens ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
+    }
+    $res->close();
+}
+if ($res = $mysqli->query("SHOW COLUMNS FROM active_tokens LIKE 'expires_at'")) {
+    if ($res->num_rows > 0) {
+         $mysqli->query("ALTER TABLE active_tokens DROP COLUMN expires_at");
+    }
+    $res->close();
+}
+
 
 
 
@@ -1708,8 +1736,8 @@ $token = $_SESSION['auth_token'] ?? ($_COOKIE['auth_token'] ?? null);
 if ($token) {
     $sql = "SELECT u.employee_id, u.name, u.custom_data
             FROM users u
-            JOIN active_tokens atk ON u.employee_id = atk.employee_id
-            WHERE atk.auth_token = ?";
+            JOIN active_tokens at ON u.employee_id = at.employee_id
+            WHERE at.auth_token = ?";
     if ($stmt = $mysqli->prepare($sql)) {
         $stmt->bind_param("s", $token); $stmt->execute();
         $result = $stmt->get_result();

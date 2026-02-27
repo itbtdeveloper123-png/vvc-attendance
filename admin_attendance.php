@@ -74,10 +74,32 @@ function ensure_core_tables($mysqli) {
     $mysqli->query("CREATE TABLE IF NOT EXISTS active_tokens (
         id INT AUTO_INCREMENT PRIMARY KEY,
         employee_id VARCHAR(64) NOT NULL,
-        token VARCHAR(255) NOT NULL UNIQUE,
-        expires_at DATETIME NOT NULL,
-        KEY idx_token (token)
+        auth_token VARCHAR(255) NOT NULL UNIQUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        KEY idx_token (auth_token)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+    // Self-heal: rename 'token' to 'auth_token' if it exists (legacy mismatch)
+    if ($res = $mysqli->query("SHOW COLUMNS FROM active_tokens LIKE 'token'")) {
+        if ($res->num_rows > 0) {
+            $mysqli->query("ALTER TABLE active_tokens CHANGE COLUMN `token` `auth_token` VARCHAR(255) NOT NULL");
+        }
+        $res->close();
+    }
+    // Self-heal: ensure 'created_at' exists
+    if ($res = $mysqli->query("SHOW COLUMNS FROM active_tokens LIKE 'created_at'")) {
+        if ($res->num_rows == 0) {
+            $mysqli->query("ALTER TABLE active_tokens ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
+        }
+        $res->close();
+    }
+    // Self-heal: remove 'expires_at' if it exists (unused)
+    if ($res = $mysqli->query("SHOW COLUMNS FROM active_tokens LIKE 'expires_at'")) {
+        if ($res->num_rows > 0) {
+            $mysqli->query("ALTER TABLE active_tokens DROP COLUMN expires_at");
+        }
+        $res->close();
+    }
 
     // 7. sidebar_settings
     $mysqli->query("CREATE TABLE IF NOT EXISTS sidebar_settings (
@@ -2905,7 +2927,7 @@ if (isset($_POST['ajax_action'])) {
                 $revoke_token = $_POST['token'] ?? '';
                 // Permission: Super Admin can revoke any; normal admin only their users or themselves
                 $can_revoke = false;
-                $check_sql = "SELECT u.employee_id FROM active_tokens atk JOIN users u ON atk.employee_id = u.employee_id WHERE atk.auth_token = ?";
+                $check_sql = "SELECT u.employee_id FROM active_tokens at JOIN users u ON at.employee_id = u.employee_id WHERE at.auth_token = ?";
                 if ($stmt = $mysqli->prepare($check_sql)) {
                     $stmt->bind_param("s", $revoke_token);
                     $stmt->execute();
@@ -3902,7 +3924,7 @@ if ($show_admin_pages) {
             $result->close();
         }
     } else {
-        $sql = "SELECT COUNT(*) as count FROM active_tokens atk JOIN users u ON atk.employee_id = u.employee_id WHERE u.created_by_admin_id = ?";
+        $sql = "SELECT COUNT(*) as count FROM active_tokens at JOIN users u ON at.employee_id = u.employee_id WHERE u.created_by_admin_id = ?";
         if ($stmt = $mysqli->prepare($sql)) {
             $stmt->bind_param("s", $current_admin_id);
             $stmt->execute();
@@ -8651,14 +8673,14 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
         <?php
         // Restrict visible sessions to this admin's users unless Super Admin
         $active_sessions_sql = "
-            SELECT atk.*, u.name as user_name, u.employee_id, u.user_role
-            FROM active_tokens atk
-            JOIN users u ON atk.employee_id = u.employee_id";
+            SELECT at.*, u.name as user_name, u.employee_id, u.user_role
+            FROM active_tokens at
+            JOIN users u ON at.employee_id = u.employee_id";
         if (!$is_super_admin) {
             $adminEsc = $mysqli->real_escape_string($current_admin_id);
             $active_sessions_sql .= " WHERE (u.created_by_admin_id = '" . $adminEsc . "' OR u.employee_id = '" . $adminEsc . "')";
         }
-        $active_sessions_sql .= " ORDER BY atk.created_at DESC";
+        $active_sessions_sql .= " ORDER BY at.created_at DESC";
         $active_sessions_query = $mysqli->query($active_sessions_sql);
         $session_count = $active_sessions_query ? $active_sessions_query->num_rows : 0;
         ?>
