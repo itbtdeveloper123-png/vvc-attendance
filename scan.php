@@ -1721,10 +1721,11 @@ if ($token) {
                 $_SESSION['scan_user_type'] = $_COOKIE['scan_user_type'];
             }
         } else {
-            // Silent Clear: Token invalid? Just clear session/cookie and let user login again
+            // JS Clear: Token invalid? Clear and redirect via JS to avoid "Headers already sent" white screens
             session_destroy();
             setcookie("auth_token", "", time() - 3600, "/");
-            header("Location: scan.php"); exit;
+            echo '<script>localStorage.clear(); window.location.href="scan.php";</script>';
+            exit;
         }
         $stmt->close();
     }
