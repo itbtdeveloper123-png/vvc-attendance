@@ -1290,7 +1290,6 @@ if (isset($_POST['action']) && $_POST['action'] === 'fetch_latest_scan') {
         }
 
         // Build a portable query that works even when `id` column is absent
-        // We always select the essential attendance fields; if `id` exists we include it for ordering
         if ($hasId) {
             $sql_latest = "SELECT id, action_type, log_datetime, status, location_name, distance_m FROM checkin_logs WHERE employee_id = ? ORDER BY id DESC LIMIT 4";
         } else {
@@ -1303,9 +1302,6 @@ if (isset($_POST['action']) && $_POST['action'] === 'fetch_latest_scan') {
             $result_latest = $stmt_latest->get_result();
             $rows = [];
             while ($r = $result_latest->fetch_assoc()) {
-                // Normalize an `id` key for frontend code:
-                //  - If real id exists, keep it.
-                //  - Else synthesize from UNIX timestamp for stable ordering & comparison.
                 if (!$hasId) {
                     $r['id'] = strtotime($r['log_datetime']) ?: time();
                 }
@@ -1314,19 +1310,16 @@ if (isset($_POST['action']) && $_POST['action'] === 'fetch_latest_scan') {
             if (!empty($rows)) {
                 $response['success'] = true;
                 $response['message'] = 'Latest scans fetched.';
-                $response['data'] = $rows; // newest first
-            } else {
-                $response['message'] = 'No scan records found.';
+                $response['data'] = $rows;
             }
             $stmt_latest->close();
-        } else {
-            $response['message'] = "Database query error: " . $mysqli->error;
         }
     }
-
     echo json_encode($response);
     exit;
 }
+
+
 
 // ===============================================
 //        PART X+2: FETCH LOCATIONS (AJAX for Manual Attendance)
@@ -1931,14 +1924,17 @@ if ($is_logged_in && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['actio
         } elseif ($location_validity === 'QR Valid') { $error_message = "កំហុស GPS: មិនអាចទាញយកទីតាំងបច្ចុប្បន្នបានទេ។"; $location_validity = 'No GPS'; }
     }
     
-    $sql_rules = "SELECT status FROM attendance_rules WHERE employee_id = ? AND type = ? AND start_time <= ? AND end_time >= ?";
+    $sql_rules = "SELECT status, start_time FROM attendance_rules WHERE employee_id = ? AND type = ? AND start_time <= ? AND end_time >= ? ORDER BY start_time DESC";
+    $matched_rule_start = '';
     if ($stmt_rules = $mysqli->prepare($sql_rules)) {
         $rule_type = (strtolower($action) === 'check-in') ? 'checkin' : 'checkout';
         $stmt_rules->bind_param("ssss", $employee_id, $rule_type, $current_time, $current_time);
         $stmt_rules->execute();
         $result_rules = $stmt_rules->get_result();
-        if ($result_rules->num_rows > 0) $log_status = ($result_rules->fetch_assoc()['status']) ?? 'Good';
-        else { $log_status = 'Absent'; $error_message = $error_message ?: "កំហុសម៉ោង៖ ម៉ោង {$current_time} មិនស្ថិតនៅក្នុងចន្លោះ Check-In/Out ដែលបានកំណត់ទេ។"; }
+        if ($row_rule = $result_rules->fetch_assoc()) {
+            $log_status = $row_rule['status'] ?? 'Good';
+            $matched_rule_start = $row_rule['start_time'] ?? '';
+        } else { $log_status = 'Absent'; $error_message = $error_message ?: "កំហុសម៉ោង៖ ម៉ោង {$current_time} មិនស្ថិតនៅក្នុងចន្លោះ Check-In/Out ដែលបានកំណត់ទេ។"; }
         $stmt_rules->close();
     }
 
@@ -1980,29 +1976,34 @@ if ($is_logged_in && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['actio
         $type = (strcasecmp($action, 'Check-In') === 0) ? 'checkin' : 'checkout';
         $current_hms = date('H:i:s', strtotime($log_datetime));
 
-        $p_time = '';
-        // 1) Primary rule: take the latest end_time of a Good slot that ends <= current time
-        if ($stmt_pv = $mysqli->prepare("SELECT end_time FROM attendance_rules WHERE employee_id = ? AND type = ? AND status = 'Good' AND end_time <= ? ORDER BY end_time DESC LIMIT 1")) {
-            $stmt_pv->bind_param('sss', $employee_id, $type, $current_hms);
-            if ($stmt_pv->execute()) {
-                $res_pv = $stmt_pv->get_result();
-                if ($row_pv = $res_pv->fetch_assoc()) {
-                    $p_time = $row_pv['end_time'];
-                }
-            }
-            $stmt_pv->close();
-        }
+        $p_time = $matched_rule_start;
 
-        // 2) Fallback: first start_time for this type
-        if ($p_time === '' && $stmt_ec = $mysqli->prepare("SELECT start_time FROM attendance_rules WHERE employee_id = ? AND type = ? ORDER BY start_time ASC LIMIT 1")) {
-            $stmt_ec->bind_param('ss', $employee_id, $type);
-            if ($stmt_ec->execute()) {
-                $res_ec = $stmt_ec->get_result();
-                if ($row_ec = $res_ec->fetch_assoc()) {
-                    $p_time = $row_ec['start_time'];
+        // If for some reason we don't have a matched rule start (shouldn't happen if status is Late), 
+        // fallback to the old logic of finding the latest Good slot or the first slot.
+        if ($p_time === '') {
+            // 1) Primary rule: take the latest end_time of a Good slot that ends <= current time
+            if ($stmt_pv = $mysqli->prepare("SELECT end_time FROM attendance_rules WHERE employee_id = ? AND type = ? AND status = 'Good' AND end_time <= ? ORDER BY end_time DESC LIMIT 1")) {
+                $stmt_pv->bind_param('sss', $employee_id, $type, $current_hms);
+                if ($stmt_pv->execute()) {
+                    $res_pv = $stmt_pv->get_result();
+                    if ($row_pv = $res_pv->fetch_assoc()) {
+                        $p_time = $row_pv['end_time'];
+                    }
                 }
+                $stmt_pv->close();
             }
-            $stmt_ec->close();
+
+            // 2) Fallback: first start_time for this type
+            if ($p_time === '' && $stmt_ec = $mysqli->prepare("SELECT start_time FROM attendance_rules WHERE employee_id = ? AND type = ? ORDER BY start_time ASC LIMIT 1")) {
+                $stmt_ec->bind_param('ss', $employee_id, $type);
+                if ($stmt_ec->execute()) {
+                    $res_ec = $stmt_ec->get_result();
+                    if ($row_ec = $res_ec->fetch_assoc()) {
+                        $p_time = $row_ec['start_time'];
+                    }
+                }
+                $stmt_ec->close();
+            }
         }
 
         if ($p_time !== '') {
@@ -2220,6 +2221,93 @@ if ($is_logged_in) {
         html[data-theme='dark'] .history-item {
              border: 1px solid #3a3a3c;
         }
+
+
+
+        /* PREMIUM MENU CARDS */
+        .card-menu {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 16px;
+            margin-top: 10px;
+        }
+
+        .menu-card {
+            display: flex;
+            align-items: center;
+            padding: 20px;
+            background: #ffffff;
+            border-radius: 22px;
+            border: 1px solid rgba(0,0,0,0.04);
+            box-shadow: 0 8px 16px rgba(0,0,0,0.03);
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .menu-card:active {
+            transform: scale(0.96);
+            background: #fdfdfd;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+
+        .menu-card::after {
+            content: '';
+            position: absolute;
+            right: 20px;
+            font-family: "Font Awesome 6 Free";
+            font-weight: 900;
+            content: "\f054";
+            font-size: 0.8em;
+            color: #ccc;
+            opacity: 0.5;
+        }
+
+        .card-icon {
+            width: 54px;
+            height: 54px;
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-color-dark));
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.4em;
+            box-shadow: 0 6px 14px rgba(0, 122, 255, 0.2);
+            flex-shrink: 0;
+        }
+
+        .card-text {
+            margin-left: 16px;
+        }
+
+        .card-text h3 {
+            margin: 0;
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            letter-spacing: -0.3px;
+        }
+
+        .card-text p {
+            margin: 2px 0 0 0;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            opacity: 0.8;
+        }
+
+        /* DARK MODE ADJUSTMENTS */
+        html[data-theme='dark'] .menu-card {
+            background: #1c1c1e;
+            border-color: rgba(255,255,255,0.08);
+            box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+        }
+
+
+        
+        html[data-theme='dark'] .card-text h3 { color: #ffffff; }
+        html[data-theme='dark'] .card-text p { color: #8e8e93; }
         html[data-theme='dark'] #request-logs-table th,
         html[data-theme='dark'] #request-logs-table td {
              border-bottom: 1px solid #3a3a3c;
@@ -3233,6 +3321,7 @@ if ($is_logged_in) {
                <?php else: ?>
                 <div id="card-menu-view" class="main-view active">
                     <h2><?php echo htmlspecialchars(get_setting_typed('greeting_text', 'សួស្តី')); ?>, <span class="user-name"><?php echo htmlspecialchars($user_data['name'] ?? ''); ?>!</span></h2>
+                    
                     <div class="card-menu">
                         <?php if (get_setting_typed('show_attendance_card', '1') == '1'): ?>
                         <div class="menu-card" onclick="startAttendanceProcess()">
@@ -3699,38 +3788,41 @@ if ($is_logged_in) {
                 flex-direction: column;
                 align-items: center;
                 justify-content: center;
-                gap: 6px;
-                width: 100%; /* for distributed mode */
+                gap: 5px;
+                width: 100%;
                 height: var(--footer-btn-size);
                 padding: 6px 4px;
-                border-radius: 14px;
-                color: rgba(10,10,10,0.9);
+                border-radius: 16px;
+                color: var(--text-secondary);
                 text-decoration: none;
-                font-weight: 600;
-                font-size: 0.72rem;
-                background: transparent;
-                border: 1px solid transparent;
-                transition: transform .14s cubic-bezier(.2,.9,.2,1), box-shadow .14s ease, background .14s ease;
+                font-weight: 700;
+                font-size: 0.65rem;
+                transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
                 cursor: pointer;
-                -webkit-tap-highlight-color: transparent;
-                box-sizing: border-box;
-                text-align: center;
+                border: none;
             }
 
-            /* icon circle style - keep visual circle but consistent across buttons */
-            .app-footer .footer-btn i,
-            .app-footer .footer-btn svg,
-            .app-footer .footer-btn .fa {
-                display: inline-flex;
-                align-items: center;
-                justify-content: center;
-                width: var(--footer-icon-size);
-                height: var(--footer-icon-size);
-                box-sizing: border-box;
-                border-radius: 999px; /* fully circular */
-                background: linear-gradient(180deg, rgba(255,255,255,0.9), rgba(255,255,255,0.75));
+            .app-footer .footer-btn.active {
                 color: var(--primary-color);
-                box-shadow: 0 6px 18px rgba(6,24,80,0.08);
+                transform: translateY(-2px);
+            }
+
+            .app-footer .footer-btn i {
+                font-size: 1.25rem;
+                margin-bottom: 2px;
+                transition: all 0.3s ease;
+            }
+
+            .app-footer .footer-btn.active i {
+                transform: scale(1.15);
+                filter: drop-shadow(0 4px 8px rgba(0, 122, 255, 0.3));
+            }
+            
+            /* Dark mode nav footer */
+            html[data-theme='dark'] .app-footer {
+                background: linear-gradient(180deg, rgba(28, 28, 30, 0.94), rgba(10, 10, 10, 0.98));
+                border-color: rgba(255, 255, 255, 0.08);
+            }
                 font-size: calc(var(--footer-icon-size) * 0.55);
                 line-height: var(--footer-icon-size);
                 transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
@@ -5779,7 +5871,7 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
 
     function startClientConfigPolling() {
         updateClientConfig(); // Immediate run
-        setInterval(updateClientConfig, 3000); // Every 3 seconds
+        setInterval(updateClientConfig, 15000); // Increased to 15 seconds to save battery/CPU
     }
     // ===== END: REAL-TIME CLIENT CONFIG UPDATE =====
 
@@ -6332,7 +6424,11 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
         
         // Start real-time config polling (updates user data, manual scan permission)
         startClientConfigPolling();
+
+
     });
+
+
 
     function loadNotificationBadge() {
         fetch('', {
@@ -6376,8 +6472,8 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
         });
     }
 
-    // Set polling for notifications every 5 seconds
-    setInterval(loadNotificationBadge, 5000);
+    // Set polling for notifications - Optimized to 20 seconds
+    setInterval(loadNotificationBadge, 20000);
 
     window.addEventListener('beforeunload', () => {
         if (isScanning) { stopCamera(); }
