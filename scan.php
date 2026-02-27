@@ -1722,9 +1722,7 @@ if ($token) {
             }
         } else {
             $error_message = "Token Invalid ឬត្រូវបានលុបចោលដោយ Admin! សូមចូលម្តងទៀត។";
-            session_destroy();
-            setcookie("auth_token", "", time() - 3600, "/");
-            setcookie("scan_user_type", "", time() - 3600, "/");
+            session_destroy(); setcookie("auth_token", "", time() - 3600, "/");
         }
         $stmt->close();
     }
@@ -6567,13 +6565,7 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
     }
 
     function closeResultPopup() {
-        const msg = document.getElementById('resultPopupMessage').textContent;
         document.getElementById('resultPopup').style.display = 'none';
-
-        // បើជាបញ្ហា Token Invalid ឱ្យវា Reload ទំព័រដើម្បីចូល Login វិញ
-        if (msg.includes('Token Invalid')) {
-            window.location.reload();
-        }
     }
 
     /* ===== START: Live Scan Alert (Toast) ===== */
