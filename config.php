@@ -41,3 +41,4 @@ define('TOLERANCE', 100);
 
 // Set timezone
 date_default_timezone_set('Asia/Phnom_Penh');
+?>

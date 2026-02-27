@@ -1,8 +1,4 @@
 ﻿<?php
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
-ob_start();
 session_start();
 
 // ===============================================
@@ -11,12 +7,11 @@ session_start();
 
 // ENHANCEMENT: Activate error reporting for debugging
 require_once __DIR__ . '/config.php';
+ini_set('display_errors', 0);     // <--- FIXED: Stop displaying PHP errors to browser
+ini_set('display_startup_errors', 0); // <--- FIXED: Stop displaying PHP errors to browser
+error_reporting(E_ALL);
 
-if (!file_exists(__DIR__ . '/vendor/autoload.php')) {
-    die("Error: vendor/autoload.php missing. Please run 'composer install'.");
-}
 require_once __DIR__ . '/vendor/autoload.php';
-// echo "DEBUG: AUTOLOAD LOADED";
 use Minishlink\WebPush\WebPush;
 use Minishlink\WebPush\Subscription;
 
@@ -86,7 +81,10 @@ function sendWebPushNotification($mysqli, $target_employee_id, $title, $body) {
     return false;
 }
 
-// Output buffering already started at the top.
+// Enable output compression for faster data transmission
+if (!ob_start('ob_gzhandler')) {
+    ob_start();
+}
 
 // FORCE NO-CACHE: Prevent browser from storing old version of this page
 header("Cache-Control: no-cache, no-store, must-revalidate"); // HTTP 1.1.
@@ -174,27 +172,6 @@ $mysqli->query("CREATE TABLE IF NOT EXISTS push_subscriptions (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY (endpoint(255))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
-
-// 3. Ensure active_tokens table exists and is correctly structured
-$mysqli->query("CREATE TABLE IF NOT EXISTS active_tokens (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    employee_id VARCHAR(64) NOT NULL,
-    auth_token VARCHAR(255) NOT NULL UNIQUE,
-    expires_at DATETIME DEFAULT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    KEY idx_auth_token (auth_token),
-    KEY idx_emp (employee_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
-
-// Self-heal: rename 'token' to 'auth_token' if it exists (legacy fix)
-if ($res = @$mysqli->query("SHOW COLUMNS FROM active_tokens LIKE 'token'")) {
-    if ($res->num_rows > 0) {
-        @$mysqli->query("ALTER TABLE active_tokens CHANGE COLUMN `token` `auth_token` VARCHAR(255) NOT NULL");
-    }
-    $res->close();
-}
-// Self-heal: ensure expires_at is nullable (legacy may have NOT NULL)
-@$mysqli->query("ALTER TABLE active_tokens MODIFY COLUMN expires_at DATETIME NULL");
 
 
 
@@ -357,7 +334,28 @@ function format_time_for_placeholder($format) {
     return date($format) . $suffix;
 }
 
-// Database connection is already established and checked at the top of the file.
+// -----------------------------------------------
+//  **CRITICAL FIX: Database Connection Check**
+// -----------------------------------------------
+$mysqli = @new mysqli(DB_SERVER, DB_USERNAME, DB_PASSWORD, DB_NAME);
+
+$mysqli->set_charset("utf8mb4");
+
+if ($mysqli->connect_error) {
+    // FIX: Ensure a JSON response is sent for AJAX calls if DB fails.
+    if (isset($_POST['action'])) {
+        header('Content-Type: application/json');
+        echo json_encode([
+            'success' => false,
+            'message' => 'កំហុសប្រព័ន្ធ: មិនអាចភ្ជាប់ទៅមូលដ្ឋានទិន្នន័យបានទេ។ សូមពិនិត្យ DB Configuration។' . $mysqli->connect_error
+        ]);
+        exit;
+    } else {
+        // For standard page load, show the error
+        die("Database Connection Failed: Please check configuration. Error: " . $mysqli->connect_error);
+    }
+}
+// -----------------------------------------------
 
 // START: REWORKED APP SCAN SETTINGS (Scope by Admin / User Group)
 // Purpose: Ensure settings do not mix between different normal users under different admins.
