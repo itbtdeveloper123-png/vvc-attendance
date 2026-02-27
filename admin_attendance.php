@@ -72,13 +72,22 @@ function ensure_core_tables($mysqli) {
 
     // 6. active_tokens
     $mysqli->query("CREATE TABLE IF NOT EXISTS active_tokens (
-        id INT AUTO_INCREMENT PRIMARY KEY,
+        token_id INT AUTO_INCREMENT PRIMARY KEY,
         employee_id VARCHAR(64) NOT NULL,
         auth_token VARCHAR(255) NOT NULL UNIQUE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_used TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        scan_user_type VARCHAR(20) DEFAULT NULL,
         KEY idx_token (auth_token)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
+    // Self-heal: rename 'id' to 'token_id' if necessary to match certain versions
+    if ($res = $mysqli->query("SHOW COLUMNS FROM active_tokens LIKE 'id'")) {
+        if ($res->num_rows > 0) {
+            $mysqli->query("ALTER TABLE active_tokens CHANGE COLUMN `id` `token_id` INT AUTO_INCREMENT");
+        }
+        $res->close();
+    }
     // Self-heal: rename 'token' to 'auth_token' if it exists (legacy mismatch)
     if ($res = $mysqli->query("SHOW COLUMNS FROM active_tokens LIKE 'token'")) {
         if ($res->num_rows > 0) {
@@ -90,6 +99,20 @@ function ensure_core_tables($mysqli) {
     if ($res = $mysqli->query("SHOW COLUMNS FROM active_tokens LIKE 'created_at'")) {
         if ($res->num_rows == 0) {
             $mysqli->query("ALTER TABLE active_tokens ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
+        }
+        $res->close();
+    }
+    // Self-heal: ensure 'last_used' exists
+    if ($res = $mysqli->query("SHOW COLUMNS FROM active_tokens LIKE 'last_used'")) {
+        if ($res->num_rows == 0) {
+            $mysqli->query("ALTER TABLE active_tokens ADD COLUMN last_used TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP");
+        }
+        $res->close();
+    }
+    // Self-heal: ensure 'scan_user_type' exists
+    if ($res = $mysqli->query("SHOW COLUMNS FROM active_tokens LIKE 'scan_user_type'")) {
+        if ($res->num_rows == 0) {
+            $mysqli->query("ALTER TABLE active_tokens ADD COLUMN scan_user_type VARCHAR(20) DEFAULT NULL");
         }
         $res->close();
     }
