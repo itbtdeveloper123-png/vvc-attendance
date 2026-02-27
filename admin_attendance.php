@@ -74,10 +74,22 @@ function ensure_core_tables($mysqli) {
     $mysqli->query("CREATE TABLE IF NOT EXISTS active_tokens (
         id INT AUTO_INCREMENT PRIMARY KEY,
         employee_id VARCHAR(64) NOT NULL,
-        token VARCHAR(255) NOT NULL UNIQUE,
-        expires_at DATETIME NOT NULL,
-        KEY idx_token (token)
+        auth_token VARCHAR(255) NOT NULL UNIQUE,
+        expires_at DATETIME DEFAULT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        KEY idx_auth_token (auth_token),
+        KEY idx_emp (employee_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+    // Self-heal: rename 'token' to 'auth_token' if it exists (legacy fix)
+    if ($res = @$mysqli->query("SHOW COLUMNS FROM active_tokens LIKE 'token'")) {
+        if ($res->num_rows > 0) {
+            @$mysqli->query("ALTER TABLE active_tokens CHANGE COLUMN `token` `auth_token` VARCHAR(255) NOT NULL");
+        }
+        $res->close();
+    }
+    // Self-heal: ensure expires_at is nullable (legacy may have NOT NULL)
+    @$mysqli->query("ALTER TABLE active_tokens MODIFY COLUMN expires_at DATETIME NULL");
 
     // 7. sidebar_settings
     $mysqli->query("CREATE TABLE IF NOT EXISTS sidebar_settings (
