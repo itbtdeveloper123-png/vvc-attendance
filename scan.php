@@ -1721,8 +1721,10 @@ if ($token) {
                 $_SESSION['scan_user_type'] = $_COOKIE['scan_user_type'];
             }
         } else {
-            $error_message = "Token Invalid ឬត្រូវបានលុបចោលដោយ Admin! សូមចូលម្តងទៀត។";
-            session_destroy(); setcookie("auth_token", "", time() - 3600, "/");
+            // Silent Clear: Token invalid? Just clear session/cookie and let user login again
+            session_destroy();
+            setcookie("auth_token", "", time() - 3600, "/");
+            header("Location: scan.php"); exit;
         }
         $stmt->close();
     }
