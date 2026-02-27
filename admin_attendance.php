@@ -3902,7 +3902,7 @@ if ($show_admin_pages) {
             $result->close();
         }
     } else {
-        $sql = "SELECT COUNT(*) as count FROM active_tokens at JOIN users u ON at.employee_id = u.employee_id WHERE u.created_by_admin_id = ?";
+        $sql = "SELECT COUNT(*) as count FROM active_tokens atk JOIN users u ON atk.employee_id = u.employee_id WHERE u.created_by_admin_id = ?";
         if ($stmt = $mysqli->prepare($sql)) {
             $stmt->bind_param("s", $current_admin_id);
             $stmt->execute();

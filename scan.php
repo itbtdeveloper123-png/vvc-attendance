@@ -1721,8 +1721,13 @@ if ($token) {
                 $_SESSION['scan_user_type'] = $_COOKIE['scan_user_type'];
             }
         } else {
-            $error_message = "Token Invalid ឬត្រូវបានលុបចោលដោយ Admin! សូមចូលម្តងទៀត។";
-            session_destroy(); setcookie("auth_token", "", time() - 3600, "/");
+            // Token not found in DB → clear ALL cookies & session, redirect to login automatically
+            session_destroy();
+            setcookie("auth_token",      "", time() - 3600, "/");
+            setcookie("scan_user_type",  "", time() - 3600, "/");
+            setcookie("PHPSESSID",       "", time() - 3600, "/");
+            header("Location: scan.php");
+            exit;
         }
         $stmt->close();
     }
