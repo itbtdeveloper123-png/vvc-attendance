@@ -1,4 +1,4 @@
-const CACHE_NAME = 'vvc-attendance-v6';
+const CACHE_NAME = 'vvc-attendance-v7';
 const ASSETS_TO_CACHE = [
     'scan.php',
     'https://unpkg.com/html5-qrcode/html5-qrcode.min.js',
