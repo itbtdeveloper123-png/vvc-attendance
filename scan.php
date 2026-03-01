@@ -4161,6 +4161,25 @@ if ($is_logged_in) {
         gap: 10px;
         pointer-events: auto;
     }
+    /* Flash toggle button */
+    .flash-toggle-btn {
+        width: 36px; height: 36px; border-radius: 50%;
+        background: rgba(0,0,0,0.55);
+        backdrop-filter: blur(8px);
+        color: #fff;
+        display: flex; align-items: center; justify-content: center;
+        border: 1px solid rgba(255,255,255,0.25);
+        cursor: pointer;
+        pointer-events: auto;
+        transition: all 0.2s ease;
+        font-size: 0.9rem;
+    }
+    .flash-toggle-btn.active {
+        background: var(--warning-color);
+        box-shadow: 0 0 15px rgba(255,149,0,0.5);
+        border-color: #fff;
+        color: #000;
+    }
     </style>
 
     <div id="cameraPopup" class="popup-overlay">
@@ -4180,6 +4199,9 @@ if ($is_logged_in) {
                         <span class="gps-dot gps-spin" id="gpsDot"></span>
                         <span id="gpsChipText">GPS...</span>
                     </div>
+                    <button id="flashToggleBtn" class="flash-toggle-btn" onclick="toggleTorch()" title="Toggle Flash" style="display:none;">
+                        <i class="fas fa-bolt"></i>
+                    </button>
                 </div>
                 <!-- Submission Loading -->
                 <div id="submission-loading" style="display:none; flex-direction:row; align-items:center; justify-content:center; gap:10px; background:rgba(0,0,0,0.6); backdrop-filter:blur(8px); border-radius:12px; padding:8px 14px;">
@@ -4883,6 +4905,86 @@ hr { border: none; border-top: 1px solid rgba(0,0,0,0.06); margin: 12px 0; }
             useBarCodeDetectorIfSupported: true
         }
     });
+
+    // ===============================================
+    // START: FEEDBACK (SOUND & VIBRATION)
+    // ===============================================
+    let audioCtx = null;
+    function initAudio() {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+
+    function playSuccessFeedback() {
+        // 1. Vibration
+        if (navigator.vibrate) navigator.vibrate(100);
+
+        // 2. Sound (Synthesized Beep)
+        try {
+            initAudio();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(880, audioCtx.currentTime); // A5 note
+            osc.frequency.exponentialRampToValueAtTime(440, audioCtx.currentTime + 0.1);
+
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.2);
+        } catch (e) {
+            console.warn('Audio feedback failed', e);
+        }
+    }
+    // ===============================================
+    // END: FEEDBACK (SOUND & VIBRATION)
+    // ===============================================
+
+    // ===============================================
+    // START: CAMERA ENHANCEMENTS (FLASH/TORCH)
+    // ===============================================
+    let torchState = false;
+    async function toggleTorch() {
+        if (!isScanning) return;
+        try {
+            const track = html5QrCode.getRunningTrackCapabilities();
+            if (track.torch) {
+                torchState = !torchState;
+                await html5QrCode.applyVideoConstraints({
+                    advanced: [{ torch: torchState }]
+                });
+                document.getElementById('flashToggleBtn').classList.toggle('active', torchState);
+            }
+        } catch (err) {
+            console.warn('Flash not supported or failed', err);
+        }
+    }
+
+    function updateTorchUI() {
+        const btn = document.getElementById('flashToggleBtn');
+        if (!btn) return;
+        try {
+            const caps = html5QrCode.getRunningTrackCapabilities();
+            if (caps && caps.torch) {
+                btn.style.display = 'flex';
+            } else {
+                btn.style.display = 'none';
+            }
+        } catch (e) {
+            btn.style.display = 'none';
+        }
+    }
+    // ===============================================
+    // END: CAMERA ENHANCEMENTS (FLASH/TORCH)
+    // ===============================================
+
+    // Initialize Audio on first click
+    document.addEventListener('click', initAudio, { once: true });
+    document.addEventListener('touchstart', initAudio, { once: true });
     let isScanning = false;
     let gpsDataGlobal = '';
     let currentSignatureTargetInput = '';
@@ -5526,6 +5628,7 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
                     }
                     selectedCameraDeviceId = chosen;
                     startScanner({ deviceId: { exact: chosen } });
+                 updateTorchUI();
                 } else {
                      startScanner({ facingMode: "environment" });
                 }
@@ -5703,10 +5806,15 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
                 document.getElementById('cameraPopup').style.display = 'none';
                 document.getElementById('submission-loading').style.display = 'none'; // Hide loading
                 document.getElementById('global-loading-overlay').style.display = 'none'; // Hide global loading
+                document.getElementById('flashToggleBtn').style.display = 'none';
+                document.getElementById('flashToggleBtn').classList.remove('active');
+                torchState = false;
                 console.error("Failed to stop camera gracefully:", err);
             });
         } else {
              isScanning = false;
+             document.getElementById('flashToggleBtn').style.display = 'none';
+             torchState = false;
              document.getElementById('cameraPopup').style.display = 'none';
              document.getElementById('submission-loading').style.display = 'none'; // Hide loading
              document.getElementById('global-loading-overlay').style.display = 'none'; // Hide global loading
@@ -5770,7 +5878,7 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
     // =======================================================================
     async function onLocationScanSuccess(decodedText, decodedResult) {
         if (!isScanning) return;
-        navigator.vibrate?.(100);
+        playSuccessFeedback();
         aiScannerFrameFlash('success'); // AI visual feedback: green flash on detect
 
         // Stop camera-to-first-decode timer
@@ -5834,6 +5942,7 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
 
             try {
                 await offlineDB.saveAction(formDataObj);
+                playSuccessFeedback();
                 showResultPopup('វត្តមានត្រូវបានរក្សាទុកក្នុងម៉ាស៊ីន (Offline)! វានឹងបញ្ជូនទៅ Server ពេលមានអ៊ីនធឺណិតវិញ។', true);
                 updateOfflineUI();
             } catch (err) {
@@ -5990,6 +6099,7 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
 
             try {
                 await offlineDB.saveAction(formDataObj);
+                playSuccessFeedback();
                 showResultPopup('វត្តមានដោយដៃត្រូវបានរក្សាទុកក្នុងម៉ាស៊ីន (Offline)! វានឹងបញ្ជូនទៅ Server ពេលមានអ៊ីនធឺណិតវិញ។', true);
                 closeManualPopup();
                 updateOfflineUI();
