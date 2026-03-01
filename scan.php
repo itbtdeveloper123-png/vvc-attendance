@@ -2101,9 +2101,9 @@ if ($is_logged_in) {
         $stmt_counts->close();
     }
 
-    // 2. Personal Attendance Stats (v2) - Last 30 days
+    // 2. Personal Attendance Stats (v2) - Current Month
     $personal_stats = ['total' => 0, 'good' => 0, 'late' => 0, 'outside' => 0];
-    $stats_sql = "SELECT status, COUNT(*) as count FROM checkin_logs WHERE employee_id = ? AND log_datetime >= DATE_SUB(NOW(), INTERVAL 30 DAY) GROUP BY status";
+    $stats_sql = "SELECT status, COUNT(*) as count FROM checkin_logs WHERE employee_id = ? AND log_datetime >= DATE_FORMAT(NOW() ,'%Y-%m-01 00:00:00') GROUP BY status";
     if ($stmt_stats = $mysqli->prepare($stats_sql)) {
         $stmt_stats->bind_param("s", $emp_id_current);
         $stmt_stats->execute();
@@ -3327,7 +3327,7 @@ if ($is_logged_in) {
                     <div class="stats-dashboard" style="margin: 16px 0 24px 0; background: linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.01)); border-radius: 24px; padding: 2px;">
                        <div style="background: var(--surface-color); border-radius: 22px; padding: 20px; box-shadow: var(--shadow-md); border: 1px solid rgba(0,0,0,0.03);">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                            <h3 style="margin: 0; font-size: 1.05rem; font-weight: 700; color: var(--text-primary);"><i class="fas fa-chart-line" style="margin-right: 8px; color: var(--primary-color);"></i>រូបភាពសង្ខេប (៣០ ថ្ងៃ)</h3>
+                            <h3 style="margin: 0; font-size: 1.05rem; font-weight: 700; color: var(--text-primary);"><i class="fas fa-chart-line" style="margin-right: 8px; color: var(--primary-color);"></i>រូបភាពសង្ខេប (ក្នុងខែនេះ)</h3>
                             <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); background: var(--secondary-color); padding: 5px 12px; border-radius: 12px; letter-spacing: 0.02em;">សរុប: <?php echo $personal_stats['total']; ?></div>
                         </div>
 
