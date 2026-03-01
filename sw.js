@@ -61,15 +61,22 @@ self.addEventListener('fetch', (event) => {
     );
 });
 
-// Push Event - This is what happens when a notification is sent from the server
+// Push Event - Background notification handler
 self.addEventListener('push', (event) => {
-    let data = { title: 'ព័ត៌មានថ្មី', body: 'មានការអាប់ដេតថ្មីពីប្រព័ន្ធ។' };
+    console.log('[Service Worker] Push Received.');
+
+    let data = {
+        title: 'វត្តមាន (Attendance)',
+        body: 'មានការជូនដំណឹងថ្មីសម្រាប់អ្នក!'
+    };
 
     if (event.data) {
         try {
-            data = event.data.json();
+            const jsonData = event.data.json();
+            data.title = jsonData.title || data.title;
+            data.body = jsonData.body || data.body;
         } catch (e) {
-            data.body = event.data.text();
+            data.body = event.data.text() || data.body;
         }
     }
 
@@ -77,15 +84,12 @@ self.addEventListener('push', (event) => {
         body: data.body,
         icon: 'https://cdn-icons-png.flaticon.com/512/11693/11693253.png',
         badge: 'https://cdn-icons-png.flaticon.com/512/11693/11693253.png',
-        vibrate: [100, 50, 100],
+        vibrate: [200, 100, 200],
+        tag: 'vvc-notif-' + Date.now(),
+        renotify: true,
         data: {
-            dateOfArrival: Date.now(),
-            primaryKey: '2'
-        },
-        actions: [
-            { action: 'explore', title: 'មើលព័ត៌មាន', icon: '' },
-            { action: 'close', title: 'បិទ', icon: '' },
-        ]
+            url: 'scan.php'
+        }
     };
 
     event.waitUntil(
