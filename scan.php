@@ -3042,6 +3042,9 @@ if ($is_logged_in) {
         </div>
     </div>
 </div>
+    <div id="offline-bar" style="display: none; background: #ff3b30; color: white; text-align: center; padding: 10px; font-size: 0.9em; font-weight: 700; position: sticky; top: 0; z-index: 10001; box-shadow: 0 4px 12px rgba(255,59,48,0.3);">
+        <i class="fas fa-plane-slash" style="margin-right: 8px;"></i> គ្មានប្រព័ន្ធអ៊ីនធឺណិត - កំពុងប្រើ Offline Mode
+    </div>
     <div class="app-container">
         <header class="app-header">
             <style>
@@ -5636,6 +5639,12 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
 
         // Close camera popup immediately and show global loading
         stopCamera();
+
+        if (!navigator.onLine) {
+            showResultPopup('កំហុស៖ គ្មានប្រព័ន្ធអ៊ីនធឺណិត។ សូមភ្ជាប់អ៊ីនធឺណិតដើម្បីបញ្ជូនទិន្នន័យ។', false);
+            return;
+        }
+
         document.getElementById('global-loading-overlay').style.display = 'flex';
 
         // Start profiling for decode to submit
@@ -5763,6 +5772,14 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
 
         document.getElementById('manualSubmitBtn').disabled = true;
         document.getElementById('manualSubmitBtn').textContent = 'កំពុងដាក់ស្នើ...';
+
+        if (!navigator.onLine) {
+            showResultPopup('កំហុស៖ គ្មានប្រព័ន្ធអ៊ីនធឺណិត។ សូមភ្ជាប់អ៊ីនធឺណិតដើម្បីបញ្ជូនទិន្នន័យ។', false);
+            document.getElementById('manualSubmitBtn').disabled = false;
+            document.getElementById('manualSubmitBtn').textContent = 'ចាប់ផ្តើមស្កេន';
+            return;
+        }
+
         document.getElementById('global-loading-overlay').style.display = 'flex';
 
         // Automatically determine location based on GPS (STRICT)
@@ -6100,6 +6117,12 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
 
         try {
             const submitBtn = event.submitter || document.querySelector('button[form="requestForm"][type="submit"]');
+
+            if (!navigator.onLine) {
+                showResultPopup('កំហុស៖ គ្មានប្រព័ន្ធអ៊ីនធឺណិត។ សូមភ្ជាប់អ៊ីនធឺណិតដើម្បីបញ្ជូនទិន្នន័យ។', false);
+                return;
+            }
+
             if (submitBtn) {
                 submitBtn.disabled = true;
                 submitBtn.textContent = 'កំពុងដាក់ស្នើ...';
@@ -7109,6 +7132,38 @@ if ((!empty($success_message) || !empty($error_message)) && !$suppress_time_erro
             event.preventDefault();
         }
     }, { passive: false });
+
+    // --- Offline Mode Detection & UI ---
+    function updateOnlineStatus() {
+        const offlineBar = document.getElementById('offline-bar');
+        if (navigator.onLine) {
+            offlineBar.style.display = 'none';
+        } else {
+            offlineBar.style.display = 'block';
+            console.warn('App is offline. Using cached UI.');
+        }
+    }
+
+    window.addEventListener('online', updateOnlineStatus);
+    window.addEventListener('offline', updateOnlineStatus);
+    document.addEventListener('DOMContentLoaded', updateOnlineStatus);
+
+    // Override fetch to handle offline errors gracefully for essential actions
+    const originalFetch = window.fetch;
+    window.fetch = async function(...args) {
+        try {
+            return await originalFetch(...args);
+        } catch (error) {
+            if (!navigator.onLine) {
+                console.error('Fetch failed because app is offline:', args[0]);
+                // Return a fake response that some parts of the app can handle
+                if (args[0].includes('fetch_last_action')) {
+                    return new Response(JSON.stringify({success: false, message: 'Offline'}), {status: 503});
+                }
+            }
+            throw error;
+        }
+    };
 </script>
 
 </body>
