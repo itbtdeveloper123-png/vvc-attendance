@@ -1,4 +1,4 @@
-const CACHE_NAME = 'vvc-attendance-v10';
+const CACHE_NAME = 'vvc-attendance-v11';
 const ASSETS_TO_CACHE = [
     'scan.php',
     'manifest.json',

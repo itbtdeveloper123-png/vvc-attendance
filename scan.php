@@ -305,6 +305,9 @@ if ($mysqli->connect_error) {
  */
 function get_current_admin_id($mysqli) {
     // Compute the effective admin id fresh on every call (no session caching)
+    static $current_admin_id_cache = null;
+    if ($current_admin_id_cache !== null) return $current_admin_id_cache;
+
     $employee_id = $_SESSION['employee_id'] ?? null;
     if (!$employee_id) {
         return 'SYSTEM_WIDE';
@@ -325,6 +328,7 @@ function get_current_admin_id($mysqli) {
         }
         $stmt->close();
     }
+    $current_admin_id_cache = $admin_id;
     return $admin_id;
 }
 
@@ -2079,15 +2083,29 @@ if ($is_logged_in) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="Attendance_App">
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/11693/11693253.png">
 
-    <link rel="manifest" href="manifest.json">
+    <!-- Splash Screen for iOS devices to prevent black screen on launch -->
+    <!-- Using a basic link as a fallback for all iOS devices -->
+    <link rel="apple-touch-startup-image" href="https://cdn-icons-png.flaticon.com/512/11693/11693253.png">
 
+    <link rel="manifest" href="manifest.json">
 
     <meta name="theme-color" content="#007aff">
     <title>ប្រព័ន្ធគ្រប់គ្រងបុគ្គលិក</title>
+
+    <!-- CRITICAL: Immediate Theme & Background Initialization -->
+    <script>
+        (function() {
+            const savedTheme = localStorage.getItem('appTheme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            const bgColor = (savedTheme === 'dark') ? '#000000' : '#f2f2f7';
+            document.head.insertAdjacentHTML('beforeend', `<style>html, body { background: ${bgColor} !important; height: 100%; margin: 0; }</style>`);
+        })();
+    </script>
+
     <script src="https://unpkg.com/html5-qrcode/html5-qrcode.min.js"></script>
 
     <link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -4643,14 +4661,7 @@ hr { border: none; border-top: 1px solid rgba(0,0,0,0.06); margin: 12px 0; }
 <script>
     "use strict";
 
-    // Immediately-invoked function to set the theme from localStorage without waiting for DOMContentLoaded
-    // This prevents the "flash of wrong theme" on page load.
-    (function() {
-        const savedTheme = localStorage.getItem('appTheme');
-        if (savedTheme) {
-            document.documentElement.setAttribute('data-theme', savedTheme);
-        }
-    })();
+    // Theme initialization moved to top of head for better performance and to prevent flicker.
 
     // Expose server-side custom_data to JS so we can populate checkForm hidden inputs reliably
     // Use json_encode with JSON_HEX_* flags and parse on the client to avoid editor/parser errors and XSS issues.
