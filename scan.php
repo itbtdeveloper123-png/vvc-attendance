@@ -1756,7 +1756,8 @@ if ($is_logged_in && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['actio
     $area = trim($_POST['area'] ?? ($custom_data['area'] ?? ''));
     $qr_location_id = (int)($_POST['qr_location_id'] ?? 0);
     $qr_secret = trim($_POST['qr_secret'] ?? ''); $user_location_raw = trim($_POST['user_location_raw'] ?? '');
-    $log_datetime = date('Y-m-d H:i:s'); $current_time = date('H:i:s', strtotime($log_datetime));
+    $log_datetime = (!empty($_POST['log_datetime'])) ? trim($_POST['log_datetime']) : date('Y-m-d H:i:s');
+    $current_time = date('H:i:s', strtotime($log_datetime));
     $late_reason = trim($_POST['late_reason'] ?? ''); $log_status = 'Good';
     $location_validity = 'Invalid QR'; $min_distance_m = 0.0;
 
@@ -4708,10 +4709,149 @@ hr { border: none; border-top: 1px solid rgba(0,0,0,0.06); margin: 12px 0; }
                     user_location_raw: document.getElementById('user_location_raw')?.value
                 });
             } catch (e) { /* ignore */ }
-        } catch (e) {
+    } catch (e) {
             console.warn('populateCheckFormFields failed', e);
         }
     }
+
+    // ===============================================
+    // START: INDEXEDDB MANAGEMENT (OFFLINE MODE)
+    // ===============================================
+    class ActionDB {
+        constructor() {
+            this.dbName = 'vvc_attendance_offline_db';
+            this.version = 1;
+            this.db = null;
+        }
+
+        async init() {
+            if (this.db) return this.db;
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(this.dbName, this.version);
+                request.onupgradeneeded = (e) => {
+                    const db = e.target.result;
+                    if (!db.objectStoreNames.contains('offline_actions')) {
+                        db.createObjectStore('offline_actions', { keyPath: 'id', autoIncrement: true });
+                    }
+                };
+                request.onsuccess = (e) => {
+                    this.db = e.target.result;
+                    resolve(this.db);
+                };
+                request.onerror = (e) => reject(e.target.error);
+            });
+        }
+
+        async saveAction(data) {
+            await this.init();
+            // Capture client-side timestamp at the moment of action
+            const now = new Date();
+            const log_datetime = now.getFullYear() + '-' +
+                                (String(now.getMonth() + 1).padStart(2, '0')) + '-' +
+                                (String(now.getDate()).padStart(2, '0')) + ' ' +
+                                (String(now.getHours()).padStart(2, '0')) + ':' +
+                                (String(now.getMinutes()).padStart(2, '0')) + ':' +
+                                (String(now.getSeconds()).padStart(2, '0'));
+
+            data.log_datetime = log_datetime;
+
+            return new Promise((resolve, reject) => {
+                const transaction = this.db.transaction(['offline_actions'], 'readwrite');
+                const store = transaction.objectStore('offline_actions');
+                const request = store.add({
+                    data: data,
+                    timestamp: log_datetime
+                });
+                request.onsuccess = () => resolve(true);
+                request.onerror = (e) => reject(e.target.error);
+            });
+        }
+
+        async getAllActions() {
+            await this.init();
+            return new Promise((resolve, reject) => {
+                const transaction = this.db.transaction(['offline_actions'], 'readonly');
+                const store = transaction.objectStore('offline_actions');
+                const request = store.getAll();
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = (e) => reject(e.target.error);
+            });
+        }
+
+        async deleteAction(id) {
+            await this.init();
+            return new Promise((resolve, reject) => {
+                const transaction = this.db.transaction(['offline_actions'], 'readwrite');
+                const store = transaction.objectStore('offline_actions');
+                const request = store.delete(id);
+                request.onsuccess = () => resolve(true);
+                request.onerror = (e) => reject(e.target.error);
+            });
+        }
+    }
+
+    const offlineDB = new ActionDB();
+
+    async function syncOfflineActions() {
+        if (!navigator.onLine) return;
+        const actions = await offlineDB.getAllActions();
+        if (actions.length === 0) return;
+
+        console.log(`Syncing ${actions.length} offline actions...`);
+        for (const action of actions) {
+            try {
+                const fd = new FormData();
+                for (const key in action.data) {
+                    fd.append(key, action.data[key]);
+                }
+                // Add a flag to indicate it's a synced action
+                fd.append('is_offline_sync', '1');
+
+                const response = await fetch(window.location.pathname, {
+                    method: 'POST',
+                    body: fd,
+                    credentials: 'same-origin'
+                });
+
+                if (response.ok) {
+                    await offlineDB.deleteAction(action.id);
+                    console.log(`Synced action ${action.id} successfully.`);
+                }
+            } catch (error) {
+                console.error(`Failed to sync action ${action.id}:`, error);
+            }
+        }
+        updateOfflineUI();
+    }
+
+    async function updateOfflineUI() {
+        const actions = await offlineDB.getAllActions();
+        const offlineBar = document.getElementById('offline-bar');
+        if (offlineBar) {
+            if (actions.length > 0) {
+                offlineBar.innerHTML = `<i class="fas fa-wifi-slash"></i> កំពុងរង់ចាំការបញ្ជូនទិន្នន័យ (${actions.length})`;
+                offlineBar.style.display = 'block';
+                offlineBar.style.background = 'var(--warning-color)';
+            } else if (!navigator.onLine) {
+                offlineBar.innerHTML = `<i class="fas fa-wifi-slash"></i> អ្នកកំពុងប្រើ Offline Mode`;
+                offlineBar.style.display = 'block';
+                offlineBar.style.background = 'var(--error-color)';
+            } else {
+                offlineBar.style.display = 'none';
+            }
+        }
+    }
+
+    // Initialize sync and UI
+    offlineDB.init().then(() => {
+        updateOfflineUI();
+        window.addEventListener('online', syncOfflineActions);
+        setInterval(syncOfflineActions, 30000); // Try sync every 30s as fallback
+    });
+
+    // ===============================================
+    // END: INDEXEDDB MANAGEMENT (OFFLINE MODE)
+    // ===============================================
 
 
     const html5QrCode = new Html5Qrcode("camera-preview", {
@@ -5652,7 +5792,30 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
         stopCamera();
 
         if (!navigator.onLine) {
-            showResultPopup('កំហុស៖ គ្មានប្រព័ន្ធអ៊ីនធឺណិត។ សូមភ្ជាប់អ៊ីនធឺណិតដើម្បីបញ្ជូនទិន្នន័យ។', false);
+            // OFFLINE STORAGE LOGIC
+            const formDataObj = {};
+            const actionType = document.getElementById('actionSelectInPopup').value;
+
+            formDataObj['action'] = actionType;
+            formDataObj['qr_location_id'] = qrData.location_id;
+            formDataObj['qr_secret'] = qrData.secret;
+            formDataObj['user_location_raw'] = gpsDataGlobal;
+
+            // Add other fields if present
+            const workplaceEl = document.getElementById('workplace');
+            if (workplaceEl) formDataObj['workplace'] = workplaceEl.value;
+            const branchEl = document.getElementById('branch');
+            if (branchEl) formDataObj['branch'] = branchEl.value;
+            const areaEl = document.getElementById('area');
+            if (areaEl) formDataObj['area'] = areaEl.value;
+
+            try {
+                await offlineDB.saveAction(formDataObj);
+                showResultPopup('វត្តមានត្រូវបានរក្សាទុកក្នុងម៉ាស៊ីន (Offline)! វានឹងបញ្ជូនទៅ Server ពេលមានអ៊ីនធឺណិតវិញ។', true);
+                updateOfflineUI();
+            } catch (err) {
+                showResultPopup('កំហុសក្នុងការរក្សាទុកទិន្នន័យ Offline: ' + err.message, false);
+            }
             return;
         }
 
@@ -5785,7 +5948,31 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
         document.getElementById('manualSubmitBtn').textContent = 'កំពុងដាក់ស្នើ...';
 
         if (!navigator.onLine) {
-            showResultPopup('កំហុស៖ គ្មានប្រព័ន្ធអ៊ីនធឺណិត។ សូមភ្ជាប់អ៊ីនធឺណិតដើម្បីបញ្ជូនទិន្នន័យ។', false);
+            // OFFLINE STORAGE LOGIC (Manual)
+            const formDataObj = {};
+            const actionType = document.getElementById('manualActionSelect').value;
+
+            formDataObj['action'] = actionType;
+            formDataObj['qr_secret'] = 'manual';
+            formDataObj['user_location_raw'] = gpsDataGlobal;
+            formDataObj['manual_location_name'] = 'Manual Check (Offline)';
+
+            // Add other fields if present
+            const workplaceEl = document.getElementById('workplace');
+            if (workplaceEl) formDataObj['workplace'] = workplaceEl.value;
+            const branchEl = document.getElementById('branch');
+            if (branchEl) formDataObj['branch'] = branchEl.value;
+            const areaEl = document.getElementById('area');
+            if (areaEl) formDataObj['area'] = areaEl.value;
+
+            try {
+                await offlineDB.saveAction(formDataObj);
+                showResultPopup('វត្តមានដោយដៃត្រូវបានរក្សាទុកក្នុងម៉ាស៊ីន (Offline)! វានឹងបញ្ជូនទៅ Server ពេលមានអ៊ីនធឺណិតវិញ។', true);
+                closeManualPopup();
+                updateOfflineUI();
+            } catch (err) {
+                showResultPopup('កំហុសក្នុងការរក្សាទុកទិន្នន័យ Offline: ' + err.message, false);
+            }
             document.getElementById('manualSubmitBtn').disabled = false;
             document.getElementById('manualSubmitBtn').textContent = 'ចាប់ផ្តើមស្កេន';
             return;
