@@ -2107,10 +2107,14 @@ if ($is_logged_in) {
         })();
     </script>
 
-    <script src="https://unpkg.com/html5-qrcode/html5-qrcode.min.js"></script>
+    <link rel="preload" href="assets/css/fontawesome/all.min.css" as="style">
+    <link rel="preload" href="assets/css/webfonts/fa-solid-900.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="assets/js/html5-qrcode.min.js" as="script">
+
+    <script src="assets/js/html5-qrcode.min.js"></script>
 
     <link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link rel="stylesheet" href="assets/css/fontawesome/all.min.css" />
     <style>
         /* Local Momo Trust Display (Latin only) */
         @font-face {

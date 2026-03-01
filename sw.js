@@ -1,14 +1,15 @@
-const CACHE_NAME = 'vvc-attendance-v11';
+const CACHE_NAME = 'vvc-attendance-v12';
 const ASSETS_TO_CACHE = [
     'scan.php',
     'manifest.json',
-    'https://unpkg.com/html5-qrcode/html5-qrcode.min.js',
-    'https://fonts.googleapis.com/css2?family=Kantumruy+Pro:wght@300;400;500;600;700&display=swap',
-    'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css',
+    'assets/js/html5-qrcode.min.js',
+    'assets/css/fontawesome/all.min.css',
+    'assets/css/webfonts/fa-solid-900.woff2',
+    'assets/css/webfonts/fa-regular-400.woff2',
     'assets/fonts/MomoTrustDisplay-Regular.woff2',
     'assets/fonts/MomoTrustDisplay-Regular.woff',
     'assets/fonts/MomoTrustDisplay-Regular.ttf',
-    'https://cdn-icons-png.flaticon.com/512/11693/11693253.png'
+    'https://fonts.googleapis.com/css2?family=Kantumruy+Pro:wght@300;400;500;600;700&display=swap'
 ];
 
 // Install Event - Pre-cache everything
