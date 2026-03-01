@@ -4966,7 +4966,7 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
         const ov = document.getElementById('viewTransitionOverlay');
         if (!ov) return;
         ov.classList.add('fadeout');
-        setTimeout(() => { ov.style.display = 'none'; ov.classList.remove('fadeout'); }, 280);
+        setTimeout(() => { ov.style.display = 'none'; ov.classList.remove('fadeout'); }, 150);
     }
 
     function footerNavigate(element, viewId) {
@@ -4989,7 +4989,7 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
         // បង្ហាញ View ដែលបានជ្រើសរើស (បន្ថែម delay តូចសម្រាប់ animation ហើយកុំឲ្យភ្លឺភ្លាត់)
         setTimeout(() => {
             showView(viewId);
-        }, 120);
+        }, 50);
 
         // ជំហានទី 2: ពិនិត្យប្រសិនបើទំព័រដែលត្រូវទៅគឺ 'my-requests-view'
         if (viewId === 'my-requests-view') {
@@ -5008,13 +5008,13 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
             }, 10000); // 10000 milliseconds = 10 វិនាទី
         } else if (viewId === 'my-logs-view') {
             loadAttendanceLogs();
-            setTimeout(hidePageLoader, 260);
+            setTimeout(hidePageLoader, 100);
         } else if (viewId === 'my-locations-view') {
             loadLocations();
-            setTimeout(hidePageLoader, 260);
+            setTimeout(hidePageLoader, 100);
         } else {
             // សម្រាប់ view ផ្សេងៗ បិទ loader បន្តិចក្រោយបង្ហាញរួច
-            setTimeout(hidePageLoader, 260);
+            setTimeout(hidePageLoader, 100);
         }
     }
     // ===== END: កូដដែលបានកែសម្រួលសម្រាប់ Real-time Update =====
