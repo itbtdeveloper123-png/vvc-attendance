@@ -365,50 +365,6 @@ function ensure_push_subscriptions_table($mysqli) {
         UNIQUE KEY (endpoint(255))
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 }
-function sendWebPushNotification($mysqli, $target_employee_id, $title, $body) {
-    if (!$target_employee_id) return false;
-    $sql = "SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE employee_id = ?";
-    if ($stmt = $mysqli->prepare($sql)) {
-        $stmt->bind_param("s", $target_employee_id);
-        $stmt->execute();
-        $res = $stmt->get_result();
-        $subscriptions = [];
-        while ($row = $res->fetch_assoc()) {
-            $subscriptions[] = \Minishlink\WebPush\Subscription::create([
-                'endpoint' => $row['endpoint'],
-                'keys' => [
-                    'p256dh' => $row['p256dh'],
-                    'auth' => $row['auth']
-                ]
-            ]);
-        }
-        $stmt->close();
-        if (empty($subscriptions)) {
-            error_log("[WebPush-Admin] No subscriptions found for: " . $target_employee_id);
-            return false;
-        }
-        error_log("[WebPush-Admin] Found " . count($subscriptions) . " subscriptions for: " . $target_employee_id);
-        $auth = [
-            'VAPID' => [
-                'subject' => 'mailto:admin@vvc-attendance.com',
-                'publicKey' => 'BGBSU2jW6Olk8tnMgy_4UsqLajIj3VWy-SLC8A4HswFJkEFvJybNrRKNAYG2LkHM-jQJ6TDVccJ1qLUTW41T-gs',
-                'privateKey' => '9t8CytL5CzWUDbGiTrr7KO54kfpVGme-nySjecH9MPah',
-            ],
-        ];
-        try {
-            $webPush = new \Minishlink\WebPush\WebPush($auth);
-            $payload = json_encode(['title' => $title, 'body' => $body]);
-            foreach ($subscriptions as $subscription) { $webPush->queueNotification($subscription, $payload); }
-            foreach ($webPush->flush() as $report) {
-                if (!$report->isSuccess() && $report->isSubscriptionExpired()) {
-                     $mysqli->query("DELETE FROM push_subscriptions WHERE endpoint = '" . $mysqli->real_escape_string($report->getEndpoint()) . "'");
-                }
-            }
-            return true;
-        } catch (\Exception $e) { error_log("[WebPush] " . $e->getMessage()); return false; }
-    }
-    return false;
-}
 // Helper: Ensure employment_status & leave_date columns exist + user_access_logs table
 function ensure_employment_columns_and_logs($mysqli) {
     // Add employment_status if missing
