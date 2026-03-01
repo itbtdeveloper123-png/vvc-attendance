@@ -3266,11 +3266,6 @@ if ($is_logged_in) {
                     <span id="notificationBadge" class="notification-badge" style="display: none;"></span>
                 </div>
 
-                <a href="?logout=1" class="logout-btn" title="ចាកចេញ">
-                    <i class="fas fa-right-from-bracket" aria-hidden="true"></i>
-                    <span>ចាកចេញ</span>
-                </a>
-
 
                 </div>
             <?php endif; ?>
