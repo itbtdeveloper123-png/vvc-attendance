@@ -2042,6 +2042,8 @@ if ($is_logged_in && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['actio
                 sendTelegramMessage($mysqli, $telegram_msg, 'attendance_force');
                 $admin_id_to_notify = get_current_admin_id($mysqli);
                 sendWebPushNotification($mysqli, $admin_id_to_notify, "Attendance: {$action}", strip_tags(str_replace('\n', "\n", $telegram_msg)));
+                // Also notify the employee themselves
+                sendWebPushNotification($mysqli, $employee_id, "វត្តមាន: {$action}", "អ្នកបាន {$action} ដោយជោគជ័យ។");
 
             } else { $error_message = "Error: មិនអាចបញ្ចូលទិន្នន័យបានទេ " . $stmt_insert->error; }
             $stmt_insert->close();
