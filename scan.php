@@ -2082,15 +2082,13 @@ if ($is_logged_in && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['actio
 
 
 // ===============================================
-//        PART 5: FETCH REQUEST COUNTS & PERSONAL STATS
+//        PART 5: FETCH REQUEST COUNTS
 // ===============================================
 if ($is_logged_in) {
-    $emp_id_current = $_SESSION['employee_id'];
-
-    // 1. Request Counts for My Requests badges
+    $employee_id = $_SESSION['employee_id'];
     $sql_counts = "SELECT request_status, COUNT(*) as count FROM requests_logs WHERE employee_id = ? GROUP BY request_status";
     if ($stmt_counts = $mysqli->prepare($sql_counts)) {
-        $stmt_counts->bind_param("s", $emp_id_current);
+        $stmt_counts->bind_param("s", $employee_id);
         $stmt_counts->execute();
         $result_counts = $stmt_counts->get_result();
         while ($row = $result_counts->fetch_assoc()) {
@@ -2099,24 +2097,6 @@ if ($is_logged_in) {
             }
         }
         $stmt_counts->close();
-    }
-
-    // 2. Personal Attendance Stats (v2) - Current Month
-    $personal_stats = ['total' => 0, 'good' => 0, 'late' => 0, 'outside' => 0];
-    $stats_sql = "SELECT status, COUNT(*) as count FROM checkin_logs WHERE employee_id = ? AND log_datetime >= DATE_FORMAT(NOW() ,'%Y-%m-01 00:00:00') GROUP BY status";
-    if ($stmt_stats = $mysqli->prepare($stats_sql)) {
-        $stmt_stats->bind_param("s", $emp_id_current);
-        $stmt_stats->execute();
-        $res_stats = $stmt_stats->get_result();
-        while ($row = $res_stats->fetch_assoc()) {
-            $status_text = $row['status'];
-            $count = (int)$row['count'];
-            $personal_stats['total'] += $count;
-            if (strpos($status_text, 'Good') !== false) $personal_stats['good'] += $count;
-            if (strpos($status_text, 'Late') !== false) $personal_stats['late'] += $count;
-            if (strpos($status_text, 'Outside') !== false) $personal_stats['outside'] += $count;
-        }
-        $stmt_stats->close();
     }
 }
 ?>
@@ -3322,45 +3302,6 @@ if ($is_logged_in) {
                <?php else: ?>
                 <div id="card-menu-view" class="main-view active">
                     <h2><?php echo htmlspecialchars(get_setting_typed('greeting_text', 'សួស្តី')); ?>, <span class="user-name"><?php echo htmlspecialchars($user_data['name'] ?? ''); ?>!</span></h2>
-
-                    <!-- Personal Attendance Stats Dashboard (v2) -->
-                    <div class="stats-dashboard" style="margin: 16px 0 24px 0; background: linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.01)); border-radius: 24px; padding: 2px;">
-                       <div style="background: var(--surface-color); border-radius: 22px; padding: 20px; box-shadow: var(--shadow-md); border: 1px solid rgba(0,0,0,0.03);">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                            <h3 style="margin: 0; font-size: 1.05rem; font-weight: 700; color: var(--text-primary);"><i class="fas fa-chart-line" style="margin-right: 8px; color: var(--primary-color);"></i>រូបភាពសង្ខេប (ក្នុងខែនេះ)</h3>
-                            <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); background: var(--secondary-color); padding: 5px 12px; border-radius: 12px; letter-spacing: 0.02em;">សរុប: <?php echo $personal_stats['total']; ?></div>
-                        </div>
-
-                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
-                            <div class="stat-card" style="text-align: center; padding: 12px 8px; border-radius: 16px; background: rgba(52, 199, 89, 0.06); border: 1px solid rgba(52, 199, 89, 0.1);">
-                                <div style="font-size: 1.3rem; font-weight: 800; color: #248a3d; margin-bottom: 2px;"><?php echo $personal_stats['good']; ?></div>
-                                <div style="font-size: 0.7rem; color: #248a3d; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;">ទាន់ពេល</div>
-                            </div>
-                            <div class="stat-card" style="text-align: center; padding: 12px 8px; border-radius: 16px; background: rgba(255, 149, 0, 0.06); border: 1px solid rgba(255, 149, 0, 0.1);">
-                                <div style="font-size: 1.3rem; font-weight: 800; color: #b26a00; margin-bottom: 2px;"><?php echo $personal_stats['late']; ?></div>
-                                <div style="font-size: 0.7rem; color: #b26a00; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;">មកយឺត</div>
-                            </div>
-                            <div class="stat-card" style="text-align: center; padding: 12px 8px; border-radius: 16px; background: rgba(255, 59, 48, 0.06); border: 1px solid rgba(255, 59, 48, 0.1);">
-                                <div style="font-size: 1.3rem; font-weight: 800; color: #c02c23; margin-bottom: 2px;"><?php echo $personal_stats['outside']; ?></div>
-                                <div style="font-size: 0.7rem; color: #c02c23; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;">ក្រៅតំបន់</div>
-                            </div>
-                        </div>
-
-                        <?php
-                        $perf_rate = ($personal_stats['total'] > 0) ? round(($personal_stats['good'] / $personal_stats['total']) * 100) : 100;
-                        $bar_color = ($perf_rate >= 90) ? 'var(--success-color)' : (($perf_rate >= 70) ? 'var(--warning-color)' : 'var(--error-color)');
-                        ?>
-                        <div style="margin-top: 18px;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                                <span style="font-size: 0.75rem; font-weight: 700; color: var(--text-secondary);">ពិន្ទុការងារ (Performance)</span>
-                                <span style="font-size: 0.8rem; font-weight: 800; color: <?php echo $bar_color; ?>;"><?php echo $perf_rate; ?>%</span>
-                            </div>
-                            <div style="height: 6px; background: var(--secondary-color); border-radius: 10px; overflow: hidden;">
-                                <div style="height: 100%; width: <?php echo $perf_rate; ?>%; background: <?php echo $bar_color; ?>; border-radius: 10px; transition: width 1s ease-out;"></div>
-                            </div>
-                        </div>
-                       </div>
-                    </div>
 
                     <div class="card-menu">
                         <?php if (get_setting_typed('show_attendance_card', '1') == '1'): ?>
