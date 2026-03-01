@@ -1752,8 +1752,7 @@ if ($is_logged_in && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['actio
     $area = trim($_POST['area'] ?? ($custom_data['area'] ?? ''));
     $qr_location_id = (int)($_POST['qr_location_id'] ?? 0);
     $qr_secret = trim($_POST['qr_secret'] ?? ''); $user_location_raw = trim($_POST['user_location_raw'] ?? '');
-    $log_datetime = (isset($_POST['timestamp']) && $_POST['is_offline_sync'] === '1') ? date('Y-m-d H:i:s', strtotime($_POST['timestamp'])) : date('Y-m-d H:i:s');
-    $current_time = date('H:i:s', strtotime($log_datetime));
+    $log_datetime = date('Y-m-d H:i:s'); $current_time = date('H:i:s', strtotime($log_datetime));
     $late_reason = trim($_POST['late_reason'] ?? ''); $log_status = 'Good';
     $location_validity = 'Invalid QR'; $min_distance_m = 0.0;
 
@@ -2049,17 +2048,6 @@ if ($is_logged_in && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['actio
             } else { $error_message = "Error: មិនអាចបញ្ចូលទិន្នន័យបានទេ " . $stmt_insert->error; }
             $stmt_insert->close();
         } else { $error_message = "កំហុស Prepared Statement របស់ Check-In: " . $mysqli->error; }
-    }
-
-    // NEW: Handle AJAX / Offline Sync JSON response
-    if ((isset($_POST['is_offline_sync']) && $_POST['is_offline_sync'] === '1') || (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest')) {
-        header('Content-Type: application/json');
-        if (!empty($error_message)) {
-            echo json_encode(['success' => false, 'message' => $error_message]);
-        } else {
-            echo json_encode(['success' => true, 'message' => $success_message]);
-        }
-        exit;
     }
 }
 
@@ -5124,94 +5112,6 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
             }
         } catch(e) { /* ignore warm-up errors */ }
     });
-    // ===== START: IndexedDB for Offline Mode =====
-    const DB_NAME = 'VVCAttendanceDB';
-    const DB_VERSION = 1;
-    const STORE_NAME = 'pendingScans';
-    let db;
-
-    function initDB() {
-        return new Promise((resolve, reject) => {
-            const request = indexedDB.open(DB_NAME, DB_VERSION);
-            request.onerror = (event) => reject('Database error: ' + event.target.errorCode);
-            request.onsuccess = (event) => {
-                db = event.target.result;
-                console.log('IndexedDB initialized');
-                resolve(db);
-                // Try sync on load if online
-                if (navigator.onLine) syncOfflineScans();
-            };
-            request.onupgradeneeded = (event) => {
-                const db = event.target.result;
-                if (!db.objectStoreNames.contains(STORE_NAME)) {
-                    db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
-                }
-            };
-        });
-    }
-
-    async function saveOfflineScan(data) {
-        if (!db) await initDB();
-        return new Promise((resolve, reject) => {
-            const transaction = db.transaction([STORE_NAME], 'readwrite');
-            const store = transaction.objectStore(STORE_NAME);
-            const request = store.add({
-                data: data,
-                timestamp: Date.now()
-            });
-            request.onsuccess = () => resolve();
-            request.onerror = () => reject('Save failed');
-        });
-    }
-
-    async function syncOfflineScans() {
-        if (!navigator.onLine || !db) return;
-        const transaction = db.transaction([STORE_NAME], 'readwrite');
-        const store = transaction.objectStore(STORE_NAME);
-        const request = store.getAll();
-
-        request.onsuccess = async () => {
-            const pending = request.result;
-            if (pending.length === 0) return;
-
-            console.log(`Syncing ${pending.length} offline scans...`);
-            for (const item of pending) {
-                try {
-                    const formData = new FormData();
-                    for (const key in item.data) {
-                        formData.append(key, item.data[key]);
-                    }
-                    // Add a special flag and the original timestamp to tell server this was an offline sync
-                    formData.append('is_offline_sync', '1');
-                    if (item.timestamp) {
-                        formData.append('timestamp', new Date(item.timestamp).toISOString());
-                    }
-
-                    const response = await fetch(window.location.pathname, {
-                        method: 'POST',
-                        body: formData,
-                        credentials: 'same-origin'
-                    });
-
-                    if (response.ok) {
-                        // Remove from IDB on success
-                        const deleteTx = db.transaction([STORE_NAME], 'readwrite');
-                        deleteTx.objectStore(STORE_NAME).delete(item.id);
-                        console.log(`Synced & deleted item ${item.id}`);
-                    }
-                } catch (e) {
-                    console.error('Sync failed for item', item.id, e);
-                }
-            }
-            // Optionally reload logs if sync happened
-            if (pending.length > 0 && typeof loadAttendanceLogs === 'function') {
-                loadAttendanceLogs();
-            }
-        };
-    }
-    // Initialize DB right away
-    initDB().catch(console.error);
-    // ===== END: IndexedDB for Offline Mode =====
 
     function showStatusInPopup(message, isError = false, showLoading = false) {
         const statusEl = document.getElementById('status_msg_popup');
@@ -5740,33 +5640,8 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
         // Close camera popup immediately and show global loading
         stopCamera();
 
-        const actionType = document.getElementById('actionSelectInPopup').value;
-        const currentGPS = gpsDataGlobal;
-
         if (!navigator.onLine) {
-            try {
-                const qrData = JSON.parse(decodedText);
-                const offlineData = {
-                    action: actionType,
-                    qr_location_id: qrData.location_id,
-                    qr_secret: qrData.secret,
-                    user_location_raw: currentGPS,
-                    timestamp: new Date().toISOString()
-                };
-                // Fallback details if available
-                const workplace = document.getElementById('workplace')?.value || 'N/A';
-                const branch = document.getElementById('branch')?.value || 'N/A';
-                const area = document.getElementById('area')?.value || 'N/A';
-                offlineData.workplace = workplace;
-                offlineData.branch = branch;
-                offlineData.area = area;
-
-                await saveOfflineScan(offlineData);
-                showResultPopup('វត្តមានត្រូវបានរក្សាទុកក្នុងទូរសព្ទ (Offline)។ វានឹងបញ្ជូនទៅ Server ពេលមានអ៊ីនធឺណិត។', true);
-            } catch (e) {
-                console.error('Offline save failed', e);
-                showResultPopup('កំហុស៖ មិនអាចរក្សាទុកទិន្នន័យ Offline បានទេ។', false);
-            }
+            showResultPopup('កំហុស៖ គ្មានប្រព័ន្ធអ៊ីនធឺណិត។ សូមភ្ជាប់អ៊ីនធឺណិតដើម្បីបញ្ជូនទិន្នន័យ។', false);
             return;
         }
 
@@ -5899,23 +5774,7 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
         document.getElementById('manualSubmitBtn').textContent = 'កំពុងដាក់ស្នើ...';
 
         if (!navigator.onLine) {
-            try {
-                const actionType = document.getElementById('manualActionSelect').value;
-                const offlineData = {
-                    action: actionType,
-                    qr_location_id: '0',
-                    qr_secret: 'manual',
-                    user_location_raw: gpsDataGlobal,
-                    manual_location_name: document.getElementById('area')?.value || 'Manual Check',
-                    manual_distance: '0', // Will be calculated by server
-                    timestamp: new Date().toISOString()
-                };
-                await saveOfflineScan(offlineData);
-                closeManualPopup();
-                showResultPopup('វត្តមាន (Manual) ត្រូវបានរក្សាទុកក្នុងទូរសព្ទ (Offline)។', true);
-            } catch (e) {
-                showResultPopup('កំហុស៖ មិនអាចរក្សាទុកទិន្នន័យ Offline បានទេ។', false);
-            }
+            showResultPopup('កំហុស៖ គ្មានប្រព័ន្ធអ៊ីនធឺណិត។ សូមភ្ជាប់អ៊ីនធឺណិតដើម្បីបញ្ជូនទិន្នន័យ។', false);
             document.getElementById('manualSubmitBtn').disabled = false;
             document.getElementById('manualSubmitBtn').textContent = 'ចាប់ផ្តើមស្កេន';
             return;
@@ -6028,29 +5887,7 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
         }
         distanceField.value = distanceValue;
 
-        const actionType = document.getElementById('manualActionSelect').value;
-
-        if (!navigator.onLine) {
-            try {
-                const offlineData = {
-                    action: actionType,
-                    qr_location_id: '0',
-                    qr_secret: 'manual',
-                    user_location_raw: hasGPS ? gpsDataGlobal : '0,0',
-                    manual_location_name: locationName,
-                    manual_distance: distanceValue,
-                    timestamp: new Date().toISOString()
-                };
-
-                await saveOfflineScan(offlineData);
-                closeManualPopup();
-                showResultPopup('វត្តមានដោយដៃត្រូវបានរក្សាទុក Offline! វានឹងបញ្ជូនទៅ Server ពេលមានអ៊ីនធឺណិត។', true);
-            } catch (e) {
-                console.error('Offline manual save failed', e);
-                showResultPopup('កំហុស៖ មិនអាចរក្សាទុកទិន្នន័យ Offline បានទេ។', false);
-            }
-            return;
-        }
+        const actionType = document.getElementById('action').value;
 
         // If Check-Out, evaluate status
         if (actionType === 'Check-Out') {
@@ -7307,17 +7144,9 @@ if ((!empty($success_message) || !empty($error_message)) && !$suppress_time_erro
         }
     }
 
-    window.addEventListener('online', () => {
-        updateOnlineStatus();
-        syncOfflineScans(); // Sync when back online
-    });
+    window.addEventListener('online', updateOnlineStatus);
     window.addEventListener('offline', updateOnlineStatus);
-    document.addEventListener('DOMContentLoaded', () => {
-        updateOnlineStatus();
-        initDB().then(() => {
-            if (navigator.onLine) syncOfflineScans();
-        });
-    });
+    document.addEventListener('DOMContentLoaded', updateOnlineStatus);
 
     // Override fetch to handle offline errors gracefully for essential actions
     const originalFetch = window.fetch;
