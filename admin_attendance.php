@@ -2996,6 +2996,27 @@ if (isset($_POST['ajax_action'])) {
                 }
                 break;
 
+            case 'revoke_all_my_users_tokens':
+                // NEW: Revoke all tokens for all users owned by this admin (or ALL if super admin)
+                $sql = "DELETE at FROM active_tokens at JOIN users u ON at.employee_id = u.employee_id";
+                if (!$is_super_admin) {
+                    $sql .= " WHERE u.created_by_admin_id = ? OR u.employee_id = ?";
+                }
+
+                if ($stmt = $mysqli->prepare($sql)) {
+                    if (!$is_super_admin) {
+                        $stmt->bind_param("ss", $current_admin_id, $current_admin_id);
+                    }
+                    if ($stmt->execute()) {
+                        $count = $stmt->affected_rows;
+                        $response = ['status' => 'success', 'message' => "បានលុបចោល {$count} Session(s) ទាំងអស់ដោយជោគជ័យ!"];
+                    } else {
+                        $response = ['status' => 'error', 'message' => 'Failed to revoke all tokens: ' . $stmt->error];
+                    }
+                    $stmt->close();
+                }
+                break;
+
             case 'update_user_status':
                 // Update employment_status and optional leave_date; revoke tokens if not Active
                 if (!(hasPageAccess($mysqli,'users','list_users',$admin_id_check) || hasPageAccess($mysqli,'users','create_user',$admin_id_check))) { $response=['status'=>'error','message'=>'Access denied']; break; }
@@ -8682,23 +8703,41 @@ if ($current_page == 'requests' && hasPageAccess($mysqli, 'requests', 'requests'
         <div class="tokens-page-section" style="background: white; padding: 25px; border-radius: 8px; box-shadow: 0 0 5px rgba(0,0,0,0.05);">
             <h3 style="margin-top: 0; margin-bottom: 20px;"><i class="fa-solid fa-list"></i> បញ្ជី Session សកម្ម</h3>
 
+            <!-- Search and Bulk Actions Toolbar -->
+            <div class="user-toolbar" style="margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap; background: #f8f9fa; padding: 15px; border-radius: 6px;">
+                <div style="display: flex; gap: 8px; align-items: center; flex: 1; min-width: 250px;">
+                    <input type="text" id="searchSessionID" class="form-control" placeholder="ស្វែងរក ID..." style="max-width: 150px; height: 36px; font-size: 14px;">
+                    <input type="text" id="searchSessionName" class="form-control" placeholder="ស្វែងរកឈ្មោះ..." style="max-width: 200px; height: 36px; font-size: 14px;">
+                    <button type="button" id="searchSessionBtn" class="btn btn-primary" style="height: 36px; padding: 0 15px;">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                    </button>
+                </div>
+                <div>
+                    <a href="#" id="revokeAllSessionsBtn" class="btn btn-danger" style="height: 36px; display: flex; align-items: center; gap: 8px;">
+                        <i class="fa-solid fa-power-off"></i> Revoke All Sessions
+                    </a>
+                </div>
+            </div>
+
             <?php if ($session_count > 0): ?>
                 <div class="session-count-info">
                     <i class="fa-solid fa-info-circle"></i> មាន <strong><?php echo $session_count; ?></strong> Session សកម្មសរុប។
                 </div>
-                <table class="table">
+                <table class="table" id="sessionsTable">
                     <thead>
-                        <tr><th>ព័ត៌មានអ្នកប្រើប្រាស់</th><th>Token (សង្ខេប)</th><th>បង្កើតនៅ</th><th>សកម្មភាព</th></tr>
+                        <tr><th>ព័ត៌មានអ្នកប្រើប្រាស់</th><th>ប្រភេទ</th><th>Token (សង្ខេប)</th><th>បង្កើតនៅ</th><th>សកម្មភាពចុងក្រោយ</th><th>សកម្មភាព</th></tr>
                     </thead>
                     <tbody>
                         <?php while ($session = $active_sessions_query->fetch_assoc()): ?>
-                            <tr>
+                            <tr class="session-row">
                                 <td class="user-info-cell">
                                     <strong><?php echo htmlspecialchars($session['user_name']); ?></strong><br>
                                     <small><?php echo htmlspecialchars($session['employee_id']); ?></small>
                                 </td>
+                                <td><span class="badge" style="background:#6c757d; color:#fff;"><?php echo htmlspecialchars($session['scan_user_type'] ?: 'N/A'); ?></span></td>
                                 <td><span class="token-id-display"><?php echo substr(htmlspecialchars($session['auth_token']), 0, 15) . '...'; ?></span></td>
-                                <td><?php echo date('d-M-Y H:i:s', strtotime($session['created_at'])); ?></td>
+                                <td><?php echo date('d-M-Y H:i', strtotime($session['created_at'])); ?></td>
+                                <td><?php echo date('d-M-Y H:i:s', strtotime($session['last_used'])); ?></td>
                                 <td><a href="#" data-ajax-action="revoke_token" data-token="<?php echo $session['auth_token']; ?>" class="btn btn-danger btn-sm ajax-delete-link" data-confirm="តើអ្នកពិតជាចង់លុប Token នេះមែនទេ? User នោះនឹងត្រូវបាន Log Out ដោយស្វ័យប្រវត្តិ។"><i class="fa-solid fa-delete-left"></i> Revoke Token</a></td>
                             </tr>
                         <?php endwhile; $active_sessions_query->close(); ?>
@@ -12273,6 +12312,61 @@ window.addEventListener('pageshow', function(){ hideAdminLoader(); });
         searchBtn.addEventListener('click', filterUsers);
         idInput.addEventListener('input', filterUsers);
         nameInput.addEventListener('input', filterUsers);
+    })();
+
+    // Sessions Search Logic
+    (function() {
+        const sBtn = document.getElementById('searchSessionBtn');
+        const sId = document.getElementById('searchSessionID');
+        const sName = document.getElementById('searchSessionName');
+        const revokeAllBtn = document.getElementById('revokeAllSessionsBtn');
+
+        if (!sBtn || !sId || !sName) return;
+
+        function filterSessions() {
+            const qId = sId.value.toLowerCase().trim();
+            const qName = sName.value.toLowerCase().trim();
+            const rows = document.querySelectorAll('#sessionsTable .session-row');
+
+            rows.forEach(row => {
+                const idText = (row.querySelector('.user-info-cell small') ? row.querySelector('.user-info-cell small').textContent : '').toLowerCase();
+                const nameText = (row.querySelector('.user-info-cell strong') ? row.querySelector('.user-info-cell strong').textContent : '').toLowerCase();
+
+                const mId = qId === '' || idText.includes(qId);
+                const mName = qName === '' || nameText.includes(qName);
+
+                row.style.display = (mId && mName) ? '' : 'none';
+            });
+        }
+
+        sBtn.addEventListener('click', filterSessions);
+        sId.addEventListener('input', filterSessions);
+        sName.addEventListener('input', filterSessions);
+
+        if (revokeAllBtn) {
+            revokeAllBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                if (confirm('តើអ្នកពិតជាចង់លុបចោល Session របស់បុគ្គលិកទាំងអស់មែនទេ? ពួកគេនឹងត្រូវចូលគណនីម្តងទៀត។')) {
+                    const fd = new FormData();
+                    fd.append('ajax_action', 'revoke_all_my_users_tokens');
+
+                    fetch(window.location.href, {
+                        method: 'POST',
+                        body: fd
+                    })
+                    .then(r => r.json())
+                    .then(res => {
+                        if (res.status === 'success') {
+                            alert(res.message);
+                            window.location.reload();
+                        } else {
+                            alert(res.message || 'Error occurred');
+                        }
+                    })
+                    .catch(err => alert('Network error: ' + err));
+                }
+            });
+        }
     })();
     </script>
 
