@@ -1824,11 +1824,15 @@ if ($is_logged_in && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['actio
                 if($closest_loc){
                     $min_distance_m = round($closest_dist, 2);
                     $location_name_log = $closest_loc['location_name'];
-                    if($closest_dist <= (float)$closest_loc['final_radius']){
+                    // Use TOLERANCE buffer (default 100m)
+                    $allowed_radius = (float)$closest_loc['final_radius'] + (defined('TOLERANCE') ? TOLERANCE : 100);
+                    if($closest_dist <= $allowed_radius){
                         $location_validity = 'Valid Geo';
                     } else {
-                        $error_message = "កំហុស Geo: អ្នកនៅឆ្ងាយពីទីតាំងដែលអនុញ្ញាត ({$min_distance_m}m / Max: {$closest_loc['final_radius']}m)។";
-                        $location_validity = 'Too Far';
+                        // User is far, but we allow submission with a warning flag
+                        $location_validity = 'Valid Geo'; // Allow it to pass further down
+                        $is_outside_range = true;
+                        $outside_msg = "អ្នកនៅឆ្ងាយពីទីតាំង ({$min_distance_m}m / Max: {$closest_loc['final_radius']}m)";
                     }
                 } else {
                     $error_message = "កំហុស៖ មិនមានទីតាំងត្រូវបានកំណត់សម្រាប់លោកអ្នកទេ។";
@@ -1858,8 +1862,15 @@ if ($is_logged_in && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['actio
             list($user_lat, $user_lon) = array_map('floatval', array_map('trim', explode(',', $user_location_raw)));
             $distance_m = haversine_distance($user_lat, $user_lon, $assigned_loc['latitude'], $assigned_loc['longitude']);
             $min_distance_m = round($distance_m, 2);
-            if ($distance_m <= (float)$assigned_loc['final_radius']) $location_validity = 'Valid Geo';
-            else { $error_message = "កំហុស Geo: អ្នកនៅឆ្ងាយពីទីតាំងដែលបានស្កេន ({$min_distance_m}m / Max: {$assigned_loc['final_radius']}m)។"; $location_validity = 'Too Far'; }
+            $allowed_radius = (float)$assigned_loc['final_radius'] + (defined('TOLERANCE') ? TOLERANCE : 100);
+            if ($distance_m <= $allowed_radius) {
+                $location_validity = 'Valid Geo';
+            } else {
+                // Soft Geofencing: Allow the submission but note it was outside
+                $location_validity = 'Valid Geo';
+                $is_outside_range = true;
+                $outside_msg = "អ្នកនៅឆ្ងាយពីទីតាំង ({$min_distance_m}m / Max: {$assigned_loc['final_radius']}m)";
+            }
         } elseif ($location_validity === 'QR Valid') { $error_message = "កំហុស GPS: មិនអាចទាញយកទីតាំងបច្ចុប្បន្នបានទេ។"; $location_validity = 'No GPS'; }
     }
 
@@ -1894,6 +1905,7 @@ if ($is_logged_in && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['actio
 
     if ($location_validity !== 'Valid Geo') {
         if ($location_validity === 'Too Far') {
+            // This case should now be rare due to soft geofencing above, but we keep it for fallback
             $error_message = "កំហុស Geo: អ្នកនៅឆ្ងាយពីទីតាំងដែលបានស្កេន ({$min_distance_m} m / Max: {$assigned_loc['final_radius']} m)។";
         } elseif ($location_validity === 'Invalid QR') {
             // Error message already set
@@ -1963,6 +1975,14 @@ if ($is_logged_in && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['actio
         }
     }
 
+    if (isset($is_outside_range) && $is_outside_range) {
+        $status_for_db = (strpos($status_for_db, ' ( Outside )') === false) ? $status_for_db . ' ( Outside )' : $status_for_db;
+        if (isset($status_for_db_with_minutes)) {
+             $status_for_db_with_minutes .= ' ( Outside )';
+        }
+    }
+
+
     // [កូដដែលបានកែសម្រួល] បន្ថែម `custom_fields_data` និង `late_minutes` ទៅក្នុង INSERT statement
     $insert_sql = "INSERT INTO checkin_logs (employee_id, name, action_type, workplace, branch, log_datetime, late_reason, area, location_data, status, distance_m, location_name, custom_fields_data, late_minutes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, {$status_value_sql}, ?, ?, ?, ?)";
 
@@ -1971,7 +1991,11 @@ if ($is_logged_in && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['actio
         $stmt_insert->bind_param("sssssssssdssi", $employee_id, $name, $action, $workplace, $branch, $log_datetime, $late_reason, $area, $location_log, $min_distance_m, $location_name_log, $custom_fields_json, $late_minutes_val);
 
         if ($stmt_insert->execute()) {
-                $success_message = "{$action} បានសម្រេច! (ស្ថានភាព: {$status_for_db})";
+                $status_label_success = isset($status_for_db_with_minutes) ? $status_for_db_with_minutes : $status_for_db;
+                $success_message = "{$action} បានសម្រេច! (ស្ថានភាព: {$status_label_success})";
+                if (isset($is_outside_range) && $is_outside_range) {
+                    $success_message .= " [បញ្ជាក់: ទីតាំងលើស Radius ({$min_distance_m}m)]";
+                }
 
                 // Dynamic status icon (Good / Late) from admin settings, fallback to defaults
                 $icon_good = get_setting('status_icon_good', '🔵');
