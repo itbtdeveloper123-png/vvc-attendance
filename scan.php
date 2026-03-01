@@ -5,6 +5,7 @@ session_start();
 //      PART 1: CONFIGURATION & FUNCTIONS
 // ===============================================
 
+
 // ENHANCEMENT: Activate error reporting for debugging
 require_once __DIR__ . '/config.php';
 ini_set('display_errors', 0);     // <--- FIXED: Stop displaying PHP errors to browser
