@@ -39,6 +39,12 @@ define('DEFAULT_ADMIN_PASSWORD', 'adminpass');
 define('EARTH_RADIUS_KM', 6371);
 define('TOLERANCE', 100);
 
+// ===============================================
+//          PUSH NOTIFICATION VAPID KEYS
+// ===============================================
+define('VAPID_PUBLIC_KEY', 'BAJszQgKFITmC5HEAYR6MJklEVFKPk2_2OnHp519hWeK_eTkdJxTIjFZrTl7l3nsvTOT4XU4vH7gUriK2cNq_WI');
+define('VAPID_PRIVATE_KEY', 'OyDzq6uQDpbOK8Nw-dPc07xeEwuItdCmkIOIDizV8-A');
+
 // Set timezone
 date_default_timezone_set('Asia/Phnom_Penh');
 ?>

@@ -4,7 +4,7 @@ ob_start();
 
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/vendor/autoload.php';
-// We'll use fully qualified names for WebPush to avoid conflicts with existing code
+require_once __DIR__ . '/webpush_functions.php';
 
 // Helper: Ensure core tables exist
 function ensure_core_tables($mysqli) {
@@ -2703,11 +2703,27 @@ if (isset($_POST['ajax_action'])) {
 
                 $update_sql = "UPDATE requests_logs SET request_status = ? WHERE id = ?";
                 if ($stmt_update = $mysqli->prepare($update_sql)) {
-                    $stmt_update->bind_param("si", $new_status, $request_id); //កែប្រែទីតាំងអថេរ
+                    $stmt_update->bind_param("si", $new_status, $request_id);
 
                     if ($stmt_update->execute()) {
                         $action_text = ($new_status == 'Approved') ? 'approved' : 'rejected';
                         $response = ['status' => 'success', 'message' => "Request #{$request_id} has been successfully {$action_text}."];
+
+                        // Send Web Push Notification to the user who made the request
+                        $req_sql = "SELECT employee_id, request_type FROM requests_logs WHERE id = ?";
+                        if ($req_stmt = $mysqli->prepare($req_sql)) {
+                            $req_stmt->bind_param("i", $request_id);
+                            $req_stmt->execute();
+                            $req_res = $req_stmt->get_result();
+                            if ($req_row = $req_res->fetch_assoc()) {
+                                $target_emp = $req_row['employee_id'];
+                                $req_type = $req_row['request_type'];
+                                $title = "សំណើរបស់អ្នកត្រូវបាន " . ($new_status == 'Approved' ? 'យល់ព្រម' : 'បដិសេធ');
+                                $body = "សំណើ '{$req_type}' របស់អ្នកត្រូវបាន {$new_status} ដោយ Admin។";
+                                sendWebPushNotification($mysqli, $target_emp, $title, $body);
+                            }
+                            $req_stmt->close();
+                        }
                     } else {
                         $response = ['status' => 'error', 'message' => 'Database error during status update: ' . $stmt_update->error];
                     }
