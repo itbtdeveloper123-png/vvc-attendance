@@ -1220,19 +1220,8 @@ if (isset($_POST['action']) && $_POST['action'] === 'fetch_latest_scan') {
     if (isset($_SESSION['employee_id'])) {
         $employee_id = $_SESSION['employee_id'];
 
-        // Determine if the table has a numeric primary key column we can use (commonly `id`)
-        $hasId = false;
-        if ($colRes = $mysqli->query("SHOW COLUMNS FROM checkin_logs LIKE 'id'")) {
-            $hasId = ($colRes->num_rows > 0);
-            $colRes->close();
-        }
-
-        // Build a portable query that works even when `id` column is absent
-        if ($hasId) {
-            $sql_latest = "SELECT id, action_type, log_datetime, status, location_name, distance_m FROM checkin_logs WHERE employee_id = ? ORDER BY id DESC LIMIT 4";
-        } else {
-            $sql_latest = "SELECT action_type, log_datetime, status, location_name, distance_m FROM checkin_logs WHERE employee_id = ? ORDER BY log_datetime DESC LIMIT 4";
-        }
+        // Optimized: We know checkin_logs has an 'id' column from schema definition
+        $sql_latest = "SELECT id, action_type, log_datetime, status, location_name, distance_m FROM checkin_logs WHERE employee_id = ? ORDER BY id DESC LIMIT 4";
 
         if ($stmt_latest = $mysqli->prepare($sql_latest)) {
             $stmt_latest->bind_param("s", $employee_id);
@@ -1240,9 +1229,6 @@ if (isset($_POST['action']) && $_POST['action'] === 'fetch_latest_scan') {
             $result_latest = $stmt_latest->get_result();
             $rows = [];
             while ($r = $result_latest->fetch_assoc()) {
-                if (!$hasId) {
-                    $r['id'] = strtotime($r['log_datetime']) ?: time();
-                }
                 $rows[] = $r;
             }
             if (!empty($rows)) {
@@ -6733,7 +6719,7 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
     let latestScanInterval = null;
     let lastSeenScanId = null;
     // How many latest scans to show in the floating panel (change to 1,2,3...)
-    const showLatestCount = 2;
+    const showLatestCount = 4;
 
     function createScanToastElement() {
         let el = document.getElementById('scan-toast');
@@ -6862,7 +6848,7 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
     function startLatestScanPolling() {
         if (latestScanInterval) return;
         checkLatestScan();
-        latestScanInterval = setInterval(checkLatestScan, 10000); // Increased to 10 seconds to reduce load
+        latestScanInterval = setInterval(checkLatestScan, 3000); // Reduced to 3 seconds for better real-time feel
         console.log('Started latest-scan polling');
     }
 
