@@ -1614,6 +1614,101 @@ if (isset($_POST['action']) && $_POST['action'] === 'fetch_client_config') {
 
 
 // ===============================================
+//        PART X+4: FETCH GAMIFICATION DATA (AJAX)
+// ===============================================
+if (isset($_POST['action']) && $_POST['action'] === 'fetch_gamification_data') {
+    header('Content-Type: application/json');
+    $response = ['success' => false, 'message' => 'User not authenticated.', 'data' => []];
+
+    if (isset($_SESSION['employee_id'])) {
+        $employee_id = $_SESSION['employee_id'];
+
+        $current_month = date('Y-m');
+        $leaderboard = [];
+        $sql_leaderboard = "SELECT u.name, COUNT(*) as good_count
+                           FROM checkin_logs cl
+                           JOIN users u ON cl.employee_id = u.employee_id
+                           WHERE (cl.status LIKE '%Good%' OR cl.status LIKE '%Late%')
+                           AND cl.log_datetime LIKE '$current_month%'
+                           GROUP BY cl.employee_id
+                           ORDER BY good_count DESC
+                           LIMIT 10";
+        $res_leaderboard = $mysqli->query($sql_leaderboard);
+        if ($res_leaderboard) {
+            while ($row = $res_leaderboard->fetch_assoc()) {
+                $leaderboard[] = $row;
+            }
+        }
+
+        $badges = [];
+        $start_of_week = date('Y-m-d', strtotime('monday this week'));
+        $today = date('Y-m-d');
+
+        $sql_week = "SELECT
+                        COUNT(CASE WHEN status LIKE '%Good%' THEN 1 END) as good_count,
+                        COUNT(CASE WHEN status LIKE '%Late%' THEN 1 END) as late_count,
+                        COUNT(CASE WHEN action_type = 'Check-In' AND TIME(log_datetime) < '07:30:00' THEN 1 END) as early_count
+                     FROM checkin_logs
+                     WHERE employee_id = ? AND DATE(log_datetime) >= ?";
+
+        $good_week = 0; $late_week = 0; $early_week = 0;
+        if ($stmt = $mysqli->prepare($sql_week)) {
+            $stmt->bind_param("ss", $employee_id, $start_of_week);
+            $stmt->execute();
+            $res = $stmt->get_result()->fetch_assoc();
+            $good_week = $res['good_count'] ?? 0;
+            $late_week = $res['late_count'] ?? 0;
+            $early_week = $res['early_count'] ?? 0;
+            $stmt->close();
+        }
+
+        if ($good_week >= 5 && $late_week == 0) {
+            $badges[] = ['id' => 'ontime_king', 'name' => 'ស្តេចមកទាន់ពេល', 'icon' => '👑', 'desc' => 'មកទាន់ពេលពេញមួយសប្តាហ៍'];
+        }
+        if ($early_week >= 3) {
+            $badges[] = ['id' => 'early_bird', 'name' => 'អ្នកមកព្រឹកព្រលឹម', 'icon' => '🌅', 'desc' => 'មកដល់មុនម៉ោង 7:30 យ៉ាងតិច 3 ដង'];
+        }
+
+        $sql_consecutive = "SELECT DISTINCT DATE(log_datetime) as log_date
+                           FROM checkin_logs
+                           WHERE employee_id = ?
+                           AND DATE(log_datetime) >= DATE_SUB(?, INTERVAL 7 DAY)
+                           ORDER BY log_date DESC";
+        $consecutive_count = 0;
+        if ($stmt = $mysqli->prepare($sql_consecutive)) {
+            $stmt->bind_param("ss", $employee_id, $today);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            $last_date = null;
+            while($row = $res->fetch_assoc()) {
+                $d = new DateTime($row['log_date']);
+                if ($last_date === null) {
+                    $consecutive_count = 1;
+                } else {
+                    $diff = $last_date->diff($d)->days;
+                    if ($diff == 1) $consecutive_count++;
+                    else break;
+                }
+                $last_date = $d;
+            }
+            $stmt->close();
+        }
+
+        if ($consecutive_count >= 5) {
+            $badges[] = ['id' => 'consistency', 'name' => 'ភាពម៉ឺងម៉ាត់', 'icon' => '💎', 'desc' => 'ចុះវត្តមាន 5 ថ្ងៃជាប់គ្នា'];
+        }
+
+        $response['success'] = true;
+        $response['data'] = [
+            'leaderboard' => $leaderboard,
+            'badges' => $badges
+        ];
+    }
+    echo json_encode($response);
+    exit;
+}
+
+// ===============================================
 //        PART 4: STANDARD PAGE LOGIC
 // ===============================================
 
@@ -2304,6 +2399,79 @@ if ($is_logged_in) {
         html[data-theme='dark'] .back-button {
              color: var(--primary-color);
         }
+
+        /* Gamification & Leaderboard Styles */
+        .badges-container {
+            display: flex;
+            gap: 12px;
+            overflow-x: auto;
+            padding: 4px 0 16px;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+        .badges-container::-webkit-scrollbar { display: none; }
+
+        .badge-card {
+            flex: 0 0 140px;
+            background: #fff;
+            padding: 16px 12px;
+            border-radius: 20px;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            border: 1px solid rgba(0,0,0,0.03);
+            transition: transform 0.2s ease;
+        }
+        .badge-card:active { transform: scale(0.95); }
+        .badge-icon { font-size: 2.2rem; margin-bottom: 8px; display: block; }
+        .badge-name { font-size: 0.85rem; font-weight: 700; color: var(--text-primary); display: block; line-height: 1.2; }
+        .badge-desc { font-size: 0.65rem; color: var(--text-secondary); margin-top: 4px; display: block; line-height: 1.3; }
+
+        .leaderboard-list {
+            background: #fff;
+            border-radius: 24px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.04);
+            border: 1px solid rgba(0,0,0,0.02);
+            margin-bottom: 20px;
+        }
+        .leaderboard-item {
+            display: flex;
+            align-items: center;
+            padding: 14px 18px;
+            border-bottom: 1px solid #f0f0f5;
+            transition: background 0.2s ease;
+        }
+        .leaderboard-item:last-child { border-bottom: none; }
+        .rank-num {
+            width: 28px; height: 28px;
+            background: #f0f0f5;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.85rem; font-weight: 700; color: var(--text-secondary);
+            margin-right: 14px;
+        }
+        .leaderboard-item:nth-child(1) .rank-num { background: #ffd700; color: #fff; box-shadow: 0 2px 6px rgba(255,215,0,0.3); }
+        .leaderboard-item:nth-child(2) .rank-num { background: #c0c0c0; color: #fff; }
+        .leaderboard-item:nth-child(3) .rank-num { background: #cd7f32; color: #fff; }
+
+        .user-info-lead { flex: 1; display: flex; align-items: center; }
+        .user-lead-name { font-weight: 600; font-size: 0.95rem; color: var(--text-primary); }
+        .good-count-badge {
+            background: rgba(52,199,89,0.12);
+            color: #22c55e;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 700;
+        }
+
+        html[data-theme='dark'] .badge-card,
+        html[data-theme='dark'] .leaderboard-list {
+            background: #1c1c1e;
+            border-color: #3a3a3c;
+        }
+        html[data-theme='dark'] .leaderboard-item { border-bottom-color: #2c2c2e; }
+        html[data-theme='dark'] .rank-num { background: #2c2c2e; }
         /***************************************/
         /* END: DARK THEME STYLES */
         /***************************************/
@@ -3331,6 +3499,11 @@ if ($is_logged_in) {
                             <div class="card-text"><h3><?php echo htmlspecialchars(get_setting_typed('label_view_logs', 'View Logs')); ?></h3><p>មើលកំណត់ត្រាវត្តមានរបស់អ្នក</p></div>
                         </div>
                         <?php endif; ?>
+
+                        <div class="menu-card" onclick="footerNavigate(null, 'leaderboard-view')">
+                            <div class="card-icon" style="background: linear-gradient(135deg, #ffd700, #ff8c00);"><i class="fas fa-trophy"></i></div>
+                            <div class="card-text"><h3>តារាងចំណាត់ថ្នាក់</h3><p>មើលមេដាយ និងអ្នកដែលមកទាន់ពេលច្រើនជាងគេ</p></div>
+                        </div>
                     </div>
                 </div>
 
@@ -4438,6 +4611,30 @@ if ($is_logged_in) {
         </div>
     </div>
 
+    <!-- Leaderboard & Badges View -->
+    <div id="leaderboard-view" class="main-view result-popup-overlay" style="display: none; justify-content: flex-start; padding-top: 40px;">
+        <div class="result-popup-content" style="max-width: 500px; width: 95%; max-height: 85vh; overflow-y: auto; text-align: left; padding: 25px 20px;">
+            <button class="back-button" onclick="footerNavigate(null, 'card-menu-view')" style="margin-bottom: 20px; font-size: 0.9rem;"><i class="fas fa-arrow-left"></i> ត្រឡប់ក្រោយ</button>
+            <h2 style="text-align: left; margin-bottom: 20px; font-size: 1.5rem;">សមិទ្ធផលរបស់អ្នក</h2>
+
+            <div style="margin-bottom: 15px;">
+                <h4 style="margin: 0 0 10px; font-size: 0.9rem; color: var(--text-secondary); font-weight: 600;">មេដាយដែលទទួលបាន</h4>
+                <div id="badgesContainer" class="badges-container">
+                    <div style="padding: 20px; text-align: center; width: 100%; color: var(--text-secondary); font-size: 0.85rem;">កំពុងទាញយកមេដាយ...</div>
+                </div>
+            </div>
+
+            <div style="margin-top: 25px;">
+                <h4 style="margin: 0 0 15px; font-size: 0.9rem; color: var(--text-secondary); font-weight: 600;">អ្នកមកទាន់ពេលច្រើនជាងគេ (ប្រចាំខែ)</h4>
+                <div id="leaderboardList" class="leaderboard-list">
+                    <div style="padding: 30px; text-align: center; color: var(--text-secondary);">កំពុងទាញយកតារាងចំណាត់ថ្នាក់...</div>
+                </div>
+            </div>
+
+            <button class="popup-close-btn" onclick="footerNavigate(null, 'card-menu-view')" style="margin-top: 10px;">បិទ</button>
+        </div>
+    </div>
+
     <!-- Notifications Popup -->
     <div id="notificationsPopup" class="result-popup-overlay" style="display: none;">
         <div class="result-popup-content" style="max-width: 500px; max-height: 80vh; overflow-y: auto;">
@@ -5287,6 +5484,9 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
             setTimeout(hidePageLoader, 100);
         } else if (viewId === 'my-locations-view') {
             loadLocations();
+            setTimeout(hidePageLoader, 100);
+        } else if (viewId === 'leaderboard-view') {
+            loadGamificationData();
             setTimeout(hidePageLoader, 100);
         } else {
             // សម្រាប់ view ផ្សេងៗ បិទ loader បន្តិចក្រោយបង្ហាញរួច
@@ -7248,6 +7448,69 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
         if (requestUpdateInterval) clearInterval(requestUpdateInterval);
         if (latestScanInterval) clearInterval(latestScanInterval);
     });
+
+    /* ===== Gamification: Leaderboard & Badges ===== */
+    function loadGamificationData() {
+        const badgesContainer = document.getElementById('badgesContainer');
+        const leaderboardList = document.getElementById('leaderboardList');
+        if (!badgesContainer || !leaderboardList) return;
+
+        fetch('', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'action=fetch_gamification_data'
+        })
+        .then(response => response.json())
+        .then(res => {
+            if (res.success) {
+                // 1. Render Badges
+                if (res.data.badges && res.data.badges.length > 0) {
+                    badgesContainer.innerHTML = '';
+                    res.data.badges.forEach(badge => {
+                        const card = document.createElement('div');
+                        card.className = 'badge-card';
+                        card.innerHTML = `
+                            <span class="badge-icon">${badge.icon}</span>
+                            <span class="badge-name">${badge.name}</span>
+                            <span class="badge-desc">${badge.desc}</span>
+                        `;
+                        badgesContainer.appendChild(card);
+                    });
+                } else {
+                    badgesContainer.innerHTML = `
+                        <div style="padding: 20px; text-align: center; width: 100%; color: var(--text-secondary); font-size: 0.85rem;">
+                            មិនទាន់មានមេដាយនៅឡើយទេ។ ខំប្រឹងមកទាន់ពេលឱ្យបានច្រើន!
+                        </div>`;
+                }
+
+                // 2. Render Leaderboard
+                if (res.data.leaderboard && res.data.leaderboard.length > 0) {
+                    leaderboardList.innerHTML = '';
+                    res.data.leaderboard.forEach((user, index) => {
+                        const item = document.createElement('div');
+                        item.className = 'leaderboard-item';
+                        item.innerHTML = `
+                            <div class="rank-num">${index + 1}</div>
+                            <div class="user-info-lead">
+                                <span class="user-lead-name">${user.name}</span>
+                            </div>
+                            <div class="good-count-badge">${user.good_count} ថ្ងៃ</div>
+                        `;
+                        leaderboardList.appendChild(item);
+                    });
+                } else {
+                    leaderboardList.innerHTML = `
+                        <div style="padding: 30px; text-align: center; color: var(--text-secondary);">
+                            មិនទាន់មានទិន្នន័យចំណាត់ថ្នាក់នៅឡើយទេ។
+                        </div>`;
+                }
+            }
+        })
+        .catch(err => {
+            console.error('Gamification Load Error:', err);
+            if (badgesContainer) badgesContainer.innerHTML = '<div style="color:var(--error-color); padding:20px;">កំហុសក្នុងការទាញយកទិន្នន័យ</div>';
+        });
+    }
 </script>
 
 <?php
