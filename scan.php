@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 session_start();
 
 // ===============================================
@@ -500,20 +500,59 @@ function get_setting_typed($key, $default = '') {
     return get_setting($key, $default);
 }
 
+function scan_setting_exists($key) {
+    global $mysqli;
+    $adminId = get_current_admin_id($mysqli);
+
+    if ($stmt = $mysqli->prepare("SELECT 1 FROM app_scan_settings WHERE admin_id = ? AND setting_key = ? LIMIT 1")) {
+        $stmt->bind_param("ss", $adminId, $key);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        if ($res && $res->num_rows > 0) {
+            $stmt->close();
+            return true;
+        }
+        $stmt->close();
+    }
+
+    if ($adminId !== 'SYSTEM_WIDE') {
+        if ($stmt2 = $mysqli->prepare("SELECT 1 FROM app_scan_settings WHERE admin_id = 'SYSTEM_WIDE' AND setting_key = ? LIMIT 1")) {
+            $stmt2->bind_param("s", $key);
+            $stmt2->execute();
+            $res2 = $stmt2->get_result();
+            if ($res2 && $res2->num_rows > 0) {
+                $stmt2->close();
+                return true;
+            }
+            $stmt2->close();
+        }
+    }
+
+    return false;
+}
+
 /**
  * Check if Manual Scan is allowed for the current logged-in user.
  * Checks 'manual_scan_mode' (all/specific/disabled) and 'manual_scan_specific_users'.
  * @return bool
  */
 function is_manual_scan_allowed() {
-    // 1. Check global mode ('all', 'specific', 'disabled' or old boolean '0'/'1' fallback)
-    $mode = get_setting_typed('manual_scan_mode', 'disabled');
+    // 1. Check global mode ('all', 'specific', 'disabled')
+    $mode = strtolower(trim((string)get_setting_typed('manual_scan_mode', 'disabled')));
 
-    // Fallback for transition: if user had old boolean 'manual_scan_enabled' set to '1' but no mode set
-    if ($mode === 'disabled') {
-        $old_enabled = get_setting_typed('manual_scan_enabled', '0');
-        if ($old_enabled === '1') { $mode = 'all'; }
+    // Compatibility fallback only when manual_scan_mode is truly missing (not when explicitly disabled)
+    $scanType = strtolower($_SESSION['scan_user_type'] ?? '');
+    $typedModeKey = ($scanType === 'skill' || $scanType === 'worker') ? ('manual_scan_mode__' . $scanType) : null;
+    $hasExplicitMode = scan_setting_exists('manual_scan_mode') || ($typedModeKey ? scan_setting_exists($typedModeKey) : false);
+    if (!$hasExplicitMode) {
+        $old_enabled = strtolower(trim((string)get_setting_typed('manual_scan_enabled', '0')));
+        if (in_array($old_enabled, ['1', 'true', 'yes', 'on'], true)) {
+            $mode = 'all';
+        }
     }
+
+    if (in_array($mode, ['0', 'false', 'off'], true)) $mode = 'disabled';
+    if (in_array($mode, ['1', 'true', 'on'], true)) $mode = 'all';
 
     if ($mode === 'disabled') return false;
     if ($mode === 'all') return true;
@@ -4842,6 +4881,7 @@ hr { border: none; border-top: 1px solid rgba(0,0,0,0.06); margin: 12px 0; }
     // Expose server-side custom_data to JS so we can populate checkForm hidden inputs reliably
     // Use json_encode with JSON_HEX_* flags and parse on the client to avoid editor/parser errors and XSS issues.
     const SERVER_CUSTOM_DATA = JSON.parse('<?php echo json_encode($custom_data ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>') || {};
+    let MANUAL_SCAN_ALLOWED = <?php echo is_manual_scan_allowed() ? 'true' : 'false'; ?>;
 
     // Populate hidden check form fields (workplace/branch/area/user_location_raw) before submit
     function populateCheckFormFields() {
@@ -5731,10 +5771,13 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
                  // console.warn('QR scan error:', errorMessage);
                  })
              .catch(err => {
-                 showResultPopup("មិនអាចបើក Camera បានទេ។ សូមពិនិត្យ Permission ឬប្រើស្កេនដោយដៃ។", false);
-                 // SHOW MANUAL BUTTON IF CAMERA FAILS
+                 const cameraFailMsg = MANUAL_SCAN_ALLOWED
+                    ? "មិនអាចបើក Camera បានទេ។ សូមពិនិត្យ Permission ឬប្រើស្កេនដោយដៃ។"
+                    : "មិនអាចបើក Camera បានទេ។ សូមពិនិត្យ Permission (Manual Scan ត្រូវបានបិទដោយ Admin)។";
+                 showResultPopup(cameraFailMsg, false);
+                 // SHOW MANUAL BUTTON IF CAMERA FAILS (only when allowed)
                  const manBtn = document.getElementById('camPopupManualBtn');
-                 if(manBtn) manBtn.style.display = 'block';
+                 if(manBtn) manBtn.style.display = MANUAL_SCAN_ALLOWED ? 'block' : 'none';
 
                  // Do not immediately close popup so user sees the button
                  // stopCamera();
@@ -5851,7 +5894,16 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
      */
     function aiHandleBlackScreen() {
         if (!isScanning) return; // Already handled
-        console.warn('[AI Camera Check] Black screen detected — switching to manual attendance.');
+        console.warn('[AI Camera Check] Black screen detected.');
+
+        if (!MANUAL_SCAN_ALLOWED) {
+            selectedCameraDeviceId = null;
+            stopCamera();
+            showResultPopup("Camera បង្ហាញអេក្រង់ខ្មៅ ហើយ Manual Scan ត្រូវបានបិទដោយ Admin។ សូមពិនិត្យ Camera ឬទាក់ទង Admin។", false);
+            return;
+        }
+
+        console.warn('[AI Camera Check] Switching to manual attendance.');
 
         // Reset cached camera device so next time it tries fresh
         selectedCameraDeviceId = null;
@@ -6155,6 +6207,10 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
     // *** NEW FUNCTION: startManualAttendanceProcess ***
     // =======================================================================
     function startManualAttendanceProcess() {
+        if (!MANUAL_SCAN_ALLOWED) {
+            showResultPopup('វត្តមានដោយដៃត្រូវបានបិទដោយ Admin។', false);
+            return;
+        }
         gpsDataGlobal = ''; // Reset GPS data
         document.getElementById('manualPopup').style.display = 'flex';
         document.querySelectorAll('.footer-btn').forEach(btn => btn.classList.remove('active'));
@@ -6198,6 +6254,10 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
     // *** NEW FUNCTION: submitManualAttendance ***
     // =======================================================================
     async function submitManualAttendance() {
+        if (!MANUAL_SCAN_ALLOWED) {
+            showResultPopup('វត្តមានដោយដៃត្រូវបានបិទដោយ Admin។', false);
+            return;
+        }
         // For manual attendance, strict location enforcement requires GPS
         const hasGPS = gpsDataGlobal && !gpsDataGlobal.startsWith('Error:');
 
@@ -6692,6 +6752,7 @@ function compressImage(base64, maxWidth = 800, maxHeight = 800, quality = 0.75) 
 
                 // 2. Toggle Manual Scan Buttons
                 const allowed = data.config.manual_scan_allowed;
+                MANUAL_SCAN_ALLOWED = !!allowed;
                 const manualFooterBtn = document.querySelector('.manual-attendance-btn');
                 const manualPopupBtn = document.getElementById('camPopupManualBtn');
 
