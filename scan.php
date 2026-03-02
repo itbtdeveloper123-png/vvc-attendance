@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 session_start();
 
 // ===============================================
@@ -76,6 +76,10 @@ if ($mysqli->connect_error) {
 }
 $mysqli->set_charset("utf8mb4");
 
+if (!defined('SCAN_INACTIVITY_DAYS')) {
+    define('SCAN_INACTIVITY_DAYS', 7);
+}
+
 // 1. Basic check for users table (self-heal)
 $mysqli->query("CREATE TABLE IF NOT EXISTS users (
     employee_id VARCHAR(64) PRIMARY KEY,
@@ -96,6 +100,18 @@ $mysqli->query("CREATE TABLE IF NOT EXISTS users (
     KEY idx_created_by (created_by_admin_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
+// Self-heal: add last_scan_activity_at column if missing
+$needLastScanActivityAt = true;
+if ($res = @$mysqli->query("SHOW COLUMNS FROM users LIKE 'last_scan_activity_at'")) {
+    if ($res->num_rows > 0) {
+        $needLastScanActivityAt = false;
+    }
+    $res->close();
+}
+if ($needLastScanActivityAt) {
+    @$mysqli->query("ALTER TABLE users ADD COLUMN last_scan_activity_at DATETIME NULL AFTER leave_date");
+}
+
 // 2. Ensure push_subscriptions table exists
 $mysqli->query("CREATE TABLE IF NOT EXISTS push_subscriptions (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -106,6 +122,95 @@ $mysqli->query("CREATE TABLE IF NOT EXISTS push_subscriptions (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY (endpoint(255))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+function clear_scan_auth_state() {
+    $_SESSION = [];
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        session_destroy();
+    }
+    setcookie("auth_token", "", time() - 3600, "/");
+    setcookie("scan_user_type", "", time() - 3600, "/");
+}
+
+function mark_scan_activity($mysqli, $employee_id, $auth_token = null) {
+    if (!$employee_id) {
+        return;
+    }
+    if ($stmt = $mysqli->prepare("UPDATE users SET last_scan_activity_at = NOW() WHERE employee_id = ?")) {
+        $stmt->bind_param("s", $employee_id);
+        $stmt->execute();
+        $stmt->close();
+    }
+    if (!empty($auth_token)) {
+        if ($stmt2 = $mysqli->prepare("UPDATE active_tokens SET last_used = NOW() WHERE auth_token = ?")) {
+            $stmt2->bind_param("s", $auth_token);
+            $stmt2->execute();
+            $stmt2->close();
+        }
+    }
+}
+
+function check_and_enforce_scan_inactivity($mysqli, $employee_id) {
+    $out = [
+        'ok' => false,
+        'message' => 'គណនីមិនត្រឹមត្រូវ។ សូមព្យាយាមម្តងទៀត។',
+        'employment_status' => null,
+        'disabled_for_inactivity' => false
+    ];
+
+    if (!$employee_id) {
+        return $out;
+    }
+
+    $status = null;
+    $last_activity = null;
+    if ($stmt = $mysqli->prepare("SELECT employment_status, last_scan_activity_at FROM users WHERE employee_id = ? LIMIT 1")) {
+        $stmt->bind_param("s", $employee_id);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        if ($row = $res->fetch_assoc()) {
+            $status = $row['employment_status'] ?? 'Active';
+            $last_activity = $row['last_scan_activity_at'] ?? null;
+        }
+        $stmt->close();
+    }
+
+    if ($status === null) {
+        return $out;
+    }
+
+    $out['employment_status'] = $status;
+    if ($status !== 'Active') {
+        $out['message'] = 'គណនីរបស់អ្នកត្រូវបានបិទ។ សូមទាក់ទង Admin ដើម្បីបើកឡើងវិញ។';
+        return $out;
+    }
+
+    if (!empty($last_activity)) {
+        $lastTs = strtotime((string)$last_activity);
+        if ($lastTs !== false) {
+            $inactiveSeconds = time() - $lastTs;
+            if ($inactiveSeconds >= (SCAN_INACTIVITY_DAYS * 86400)) {
+                if ($up = $mysqli->prepare("UPDATE users SET employment_status = 'Suspended' WHERE employee_id = ? AND employment_status = 'Active'")) {
+                    $up->bind_param("s", $employee_id);
+                    $up->execute();
+                    $up->close();
+                }
+                if ($del = $mysqli->prepare("DELETE FROM active_tokens WHERE employee_id = ?")) {
+                    $del->bind_param("s", $employee_id);
+                    $del->execute();
+                    $del->close();
+                }
+                $out['disabled_for_inactivity'] = true;
+                $out['message'] = 'គណនីត្រូវបានបិទស្វ័យប្រវត្តិ ព្រោះមិនបានចូល App ស្កេនលើស ១ សប្ដាហ៍។ សូមឱ្យ Admin បើកឡើងវិញ។';
+                return $out;
+            }
+        }
+    }
+
+    $out['ok'] = true;
+    $out['message'] = '';
+    return $out;
+}
 
 
 
@@ -492,13 +597,19 @@ if (isset($_POST['action']) && $_POST['action'] === 'api_login') {
     }
 
     // Look up user and max token policy (reuse logic from form-login)
-    $sql = "SELECT u.employee_id, u.name, u.custom_data,\r\n                 COALESCE(\r\n                     a.global_max_tokens,\r\n                     (SELECT global_max_tokens FROM users WHERE user_role = 'Admin' AND created_by_admin_id IS NULL LIMIT 1),\r\n                     1\r\n                 ) AS max_tokens_allowed\r\n             FROM users u\r\n             LEFT JOIN users a ON a.employee_id = u.created_by_admin_id AND a.user_role = 'Admin'\r\n             WHERE u.employee_id = ?";
+    $sql = "SELECT u.employee_id, u.name, u.custom_data, u.employment_status, u.last_scan_activity_at,\r\n                 COALESCE(\r\n                     a.global_max_tokens,\r\n                     (SELECT global_max_tokens FROM users WHERE user_role = 'Admin' AND created_by_admin_id IS NULL LIMIT 1),\r\n                     1\r\n                 ) AS max_tokens_allowed\r\n             FROM users u\r\n             LEFT JOIN users a ON a.employee_id = u.created_by_admin_id AND a.user_role = 'Admin'\r\n             WHERE u.employee_id = ?";
     if ($stmt = $mysqli->prepare($sql)) {
         $stmt->bind_param('s', $employee_id);
         $stmt->execute();
         $result = $stmt->get_result();
         if ($result->num_rows == 1) {
             $user_db = $result->fetch_assoc();
+            $policy = check_and_enforce_scan_inactivity($mysqli, $employee_id);
+            if (!$policy['ok']) {
+                echo json_encode(['success' => false, 'message' => $policy['message']]);
+                $stmt->close();
+                exit;
+            }
             $max_tokens = (int)($user_db['max_tokens_allowed'] ?? 1);
 
             // Optional: Department check if caller provides scan_user_type
@@ -531,6 +642,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'api_login') {
             if ($ins = $mysqli->prepare('INSERT INTO active_tokens (employee_id, auth_token) VALUES (?, ?)')) {
                 $ins->bind_param('ss', $employee_id, $new_token);
                 if ($ins->execute()) {
+                    mark_scan_activity($mysqli, $employee_id, $new_token);
                     echo json_encode([
                         'success' => true,
                         'token' => $new_token,
@@ -1644,7 +1756,7 @@ if (isset($_GET['logout'])) {
 // --- Auto-Login via Token ---
 $token = $_SESSION['auth_token'] ?? ($_COOKIE['auth_token'] ?? null);
 if ($token) {
-    $sql = "SELECT u.employee_id, u.name, u.custom_data
+    $sql = "SELECT u.employee_id, u.name, u.custom_data, u.employment_status, u.last_scan_activity_at
             FROM users u
             JOIN active_tokens at ON u.employee_id = at.employee_id
             WHERE at.auth_token = ?";
@@ -1653,14 +1765,26 @@ if ($token) {
         $result = $stmt->get_result();
         if ($result->num_rows == 1) {
             $user_data = $result->fetch_assoc();
-            $custom_data = json_decode($user_data['custom_data'] ?? '{}', true);
-            $_SESSION['employee_id'] = $user_data['employee_id']; $is_logged_in = true;
-            if (!isset($_SESSION['scan_user_type']) && isset($_COOKIE['scan_user_type'])) {
-                $_SESSION['scan_user_type'] = $_COOKIE['scan_user_type'];
+            $policy = check_and_enforce_scan_inactivity($mysqli, $user_data['employee_id']);
+            if ($policy['ok']) {
+                $custom_data = json_decode($user_data['custom_data'] ?? '{}', true);
+                $_SESSION['employee_id'] = $user_data['employee_id']; $is_logged_in = true;
+                if (!isset($_SESSION['scan_user_type']) && isset($_COOKIE['scan_user_type'])) {
+                    $_SESSION['scan_user_type'] = $_COOKIE['scan_user_type'];
+                }
+                mark_scan_activity($mysqli, $user_data['employee_id'], $token);
+            } else {
+                $error_message = $policy['message'];
+                if ($stmt_del = $mysqli->prepare("DELETE FROM active_tokens WHERE auth_token = ?")) {
+                    $stmt_del->bind_param("s", $token);
+                    $stmt_del->execute();
+                    $stmt_del->close();
+                }
+                clear_scan_auth_state();
             }
         } else {
             $error_message = "Token Invalid ឬត្រូវបានលុបចោលដោយ Admin! សូមចូលម្តងទៀត។";
-            session_destroy(); setcookie("auth_token", "", time() - 3600, "/");
+            clear_scan_auth_state();
         }
         $stmt->close();
     }
@@ -1675,7 +1799,7 @@ if (!$is_logged_in && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['logi
         $error_message = "ប្រភេទអ្នកប្រើមិនត្រឹមត្រូវ (Skill / Worker)";
     }
     // Use the creating Admin's global_max_tokens (per-admin setting) instead of super admin
-     $sql = "SELECT u.employee_id, u.name, u.custom_data,
+     $sql = "SELECT u.employee_id, u.name, u.custom_data, u.employment_status, u.last_scan_activity_at,
                  COALESCE(
                      a.global_max_tokens,
                      (SELECT global_max_tokens FROM users WHERE user_role = 'Admin' AND created_by_admin_id IS NULL LIMIT 1),
@@ -1689,14 +1813,18 @@ if (!$is_logged_in && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['logi
         $result = $stmt->get_result();
         if ($result->num_rows == 1) {
             $user_db = $result->fetch_assoc();
-            $max_tokens = (int)($user_db['max_tokens_allowed'] ?? 1);
-            $count_sql = "SELECT COUNT(*) FROM active_tokens WHERE employee_id = ?";
-            $stmt_count = $mysqli->prepare($count_sql);
-            $stmt_count->bind_param("s", $employee_id); $stmt_count->execute();
-            $active_count = $stmt_count->get_result()->fetch_row()[0]; $stmt_count->close();
-            if ($active_count >= $max_tokens) {
-                $error_message = "កំហុស: លោកអ្នកបានចូលប្រើលើសចំនួនកំណត់ ({$max_tokens})។";
+            $policy = check_and_enforce_scan_inactivity($mysqli, $employee_id);
+            if (!$policy['ok']) {
+                $error_message = $policy['message'];
             } else {
+                $max_tokens = (int)($user_db['max_tokens_allowed'] ?? 1);
+                $count_sql = "SELECT COUNT(*) FROM active_tokens WHERE employee_id = ?";
+                $stmt_count = $mysqli->prepare($count_sql);
+                $stmt_count->bind_param("s", $employee_id); $stmt_count->execute();
+                $active_count = $stmt_count->get_result()->fetch_row()[0]; $stmt_count->close();
+                if ($active_count >= $max_tokens) {
+                    $error_message = "កំហុស: លោកអ្នកបានចូលប្រើលើសចំនួនកំណត់ ({$max_tokens})។";
+                } else {
                 // Department validation by selected type
                 $custom_data_login = json_decode($user_db['custom_data'] ?? '{}', true) ?: [];
                 $department_value = $custom_data_login['department'] ?? $custom_data_login['workplace'] ?? $custom_data_login['workplace_name'] ?? $custom_data_login['នាយកដ្ឋាន'] ?? '';
@@ -1726,6 +1854,7 @@ if (!$is_logged_in && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['logi
                             $_SESSION['employee_id'] = $employee_id; $_SESSION['auth_token'] = $new_token; $_SESSION['scan_user_type'] = $scan_user_type;
                             setcookie("auth_token", $new_token, time() + (86400 * 365), "/");
                             setcookie("scan_user_type", $scan_user_type, time() + (86400 * 365), "/");
+                            mark_scan_activity($mysqli, $employee_id, $new_token);
                             $user_data = $user_db;
                             $custom_data = json_decode($user_db['custom_data'] ?? '{}', true);
                             $is_logged_in = true;
@@ -1733,6 +1862,7 @@ if (!$is_logged_in && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['logi
                         }
                     }
                 }
+            }
             }
         } else {
             $error_message = "ID មិនត្រឹមត្រូវ ឬមិនមានក្នុងប្រព័ន្ធ!";
