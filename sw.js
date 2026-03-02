@@ -1,4 +1,4 @@
-const CACHE_NAME = 'vvc-attendance-v12';
+const CACHE_NAME = 'vvc-attendance-v13';
 const ASSETS_TO_CACHE = [
     'scan.php',
     'manifest.json',
@@ -38,11 +38,37 @@ self.addEventListener('activate', (event) => {
     return self.clients.claim();
 });
 
-// Fetch Event - Stale-While-Revalidate Strategy (Instant Load)
+// Fetch Event
 self.addEventListener('fetch', (event) => {
     if (event.request.method !== 'GET') return;
 
-    // Logic: Serve from cache immediately, then update cache from network in background
+    const requestUrl = new URL(event.request.url);
+    const isSameOrigin = requestUrl.origin === self.location.origin;
+    const pathname = requestUrl.pathname.toLowerCase();
+    const isPhpRequest = pathname.endsWith('.php');
+    const isNavigation = event.request.mode === 'navigate';
+    const isStaticAsset = /\.(css|js|woff2?|ttf|png|jpg|jpeg|gif|svg|ico|webp)$/i.test(pathname);
+
+    // Dynamic pages/data: prefer fresh network, fallback to cache only when offline.
+    if (isNavigation || (isSameOrigin && isPhpRequest)) {
+        event.respondWith(
+            fetch(event.request)
+                .then((networkResponse) => {
+                    if (networkResponse && networkResponse.ok) {
+                        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, networkResponse.clone()));
+                    }
+                    return networkResponse;
+                })
+                .catch(() => caches.match(event.request))
+        );
+        return;
+    }
+
+    // Static assets: stale-while-revalidate for faster repeat loads.
+    if (!isStaticAsset) {
+        return;
+    }
+
     event.respondWith(
         caches.open(CACHE_NAME).then((cache) => {
             return cache.match(event.request).then((cachedResponse) => {
@@ -55,7 +81,6 @@ self.addEventListener('fetch', (event) => {
                     // If network fails, we already have the cachedResponse (even if it's undefined)
                 });
 
-                // Return cached version IF it exists, otherwise wait for network
                 return cachedResponse || fetchPromise;
             });
         })

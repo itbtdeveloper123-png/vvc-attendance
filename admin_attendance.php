@@ -344,14 +344,58 @@ function ensure_user_subaccounts_table($mysqli) {
 
 // Helper: Ensure noted column exists in checkin_logs
 function ensure_noted_column($mysqli) {
-    $needNoted = true;
-    if ($res = @$mysqli->query("SHOW COLUMNS FROM checkin_logs LIKE 'noted'")) {
-        if ($res->num_rows > 0) { $needNoted = false; }
+    $hasNoted = false;
+    if ($res = $mysqli->query("SHOW COLUMNS FROM checkin_logs LIKE 'noted'")) {
+        $hasNoted = ($res->num_rows > 0);
         $res->close();
     }
-    if ($needNoted) {
-        @$mysqli->query("ALTER TABLE checkin_logs ADD COLUMN noted TEXT NULL AFTER late_reason");
+    if ($hasNoted) { return true; }
+
+    $hasLateReason = false;
+    if ($res2 = $mysqli->query("SHOW COLUMNS FROM checkin_logs LIKE 'late_reason'")) {
+        $hasLateReason = ($res2->num_rows > 0);
+        $res2->close();
     }
+
+    if ($hasLateReason) {
+        if (!$mysqli->query("ALTER TABLE checkin_logs ADD COLUMN noted TEXT NULL AFTER late_reason")) {
+            $mysqli->query("ALTER TABLE checkin_logs ADD COLUMN noted TEXT NULL");
+        }
+    } else {
+        $mysqli->query("ALTER TABLE checkin_logs ADD COLUMN noted TEXT NULL");
+    }
+
+    if ($res3 = $mysqli->query("SHOW COLUMNS FROM checkin_logs LIKE 'noted'")) {
+        $ok = ($res3->num_rows > 0);
+        $res3->close();
+        return $ok;
+    }
+
+    return false;
+}
+
+// Helper: Resolve identifier column in checkin_logs across schema variants
+function get_checkin_logs_identifier_column($mysqli) {
+    $fields = [];
+    $pk = '';
+    if ($cols = $mysqli->query("SHOW COLUMNS FROM `checkin_logs`")) {
+        while ($c = $cols->fetch_assoc()) {
+            $f = $c['Field'] ?? '';
+            if ($f !== '') { $fields[$f] = true; }
+            if ($pk === '' && !empty($c['Key']) && strtoupper($c['Key']) === 'PRI') {
+                $pk = $f;
+            }
+        }
+        $cols->close();
+    }
+
+    if ($pk !== '') { return $pk; }
+
+    foreach (['id', 'log_id', 'checkin_id'] as $candidate) {
+        if (isset($fields[$candidate])) { return $candidate; }
+    }
+
+    return null;
 }
 // Helper: Ensure push_subscriptions table exists
 function ensure_push_subscriptions_table($mysqli) {
@@ -1474,14 +1518,8 @@ if (isset($_POST['ajax_action'])) {
                 if (empty($log_id) && (empty($emp_id) || empty($log_dt))) { $response = ['status' => 'error', 'message' => 'Missing keys to identify log.']; break; }
 
                 // Detect primary key column for checkin_logs safely
-                $pk = 'id';
-                $cols = $mysqli->query("SHOW COLUMNS FROM `checkin_logs`");
-                if ($cols) {
-                    while ($c = $cols->fetch_assoc()) {
-                        if (!empty($c['Key']) && strtoupper($c['Key']) === 'PRI') { $pk = $c['Field']; break; }
-                    }
-                    $cols->close();
-                }
+                $pk = get_checkin_logs_identifier_column($mysqli);
+                if (!$pk) { $response = ['status' => 'error', 'message' => 'Cannot identify key column in checkin_logs.']; break; }
 
                 // Permission: only logs of users under this admin (or super admin)
                 $check_sql = "SELECT cl.`{$pk}` FROM checkin_logs cl JOIN users u ON cl.employee_id = u.employee_id WHERE cl.`{$pk}` = ?";
@@ -1513,15 +1551,21 @@ if (isset($_POST['ajax_action'])) {
                 $noted = trim($_POST['noted'] ?? '');
                 if (empty($log_id)) { $response = ['status' => 'error', 'message' => 'Missing log_id.']; break; }
 
-                // Detect primary key column for checkin_logs safely
-                $pk = 'id';
-                $cols = $mysqli->query("SHOW COLUMNS FROM `checkin_logs`");
-                if ($cols) {
-                    while ($c = $cols->fetch_assoc()) {
-                        if (!empty($c['Key']) && strtoupper($c['Key']) === 'PRI') { $pk = $c['Field']; break; }
-                    }
-                    $cols->close();
+                // Ensure schema supports noted updates (older DBs may not have this column yet)
+                ensure_noted_column($mysqli);
+                $has_noted_column = false;
+                if ($colCheck = $mysqli->query("SHOW COLUMNS FROM checkin_logs LIKE 'noted'")) {
+                    $has_noted_column = ($colCheck->num_rows > 0);
+                    $colCheck->close();
                 }
+                if (!$has_noted_column) {
+                    $response = ['status' => 'error', 'message' => 'Column "noted" not found in checkin_logs.'];
+                    break;
+                }
+
+                // Detect primary key column for checkin_logs safely
+                $pk = get_checkin_logs_identifier_column($mysqli);
+                if (!$pk) { $response = ['status' => 'error', 'message' => 'Cannot identify key column in checkin_logs.']; break; }
 
                 // Permission: only logs of users under this admin (or super admin)
                 $check_sql = "SELECT cl.`{$pk}` FROM checkin_logs cl JOIN users u ON cl.employee_id = u.employee_id WHERE cl.`{$pk}` = ?";
