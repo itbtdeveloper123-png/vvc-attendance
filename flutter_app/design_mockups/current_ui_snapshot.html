@@ -1,0 +1,1074 @@
+<!doctype html>
+<html lang="km">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Current VVC HRM UI Snapshot</title>
+  <style>
+    :root {
+      --primary: #0e7490;
+      --primary-dark: #155e75;
+      --primary-light: #22d3ee;
+      --secondary: #2563eb;
+      --success: #16a34a;
+      --warning: #d97706;
+      --danger: #dc2626;
+      --bg-dark: #111827;
+      --bg-card: #1f2937;
+      --bg-card-light: #374151;
+      --bg-surface: #0b1120;
+      --text: #ffffff;
+      --text-secondary: #cbd5e1;
+      --text-muted: #94a3b8;
+      --border: rgba(255, 255, 255, 0.06);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      width: 1600px;
+      height: 1240px;
+      overflow: hidden;
+      color: var(--text);
+      background: var(--bg-surface);
+      font-family: "Kantumruy Pro", "Noto Sans Khmer", "Khmer OS Battambang", "Segoe UI", Arial, sans-serif;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background: var(--bg-surface);
+      z-index: 0;
+    }
+
+    .page {
+      position: relative;
+      z-index: 1;
+      padding: 42px 56px;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      margin-bottom: 26px;
+    }
+
+    .eyebrow {
+      color: var(--primary-light);
+      font-size: 14px;
+      font-weight: 800;
+      margin-bottom: 8px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 34px;
+      line-height: 1.18;
+      letter-spacing: 0;
+    }
+
+    .header p {
+      margin: 8px 0 0;
+      color: var(--text-secondary);
+      font-size: 15px;
+    }
+
+    .badge-row {
+      display: flex;
+      gap: 10px;
+    }
+
+    .badge {
+      border: 1px solid var(--border);
+      background: rgba(30, 41, 59, 0.72);
+      color: var(--text-secondary);
+      border-radius: 14px;
+      padding: 10px 12px;
+      font-size: 13px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+    }
+
+    .phones {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 34px;
+    }
+
+    .phone-wrap {
+      display: grid;
+      gap: 14px;
+    }
+
+    .phone-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 10px;
+    }
+
+    .phone-title strong {
+      font-size: 18px;
+    }
+
+    .phone-title small {
+      color: var(--text-secondary);
+      font-size: 12px;
+    }
+
+    .phone {
+      width: 454px;
+      height: 860px;
+      padding: 16px;
+      border-radius: 34px;
+      background: #050914;
+      box-shadow: 0 24px 54px rgba(0, 0, 0, 0.45);
+    }
+
+    .screen {
+      height: 100%;
+      overflow: hidden;
+      position: relative;
+      border-radius: 25px;
+      background:
+        var(--bg-dark);
+    }
+
+    .status {
+      height: 26px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 22px;
+      color: rgba(255, 255, 255, 0.7);
+      font-size: 11px;
+    }
+
+    .content {
+      padding: 18px 20px 78px;
+    }
+
+    .home-content {
+      padding-top: 16px;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 18px;
+    }
+
+    .profile {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .avatar {
+      width: 42px;
+      height: 42px;
+      flex: 0 0 auto;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      color: white;
+      font-size: 18px;
+      font-weight: 900;
+      background: var(--primary);
+      box-shadow: 0 8px 20px rgba(99, 102, 241, 0.32);
+      position: relative;
+    }
+
+    .avatar.verified::after {
+      content: "";
+      position: absolute;
+      right: -2px;
+      bottom: -2px;
+      width: 13px;
+      height: 13px;
+      border-radius: 50%;
+      background: #3b82f6;
+      border: 2px solid white;
+    }
+
+    .hello {
+      color: rgba(255, 255, 255, 0.7);
+      font-size: 11px;
+      margin: 0 0 3px;
+      line-height: 1.4;
+    }
+
+    .name {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 800;
+    }
+
+    .top-icons {
+      display: flex;
+      gap: 4px;
+    }
+
+    .circle-icon {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      border: 1.2px solid rgba(255, 255, 255, 0.18);
+      background: var(--bg-card);
+      color: white;
+      font-weight: 900;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.20);
+    }
+
+    .weather-row {
+      display: grid;
+      grid-template-columns: 1fr 1.25fr;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .soft-card {
+      border-radius: 18px;
+      border: 1px solid var(--border);
+      background: rgba(30, 41, 59, 0.82);
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+    }
+
+    .mini-panel {
+      min-height: 68px;
+      padding: 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .mini-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      color: var(--primary-light);
+      background: rgba(99, 102, 241, 0.15);
+      font-weight: 900;
+    }
+
+    .mini-panel strong {
+      display: block;
+      font-size: 14px;
+      margin-bottom: 2px;
+    }
+
+    .mini-panel span {
+      color: var(--text-secondary);
+      font-size: 11px;
+    }
+
+    .pass-card {
+      height: 190px;
+      padding: 22px;
+      border-radius: 20px;
+      overflow: hidden;
+      position: relative;
+      background: var(--primary);
+      margin-bottom: 8px;
+      box-shadow: 0 12px 28px rgba(99, 102, 241, 0.20);
+    }
+
+    .pass-card::after {
+      content: "";
+      position: absolute;
+      width: 150px;
+      height: 150px;
+      right: -40px;
+      top: -40px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .pass-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 46px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .role {
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.16);
+      padding: 5px 10px;
+      font-size: 10px;
+      letter-spacing: 1px;
+      font-weight: 900;
+    }
+
+    .pass-card small {
+      display: block;
+      color: rgba(255, 255, 255, 0.72);
+      font-size: 11px;
+      letter-spacing: 1.5px;
+      font-weight: 900;
+      position: relative;
+      z-index: 1;
+    }
+
+    .pass-card h2 {
+      margin: 6px 0;
+      font-size: 22px;
+      line-height: 1.1;
+      position: relative;
+      z-index: 1;
+    }
+
+    .id-row {
+      display: flex;
+      justify-content: space-between;
+      color: rgba(255, 255, 255, 0.82);
+      font-size: 12px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .dots {
+      display: flex;
+      justify-content: center;
+      gap: 6px;
+      margin: 10px 0 18px;
+    }
+
+    .dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.18);
+    }
+
+    .dot.active {
+      width: 17px;
+      border-radius: 999px;
+      background: var(--primary);
+    }
+
+    .section {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 0 0 14px;
+    }
+
+    .section strong {
+      font-size: 18px;
+    }
+
+    .section small {
+      color: var(--primary-light);
+      font-size: 13px;
+    }
+
+    .scan-card {
+      padding: 20px;
+      border-radius: 28px;
+      border: 1px solid rgba(30, 41, 59, 1);
+      background: var(--bg-card);
+      margin-bottom: 18px;
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.20);
+    }
+
+    .scan-head {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 24px;
+    }
+
+    .scan-title {
+      flex: 1;
+    }
+
+    .scan-title strong {
+      display: block;
+      font-size: 18px;
+    }
+
+    .scan-title span {
+      color: var(--primary-light);
+      font-size: 13px;
+    }
+
+    .history {
+      color: var(--primary-light);
+      border-radius: 12px;
+      border: 1px solid rgba(99, 102, 241, 0.24);
+      background: rgba(99, 102, 241, 0.10);
+      padding: 7px 10px;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .scan-buttons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .scan-btn {
+      height: 54px;
+      border-radius: 16px;
+      border: 1.5px solid;
+      display: grid;
+      place-items: center;
+      font-weight: 900;
+      font-size: 15px;
+    }
+
+    .scan-btn.in {
+      color: white;
+      background: rgba(0, 184, 212, 0.90);
+      border-color: rgba(0, 184, 212, 0.55);
+    }
+
+    .scan-btn.out {
+      color: rgba(255, 171, 145, 0.94);
+      background: rgba(255, 171, 145, 0.10);
+      border-color: rgba(255, 171, 145, 0.30);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .action {
+      min-height: 106px;
+      border-radius: 20px;
+      background: var(--bg-card);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      display: grid;
+      place-items: center;
+      text-align: center;
+      padding: 8px 5px;
+    }
+
+    .action .round {
+      width: 45px;
+      height: 45px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      margin-bottom: 8px;
+      background: rgba(99, 102, 241, 0.10);
+      color: var(--primary-light);
+      font-weight: 900;
+    }
+
+    .action span {
+      font-size: 12px;
+      line-height: 1.2;
+      font-weight: 700;
+    }
+
+    .bottom-nav {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 64px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      background: rgba(30, 41, 59, 0.96);
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      align-items: center;
+    }
+
+    .nav-item {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .nav-item::before {
+      content: "";
+      display: block;
+      width: 22px;
+      height: 4px;
+      border-radius: 999px;
+      margin: 0 auto 8px;
+      background: transparent;
+    }
+
+    .nav-item.active {
+      color: var(--primary-light);
+    }
+
+    .nav-item.active::before {
+      background: var(--primary);
+    }
+
+    .appbar {
+      position: absolute;
+      top: 26px;
+      left: 0;
+      right: 0;
+      height: 66px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 18px;
+      background: rgba(15, 23, 42, 0.96);
+      backdrop-filter: blur(16px);
+      z-index: 4;
+    }
+
+    .appbar strong {
+      font-size: 17px;
+    }
+
+    .appbar-actions {
+      display: flex;
+      gap: 7px;
+    }
+
+    .toolbar {
+      padding-top: 78px;
+      display: grid;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .search {
+      height: 48px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-radius: 15px;
+      padding: 0 14px;
+      background: rgba(255, 255, 255, 0.05);
+      color: rgba(255, 255, 255, 0.40);
+      font-size: 13px;
+    }
+
+    .filter-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+
+    .filter {
+      height: 38px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.05);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: rgba(255, 255, 255, 0.82);
+      font-size: 12px;
+    }
+
+    .group {
+      padding: 10px 14px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 8px 0 10px;
+    }
+
+    .group-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      background: var(--primary);
+      box-shadow: 0 8px 20px rgba(99, 102, 241, 0.28);
+      font-weight: 900;
+    }
+
+    .group strong {
+      flex: 1;
+      font-size: 14px;
+    }
+
+    .count {
+      border-radius: 999px;
+      border: 1px solid rgba(99, 102, 241, 0.25);
+      background: rgba(99, 102, 241, 0.16);
+      color: var(--primary-light);
+      padding: 5px 10px;
+      font-size: 11px;
+      font-weight: 900;
+    }
+
+    .user-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .user-card {
+      min-height: 204px;
+      border-radius: 24px;
+      background: var(--bg-card);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.20);
+      padding: 16px 10px;
+      text-align: center;
+      position: relative;
+    }
+
+    .more {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 38px;
+      height: 38px;
+      display: grid;
+      place-items: center;
+      color: rgba(255, 255, 255, 0.50);
+      font-size: 20px;
+    }
+
+    .user-avatar {
+      width: 70px;
+      height: 70px;
+      margin: 8px auto 16px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: var(--primary);
+      font-weight: 900;
+      font-size: 22px;
+      position: relative;
+    }
+
+    .online {
+      position: absolute;
+      bottom: -5px;
+      left: 26px;
+      width: 18px;
+      height: 8px;
+      border-radius: 999px;
+      border: 2px solid var(--bg-card);
+      background: var(--success);
+    }
+
+    .verified-mark {
+      position: absolute;
+      bottom: -1px;
+      right: -1px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      border: 2px solid white;
+      background: #3b82f6;
+    }
+
+    .user-card h3 {
+      margin: 0;
+      font-size: 15px;
+      line-height: 1.2;
+    }
+
+    .position {
+      margin: 5px 0 10px;
+      color: rgba(129, 140, 248, 0.82);
+      font-size: 10px;
+      letter-spacing: 0.5px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .role-chip {
+      display: inline-block;
+      margin-bottom: 12px;
+      border-radius: 8px;
+      background: rgba(99, 102, 241, 0.15);
+      color: var(--primary-light);
+      padding: 5px 10px;
+      font-size: 10px;
+      font-weight: 900;
+    }
+
+    .id-chip {
+      display: inline-block;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.05);
+      color: rgba(255, 255, 255, 0.52);
+      padding: 5px 10px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .modal-content {
+      padding: 0;
+    }
+
+    .modal-sheet {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 735px;
+      z-index: 6;
+      border-radius: 30px 30px 0 0;
+      background: #1e1e2e;
+      overflow: hidden;
+      box-shadow: 0 -18px 38px rgba(0, 0, 0, 0.38);
+    }
+
+    .handle {
+      width: 40px;
+      height: 4px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.24);
+      margin: 12px auto;
+    }
+
+    .tabs {
+      height: 46px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      color: rgba(255, 255, 255, 0.54);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .tab {
+      display: grid;
+      place-items: center;
+      font-size: 13px;
+      font-weight: 800;
+      position: relative;
+    }
+
+    .tab.active {
+      color: white;
+    }
+
+    .tab.active::after {
+      content: "";
+      position: absolute;
+      bottom: 0;
+      width: 42px;
+      height: 3px;
+      border-radius: 999px 999px 0 0;
+      background: var(--primary);
+    }
+
+    .form {
+      padding: 20px;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 2fr;
+      gap: 12px;
+    }
+
+    .field {
+      margin-bottom: 16px;
+    }
+
+    .field label {
+      display: block;
+      color: rgba(255, 255, 255, 0.72);
+      font-size: 13px;
+      margin-bottom: 8px;
+    }
+
+    .input {
+      height: 52px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      color: rgba(255, 255, 255, 0.88);
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      font-size: 14px;
+    }
+
+    .modal-actions {
+      position: absolute;
+      left: 20px;
+      right: 20px;
+      bottom: 20px;
+      display: grid;
+      grid-template-columns: 1fr 2fr;
+      gap: 12px;
+    }
+
+    .outline-btn,
+    .save-btn {
+      height: 54px;
+      border-radius: 16px;
+      display: grid;
+      place-items: center;
+      font-weight: 900;
+    }
+
+    .outline-btn {
+      color: #ff6b6b;
+      border: 1px solid rgba(255, 107, 107, 0.45);
+    }
+
+    .save-btn {
+      background: var(--primary);
+      color: white;
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="header">
+      <div>
+        <div class="eyebrow">Current VVC HRM Flutter UI snapshot</div>
+        <h1>UI បច្ចុប្បន្នរបស់ App អ្នក: flat solid color version</h1>
+        <p>រូបនេះដក gradient ចេញពី background, cards, avatar, header, និង button ដើម្បីឱ្យមើលទៅស្ងប់ជាងមុន។</p>
+      </div>
+      <div class="badge-row">
+        <div class="badge">Slate dark background</div>
+        <div class="badge">Solid indigo action color</div>
+        <div class="badge">Rounded 20-30px</div>
+      </div>
+    </section>
+
+    <section class="phones">
+      <div class="phone-wrap">
+        <div class="phone-title">
+          <strong>1. Current Home Screen</strong>
+          <small>stats + employee pass + attendance card</small>
+        </div>
+        <div class="phone">
+          <div class="screen">
+            <div class="status"><span>9:41</span><span>LTE 88%</span></div>
+            <div class="content home-content">
+              <div class="topbar">
+                <div class="profile">
+                  <div class="avatar verified">S</div>
+                  <div>
+                    <p class="hello">អរុណសួស្តី</p>
+                    <p class="name">សុខ វិសាល</p>
+                  </div>
+                </div>
+                <div class="top-icons">
+                  <div class="circle-icon">Q</div>
+                  <div class="circle-icon">C</div>
+                  <div class="circle-icon">N</div>
+                </div>
+              </div>
+
+              <div class="weather-row">
+                <div class="soft-card mini-panel">
+                  <div class="mini-icon">W</div>
+                  <div><strong>31°C</strong><span>Phnom Penh</span></div>
+                </div>
+                <div class="soft-card mini-panel">
+                  <div class="mini-icon">K</div>
+                  <div><strong>ថ្ងៃព្រហស្បតិ៍</strong><span>Khmer lunar date</span></div>
+                </div>
+              </div>
+
+              <div class="pass-card">
+                <div class="pass-top">
+                  <div style="font-size:28px;font-weight:900">NFC</div>
+                  <div class="role">ADMIN</div>
+                </div>
+                <small>VVC EMPLOYEE PASS</small>
+                <h2>សុខ វិសាល</h2>
+                <div class="id-row"><span>ID: 001</span><span>May 7</span></div>
+              </div>
+              <div class="dots"><span class="dot active"></span><span class="dot"></span><span class="dot"></span></div>
+
+              <div class="section"><strong>ស្ថិតិប្រចាំថ្ងៃ</strong><small>មើលទាំងអស់</small></div>
+              <div class="grid">
+                <div class="action"><div class="round">12</div><span>កិច្ចការ<br>ថ្ងៃនេះ</span></div>
+                <div class="action"><div class="round" style="color:#f59e0b;background:rgba(245,158,11,.12)">3</div><span>ការជូន<br>ដំណឹង</span></div>
+                <div class="action"><div class="round" style="color:#10b981;background:rgba(16,185,129,.12)">8</div><span>ច្បាប់<br>នៅសល់</span></div>
+              </div>
+
+              <div class="scan-card">
+                <div class="scan-head">
+                  <div class="mini-icon">QR</div>
+                  <div class="scan-title"><strong>ស្កេនវត្តមាន</strong><span>បន្ទាប់: Check-In</span></div>
+                  <div class="history">ប្រវត្តិ</div>
+                </div>
+                <div class="scan-buttons">
+                  <div class="scan-btn in">Check-In</div>
+                  <div class="scan-btn out">Check-Out</div>
+                </div>
+              </div>
+            </div>
+            <div class="bottom-nav">
+              <div class="nav-item active">Home</div>
+              <div class="nav-item">Attendance</div>
+              <div class="nav-item">Profile</div>
+              <div class="nav-item">More</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="phone-wrap">
+        <div class="phone-title">
+          <strong>2. Current User Management</strong>
+          <small>search + filters + grouped grid cards</small>
+        </div>
+        <div class="phone">
+          <div class="screen">
+            <div class="status"><span>9:41</span><span>LTE 88%</span></div>
+            <div class="appbar">
+              <strong>គ្រប់គ្រងបុគ្គលិក</strong>
+              <div class="appbar-actions">
+                <div class="circle-icon">D</div>
+                <div class="circle-icon">+</div>
+                <div class="circle-icon">R</div>
+              </div>
+            </div>
+            <div class="content">
+              <div class="toolbar">
+                <div class="search">ស្វែងរកឈ្មោះ ឬ ID...</div>
+                <div class="filter-row">
+                  <div class="filter">ផ្នែក</div>
+                  <div class="filter">តួនាទី</div>
+                  <div class="filter">ស្ថានភាព</div>
+                </div>
+              </div>
+
+              <div class="group">
+                <div class="group-icon">B</div>
+                <strong>Head Office</strong>
+                <span class="count">24</span>
+              </div>
+
+              <div class="user-grid">
+                <div class="user-card">
+                  <div class="more">⋮</div>
+                  <div class="user-avatar">SV<span class="online"></span><span class="verified-mark"></span></div>
+                  <h3>សុខ វិសាល</h3>
+                  <div class="position">IT MANAGER</div>
+                  <div class="role-chip">Admin</div><br />
+                  <div class="id-chip">ID: 001</div>
+                </div>
+                <div class="user-card">
+                  <div class="more">⋮</div>
+                  <div class="user-avatar">DS<span class="online"></span></div>
+                  <h3>ដារ៉ា ស្រីនិច</h3>
+                  <div class="position">HR OFFICER</div>
+                  <div class="role-chip">HRM</div><br />
+                  <div class="id-chip">ID: 014</div>
+                </div>
+                <div class="user-card">
+                  <div class="more">⋮</div>
+                  <div class="user-avatar">KR<span class="online"></span></div>
+                  <h3>កែវ រតនា</h3>
+                  <div class="position">ACCOUNTANT</div>
+                  <div class="role-chip">Accounting</div><br />
+                  <div class="id-chip">ID: 022</div>
+                </div>
+                <div class="user-card">
+                  <div class="more">⋮</div>
+                  <div class="user-avatar">ML</div>
+                  <h3>មាន លីហួរ</h3>
+                  <div class="position">STAFF</div>
+                  <div class="role-chip">Employee</div><br />
+                  <div class="id-chip">ID: 047</div>
+                </div>
+              </div>
+
+              <div class="group" style="margin-top:18px">
+                <div class="group-icon">B</div>
+                <strong>Branch TK</strong>
+                <span class="count">18</span>
+              </div>
+            </div>
+            <div class="bottom-nav">
+              <div class="nav-item">Home</div>
+              <div class="nav-item">Reports</div>
+              <div class="nav-item active">Users</div>
+              <div class="nav-item">More</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="phone-wrap">
+        <div class="phone-title">
+          <strong>3. Current Edit User Sheet</strong>
+          <small>bottom modal + tabs + dark inputs</small>
+        </div>
+        <div class="phone">
+          <div class="screen">
+            <div class="status"><span>9:41</span><span>LTE 88%</span></div>
+            <div class="appbar">
+              <strong>គ្រប់គ្រងបុគ្គលិក</strong>
+              <div class="appbar-actions">
+                <div class="circle-icon">+</div>
+                <div class="circle-icon">R</div>
+              </div>
+            </div>
+            <div class="content">
+              <div class="toolbar">
+                <div class="search">ស្វែងរកឈ្មោះ ឬ ID...</div>
+                <div class="filter-row">
+                  <div class="filter">ផ្នែក</div>
+                  <div class="filter">តួនាទី</div>
+                  <div class="filter">ស្ថានភាព</div>
+                </div>
+              </div>
+              <div class="group"><div class="group-icon">B</div><strong>Head Office</strong><span class="count">24</span></div>
+              <div class="user-grid">
+                <div class="user-card"><div class="user-avatar">SV<span class="online"></span></div><h3>សុខ វិសាល</h3><div class="position">IT MANAGER</div><div class="id-chip">ID: 001</div></div>
+                <div class="user-card"><div class="user-avatar">DS<span class="online"></span></div><h3>ដារ៉ា ស្រីនិច</h3><div class="position">HR OFFICER</div><div class="id-chip">ID: 014</div></div>
+              </div>
+            </div>
+            <div class="modal-sheet">
+              <div class="handle"></div>
+              <div class="tabs">
+                <div class="tab active">មូលដ្ឋាន</div>
+                <div class="tab">បុគ្គលិក</div>
+                <div class="tab">Payroll</div>
+              </div>
+              <div class="form">
+                <div class="row">
+                  <div class="field"><label>ID*</label><div class="input">001</div></div>
+                  <div class="field"><label>ឈ្មោះ*</label><div class="input">សុខ វិសាល</div></div>
+                </div>
+                <div class="field"><label>ឈ្មោះឡាតាំង</label><div class="input">Sok Visal</div></div>
+                <div class="field"><label>Username*</label><div class="input">visal</div></div>
+                <div class="field"><label>Email*</label><div class="input">visal@vvc.asia</div></div>
+                <div class="field"><label>លេខសម្ងាត់</label><div class="input" style="color:rgba(255,255,255,.28)">•••••••• (Keep empty to keep)</div></div>
+              </div>
+              <div class="modal-actions">
+                <div class="outline-btn">លុប</div>
+                <div class="save-btn">រក្សាទុក</div>
+              </div>
+            </div>
+            <div class="bottom-nav">
+              <div class="nav-item">Home</div>
+              <div class="nav-item">Reports</div>
+              <div class="nav-item active">Users</div>
+              <div class="nav-item">More</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

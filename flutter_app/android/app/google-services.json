@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "514446176088",
+    "project_id": "vvc-app-845aa",
+    "storage_bucket": "vvc-app-845aa.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:514446176088:android:32a1be58e240c63ff33f2d",
+        "android_client_info": {
+          "package_name": "app.vvc"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyANU20JRJtAhvsssXNvWe5q5nJ3XzXuzXw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

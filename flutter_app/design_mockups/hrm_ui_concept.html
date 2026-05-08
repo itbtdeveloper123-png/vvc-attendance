@@ -1,0 +1,920 @@
+<!doctype html>
+<html lang="km">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>VVC HRM UI Concept</title>
+  <style>
+    :root {
+      --bg: #f4f7f8;
+      --surface: #ffffff;
+      --line: #dce6ea;
+      --text: #17242b;
+      --muted: #65757d;
+      --primary: #136f83;
+      --primary-soft: #e6f4f6;
+      --green: #12855b;
+      --green-soft: #e8f7ef;
+      --amber: #a46200;
+      --amber-soft: #fff3df;
+      --red: #b42318;
+      --red-soft: #ffebe8;
+      --blue: #1f5fbf;
+      --blue-soft: #eaf1ff;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Kantumruy Pro", "Noto Sans Khmer", "Khmer OS Battambang", "Segoe UI", Arial, sans-serif;
+      overflow: hidden;
+    }
+
+    .page {
+      width: 1600px;
+      min-height: 1160px;
+      padding: 44px 56px;
+    }
+
+    .header {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      margin-bottom: 28px;
+    }
+
+    .eyebrow {
+      color: var(--primary);
+      font-size: 15px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 34px;
+      line-height: 1.25;
+      letter-spacing: 0;
+    }
+
+    .header p {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 16px;
+    }
+
+    .legend {
+      display: flex;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 8px 10px;
+    }
+
+    .dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--primary);
+    }
+
+    .dot.green { background: var(--green); }
+    .dot.amber { background: #d68a16; }
+
+    .phones {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 34px;
+      align-items: start;
+    }
+
+    .phone-wrap {
+      display: grid;
+      gap: 14px;
+    }
+
+    .phone-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 10px;
+    }
+
+    .phone-title strong {
+      font-size: 19px;
+    }
+
+    .phone-title small {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .phone {
+      width: 454px;
+      height: 860px;
+      background: #11191d;
+      border-radius: 32px;
+      padding: 16px;
+      box-shadow: 0 22px 48px rgba(22, 36, 43, 0.16);
+    }
+
+    .screen {
+      height: 100%;
+      background: #f8fafb;
+      border-radius: 24px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .status {
+      height: 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 22px;
+      color: var(--muted);
+      font-size: 11px;
+      background: #f8fafb;
+    }
+
+    .content {
+      padding: 18px 20px 78px;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 18px;
+    }
+
+    .avatar {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: white;
+      display: grid;
+      place-items: center;
+      font-weight: 800;
+    }
+
+    .top-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .icon-btn {
+      width: 38px;
+      height: 38px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: var(--surface);
+      display: grid;
+      place-items: center;
+      color: var(--primary);
+      font-weight: 900;
+    }
+
+    .hello {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .name {
+      margin: 3px 0 0;
+      font-size: 20px;
+      font-weight: 800;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .today-card {
+      padding: 16px;
+      margin-bottom: 14px;
+      display: grid;
+      gap: 14px;
+    }
+
+    .today-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .today-head strong {
+      font-size: 16px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 999px;
+      padding: 6px 9px;
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .pill.green {
+      color: var(--green);
+      background: var(--green-soft);
+    }
+
+    .pill.blue {
+      color: var(--blue);
+      background: var(--blue-soft);
+    }
+
+    .pill.amber {
+      color: var(--amber);
+      background: var(--amber-soft);
+    }
+
+    .pill.red {
+      color: var(--red);
+      background: var(--red-soft);
+    }
+
+    .time-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .time-box {
+      background: #f7fafb;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 11px;
+    }
+
+    .label {
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 6px;
+    }
+
+    .value {
+      font-size: 18px;
+      font-weight: 900;
+    }
+
+    .primary-btn {
+      height: 56px;
+      border-radius: 8px;
+      background: var(--primary);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      font-size: 17px;
+      font-weight: 900;
+      margin-bottom: 14px;
+    }
+
+    .primary-btn .scan-icon {
+      width: 24px;
+      height: 24px;
+      border: 3px solid white;
+      border-radius: 5px;
+      position: relative;
+    }
+
+    .primary-btn .scan-icon::after {
+      content: "";
+      position: absolute;
+      left: 3px;
+      right: 3px;
+      top: 9px;
+      height: 2px;
+      background: white;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .action {
+      padding: 12px;
+      display: grid;
+      gap: 8px;
+      min-height: 94px;
+    }
+
+    .action i,
+    .mini-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      font-style: normal;
+      font-weight: 900;
+      color: var(--primary);
+      background: var(--primary-soft);
+    }
+
+    .action strong {
+      font-size: 14px;
+      line-height: 1.25;
+    }
+
+    .action small {
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .section-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 18px 0 10px;
+    }
+
+    .section-title strong {
+      font-size: 16px;
+    }
+
+    .section-title a {
+      color: var(--primary);
+      font-size: 12px;
+      font-weight: 800;
+      text-decoration: none;
+    }
+
+    .list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .list-item {
+      padding: 12px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .list-item .grow {
+      flex: 1;
+    }
+
+    .list-item strong {
+      display: block;
+      font-size: 13px;
+      margin-bottom: 3px;
+    }
+
+    .list-item span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .nav {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 62px;
+      background: var(--surface);
+      border-top: 1px solid var(--line);
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      align-items: center;
+    }
+
+    .nav-item {
+      text-align: center;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .nav-item b {
+      display: block;
+      width: 22px;
+      height: 4px;
+      margin: 0 auto 8px;
+      border-radius: 999px;
+      background: transparent;
+    }
+
+    .nav-item.active {
+      color: var(--primary);
+    }
+
+    .nav-item.active b {
+      background: var(--primary);
+    }
+
+    .scan-stage {
+      height: 326px;
+      background: #0f232a;
+      border-radius: 8px;
+      margin-bottom: 14px;
+      position: relative;
+      overflow: hidden;
+      display: grid;
+      place-items: center;
+      color: white;
+    }
+
+    .qr-box {
+      width: 190px;
+      height: 190px;
+      border: 3px solid rgba(255, 255, 255, 0.9);
+      border-radius: 8px;
+      position: relative;
+    }
+
+    .qr-box::before,
+    .qr-box::after {
+      content: "";
+      position: absolute;
+      left: 18px;
+      right: 18px;
+      height: 3px;
+      background: #48d6aa;
+    }
+
+    .qr-box::before {
+      top: 58px;
+    }
+
+    .qr-box::after {
+      top: 128px;
+    }
+
+    .scan-caption {
+      position: absolute;
+      bottom: 18px;
+      left: 18px;
+      right: 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.82);
+    }
+
+    .verify-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .verify {
+      padding: 14px;
+      display: grid;
+      justify-items: start;
+      gap: 8px;
+    }
+
+    .verify strong {
+      font-size: 14px;
+    }
+
+    .verify span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .map-strip {
+      height: 92px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: #eef6f7;
+      margin-bottom: 14px;
+      position: relative;
+      padding: 12px;
+    }
+
+    .pin {
+      position: absolute;
+      right: 48px;
+      top: 30px;
+      width: 18px;
+      height: 18px;
+      background: var(--red);
+      border-radius: 50% 50% 50% 0;
+      transform: rotate(-45deg);
+    }
+
+    .user-toolbar {
+      display: grid;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .search {
+      height: 44px;
+      border: 1px solid var(--line);
+      background: var(--surface);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .filters {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+
+    .filter {
+      height: 36px;
+      border: 1px solid var(--line);
+      background: var(--surface);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .summary-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .summary {
+      padding: 11px;
+    }
+
+    .summary strong {
+      display: block;
+      font-size: 18px;
+      margin-bottom: 3px;
+    }
+
+    .summary span {
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .employee {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px;
+    }
+
+    .mini-avatar {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      background: var(--primary-soft);
+      color: var(--primary);
+      display: grid;
+      place-items: center;
+      font-weight: 900;
+      flex: 0 0 auto;
+    }
+
+    .employee .grow strong {
+      font-size: 13px;
+      display: block;
+      margin-bottom: 2px;
+    }
+
+    .employee .grow span {
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .kebab {
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      display: grid;
+      place-items: center;
+      color: var(--muted);
+      flex: 0 0 auto;
+    }
+
+    .fab {
+      position: absolute;
+      right: 20px;
+      bottom: 76px;
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: white;
+      display: grid;
+      place-items: center;
+      font-size: 28px;
+      font-weight: 300;
+      box-shadow: 0 10px 22px rgba(19, 111, 131, 0.28);
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="header">
+      <div>
+        <div class="eyebrow">VVC HRM internal mobile UI concept</div>
+        <h1>Clean Enterprise Khmer style សម្រាប់ HRM ប្រើរាល់ថ្ងៃ</h1>
+        <p>គំរូនេះផ្តោតលើការស្កេនលឿន, ស្ថានភាពវត្តមានច្បាស់, និងគ្រប់គ្រងបុគ្គលិកងាយស្រួល។</p>
+      </div>
+      <div class="legend">
+        <span><i class="dot"></i>Primary action</span>
+        <span><i class="dot green"></i>Verified status</span>
+        <span><i class="dot amber"></i>Pending work</span>
+      </div>
+    </section>
+
+    <section class="phones">
+      <div class="phone-wrap">
+        <div class="phone-title">
+          <strong>1. Home សម្រាប់បុគ្គលិក</strong>
+          <small>ស្កេនក្នុង 1 tap</small>
+        </div>
+        <div class="phone">
+          <div class="screen">
+            <div class="status"><span>9:41</span><span>LTE 88%</span></div>
+            <div class="content">
+              <div class="topbar">
+                <div>
+                  <p class="hello">សួស្តី, ថ្ងៃនេះ</p>
+                  <p class="name">សុខ វិសាល</p>
+                </div>
+                <div class="top-actions">
+                  <div class="icon-btn">!</div>
+                  <div class="avatar">SV</div>
+                </div>
+              </div>
+
+              <div class="card today-card">
+                <div class="today-head">
+                  <strong>វត្តមានថ្ងៃនេះ</strong>
+                  <span class="pill green">បានចូល</span>
+                </div>
+                <div class="time-row">
+                  <div class="time-box">
+                    <div class="label">ម៉ោងចូល</div>
+                    <div class="value">08:02</div>
+                  </div>
+                  <div class="time-box">
+                    <div class="label">ម៉ោងចេញ</div>
+                    <div class="value">--:--</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="primary-btn">
+                <span class="scan-icon"></span>
+                ស្កេនចេញ
+              </div>
+
+              <div class="grid">
+                <div class="card action">
+                  <i>L</i>
+                  <strong>សុំច្បាប់</strong>
+                  <small>បង្កើតសំណើថ្មី</small>
+                </div>
+                <div class="card action">
+                  <i>R</i>
+                  <strong>របាយការណ៍</strong>
+                  <small>ប្រវត្តិវត្តមាន</small>
+                </div>
+                <div class="card action">
+                  <i>O</i>
+                  <strong>សុំ OT</strong>
+                  <small>ក្រៅម៉ោង</small>
+                </div>
+                <div class="card action">
+                  <i>M</i>
+                  <strong>សារ HR</strong>
+                  <small>ប្រកាសថ្មី</small>
+                </div>
+              </div>
+
+              <div class="section-title">
+                <strong>ការងារត្រូវធ្វើ</strong>
+                <a href="#">មើលទាំងអស់</a>
+              </div>
+              <div class="list">
+                <div class="card list-item">
+                  <div class="mini-icon">A</div>
+                  <div class="grow"><strong>សំណើច្បាប់កំពុងរង់ចាំ</strong><span>2 items ត្រូវបានផ្ញើទៅ HR</span></div>
+                  <span class="pill amber">Pending</span>
+                </div>
+                <div class="card list-item">
+                  <div class="mini-icon">P</div>
+                  <div class="grow"><strong>Payroll ខែនេះ</strong><span>អាចមើលបានថ្ងៃទី 30</span></div>
+                </div>
+              </div>
+            </div>
+            <div class="nav">
+              <div class="nav-item active"><b></b>Home</div>
+              <div class="nav-item"><b></b>Scan</div>
+              <div class="nav-item"><b></b>Report</div>
+              <div class="nav-item"><b></b>More</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="phone-wrap">
+        <div class="phone-title">
+          <strong>2. Scan QR + biometric</strong>
+          <small>មាន GPS និង verify</small>
+        </div>
+        <div class="phone">
+          <div class="screen">
+            <div class="status"><span>9:41</span><span>LTE 88%</span></div>
+            <div class="content">
+              <div class="topbar">
+                <div>
+                  <p class="hello">ស្កេនវត្តមាន</p>
+                  <p class="name">Check-In / Check-Out</p>
+                </div>
+                <div class="icon-btn">?</div>
+              </div>
+
+              <div class="scan-stage">
+                <div class="qr-box"></div>
+                <div class="scan-caption">
+                  <span>ដាក់ QR នៅកណ្តាលប្រអប់</span>
+                  <span>Branch HQ</span>
+                </div>
+              </div>
+
+              <div class="verify-row">
+                <div class="card verify">
+                  <div class="mini-icon">F</div>
+                  <strong>Fingerprint / Face ID</strong>
+                  <span>ផ្ទៀងផ្ទាត់មុន submit</span>
+                </div>
+                <div class="card verify">
+                  <div class="mini-icon">G</div>
+                  <strong>GPS location</strong>
+                  <span>នៅក្នុងចម្ងាយអនុញ្ញាត</span>
+                </div>
+              </div>
+
+              <div class="map-strip">
+                <strong>ទីតាំងបច្ចុប្បន្ន</strong>
+                <div class="label">Phnom Penh HQ, accuracy 8m</div>
+                <span class="pin"></span>
+              </div>
+
+              <div class="card today-card">
+                <div class="today-head">
+                  <strong>លទ្ធផលពិនិត្យ</strong>
+                  <span class="pill blue">Ready</span>
+                </div>
+                <div class="list">
+                  <div class="list-item" style="padding:0">
+                    <div class="mini-icon">Q</div>
+                    <div class="grow"><strong>QR ត្រឹមត្រូវ</strong><span>Attendance point verified</span></div>
+                    <span class="pill green">OK</span>
+                  </div>
+                  <div class="list-item" style="padding:0">
+                    <div class="mini-icon">B</div>
+                    <div class="grow"><strong>Biometric ត្រឹមត្រូវ</strong><span>System biometric prompt</span></div>
+                    <span class="pill green">OK</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="primary-btn">បញ្ជូនវត្តមាន</div>
+            </div>
+            <div class="nav">
+              <div class="nav-item"><b></b>Home</div>
+              <div class="nav-item active"><b></b>Scan</div>
+              <div class="nav-item"><b></b>Report</div>
+              <div class="nav-item"><b></b>More</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="phone-wrap">
+        <div class="phone-title">
+          <strong>3. User Management សម្រាប់ HR/Admin</strong>
+          <small>dense តែអានស្រួល</small>
+        </div>
+        <div class="phone">
+          <div class="screen">
+            <div class="status"><span>9:41</span><span>LTE 88%</span></div>
+            <div class="content">
+              <div class="topbar">
+                <div>
+                  <p class="hello">HR dashboard</p>
+                  <p class="name">គ្រប់គ្រងបុគ្គលិក</p>
+                </div>
+                <div class="top-actions">
+                  <div class="icon-btn">E</div>
+                  <div class="icon-btn">R</div>
+                </div>
+              </div>
+
+              <div class="summary-row">
+                <div class="card summary"><strong>128</strong><span>សរុប</span></div>
+                <div class="card summary"><strong>117</strong><span>Active</span></div>
+                <div class="card summary"><strong>11</strong><span>Pending</span></div>
+              </div>
+
+              <div class="user-toolbar">
+                <div class="search">ស្វែងរកឈ្មោះ, ID, ផ្នែក...</div>
+                <div class="filters">
+                  <div class="filter">ផ្នែក</div>
+                  <div class="filter">តួនាទី</div>
+                  <div class="filter">ស្ថានភាព</div>
+                </div>
+              </div>
+
+              <div class="section-title">
+                <strong>Head Office</strong>
+                <a href="#">24 នាក់</a>
+              </div>
+              <div class="list">
+                <div class="card employee">
+                  <div class="mini-avatar">SV</div>
+                  <div class="grow"><strong>សុខ វិសាល</strong><span>ID 001 · IT Manager</span></div>
+                  <span class="pill green">Active</span>
+                  <div class="kebab">⋮</div>
+                </div>
+                <div class="card employee">
+                  <div class="mini-avatar">DS</div>
+                  <div class="grow"><strong>ដារ៉ា ស្រីនិច</strong><span>ID 014 · HR Officer</span></div>
+                  <span class="pill green">Active</span>
+                  <div class="kebab">⋮</div>
+                </div>
+                <div class="card employee">
+                  <div class="mini-avatar">KR</div>
+                  <div class="grow"><strong>កែវ រតនា</strong><span>ID 022 · Accountant</span></div>
+                  <span class="pill amber">Review</span>
+                  <div class="kebab">⋮</div>
+                </div>
+              </div>
+
+              <div class="section-title">
+                <strong>Branch TK</strong>
+                <a href="#">18 នាក់</a>
+              </div>
+              <div class="list">
+                <div class="card employee">
+                  <div class="mini-avatar">CP</div>
+                  <div class="grow"><strong>ចាន់ ពិសិដ្ឋ</strong><span>ID 033 · Supervisor</span></div>
+                  <span class="pill green">Active</span>
+                  <div class="kebab">⋮</div>
+                </div>
+                <div class="card employee">
+                  <div class="mini-avatar">ML</div>
+                  <div class="grow"><strong>មាន លីហួរ</strong><span>ID 047 · Staff</span></div>
+                  <span class="pill red">Suspend</span>
+                  <div class="kebab">⋮</div>
+                </div>
+              </div>
+            </div>
+            <div class="fab">+</div>
+            <div class="nav">
+              <div class="nav-item"><b></b>Home</div>
+              <div class="nav-item"><b></b>Scan</div>
+              <div class="nav-item active"><b></b>Users</div>
+              <div class="nav-item"><b></b>More</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
