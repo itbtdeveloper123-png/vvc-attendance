@@ -209,6 +209,23 @@ class ApiService {
     );
   }
 
+  Future<Map<String, dynamic>> removeAiChatImageBackground(
+    String imageBase64, {
+    int? sessionId,
+  }) async {
+    final headers = await _authHeaders();
+    final body = <String, String>{'image_base64': imageBase64};
+    if (sessionId != null && sessionId > 0) {
+      body['session_id'] = sessionId.toString();
+    }
+    return _processRequest(
+      'remove_ai_chat_image_background',
+      headers: headers,
+      body: body,
+      timeout: const Duration(minutes: 3),
+    );
+  }
+
   Future<Map<String, dynamic>> regenerateAiChatReply(int sessionId) async {
     final headers = await _authHeaders();
     return _processRequest(
@@ -484,6 +501,18 @@ class ApiService {
   Future<Map<String, dynamic>> fetchPayrollHistory() async {
     final headers = await _authHeaders();
     return _processRequest('get_payroll_history', headers: headers);
+  }
+
+  Future<Map<String, dynamic>> recordPayrollBiometricVerification({
+    required String platform,
+    String authMethod = 'device_biometric_or_passcode',
+  }) async {
+    final headers = await _authHeaders();
+    return _processRequest(
+      'record_payroll_biometric_verification',
+      headers: headers,
+      body: {'platform': platform, 'auth_method': authMethod},
+    );
   }
 
   Future<Map<String, dynamic>> fetchAnnouncements() async {
@@ -919,10 +948,7 @@ class ApiService {
       'summarize_meeting',
       headers: headers,
       timeout: const Duration(seconds: 45),
-      body: {
-        'meeting_id': meetingId.toString(),
-        if (force) 'force': '1',
-      },
+      body: {'meeting_id': meetingId.toString(), if (force) 'force': '1'},
     );
   }
 
@@ -932,9 +958,7 @@ class ApiService {
       'get_meeting_summary_status',
       headers: headers,
       timeout: const Duration(seconds: 30),
-      body: {
-        'meeting_id': meetingId.toString(),
-      },
+      body: {'meeting_id': meetingId.toString()},
     );
   }
 

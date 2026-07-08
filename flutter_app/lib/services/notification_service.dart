@@ -1,6 +1,7 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'package:flutter_timezone/flutter_timezone.dart';
@@ -17,10 +18,23 @@ class NotificationService {
   final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
       FlutterLocalNotificationsPlugin();
 
+  bool _isInitialized = false;
+  Future<void>? _initializing;
+
   Future<void> init() async {
     // Web doesn't support these plugins/permissions.
     if (kIsWeb) return;
+    if (_isInitialized) return;
+    if (_initializing != null) {
+      await _initializing;
+      return;
+    }
 
+    _initializing = _initInternal();
+    await _initializing;
+  }
+
+  Future<void> _initInternal() async {
     // Initialize Timezones
     tz.initializeTimeZones();
     final String timeZoneName = await FlutterTimezone.getLocalTimezone();
@@ -58,16 +72,22 @@ class NotificationService {
     );
 
     // Create Channel for Checklist
-    final androidPlugin = flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+    final androidPlugin = flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
     if (androidPlugin != null) {
-      await androidPlugin.createNotificationChannel(const AndroidNotificationChannel(
-        'vvc_hrm_checklist',
-        'Checklist Reminders',
-        description: 'ការជូនដំណឹងរំលឹកកិច្ចការងារ',
-        importance: Importance.max,
-        playSound: true,
-      ));
+      await androidPlugin.createNotificationChannel(
+        const AndroidNotificationChannel(
+          'vvc_hrm_checklist',
+          'Checklist Reminders',
+          description: 'ការជូនដំណឹងរំលឹកកិច្ចការងារ',
+          importance: Importance.max,
+          playSound: true,
+        ),
+      );
     }
+    _isInitialized = true;
   }
 
   Future<void> showNotification({
@@ -77,6 +97,10 @@ class NotificationService {
     String? payload,
     String? channelId,
   }) async {
+    if (!kIsWeb && !_isInitialized) {
+      await init();
+    }
+
     final AndroidNotificationDetails androidNotificationDetails =
         AndroidNotificationDetails(
           channelId ?? 'vvc_hrm_channel',
@@ -118,11 +142,41 @@ class NotificationService {
     String? payload,
   }) async {
     if (kIsWeb) return;
-    
+
     // Check if the date is in the future
     if (scheduledDate.isBefore(DateTime.now())) return;
 
-    await flutterLocalNotificationsPlugin.zonedSchedule(
+    try {
+      await _scheduleWithMode(
+        id: id,
+        title: title,
+        body: body,
+        scheduledDate: scheduledDate,
+        payload: payload,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      );
+    } on PlatformException catch (e) {
+      if (e.code != 'exact_alarms_not_permitted') rethrow;
+      await _scheduleWithMode(
+        id: id,
+        title: title,
+        body: body,
+        scheduledDate: scheduledDate,
+        payload: payload,
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      );
+    }
+  }
+
+  Future<void> _scheduleWithMode({
+    required int id,
+    required String title,
+    required String body,
+    required DateTime scheduledDate,
+    required AndroidScheduleMode androidScheduleMode,
+    String? payload,
+  }) {
+    return flutterLocalNotificationsPlugin.zonedSchedule(
       id,
       title,
       body,
@@ -143,7 +197,7 @@ class NotificationService {
           presentSound: true,
         ),
       ),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      androidScheduleMode: androidScheduleMode,
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
       payload: payload,

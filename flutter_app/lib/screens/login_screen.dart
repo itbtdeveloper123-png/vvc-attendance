@@ -300,27 +300,36 @@ class _LoginScreenState extends State<LoginScreen> {
     required IconData icon,
   }) {
     return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppTheme.textPrimary.withValues(alpha: 0.1)),
       ),
-      child: TextField(
-        controller: controller,
-        style: GoogleFonts.kantumruyPro(color: AppTheme.textPrimary),
-        decoration: InputDecoration(
-          hintText: hintText,
-          hintStyle: GoogleFonts.kantumruyPro(
-            color: AppTheme.textPrimary.withValues(alpha: 0.38),
-          ),
-          prefixIcon: Icon(
+      child: Row(
+        children: [
+          Icon(
             icon,
             color: AppTheme.textPrimary.withValues(alpha: 0.54),
             size: 22,
           ),
-          border: InputBorder.none,
-          contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        ),
+          const SizedBox(width: 18),
+          Expanded(
+            child: TextField(
+              controller: controller,
+              cursorColor: AppTheme.primary,
+              textInputAction: TextInputAction.done,
+              style: GoogleFonts.kantumruyPro(color: AppTheme.textPrimary),
+              decoration: InputDecoration.collapsed(
+                hintText: hintText,
+                hintStyle: GoogleFonts.kantumruyPro(
+                  color: AppTheme.textPrimary.withValues(alpha: 0.38),
+                ),
+              ),
+              onSubmitted: (_) => _isLoading ? null : _handleLogin(),
+            ),
+          ),
+        ],
       ),
     );
   }

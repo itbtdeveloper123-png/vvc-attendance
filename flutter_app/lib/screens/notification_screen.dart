@@ -17,16 +17,21 @@ class NotificationScreen extends StatefulWidget {
 
 class _NotificationScreenState extends State<NotificationScreen> {
   final ApiService _apiService = ApiService();
+  final _searchController = TextEditingController();
   List<NotificationModel> _notifications = [];
   bool _isLoading = true;
   String? _error;
+  String _filter = 'all';
   Timer? _pollingTimer;
 
   @override
   void initState() {
     super.initState();
     _fetchNotifications();
-    
+    _searchController.addListener(() {
+      if (mounted) setState(() {});
+    });
+
     // Auto polling every 20 seconds
     _pollingTimer = Timer.periodic(const Duration(seconds: 20), (timer) {
       if (mounted) {
@@ -38,7 +43,26 @@ class _NotificationScreenState extends State<NotificationScreen> {
   @override
   void dispose() {
     _pollingTimer?.cancel();
+    _searchController.dispose();
     super.dispose();
+  }
+
+  int get _unreadCount => _notifications.where((n) => !n.isRead).length;
+
+  List<NotificationModel> get _visibleNotifications {
+    final q = _searchController.text.trim().toLowerCase();
+    return _notifications.where((notification) {
+      final matchesFilter =
+          _filter == 'all' ||
+          (_filter == 'unread' && !notification.isRead) ||
+          (_filter == 'read' && notification.isRead);
+      final matchesSearch =
+          q.isEmpty ||
+          notification.title.toLowerCase().contains(q) ||
+          notification.message.toLowerCase().contains(q) ||
+          notification.type.toLowerCase().contains(q);
+      return matchesFilter && matchesSearch;
+    }).toList();
   }
 
   Future<void> _fetchNotifications() async {
@@ -51,11 +75,14 @@ class _NotificationScreenState extends State<NotificationScreen> {
     try {
       final result = await _apiService.getNotifications();
       if (result['success'] == true || result['status'] == 'success') {
-        final List<dynamic> data = result['data'] ?? result['notifications'] ?? [];
+        final List<dynamic> data =
+            result['data'] ?? result['notifications'] ?? [];
         if (!mounted) return;
         setState(() {
-          _notifications = data.map((item) => NotificationModel.fromJson(item)).toList();
-          
+          _notifications = data
+              .map((item) => NotificationModel.fromJson(item))
+              .toList();
+
           // Sort: Unread (isRead == false) first, then by sentAt descending
           _notifications.sort((a, b) {
             if (a.isRead != b.isRead) {
@@ -86,11 +113,14 @@ class _NotificationScreenState extends State<NotificationScreen> {
     try {
       final result = await _apiService.getNotifications();
       if (result['success'] == true || result['status'] == 'success') {
-        final List<dynamic> data = result['data'] ?? result['notifications'] ?? [];
+        final List<dynamic> data =
+            result['data'] ?? result['notifications'] ?? [];
         if (!mounted) return;
         setState(() {
-          _notifications = data.map((item) => NotificationModel.fromJson(item)).toList();
-          
+          _notifications = data
+              .map((item) => NotificationModel.fromJson(item))
+              .toList();
+
           // Sort: Unread (isRead == false) first, then by sentAt descending
           _notifications.sort((a, b) {
             if (a.isRead != b.isRead) {
@@ -141,7 +171,10 @@ class _NotificationScreenState extends State<NotificationScreen> {
     return DynamicAppBarWrapper(
       title: "ការជូនដំណឹង",
       leading: IconButton(
-        icon: Icon(Icons.arrow_back_ios_new_rounded, color: AppTheme.textPrimary),
+        icon: Icon(
+          Icons.arrow_back_ios_new_rounded,
+          color: AppTheme.textPrimary,
+        ),
         onPressed: () => Navigator.pop(context),
       ),
       actions: [
@@ -154,19 +187,101 @@ class _NotificationScreenState extends State<NotificationScreen> {
         child: _isLoading
             ? _buildShimmerList()
             : _error != null
-                ? _buildErrorState()
-                : RefreshIndicator(
-                    onRefresh: _fetchNotifications,
-                    color: AppTheme.primary,
-                    child: _notifications.isEmpty ? _buildEmptyState() : _buildList(),
+            ? _buildErrorState()
+            : Column(
+                children: [
+                  SizedBox(height: MediaQuery.paddingOf(context).top + 70),
+                  _buildToolbar(),
+                  Expanded(
+                    child: RefreshIndicator(
+                      onRefresh: _fetchNotifications,
+                      color: AppTheme.primary,
+                      child: _visibleNotifications.isEmpty
+                          ? _buildEmptyState()
+                          : _buildList(_visibleNotifications),
+                    ),
                   ),
+                ],
+              ),
+      ),
+    );
+  }
+
+  Widget _buildToolbar() {
+    final hPad = AppResponsive.horizontalPadding(context);
+    return Padding(
+      padding: EdgeInsets.fromLTRB(hPad, 0, hPad, 12),
+      child: AppResponsive.maxWidth(
+        context: context,
+        child: Column(
+          children: [
+            AppSearchField(
+              controller: _searchController,
+              hintText: 'ស្វែងរកការជូនដំណឹង...',
+            ),
+            const SizedBox(height: 10),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              child: Row(
+                children: [
+                  _buildFilterChip('all', 'ទាំងអស់ ${_notifications.length}'),
+                  const SizedBox(width: 8),
+                  _buildFilterChip('unread', 'មិនទាន់អាន $_unreadCount'),
+                  const SizedBox(width: 8),
+                  _buildFilterChip(
+                    'read',
+                    'បានអាន ${_notifications.length - _unreadCount}',
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFilterChip(String value, String label) {
+    final selected = _filter == value;
+    return InkWell(
+      borderRadius: BorderRadius.circular(999),
+      onTap: () => setState(() => _filter = value),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected
+              ? AppTheme.primary.withValues(alpha: 0.16)
+              : AppTheme.bgCard,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: selected
+                ? AppTheme.primary.withValues(alpha: 0.45)
+                : AppTheme.cardBorder,
+          ),
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.kantumruyPro(
+            color: selected ? AppTheme.primaryLight : AppTheme.textSecondary,
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       ),
     );
   }
 
   Widget _buildShimmerList() {
+    final hPad = AppResponsive.horizontalPadding(context);
     return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(20, 110, 20, 20),
+      padding: EdgeInsets.fromLTRB(
+        hPad,
+        110,
+        hPad,
+        AppResponsive.bottomPadding(context),
+      ),
       itemCount: 10,
       itemBuilder: (context, index) => Padding(
         padding: const EdgeInsets.only(bottom: 12),
@@ -184,61 +299,55 @@ class _NotificationScreenState extends State<NotificationScreen> {
   }
 
   Widget _buildErrorState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.error_outline_rounded, color: AppTheme.error, size: 64),
-            const SizedBox(height: 16),
-            Text(
-              _error!,
-              style: GoogleFonts.kantumruyPro(color: AppTheme.textPrimary),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: _fetchNotifications,
-              child: const Text("ព្យាយាមម្តងទៀត"),
-            ),
-          ],
-        ),
-      ),
+    return AppStateView(
+      icon: Icons.error_outline_rounded,
+      title: "មានបញ្ហាក្នុងការទាញទិន្នន័យ",
+      message: _error ?? '',
+      color: AppTheme.error,
+      actionLabel: "ព្យាយាមម្តងទៀត",
+      onAction: _fetchNotifications,
     );
   }
 
   Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.notifications_none_rounded, color: AppTheme.textPrimary.withValues(alpha: 0.1), size: 100),
-          const SizedBox(height: 16),
-          Text(
-            "មិនទាន់មានការជូនដំណឹងទេ",
-            style: GoogleFonts.kantumruyPro(color: AppTheme.textSecondary, fontSize: 16),
-          ),
-        ],
-      ),
+    final isFiltered =
+        _searchController.text.trim().isNotEmpty || _filter != 'all';
+    return AppStateView(
+      icon: isFiltered
+          ? Icons.manage_search_rounded
+          : Icons.notifications_none_rounded,
+      title: isFiltered ? "រកមិនឃើញការជូនដំណឹង" : "មិនទាន់មានការជូនដំណឹងទេ",
+      message: isFiltered
+          ? "សាកល្បងប្តូរពាក្យស្វែងរក ឬ filter ផ្សេងទៀត"
+          : "ការជូនដំណឹងថ្មីៗនឹងបង្ហាញនៅទីនេះ",
+      color: AppTheme.primary,
     );
   }
 
-  Widget _buildList() {
+  Widget _buildList(List<NotificationModel> notifications) {
+    final hPad = AppResponsive.horizontalPadding(context);
     return AnimationLimiter(
       child: ListView.builder(
-        padding: const EdgeInsets.fromLTRB(20, 110, 20, 20),
+        padding: EdgeInsets.fromLTRB(
+          hPad,
+          0,
+          hPad,
+          AppResponsive.bottomPadding(context),
+        ),
         physics: const BouncingScrollPhysics(),
-        itemCount: _notifications.length,
+        itemCount: notifications.length,
         itemBuilder: (context, index) {
-          final notification = _notifications[index];
+          final notification = notifications[index];
           return AnimationConfiguration.staggeredList(
             position: index,
             duration: const Duration(milliseconds: 500),
             child: SlideAnimation(
               verticalOffset: 50.0,
               child: FadeInAnimation(
-                child: _buildNotificationCard(notification),
+                child: AppResponsive.maxWidth(
+                  context: context,
+                  child: _buildNotificationCard(notification),
+                ),
               ),
             ),
           );
@@ -251,10 +360,14 @@ class _NotificationScreenState extends State<NotificationScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: notification.isRead ? AppTheme.bgCard.withValues(alpha: 0.6) : AppTheme.bgCard,
+        color: notification.isRead
+            ? AppTheme.bgCard.withValues(alpha: 0.6)
+            : AppTheme.bgCard,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: notification.isRead ? AppTheme.borderColor : AppTheme.primary.withValues(alpha: 0.3),
+          color: notification.isRead
+              ? AppTheme.borderColor
+              : AppTheme.primary.withValues(alpha: 0.3),
         ),
       ),
       child: Column(
@@ -271,18 +384,27 @@ class _NotificationScreenState extends State<NotificationScreen> {
                 isScrollControlled: true,
                 backgroundColor: Colors.transparent,
                 enableDrag: true,
-                builder: (context) => NotificationDetailSheet(notification: notification),
+                builder: (context) =>
+                    NotificationDetailSheet(notification: notification),
               );
             },
             leading: Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: (notification.type == 'alert' ? AppTheme.error : AppTheme.primary).withValues(alpha: 0.1),
+                color:
+                    (notification.type == 'alert'
+                            ? AppTheme.error
+                            : AppTheme.primary)
+                        .withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
               child: Icon(
-                notification.type == 'alert' ? Icons.warning_rounded : Icons.notifications_rounded,
-                color: notification.type == 'alert' ? AppTheme.error : AppTheme.primary,
+                notification.type == 'alert'
+                    ? Icons.warning_rounded
+                    : Icons.notifications_rounded,
+                color: notification.type == 'alert'
+                    ? AppTheme.error
+                    : AppTheme.primary,
                 size: 20,
               ),
             ),
@@ -290,20 +412,33 @@ class _NotificationScreenState extends State<NotificationScreen> {
               notification.title,
               style: GoogleFonts.kantumruyPro(
                 color: AppTheme.textPrimary,
-                fontWeight: notification.isRead ? FontWeight.normal : FontWeight.bold,
+                fontWeight: notification.isRead
+                    ? FontWeight.normal
+                    : FontWeight.bold,
               ),
             ),
             subtitle: Text(
               notification.message,
-              style: GoogleFonts.kantumruyPro(color: AppTheme.textSecondary, fontSize: 13),
+              style: GoogleFonts.kantumruyPro(
+                color: AppTheme.textSecondary,
+                fontSize: 13,
+              ),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
-            trailing: notification.isRead 
-                ? null 
-                : Container(width: 8, height: 8, decoration: BoxDecoration(color: AppTheme.primary, shape: BoxShape.circle)),
+            trailing: notification.isRead
+                ? null
+                : Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: AppTheme.primary,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
           ),
-          if (notification.imageUrl != null && notification.imageUrl!.isNotEmpty)
+          if (notification.imageUrl != null &&
+              notification.imageUrl!.isNotEmpty)
             Container(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               child: GestureDetector(
@@ -324,13 +459,15 @@ class _NotificationScreenState extends State<NotificationScreen> {
                       );
                     },
                     errorBuilder: (context, error, stackTrace) => Container(
-                       height: 50,
-                       width: double.infinity,
-                       decoration: BoxDecoration(
-                         color: Colors.red.withValues(alpha: 0.05),
-                         borderRadius: BorderRadius.circular(10),
-                       ),
-                       child: const Center(child: Icon(Icons.broken_image, color: Colors.grey)),
+                      height: 50,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: Colors.red.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Center(
+                        child: Icon(Icons.broken_image, color: Colors.grey),
+                      ),
                     ),
                   ),
                 ),
@@ -342,10 +479,15 @@ class _NotificationScreenState extends State<NotificationScreen> {
   }
 
   void _viewFullImage(String url) {
-     Navigator.push(context, MaterialPageRoute(builder: (context) => Scaffold(
-        backgroundColor: Colors.black,
-        appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
-        body: Center(child: InteractiveViewer(child: Image.network(url))),
-     )));
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => Scaffold(
+          backgroundColor: Colors.black,
+          appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
+          body: Center(child: InteractiveViewer(child: Image.network(url))),
+        ),
+      ),
+    );
   }
 }

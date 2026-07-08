@@ -223,9 +223,7 @@ class _ChangeDayOffScreenState extends State<ChangeDayOffScreen> {
                           Text(
                             "សូមបំពេញព័ត៌មានឱ្យបានត្រឹមត្រូវ",
                             style: GoogleFonts.kantumruyPro(
-                              color: AppTheme.textPrimary.withValues(
-                                alpha: 0.38,
-                              ),
+                              color: AppTheme.helperTextColor,
                               fontSize: 13,
                             ),
                           ),
@@ -372,11 +370,8 @@ class _ChangeDayOffScreenState extends State<ChangeDayOffScreen> {
             bottom: 0,
             left: 0,
             right: 0,
-            child: Container(
+            child: Padding(
               padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: AppTheme.bgDark.withValues(alpha: 0.96),
-              ),
               child: SafeArea(
                 child: _isLoading
                     ? const Center(child: CircularProgressIndicator())
@@ -385,16 +380,8 @@ class _ChangeDayOffScreenState extends State<ChangeDayOffScreen> {
                         height: 55,
                         child: ElevatedButton(
                           onPressed: _submit,
-                          style: ElevatedButton.styleFrom(
+                          style: AppTheme.filledButtonStyle(
                             backgroundColor: AppTheme.primary,
-                            foregroundColor: AppTheme.textPrimary,
-                            elevation: 8,
-                            shadowColor: AppTheme.primary.withValues(
-                              alpha: 0.4,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
                           ),
                           child: Text(
                             "បញ្ជូនសំណើប្តូរថ្ងៃឈប់",
@@ -422,7 +409,7 @@ class _ChangeDayOffScreenState extends State<ChangeDayOffScreen> {
           child: Text(
             label,
             style: GoogleFonts.kantumruyPro(
-              color: AppTheme.textPrimary.withValues(alpha: 0.70),
+              color: AppTheme.labelColor,
               fontSize: 13,
               fontWeight: FontWeight.w500,
             ),
@@ -441,9 +428,9 @@ class _ChangeDayOffScreenState extends State<ChangeDayOffScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: AppTheme.textPrimary.withValues(alpha: 0.05),
+        color: AppTheme.fieldFill,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.textPrimary.withValues(alpha: 0.1)),
+        border: Border.all(color: AppTheme.fieldBorder),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
@@ -452,7 +439,7 @@ class _ChangeDayOffScreenState extends State<ChangeDayOffScreen> {
           dropdownColor: AppTheme.bgCard,
           icon: Icon(
             Icons.keyboard_arrow_down_rounded,
-            color: AppTheme.textPrimary.withValues(alpha: 0.38),
+            color: AppTheme.helperTextColor,
           ),
           items: items
               .map(
@@ -492,11 +479,9 @@ class _ChangeDayOffScreenState extends State<ChangeDayOffScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         decoration: BoxDecoration(
-          color: AppTheme.textPrimary.withValues(alpha: 0.05),
+          color: AppTheme.fieldFill,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: AppTheme.textPrimary.withValues(alpha: 0.1),
-          ),
+          border: Border.all(color: AppTheme.fieldBorder),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -523,31 +508,33 @@ class _ChangeDayOffScreenState extends State<ChangeDayOffScreen> {
     return InputDecoration(
       hintText: hint,
       prefixIcon: icon != null
-          ? Icon(
-              icon,
-              color: AppTheme.textPrimary.withValues(alpha: 0.24),
-              size: 20,
-            )
+          ? Icon(icon, color: AppTheme.fieldIconColor, size: 20)
           : null,
       hintStyle: GoogleFonts.kantumruyPro(
-        color: AppTheme.textPrimary.withValues(alpha: 0.24),
+        color: AppTheme.fieldHintColor,
         fontSize: 13,
       ),
       filled: true,
-      fillColor: AppTheme.textPrimary.withValues(alpha: 0.05),
+      fillColor: AppTheme.fieldFill,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
         borderSide: BorderSide.none,
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
-        borderSide: BorderSide(
-          color: AppTheme.textPrimary.withValues(alpha: 0.05),
-        ),
+        borderSide: BorderSide(color: AppTheme.fieldBorder),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
         borderSide: BorderSide(color: AppTheme.primary, width: 1.5),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(color: AppTheme.danger.withValues(alpha: 0.75)),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(color: AppTheme.danger, width: 1.5),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
     );
@@ -562,9 +549,7 @@ class _ChangeDayOffScreenState extends State<ChangeDayOffScreen> {
       controller: controller,
       readOnly: readOnly,
       style: (isKhmer ? GoogleFonts.kantumruyPro : GoogleFonts.inter)(
-        color: readOnly
-            ? AppTheme.textPrimary.withValues(alpha: 0.38)
-            : AppTheme.textPrimary,
+        color: readOnly ? AppTheme.helperTextColor : AppTheme.textPrimary,
         fontSize: 14,
       ),
       decoration: _inputDecoration(""),

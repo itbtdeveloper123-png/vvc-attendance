@@ -7,15 +7,14 @@ import 'package:animate_do/animate_do.dart';
 import 'package:intl/intl.dart';
 import 'package:google_nav_bar/google_nav_bar.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:dio/dio.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/user_provider.dart';
 import '../core/theme/theme_provider.dart';
 import '../utils/app_theme.dart';
 import '../widgets/app_widgets.dart';
+import '../widgets/app_update_dialog.dart';
 import '../services/api_service.dart';
-import '../services/apk_installer_service.dart';
+import '../services/notification_service.dart';
 import 'login_screen.dart';
 import 'attendance_screen.dart';
 import 'scan_history_screen.dart';
@@ -128,7 +127,7 @@ class HomeScreenState extends State<HomeScreen> {
       if (result['success'] == true &&
           result['has_update'] == true &&
           mounted) {
-        await _showUpdateDialogV2(
+        await _showUpdateDialog(
           result['latest_version'],
           result['message'],
           result['apk_url'],
@@ -145,7 +144,7 @@ class HomeScreenState extends State<HomeScreen> {
             remoteVersion: pushUpdate.version,
             remoteBuild: pushUpdate.build,
           )) {
-        await _showUpdateDialogV2(
+        await _showUpdateDialog(
           pushUpdate.version,
           pushUpdate.message,
           pushUpdate.apkUrl,
@@ -217,7 +216,6 @@ class HomeScreenState extends State<HomeScreen> {
     return 0;
   }
 
-  // ignore: unused_element
   Future<void> _showUpdateDialog(
     String version,
     String msg,
@@ -226,421 +224,19 @@ class HomeScreenState extends State<HomeScreen> {
   ) async {
     if (!mounted || _isUpdateDialogVisible) return;
     _isUpdateDialogVisible = true;
-    double downloadProgress = 0;
-    bool isDownloading = false;
-    String statusText = "កំពុងរៀបចំទាញយក...";
 
     try {
       await Future<void>.delayed(Duration.zero);
       if (!mounted) return;
-
-      await showDialog(
+      await showAppUpdateDialog(
         context: context,
-        barrierDismissible: !forceUpdate,
-        builder: (ctx) => StatefulBuilder(
-          builder: (context, setDialogState) => PopScope(
-            canPop: !forceUpdate && !isDownloading,
-            child: AlertDialog(
-              backgroundColor: AppTheme.bgCard,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(24),
-              ),
-              icon: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppTheme.primary.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  isDownloading
-                      ? Icons.downloading_rounded
-                      : Icons.system_update_rounded,
-                  color: AppTheme.primary,
-                  size: 40,
-                ),
-              ),
-              title: Text(
-                isDownloading
-                    ? "កំពុងទាញយកជំនាន់ថ្មី"
-                    : "កម្មវិធីមានជំនាន់ថ្មី V$version",
-                style: GoogleFonts.kantumruyPro(
-                  color: AppTheme.textPrimary,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (!isDownloading)
-                    Text(
-                      msg,
-                      style: GoogleFonts.kantumruyPro(
-                        color: AppTheme.textSecondary,
-                        fontSize: 14,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  if (isDownloading) ...[
-                    const SizedBox(height: 10),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: LinearProgressIndicator(
-                        value: downloadProgress,
-                        minHeight: 10,
-                        backgroundColor: Colors.white10,
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          AppTheme.primary,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      "${(downloadProgress * 100).toStringAsFixed(0)}%",
-                      style: GoogleFonts.inter(
-                        color: AppTheme.primary,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      statusText,
-                      style: GoogleFonts.kantumruyPro(
-                        color: AppTheme.textMuted,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-              actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-              actions: [
-                if (!isDownloading)
-                  Column(
-                    children: [
-                      SizedBox(
-                        width: double.infinity,
-                        height: 48,
-                        child: ElevatedButton(
-                          onPressed: () async {
-                            setDialogState(() {
-                              isDownloading = true;
-                            });
-                            await _startDownloadAndInstall(apkUrl, (
-                              progress,
-                              status,
-                            ) {
-                              setDialogState(() {
-                                downloadProgress = progress;
-                                statusText = status;
-                              });
-                            });
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppTheme.primary,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          child: Text(
-                            "អាប់ដេតឥឡូវនេះ",
-                            style: GoogleFonts.kantumruyPro(
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                      if (!forceUpdate) ...[
-                        const SizedBox(height: 8),
-                        TextButton(
-                          onPressed: () => Navigator.pop(ctx),
-                          child: Text(
-                            "ទុកពេលក្រោយ",
-                            style: GoogleFonts.kantumruyPro(
-                              color: AppTheme.textMuted,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-              ],
-            ),
-          ),
-        ),
+        version: version,
+        message: msg,
+        apkUrl: apkUrl,
+        forceUpdate: forceUpdate,
       );
     } finally {
       _isUpdateDialogVisible = false;
-    }
-  }
-
-  Future<void> _startDownloadAndInstall(
-    String url,
-    Function(double, String) onProgress,
-  ) async {
-    try {
-      final dio = Dio();
-      final directory = await getTemporaryDirectory();
-      final savePath = "${directory.path}/vvc_attendance_update.apk";
-
-      if (url.trim().isEmpty) {
-        throw Exception("APK download URL is empty.");
-      }
-
-      await dio.download(
-        url,
-        savePath,
-        onReceiveProgress: (received, total) {
-          if (total != -1) {
-            onProgress(received / total, "កំពុងទាញយកឯកសារ...");
-          }
-        },
-      );
-
-      onProgress(1.0, "ទាញយកជោគជ័យ! បើកការដំឡើង...");
-
-      final openedInstaller = await ApkInstallerService.installApk(savePath);
-      if (!openedInstaller) {
-        throw Exception("Could not open APK installer.");
-      }
-
-      if (mounted) Navigator.pop(context);
-    } catch (e) {
-      onProgress(0, "មានបញ្ហាក្នុងការទាញយក៖ $e");
-    }
-  }
-
-  Future<void> _showUpdateDialogV2(
-    String version,
-    String msg,
-    String apkUrl,
-    bool forceUpdate,
-  ) async {
-    if (!mounted || _isUpdateDialogVisible) return;
-    _isUpdateDialogVisible = true;
-    double downloadProgress = 0;
-    bool isDownloading = false;
-    String statusText = "កំពុងរៀបចំទាញយក...";
-    final displayMessage = msg.trim().isNotEmpty
-        ? msg.trim()
-        : "កម្មវិធីមានជំនាន់ថ្មី។ សូមធ្វើការអាប់ដេត។";
-
-    try {
-      await Future<void>.delayed(Duration.zero);
-      if (!mounted) return;
-
-      await showDialog(
-        context: context,
-        barrierDismissible: !forceUpdate,
-        builder: (ctx) => StatefulBuilder(
-          builder: (dialogContext, setDialogState) => PopScope(
-            canPop: !forceUpdate && !isDownloading,
-            child: AlertDialog(
-              backgroundColor: AppTheme.bgCard,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(24),
-              ),
-              icon: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppTheme.primary.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  isDownloading
-                      ? Icons.downloading_rounded
-                      : Icons.system_update_rounded,
-                  color: AppTheme.primary,
-                  size: 40,
-                ),
-              ),
-              title: Text(
-                isDownloading
-                    ? "កំពុងទាញយកជំនាន់ថ្មី"
-                    : "កម្មវិធីមានជំនាន់ថ្មី V$version",
-                style: GoogleFonts.kantumruyPro(
-                  color: AppTheme.textPrimary,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (!isDownloading)
-                    Text(
-                      displayMessage,
-                      style: GoogleFonts.kantumruyPro(
-                        color: AppTheme.textSecondary,
-                        fontSize: 14,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  if (isDownloading) ...[
-                    const SizedBox(height: 10),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: LinearProgressIndicator(
-                        value: downloadProgress,
-                        minHeight: 10,
-                        backgroundColor: Colors.white10,
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          AppTheme.primary,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      "${(downloadProgress * 100).toStringAsFixed(0)}%",
-                      style: GoogleFonts.inter(
-                        color: AppTheme.primary,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      statusText,
-                      style: GoogleFonts.kantumruyPro(
-                        color: AppTheme.textMuted,
-                        fontSize: 12,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ],
-              ),
-              actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-              actions: [
-                if (!isDownloading)
-                  Column(
-                    children: [
-                      SizedBox(
-                        width: double.infinity,
-                        height: 48,
-                        child: ElevatedButton(
-                          onPressed: () async {
-                            setDialogState(() {
-                              isDownloading = true;
-                              downloadProgress = 0;
-                              statusText = "កំពុងរៀបចំទាញយក...";
-                            });
-
-                            final errorMessage =
-                                await _startDownloadAndInstallV2(apkUrl, (
-                                  progress,
-                                  status,
-                                ) {
-                                  if (!dialogContext.mounted) return;
-                                  setDialogState(() {
-                                    downloadProgress = progress;
-                                    statusText = status;
-                                  });
-                                });
-
-                            if (!mounted || !dialogContext.mounted) return;
-
-                            if (errorMessage != null) {
-                              setDialogState(() {
-                                isDownloading = false;
-                                downloadProgress = 0;
-                                statusText = errorMessage;
-                              });
-
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    errorMessage,
-                                    style: GoogleFonts.kantumruyPro(),
-                                  ),
-                                ),
-                              );
-                            }
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppTheme.primary,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          child: Text(
-                            "អាប់ដេតឥឡូវនេះ",
-                            style: GoogleFonts.kantumruyPro(
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                      if (!forceUpdate) ...[
-                        const SizedBox(height: 8),
-                        TextButton(
-                          onPressed: () => Navigator.pop(ctx),
-                          child: Text(
-                            "ទុកពេលក្រោយ",
-                            style: GoogleFonts.kantumruyPro(
-                              color: AppTheme.textMuted,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-              ],
-            ),
-          ),
-        ),
-      );
-    } finally {
-      _isUpdateDialogVisible = false;
-    }
-  }
-
-  Future<String?> _startDownloadAndInstallV2(
-    String url,
-    Function(double, String) onProgress,
-  ) async {
-    try {
-      final dio = Dio();
-      final directory = await getTemporaryDirectory();
-      final savePath = "${directory.path}/vvc_attendance_update.apk";
-
-      if (url.trim().isEmpty) {
-        return "មិនមានតំណទាញយក APK ទេ។";
-      }
-
-      await dio.download(
-        url,
-        savePath,
-        onReceiveProgress: (received, total) {
-          if (total > 0) {
-            onProgress(received / total, "កំពុងទាញយកឯកសារ...");
-          }
-        },
-      );
-
-      onProgress(1.0, "ទាញយកជោគជ័យ! កំពុងបើកផ្ទាំងដំឡើង...");
-
-      final openedInstaller = await ApkInstallerService.installApk(savePath);
-      if (!openedInstaller) {
-        return "មិនអាចបើកផ្ទាំងដំឡើងបានទេ។";
-      }
-
-      if (mounted) {
-        Navigator.pop(context);
-      }
-      return null;
-    } on PlatformException catch (e) {
-      if (e.code == 'install_permission_required') {
-        return "សូមអនុញ្ញាត Install unknown apps សិន រួចចុចអាប់ដេតម្ដងទៀត។";
-      }
-      return "មិនអាចបើកការដំឡើងបានទេ៖ ${e.message ?? e.code}";
-    } catch (e) {
-      return "មានបញ្ហាក្នុងការអាប់ដេត៖ $e";
     }
   }
 
@@ -657,10 +253,8 @@ class HomeScreenState extends State<HomeScreen> {
       body: IndexedStack(index: _currentIndex, children: screens),
       bottomNavigationBar: _buildBottomNav(userProvider),
       floatingActionButton: _currentIndex == 0
-          ? Padding(
-              padding: const EdgeInsets.only(
-                bottom: 50.0,
-              ), // រំកិលចុះក្រោមឱ្យនៅជិត Menu ខាងក្រោមជាងមុន
+          ? Transform.translate(
+              offset: const Offset(0, 6),
               child: SizedBox(
                 width: 48, // ទំហំប៊ូតុងតូចជាងមុន
                 height: 48,
@@ -687,8 +281,10 @@ class HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildBottomNav(UserProvider user) {
+    final hPad = AppResponsive.horizontalPadding(context);
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
     return Container(
-      margin: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+      margin: EdgeInsets.fromLTRB(hPad, 0, hPad, bottomInset + 14),
       decoration: BoxDecoration(
         color: AppTheme.bgCard,
         borderRadius: BorderRadius.circular(30),
@@ -705,14 +301,20 @@ class HomeScreenState extends State<HomeScreen> {
         ],
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 15.0, vertical: 8),
+        padding: EdgeInsets.symmetric(
+          horizontal: AppResponsive.isCompact(context) ? 8 : 15,
+          vertical: 8,
+        ),
         child: GNav(
           rippleColor: AppTheme.primary.withValues(alpha: 0.3),
           hoverColor: AppTheme.primary.withValues(alpha: 0.1),
           gap: 8,
           activeColor: AppTheme.primary,
           iconSize: 24,
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          padding: EdgeInsets.symmetric(
+            horizontal: AppResponsive.isCompact(context) ? 14 : 20,
+            vertical: 12,
+          ),
           duration: const Duration(milliseconds: 400),
           tabBackgroundColor: AppTheme.primary.withValues(alpha: 0.1),
           color: AppTheme.textMuted,
@@ -792,6 +394,7 @@ class _HomeContentState extends State<HomeContent> {
     'annual_leave_remaining': 0,
   };
   bool _isLoadingStats = true;
+  int? _lastUnreadNotificationCount;
   String _nextAction = 'Check-In'; // auto-detected from last action
   bool _isLoadingNextAction = true;
   Timer? _pollingTimer;
@@ -1203,8 +806,10 @@ class _HomeContentState extends State<HomeContent> {
     try {
       final result = await _api.fetchDashboardStats();
       if (result['success'] == true) {
+        final nextStats = _normalizeStats(result['stats']);
         _safeSetState(() {
-          _stats = result['stats'] ?? _stats;
+          _stats = nextStats;
+          _lastUnreadNotificationCount = _readUnreadCount(nextStats);
           _isLoadingStats = false;
         });
       } else {
@@ -1222,17 +827,51 @@ class _HomeContentState extends State<HomeContent> {
       // Dashboard stats are updated via local state which is much more efficient.
       final result = await _api.fetchDashboardStats();
       if (result['success'] == true) {
-        _safeSetState(() => _stats = result['stats'] ?? _stats);
+        final nextStats = _normalizeStats(result['stats']);
+        final nextUnread = _readUnreadCount(nextStats);
+        final previousUnread = _lastUnreadNotificationCount;
+        _safeSetState(() {
+          _stats = nextStats;
+          _lastUnreadNotificationCount = nextUnread;
+        });
+        if (previousUnread != null && nextUnread > previousUnread) {
+          await _showNewNotificationAlert(nextUnread - previousUnread);
+        }
       }
     } catch (_) {}
   }
 
-  int get _unreadNotifications {
-    final v = _stats['unread_notifications'];
+  Map<String, dynamic> _normalizeStats(dynamic stats) {
+    if (stats is Map<String, dynamic>) return stats;
+    if (stats is Map) return Map<String, dynamic>.from(stats);
+    return _stats;
+  }
+
+  int _readUnreadCount(Map<String, dynamic> stats) {
+    final v = stats['unread_notifications'];
     if (v == null) return 0;
     if (v is int) return v;
+    if (v is num) return v.toInt();
     if (v is String) return int.tryParse(v) ?? 0;
     return 0;
+  }
+
+  Future<void> _showNewNotificationAlert(int count) async {
+    if (!mounted || count <= 0) return;
+    try {
+      await NotificationService().showNotification(
+        id: DateTime.now().millisecondsSinceEpoch.remainder(2147483647),
+        title: 'ការជូនដំណឹងថ្មី',
+        body: count == 1
+            ? 'មានការជូនដំណឹងថ្មីមួយសម្រាប់អ្នក'
+            : 'មានការជូនដំណឹងថ្មី $count សម្រាប់អ្នក',
+        payload: 'notifications',
+      );
+    } catch (_) {}
+  }
+
+  int get _unreadNotifications {
+    return _readUnreadCount(_stats);
   }
 
   // ===== Feature #7: Smart Greeting =====
@@ -1342,7 +981,13 @@ class _HomeContentState extends State<HomeContent> {
                           _buildWelcomeBanner(user),
                           const SizedBox(height: 24),
                           _buildRoleBasedActions(user),
-                          const SizedBox(height: 110),
+                          SizedBox(
+                            height: AppResponsive.bottomPadding(
+                              context,
+                              hasBottomNav: true,
+                              extra: 18,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -2130,7 +1775,8 @@ class _HomeContentState extends State<HomeContent> {
 
     // Mapping of available actions
     final Map<String, Widget Function(bool isList)> actionBuilders = {
-      'attendance': (isList) => user.canShow('show_attendance_card$suffix')
+      'attendance': (isList) =>
+          _canShowRoleAction(user, 'show_attendance_card$suffix', suffix)
           ? Padding(
               padding: EdgeInsets.only(bottom: isList ? 10 : 0),
               child: AttendanceScanCard(
@@ -2397,7 +2043,8 @@ class _HomeContentState extends State<HomeContent> {
         },
       ),
 
-      'stats_slider': (isList) => user.canShow('show_stats_slider$suffix')
+      'stats_slider': (isList) =>
+          _canShowRoleAction(user, 'show_stats_slider$suffix', suffix)
           ? Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: _buildStatsSlider(user),
@@ -2437,7 +2084,25 @@ class _HomeContentState extends State<HomeContent> {
 
     if (gridBatch.isNotEmpty) finalWidgets.add(_buildGridWrapper(gridBatch));
 
+    if (finalWidgets.isEmpty) {
+      return _buildEmptyActionsState();
+    }
+
     return Column(children: finalWidgets);
+  }
+
+  bool _canShowRoleAction(UserProvider user, String configKey, String suffix) {
+    return user.canShow(
+      configKey,
+      defaultValue: _defaultRoleActionVisibility(configKey, suffix),
+    );
+  }
+
+  bool _defaultRoleActionVisibility(String configKey, String suffix) {
+    if (suffix == '__worker') {
+      return configKey == 'show_attendance_card__worker';
+    }
+    return true;
   }
 
   Widget _buildActionItem({
@@ -2450,7 +2115,9 @@ class _HomeContentState extends State<HomeContent> {
     required Color color,
     required VoidCallback onTap,
   }) {
-    if (!user.canShow(key, defaultValue: true)) return const SizedBox.shrink();
+    if (!_canShowRoleAction(user, key, _suffixFromConfigKey(key))) {
+      return const SizedBox.shrink();
+    }
     // Wrap onTap with haptic
     void wrappedTap() {
       _hapticLight();
@@ -2478,6 +2145,14 @@ class _HomeContentState extends State<HomeContent> {
     }
   }
 
+  String _suffixFromConfigKey(String key) {
+    if (key.endsWith('__worker')) return '__worker';
+    if (key.endsWith('__hrm')) return '__hrm';
+    if (key.endsWith('__admin')) return '__admin';
+    if (key.endsWith('__skill')) return '__skill';
+    return '';
+  }
+
   Widget _buildGridWrapper(List<Widget> items) {
     return Column(
       children: [
@@ -2485,14 +2160,63 @@ class _HomeContentState extends State<HomeContent> {
           crossAxisCount: 3,
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 4),
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
-          childAspectRatio: 1.02,
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          crossAxisSpacing: 14,
+          mainAxisSpacing: 14,
+          childAspectRatio: 0.98,
           children: items,
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 12),
       ],
+    );
+  }
+
+  Widget _buildEmptyActionsState() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 22),
+      decoration: AppTheme.cardDecoration(
+        radius: AppTheme.radiusLg,
+        borderColor: AppTheme.primary.withValues(alpha: 0.18),
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: AppTheme.primary.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: AppTheme.primary.withValues(alpha: 0.2),
+              ),
+            ),
+            child: Icon(
+              Icons.visibility_off_rounded,
+              color: AppTheme.primaryLight,
+              size: 24,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            "មិនមានមុខងារបង្ហាញ",
+            style: GoogleFonts.kantumruyPro(
+              color: AppTheme.textPrimary,
+              fontWeight: FontWeight.bold,
+              fontSize: 15,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            "សូមពិនិត្យការកំណត់បង្ហាញតាម Role នៅផ្នែក Admin",
+            textAlign: TextAlign.center,
+            style: GoogleFonts.kantumruyPro(
+              color: AppTheme.helperTextColor,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
     );
   }
 

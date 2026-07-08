@@ -195,18 +195,24 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
         if (t['task']!.text.trim().isEmpty) continue;
         hasTasks = true;
         structured += "\n*កិច្ចការទី ${i + 1}:* ${t['task']!.text}\n";
-        if (t['time']!.text.isNotEmpty)
+        if (t['time']!.text.isNotEmpty) {
           structured += "  - ម៉ោង: ${t['time']!.text}\n";
-        if (t['status']!.text.isNotEmpty)
+        }
+        if (t['status']!.text.isNotEmpty) {
           structured += "  - ស្ថានភាព: ${t['status']!.text}\n";
-        if (t['dueDate']!.text.isNotEmpty)
+        }
+        if (t['dueDate']!.text.isNotEmpty) {
           structured += "  - កាលបរិច្ឆេទកំណត់: ${t['dueDate']!.text}\n";
-        if (t['description']!.text.isNotEmpty)
+        }
+        if (t['description']!.text.isNotEmpty) {
           structured += "  - ពិពណ៌នា: ${t['description']!.text}\n";
-        if (t['problem']!.text.isNotEmpty)
+        }
+        if (t['problem']!.text.isNotEmpty) {
           structured += "  - បញ្ហា: ${t['problem']!.text}\n";
-        if (t['solution']!.text.isNotEmpty)
+        }
+        if (t['solution']!.text.isNotEmpty) {
           structured += "  - ដំណោះស្រាយ: ${t['solution']!.text}\n";
+        }
       }
       if (!hasTasks) {
         structured += "_មិនមានកិច្ចការត្រូវរាយការណ៍_\n";
@@ -461,244 +467,239 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
     final topPadding = MediaQuery.of(context).padding.top + kToolbarHeight + 60;
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
-      padding: EdgeInsets.fromLTRB(20, topPadding, 20, 24),
+      padding: EdgeInsets.fromLTRB(
+        AppResponsive.horizontalPadding(context),
+        topPadding,
+        AppResponsive.horizontalPadding(context),
+        AppResponsive.bottomPadding(context),
+      ),
       child: FadeInUp(
         duration: const Duration(milliseconds: 400),
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: AppTheme.bgCard.withValues(alpha: 0.8),
-                borderRadius: BorderRadius.circular(32),
-                border: Border.all(
-                  color: AppTheme.textPrimary.withValues(alpha: 0.08),
+        child: AppResponsive.maxWidth(
+          context: context,
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: AppTheme.cardDecoration(
+                  color: AppTheme.bgCard.withValues(alpha: 0.8),
+                  radius: AppTheme.radiusXl,
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.3),
-                    blurRadius: 20,
-                    offset: const Offset(0, 10),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildLabelField(
-                          "អុីមែល",
-                          _buildFormTextField(
-                            controller: _emailController,
-                            readOnly: true,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: _buildLabelField(
-                          "ឈ្មោះ:",
-                          _buildFormTextField(
-                            controller: _nameController,
-                            readOnly: true,
-                            isKhmer: true,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-
-                  _buildLabelField(
-                    "តួនាទី",
-                    _isLoadingPositions
-                        ? Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 16,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppTheme.textPrimary.withValues(
-                                alpha: 0.05,
-                              ),
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: AppTheme.textPrimary.withValues(
-                                  alpha: 0.1,
-                                ),
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                SizedBox(
-                                  height: 16,
-                                  width: 16,
-                                  child: CircularProgressIndicator(
-                                    color: AppTheme.primary,
-                                    strokeWidth: 2,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Text(
-                                  "កំពុងផ្ទុក...",
-                                  style: GoogleFonts.kantumruyPro(
-                                    color: AppTheme.textPrimary.withValues(
-                                      alpha: 0.5,
-                                    ),
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          )
-                        : _positions.isEmpty
-                        ? Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 16,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppTheme.textPrimary.withValues(
-                                alpha: 0.05,
-                              ),
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: AppTheme.textPrimary.withValues(
-                                  alpha: 0.1,
-                                ),
-                              ),
-                            ),
-                            child: Text(
-                              "មិនមានតួនាទីដែលបានកំណត់",
-                              style: GoogleFonts.kantumruyPro(
-                                color: AppTheme.textPrimary.withValues(
-                                  alpha: 0.5,
-                                ),
-                                fontSize: 14,
-                              ),
-                            ),
-                          )
-                        : _buildDropdown(
-                            _selectedPosition,
-                            _positions
-                                .map((p) => p['name']?.toString() ?? '')
-                                .where((n) => n.isNotEmpty)
-                                .toList(),
-                            (v) => setState(() => _selectedPosition = v!),
-                          ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  _buildLabelField(
-                    "ថ្ងៃខែឆ្នាំ និងម៉ោង",
-                    _buildDatePicker(
-                      _selectedDate,
-                      (d) => setState(() => _selectedDate = d),
-                      showTime: true,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  if (_isComplexRole(context))
-                    _buildComplexForm()
-                  else
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                       children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              "របាយការណ៍ប្រចាំថ្ងៃ",
-                              style: GoogleFonts.kantumruyPro(
-                                color: AppTheme.textPrimary,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 15,
-                              ),
+                        Expanded(
+                          child: _buildLabelField(
+                            "អុីមែល",
+                            _buildFormTextField(
+                              controller: _emailController,
+                              readOnly: true,
                             ),
-                            TextButton.icon(
-                              onPressed: () {
-                                if (_reports.isNotEmpty) {
-                                  _contentController.text =
-                                      _reports.first['content'] ?? '';
-                                }
-                              },
-                              icon: const Icon(Icons.history_rounded, size: 18),
-                              label: Text(
-                                "របាយការណ៍ម្សិលមិញ",
-                                style: GoogleFonts.kantumruyPro(fontSize: 12),
-                              ),
-                              style: TextButton.styleFrom(
-                                foregroundColor: AppTheme.primaryLight,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        TextField(
-                          controller: _contentController,
-                          maxLines: 8,
-                          style: GoogleFonts.kantumruyPro(
-                            color: AppTheme.textPrimary,
-                            fontSize: 14,
                           ),
-                          decoration: _inputDecoration(
-                            "រៀបរាប់ពីការងាររបស់អ្នក...",
-                            icon: Icons.description_rounded,
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: _buildLabelField(
+                            "ឈ្មោះ:",
+                            _buildFormTextField(
+                              controller: _nameController,
+                              readOnly: true,
+                              isKhmer: true,
+                            ),
                           ),
                         ),
                       ],
                     ),
-                  const SizedBox(height: 32),
+                    const SizedBox(height: 20),
 
-                  SizedBox(
-                    width: double.infinity,
-                    height: 55,
-                    child: ElevatedButton(
-                      onPressed: _isSubmitting ? null : _submitReport,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.primary,
-                        foregroundColor: AppTheme.textPrimary,
-                        elevation: 8,
-                        shadowColor: AppTheme.primary.withValues(alpha: 0.4),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                      child: _isSubmitting
-                          ? SizedBox(
-                              height: 24,
-                              width: 24,
-                              child: CircularProgressIndicator(
-                                color: AppTheme.textPrimary,
-                                strokeWidth: 2,
+                    _buildLabelField(
+                      "តួនាទី",
+                      _isLoadingPositions
+                          ? Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 16,
                               ),
-                            )
-                          : Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(Icons.send_rounded, size: 20),
-                                const SizedBox(width: 12),
-                                Text(
-                                  "បញ្ជូនរបាយការណ៍",
-                                  style: GoogleFonts.kantumruyPro(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
+                              decoration: BoxDecoration(
+                                color: AppTheme.textPrimary.withValues(
+                                  alpha: 0.05,
+                                ),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: AppTheme.textPrimary.withValues(
+                                    alpha: 0.1,
                                   ),
                                 ),
-                              ],
+                              ),
+                              child: Row(
+                                children: [
+                                  SizedBox(
+                                    height: 16,
+                                    width: 16,
+                                    child: CircularProgressIndicator(
+                                      color: AppTheme.primary,
+                                      strokeWidth: 2,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Text(
+                                    "កំពុងផ្ទុក...",
+                                    style: GoogleFonts.kantumruyPro(
+                                      color: AppTheme.textPrimary.withValues(
+                                        alpha: 0.5,
+                                      ),
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : _positions.isEmpty
+                          ? Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 16,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppTheme.textPrimary.withValues(
+                                  alpha: 0.05,
+                                ),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: AppTheme.textPrimary.withValues(
+                                    alpha: 0.1,
+                                  ),
+                                ),
+                              ),
+                              child: Text(
+                                "មិនមានតួនាទីដែលបានកំណត់",
+                                style: GoogleFonts.kantumruyPro(
+                                  color: AppTheme.textPrimary.withValues(
+                                    alpha: 0.5,
+                                  ),
+                                  fontSize: 14,
+                                ),
+                              ),
+                            )
+                          : _buildDropdown(
+                              _selectedPosition,
+                              _positions
+                                  .map((p) => p['name']?.toString() ?? '')
+                                  .where((n) => n.isNotEmpty)
+                                  .toList(),
+                              (v) => setState(() => _selectedPosition = v!),
                             ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 20),
+
+                    _buildLabelField(
+                      "ថ្ងៃខែឆ្នាំ និងម៉ោង",
+                      _buildDatePicker(
+                        _selectedDate,
+                        (d) => setState(() => _selectedDate = d),
+                        showTime: true,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    if (_isComplexRole(context))
+                      _buildComplexForm()
+                    else
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                "របាយការណ៍ប្រចាំថ្ងៃ",
+                                style: GoogleFonts.kantumruyPro(
+                                  color: AppTheme.textPrimary,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                ),
+                              ),
+                              TextButton.icon(
+                                onPressed: () {
+                                  if (_reports.isNotEmpty) {
+                                    _contentController.text =
+                                        _reports.first['content'] ?? '';
+                                  }
+                                },
+                                icon: const Icon(
+                                  Icons.history_rounded,
+                                  size: 18,
+                                ),
+                                label: Text(
+                                  "របាយការណ៍ម្សិលមិញ",
+                                  style: GoogleFonts.kantumruyPro(fontSize: 12),
+                                ),
+                                style: TextButton.styleFrom(
+                                  foregroundColor: AppTheme.primaryLight,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          TextField(
+                            controller: _contentController,
+                            maxLines: 8,
+                            style: GoogleFonts.kantumruyPro(
+                              color: AppTheme.textPrimary,
+                              fontSize: 14,
+                            ),
+                            decoration: _inputDecoration(
+                              "រៀបរាប់ពីការងាររបស់អ្នក...",
+                              icon: Icons.description_rounded,
+                            ),
+                          ),
+                        ],
+                      ),
+                    const SizedBox(height: 32),
+
+                    SizedBox(
+                      width: double.infinity,
+                      height: 55,
+                      child: ElevatedButton(
+                        onPressed: _isSubmitting ? null : _submitReport,
+                        style: AppTheme.filledButtonStyle(
+                          backgroundColor: AppTheme.primary,
+                        ),
+                        child: _isSubmitting
+                            ? SizedBox(
+                                height: 24,
+                                width: 24,
+                                child: CircularProgressIndicator(
+                                  color: AppTheme.textPrimary,
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(Icons.send_rounded, size: 20),
+                                  const SizedBox(width: 12),
+                                  Text(
+                                    "បញ្ជូនរបាយការណ៍",
+                                    style: GoogleFonts.kantumruyPro(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -790,7 +791,12 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
 
     if (_isLoading) {
       return ListView.builder(
-        padding: EdgeInsets.fromLTRB(20, topPadding, 20, 24),
+        padding: EdgeInsets.fromLTRB(
+          AppResponsive.horizontalPadding(context),
+          topPadding,
+          AppResponsive.horizontalPadding(context),
+          AppResponsive.bottomPadding(context),
+        ),
         itemCount: 5,
         itemBuilder: (_, i) => Padding(
           padding: const EdgeInsets.only(bottom: 14),
@@ -808,24 +814,11 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
     }
 
     if (_reports.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.description_outlined,
-              color: AppTheme.textPrimary.withValues(alpha: 0.10),
-              size: 72,
-            ),
-            const SizedBox(height: 14),
-            Text(
-              'មិនទាន់មានរបាយការណ៍នៅឡើយ',
-              style: GoogleFonts.kantumruyPro(
-                color: AppTheme.textPrimary.withValues(alpha: 0.38),
-              ),
-            ),
-          ],
-        ),
+      return AppStateView(
+        icon: Icons.description_outlined,
+        title: 'មិនទាន់មានរបាយការណ៍នៅឡើយ',
+        message: 'របាយការណ៍ដែលបានបញ្ជូននឹងបង្ហាញនៅទីនេះ',
+        color: AppTheme.primary,
       );
     }
 
@@ -887,12 +880,18 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
     final topMargin =
         MediaQuery.of(context).padding.top + kToolbarHeight + offset;
     return Container(
-      margin: EdgeInsets.fromLTRB(20, topMargin, 20, 10),
+      margin: EdgeInsets.fromLTRB(
+        AppResponsive.horizontalPadding(context),
+        topMargin,
+        AppResponsive.horizontalPadding(context),
+        10,
+      ),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
+      decoration: AppTheme.cardDecoration(
         color: AppTheme.bgCard.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.textPrimary.withValues(alpha: 0.07)),
+        radius: AppTheme.radiusSm,
+        borderColor: AppTheme.cardBorder,
+        shadows: const [],
       ),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
@@ -947,13 +946,20 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
   }
 
   Widget _buildTreeBody(dynamic treeUncast, bool isAdmin) {
+    EdgeInsets listPadding({double top = 6}) => EdgeInsets.fromLTRB(
+      AppResponsive.horizontalPadding(context),
+      top,
+      AppResponsive.horizontalPadding(context),
+      AppResponsive.bottomPadding(context),
+    );
+
     if (isAdmin) {
       Map<int, Map<String, Map<int, Map<int, List<dynamic>>>>> tree =
           treeUncast;
       if (_treeLevel == 0) {
         final years = tree.keys.toList()..sort((a, b) => b.compareTo(a));
         return ListView.builder(
-          padding: const EdgeInsets.fromLTRB(20, 6, 20, 24),
+          padding: listPadding(),
           itemCount: years.length,
           itemBuilder: (_, i) {
             final y = years[i];
@@ -981,7 +987,7 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
             tree[_treeYear] ?? {};
         final names = t.keys.toList()..sort();
         return ListView.builder(
-          padding: const EdgeInsets.fromLTRB(20, 6, 20, 24),
+          padding: listPadding(),
           itemCount: names.length,
           itemBuilder: (_, i) {
             final name = names[i];
@@ -1005,7 +1011,7 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
         Map<int, Map<int, List<dynamic>>> t = tree[_treeYear]?[_treeName] ?? {};
         final months = t.keys.toList()..sort((a, b) => b.compareTo(a));
         return ListView.builder(
-          padding: const EdgeInsets.fromLTRB(20, 6, 20, 24),
+          padding: listPadding(),
           itemCount: months.length,
           itemBuilder: (_, i) {
             final m = months[i];
@@ -1032,7 +1038,7 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
             tree[_treeYear]?[_treeName]?[_treeMonth] ?? {};
         final days = t.keys.toList()..sort((a, b) => b.compareTo(a));
         return ListView.builder(
-          padding: const EdgeInsets.fromLTRB(20, 6, 20, 24),
+          padding: listPadding(),
           itemCount: days.length,
           itemBuilder: (_, i) {
             final d = days[i];
@@ -1057,17 +1063,19 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
         List<dynamic> dayReports =
             tree[_treeYear]?[_treeName]?[_treeMonth]?[_treeDay] ?? [];
         if (dayReports.isEmpty) {
-          return Center(
-            child: Text(
-              'មិនមានរបាយការណ៍',
-              style: GoogleFonts.kantumruyPro(color: AppTheme.textMuted),
-            ),
+          return AppStateView(
+            icon: Icons.folder_open_rounded,
+            title: 'មិនមានរបាយការណ៍',
+            color: AppTheme.primary,
           );
         }
         return ListView.builder(
-          padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+          padding: listPadding(top: 4),
           itemCount: dayReports.length,
-          itemBuilder: (_, i) => _buildReportCard(dayReports[i]),
+          itemBuilder: (_, i) => AppResponsive.maxWidth(
+            context: context,
+            child: _buildReportCard(dayReports[i]),
+          ),
         );
       }
     } else {
@@ -1075,7 +1083,7 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
       if (_treeLevel == 0) {
         final years = tree.keys.toList()..sort((a, b) => b.compareTo(a));
         return ListView.builder(
-          padding: const EdgeInsets.fromLTRB(20, 6, 20, 24),
+          padding: listPadding(),
           itemCount: years.length,
           itemBuilder: (_, i) {
             final y = years[i];
@@ -1099,7 +1107,7 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
         final months = (tree[_treeYear] ?? {}).keys.toList()
           ..sort((a, b) => b.compareTo(a));
         return ListView.builder(
-          padding: const EdgeInsets.fromLTRB(20, 6, 20, 24),
+          padding: listPadding(),
           itemCount: months.length,
           itemBuilder: (_, i) {
             final m = months[i];
@@ -1124,7 +1132,7 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
         final days = (tree[_treeYear]?[_treeMonth] ?? {}).keys.toList()
           ..sort((a, b) => b.compareTo(a));
         return ListView.builder(
-          padding: const EdgeInsets.fromLTRB(20, 6, 20, 24),
+          padding: listPadding(),
           itemCount: days.length,
           itemBuilder: (_, i) {
             final d = days[i];
@@ -1147,17 +1155,19 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
       }
       final dayReports = (tree[_treeYear]?[_treeMonth]?[_treeDay] ?? []);
       if (dayReports.isEmpty) {
-        return Center(
-          child: Text(
-            'មិនមានរបាយការណ៍',
-            style: GoogleFonts.kantumruyPro(color: AppTheme.textMuted),
-          ),
+        return AppStateView(
+          icon: Icons.folder_open_rounded,
+          title: 'មិនមានរបាយការណ៍',
+          color: AppTheme.primary,
         );
       }
       return ListView.builder(
-        padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+        padding: listPadding(top: 4),
         itemCount: dayReports.length,
-        itemBuilder: (_, i) => _buildReportCard(dayReports[i]),
+        itemBuilder: (_, i) => AppResponsive.maxWidth(
+          context: context,
+          child: _buildReportCard(dayReports[i]),
+        ),
       );
     }
   }
@@ -1994,10 +2004,11 @@ class _DailyReportScreenshotPreviewState
         }
       }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('បរាជ័យ: $e')));
+      }
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }

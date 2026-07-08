@@ -105,9 +105,12 @@ class UserProvider with ChangeNotifier {
   String? _token;
   String? _userType; // scan_user_type (legacy: 'admin','worker','skill')
   String?
+  _legacyUserRole; // user_role from older accounts: Admin, Worker, Employee
+  String?
   _systemRoleStr; // system_role from DB: 'Employee','Worker','Skills','IT','Admin','HRM','Accounting'
   String? _systemRoleLabel; // display label
-  String? _position; // user position/department from profile
+  String? _department;
+  String? _position;
   String? _phone;
   String? _email;
   bool _isLoggedIn = false;
@@ -120,6 +123,7 @@ class UserProvider with ChangeNotifier {
   String? get avatar => _avatar;
   String? get token => _token;
   String? get userType => _userType;
+  String? get department => _department;
   String? get position => _position;
   String? get phone => _phone;
   String? get email => _email;
@@ -169,18 +173,23 @@ class UserProvider with ChangeNotifier {
 
   /// Get list of material request locations from server settings
   List<String> get materialLocations {
-    final String raw = (_settings['material_request_locations'] ?? '').toString();
+    final String raw = (_settings['material_request_locations'] ?? '')
+        .toString();
     if (raw.trim().isEmpty) {
       return ['Main Office (318)', 'Factory 1 (NR3)', 'Factory 2 (KS2)'];
     }
-    return raw.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+    return raw
+        .split(',')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
   }
 
   /// Raw DB system_role string
   String get systemRoleStr => _systemRoleStr ?? 'Employee';
 
   /// Parsed enum
-  SystemRole get systemRole => systemRoleFromString(_systemRoleStr);
+  SystemRole get systemRole => systemRoleFromString(_effectiveSystemRoleString);
 
   /// Label for display (ខ្មែរ + English)
   String get systemRoleLabel => _systemRoleLabel ?? systemRole.label;
@@ -192,6 +201,34 @@ class UserProvider with ChangeNotifier {
 
   final ApiService _apiService = ApiService();
 
+  String get _effectiveSystemRoleString {
+    final systemRole = (_systemRoleStr ?? '').trim();
+    final legacyRole = (_legacyUserRole ?? '').trim();
+
+    if (systemRole.isNotEmpty && systemRole.toLowerCase() != 'employee') {
+      return systemRole;
+    }
+    if (legacyRole.toLowerCase() == 'worker') {
+      return 'Worker';
+    }
+    if (legacyRole.toLowerCase() == 'admin') {
+      return 'Admin';
+    }
+    return systemRole.isNotEmpty ? systemRole : 'Employee';
+  }
+
+  String _resolveSystemRoleString(dynamic systemRole, dynamic legacyRole) {
+    final systemRoleText = (systemRole ?? '').toString().trim();
+    final legacyRoleText = (legacyRole ?? '').toString().trim();
+    if (systemRoleText.isNotEmpty &&
+        systemRoleText.toLowerCase() != 'employee') {
+      return systemRoleText;
+    }
+    if (legacyRoleText.toLowerCase() == 'worker') return 'Worker';
+    if (legacyRoleText.toLowerCase() == 'admin') return 'Admin';
+    return systemRoleText.isNotEmpty ? systemRoleText : 'Employee';
+  }
+
   Future<void> loadSavedUser() async {
     final prefs = await SharedPreferences.getInstance();
     _token = prefs.getString('auth_token');
@@ -199,8 +236,10 @@ class UserProvider with ChangeNotifier {
     _name = prefs.getString('user_name');
     _avatar = prefs.getString('avatar');
     _userType = prefs.getString('scan_user_type');
+    _legacyUserRole = prefs.getString('user_role');
     _systemRoleStr = prefs.getString('system_role') ?? 'Employee';
     _systemRoleLabel = prefs.getString('system_role_label') ?? '';
+    _department = prefs.getString('user_department');
     _position = prefs.getString('user_position');
     _phone = prefs.getString('user_phone');
     _email = prefs.getString('user_email');
@@ -259,12 +298,14 @@ class UserProvider with ChangeNotifier {
         if (fcmToken != null) {
           final platformName = kIsWeb
               ? 'Web'
-              : (defaultTargetPlatform == TargetPlatform.android ? 'Android' : 'iOS');
+              : (defaultTargetPlatform == TargetPlatform.android
+                    ? 'Android'
+                    : 'iOS');
 
           debugPrint("🔔 FCM REGISTRATION TOKEN ($platformName):");
           debugPrint(fcmToken);
           debugPrint("------------------------------------------");
-          
+
           await _apiService.updateFcmToken(fcmToken, platform: platformName);
         }
       } catch (e) {
@@ -281,15 +322,24 @@ class UserProvider with ChangeNotifier {
       _employeeId = result['user']['id']?.toString();
       _name = result['user']['name'] as String?;
       _avatar = result['user']['avatar'] as String?;
+      _department = result['user']['department'] as String?;
       _position = result['user']['position'] as String?;
       _phone = result['user']['phone']?.toString();
       _email = result['user']['email'] as String?;
       _userType = userType;
+      _legacyUserRole = result['user']['role']?.toString();
       // Pull system_role from server response (new fields)
-      _systemRoleStr = (result['user']['system_role'] as String?) ?? userType;
+      _systemRoleStr = _resolveSystemRoleString(
+        result['user']['system_role'],
+        result['user']['role'],
+      );
       _systemRoleLabel = (result['user']['system_role_label'] as String?) ?? '';
       _isVerified = (result['user']['is_verified'] ?? 0).toString() == '1';
-      _attendanceStreak = int.tryParse(result['user']['attendance_streak']?.toString() ?? '0') ?? 0;
+      _attendanceStreak =
+          int.tryParse(
+            result['user']['attendance_streak']?.toString() ?? '0',
+          ) ??
+          0;
       _isLoggedIn = true;
 
       final prefs = await SharedPreferences.getInstance();
@@ -306,9 +356,19 @@ class UserProvider with ChangeNotifier {
       } else {
         await prefs.remove('user_position');
       }
+      if (_department != null && _department!.isNotEmpty) {
+        await prefs.setString('user_department', _department!);
+      } else {
+        await prefs.remove('user_department');
+      }
       if (_phone != null) await prefs.setString('user_phone', _phone!);
       if (_email != null) await prefs.setString('user_email', _email!);
       await prefs.setString('scan_user_type', _userType!);
+      if (_legacyUserRole != null && _legacyUserRole!.isNotEmpty) {
+        await prefs.setString('user_role', _legacyUserRole!);
+      } else {
+        await prefs.remove('user_role');
+      }
       await prefs.setString('system_role', _systemRoleStr!);
       await prefs.setString('system_role_label', _systemRoleLabel!);
       await prefs.setBool('is_verified', _isVerified);
@@ -338,12 +398,17 @@ class UserProvider with ChangeNotifier {
       _position = user['position'] as String?;
       _phone = user['phone']?.toString();
       _email = user['email'] as String?;
-      _systemRoleStr =
-          (user['system_role'] as String?) ?? _systemRoleStr ?? 'Employee';
+      _department = user['department'] as String?;
+      _legacyUserRole = user['role']?.toString() ?? _legacyUserRole;
+      _systemRoleStr = _resolveSystemRoleString(
+        user['system_role'],
+        user['role'],
+      );
       _systemRoleLabel =
           (user['system_role_label'] as String?) ?? _systemRoleLabel ?? '';
       _isVerified = (user['is_verified'] ?? 0).toString() == '1';
-      _attendanceStreak = int.tryParse(user['attendance_streak']?.toString() ?? '0') ?? 0;
+      _attendanceStreak =
+          int.tryParse(user['attendance_streak']?.toString() ?? '0') ?? 0;
 
       final prefs = await SharedPreferences.getInstance();
       if (_employeeId != null) {
@@ -362,8 +427,16 @@ class UserProvider with ChangeNotifier {
       } else {
         await prefs.remove('user_position');
       }
+      if (_department != null && _department!.isNotEmpty) {
+        await prefs.setString('user_department', _department!);
+      } else {
+        await prefs.remove('user_department');
+      }
       if (_phone != null) await prefs.setString('user_phone', _phone!);
       if (_email != null) await prefs.setString('user_email', _email!);
+      if (_legacyUserRole != null && _legacyUserRole!.isNotEmpty) {
+        await prefs.setString('user_role', _legacyUserRole!);
+      }
       if (_systemRoleStr != null) {
         await prefs.setString('system_role', _systemRoleStr!);
       }
@@ -382,11 +455,11 @@ class UserProvider with ChangeNotifier {
       final result = await _apiService.fetchAppConfig();
       if (result['success'] == true && result['settings'] != null) {
         final newSettings = Map<String, dynamic>.from(result['settings']);
-        
+
         // Only trigger update if settings have changed
         if (json.encode(newSettings) != json.encode(_settings)) {
           _settings = newSettings;
-          
+
           // Cache it for instant loading next time
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString('app_settings', json.encode(_settings));
@@ -432,9 +505,11 @@ class UserProvider with ChangeNotifier {
     await prefs.remove('user_name');
     await prefs.remove('avatar');
     await prefs.remove('user_position');
+    await prefs.remove('user_department');
     await prefs.remove('user_phone');
     await prefs.remove('user_email');
     await prefs.remove('scan_user_type');
+    await prefs.remove('user_role');
     await prefs.remove('system_role');
     await prefs.remove('system_role_label');
     await prefs.remove('is_verified');
@@ -442,24 +517,26 @@ class UserProvider with ChangeNotifier {
     await prefs.remove('current_active_trip_id');
     await prefs.remove('last_checkin_time');
     await prefs.remove('streak_last_date');
-    
+
     _token = null;
     _employeeId = null;
     _name = null;
     _avatar = null;
     _userType = null;
+    _legacyUserRole = null;
     _systemRoleStr = null;
     _systemRoleLabel = null;
+    _department = null;
     _position = null;
     _phone = null;
     _email = null;
     _isLoggedIn = false;
     _isVerified = false;
     _attendanceStreak = 0;
-    
-    // ចំណាំ៖ យើងមិនលុប _name, _avatar, _employeeId និង _settings ចោលទេ 
+
+    // ចំណាំ៖ យើងមិនលុប _name, _avatar, _employeeId និង _settings ចោលទេ
     // ដើម្បីឱ្យ Header ខាងលើ និងប៊ូតុង Quick Actions នៅបង្ហាញដដែល (Smooth UI)
-    
+
     notifyListeners();
   }
 }

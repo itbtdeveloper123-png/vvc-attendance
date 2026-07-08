@@ -46,7 +46,7 @@ class _RequestListScreenState extends State<RequestListScreen> {
     super.initState();
     _loadData();
     _searchController.addListener(_onSearch);
-    
+
     // Auto-polling for real-time vibe
     _pollingTimer = Timer.periodic(const Duration(seconds: 15), (timer) {
       if (mounted) {
@@ -308,89 +308,61 @@ class _RequestListScreenState extends State<RequestListScreen> {
               children: [
                 SizedBox(height: MediaQuery.of(context).padding.top + 70),
                 // Search Bar
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-                        child: Container(
-                          height: 48,
-                          decoration: BoxDecoration(
-                            color: AppTheme.textPrimary.withValues(alpha: 0.07),
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(
-                              color: AppTheme.textPrimary.withValues(alpha: 0.1),
-                            ),
+                Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    AppResponsive.horizontalPadding(context),
+                    0,
+                    AppResponsive.horizontalPadding(context),
+                    12,
+                  ),
+                  child: AppSearchField(
+                    controller: _searchController,
+                    hintText: 'ស្វែងរក ID, ឈ្មោះ, ប្រភេទ, ឬផ្នែក...',
+                  ),
+                ),
+
+                // Summary statistics
+                if (!_isLoading && _requests.isNotEmpty) _buildSummaryRow(),
+
+                // Main list
+                Expanded(
+                  child: _isLoading
+                      ? Center(
+                          child: CircularProgressIndicator(
+                            color: AppTheme.primary,
                           ),
-                          child: TextField(
-                            controller: _searchController,
-                            style: GoogleFonts.kantumruyPro(
-                              color: AppTheme.textPrimary,
-                              fontSize: 14,
-                            ),
-                            decoration: InputDecoration(
-                              hintText: 'ស្វែងរក ID, ឈ្មោះ, ប្រភេទ, ឬផ្នែក...',
-                              hintStyle: GoogleFonts.kantumruyPro(
-                                color: AppTheme.textPrimary.withValues(alpha: 0.38),
-                                fontSize: 13,
-                              ),
-                              prefixIcon: Icon(
-                                Icons.search_rounded,
-                                color: AppTheme.textPrimary.withValues(alpha: 0.38),
-                                size: 20,
-                              ),
-                              suffixIcon: _searchController.text.isNotEmpty
-                                  ? IconButton(
-                                      icon: Icon(
-                                        Icons.clear_rounded,
-                                        color: AppTheme.textPrimary.withValues(alpha: 0.38),
-                                        size: 18,
+                        )
+                      : RefreshIndicator(
+                          onRefresh: _loadData,
+                          color: AppTheme.primary,
+                          child: _filtered.isEmpty
+                              ? _buildEmptyState()
+                              : AnimationLimiter(
+                                  child: ListView.builder(
+                                    padding: EdgeInsets.fromLTRB(
+                                      AppResponsive.horizontalPadding(context),
+                                      0,
+                                      AppResponsive.horizontalPadding(context),
+                                      AppResponsive.bottomPadding(
+                                        context,
+                                        hasBottomNav:
+                                            ModalRoute.of(context)?.isFirst ??
+                                            false,
                                       ),
-                                      onPressed: () {
-                                        _searchController.clear();
-                                      },
-                                    )
-                                  : null,
-                              border: InputBorder.none,
-                              contentPadding: const EdgeInsets.symmetric(
-                                vertical: 14,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-
-                      // Summary statistics
-                      if (!_isLoading && _requests.isNotEmpty)
-                        _buildSummaryRow(),
-
-                      // Main list
-                      Expanded(
-                        child: _isLoading
-                            ? Center(
-                                child: CircularProgressIndicator(
-                                  color: AppTheme.primary,
-                                ),
-                              )
-                            : RefreshIndicator(
-                                onRefresh: _loadData,
-                                color: AppTheme.primary,
-                                child: _filtered.isEmpty
-                                    ? _buildEmptyState()
-                                    : AnimationLimiter(
-                                        child: ListView.builder(
-                                          padding: const EdgeInsets.fromLTRB(
-                                            20,
-                                            0,
-                                            20,
-                                            110,
+                                    ),
+                                    physics: const BouncingScrollPhysics(),
+                                    itemCount: _filtered.length,
+                                    itemBuilder: (context, index) =>
+                                        AnimationConfiguration.staggeredList(
+                                          position: index,
+                                          duration: const Duration(
+                                            milliseconds: 400,
                                           ),
-                                          physics: const BouncingScrollPhysics(),
-                                          itemCount: _filtered.length,
-                                          itemBuilder: (context, index) =>
-                                              AnimationConfiguration.staggeredList(
-                                            position: index,
-                                            duration: const Duration(milliseconds: 400),
-                                            child: SlideAnimation(
-                                              verticalOffset: 50.0,
-                                              child: FadeInAnimation(
+                                          child: SlideAnimation(
+                                            verticalOffset: 50.0,
+                                            child: FadeInAnimation(
+                                              child: AppResponsive.maxWidth(
+                                                context: context,
                                                 child: _buildRequestCard(
                                                   _filtered[index],
                                                   index,
@@ -399,15 +371,16 @@ class _RequestListScreenState extends State<RequestListScreen> {
                                             ),
                                           ),
                                         ),
-                                      ),
-                                    ),
-                              ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            );
+                                  ),
+                                ),
+                        ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildSummaryRow() {
@@ -422,7 +395,12 @@ class _RequestListScreenState extends State<RequestListScreen> {
         .length;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+      padding: EdgeInsets.fromLTRB(
+        AppResponsive.horizontalPadding(context),
+        0,
+        AppResponsive.horizontalPadding(context),
+        12,
+      ),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
@@ -485,6 +463,15 @@ class _RequestListScreenState extends State<RequestListScreen> {
 
   Widget _buildEmptyState() {
     return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(
+        parent: BouncingScrollPhysics(),
+      ),
+      padding: EdgeInsets.only(
+        bottom: AppResponsive.bottomPadding(
+          context,
+          hasBottomNav: ModalRoute.of(context)?.isFirst ?? false,
+        ),
+      ),
       child: Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -550,7 +537,9 @@ class _RequestListScreenState extends State<RequestListScreen> {
                   decoration: BoxDecoration(
                     color: Colors.orange.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+                    border: Border.all(
+                      color: Colors.orange.withValues(alpha: 0.3),
+                    ),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -699,21 +688,22 @@ class _RequestListScreenState extends State<RequestListScreen> {
                               border: Border.all(
                                 color: AppTheme.primary.withValues(alpha: 0.3),
                               ),
-                              image: (item['user_avatar'] != null &&
-                                      item['user_avatar']
-                                          .toString()
-                                          .isNotEmpty)
+                              image:
+                                  (item['user_avatar'] != null &&
+                                      item['user_avatar'].toString().isNotEmpty)
                                   ? DecorationImage(
                                       image: NetworkImage(
                                         ApiService.getFullImageUrl(
-                                            item['user_avatar'].toString()),
+                                          item['user_avatar'].toString(),
+                                        ),
                                       ),
                                       fit: BoxFit.cover,
                                     )
                                   : null,
                             ),
                             alignment: Alignment.center,
-                            child: (item['user_avatar'] == null ||
+                            child:
+                                (item['user_avatar'] == null ||
                                     item['user_avatar'].toString().isEmpty)
                                 ? Text(
                                     _initials(name),
@@ -740,12 +730,14 @@ class _RequestListScreenState extends State<RequestListScreen> {
                                 ),
                                 if (dept.isNotEmpty || branch.isNotEmpty)
                                   Text(
-                                    [dept, branch]
-                                        .where((s) => s.isNotEmpty)
-                                        .join(' · '),
+                                    [
+                                      dept,
+                                      branch,
+                                    ].where((s) => s.isNotEmpty).join(' · '),
                                     style: GoogleFonts.kantumruyPro(
-                                      color: AppTheme.textPrimary
-                                          .withValues(alpha: 0.54),
+                                      color: AppTheme.textPrimary.withValues(
+                                        alpha: 0.54,
+                                      ),
                                       fontSize: 11,
                                     ),
                                   ),
@@ -768,8 +760,9 @@ class _RequestListScreenState extends State<RequestListScreen> {
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: GoogleFonts.kantumruyPro(
-                              color:
-                                  AppTheme.textPrimary.withValues(alpha: 0.70),
+                              color: AppTheme.textPrimary.withValues(
+                                alpha: 0.70,
+                              ),
                               fontSize: 12,
                             ),
                           ),
@@ -778,8 +771,9 @@ class _RequestListScreenState extends State<RequestListScreen> {
 
                       const SizedBox(height: 10),
                       Divider(
-                          color: AppTheme.textPrimary.withValues(alpha: 0.10),
-                          height: 1),
+                        color: AppTheme.textPrimary.withValues(alpha: 0.10),
+                        height: 1,
+                      ),
                       const SizedBox(height: 10),
 
                       // Footer: date + time
@@ -790,16 +784,18 @@ class _RequestListScreenState extends State<RequestListScreen> {
                             children: [
                               Icon(
                                 Icons.calendar_today_rounded,
-                                color: AppTheme.textPrimary
-                                    .withValues(alpha: 0.38),
+                                color: AppTheme.textPrimary.withValues(
+                                  alpha: 0.38,
+                                ),
                                 size: 13,
                               ),
                               const SizedBox(width: 5),
                               Text(
                                 reqDate,
                                 style: GoogleFonts.inter(
-                                  color: AppTheme.textPrimary
-                                      .withValues(alpha: 0.54),
+                                  color: AppTheme.textPrimary.withValues(
+                                    alpha: 0.54,
+                                  ),
                                   fontSize: 11,
                                 ),
                               ),
@@ -809,8 +805,9 @@ class _RequestListScreenState extends State<RequestListScreen> {
                             Text(
                               createdTime,
                               style: GoogleFonts.inter(
-                                color: AppTheme.textPrimary
-                                    .withValues(alpha: 0.30),
+                                color: AppTheme.textPrimary.withValues(
+                                  alpha: 0.30,
+                                ),
                                 fontSize: 10,
                               ),
                             ),
@@ -819,8 +816,9 @@ class _RequestListScreenState extends State<RequestListScreen> {
                             Text(
                               '#${item['id']}',
                               style: GoogleFonts.inter(
-                                color: AppTheme.textPrimary
-                                    .withValues(alpha: 0.24),
+                                color: AppTheme.textPrimary.withValues(
+                                  alpha: 0.24,
+                                ),
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -922,7 +920,10 @@ class _RequestListScreenState extends State<RequestListScreen> {
                   ),
                 ),
 
-                Divider(color: AppTheme.textPrimary.withValues(alpha: 0.10), height: 20),
+                Divider(
+                  color: AppTheme.textPrimary.withValues(alpha: 0.10),
+                  height: 20,
+                ),
 
                 // Scrollable content
                 Expanded(
@@ -1225,7 +1226,9 @@ class _RequestListScreenState extends State<RequestListScreen> {
                       ElevatedButton(
                         onPressed: () => Navigator.pop(context),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.textPrimary.withValues(alpha: 0.10),
+                          backgroundColor: AppTheme.textPrimary.withValues(
+                            alpha: 0.10,
+                          ),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14),
                           ),
@@ -1270,7 +1273,9 @@ class _RequestListScreenState extends State<RequestListScreen> {
           children: [
             Text(
               "តើអ្នកពិតជាចង់ ${status == 'approved' ? 'អនុម័ត' : 'បដិសេធ'} សំណើនេះមែនទេ?",
-              style: GoogleFonts.kantumruyPro(color: AppTheme.textPrimary.withValues(alpha: 0.70)),
+              style: GoogleFonts.kantumruyPro(
+                color: AppTheme.textPrimary.withValues(alpha: 0.70),
+              ),
             ),
             const SizedBox(height: 16),
             TextField(
@@ -1278,7 +1283,9 @@ class _RequestListScreenState extends State<RequestListScreen> {
               style: TextStyle(color: AppTheme.textPrimary),
               decoration: InputDecoration(
                 hintText: "មតិយោបល់ (Admin Comment)...",
-                hintStyle: TextStyle(color: AppTheme.textPrimary.withValues(alpha: 0.30)),
+                hintStyle: TextStyle(
+                  color: AppTheme.textPrimary.withValues(alpha: 0.30),
+                ),
                 filled: true,
                 fillColor: AppTheme.textPrimary.withValues(alpha: 0.05),
                 border: OutlineInputBorder(
@@ -1294,7 +1301,9 @@ class _RequestListScreenState extends State<RequestListScreen> {
             onPressed: () => Navigator.pop(ctx, false),
             child: Text(
               "បោះបង់",
-              style: GoogleFonts.kantumruyPro(color: AppTheme.textPrimary.withValues(alpha: 0.38)),
+              style: GoogleFonts.kantumruyPro(
+                color: AppTheme.textPrimary.withValues(alpha: 0.38),
+              ),
             ),
           ),
           ElevatedButton(
@@ -1372,8 +1381,7 @@ class _RequestListScreenState extends State<RequestListScreen> {
               (item['department_head_signature'] ?? '').toString().isEmpty)) {
         final sigRes = await _api.fetchRequestSignatures(item['id'] as int);
         if (sigRes['success'] == true && sigRes['signatures'] is Map) {
-          final sigMap =
-              Map<String, dynamic>.from(sigRes['signatures'] as Map);
+          final sigMap = Map<String, dynamic>.from(sigRes['signatures'] as Map);
           item = {...item, ...sigMap};
         }
       }
@@ -1882,7 +1890,9 @@ class _RequestListScreenState extends State<RequestListScreen> {
             decoration: BoxDecoration(
               color: AppTheme.textPrimary.withValues(alpha: 0.03),
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppTheme.textPrimary.withValues(alpha: 0.07)),
+              border: Border.all(
+                color: AppTheme.textPrimary.withValues(alpha: 0.07),
+              ),
             ),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Column(children: children),
@@ -1947,13 +1957,17 @@ class _RequestListScreenState extends State<RequestListScreen> {
             decoration: BoxDecoration(
               color: AppTheme.textPrimary.withValues(alpha: 0.06),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppTheme.textPrimary.withValues(alpha: 0.12)),
+              border: Border.all(
+                color: AppTheme.textPrimary.withValues(alpha: 0.12),
+              ),
             ),
             child: Image.memory(
               base64.decode(base64Data),
               fit: BoxFit.contain,
-              errorBuilder: (_, _, _) =>
-                  Icon(Icons.broken_image_rounded, color: AppTheme.textPrimary.withValues(alpha: 0.24)),
+              errorBuilder: (_, _, _) => Icon(
+                Icons.broken_image_rounded,
+                color: AppTheme.textPrimary.withValues(alpha: 0.24),
+              ),
             ),
           ),
         ],
@@ -1976,14 +1990,18 @@ class _RequestListScreenState extends State<RequestListScreen> {
         ),
         content: Text(
           "តើអ្នកពិតជាចង់លុបសំណើ #$id មែនទេ?",
-          style: GoogleFonts.kantumruyPro(color: AppTheme.textPrimary.withValues(alpha: 0.70)),
+          style: GoogleFonts.kantumruyPro(
+            color: AppTheme.textPrimary.withValues(alpha: 0.70),
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogCtx),
             child: Text(
               "បោះបង់",
-              style: GoogleFonts.kantumruyPro(color: AppTheme.textPrimary.withValues(alpha: 0.38)),
+              style: GoogleFonts.kantumruyPro(
+                color: AppTheme.textPrimary.withValues(alpha: 0.38),
+              ),
             ),
           ),
           TextButton(

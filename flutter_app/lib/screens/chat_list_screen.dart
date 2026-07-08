@@ -298,35 +298,14 @@ class _ChatListScreenState extends State<ChatListScreen> {
       padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
       child: FadeInDown(
         duration: const Duration(milliseconds: 400),
-        child: Container(
-          decoration: BoxDecoration(
-            color: AppTheme.bgCard.withValues(alpha: 0.4),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: AppTheme.textPrimary.withValues(alpha: 0.05),
-            ),
-          ),
-          child: TextField(
-            onChanged: _filterUsers,
-            style: GoogleFonts.kantumruyPro(color: AppTheme.textPrimary),
-            decoration: InputDecoration(
-              hintText: "ស្វែងរកឈ្មោះបុគ្គលិក ឬផ្នែក...",
-              hintStyle: GoogleFonts.kantumruyPro(
-                color: AppTheme.textMuted,
-                fontSize: 13,
-              ),
-              prefixIcon: Icon(
-                Icons.search_rounded,
-                color: AppTheme.primaryLight,
-                size: 20,
-              ),
-              border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 20,
-                vertical: 15,
-              ),
-            ),
-          ),
+        child: AppSearchField(
+          hintText: "ស្វែងរកឈ្មោះបុគ្គលិក ឬផ្នែក...",
+          onChanged: _filterUsers,
+          borderRadius: 20,
+          backgroundColor: AppTheme.bgCard.withValues(alpha: 0.4),
+          borderColor: AppTheme.textPrimary.withValues(alpha: 0.05),
+          iconColor: AppTheme.primaryLight,
+          hintColor: AppTheme.textMuted,
         ),
       ),
     );
@@ -579,8 +558,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
   }
 
   Widget _buildUnreadBadge(String targetId) {
-    if (targetId == 'ALL' || currentUserId.isEmpty)
+    if (targetId == 'ALL' || currentUserId.isEmpty) {
       return const SizedBox.shrink();
+    }
     List<String> ids = [currentUserId, targetId];
     ids.sort();
     final roomId = "PRIVATE_${ids[0]}_${ids[1]}";
@@ -597,8 +577,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
     return StreamBuilder<QuerySnapshot>(
       stream: _unreadStreams[roomId],
       builder: (context, snapshot) {
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty)
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
           return const SizedBox.shrink();
+        }
 
         final unreadCount = snapshot.data!.docs.where((doc) {
           final data = doc.data() as Map<String, dynamic>;

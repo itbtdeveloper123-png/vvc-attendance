@@ -1,17 +1,16 @@
-# vvc_attendance
+# VVC Attendance
 
-A new Flutter project.
+## Local Configuration
 
-## Getting Started
+Google Maps keys are intentionally kept out of source files. Configure them per
+machine or per CI environment:
 
-This project is a starting point for a Flutter application.
+- Android: add `GOOGLE_MAPS_API_KEY=your_key_here` to `android/local.properties`,
+  or pass `-PGOOGLE_MAPS_API_KEY=your_key_here` to Gradle.
+- iOS: copy `ios/Flutter/MapsApiKey.example.xcconfig` to
+  `ios/Flutter/MapsApiKey.xcconfig`, then set `GOOGLE_MAPS_API_KEY`.
+- Web: copy `web/config.example.js` to `web/config.js`, then set
+  `googleMapsApiKey`.
 
-A few resources to get you started if this is your first Flutter project:
-
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+Restrict the key in Google Cloud Console by package name/SHA-1 for Android,
+bundle ID for iOS, and allowed domains for Web.

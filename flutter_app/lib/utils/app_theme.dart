@@ -23,9 +23,22 @@ class AppTheme {
   static Color bgSurface = const Color(0xFF0B1120);
 
   static Color textPrimary = Colors.white;
-  static Color textSecondary = const Color(0xFF94A3B8);
-  static Color textMuted = const Color(0xFF64748B);
-  static Color borderColor = const Color(0xFF374151);
+  static Color textSecondary = const Color(0xFFCBD5E1);
+  static Color textMuted = const Color(0xFF94A3B8);
+  static Color borderColor = const Color(0xFF475569);
+
+  static const double radiusSm = 12;
+  static const double radiusMd = 16;
+  static const double radiusLg = 20;
+  static const double radiusXl = 24;
+
+  static Color get labelColor => textPrimary.withValues(alpha: 0.82);
+  static Color get helperTextColor => textSecondary.withValues(alpha: 0.78);
+  static Color get fieldFill => textPrimary.withValues(alpha: 0.075);
+  static Color get fieldBorder => textPrimary.withValues(alpha: 0.14);
+  static Color get fieldIconColor => textSecondary.withValues(alpha: 0.9);
+  static Color get fieldHintColor => textSecondary.withValues(alpha: 0.72);
+  static Color get cardBorder => textPrimary.withValues(alpha: 0.10);
 
   // === SHADOWS ===
   static List<BoxShadow> get primaryShadow => [
@@ -38,31 +51,76 @@ class AppTheme {
 
   static List<BoxShadow> get cardShadow => [
     BoxShadow(
-      color: Colors.black.withValues(alpha: 0.2),
-      blurRadius: 15,
-      offset: const Offset(0, 5),
+      color: Colors.black.withValues(alpha: 0.24),
+      blurRadius: 18,
+      offset: const Offset(0, 8),
     ),
   ];
 
   // === COMMON DECORATIONS ===
+  static BoxDecoration cardDecoration({
+    Color? color,
+    double radius = radiusXl,
+    Color? borderColor,
+    List<BoxShadow>? shadows,
+  }) {
+    return BoxDecoration(
+      color: color ?? bgCard,
+      borderRadius: BorderRadius.circular(radius),
+      border: Border.all(color: borderColor ?? cardBorder),
+      boxShadow: shadows ?? cardShadow,
+    );
+  }
+
+  static ButtonStyle filledButtonStyle({
+    Color? backgroundColor,
+    Color? foregroundColor,
+    double radius = radiusMd,
+  }) {
+    final bg = backgroundColor ?? primary;
+    return ElevatedButton.styleFrom(
+      backgroundColor: bg,
+      foregroundColor: foregroundColor ?? textPrimary,
+      elevation: 8,
+      shadowColor: bg.withValues(alpha: 0.35),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(radius),
+      ),
+      textStyle: GoogleFonts.kantumruyPro(
+        fontWeight: FontWeight.bold,
+        fontSize: 16,
+      ),
+    );
+  }
+
   static InputDecoration inputDecoration(String hint, IconData icon) {
     return InputDecoration(
       hintText: hint,
-      prefixIcon: Icon(icon, color: primaryLight),
+      hintStyle: GoogleFonts.kantumruyPro(color: fieldHintColor, fontSize: 13),
+      prefixIcon: Icon(icon, color: fieldIconColor, size: 20),
       filled: true,
-      fillColor: bgCard.withValues(alpha: 0.5),
+      fillColor: fieldFill,
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(radiusMd),
         borderSide: BorderSide.none,
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: BorderSide(color: primary.withValues(alpha: 0.1)),
+        borderRadius: BorderRadius.circular(radiusMd),
+        borderSide: BorderSide(color: fieldBorder),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: BorderSide(color: primary.withValues(alpha: 0.4)),
+        borderRadius: BorderRadius.circular(radiusMd),
+        borderSide: BorderSide(color: primaryLight, width: 1.5),
       ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(radiusMd),
+        borderSide: BorderSide(color: danger.withValues(alpha: 0.75)),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(radiusMd),
+        borderSide: BorderSide(color: danger, width: 1.5),
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
     );
   }
 
@@ -76,6 +134,16 @@ class AppTheme {
       surface: bgCard,
       error: error,
     ),
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: fieldFill,
+      hintStyle: GoogleFonts.kantumruyPro(color: fieldHintColor),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(radiusMd),
+        borderSide: BorderSide(color: fieldBorder),
+      ),
+    ),
+    elevatedButtonTheme: ElevatedButtonThemeData(style: filledButtonStyle()),
     textTheme: GoogleFonts.kantumruyProTextTheme(ThemeData.dark().textTheme)
         .copyWith(
           bodyLarge: GoogleFonts.kantumruyPro(color: Colors.white),

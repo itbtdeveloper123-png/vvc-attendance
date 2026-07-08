@@ -24,6 +24,8 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>GoogleMapsApiKey</key>
+	<string>$(GOOGLE_MAPS_API_KEY)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>
@@ -70,6 +72,8 @@
 	<string>This app needs microphone access to record meeting audio.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>This app needs camera access to scan QR codes for attendance.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>VVC HRM uses Face ID to protect your salary information.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>This app needs access to location to verify your attendance point.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>

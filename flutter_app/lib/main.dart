@@ -73,6 +73,11 @@ Future<void> _initFirebaseInBackground() async {
     // Request Firebase permission (Android 13+ & iOS)
     FirebaseMessaging messaging = FirebaseMessaging.instance;
     await messaging.requestPermission(alert: true, badge: true, sound: true);
+    try {
+      await NotificationService().init();
+    } catch (e) {
+      debugPrint("NotificationService init error: $e");
+    }
 
     // Subscribe to Global Topic — NOT supported on web
     if (!kIsWeb) {
@@ -101,17 +106,13 @@ Future<void> _initFirebaseInBackground() async {
         importance: Importance.max,
         playSound: true,
       );
-
-      final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
-          FlutterLocalNotificationsPlugin();
-
-      await flutterLocalNotificationsPlugin
+      await NotificationService().flutterLocalNotificationsPlugin
           .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin
           >()
           ?.createNotificationChannel(channel);
 
-      await flutterLocalNotificationsPlugin
+      await NotificationService().flutterLocalNotificationsPlugin
           .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin
           >()
@@ -120,7 +121,6 @@ Future<void> _initFirebaseInBackground() async {
       FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
         debugPrint('Got a message whilst in the foreground!');
         RemoteNotification? notification = message.notification;
-        AndroidNotification? android = message.notification?.android;
         final isVersionUpdate = message.data['type'] == 'version_update';
 
         if (isVersionUpdate) {
@@ -145,26 +145,12 @@ Future<void> _initFirebaseInBackground() async {
             debugPrint(
               "Web Notif Title: ${notification.title}, Body: ${notification.body}",
             );
-          } else if (android != null) {
-            flutterLocalNotificationsPlugin.show(
-              notification.hashCode,
-              notification.title!,
-              notification.body!,
-              NotificationDetails(
-                android: AndroidNotificationDetails(
-                  activeChannel,
-                  activeChannel == callChannel.id
-                      ? callChannel.name
-                      : channel.name,
-                  channelDescription: activeChannel == callChannel.id
-                      ? callChannel.description
-                      : channel.description,
-                  icon: android.smallIcon ?? '@mipmap/ic_launcher',
-                  importance: Importance.max,
-                  priority: Priority.high,
-                  playSound: true,
-                ),
-              ),
+          } else {
+            await NotificationService().showNotification(
+              id: notification.hashCode,
+              title: notification.title ?? 'VVC HRM',
+              body: notification.body ?? '',
+              channelId: activeChannel,
             );
           }
         }
@@ -181,12 +167,7 @@ Future<void> _initFirebaseInBackground() async {
     debugPrint("Firebase messaging setup error: $e");
   }
 
-  // Initialize Notification Service (local alarms)
-  try {
-    await NotificationService().init();
-  } catch (e) {
-    debugPrint("NotificationService init error: $e");
-  }
+  // NotificationService is initialized before Firebase listeners above.
 }
 
 class VvcHrmApp extends StatelessWidget {

@@ -67,6 +67,266 @@ class AppShimmerBox extends StatelessWidget {
   }
 }
 
+// ===== RESPONSIVE + STATE HELPERS =====
+class AppResponsive {
+  static bool isCompact(BuildContext context) =>
+      MediaQuery.sizeOf(context).width < 380;
+
+  static double horizontalPadding(BuildContext context) =>
+      isCompact(context) ? 14 : 20;
+
+  static double bottomPadding(
+    BuildContext context, {
+    bool hasBottomNav = false,
+    double extra = 24,
+  }) {
+    final safeBottom = MediaQuery.paddingOf(context).bottom;
+    return safeBottom + extra + (hasBottomNav ? 86 : 0);
+  }
+
+  static Widget maxWidth({
+    required BuildContext context,
+    required Widget child,
+    double maxWidth = 720,
+  }) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: maxWidth),
+        child: child,
+      ),
+    );
+  }
+}
+
+class AppSearchField extends StatefulWidget {
+  final TextEditingController? controller;
+  final String hintText;
+  final ValueChanged<String>? onChanged;
+  final VoidCallback? onClear;
+  final double height;
+  final double? borderRadius;
+  final EdgeInsetsGeometry padding;
+  final Color? backgroundColor;
+  final Color? borderColor;
+  final Color? iconColor;
+  final Color? textColor;
+  final Color? hintColor;
+  final bool autofocus;
+
+  const AppSearchField({
+    super.key,
+    this.controller,
+    required this.hintText,
+    this.onChanged,
+    this.onClear,
+    this.height = 48,
+    this.borderRadius,
+    this.padding = const EdgeInsets.symmetric(horizontal: 14),
+    this.backgroundColor,
+    this.borderColor,
+    this.iconColor,
+    this.textColor,
+    this.hintColor,
+    this.autofocus = false,
+  });
+
+  @override
+  State<AppSearchField> createState() => _AppSearchFieldState();
+}
+
+class _AppSearchFieldState extends State<AppSearchField> {
+  late TextEditingController _controller;
+  late bool _ownsController;
+
+  @override
+  void initState() {
+    super.initState();
+    _setController(widget.controller);
+  }
+
+  @override
+  void didUpdateWidget(covariant AppSearchField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      _controller.removeListener(_refresh);
+      if (_ownsController) _controller.dispose();
+      _setController(widget.controller);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.removeListener(_refresh);
+    if (_ownsController) _controller.dispose();
+    super.dispose();
+  }
+
+  void _setController(TextEditingController? controller) {
+    _ownsController = controller == null;
+    _controller = controller ?? TextEditingController();
+    _controller.addListener(_refresh);
+  }
+
+  void _refresh() {
+    if (mounted) setState(() {});
+  }
+
+  void _clear() {
+    _controller.clear();
+    widget.onChanged?.call('');
+    widget.onClear?.call();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final iconColor = widget.iconColor ?? AppTheme.fieldIconColor;
+    return Container(
+      height: widget.height,
+      padding: widget.padding,
+      decoration: BoxDecoration(
+        color: widget.backgroundColor ?? AppTheme.fieldFill,
+        borderRadius: BorderRadius.circular(
+          widget.borderRadius ?? AppTheme.radiusMd,
+        ),
+        border: Border.all(color: widget.borderColor ?? AppTheme.fieldBorder),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.search_rounded, color: iconColor, size: 22),
+          const SizedBox(width: 12),
+          Expanded(
+            child: TextField(
+              controller: _controller,
+              autofocus: widget.autofocus,
+              textInputAction: TextInputAction.search,
+              cursorColor: AppTheme.primary,
+              style: GoogleFonts.kantumruyPro(
+                color: widget.textColor ?? AppTheme.textPrimary,
+                fontSize: 14,
+              ),
+              decoration: InputDecoration.collapsed(
+                hintText: widget.hintText,
+                hintStyle: GoogleFonts.kantumruyPro(
+                  color: widget.hintColor ?? AppTheme.fieldHintColor,
+                  fontSize: 13,
+                ),
+              ),
+              onChanged: widget.onChanged,
+            ),
+          ),
+          if (_controller.text.isNotEmpty) ...[
+            const SizedBox(width: 8),
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints.tightFor(width: 34, height: 34),
+              icon: Icon(Icons.clear_rounded, color: iconColor, size: 18),
+              onPressed: _clear,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class AppStateView extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String message;
+  final Color? color;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+  final bool scrollable;
+  final double minHeight;
+
+  const AppStateView({
+    super.key,
+    required this.icon,
+    required this.title,
+    this.message = '',
+    this.color,
+    this.actionLabel,
+    this.onAction,
+    this.scrollable = true,
+    this.minHeight = 360,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final effectiveColor = color ?? AppTheme.primary;
+    final content = AppResponsive.maxWidth(
+      context: context,
+      child: Container(
+        constraints: BoxConstraints(minHeight: minHeight),
+        padding: EdgeInsets.symmetric(
+          horizontal: AppResponsive.horizontalPadding(context),
+          vertical: 24,
+        ),
+        alignment: Alignment.center,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                color: effectiveColor.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: effectiveColor.withValues(alpha: 0.2),
+                ),
+              ),
+              child: Icon(icon, color: effectiveColor, size: 34),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.kantumruyPro(
+                color: AppTheme.textPrimary,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            if (message.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.kantumruyPro(
+                  color: AppTheme.helperTextColor,
+                  fontSize: 13,
+                  height: 1.35,
+                ),
+              ),
+            ],
+            if (actionLabel != null && onAction != null) ...[
+              const SizedBox(height: 18),
+              ElevatedButton.icon(
+                onPressed: onAction,
+                icon: const Icon(Icons.refresh_rounded, size: 18),
+                label: Text(actionLabel!),
+                style: AppTheme.filledButtonStyle(
+                  backgroundColor: effectiveColor,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+
+    if (!scrollable) return content;
+    return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(
+        parent: BouncingScrollPhysics(),
+      ),
+      child: content,
+    );
+  }
+}
+
 // ===== STATS CARD =====
 class AppStatCard extends StatelessWidget {
   final String title;
@@ -92,10 +352,9 @@ class AppStatCard extends StatelessWidget {
       enabled: isLoading,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          color: AppTheme.bgCard,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: color.withValues(alpha: 0.2), width: 1.5),
+        decoration: AppTheme.cardDecoration(
+          radius: AppTheme.radiusXl,
+          borderColor: color.withValues(alpha: 0.24),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -166,18 +425,16 @@ class AppGridAction extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
         decoration: BoxDecoration(
           color: AppTheme.bgCard,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: AppTheme.borderColor.withValues(alpha: 0.6),
-          ),
+          borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+          border: Border.all(color: color.withValues(alpha: 0.22), width: 1.2),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
+              color: Colors.black.withValues(alpha: 0.18),
+              blurRadius: 14,
+              offset: const Offset(0, 7),
             ),
           ],
         ),
@@ -185,19 +442,20 @@ class AppGridAction extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(11),
               decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
+                color: color.withValues(alpha: 0.14),
                 shape: BoxShape.circle,
+                border: Border.all(color: color.withValues(alpha: 0.14)),
               ),
-              child: Icon(icon, color: color, size: 24),
+              child: Icon(icon, color: color, size: 25),
             ),
             const SizedBox(height: 8),
             Text(
               label,
               style: GoogleFonts.kantumruyPro(
                 color: AppTheme.textPrimary,
-                fontSize: 12,
+                fontSize: 12.5,
                 fontWeight: FontWeight.w600,
                 height: 1.2,
               ),
@@ -542,19 +800,14 @@ class AppActionButton extends StatelessWidget {
           color: isHighlighted
               ? iconColor.withValues(alpha: 0.15)
               : AppTheme.bgCard,
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(AppTheme.radiusLg),
           border: Border.all(
             color: isHighlighted
                 ? iconColor.withValues(alpha: 0.35)
-                : AppTheme.borderColor,
+                : AppTheme.cardBorder,
+            width: 1.2,
           ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          boxShadow: AppTheme.cardShadow,
         ),
         child: Row(
           children: [
@@ -562,8 +815,9 @@ class AppActionButton extends StatelessWidget {
               width: 48,
               height: 48,
               decoration: BoxDecoration(
-                color: iconColor.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(14),
+                color: iconColor.withValues(alpha: 0.13),
+                borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                border: Border.all(color: iconColor.withValues(alpha: 0.12)),
               ),
               child: Icon(icon, color: iconColor, size: 24),
             ),
@@ -693,13 +947,13 @@ class _DynamicAppBarWrapperState extends State<DynamicAppBarWrapper> {
           duration: const Duration(milliseconds: 250),
           decoration: BoxDecoration(
             color: _isScrolling
-                ? AppTheme.bgDark.withValues(alpha: 0.3)
+                ? AppTheme.bgDark.withValues(alpha: 0.92)
                 : AppTheme.bgDark.withValues(alpha: 0.98),
             border: Border(
               bottom: BorderSide(
                 color: _isScrolling
-                    ? Colors.transparent
-                    : AppTheme.textPrimary.withValues(alpha: 0.05),
+                    ? AppTheme.textPrimary.withValues(alpha: 0.08)
+                    : AppTheme.textPrimary.withValues(alpha: 0.06),
                 width: 1,
               ),
             ),

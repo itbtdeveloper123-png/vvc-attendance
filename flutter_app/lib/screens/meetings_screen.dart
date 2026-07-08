@@ -21,6 +21,7 @@ import '../services/meeting_audio_player_service.dart';
 import '../services/meeting_recording_service.dart';
 import '../utils/app_theme.dart';
 import '../providers/user_provider.dart';
+import '../widgets/app_widgets.dart';
 
 class MeetingsScreen extends StatefulWidget {
   const MeetingsScreen({super.key});
@@ -1012,288 +1013,287 @@ class _MeetingsScreenState extends State<MeetingsScreen>
   // ========== TAB 1: FORM ==========
   Widget _buildFormTabV2() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          children: [
-            _buildField(
-              "ប្រធានបទកិច្ចប្រជុំ *",
-              _topicController,
-              Icons.title,
-              true,
-            ),
-            const SizedBox(height: 16),
-            _buildField(
-              "ផ្នែក / ឯកសារ *",
-              _deptController,
-              Icons.folder_open,
-              true,
-            ),
-            const SizedBox(height: 16),
-            _buildField(
-              "កាលបរិច្ឆេទ",
-              _dateController,
-              Icons.calendar_today,
-              false,
-              readOnly: true,
-            ),
-            const SizedBox(height: 16),
-            _buildField(
-              "ការពិពណ៌នា",
-              _descController,
-              Icons.description,
-              false,
-              maxLines: 3,
-            ),
-            const SizedBox(height: 16),
-            _buildField(
-              "តំណភ្ជាប់ខាងក្រៅ (URL)",
-              _urlController,
-              Icons.link,
-              false,
-            ),
-            const SizedBox(height: 30),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 20),
-              decoration: BoxDecoration(
-                color: AppTheme.bgCard,
-                borderRadius: BorderRadius.circular(25),
-                border: Border.all(
-                  color: _isRecording
+      physics: const BouncingScrollPhysics(),
+      padding: EdgeInsets.fromLTRB(
+        AppResponsive.horizontalPadding(context),
+        20,
+        AppResponsive.horizontalPadding(context),
+        AppResponsive.bottomPadding(context),
+      ),
+      child: AppResponsive.maxWidth(
+        context: context,
+        child: Form(
+          key: _formKey,
+          child: Column(
+            children: [
+              _buildField(
+                "ប្រធានបទកិច្ចប្រជុំ *",
+                _topicController,
+                Icons.title,
+                true,
+              ),
+              const SizedBox(height: 16),
+              _buildField(
+                "ផ្នែក / ឯកសារ *",
+                _deptController,
+                Icons.folder_open,
+                true,
+              ),
+              const SizedBox(height: 16),
+              _buildField(
+                "កាលបរិច្ឆេទ",
+                _dateController,
+                Icons.calendar_today,
+                false,
+                readOnly: true,
+              ),
+              const SizedBox(height: 16),
+              _buildField(
+                "ការពិពណ៌នា",
+                _descController,
+                Icons.description,
+                false,
+                maxLines: 3,
+              ),
+              const SizedBox(height: 16),
+              _buildField(
+                "តំណភ្ជាប់ខាងក្រៅ (URL)",
+                _urlController,
+                Icons.link,
+                false,
+              ),
+              const SizedBox(height: 30),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  vertical: 30,
+                  horizontal: 20,
+                ),
+                decoration: AppTheme.cardDecoration(
+                  color: AppTheme.bgCard,
+                  radius: AppTheme.radiusXl,
+                  borderColor: _isRecording
                       ? AppTheme.primary
                       : (_isRecordingPaused
                             ? Colors.orangeAccent
-                            : AppTheme.borderColor.withAlpha(100)),
-                  width: 1.5,
+                            : AppTheme.cardBorder),
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withAlpha(20),
-                    blurRadius: 15,
-                    offset: const Offset(0, 10),
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.settings_voice_rounded,
-                        color: AppTheme.primary,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 10),
-                      Text(
-                        "ការគ្រប់គ្រងសំឡេង (Audio Management)",
-                        style: GoogleFonts.kantumruyPro(
-                          fontWeight: FontWeight.bold,
-                          color: AppTheme.textPrimary,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 18),
-                  Wrap(
-                    alignment: WrapAlignment.center,
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: [
-                      _buildActionBtn(
-                        Icons.upload_file_rounded,
-                        "Upload Audio",
-                        AppTheme.secondary,
-                        () => _pickAudioFile(),
-                      ),
-                      if (_isUploadedAudio)
-                        _buildActionBtn(
-                          Icons.delete_outline_rounded,
-                          "Clear File",
-                          Colors.redAccent,
-                          () => _discardRecordedAudio(),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 35),
-                  GestureDetector(
-                    onTap: _isSubmitting ? null : _toggleRecording,
-                    child: Stack(
-                      alignment: Alignment.center,
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        if (_isRecording)
-                          Pulse(
-                            infinite: true,
-                            duration: const Duration(seconds: 1),
-                            child: Container(
-                              height: 120,
-                              width: 120,
-                              decoration: BoxDecoration(
-                                color: Colors.red.withAlpha(20),
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                          ),
-                        Pulse(
-                          animate: _isRecording,
-                          infinite: true,
-                          child: Container(
-                            height: 90,
-                            width: 90,
-                            decoration: BoxDecoration(
-                              color: _isRecording
-                                  ? Colors.red
-                                  : (_isRecordingPaused
-                                        ? Colors.orange
-                                        : AppTheme.primary),
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color:
-                                      (_isRecording
-                                              ? Colors.red
-                                              : (_isRecordingPaused
-                                                    ? Colors.orange
-                                                    : AppTheme.primary))
-                                          .withAlpha(80),
-                                  blurRadius: 15,
-                                  spreadRadius: 2,
-                                ),
-                              ],
-                            ),
-                            child: Icon(
-                              (_isRecording || _isRecordingPaused)
-                                  ? Icons.stop_rounded
-                                  : Icons.mic_rounded,
-                              color: Colors.white,
-                              size: 45,
-                            ),
+                        Icon(
+                          Icons.settings_voice_rounded,
+                          color: AppTheme.primary,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          "ការគ្រប់គ្រងសំឡេង (Audio Management)",
+                          style: GoogleFonts.kantumruyPro(
+                            fontWeight: FontWeight.bold,
+                            color: AppTheme.textPrimary,
+                            fontSize: 14,
                           ),
                         ),
                       ],
                     ),
-                  ),
-                  const SizedBox(height: 25),
-                  Text(
-                    _isRecording
-                        ? "កំពុងថត... $_recordingDuration"
-                        : (_isRecordingPaused
-                              ? "បានផ្អាក... $_recordingDuration"
-                              : (_recordedPath != null
-                                    ? "ថតរួចរាល់ ✅ ($_recordingDuration | $_fileSize)"
-                                    : "ចុចដើម្បីចាប់ផ្តើមថត")),
-                    style: GoogleFonts.kantumruyPro(
-                      color: _isRecording
-                          ? Colors.red
-                          : (_isRecordingPaused
-                                ? Colors.orangeAccent
-                                : AppTheme.textPrimary),
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  if ((_isRecording || _isRecordingPaused) &&
-                      _usesNativeBackgroundRecording) ...[
-                    const SizedBox(height: 20),
-                    FadeInUp(
-                      child: Wrap(
-                        alignment: WrapAlignment.center,
-                        spacing: 15,
-                        runSpacing: 12,
-                        children: [
-                          if (_isRecording)
-                            _buildActionBtn(
-                              Icons.pause_circle_filled_rounded,
-                              "ផ្អាក",
-                              Colors.orange,
-                              () => _pauseNativeBackgroundRecording(),
-                            ),
-                          if (_isRecordingPaused)
-                            _buildActionBtn(
-                              Icons.play_circle_fill_rounded,
-                              "បន្ត",
-                              Colors.green,
-                              () => _resumeNativeBackgroundRecording(),
-                            ),
-                          const SizedBox(width: 15),
+                    const SizedBox(height: 18),
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: [
+                        _buildActionBtn(
+                          Icons.upload_file_rounded,
+                          "Upload Audio",
+                          AppTheme.secondary,
+                          () => _pickAudioFile(),
+                        ),
+                        if (_isUploadedAudio)
                           _buildActionBtn(
-                            Icons.stop_circle_rounded,
-                            "ឈប់",
-                            Colors.red,
-                            () => _stopNativeBackgroundRecording(),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                  if (_recordedPath != null &&
-                      !_isRecording &&
-                      !_isRecordingPaused) ...[
-                    const SizedBox(height: 20),
-                    FadeInUp(
-                      child: Wrap(
-                        alignment: WrapAlignment.center,
-                        spacing: 15,
-                        runSpacing: 12,
-                        children: [
-                          _buildActionBtn(
-                            Icons.play_circle_fill_rounded,
-                            "ស្តាប់ផ្ទៀងផ្ទាត់",
-                            Colors.green,
-                            () => _playPreview(),
-                          ),
-                          if (_selectedDraftId == null && !_isUploadedAudio)
-                            _buildActionBtn(
-                              Icons.save_alt_rounded,
-                              "Save Draft",
-                              AppTheme.primary,
-                              () => _saveCurrentRecordingToDraft(),
-                            ),
-                          _buildActionBtn(
-                            Icons.delete_sweep_rounded,
-                            "ថតសាថ្មី",
-                            Colors.red,
+                            Icons.delete_outline_rounded,
+                            "Clear File",
+                            Colors.redAccent,
                             () => _discardRecordedAudio(),
                           ),
+                      ],
+                    ),
+                    const SizedBox(height: 35),
+                    GestureDetector(
+                      onTap: _isSubmitting ? null : _toggleRecording,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          if (_isRecording)
+                            Pulse(
+                              infinite: true,
+                              duration: const Duration(seconds: 1),
+                              child: Container(
+                                height: 120,
+                                width: 120,
+                                decoration: BoxDecoration(
+                                  color: Colors.red.withAlpha(20),
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                            ),
+                          Pulse(
+                            animate: _isRecording,
+                            infinite: true,
+                            child: Container(
+                              height: 90,
+                              width: 90,
+                              decoration: BoxDecoration(
+                                color: _isRecording
+                                    ? Colors.red
+                                    : (_isRecordingPaused
+                                          ? Colors.orange
+                                          : AppTheme.primary),
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color:
+                                        (_isRecording
+                                                ? Colors.red
+                                                : (_isRecordingPaused
+                                                      ? Colors.orange
+                                                      : AppTheme.primary))
+                                            .withAlpha(80),
+                                    blurRadius: 15,
+                                    spreadRadius: 2,
+                                  ),
+                                ],
+                              ),
+                              child: Icon(
+                                (_isRecording || _isRecordingPaused)
+                                    ? Icons.stop_rounded
+                                    : Icons.mic_rounded,
+                                color: Colors.white,
+                                size: 45,
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-            _buildDraftSection(),
-            const SizedBox(height: 20),
-            _buildPhotoSection(),
-            const SizedBox(height: 30),
-            SizedBox(
-              width: double.infinity,
-              height: 55,
-              child: ElevatedButton(
-                onPressed: _isSubmitting ? null : _submitMeeting,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primary,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-                child: _isSubmitting
-                    ? const CircularProgressIndicator(color: Colors.white)
-                    : Text(
-                        "បង្ហោះកិច្ចប្រជុំ",
-                        style: GoogleFonts.kantumruyPro(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
+                    const SizedBox(height: 25),
+                    Text(
+                      _isRecording
+                          ? "កំពុងថត... $_recordingDuration"
+                          : (_isRecordingPaused
+                                ? "បានផ្អាក... $_recordingDuration"
+                                : (_recordedPath != null
+                                      ? "ថតរួចរាល់ ✅ ($_recordingDuration | $_fileSize)"
+                                      : "ចុចដើម្បីចាប់ផ្តើមថត")),
+                      style: GoogleFonts.kantumruyPro(
+                        color: _isRecording
+                            ? Colors.red
+                            : (_isRecordingPaused
+                                  ? Colors.orangeAccent
+                                  : AppTheme.textPrimary),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    if ((_isRecording || _isRecordingPaused) &&
+                        _usesNativeBackgroundRecording) ...[
+                      const SizedBox(height: 20),
+                      FadeInUp(
+                        child: Wrap(
+                          alignment: WrapAlignment.center,
+                          spacing: 15,
+                          runSpacing: 12,
+                          children: [
+                            if (_isRecording)
+                              _buildActionBtn(
+                                Icons.pause_circle_filled_rounded,
+                                "ផ្អាក",
+                                Colors.orange,
+                                () => _pauseNativeBackgroundRecording(),
+                              ),
+                            if (_isRecordingPaused)
+                              _buildActionBtn(
+                                Icons.play_circle_fill_rounded,
+                                "បន្ត",
+                                Colors.green,
+                                () => _resumeNativeBackgroundRecording(),
+                              ),
+                            const SizedBox(width: 15),
+                            _buildActionBtn(
+                              Icons.stop_circle_rounded,
+                              "ឈប់",
+                              Colors.red,
+                              () => _stopNativeBackgroundRecording(),
+                            ),
+                          ],
                         ),
                       ),
+                    ],
+                    if (_recordedPath != null &&
+                        !_isRecording &&
+                        !_isRecordingPaused) ...[
+                      const SizedBox(height: 20),
+                      FadeInUp(
+                        child: Wrap(
+                          alignment: WrapAlignment.center,
+                          spacing: 15,
+                          runSpacing: 12,
+                          children: [
+                            _buildActionBtn(
+                              Icons.play_circle_fill_rounded,
+                              "ស្តាប់ផ្ទៀងផ្ទាត់",
+                              Colors.green,
+                              () => _playPreview(),
+                            ),
+                            if (_selectedDraftId == null && !_isUploadedAudio)
+                              _buildActionBtn(
+                                Icons.save_alt_rounded,
+                                "Save Draft",
+                                AppTheme.primary,
+                                () => _saveCurrentRecordingToDraft(),
+                              ),
+                            _buildActionBtn(
+                              Icons.delete_sweep_rounded,
+                              "ថតសាថ្មី",
+                              Colors.red,
+                              () => _discardRecordedAudio(),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 50),
-          ],
+              const SizedBox(height: 20),
+              _buildDraftSection(),
+              const SizedBox(height: 20),
+              _buildPhotoSection(),
+              const SizedBox(height: 30),
+              SizedBox(
+                width: double.infinity,
+                height: 55,
+                child: ElevatedButton(
+                  onPressed: _isSubmitting ? null : _submitMeeting,
+                  style: AppTheme.filledButtonStyle(
+                    backgroundColor: AppTheme.primary,
+                  ),
+                  child: _isSubmitting
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : Text(
+                          "បង្ហោះកិច្ចប្រជុំ",
+                          style: GoogleFonts.kantumruyPro(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                ),
+              ),
+              const SizedBox(height: 50),
+            ],
+          ),
         ),
       ),
     );
@@ -1788,22 +1788,11 @@ class _MeetingsScreenState extends State<MeetingsScreen>
       return Center(child: CircularProgressIndicator(color: AppTheme.primary));
     }
     if (_meetingsList.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.mic_off_rounded,
-              size: 80,
-              color: AppTheme.textSecondary.withAlpha(50),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              "មិនទាន់មានកិច្ចប្រជុំ",
-              style: GoogleFonts.kantumruyPro(color: AppTheme.textSecondary),
-            ),
-          ],
-        ),
+      return AppStateView(
+        icon: Icons.mic_off_rounded,
+        title: "មិនទាន់មានកិច្ចប្រជុំ",
+        message: "កិច្ចប្រជុំដែលបានបង្កើតនឹងបង្ហាញនៅទីនេះ",
+        color: AppTheme.primary,
       );
     }
 
@@ -1820,7 +1809,12 @@ class _MeetingsScreenState extends State<MeetingsScreen>
     return RefreshIndicator(
       onRefresh: _loadMeetings,
       child: ListView.builder(
-        padding: const EdgeInsets.all(20),
+        padding: EdgeInsets.fromLTRB(
+          AppResponsive.horizontalPadding(context),
+          14,
+          AppResponsive.horizontalPadding(context),
+          AppResponsive.bottomPadding(context),
+        ),
         itemCount: depts.length,
         itemBuilder: (context, i) {
           final dept = depts[i];
@@ -1848,7 +1842,12 @@ class _MeetingsScreenState extends State<MeetingsScreen>
                   ],
                 ),
               ),
-              ...items.map((m) => _buildMeetingCard(m)),
+              ...items.map(
+                (m) => AppResponsive.maxWidth(
+                  context: context,
+                  child: _buildMeetingCard(m),
+                ),
+              ),
               const SizedBox(height: 15),
             ],
           );

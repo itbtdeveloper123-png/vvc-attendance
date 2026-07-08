@@ -117,8 +117,9 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
     final now = DateTime.now();
     final urgentCount = _items.where((it) {
       if (it['is_done'] == 1 || it['is_done'] == '1') return false;
-      if (it['end_date'] == null || it['end_date'].toString().isEmpty)
+      if (it['end_date'] == null || it['end_date'].toString().isEmpty) {
         return false;
+      }
       try {
         final due = DateTime.parse(it['end_date']);
         return due.difference(now).inDays <= 1;
@@ -171,13 +172,14 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
         _loadData();
         HapticFeedback.mediumImpact();
       } else {
-        if (mounted)
+        if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text("កំហុស៖ ${res['message'] ?? 'មិនអាចរក្សាទុកបាន'}"),
               backgroundColor: Colors.red,
             ),
           );
+        }
       }
     } catch (e) {
       if (!mounted) return;
@@ -332,8 +334,9 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
                                     context: context,
                                     initialTime: TimeOfDay.now(),
                                   );
-                                  if (time != null)
+                                  if (time != null) {
                                     setModalState(() => _startTime = time);
+                                  }
                                 }
                               },
                             ),
@@ -370,8 +373,9 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
                                     context: context,
                                     initialTime: TimeOfDay.now(),
                                   );
-                                  if (time != null)
+                                  if (time != null) {
                                     setModalState(() => _endTime = time);
+                                  }
                                 }
                               },
                             ),
@@ -406,10 +410,11 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
                             source: ImageSource.gallery,
                             imageQuality: 50,
                           );
-                          if (image != null)
+                          if (image != null) {
                             setModalState(
                               () => _selectedImage = File(image.path),
                             );
+                          }
                         },
                         child: Container(
                           height: 100,
@@ -716,8 +721,9 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
     final int remaining = total - done;
     final int urgent = _items.where((it) {
       if (it['is_done'] == 1 || it['is_done'] == '1') return false;
-      if (it['end_date'] == null || it['end_date'].toString().isEmpty)
+      if (it['end_date'] == null || it['end_date'].toString().isEmpty) {
         return false;
+      }
       try {
         final due = DateTime.parse(it['end_date']);
         return due.difference(DateTime.now()).inDays <= 1;
@@ -797,84 +803,88 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
   }
 
   Widget _buildProgressHeader(int done, int total, double progress) {
-    return Container(
-      margin: const EdgeInsets.all(20),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppTheme.primary,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: AppTheme.primary.withValues(alpha: 0.3),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
+    return Padding(
+      padding: EdgeInsets.all(AppResponsive.horizontalPadding(context)),
+      child: AppResponsive.maxWidth(
+        context: context,
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: AppTheme.primary,
+            borderRadius: BorderRadius.circular(AppTheme.radiusXl),
+            boxShadow: AppTheme.primaryShadow,
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    "វឌ្ឍនភាពថ្ងៃនេះ",
-                    style: GoogleFonts.kantumruyPro(
-                      color: Colors.white.withValues(alpha: 0.9),
-                      fontSize: 16,
-                    ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "វឌ្ឍនភាពថ្ងៃនេះ",
+                        style: GoogleFonts.kantumruyPro(
+                          color: Colors.white.withValues(alpha: 0.9),
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        total == 0
+                            ? "មិនទាន់មានការងារ"
+                            : "$done / $total ការងាររួចរាល់",
+                        style: GoogleFonts.kantumruyPro(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    total == 0
-                        ? "មិនទាន់មានការងារ"
-                        : "$done / $total ការងាររួចរាល់",
-                    style: GoogleFonts.kantumruyPro(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Text(
+                      "${(progress * 100).toInt()}%",
+                      style: GoogleFonts.inter(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
                     ),
                   ),
                 ],
               ),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.2),
-                  shape: BoxShape.circle,
-                ),
-                child: Text(
-                  "${(progress * 100).toInt()}%",
-                  style: GoogleFonts.inter(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
+              const SizedBox(height: 20),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: LinearProgressIndicator(
+                  value: progress,
+                  minHeight: 8,
+                  backgroundColor: Colors.white.withValues(alpha: 0.1),
+                  valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 20),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: LinearProgressIndicator(
-              value: progress,
-              minHeight: 8,
-              backgroundColor: Colors.white.withValues(alpha: 0.1),
-              valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 
   Widget _buildShimmerList() {
     return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: EdgeInsets.fromLTRB(
+        AppResponsive.horizontalPadding(context),
+        0,
+        AppResponsive.horizontalPadding(context),
+        AppResponsive.bottomPadding(context, extra: 110),
+      ),
       itemCount: 8,
       itemBuilder: (context, index) => Padding(
         padding: const EdgeInsets.only(bottom: 12),
@@ -892,55 +902,23 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
   }
 
   Widget _buildEmptyState() {
-    return LayoutBuilder(
-      builder: (context, constraints) => SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: Container(
-          height: constraints.maxHeight,
-          alignment: Alignment.center,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(30),
-                decoration: BoxDecoration(
-                  color: AppTheme.primary.withValues(alpha: 0.05),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.assignment_turned_in_outlined,
-                  size: 80,
-                  color: AppTheme.primary.withValues(alpha: 0.2),
-                ),
-              ),
-              const SizedBox(height: 24),
-              Text(
-                "មិនទាន់មានការងារនៅឡើយ",
-                style: GoogleFonts.kantumruyPro(
-                  color: Colors.white.withValues(alpha: 0.5),
-                  fontSize: 18,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                "ចុចប៊ូតុង + ដើម្បីបន្ថែមការងាររបស់អ្នក",
-                style: GoogleFonts.kantumruyPro(
-                  color: Colors.white24,
-                  fontSize: 14,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+    return AppStateView(
+      icon: Icons.assignment_turned_in_outlined,
+      title: "មិនទាន់មានការងារនៅឡើយ",
+      message: "ចុចប៊ូតុង + ដើម្បីបន្ថែមការងាររបស់អ្នក",
+      color: AppTheme.primary,
     );
   }
 
   Widget _buildTaskList() {
     return AnimationLimiter(
       child: ListView.builder(
-        padding: const EdgeInsets.fromLTRB(20, 10, 20, 100),
+        padding: EdgeInsets.fromLTRB(
+          AppResponsive.horizontalPadding(context),
+          10,
+          AppResponsive.horizontalPadding(context),
+          AppResponsive.bottomPadding(context, extra: 112),
+        ),
         physics: const BouncingScrollPhysics(),
         itemCount: _items.length,
         itemBuilder: (context, index) {

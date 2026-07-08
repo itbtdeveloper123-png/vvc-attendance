@@ -146,67 +146,119 @@ class _ProfileScreenState extends State<ProfileScreen> {
     bool isMe,
     UserProvider user,
   ) {
+    const double frameSize = 118;
+
     return Column(
       children: [
         // Avatar
         GestureDetector(
           onTap: isMe ? () => _pickImage(context, user) : null,
           child: Stack(
-            alignment: Alignment.bottomRight,
+            clipBehavior: Clip.none,
             children: [
               Container(
-                width: 90,
-                height: 90,
+                width: frameSize,
+                height: frameSize,
+                padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: AppTheme.primary,
                   shape: BoxShape.circle,
-                  boxShadow: AppTheme.primaryShadow,
+                  gradient: SweepGradient(
+                    colors: [
+                      Colors.white,
+                      AppTheme.primary,
+                      AppTheme.primaryLight,
+                      AppTheme.accent,
+                      Colors.white,
+                    ],
+                  ),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.8),
+                    width: 2,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppTheme.primary.withValues(alpha: 0.38),
+                      blurRadius: 28,
+                      spreadRadius: 3,
+                      offset: const Offset(0, 8),
+                    ),
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.35),
+                      blurRadius: 18,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
                 ),
-                child: ClipOval(
-                  child: avatarUrl != null && avatarUrl.isNotEmpty
-                      ? Image.network(
-                          avatarUrl,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) =>
-                              _buildInitialsAvatar(name),
-                        )
-                      : _buildInitialsAvatar(name),
+                child: Container(
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    color: AppTheme.bgDark,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: AppTheme.primary.withValues(alpha: 0.88),
+                      width: 2,
+                    ),
+                  ),
+                  child: ClipOval(
+                    child: avatarUrl != null && avatarUrl.isNotEmpty
+                        ? Image.network(
+                            avatarUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) =>
+                                _buildInitialsAvatar(name),
+                          )
+                        : _buildInitialsAvatar(name),
+                  ),
                 ),
               ),
               if (isMe
                   ? user.isVerified
                   : (_targetUserData?['is_verified']?.toString() == '1'))
                 Positioned(
-                  bottom: 2,
-                  right: 2,
+                  bottom: 4,
+                  right: 4,
                   child: Container(
-                    padding: const EdgeInsets.all(2),
-                    decoration: const BoxDecoration(
+                    padding: const EdgeInsets.all(3),
+                    decoration: BoxDecoration(
                       color: Colors.white,
                       shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.25),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
                     ),
                     child: const Icon(
                       Icons.verified,
                       color: Colors.blueAccent,
-                      size: 20,
+                      size: 22,
                     ),
                   ),
                 ),
               if (isMe)
                 Positioned(
-                  top: 0,
-                  right: 0,
+                  top: 4,
+                  right: 4,
                   child: Container(
-                    padding: const EdgeInsets.all(6),
+                    padding: const EdgeInsets.all(7),
                     decoration: BoxDecoration(
                       color: AppTheme.accent,
                       shape: BoxShape.circle,
-                      border: Border.all(color: AppTheme.bgCard, width: 2),
+                      border: Border.all(color: AppTheme.bgDark, width: 3),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.28),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
                     ),
                     child: const Icon(
                       Icons.camera_alt_rounded,
                       color: Colors.white,
-                      size: 14,
+                      size: 15,
                     ),
                   ),
                 ),
@@ -540,12 +592,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     String? imageUrl;
-    if (type == 'GOLD_MEDAL')
+    if (type == 'GOLD_MEDAL') {
       imageUrl = "https://cdn-icons-png.flaticon.com/512/11167/11167978.png";
-    if (type == 'SILVER_MEDAL')
+    }
+    if (type == 'SILVER_MEDAL') {
       imageUrl = "https://cdn-icons-png.flaticon.com/512/7645/7645294.png";
-    if (type == 'BRONZE_MEDAL')
+    }
+    if (type == 'BRONZE_MEDAL') {
       imageUrl = "https://cdn-icons-png.flaticon.com/512/7645/7645366.png";
+    }
 
     return GestureDetector(
       onTap: () {

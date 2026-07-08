@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../providers/user_provider.dart';
 import '../utils/app_theme.dart';
 import '../services/api_service.dart';
+import '../widgets/app_widgets.dart';
 
 class MaterialItem {
   final int id;
@@ -499,13 +500,25 @@ class _MaterialRequestScreenState extends State<MaterialRequestScreen> {
   }
 
   Widget _buildMobileLayout(UserProvider user) {
+    final stockHeight = (MediaQuery.sizeOf(context).height * 0.38).clamp(
+      280.0,
+      360.0,
+    );
     return Column(
       children: [
         Expanded(
           child: SingleChildScrollView(
             physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            child: _buildFormContent(user),
+            padding: EdgeInsets.fromLTRB(
+              AppResponsive.horizontalPadding(context),
+              16,
+              AppResponsive.horizontalPadding(context),
+              AppResponsive.bottomPadding(context, extra: 12),
+            ),
+            child: AppResponsive.maxWidth(
+              context: context,
+              child: _buildFormContent(user),
+            ),
           ),
         ),
         // A mini expandable or simple persistent bottom bar to view stock could be placed here,
@@ -517,10 +530,7 @@ class _MaterialRequestScreenState extends State<MaterialRequestScreen> {
           color: AppTheme.borderColor,
           margin: const EdgeInsets.symmetric(vertical: 8),
         ),
-        SizedBox(
-          height: 350, // Fixed height for stock panel on mobile at the bottom
-          child: _buildStockContent(),
-        ),
+        SizedBox(height: stockHeight.toDouble(), child: _buildStockContent()),
       ],
     );
   }
@@ -534,25 +544,35 @@ class _MaterialRequestScreenState extends State<MaterialRequestScreen> {
     TextInputType keyboardType = TextInputType.text,
   }) {
     return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
       decoration: BoxDecoration(
-        color: AppTheme.bgCardLight.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(16),
+        color: AppTheme.fieldFill,
+        borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+        border: Border.all(color: AppTheme.fieldBorder),
       ),
-      child: TextFormField(
-        initialValue: initialValue,
-        onChanged: onChanged,
-        keyboardType: keyboardType,
-        style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 14),
-        decoration: InputDecoration(
-          hintText: hint,
-          hintStyle: GoogleFonts.kantumruyPro(
-            color: AppTheme.textMuted,
-            fontSize: 13,
+      child: Row(
+        children: [
+          Icon(icon, color: AppTheme.fieldIconColor, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: TextFormField(
+              initialValue: initialValue,
+              onChanged: onChanged,
+              keyboardType: keyboardType,
+              style: GoogleFonts.kantumruyPro(
+                color: Colors.white,
+                fontSize: 14,
+              ),
+              decoration: InputDecoration.collapsed(
+                hintText: hint,
+                hintStyle: GoogleFonts.kantumruyPro(
+                  color: AppTheme.fieldHintColor,
+                  fontSize: 13,
+                ),
+              ),
+            ),
           ),
-          prefixIcon: Icon(icon, color: AppTheme.primaryLight, size: 20),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(vertical: 16),
-        ),
+        ],
       ),
     );
   }
@@ -566,12 +586,10 @@ class _MaterialRequestScreenState extends State<MaterialRequestScreen> {
           // Elegant Header Profile
           Container(
             padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
+            decoration: AppTheme.cardDecoration(
               color: AppTheme.primary.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: AppTheme.primary.withValues(alpha: 0.1),
-              ),
+              radius: AppTheme.radiusLg,
+              borderColor: AppTheme.primary.withValues(alpha: 0.18),
             ),
             child: Row(
               children: [
@@ -630,8 +648,9 @@ class _MaterialRequestScreenState extends State<MaterialRequestScreen> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
               decoration: BoxDecoration(
-                color: AppTheme.bgCardLight.withValues(alpha: 0.3),
-                borderRadius: BorderRadius.circular(16),
+                color: AppTheme.fieldFill,
+                borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                border: Border.all(color: AppTheme.fieldBorder),
               ),
               child: Row(
                 children: [
@@ -687,8 +706,8 @@ class _MaterialRequestScreenState extends State<MaterialRequestScreen> {
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: AppTheme.bgCard,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: AppTheme.borderColor),
+                  borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+                  border: Border.all(color: AppTheme.cardBorder),
                 ),
                 child: Column(
                   children: [
@@ -869,12 +888,12 @@ class _MaterialRequestScreenState extends State<MaterialRequestScreen> {
             child: ElevatedButton(
               onPressed: _isSubmitting ? null : _submitRequest,
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF6366F1), // Indio-purple
-                foregroundColor: Colors.white,
+                backgroundColor: AppTheme.primary,
+                foregroundColor: AppTheme.textPrimary,
                 elevation: 8,
-                shadowColor: const Color(0xFF6366F1).withValues(alpha: 0.5),
+                shadowColor: AppTheme.primary.withValues(alpha: 0.35),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(AppTheme.radiusLg),
                 ),
               ),
               child: _isSubmitting
@@ -917,41 +936,50 @@ class _MaterialRequestScreenState extends State<MaterialRequestScreen> {
           Padding(
             padding: const EdgeInsets.all(20),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               decoration: BoxDecoration(
                 color: AppTheme.bgCard,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: AppTheme.borderColor),
               ),
-              child: TextField(
-                controller: _searchController,
-                style: GoogleFonts.kantumruyPro(
-                  color: Colors.white,
-                  fontSize: 14,
-                ),
-                decoration: InputDecoration(
-                  hintText: 'ស្វែងរកស្តុកទំនិញ...',
-                  hintStyle: GoogleFonts.kantumruyPro(
-                    color: AppTheme.textMuted,
-                    fontSize: 13,
-                  ),
-                  icon: Icon(
+              child: Row(
+                children: [
+                  Icon(
                     Icons.search_rounded,
                     color: AppTheme.textMuted,
                     size: 20,
                   ),
-                  suffixIcon: _searchQuery.isNotEmpty
-                      ? IconButton(
-                          icon: Icon(
-                            Icons.cancel_rounded,
-                            color: AppTheme.textMuted,
-                            size: 16,
-                          ),
-                          onPressed: () => _searchController.clear(),
-                        )
-                      : null,
-                  border: InputBorder.none,
-                ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: _searchController,
+                      style: GoogleFonts.kantumruyPro(
+                        color: Colors.white,
+                        fontSize: 14,
+                      ),
+                      decoration: InputDecoration.collapsed(
+                        hintText: 'ស្វែងរកស្តុកទំនិញ...',
+                        hintStyle: GoogleFonts.kantumruyPro(
+                          color: AppTheme.textMuted,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (_searchQuery.isNotEmpty)
+                    InkWell(
+                      borderRadius: BorderRadius.circular(999),
+                      onTap: _searchController.clear,
+                      child: Padding(
+                        padding: const EdgeInsets.all(4),
+                        child: Icon(
+                          Icons.cancel_rounded,
+                          color: AppTheme.textMuted,
+                          size: 16,
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
           ),

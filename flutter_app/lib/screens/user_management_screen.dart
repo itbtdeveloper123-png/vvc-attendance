@@ -131,7 +131,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       final path =
           '${dir.path}/user_export_${DateTime.now().millisecondsSinceEpoch}.csv';
       await File(path).writeAsString(buffer.toString());
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -141,6 +141,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             backgroundColor: Colors.green,
           ),
         );
+      }
     } catch (e) {
       if (mounted) _showError('Export failed: $e');
     }
@@ -184,27 +185,16 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               child: Row(
                 children: [
                   Expanded(
-                    child: TextField(
+                    child: AppSearchField(
                       controller: _searchController,
-                      style: TextStyle(color: AppTheme.textPrimary),
-                      decoration: InputDecoration(
-                        hintText: "ស្វែងរកឈ្មោះ ឬ ID...",
-                        hintStyle: TextStyle(
-                          color: AppTheme.textPrimary.withValues(alpha: 0.38),
-                          fontSize: 14,
-                        ),
-                        prefixIcon: Icon(
-                          Icons.search,
-                          color: AppTheme.textPrimary.withValues(alpha: 0.38),
-                        ),
-                        filled: true,
-                        fillColor: AppTheme.textPrimary.withValues(alpha: 0.05),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(15),
-                          borderSide: BorderSide.none,
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                      hintText: "ស្វែងរកឈ្មោះ ឬ ID...",
+                      borderRadius: 15,
+                      backgroundColor: AppTheme.textPrimary.withValues(
+                        alpha: 0.05,
                       ),
+                      borderColor: Colors.transparent,
+                      iconColor: AppTheme.textPrimary.withValues(alpha: 0.38),
+                      hintColor: AppTheme.textPrimary.withValues(alpha: 0.38),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -689,8 +679,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                               "ស្ថានភាពគ្រួសារ",
                               maritalStatus,
                               (v) {
-                                if (v != null)
+                                if (v != null) {
                                   setModalState(() => maritalStatus = v);
+                                }
                               },
                               items: ['Single', 'Married', 'Divorced'],
                             ),

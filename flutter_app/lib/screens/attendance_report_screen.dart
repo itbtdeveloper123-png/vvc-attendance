@@ -57,21 +57,35 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
     var filtered = _allLogs.where((log) {
       final logDate = log['log_datetime']?.toString().split(' ')[0] ?? '';
       final logRole = (log['system_role']?.toString() ?? '').toLowerCase();
-      
+
       bool matchesDate = logDate == dateStr;
       bool matchesRole = false;
-      
+
       // Filter ONLY Outside Scans (qr_location_id == 0 or null)
-      bool isOutside = log['qr_location_id'] == null || log['qr_location_id'] == 0 || log['qr_location_id'] == '0';
+      bool isOutside =
+          log['qr_location_id'] == null ||
+          log['qr_location_id'] == 0 ||
+          log['qr_location_id'] == '0';
       if (!isOutside) return false;
-      
+
       if (role == 'Skills') {
         // If join failed (logRole empty), we still show it in Skills as a fallback for now
-        matchesRole = logRole.isEmpty || logRole == 'skills' || logRole == 'it' || logRole == 'admin' || logRole == 'hrm' || logRole == 'accounting' || logRole == 'employee' || logRole.contains('admin');
+        matchesRole =
+            logRole.isEmpty ||
+            logRole == 'skills' ||
+            logRole == 'it' ||
+            logRole == 'admin' ||
+            logRole == 'hrm' ||
+            logRole == 'accounting' ||
+            logRole == 'employee' ||
+            logRole.contains('admin');
       } else {
-        matchesRole = logRole == 'worker' || logRole.contains('worker') || logRole.contains('កិច្ចសន្យា');
+        matchesRole =
+            logRole == 'worker' ||
+            logRole.contains('worker') ||
+            logRole.contains('កិច្ចសន្យា');
       }
-      
+
       return matchesDate && matchesRole;
     }).toList();
 
@@ -79,8 +93,12 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
 
     // Sort by name or ID
     filtered.sort((a, b) {
-      final nameA = (a['user_name'] ?? a['employee_id'] ?? '').toString().toLowerCase();
-      final nameB = (b['user_name'] ?? b['employee_id'] ?? '').toString().toLowerCase();
+      final nameA = (a['user_name'] ?? a['employee_id'] ?? '')
+          .toString()
+          .toLowerCase();
+      final nameB = (b['user_name'] ?? b['employee_id'] ?? '')
+          .toString()
+          .toLowerCase();
       return nameA.compareTo(nameB);
     });
 
@@ -116,7 +134,10 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
             indicatorWeight: 3,
             labelColor: AppTheme.primary,
             unselectedLabelColor: AppTheme.textPrimary.withValues(alpha: 0.4),
-            labelStyle: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold, fontSize: 16),
+            labelStyle: GoogleFonts.kantumruyPro(
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+            ),
             tabs: const [
               Tab(text: "ជំនាញ (Skills)"),
               Tab(text: "កម្មករ (Worker)"),
@@ -129,10 +150,7 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
               _buildFilterBar(),
               Expanded(
                 child: TabBarView(
-                  children: [
-                    _buildLogList('Skills'),
-                    _buildLogList('Worker'),
-                  ],
+                  children: [_buildLogList('Skills'), _buildLogList('Worker')],
                 ),
               ),
             ],
@@ -143,20 +161,25 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
   }
 
   Widget _buildFilterBar() {
+    final hPad = AppResponsive.horizontalPadding(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      margin: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.bgCard.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppTheme.textPrimary.withValues(alpha: 0.05)),
+      margin: EdgeInsets.fromLTRB(hPad, 14, hPad, 12),
+      decoration: AppTheme.cardDecoration(
+        color: AppTheme.bgCard.withValues(alpha: 0.72),
+        radius: AppTheme.radiusLg,
+        borderColor: AppTheme.cardBorder,
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Row(
             children: [
-              Icon(Icons.calendar_today_rounded, size: 20, color: AppTheme.primary),
+              Icon(
+                Icons.calendar_today_rounded,
+                size: 20,
+                color: AppTheme.primary,
+              ),
               const SizedBox(width: 12),
               Text(
                 DateFormat('dd / MM / yyyy').format(_selectedDate),
@@ -197,9 +220,14 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
               },
               borderRadius: BorderRadius.circular(10),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
-                  border: Border.all(color: AppTheme.primary.withValues(alpha: 0.5)),
+                  border: Border.all(
+                    color: AppTheme.primary.withValues(alpha: 0.5),
+                  ),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
@@ -222,28 +250,26 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
     if (_isLoading) {
       return _buildShimmerList();
     }
-    
+
     final logs = _getFilteredLogs(type);
-    
+
     if (logs.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.history_rounded, size: 64, color: AppTheme.textPrimary.withValues(alpha: 0.1)),
-            const SizedBox(height: 16),
-            Text(
-              "មិនទាន់មានទិន្នន័យសម្រាប់ថ្ងៃនេះ",
-              style: GoogleFonts.kantumruyPro(color: AppTheme.textPrimary.withValues(alpha: 0.3)),
-            ),
-          ],
-        ),
+      return AppStateView(
+        icon: Icons.history_rounded,
+        title: "មិនទាន់មានទិន្នន័យ",
+        message: "សាកល្បងប្តូរថ្ងៃ ឬ refresh ម្តងទៀត",
+        color: AppTheme.primary,
       );
     }
 
     return AnimationLimiter(
       child: ListView.builder(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
+        padding: EdgeInsets.fromLTRB(
+          AppResponsive.horizontalPadding(context),
+          0,
+          AppResponsive.horizontalPadding(context),
+          AppResponsive.bottomPadding(context),
+        ),
         itemCount: logs.length,
         itemBuilder: (context, index) => AnimationConfiguration.staggeredList(
           position: index,
@@ -251,7 +277,10 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
           child: SlideAnimation(
             verticalOffset: 50.0,
             child: FadeInAnimation(
-              child: _buildLogCard(logs[index], index),
+              child: AppResponsive.maxWidth(
+                context: context,
+                child: _buildLogCard(logs[index], index),
+              ),
             ),
           ),
         ),
@@ -261,7 +290,12 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
 
   Widget _buildShimmerList() {
     return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: EdgeInsets.fromLTRB(
+        AppResponsive.horizontalPadding(context),
+        0,
+        AppResponsive.horizontalPadding(context),
+        AppResponsive.bottomPadding(context),
+      ),
       itemCount: 8,
       itemBuilder: (context, index) => Padding(
         padding: const EdgeInsets.only(bottom: 12),
@@ -297,7 +331,7 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
         timeTxt = dtStr;
       }
     } else {
-       timeTxt = dtStr;
+      timeTxt = dtStr;
     }
 
     final isLate = status.toLowerCase() == 'late' || status.contains('យឺត');
@@ -312,7 +346,9 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
         decoration: BoxDecoration(
           color: AppTheme.bgCard,
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: AppTheme.textPrimary.withValues(alpha: 0.05)),
+          border: Border.all(
+            color: AppTheme.textPrimary.withValues(alpha: 0.05),
+          ),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.1),
@@ -329,7 +365,8 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
                   width: 50,
                   height: 50,
                   decoration: BoxDecoration(
-                    color: (isOut ? Colors.orange : AppTheme.primary).withValues(alpha: 0.1),
+                    color: (isOut ? Colors.orange : AppTheme.primary)
+                        .withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(15),
                   ),
                   child: Icon(
@@ -343,7 +380,9 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        (name == 'N/A' || name.isEmpty) ? (log['employee_id'] ?? 'N/A') : name,
+                        (name == 'N/A' || name.isEmpty)
+                            ? (log['employee_id'] ?? 'N/A')
+                            : name,
                         style: GoogleFonts.kantumruyPro(
                           color: AppTheme.textPrimary,
                           fontWeight: FontWeight.bold,
@@ -353,12 +392,18 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
                       const SizedBox(height: 2),
                       Row(
                         children: [
-                          Icon(Icons.business_center_rounded, size: 12, color: AppTheme.textPrimary.withValues(alpha: 0.4)),
+                          Icon(
+                            Icons.business_center_rounded,
+                            size: 12,
+                            color: AppTheme.textPrimary.withValues(alpha: 0.4),
+                          ),
                           const SizedBox(width: 4),
                           Text(
                             dept,
                             style: GoogleFonts.kantumruyPro(
-                              color: AppTheme.textPrimary.withValues(alpha: 0.5),
+                              color: AppTheme.textPrimary.withValues(
+                                alpha: 0.5,
+                              ),
                               fontSize: 11,
                             ),
                           ),
@@ -380,9 +425,14 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
                     ),
                     const SizedBox(height: 4),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
                       decoration: BoxDecoration(
-                        color: (isLate ? Colors.red : Colors.green).withValues(alpha: 0.15),
+                        color: (isLate ? Colors.red : Colors.green).withValues(
+                          alpha: 0.15,
+                        ),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
@@ -403,7 +453,11 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
             const SizedBox(height: 10),
             Row(
               children: [
-                Icon(Icons.location_on_rounded, size: 14, color: AppTheme.primary.withValues(alpha: 0.7)),
+                Icon(
+                  Icons.location_on_rounded,
+                  size: 14,
+                  color: AppTheme.primary.withValues(alpha: 0.7),
+                ),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
@@ -420,59 +474,93 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
                     onTap: () async {
                       final lat = log['latitude'];
                       final lon = log['longitude'];
-                      final url = 'https://www.google.com/maps/search/?api=1&query=$lat,$lon';
+                      final url =
+                          'https://www.google.com/maps/search/?api=1&query=$lat,$lon';
                       if (await canLaunchUrl(Uri.parse(url))) {
-                        await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+                        await launchUrl(
+                          Uri.parse(url),
+                          mode: LaunchMode.externalApplication,
+                        );
                       }
                     },
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: AppTheme.primary.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: AppTheme.primary.withValues(alpha: 0.3)),
+                        border: Border.all(
+                          color: AppTheme.primary.withValues(alpha: 0.3),
+                        ),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.map_rounded, size: 14, color: AppTheme.primary),
+                          Icon(
+                            Icons.map_rounded,
+                            size: 14,
+                            color: AppTheme.primary,
+                          ),
                           const SizedBox(width: 4),
                           Text(
                             "ទីតាំង",
-                            style: GoogleFonts.kantumruyPro(color: AppTheme.primary, fontSize: 10, fontWeight: FontWeight.bold),
+                            style: GoogleFonts.kantumruyPro(
+                              color: AppTheme.primary,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ],
                       ),
                     ),
                   ),
                 const SizedBox(width: 8),
-                if (log['photo_path'] != null && log['photo_path'].toString().isNotEmpty)
+                if (log['photo_path'] != null &&
+                    log['photo_path'].toString().isNotEmpty)
                   GestureDetector(
                     onTap: () {
-                       showDialog(
-                         context: context,
-                         builder: (context) => Dialog(
-                           backgroundColor: Colors.transparent,
-                           insetPadding: const EdgeInsets.all(10),
-                           child: Container(
-                             width: double.infinity,
-                             decoration: BoxDecoration(
-                                color: AppTheme.bgDark,
-                                borderRadius: BorderRadius.circular(24),
-                                border: Border.all(color: AppTheme.primary.withValues(alpha: 0.3)),
-                             ),
-                             child: Column(
-                               mainAxisSize: MainAxisSize.min,
-                               children: [
+                      showDialog(
+                        context: context,
+                        builder: (context) => Dialog(
+                          backgroundColor: Colors.transparent,
+                          insetPadding: const EdgeInsets.all(10),
+                          child: Container(
+                            width: double.infinity,
+                            decoration: BoxDecoration(
+                              color: AppTheme.bgDark,
+                              borderRadius: BorderRadius.circular(24),
+                              border: Border.all(
+                                color: AppTheme.primary.withValues(alpha: 0.3),
+                              ),
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
                                 Stack(
                                   children: [
                                     ClipRRect(
-                                      borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                                      borderRadius: const BorderRadius.vertical(
+                                        top: Radius.circular(24),
+                                      ),
                                       child: Image.network(
-                                        ApiService.getFullImageUrl(log['photo_path']),
+                                        ApiService.getFullImageUrl(
+                                          log['photo_path'],
+                                        ),
                                         fit: BoxFit.contain,
                                         width: double.infinity,
-                                        errorBuilder: (c,e,s) => Container(color: Colors.white10, height: 200, child: const Center(child: Icon(Icons.broken_image, color: Colors.white54, size: 40))),
+                                        errorBuilder: (c, e, s) => Container(
+                                          color: Colors.white10,
+                                          height: 200,
+                                          child: const Center(
+                                            child: Icon(
+                                              Icons.broken_image,
+                                              color: Colors.white54,
+                                              size: 40,
+                                            ),
+                                          ),
+                                        ),
                                       ),
                                     ),
                                     // Watermark Overlay
@@ -481,25 +569,42 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
                                       left: 10,
                                       right: 10,
                                       child: Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 8,
+                                        ),
                                         decoration: BoxDecoration(
                                           color: Colors.black54,
-                                          borderRadius: BorderRadius.circular(10),
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
                                         ),
                                         child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
                                           mainAxisSize: MainAxisSize.min,
                                           children: [
                                             Row(
                                               children: [
-                                                const Icon(Icons.location_on, color: Colors.redAccent, size: 14),
+                                                const Icon(
+                                                  Icons.location_on,
+                                                  color: Colors.redAccent,
+                                                  size: 14,
+                                                ),
                                                 const SizedBox(width: 4),
                                                 Expanded(
                                                   child: Text(
                                                     location,
-                                                    style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+                                                    style:
+                                                        GoogleFonts.kantumruyPro(
+                                                          color: Colors.white,
+                                                          fontSize: 11,
+                                                          fontWeight:
+                                                              FontWeight.w600,
+                                                        ),
                                                     maxLines: 1,
-                                                    overflow: TextOverflow.ellipsis,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
                                                   ),
                                                 ),
                                               ],
@@ -507,11 +612,19 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
                                             const SizedBox(height: 2),
                                             Row(
                                               children: [
-                                                const Icon(Icons.access_time_filled, color: Colors.cyanAccent, size: 14),
+                                                const Icon(
+                                                  Icons.access_time_filled,
+                                                  color: Colors.cyanAccent,
+                                                  size: 14,
+                                                ),
                                                 const SizedBox(width: 4),
                                                 Text(
                                                   timeTxt,
-                                                  style: GoogleFonts.inter(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                                                  style: GoogleFonts.inter(
+                                                    color: Colors.white,
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
                                                 ),
                                               ],
                                             ),
@@ -521,49 +634,78 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
                                     ),
                                   ],
                                 ),
-                               const SizedBox(height: 16),
-                               Padding(
-                                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                                 child: Text(name, style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-                               ),
-                               const SizedBox(height: 16),
-                               Padding(
-                                 padding: const EdgeInsets.only(bottom: 16),
-                                 child: ElevatedButton(
-                                   style: ElevatedButton.styleFrom(
-                                     backgroundColor: AppTheme.primary,
-                                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
-                                   ),
-                                   onPressed: () => Navigator.pop(context), 
-                                   child: Text("បិទ", style: GoogleFonts.kantumruyPro(color: Colors.white))
-                                 ),
-                               )
-                             ]
-                           ) // End Column
-                           ) // End Container
-                         ) // End Dialog
-                       ); // End showDialog
+                                const SizedBox(height: 16),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                  ),
+                                  child: Text(
+                                    name,
+                                    style: GoogleFonts.kantumruyPro(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 16),
+                                  child: ElevatedButton(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppTheme.primary,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                    ),
+                                    onPressed: () => Navigator.pop(context),
+                                    child: Text(
+                                      "បិទ",
+                                      style: GoogleFonts.kantumruyPro(
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ), // End Column
+                          ), // End Container
+                        ), // End Dialog
+                      ); // End showDialog
                     },
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.cyanAccent.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.cyanAccent.withValues(alpha: 0.3)),
+                        border: Border.all(
+                          color: Colors.cyanAccent.withValues(alpha: 0.3),
+                        ),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.image_rounded, size: 14, color: Colors.cyanAccent),
+                          const Icon(
+                            Icons.image_rounded,
+                            size: 14,
+                            color: Colors.cyanAccent,
+                          ),
                           const SizedBox(width: 4),
                           Text(
                             "រូបភាព",
-                            style: GoogleFonts.kantumruyPro(color: Colors.cyanAccent, fontSize: 10, fontWeight: FontWeight.bold),
+                            style: GoogleFonts.kantumruyPro(
+                              color: Colors.cyanAccent,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ],
                       ),
                     ),
-                  )
+                  ),
               ],
             ),
           ],

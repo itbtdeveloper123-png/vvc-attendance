@@ -245,9 +245,7 @@ class _OtRequestScreenState extends State<OtRequestScreen> {
                           Text(
                             "សូមបំពេញព័ត៌មានឱ្យបានត្រឹមត្រូវ",
                             style: GoogleFonts.kantumruyPro(
-                              color: AppTheme.textPrimary.withValues(
-                                alpha: 0.38,
-                              ),
+                              color: AppTheme.helperTextColor,
                               fontSize: 13,
                             ),
                           ),
@@ -402,11 +400,8 @@ class _OtRequestScreenState extends State<OtRequestScreen> {
             bottom: 0,
             left: 0,
             right: 0,
-            child: Container(
+            child: Padding(
               padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: AppTheme.bgDark.withValues(alpha: 0.96),
-              ),
               child: SafeArea(
                 child: _isLoading
                     ? const Center(child: CircularProgressIndicator())
@@ -415,16 +410,8 @@ class _OtRequestScreenState extends State<OtRequestScreen> {
                         height: 55,
                         child: ElevatedButton(
                           onPressed: _submit,
-                          style: ElevatedButton.styleFrom(
+                          style: AppTheme.filledButtonStyle(
                             backgroundColor: AppTheme.secondary,
-                            foregroundColor: AppTheme.textPrimary,
-                            elevation: 8,
-                            shadowColor: AppTheme.secondary.withValues(
-                              alpha: 0.4,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
                           ),
                           child: Text(
                             "បញ្ជូនសំណើ OT",
@@ -452,7 +439,7 @@ class _OtRequestScreenState extends State<OtRequestScreen> {
           child: Text(
             label,
             style: GoogleFonts.kantumruyPro(
-              color: AppTheme.textPrimary.withValues(alpha: 0.70),
+              color: AppTheme.labelColor,
               fontSize: 13,
               fontWeight: FontWeight.w500,
             ),
@@ -471,9 +458,9 @@ class _OtRequestScreenState extends State<OtRequestScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: AppTheme.textPrimary.withValues(alpha: 0.05),
+        color: AppTheme.fieldFill,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.textPrimary.withValues(alpha: 0.1)),
+        border: Border.all(color: AppTheme.fieldBorder),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
@@ -482,7 +469,7 @@ class _OtRequestScreenState extends State<OtRequestScreen> {
           dropdownColor: AppTheme.bgCard,
           icon: Icon(
             Icons.keyboard_arrow_down_rounded,
-            color: AppTheme.textPrimary.withValues(alpha: 0.38),
+            color: AppTheme.helperTextColor,
           ),
           items: items
               .map(
@@ -518,11 +505,9 @@ class _OtRequestScreenState extends State<OtRequestScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         decoration: BoxDecoration(
-          color: AppTheme.textPrimary.withValues(alpha: 0.05),
+          color: AppTheme.fieldFill,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: AppTheme.textPrimary.withValues(alpha: 0.1),
-          ),
+          border: Border.all(color: AppTheme.fieldBorder),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -536,7 +521,7 @@ class _OtRequestScreenState extends State<OtRequestScreen> {
             ),
             Icon(
               Icons.calendar_month_rounded,
-              color: AppTheme.textPrimary.withValues(alpha: 0.38),
+              color: AppTheme.helperTextColor,
               size: 20,
             ),
           ],
@@ -561,11 +546,9 @@ class _OtRequestScreenState extends State<OtRequestScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         decoration: BoxDecoration(
-          color: AppTheme.textPrimary.withValues(alpha: 0.05),
+          color: AppTheme.fieldFill,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: AppTheme.textPrimary.withValues(alpha: 0.1),
-          ),
+          border: Border.all(color: AppTheme.fieldBorder),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -577,11 +560,7 @@ class _OtRequestScreenState extends State<OtRequestScreen> {
                 fontSize: 14,
               ),
             ),
-            Icon(
-              icon,
-              color: AppTheme.textPrimary.withValues(alpha: 0.38),
-              size: 20,
-            ),
+            Icon(icon, color: AppTheme.helperTextColor, size: 20),
           ],
         ),
       ),
@@ -592,31 +571,33 @@ class _OtRequestScreenState extends State<OtRequestScreen> {
     return InputDecoration(
       hintText: hint,
       prefixIcon: icon != null
-          ? Icon(
-              icon,
-              color: AppTheme.textPrimary.withValues(alpha: 0.24),
-              size: 20,
-            )
+          ? Icon(icon, color: AppTheme.fieldIconColor, size: 20)
           : null,
       hintStyle: GoogleFonts.kantumruyPro(
-        color: AppTheme.textPrimary.withValues(alpha: 0.24),
+        color: AppTheme.fieldHintColor,
         fontSize: 13,
       ),
       filled: true,
-      fillColor: AppTheme.textPrimary.withValues(alpha: 0.05),
+      fillColor: AppTheme.fieldFill,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
         borderSide: BorderSide.none,
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
-        borderSide: BorderSide(
-          color: AppTheme.textPrimary.withValues(alpha: 0.05),
-        ),
+        borderSide: BorderSide(color: AppTheme.fieldBorder),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
         borderSide: BorderSide(color: AppTheme.secondary, width: 1.5),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(color: AppTheme.danger.withValues(alpha: 0.75)),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(color: AppTheme.danger, width: 1.5),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
     );
@@ -631,9 +612,7 @@ class _OtRequestScreenState extends State<OtRequestScreen> {
       controller: controller,
       readOnly: readOnly,
       style: (isKhmer ? GoogleFonts.kantumruyPro : GoogleFonts.inter)(
-        color: readOnly
-            ? AppTheme.textPrimary.withValues(alpha: 0.38)
-            : AppTheme.textPrimary,
+        color: readOnly ? AppTheme.helperTextColor : AppTheme.textPrimary,
         fontSize: 14,
       ),
       decoration: _inputDecoration(""),

@@ -46,7 +46,9 @@ android/.gradle/
 android/.kotlin/
 android/build/
 android/local.properties
+ios/Flutter/MapsApiKey.xcconfig
 ios/Pods/
+web/config.js
 
 # Uploaded user/test files should not be stored in git.
 upload/uploads/

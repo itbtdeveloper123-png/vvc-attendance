@@ -124,8 +124,9 @@ class _TeamChatScreenState extends State<TeamChatScreen> {
     if (text.isEmpty &&
         base64Image == null &&
         base64Audio == null &&
-        editDocId == null)
+        editDocId == null) {
       return;
+    }
     final roomId = _getChatRoomId();
     final collection = widget.isGroup ? 'groups' : 'chats';
 
@@ -177,12 +178,13 @@ class _TeamChatScreenState extends State<TeamChatScreen> {
   }
 
   void _scrollToBottom() {
-    if (_scrollController.hasClients)
+    if (_scrollController.hasClients) {
       _scrollController.animateTo(
         0.0,
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeOut,
       );
+    }
   }
 
   String _formatLastSeen(Timestamp? timestamp) {
@@ -321,7 +323,7 @@ class _TeamChatScreenState extends State<TeamChatScreen> {
             ),
             title: InkWell(
               onTap: () {
-                if (!widget.isGroup)
+                if (!widget.isGroup) {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -329,6 +331,7 @@ class _TeamChatScreenState extends State<TeamChatScreen> {
                           ProfileScreen(targetEmployeeId: widget.targetUserId),
                     ),
                   );
+                }
               },
               child: Row(
                 children: [
@@ -358,7 +361,7 @@ class _TeamChatScreenState extends State<TeamChatScreen> {
                               .doc(widget.targetUserId)
                               .snapshots(),
                           builder: (context, snapshot) {
-                            if (widget.isGroup)
+                            if (widget.isGroup) {
                               return Text(
                                 'ក្រុមការងារ',
                                 style: GoogleFonts.kantumruyPro(
@@ -366,7 +369,8 @@ class _TeamChatScreenState extends State<TeamChatScreen> {
                                   color: AppTheme.primaryLight,
                                 ),
                               );
-                            if (!snapshot.hasData || !snapshot.data!.exists)
+                            }
+                            if (!snapshot.hasData || !snapshot.data!.exists) {
                               return Text(
                                 'Offline',
                                 style: GoogleFonts.inter(
@@ -374,9 +378,10 @@ class _TeamChatScreenState extends State<TeamChatScreen> {
                                   color: AppTheme.textMuted,
                                 ),
                               );
+                            }
                             final data =
                                 snapshot.data!.data() as Map<String, dynamic>;
-                            if (data['isOnline'] == true)
+                            if (data['isOnline'] == true) {
                               return Text(
                                 'Online',
                                 style: GoogleFonts.inter(
@@ -384,6 +389,7 @@ class _TeamChatScreenState extends State<TeamChatScreen> {
                                   color: Colors.greenAccent,
                                 ),
                               );
+                            }
                             return Text(
                               _formatLastSeen(data['lastSeen'] as Timestamp?),
                               style: GoogleFonts.kantumruyPro(
@@ -409,8 +415,9 @@ class _TeamChatScreenState extends State<TeamChatScreen> {
     return StreamBuilder<QuerySnapshot>(
       stream: _messageStream,
       builder: (context, snapshot) {
-        if (!snapshot.hasData)
+        if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
+        }
         final messages = snapshot.data!.docs;
         return ListView.builder(
           controller: _scrollController,
@@ -938,7 +945,7 @@ class _TeamChatScreenState extends State<TeamChatScreen> {
     double size = 32,
     IconData? icon,
   }) {
-    if (icon != null)
+    if (icon != null) {
       return Container(
         width: size,
         height: size,
@@ -948,6 +955,7 @@ class _TeamChatScreenState extends State<TeamChatScreen> {
         ),
         child: Icon(icon, color: Colors.white, size: size * 0.6),
       );
+    }
     final String url = ApiService.getFullImageUrl(
       photo.isNotEmpty ? photo : "$id.jpg",
     );
@@ -982,13 +990,14 @@ class _TeamChatScreenState extends State<TeamChatScreen> {
     return FutureBuilder<Uint8List>(
       future: compute(base64Decode, base64Str),
       builder: (context, snapshot) {
-        if (!snapshot.hasData)
+        if (!snapshot.hasData) {
           return const SizedBox(
             height: 150,
             child: Center(
               child: CircularProgressIndicator(color: Colors.white54),
             ),
           );
+        }
         return Image.memory(snapshot.data!);
       },
     );

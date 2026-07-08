@@ -111,13 +111,14 @@ class _OutsideReportScreenState extends State<OutsideReportScreen> {
   }
 
   Widget _buildFilterBar() {
+    final hPad = AppResponsive.horizontalPadding(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: AppTheme.bgCard.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppTheme.textPrimary.withValues(alpha: 0.05)),
+      margin: EdgeInsets.fromLTRB(hPad, 10, hPad, 12),
+      decoration: AppTheme.cardDecoration(
+        color: AppTheme.bgCard.withValues(alpha: 0.72),
+        radius: AppTheme.radiusLg,
+        borderColor: AppTheme.cardBorder,
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -203,37 +204,34 @@ class _OutsideReportScreenState extends State<OutsideReportScreen> {
     final logs = _getFilteredLogs();
 
     if (logs.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.photo_library_rounded,
-              size: 64,
-              color: AppTheme.textPrimary.withValues(alpha: 0.1),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              "មិនទាន់មានទិន្នន័យពីខាងក្រៅសម្រាប់ថ្ងៃនេះ",
-              style: GoogleFonts.kantumruyPro(
-                color: AppTheme.textPrimary.withValues(alpha: 0.3),
-              ),
-            ),
-          ],
-        ),
+      return AppStateView(
+        icon: Icons.photo_library_rounded,
+        title: "មិនទាន់មានទិន្នន័យខាងក្រៅ",
+        message: "សាកល្បងប្តូរថ្ងៃ ឬ refresh ម្តងទៀត",
+        color: AppTheme.primary,
       );
     }
 
     return AnimationLimiter(
       child: ListView.builder(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.fromLTRB(
+          AppResponsive.horizontalPadding(context),
+          0,
+          AppResponsive.horizontalPadding(context),
+          AppResponsive.bottomPadding(context),
+        ),
         itemCount: logs.length,
         itemBuilder: (context, index) => AnimationConfiguration.staggeredList(
           position: index,
           duration: const Duration(milliseconds: 500),
           child: SlideAnimation(
             verticalOffset: 50.0,
-            child: FadeInAnimation(child: _buildFeedCard(logs[index])),
+            child: FadeInAnimation(
+              child: AppResponsive.maxWidth(
+                context: context,
+                child: _buildFeedCard(logs[index]),
+              ),
+            ),
           ),
         ),
       ),
