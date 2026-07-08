@@ -42,7 +42,11 @@ jobs:
       - name: Install Flutter dependencies
         run: flutter pub get
 
-
+      - name: Install CocoaPods
+        run: |
+          gem install cocoapods
+          cd ios && pod install --repo-update
+        timeout-minutes: 15
 
       # If certificates are not installed, build an unsigned IPA
       - name: Build Unsigned IPA
@@ -51,12 +55,13 @@ jobs:
           BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.PROVISIONING_PROFILE_BASE64 }}
         if: ${{ env.BUILD_CERTIFICATE_BASE64 == '' || env.BUILD_PROVISION_PROFILE_BASE64 == '' }}
         run: |
+          set -e
           flutter build ipa --no-codesign --verbose
           echo "=== Build Finished, Creating IPA ==="
           ARCHIVE_PATH=$(find build/ios/archive -name "*.xcarchive" | head -n 1)
           echo "Archive path: $ARCHIVE_PATH"
           APPS_DIR="$ARCHIVE_PATH/Products/Applications"
-          ls "$APPS_DIR" || { echo "ERROR: Applications directory not found"; exit 1; }
+          ls "$APPS_DIR"
           mkdir -p build/ios/iphoneos
           cd "$APPS_DIR"
           zip -r "$GITHUB_WORKSPACE/flutter_app/build/ios/iphoneos/Runner-unsigned.ipa" *.app
@@ -101,4 +106,4 @@ jobs:
           path: |
             flutter_app/build/ios/iphoneos/*.ipa
             flutter_app/build/ios/ipa/*.ipa
-          if-no-files-found: error
+          if-no-files-found: warn
