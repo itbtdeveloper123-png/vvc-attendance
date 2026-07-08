@@ -143,6 +143,11 @@ class _TripScreenState extends State<TripScreen>
       return false;
     }
 
+    // If permission is already 'always', we are fully authorized for background tracking!
+    if (permission == LocationPermission.always) {
+      return true;
+    }
+
     if (!kIsWeb) {
       final backgroundStatus = await Permission.locationAlways.status;
       if (!backgroundStatus.isGranted) {
