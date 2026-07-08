@@ -38,28 +38,31 @@ jobs:
       - name: Build Unsigned IPA (no codesign)
         working-directory: flutter_app
         run: |
-          flutter build ipa --no-codesign
-          echo "=== Listing build output ==="
-          find build/ios -name "*.ipa" -o -name "*.xcarchive" 2>/dev/null || true
-          echo "=== Packaging IPA ==="
-          ARCHIVE=$(find build/ios/archive -name "*.xcarchive" | head -n 1)
-          echo "Archive: $ARCHIVE"
-          APPS="$ARCHIVE/Products/Applications"
-          if [ -d "$APPS" ]; then
-            mkdir -p build/ios/iphoneos
-            cd "$APPS"
-            zip -r "$GITHUB_WORKSPACE/flutter_app/build/ios/iphoneos/Runner-unsigned.ipa" *.app
-            echo "IPA created successfully"
-          else
-            echo "Products/Applications not found, looking for ipa file..."
-            find $GITHUB_WORKSPACE/flutter_app/build -name "*.ipa" | head -5
-          fi
+          # 1. Build ចេញជា .app bundle (Release mode) ដោយមិនប្រើ Code Sign
+          flutter build ios --release --no-codesign
+          
+          # 2. បង្កើត Folder សម្រាប់ផ្ទុកហ្វាយ IPA ចុងក្រោយ
+          mkdir -p build/ios/iphoneos
+          
+          # 3. ចូលទៅកាន់ Folder build/ios/iphoneos ដើម្បីរៀបចំរចនាសម្ព័ន្ធ Payload
+          cd build/ios/iphoneos
+          mkdir Payload
+          
+          # 4. ចម្លង Runner.app ដែលទើបនឹង build រួច ចូលទៅក្នុង Payload
+          cp -r ../Release-iphoneos/Runner.app Payload/
+          
+          # 5. បង្កើតជាហ្វាយ IPA ដោយការ Zip ថត Payload នោះ
+          zip -r Runner-unsigned.ipa Payload
+          
+          # 6. លុបថត Payload បណ្តោះអាសន្នចេញវិញ
+          rm -rf Payload
+          
+          echo "=== Verification ==="
+          ls -la
 
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
           name: vvc-hrm-ios-unsigned
-          path: |
-            flutter_app/build/ios/iphoneos/*.ipa
-            flutter_app/build/ios/ipa/*.ipa
-          if-no-files-found: warn
+          path: flutter_app/build/ios/iphoneos/Runner-unsigned.ipa
+          if-no-files-found: error
