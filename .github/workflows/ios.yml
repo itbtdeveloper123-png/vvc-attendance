@@ -27,8 +27,14 @@ jobs:
 
       - name: Create local config files from examples
         working-directory: flutter_app
+        env:
+          GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
         run: |
           cp ios/Flutter/MapsApiKey.example.xcconfig ios/Flutter/MapsApiKey.xcconfig 2>/dev/null || echo "No MapsApiKey.example.xcconfig found, skipping"
+          if [ ! -z "$GOOGLE_MAPS_API_KEY" ]; then
+            echo "Injecting Google Maps API Key from Secrets"
+            echo "GOOGLE_MAPS_API_KEY=$GOOGLE_MAPS_API_KEY" > ios/Flutter/MapsApiKey.xcconfig
+          fi
           cp web/config.example.js web/config.js 2>/dev/null || echo "No config.example.js found, skipping"
 
       - name: Install Flutter dependencies
