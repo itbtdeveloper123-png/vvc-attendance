@@ -11,6 +11,9 @@ jobs:
   build:
     name: Build iOS App
     runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: ./flutter_app
 
     steps:
       - name: Checkout repository
@@ -26,7 +29,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
-          flutter-version-file: pubspec.yaml
+          flutter-version-file: flutter_app/pubspec.yaml
           cache: true
 
       - name: Install dependencies
@@ -92,6 +95,6 @@ jobs:
         with:
           name: ios-build-artifact
           path: |
-            build/ios/iphoneos/*.ipa
-            build/ios/ipa/*.ipa
+            flutter_app/build/ios/iphoneos/*.ipa
+            flutter_app/build/ios/ipa/*.ipa
           if-no-files-found: error
