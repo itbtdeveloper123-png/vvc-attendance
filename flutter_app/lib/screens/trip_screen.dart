@@ -149,20 +149,20 @@ class _TripScreenState extends State<TripScreen>
     }
 
     if (!kIsWeb) {
-      final backgroundStatus = await Permission.locationAlways.status;
-      if (!backgroundStatus.isGranted) {
-        final requested = await Permission.locationAlways.request();
-        if (!requested.isGranted) {
-          _showSnack(
-            'សូមអនុញ្ញាត background location ដើម្បីឲ្យ app តាមដានបានពេលចេញពីកម្មវិធី។',
-            isError: true,
-          );
-          await openAppSettings();
-          return false;
-        }
-      }
-
       if (defaultTargetPlatform == TargetPlatform.android) {
+        final backgroundStatus = await Permission.locationAlways.status;
+        if (!backgroundStatus.isGranted) {
+          final requested = await Permission.locationAlways.request();
+          if (!requested.isGranted) {
+            _showSnack(
+              'សូមអនុញ្ញាត background location ដើម្បីឲ្យ app តាមដានបានពេលចេញពីកម្មវិធី។',
+              isError: true,
+            );
+            await openAppSettings();
+            return false;
+          }
+        }
+
         final notificationStatus = await Permission.notification.status;
         if (!notificationStatus.isGranted) {
           await Permission.notification.request();
