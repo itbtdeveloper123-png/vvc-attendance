@@ -643,73 +643,92 @@ class _MeetingsScreenState extends State<MeetingsScreen>
       return;
     }
 
-    if (_isRecording) {
-      final path = await _recorder.stop();
-      if (path != null) {
-        _updateRecordingInfo(path);
-      }
-      setState(() {
-        _isRecording = false;
-        _recordedPath = path;
-        _selectedAudioBytes = null;
-        _selectedAudioName = null;
-        _isUploadedAudio = false;
-      });
-      if (path != null) {
-        await _saveCurrentRecordingToDraft();
-      }
-    } else {
-      bool hasPermission = true;
-      if (!kIsWeb) {
-        hasPermission = await Permission.microphone.request().isGranted;
-      }
-
-      if (hasPermission) {
-        String? path;
-
-        if (!kIsWeb) {
-          final dir = await getApplicationCacheDirectory();
-          path = p.join(
-            dir.path,
-            'meeting_rec_${DateTime.now().millisecondsSinceEpoch}.m4a',
-          );
+    try {
+      if (_isRecording) {
+        final path = await _recorder.stop();
+        if (path != null) {
+          _updateRecordingInfo(path);
         }
-
-        // Speech-focused audio config:
-        // 48kbps AAC mono at 32kHz keeps voice clear while reducing upload size a lot.
-        const config = RecordConfig(
-          encoder: AudioEncoder.aacLc,
-          bitRate: 48000,
-          sampleRate: 32000,
-          numChannels: 1,
-        );
-
-        await _recorder.start(config, path: path ?? '');
-        _recordingStartTime = DateTime.now();
         setState(() {
-          _isRecording = true;
-          _isRecordingPaused = false;
-          _recordedPath = null;
-          _selectedDraftId = null;
+          _isRecording = false;
+          _recordedPath = path;
           _selectedAudioBytes = null;
           _selectedAudioName = null;
           _isUploadedAudio = false;
-          _recordingDuration = "00:00";
         });
+        if (path != null) {
+          await _saveCurrentRecordingToDraft();
+        }
+      } else {
+        bool hasPermission = true;
+        if (!kIsWeb) {
+          hasPermission = await _recorder.hasPermission();
+        }
 
-        // Track duration
-        Future.doWhile(() async {
-          if (!_isRecording) return false;
-          await Future.delayed(const Duration(seconds: 1));
-          if (mounted && _isRecording) {
-            final diff = DateTime.now().difference(_recordingStartTime!);
-            setState(() {
-              _recordingDuration =
-                  "${diff.inMinutes.toString().padLeft(2, '0')}:${(diff.inSeconds % 60).toString().padLeft(2, '0')}";
-            });
+        if (hasPermission) {
+          String? path;
+
+          if (!kIsWeb) {
+            final dir = await getApplicationCacheDirectory();
+            path = p.join(
+              dir.path,
+              'meeting_rec_${DateTime.now().millisecondsSinceEpoch}.m4a',
+            );
           }
-          return _isRecording;
-        });
+
+          // Speech-focused audio config:
+          // 48kbps AAC mono at 32kHz keeps voice clear while reducing upload size a lot.
+          const config = RecordConfig(
+            encoder: AudioEncoder.aacLc,
+            bitRate: 48000,
+            sampleRate: 32000,
+            numChannels: 1,
+          );
+
+          await _recorder.start(config, path: path ?? '');
+          _recordingStartTime = DateTime.now();
+          setState(() {
+            _isRecording = true;
+            _isRecordingPaused = false;
+            _recordedPath = null;
+            _selectedDraftId = null;
+            _selectedAudioBytes = null;
+            _selectedAudioName = null;
+            _isUploadedAudio = false;
+            _recordingDuration = "00:00";
+          });
+
+          // Track duration
+          Future.doWhile(() async {
+            if (!_isRecording) return false;
+            await Future.delayed(const Duration(seconds: 1));
+            if (mounted && _isRecording) {
+              final diff = DateTime.now().difference(_recordingStartTime!);
+              setState(() {
+                _recordingDuration =
+                    "${diff.inMinutes.toString().padLeft(2, '0')}:${(diff.inSeconds % 60).toString().padLeft(2, '0')}";
+              });
+            }
+            return _isRecording;
+          });
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('សូមអនុញ្ញាត Microphone ដើម្បីចាប់ផ្តើមថត'),
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint("Recording error: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('កំហុសពេលថតសំឡេង៖ $e'),
+          ),
+        );
       }
     }
   }
