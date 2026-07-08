@@ -42,15 +42,7 @@ jobs:
       - name: Install Flutter dependencies
         run: flutter pub get
 
-      - name: Install CocoaPods dependencies
-        run: |
-          cd ios
-          pod install --repo-update
-        timeout-minutes: 10
 
-      - name: Check Dart/Flutter analysis
-        run: flutter analyze --no-fatal-infos
-        continue-on-error: true
 
       # If certificates are not installed, build an unsigned IPA
       - name: Build Unsigned IPA
