@@ -3143,6 +3143,15 @@ switch ($action) {
         }
         break;
 
+    case 'reverse_geocode':
+        $lat = floatval($_POST['latitude'] ?? 0);
+        $lon = floatval($_POST['longitude'] ?? 0);
+        if (!$lat || !$lon) {
+            apiResponse(['success' => false, 'message' => 'Missing coordinates']);
+        }
+        $address = get_address_from_gps($lat, $lon);
+        apiResponse(['success' => true, 'address' => $address]);
+        break;
 
     case 'get_profile':
         if (!$user) {
