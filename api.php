@@ -350,6 +350,17 @@ if ($mysqli->connect_error) {
 }
 $mysqli->set_charset("utf8mb4");
 $mysqli->query("SET time_zone = '+07:00'");
+
+// Auto-heal DB schema if global_max_tokens or system_role_label is missing
+$col_check_max = $mysqli->query("SHOW COLUMNS FROM users LIKE 'global_max_tokens'");
+if (!$col_check_max || $col_check_max->num_rows === 0) {
+    @$mysqli->query("ALTER TABLE users ADD COLUMN global_max_tokens INT DEFAULT 1");
+}
+$col_check_role = $mysqli->query("SHOW COLUMNS FROM users LIKE 'system_role_label'");
+if (!$col_check_role || $col_check_role->num_rows === 0) {
+    @$mysqli->query("ALTER TABLE users ADD COLUMN system_role_label VARCHAR(100) DEFAULT NULL");
+}
+
 ensure_enterprise_support_tables($mysqli);
 process_due_notification_schedules($mysqli);
 
