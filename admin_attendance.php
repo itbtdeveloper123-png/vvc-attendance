@@ -13071,45 +13071,73 @@ ob_end_flush();
                             <?php endif; ?>
                         </div>
 
-                        <div class="hrm-toolbar" style="margin-top: 30px;">
-                            <div class="hrm-filter-group">
-                                <h3 style="margin: 0; display:flex; align-items:center; gap:10px;">
-                                    <i class="fa-solid fa-list-ul" style="color:var(--primary);"></i>
-                                    បញ្ជីវត្តមានបុគ្គលិក
-                                </h3>
-                                <span id="attendanceSelectionInfo" class="attendance-selection-info"
-                                    style="display:none; background:var(--primary-light); color:var(--primary); padding:4px 12px; border-radius:30px; font-weight:700; font-size:0.8rem;">បានជ្រើស
-                                    <strong>0</strong></span>
+                        <!-- Start of Unified Card -->
+                        <div class="hrm-card" style="padding: 0; overflow: hidden; margin-bottom: 30px; border: 1px solid var(--border); box-shadow: var(--shadow-sm); border-radius: 16px; background: var(--surface);">
+                            
+                            <!-- Card Header (Toolbar) -->
+                            <div class="hrm-card-header" style="display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; border-bottom: 1px solid var(--border); background: var(--surface-alt);">
+                                <div class="hrm-filter-group" style="display: flex; align-items: center; gap: 10px;">
+                                    <h3 style="margin: 0; display:flex; align-items:center; gap:10px; font-size: 1.1rem; font-weight: 700; color: var(--text-primary);">
+                                        <i class="fa-solid fa-list-ul" style="color:var(--primary);"></i>
+                                        បញ្ជីវត្តមានបុគ្គលិក
+                                    </h3>
+                                    <span id="attendanceSelectionInfo" class="attendance-selection-info"
+                                        style="display:none; background:var(--primary-light); color:var(--primary); padding:4px 12px; border-radius:30px; font-weight:700; font-size:0.8rem;">បានជ្រើស
+                                        <strong>0</strong></span>
+                                </div>
+                                <div class="hrm-toolbar-actions" style="display: flex; gap: 8px;">
+                                    <button id="exportExcelBtn" type="button" class="btn btn-sm btn-success" style="padding: 6px 12px; border-radius: 8px; font-weight: 600;"><i
+                                            class="fa-solid fa-file-excel"></i> Excel</button>
+                                    <button id="deleteSelectedBtn" type="button" class="btn btn-sm btn-danger" style="padding: 6px 12px; border-radius: 8px; font-weight: 600;" disabled><i
+                                            class="fa-solid fa-trash"></i> លុប</button>
+                                    <button id="toggleReportsFullscreen" type="button" class="btn btn-sm btn-secondary" style="padding: 6px 12px; border-radius: 8px; font-weight: 600;"
+                                        title="Full Screen"><i class="fa-solid fa-expand"></i></button>
+                                </div>
                             </div>
-                            <div class="hrm-toolbar-actions">
-                                <button id="exportExcelBtn" type="button" class="btn btn-sm btn-success"><i
-                                        class="fa-solid fa-file-excel"></i> Excel</button>
-                                <button id="deleteSelectedBtn" type="button" class="btn btn-sm btn-danger" disabled><i
-                                        class="fa-solid fa-trash"></i> លុប</button>
-                                <button id="toggleReportsFullscreen" type="button" class="btn btn-sm btn-secondary"
-                                    title="Full Screen"><i class="fa-solid fa-expand"></i></button>
-                            </div>
-                        </div>
 
                         <style>
+                            .card-modern {
+                                background: var(--surface);
+                                border-radius: 16px;
+                                padding: 24px;
+                                margin-bottom: 25px;
+                                border: 1px solid var(--border);
+                                box-shadow: var(--shadow-sm);
+                                position: relative;
+                                overflow: hidden;
+                            }
+                            .card-accent-danger {
+                                border-left: 4px solid #ef4444;
+                            }
+                            .flex-between {
+                                display: flex;
+                                justify-content: space-between;
+                                align-items: center;
+                                gap: 15px;
+                            }
+                            .flex-row-resp {
+                                display: flex;
+                                align-items: center;
+                                gap: 16px;
+                            }
                             .hrm-tabs {
                                 display: flex;
                                 gap: 5px;
-                                margin-bottom: 25px;
-                                border-bottom: 2px solid var(--border);
+                                margin-bottom: 0;
+                                border-bottom: none;
                                 padding-bottom: 0;
                             }
 
                             .hrm-tab-item {
-                                padding: 12px 25px;
+                                padding: 14px 25px;
                                 cursor: pointer;
                                 color: var(--text-secondary);
                                 font-weight: 700;
-                                border-radius: 12px 12px 0 0;
+                                border-radius: 0;
                                 transition: all 0.2s;
-                                border: 1.5px solid transparent;
-                                border-bottom: none;
-                                margin-bottom: -2px;
+                                border: none;
+                                border-bottom: 3px solid transparent;
+                                margin-bottom: -1px;
                                 text-decoration: none;
                                 display: flex;
                                 align-items: center;
@@ -13124,10 +13152,9 @@ ob_end_flush();
 
                             .hrm-tab-item.active {
                                 color: var(--primary);
-                                background: var(--surface);
-                                border-color: var(--border);
-                                border-bottom-color: var(--surface);
-                                box-shadow: 0 -4px 10px rgba(0, 0, 0, 0.02);
+                                background: transparent;
+                                border-bottom: 3px solid var(--primary);
+                                box-shadow: none;
                             }
 
                             .hrm-tab-item i {
@@ -13135,29 +13162,34 @@ ob_end_flush();
                             }
                         </style>
 
-                        <div class="hrm-tabs">
-                            <?php
-                            $base_tab_params = [
-                                'page' => 'reports',
-                                'filter_date' => $filter_date,
-                                'filter_status' => $filter_status,
-                            ];
-                            $q_dept = array_merge($base_tab_params, ['filter_department' => 'department']);
-                            $q_worker = array_merge($base_tab_params, ['filter_department' => 'worker']);
-                            ?>
-                            <a href="?<?php echo http_build_query($q_dept); ?>"
-                                class="hrm-tab-item <?php echo ($filter_department === 'department') ? 'active' : ''; ?>">
-                                <i class="fa-solid fa-briefcase"></i>
-                                ផ្នែករដ្ឋបាល/ជំនាញ
-                            </a>
-                            <a href="?<?php echo http_build_query($q_worker); ?>"
-                                class="hrm-tab-item <?php echo ($filter_department === 'worker') ? 'active' : ''; ?>">
-                                <i class="fa-solid fa-users"></i>
-                                ផ្នែកកម្មករ
-                            </a>
+                        <!-- Card Tabs Bar -->
+                        <div style="background: var(--surface-alt); padding: 0 24px; border-bottom: 1px solid var(--border);">
+                            <div class="hrm-tabs">
+                                <?php
+                                $base_tab_params = [
+                                    'page' => 'reports',
+                                    'filter_date' => $filter_date,
+                                    'filter_status' => $filter_status,
+                                ];
+                                $q_dept = array_merge($base_tab_params, ['filter_department' => 'department']);
+                                $q_worker = array_merge($base_tab_params, ['filter_department' => 'worker']);
+                                ?>
+                                <a href="?<?php echo http_build_query($q_dept); ?>"
+                                    class="hrm-tab-item <?php echo ($filter_department === 'department') ? 'active' : ''; ?>">
+                                    <i class="fa-solid fa-briefcase"></i>
+                                    ផ្នែករដ្ឋបាល/ជំនាញ
+                                </a>
+                                <a href="?<?php echo http_build_query($q_worker); ?>"
+                                    class="hrm-tab-item <?php echo ($filter_department === 'worker') ? 'active' : ''; ?>">
+                                    <i class="fa-solid fa-users"></i>
+                                    ផ្នែកកម្មករ
+                                </a>
+                            </div>
                         </div>
 
-                        <div class="hrm-card" style="padding: 20px; margin-bottom: 30px;">
+                        <!-- Card Body (Filters and Table) -->
+                        <div style="padding: 24px;">
+                            <div style="padding: 0; margin-bottom: 0;">
                             <form method="GET" action="admin_attendance.php" id="reportsFilterForm">
                                 <input type="hidden" name="page" value="reports">
                                 <input type="hidden" name="filter_department"
@@ -13412,6 +13444,9 @@ ob_end_flush();
                                     </form>
                                 </div>
                             </div>
+
+                            </div> <!-- End of Card Body -->
+                        </div> <!-- End of Unified Card -->
 
                         <?php endif; ?>
 
