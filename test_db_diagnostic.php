@@ -8,40 +8,38 @@ if ($mysqli->connect_error) {
 }
 echo "Database Connected successfully to: " . DB_NAME . "<br/><br/>";
 
-// 1. Query for employee_id '0168'
+// 1. Check and add global_max_tokens if missing
+$res = $mysqli->query("SHOW COLUMNS FROM users LIKE 'global_max_tokens'");
+if ($res && $res->num_rows > 0) {
+    echo "Column 'global_max_tokens' exists.<br/>";
+} else {
+    echo "Column 'global_max_tokens' is MISSING! Adding it now...<br/>";
+    $ok = $mysqli->query("ALTER TABLE users ADD COLUMN global_max_tokens INT DEFAULT 1");
+    echo $ok ? "Successfully added 'global_max_tokens'!<br/>" : "Failed to add column: " . $mysqli->error . "<br/>";
+}
+
+// 2. Check and add system_role_label if missing
+$res = $mysqli->query("SHOW COLUMNS FROM users LIKE 'system_role_label'");
+if ($res && $res->num_rows > 0) {
+    echo "Column 'system_role_label' exists.<br/>";
+} else {
+    echo "Column 'system_role_label' is MISSING! Adding it now...<br/>";
+    $ok = $mysqli->query("ALTER TABLE users ADD COLUMN system_role_label VARCHAR(100) DEFAULT NULL");
+    echo $ok ? "Successfully added 'system_role_label'!<br/>" : "Failed to add column: " . $mysqli->error . "<br/>";
+}
+
+// 3. Query for employee_id '0168'
 $id = '0168';
 $stmt = $mysqli->prepare("SELECT employee_id, name, user_role, system_role FROM users WHERE employee_id = ?");
 if ($stmt) {
     $stmt->bind_param("s", $id);
     $stmt->execute();
     $res = $stmt->get_result()->fetch_assoc();
-    echo "Querying exact VARCHAR match for '0168':<br/>";
+    echo "<br/>Querying user '0168' after column check:<br/><pre>";
     print_r($res);
-    echo "<br/><br/>";
+    echo "</pre>";
     $stmt->close();
 }
 
-// 2. Query for employee_id as numeric 168
-$id_num = 168;
-$stmt = $mysqli->prepare("SELECT employee_id, name, user_role, system_role FROM users WHERE employee_id = ?");
-if ($stmt) {
-    $stmt->bind_param("i", $id_num);
-    $stmt->execute();
-    $res = $stmt->get_result()->fetch_assoc();
-    echo "Querying numeric match for 168:<br/>";
-    print_r($res);
-    echo "<br/><br/>";
-    $stmt->close();
-}
-
-// 3. Let's dump all users to see what's in the table
-echo "Listing first 10 users in database:<br/>";
-$res_all = $mysqli->query("SELECT employee_id, name, user_role, system_role FROM users LIMIT 10");
-if ($res_all) {
-    while ($row = $res_all->fetch_assoc()) {
-        echo "ID: [" . $row['employee_id'] . "] - Name: " . $row['name'] . " - Role: " . $row['user_role'] . "<br/>";
-    }
-} else {
-    echo "Query failed: " . $mysqli->error;
-}
+$mysqli->close();
 ?>
