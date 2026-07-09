@@ -25362,9 +25362,9 @@ ob_end_flush();
             showAjaxMessage('info', 'Column Visibility panel is not ready yet. Please try reloading the page.');
         }
 
-        const storeId = window.ADMIN_CONFIG ? window.ADMIN_CONFIG.store : '';
-        const selectedDate = window.ADMIN_CONFIG ? window.ADMIN_CONFIG.selected_date : '';
-        let activeInput = null;
+        var storeId = window.ADMIN_CONFIG ? window.ADMIN_CONFIG.store : '';
+        var selectedDate = window.ADMIN_CONFIG ? window.ADMIN_CONFIG.selected_date : '';
+        var activeInput = null;
 
         function showToast(message, type = 'success') {
             const container = document.getElementById('toast-container');
