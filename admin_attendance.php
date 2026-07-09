@@ -5475,19 +5475,43 @@ ob_end_flush();
     <!-- Premium Admin Panel v2 - Inline Styles -->
     <style>
         :root {
-            --primary: #6366f1;
-            --primary-dark: #4f46e5;
+            /* Palette colors */
+            --primary: #4f46e5;
+            --primary-hover: #4338ca;
+            --primary-light: #eef2ff;
+            
+            --success: #10b981;
+            --success-hover: #059669;
+            --success-light: #ecfdf5;
+            
+            --warning: #f59e0b;
+            --warning-hover: #d97706;
+            --warning-light: #fffbeb;
+            
+            --danger: #ef4444;
+            --danger-hover: #dc2626;
+            --danger-light: #fef2f2;
+            
             --surface: #ffffff;
             --surface-alt: #f8fafc;
             --background: #f1f5f9;
-            --text-primary: #1e293b;
-            --text-secondary: #64748b;
             --border: #e2e8f0;
-            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-            --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
-            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
-            --radius: 8px;
-            --radius-lg: 12px;
+            --border-hover: #cbd5e1;
+            
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --text-muted: #94a3b8;
+            
+            /* Shadows */
+            --shadow-sm: 0 1px 2px 0 rgba(15, 23, 42, 0.05);
+            --shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.1), 0 2px 4px -2px rgba(15, 23, 42, 0.1);
+            --shadow-lg: 0 10px 15px -3px rgba(15, 23, 42, 0.08), 0 4px 6px -4px rgba(15, 23, 42, 0.08);
+            
+            /* Radii */
+            --radius-sm: 6px;
+            --radius: 10px;
+            --radius-lg: 16px;
+            
             --breadcrumb-sticky-top: 96px;
         }
 
@@ -5498,7 +5522,7 @@ ob_end_flush();
         }
 
         body {
-            font-family: 'Kantumruy Pro', 'Inter', sans-serif;
+            font-family: 'Kantumruy Pro', 'Inter', system-ui, -apple-system, sans-serif;
             background: var(--background);
             color: var(--text-primary);
             line-height: 1.5;
@@ -5512,7 +5536,7 @@ ob_end_flush();
 
         .sidebar {
             width: 260px;
-            background: linear-gradient(180deg, #1e1b4b 0%, #312e81 100%);
+            background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
             color: white;
             position: fixed;
             left: 0;
@@ -5522,15 +5546,16 @@ ob_end_flush();
             z-index: 1000;
             display: flex;
             flex-direction: column;
+            box-shadow: 4px 0 24px rgba(15, 23, 42, 0.15);
         }
 
         .sidebar-header {
             padding: 24px 20px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-            padding: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
             margin-bottom: 20px;
         }
 
+        /* Standardized Premium Buttons */
         .btn {
             display: inline-flex;
             align-items: center;
@@ -5538,48 +5563,116 @@ ob_end_flush();
             gap: 8px;
             padding: 10px 20px;
             border-radius: var(--radius);
-            border: none;
+            border: 1px solid transparent;
             font-family: inherit;
-            font-size: 0.9rem;
+            font-size: 0.875rem;
             font-weight: 600;
             cursor: pointer;
             text-decoration: none;
-            transition: all 0.2s;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .btn:active {
+            transform: translateY(0);
         }
 
         .btn-primary {
             background: var(--primary);
             color: white;
+            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.16);
         }
 
         .btn-primary:hover {
-            background: var(--primary-dark);
+            background: var(--primary-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(79, 70, 229, 0.24);
         }
 
+        .btn-secondary {
+            background: var(--surface);
+            border-color: var(--border);
+            color: var(--text-secondary);
+        }
+
+        .btn-secondary:hover {
+            background: var(--surface-alt);
+            border-color: var(--border-hover);
+            color: var(--text-primary);
+        }
+
+        .btn-success {
+            background: var(--success);
+            color: white;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.16);
+        }
+
+        .btn-success:hover {
+            background: var(--success-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(16, 185, 129, 0.24);
+        }
+
+        .btn-warning {
+            background: var(--warning);
+            color: white;
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.16);
+        }
+
+        .btn-warning:hover {
+            background: var(--warning-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(245, 158, 11, 0.24);
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.16);
+        }
+
+        .btn-danger:hover {
+            background: var(--danger-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(239, 68, 68, 0.24);
+        }
+
+        /* Modernized Form Control inputs */
         .form-control {
             width: 100%;
             padding: 10px 14px;
-            border: 1px solid var(--border);
+            border: 1.5px solid var(--border);
             border-radius: var(--radius);
             font-family: inherit;
-            font-size: 0.95rem;
+            font-size: 0.92rem;
+            color: var(--text-primary);
             background: var(--surface);
+            transition: all 0.2s ease-in-out;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .form-control::placeholder {
+            color: var(--text-muted);
         }
 
         .form-control:focus {
             outline: none;
             border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+            background: var(--surface);
         }
 
+        /* Spacious Data Tables */
         .table {
             width: 100%;
-            border-collapse: collapse;
-            font-size: 0.9rem;
+            border-collapse: separate;
+            border-spacing: 0;
+            font-size: 0.875rem;
         }
 
         .table th,
         .table td {
-            padding: 12px 16px;
+            padding: 14px 18px;
             text-align: left;
             border-bottom: 1px solid var(--border);
         }
@@ -5590,16 +5683,28 @@ ob_end_flush();
             color: var(--text-secondary);
             font-size: 0.75rem;
             text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border-top: 1px solid var(--border);
+        }
+
+        .table tr:last-child td {
+            border-bottom: none;
         }
 
         .table tr:hover td {
-            background: var(--surface-alt);
+            background: rgba(79, 70, 229, 0.02) !important;
+            transition: background 0.15s ease-in-out;
         }
 
         .table-responsive {
             overflow-x: auto;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            background: var(--surface);
+            box-shadow: var(--shadow-sm);
         }
 
+        /* Redesigned Modals */
         .modal {
             display: none;
             position: fixed;
@@ -5608,45 +5713,59 @@ ob_end_flush();
             top: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.6);
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(4px);
             overflow-y: auto;
+            align-items: center;
+            justify-content: center;
         }
 
         .modal-content {
             background: var(--surface);
-            margin: 3% auto;
+            margin: auto;
             padding: 0;
             border-radius: var(--radius-lg);
             width: 95%;
             max-width: 600px;
-            box-shadow: var(--shadow-lg);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
             position: relative;
+            border: 1px solid var(--border);
         }
 
         .modal-header {
-            padding: 20px 25px;
-            background: var(--primary);
-            color: white;
+            padding: 20px 24px;
+            background: var(--surface-alt);
+            color: var(--text-primary);
+            border-bottom: 1px solid var(--border);
             border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
         }
 
         .modal-body {
-            padding: 25px;
+            padding: 24px;
         }
 
         .modal-footer {
-            padding: 20px 25px;
+            padding: 16px 24px;
             border-top: 1px solid var(--border);
+            background: var(--surface-alt);
+            border-radius: 0 0 var(--radius-lg) var(--radius-lg);
             display: flex;
             gap: 10px;
             justify-content: flex-end;
         }
 
+        /* Payment display modifications */
         .payment-preview-container {
             background: var(--surface);
             padding: 30px;
             max-width: 500px;
             margin: 20px auto;
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border);
         }
 
         .payment-qr-section {
@@ -5655,8 +5774,8 @@ ob_end_flush();
         }
 
         .payment-qr-display {
-            width: 100px;
-            height: 100px;
+            width: 120px;
+            height: 120px;
             background: var(--surface-alt);
             border: 2px dashed var(--border);
             border-radius: var(--radius);
@@ -5669,15 +5788,21 @@ ob_end_flush();
         }
 
         .payment-btn {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
             color: white;
             padding: 12px 30px;
-            border-radius: 25px;
+            border-radius: var(--radius-full);
             border: none;
             font-weight: 700;
-            font-size: 1rem;
+            font-size: 0.95rem;
             cursor: pointer;
-            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            box-shadow: 0 4px 15px rgba(79, 70, 229, 0.3);
+            transition: all 0.2s;
+        }
+
+        .payment-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(79, 70, 229, 0.4);
         }
 
         .payment-account-section {
@@ -5689,46 +5814,50 @@ ob_end_flush();
             color: var(--text-secondary);
             margin-bottom: 12px;
             text-align: center;
+            font-weight: 600;
         }
 
         .payment-bank-card {
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-            border-radius: var(--radius-lg);
-            padding: 15px 20px;
+            background: linear-gradient(135deg, #ec4899 0%, #f43f5e 100%);
+            border-radius: var(--radius);
+            padding: 16px 20px;
             margin-bottom: 12px;
             color: white;
+            box-shadow: 0 4px 12px rgba(244, 63, 94, 0.2);
         }
 
         .payment-bank-card.acleda {
-            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            background: linear-gradient(135deg, #0284c7 0%, #0ea5e9 100%);
+            box-shadow: 0 4px 12px rgba(14, 165, 233, 0.2);
         }
 
         .payment-bank-name {
             font-weight: 700;
-            font-size: 1.1rem;
+            font-size: 1.05rem;
             margin-bottom: 8px;
         }
 
         .payment-account-detail {
-            font-size: 0.9rem;
+            font-size: 0.875rem;
             margin-bottom: 4px;
             opacity: 0.95;
         }
 
         .payment-note {
-            background: #fff3cd;
-            border-left: 4px solid #ffc107;
-            padding: 12px 15px;
-            border-radius: 0 var(--radius) var(--radius) 0;
+            background: #fffbeb;
+            border-left: 4px solid var(--warning);
+            padding: 12px 16px;
+            border-radius: var(--radius-sm);
             margin-top: 20px;
             font-size: 0.85rem;
-            color: #856404;
+            color: #92400e;
+            border: 1px solid #fef3c7;
         }
 
         .payment-telegram {
             margin-top: 10px;
             font-weight: 600;
-            color: #0088cc;
+            color: #0284c7;
         }
     </style>
 
@@ -6258,7 +6387,7 @@ ob_end_flush();
         .sidebar {
             width: 260px;
             min-width: 260px;
-            background: linear-gradient(170deg, #0f172a 0%, #1e1b4b 40%, #312e81 100%);
+            background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
             color: #fff;
             position: fixed;
             left: 0;
@@ -6498,8 +6627,8 @@ ob_end_flush();
 
         .sidebar a.active,
         .sidebar a.submenu-toggle.active {
-            background: linear-gradient(90deg, rgba(99, 102, 241, 0.35) 0%, rgba(99, 102, 241, 0.15) 100%);
-            color: #a5b4fc;
+            background: linear-gradient(90deg, rgba(79, 70, 229, 0.15) 0%, rgba(79, 70, 229, 0.05) 100%);
+            color: #818cf8;
             font-weight: 600;
         }
 
@@ -6510,7 +6639,7 @@ ob_end_flush();
             top: 20%;
             height: 60%;
             width: 3px;
-            background: #818cf8;
+            background: var(--primary);
             border-radius: 0 3px 3px 0;
         }
 
@@ -6549,8 +6678,8 @@ ob_end_flush();
         }
 
         .sidebar .submenu-toggle.active {
-            background: linear-gradient(90deg, rgba(99, 102, 241, 0.35) 0%, rgba(99, 102, 241, 0.15) 100%);
-            color: #a5b4fc;
+            background: linear-gradient(90deg, rgba(79, 70, 229, 0.15) 0%, rgba(79, 70, 229, 0.05) 100%);
+            color: #818cf8;
             font-weight: 600;
         }
 
@@ -6627,18 +6756,18 @@ ob_end_flush();
         }
 
         .sidebar .submenu li a:hover::before {
-            background: #818cf8;
+            background: var(--primary);
             transform: translateY(-50%) scale(1.4);
         }
 
         .sidebar .submenu li a.sub-active {
-            background: rgba(99, 102, 241, 0.2);
-            color: #a5b4fc;
+            background: rgba(79, 70, 229, 0.1);
+            color: #818cf8;
             font-weight: 600;
         }
 
         .sidebar .submenu li a.sub-active::before {
-            background: #818cf8;
+            background: var(--primary);
             transform: translateY(-50%) scale(1.4);
         }
 
@@ -13541,7 +13670,7 @@ ob_end_flush();
                                 gap: 8px;
                             }
                             .noted-cell:hover {
-                                background-color: rgba(99, 102, 241, 0.08) !important;
+                                background-color: rgba(79, 70, 229, 0.08) !important;
                             }
                             .noted-cell:hover .edit-noted-icon {
                                 opacity: 1 !important;
@@ -13730,7 +13859,7 @@ ob_end_flush();
                                             <div style="background: #ffffff; border-radius: 16px; width: 450px; max-width: 90%; padding: 24px; box-shadow: 0 10px 25px rgba(0,0,0,0.15); border: 1px solid #e2e8f0; animation: notedModalShow 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);">
                                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid #f1f5f9; padding-bottom: 12px;">
                                                     <h3 style="margin: 0; font-size: 1.15rem; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 8px;">
-                                                        <i class="fa-solid fa-pen-to-square" style="color: #6366f1;"></i> កែប្រែចំណាំ / Edit Note
+                                                        <i class="fa-solid fa-pen-to-square" style="color: #4f46e5;"></i> កែប្រែចំណាំ / Edit Note
                                                     </h3>
                                                     <button type="button" class="close-noted-modal-btn" style="background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #94a3b8; transition: color 0.2s;"><i class="fa-solid fa-xmark"></i></button>
                                                 </div>
@@ -13740,7 +13869,7 @@ ob_end_flush();
                                                 </div>
                                                 <div style="display: flex; justify-content: flex-end; gap: 10px;">
                                                     <button type="button" class="close-noted-modal-btn" style="padding: 9px 16px; border-radius: 8px; border: 1px solid #cbd5e1; background: #fff; color: #475569; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.2s;">បោះបង់</button>
-                                                    <button type="button" id="saveNotedBtn" style="padding: 9px 20px; border-radius: 8px; border: none; background: #6366f1; color: #fff; font-size: 0.9rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s;">
+                                                    <button type="button" id="saveNotedBtn" style="padding: 9px 20px; border-radius: 8px; border: none; background: #4f46e5; color: #fff; font-size: 0.9rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s;">
                                                         <i class="fa-solid fa-save"></i> រក្សាទុក
                                                     </button>
                                                 </div>
@@ -13752,14 +13881,14 @@ ob_end_flush();
                                                 to { transform: scale(1); opacity: 1; }
                                             }
                                             #notedInputVal:focus {
-                                                border-color: #6366f1 !important;
-                                                box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+                                                border-color: #4f46e5 !important;
+                                                box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
                                             }
                                             .close-noted-modal-btn:hover {
                                                 color: #0f172a !important;
                                             }
                                             #saveNotedBtn:hover {
-                                                background: #4f46e5 !important;
+                                                background: #4338ca !important;
                                             }
                                         </style>
                                     `;
