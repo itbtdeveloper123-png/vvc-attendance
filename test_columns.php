@@ -8,10 +8,15 @@ if ($mysqli->connect_error) {
 }
 
 echo "<h3>Columns in 'users' table:</h3>";
-$res = $mysqli->query("SHOW COLUMNS FROM users");
+$res = $mysqli->query("SELECT * FROM users LIMIT 1");
 if ($res) {
-    while ($row = $res->fetch_assoc()) {
-        echo $row['Field'] . " (" . $row['Type'] . ")<br/>";
+    $row = $res->fetch_assoc();
+    if ($row) {
+        echo "<pre>";
+        print_r(array_keys($row));
+        echo "</pre>";
+    } else {
+        echo "No users found in table.";
     }
 } else {
     echo "Query failed: " . $mysqli->error;
