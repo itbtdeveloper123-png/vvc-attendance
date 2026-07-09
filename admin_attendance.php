@@ -17912,7 +17912,7 @@ ob_end_flush();
                                                                 ?>
                                                                 <span class="role-dot"
                                                                     style="background: <?php echo $roleColor; ?>;"></span>
-                                                                <span><?php echo htmlspecialchars($user['system_role_label'] ?: $sysRoleStr); ?></span>
+                                                                <span><?php echo htmlspecialchars(($user['system_role_label'] ?? '') ?: $sysRoleStr); ?></span>
                                                                 <span style="opacity: 0.5;">•</span>
                                                                 <span><?php echo htmlspecialchars($user['position'] ?? 'Staff'); ?></span>
                                                             </div>
