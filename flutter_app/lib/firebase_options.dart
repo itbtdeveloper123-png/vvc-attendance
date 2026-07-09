@@ -4,7 +4,7 @@ import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, TargetPlatform;
 
-/// Default [FirebaseOptions] for use with [Firebase.initializeApp].
+/// Default [FirebaseOptions] for use with your Firebase apps.
 ///
 /// Example:
 /// ```dart
@@ -24,6 +24,15 @@ class DefaultFirebaseOptions {
         return android;
       case TargetPlatform.iOS:
         return ios;
+      case TargetPlatform.macOS:
+        return macos;
+      case TargetPlatform.windows:
+        return windows;
+      case TargetPlatform.linux:
+        throw UnsupportedError(
+          'DefaultFirebaseOptions have not been configured for linux - '
+          'you can reconfigure this by running the FlutterFire CLI again.',
+        );
       default:
         throw UnsupportedError(
           'DefaultFirebaseOptions are not supported for this platform.',
@@ -32,7 +41,7 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyBTlrKycJRtWAU7mRzlfrCEeC6GCWgQERA',
+    apiKey: 'AIzaSyA0to_fSuGnPOWiIICFdkNpQaqDko6IjOM',
     appId: '1:514446176088:web:974e860df1810804f33f2d',
     messagingSenderId: '514446176088',
     projectId: 'vvc-app-845aa',
@@ -51,10 +60,29 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyANU20JRJtAhvsssXNvWe5q5nJ3XzXuzXw',
-    appId: '1:514446176088:ios:32a1be58e240c63ff33f2d', // Placeholder
+    appId: '1:514446176088:ios:d6630707edc01888f33f2d',
     messagingSenderId: '514446176088',
     projectId: 'vvc-app-845aa',
     storageBucket: 'vvc-app-845aa.firebasestorage.app',
     iosBundleId: 'com.vvc.vvcAttendance',
+  );
+
+  static const FirebaseOptions macos = FirebaseOptions(
+    apiKey: 'AIzaSyDuLNv5vkF6Nuv_Ybssrb5PYSUlyksEoHg',
+    appId: '1:514446176088:ios:76132cabbca60904f33f2d',
+    messagingSenderId: '514446176088',
+    projectId: 'vvc-app-845aa',
+    storageBucket: 'vvc-app-845aa.firebasestorage.app',
+    iosBundleId: 'vvc-app',
+  );
+
+  static const FirebaseOptions windows = FirebaseOptions(
+    apiKey: 'AIzaSyA0to_fSuGnPOWiIICFdkNpQaqDko6IjOM',
+    appId: '1:514446176088:web:7af6733ff9ce7365f33f2d',
+    messagingSenderId: '514446176088',
+    projectId: 'vvc-app-845aa',
+    authDomain: 'vvc-app-845aa.firebaseapp.com',
+    storageBucket: 'vvc-app-845aa.firebasestorage.app',
+    measurementId: 'G-NTZ0G1C1FC',
   );
 }
