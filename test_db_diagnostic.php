@@ -1,6 +1,8 @@
 <?php
+mysqli_report(MYSQLI_REPORT_OFF);
 require_once 'config.php';
-$mysqli = new mysqli(DB_SERVER, DB_USERNAME, DB_PASSWORD, DB_NAME);
+
+$mysqli = @new mysqli(DB_SERVER, DB_USERNAME, DB_PASSWORD, DB_NAME);
 if ($mysqli->connect_error) {
     die("Connection failed: " . $mysqli->connect_error);
 }
@@ -39,5 +41,7 @@ if ($res_all) {
     while ($row = $res_all->fetch_assoc()) {
         echo "ID: [" . $row['employee_id'] . "] - Name: " . $row['name'] . " - Role: " . $row['user_role'] . "<br/>";
     }
+} else {
+    echo "Query failed: " . $mysqli->error;
 }
 ?>
