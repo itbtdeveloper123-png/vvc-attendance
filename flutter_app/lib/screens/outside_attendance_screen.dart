@@ -100,6 +100,19 @@ class _OutsideAttendanceScreenState extends State<OutsideAttendanceScreen> {
           ),
         );
       }
+
+      // Fetch geocoded address and populate the text field if empty
+      _apiService.reverseGeocode(position.latitude, position.longitude).then((res) {
+        if (res['success'] == true && res['address'] != null) {
+          if (_locationController.text.trim().isEmpty) {
+            setState(() {
+              _locationController.text = res['address'];
+            });
+          }
+        }
+      }).catchError((e) {
+        // Fail silently to prevent interrupting GPS flow
+      });
     } catch (e) {
       _showError(e.toString());
     } finally {

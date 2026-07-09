@@ -111,6 +111,18 @@ class ApiService {
     );
   }
 
+  Future<Map<String, dynamic>> reverseGeocode(double latitude, double longitude) async {
+    final headers = await _authHeaders();
+    return _processRequest(
+      'reverse_geocode',
+      headers: headers,
+      body: {
+        'latitude': latitude.toString(),
+        'longitude': longitude.toString(),
+      },
+    );
+  }
+
   Future<Map<String, dynamic>> fetchDashboardStats() async {
     final headers = await _authHeaders();
     return _processRequest('get_dashboard_stats', headers: headers);
