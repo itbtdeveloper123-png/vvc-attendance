@@ -26459,8 +26459,8 @@ ob_end_flush();
         }
 
         // QR Designer logic
-        let qrStylingInstance = null;
-        let qrDesignData = { text: '', name: '' };
+        var qrStylingInstance = null;
+        var qrDesignData = { text: '', name: '' };
 
         function openQrDesigner(btnEl) {
             const data = btnEl.getAttribute('data-qr');
