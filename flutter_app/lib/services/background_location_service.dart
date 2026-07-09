@@ -115,14 +115,11 @@ class BackgroundLocationService {
     DartPluginRegistrant.ensureInitialized();
 
     final prefs = await SharedPreferences.getInstance();
-    Timer? syncTimer;
+    StreamSubscription<Position>? positionSubscription;
 
-    service.on('stopService').listen((event) {
-      syncTimer?.cancel();
-      service.stopSelf();
-    });
-
-    syncTimer = Timer.periodic(const Duration(seconds: 10), (timer) async {
+    positionSubscription = Geolocator.getPositionStream(
+      locationSettings: _locationSettings(),
+    ).listen((Position position) async {
       try {
         await prefs.reload();
 
@@ -130,24 +127,6 @@ class BackgroundLocationService {
         final token = prefs.getString('auth_token');
 
         if (currentTripId == null || token == null || token.isEmpty) {
-          return;
-        }
-
-        if (!await Geolocator.isLocationServiceEnabled()) {
-          debugPrint('Background tracking skipped: location service disabled');
-          return;
-        }
-
-        final permission = await Geolocator.checkPermission();
-        if (permission == LocationPermission.denied ||
-            permission == LocationPermission.deniedForever) {
-          debugPrint('Background tracking skipped: permission missing');
-          return;
-        }
-
-        final position = await _resolvePosition();
-        if (position == null) {
-          debugPrint('Background tracking skipped: no GPS position');
           return;
         }
 
@@ -174,10 +153,15 @@ class BackgroundLocationService {
           );
         }
 
-        debugPrint('Background Sync: ${response.statusCode}');
+        debugPrint('Background Stream Sync: ${response.statusCode}');
       } catch (e) {
-        debugPrint('Background Error: $e');
+        debugPrint('Background Stream Error: $e');
       }
+    });
+
+    service.on('stopService').listen((event) {
+      positionSubscription?.cancel();
+      service.stopSelf();
     });
   }
 }
