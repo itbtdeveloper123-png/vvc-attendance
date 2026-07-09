@@ -2162,6 +2162,37 @@ if (isset($_POST['ajax_action']) || isset($_GET['ajax_action'])) {
     $response = ['status' => 'error', 'message' => "Invalid AJAX action: " . htmlspecialchars($ajax_action !== '' ? $ajax_action : 'NULL')];
 
     switch ($ajax_action) {
+        case 'update_attendance_noted':
+            if (!checkAdminLogin($mysqli)) {
+                $response = ['status' => 'error', 'message' => 'Unauthorized'];
+                break;
+            }
+            $current_admin_id = $_SESSION['admin_id'] ?? ($_SESSION['sub_user_parent_id'] ?? ($_SESSION['sub_user_id'] ?? 'SYSTEM_WIDE'));
+            if (!hasPageAccess($mysqli, 'reports', 'reports', $current_admin_id)) {
+                $response = ['status' => 'error', 'message' => 'Permission denied.'];
+                break;
+            }
+            $log_id = (int)($_POST['log_id'] ?? 0);
+            $noted = trim($_POST['noted'] ?? '');
+            if ($log_id <= 0) {
+                $response = ['status' => 'error', 'message' => 'Invalid Log ID'];
+                break;
+            }
+            ensure_noted_column($mysqli);
+            $stmt = $mysqli->prepare("UPDATE checkin_logs SET noted = ? WHERE id = ?");
+            if ($stmt) {
+                $stmt->bind_param('si', $noted, $log_id);
+                if ($stmt->execute()) {
+                    $response = ['status' => 'success', 'noted' => $noted];
+                } else {
+                    $response = ['status' => 'error', 'message' => $stmt->error];
+                }
+                $stmt->close();
+            } else {
+                $response = ['status' => 'error', 'message' => $mysqli->error];
+            }
+            break;
+
         case 'react_dashboard_summary':
             if (!checkAdminLogin($mysqli)) {
                 $response = ['status' => 'error', 'message' => 'អ្នកមិនបាន Log In!'];
@@ -13368,15 +13399,18 @@ ob_end_flush();
                                                 </td>
                                                 <td class="col-status"><?php echo $status_text; ?></td>
                                                 <td class="col-late_reason"><?php echo $late_reason; ?></td>
-                                                <td class="col-noted">
-                                                    <?php
-                                                    $noted = $log['noted'] ?? '';
-                                                    if (filter_var($noted, FILTER_VALIDATE_URL)) {
-                                                        echo '<a href="' . htmlspecialchars($noted) . '" target="_blank" rel="noopener noreferrer">' . htmlspecialchars($noted) . '</a>';
-                                                    } else {
-                                                        echo htmlspecialchars($noted);
-                                                    }
-                                                    ?>
+                                                <td class="col-noted noted-cell" data-log-id="<?php echo $log_pk_val; ?>" style="cursor: pointer; position: relative; min-width: 120px;">
+                                                    <span class="noted-text">
+                                                        <?php
+                                                        $noted = $log['noted'] ?? '';
+                                                        if (filter_var($noted, FILTER_VALIDATE_URL)) {
+                                                            echo '<a href="' . htmlspecialchars($noted) . '" target="_blank" rel="noopener noreferrer">' . htmlspecialchars($noted) . '</a>';
+                                                        } else {
+                                                            echo htmlspecialchars($noted);
+                                                        }
+                                                        ?>
+                                                    </span>
+                                                    <i class="fa-solid fa-pen edit-noted-icon" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); opacity: 0; color: var(--primary); transition: opacity 0.2s; font-size: 0.8rem; pointer-events: none;"></i>
                                                 </td>
                                             </tr>
                                         <?php endforeach; ?>
@@ -13505,6 +13539,12 @@ ob_end_flush();
                                 display: flex;
                                 justify-content: flex-end;
                                 gap: 8px;
+                            }
+                            .noted-cell:hover {
+                                background-color: rgba(99, 102, 241, 0.08) !important;
+                            }
+                            .noted-cell:hover .edit-noted-icon {
+                                opacity: 1 !important;
                             }
                         </style>
 
@@ -13668,6 +13708,138 @@ ob_end_flush();
                                         });
                                     }
                                 }
+
+                                // Click-to-edit for Noted Cell
+                                $(document).on('click', '#reportsTable .noted-cell', function (e) {
+                                    // If user clicked a link, let the browser handle it
+                                    if (e.target.tagName.toLowerCase() === 'a') {
+                                        return;
+                                    }
+
+                                    const $cell = $(this);
+                                    const logId = $cell.data('log-id');
+                                    const $link = $cell.find('.noted-text a');
+                                    const currentText = $link.length ? $link.attr('href') : $cell.find('.noted-text').text().trim();
+
+                                    // Remove any existing modal
+                                    $('#notedEditorModal').remove();
+
+                                    // Create the modal HTML
+                                    const modalHtml = `
+                                        <div id="notedEditorModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000; backdrop-filter: blur(4px); transition: all 0.3s ease;">
+                                            <div style="background: #ffffff; border-radius: 16px; width: 450px; max-width: 90%; padding: 24px; box-shadow: 0 10px 25px rgba(0,0,0,0.15); border: 1px solid #e2e8f0; animation: notedModalShow 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);">
+                                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid #f1f5f9; padding-bottom: 12px;">
+                                                    <h3 style="margin: 0; font-size: 1.15rem; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 8px;">
+                                                        <i class="fa-solid fa-pen-to-square" style="color: #6366f1;"></i> កែប្រែចំណាំ / Edit Note
+                                                    </h3>
+                                                    <button type="button" class="close-noted-modal-btn" style="background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #94a3b8; transition: color 0.2s;"><i class="fa-solid fa-xmark"></i></button>
+                                                </div>
+                                                <div style="margin-bottom: 20px;">
+                                                    <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #475569; font-size: 0.9rem;">ខ្លឹមសារចំណាំ (Text or Link):</label>
+                                                    <textarea id="notedInputVal" style="width: 100%; height: 100px; padding: 12px; border-radius: 8px; border: 1.5px solid #cbd5e1; font-family: inherit; font-size: 0.95rem; resize: none; box-sizing: border-box; outline: none; transition: border-color 0.2s;" placeholder="បញ្ចូលអត្ថបទ ឬ Link ទីនេះ..."></textarea>
+                                                </div>
+                                                <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                                                    <button type="button" class="close-noted-modal-btn" style="padding: 9px 16px; border-radius: 8px; border: 1px solid #cbd5e1; background: #fff; color: #475569; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.2s;">បោះបង់</button>
+                                                    <button type="button" id="saveNotedBtn" style="padding: 9px 20px; border-radius: 8px; border: none; background: #6366f1; color: #fff; font-size: 0.9rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s;">
+                                                        <i class="fa-solid fa-save"></i> រក្សាទុក
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <style>
+                                            @keyframes notedModalShow {
+                                                from { transform: scale(0.9); opacity: 0; }
+                                                to { transform: scale(1); opacity: 1; }
+                                            }
+                                            #notedInputVal:focus {
+                                                border-color: #6366f1 !important;
+                                                box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+                                            }
+                                            .close-noted-modal-btn:hover {
+                                                color: #0f172a !important;
+                                            }
+                                            #saveNotedBtn:hover {
+                                                background: #4f46e5 !important;
+                                            }
+                                        </style>
+                                    `;
+
+                                    $('body').append(modalHtml);
+                                    $('#notedInputVal').val(currentText).focus().select();
+
+                                    // Bind close actions
+                                    $('#notedEditorModal .close-noted-modal-btn').on('click', function() {
+                                        $('#notedEditorModal').remove();
+                                    });
+
+                                    // Close on click outside content
+                                    $('#notedEditorModal').on('click', function(evt) {
+                                        if (evt.target === this) {
+                                            $('#notedEditorModal').remove();
+                                        }
+                                    });
+
+                                    // Save action
+                                    $('#saveNotedBtn').on('click', async function() {
+                                        const newVal = $('#notedInputVal').val().trim();
+                                        const $btn = $(this);
+                                        $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> កំពុងរក្សាទុក...');
+
+                                        try {
+                                            const fd = new FormData();
+                                            fd.append('ajax_action', 'update_attendance_noted');
+                                            fd.append('log_id', logId);
+                                            fd.append('noted', newVal);
+
+                                            const res = await fetch('admin_attendance.php', {
+                                                method: 'POST',
+                                                body: fd
+                                            });
+                                            const data = await res.json();
+
+                                            if (data.status === 'success') {
+                                                // Update cell UI
+                                                let innerHtml = '';
+                                                if (newVal) {
+                                                    // Check if it's a URL
+                                                    const isUrl = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/.test(newVal) || newVal.startsWith('http://') || newVal.startsWith('https://');
+                                                    if (isUrl) {
+                                                        const url = newVal.startsWith('http') ? newVal : 'https://' + newVal;
+                                                        innerHtml = `<a href="${url}" target="_blank" rel="noopener noreferrer">${newVal}</a>`;
+                                                    } else {
+                                                        innerHtml = newVal;
+                                                    }
+                                                } else {
+                                                    innerHtml = '';
+                                                }
+
+                                                $cell.find('.noted-text').html(innerHtml);
+
+                                                // Update matching row in hidden/export rows if we are in reports view
+                                                const $exportRow = $(`#reportsTableExport tr[data-log-pk="${logId}"]`);
+                                                if ($exportRow.length) {
+                                                    $exportRow.find('.col-noted').html(innerHtml);
+                                                }
+
+                                                // Show success notification if available
+                                                if (typeof window.showAjaxMessage === 'function') {
+                                                    window.showAjaxMessage('success', 'រក្សាទុកការកែប្រែដោយជោគជ័យ!');
+                                                } else if (typeof showAjaxMessage === 'function') {
+                                                    showAjaxMessage('success', 'រក្សាទុកការកែប្រែដោយជោគជ័យ!');
+                                                }
+
+                                                $('#notedEditorModal').remove();
+                                            } else {
+                                                alert('កំហុស៖ ' + (data.message || 'មិនអាចរក្សាទុកបានទេ'));
+                                                $btn.prop('disabled', false).html('<i class="fa-solid fa-save"></i> រក្សាទុក');
+                                            }
+                                        } catch (err) {
+                                            console.error(err);
+                                            alert('កំហុសប្រព័ន្ធ៖ មិនអាចរក្សាទុកបានទេ');
+                                            $btn.prop('disabled', false).html('<i class="fa-solid fa-save"></i> រក្សាទុក');
+                                        }
+                                    });
+                                });
 
                                 // initial load
                                 loadVisibility();

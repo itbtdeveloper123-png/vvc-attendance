@@ -1,5 +1,10 @@
 vendor/
 uploads/
 signatures/
+.env
+.env.*
 .DS_Store
 *.log
+flutter/*.apk
+flutter/*.sha1
+node_modules

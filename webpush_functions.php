@@ -1,13 +1,21 @@
 <?php
-require_once __DIR__ . '/vendor/autoload.php';
+if (file_exists(__DIR__ . '/vendor/autoload.php')) {
+    require_once __DIR__ . '/vendor/autoload.php';
+}
+
 use Minishlink\WebPush\WebPush;
 use Minishlink\WebPush\Subscription;
 
-function sendWebPushNotification($mysqli, $target_employee_id, $title, $body) {
+function sendWebPushNotification($mysqli, $target_employee_id, $title, $body, $image_url = null) {
+    if (!class_exists('Minishlink\WebPush\WebPush')) {
+        error_log("[WebPush] WebPush library not found. Skipping notification.");
+        return false;
+    }
+
     if (!$target_employee_id) return false;
 
     // 1. Fetch subscriptions for the target user
-    $sql = "SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE employee_id = ?";
+    $sql = "SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = ?";
     if ($stmt = $mysqli->prepare($sql)) {
         $stmt->bind_param("s", $target_employee_id);
         $stmt->execute();
@@ -42,10 +50,14 @@ function sendWebPushNotification($mysqli, $target_employee_id, $title, $body) {
         try {
             $webPush = new WebPush($auth);
 
-            $payload = json_encode([
+            $notif_payload = [
                 'title' => $title,
                 'body' => $body
-            ]);
+            ];
+            if ($image_url) {
+                $notif_payload['image'] = $image_url;
+            }
+            $payload = json_encode($notif_payload);
 
             foreach ($subscriptions as $subscription) {
                 $webPush->queueNotification($subscription, $payload);
@@ -68,4 +80,3 @@ function sendWebPushNotification($mysqli, $target_employee_id, $title, $body) {
     }
     return false;
 }
-?>
