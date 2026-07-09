@@ -393,6 +393,22 @@ if ($mysqli->connect_error) {
     die("Database Connection Failed: " . $mysqli->connect_error);
 }
 
+// Auto-heal DB schema if core columns in users table are missing
+$required_columns = [
+    'global_max_tokens' => "INT DEFAULT 1",
+    'system_role_label' => "VARCHAR(100) DEFAULT NULL",
+    'email' => "VARCHAR(255) DEFAULT NULL",
+    'avatar' => "VARCHAR(255) DEFAULT NULL",
+    'username' => "VARCHAR(100) DEFAULT NULL",
+    'joined_at' => "TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP"
+];
+foreach ($required_columns as $col => $definition) {
+    $col_check = $mysqli->query("SHOW COLUMNS FROM users LIKE '$col'");
+    if (!$col_check || $col_check->num_rows === 0) {
+        @$mysqli->query("ALTER TABLE users ADD COLUMN $col $definition");
+    }
+}
+
 // PDO Connection for Stock Control Compatibility
 try {
     $pdo = new PDO("mysql:host=" . DB_SERVER . ";dbname=" . DB_NAME . ";charset=utf8mb4", DB_USERNAME, DB_PASSWORD, [
