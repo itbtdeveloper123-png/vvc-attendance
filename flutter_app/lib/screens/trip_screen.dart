@@ -26,7 +26,7 @@ class _TripScreenState extends State<TripScreen>
   bool _isTripActive = false;
   int? _activeTripId;
   String _activeTripCustomer = '';
-  Timer? _locationTimer;
+  StreamSubscription<Position>? _positionSubscription;
   Position? _currentPosition;
   double _tripDistance = 0;
   int _tripDuration = 0;
@@ -59,7 +59,7 @@ class _TripScreenState extends State<TripScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _locationTimer?.cancel();
+    _positionSubscription?.cancel();
     _mapController?.dispose();
     _pulseController.dispose();
     super.dispose();
@@ -70,14 +70,9 @@ class _TripScreenState extends State<TripScreen>
     if (!_isTripActive || _activeTripId == null || kIsWeb) return;
 
     if (state == AppLifecycleState.resumed) {
-      if (_locationTimer == null || !(_locationTimer?.isActive ?? false)) {
+      if (_positionSubscription == null) {
         _startLocationTracking();
       }
-    } else if (state == AppLifecycleState.inactive ||
-        state == AppLifecycleState.paused ||
-        state == AppLifecycleState.detached) {
-      _locationTimer?.cancel();
-      _locationTimer = null;
     }
   }
 
@@ -356,14 +351,13 @@ class _TripScreenState extends State<TripScreen>
   }
 
   void _startLocationTracking() {
-    _locationTimer?.cancel();
-    _locationTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
+    _positionSubscription?.cancel();
+    _positionSubscription = Geolocator.getPositionStream(
+      locationSettings: _buildLocationSettings(),
+    ).listen((Position position) async {
       if (!_isTripActive || _activeTripId == null) return;
 
-      try {
-        final position = await _getBestCurrentPosition();
-        if (position == null || !mounted) return;
-
+      if (mounted) {
         setState(() {
           _currentPosition = position;
           if (_tripStartTime != null) {
@@ -375,17 +369,22 @@ class _TripScreenState extends State<TripScreen>
           _appendRoutePoint(LatLng(position.latitude, position.longitude));
           _updateMapOverlays();
         });
-
-        if (_mapController != null) {
-          await _mapController!.animateCamera(
-            CameraUpdate.newLatLng(
-              LatLng(position.latitude, position.longitude),
-            ),
-          );
-        }
-      } catch (e) {
-        debugPrint('Location update error: $e');
       }
+
+      // On iOS, sync to the server in the background using the main isolate location stream
+      if (defaultTargetPlatform == TargetPlatform.iOS) {
+        await _syncCurrentPositionToServer(position: position);
+      }
+
+      if (_mapController != null && mounted) {
+        await _mapController!.animateCamera(
+          CameraUpdate.newLatLng(
+            LatLng(position.latitude, position.longitude),
+          ),
+        );
+      }
+    }, onError: (dynamic error) {
+      debugPrint('Location stream error: $error');
     });
   }
 
@@ -478,8 +477,8 @@ class _TripScreenState extends State<TripScreen>
       return;
     }
 
-    _locationTimer?.cancel();
-    _locationTimer = null;
+    _positionSubscription?.cancel();
+    _positionSubscription = null;
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('current_active_trip_id');
