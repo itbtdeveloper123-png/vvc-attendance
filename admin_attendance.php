@@ -14320,8 +14320,8 @@ ob_end_flush();
 
                                 body .app-breadcrumb-wrap,
                                 body .app-breadcrumb-bar {
-                                    margin-left: 0 !important;
-                                    margin-right: 0 !important;
+                                    margin-left: auto !important;
+                                    margin-right: auto !important;
                                     border-radius: 14px !important;
                                 }
 
@@ -24252,36 +24252,20 @@ ob_end_flush();
         }
 
         /* ── Unified 1200px layout alignment ── */
-        /* Top-level chrome elements */
+        .main-content {
+            max-width: 1264px !important;
+            margin-left: auto !important;
+            margin-right: auto !important;
+            width: 100% !important;
+        }
+
+        /* All page-level chrome and content containers sit inside .main-content
+           which has padding: 0 32px. We simply center everything at max 1200px. */
         .main-content > .header,
         .app-breadcrumb-wrap,
         .app-breadcrumb-bar,
-        .launcher-menubar {
-            max-width: 1200px !important;
-            width: 100% !important;
-            margin-left: auto !important;
-            margin-right: auto !important;
-            box-sizing: border-box;
-        }
-
-        /* Every direct child of the shell (page content) */
-        .odoo-shell > *:not(.odoo-shell-bg) {
-            max-width: 1200px !important;
-            width: 100% !important;
-            margin-left: auto !important;
-            margin-right: auto !important;
-            box-sizing: border-box;
-        }
-
-        /* Named page containers that appear outside .odoo-shell */
-        .section-container,
-        .req-page,
-        .dashboard-header-row,
-        .hrm-card-create,
-        .settings-card,
-        .card,
-        .content-card,
-        .stock-page-shell {
+        .launcher-menubar,
+        .odoo-shell {
             max-width: 1200px !important;
             width: 100% !important;
             margin-left: auto !important;
@@ -24403,16 +24387,20 @@ ob_end_flush();
         .odoo-shell {
             position: relative;
             isolation: isolate;
-            max-width: none;
-            width: calc(100% + 64px);
+            /* No full-bleed blowout: the shell is a centered 1200px column.
+               The background is on .odoo-shell-bg (position:fixed) so it
+               still covers the full viewport. */
+            max-width: 1200px;
+            width: 100%;
             min-height: calc(100vh - 185px);
-            margin: 0 -32px 30px;
-            padding: 22px 32px 34px;
+            margin: 0 auto 30px;
+            padding: 22px 0 34px;
             border: none;
             border-radius: 0;
             background: transparent;
             box-shadow: none;
             overflow: visible;
+            box-sizing: border-box;
         }
 
         .odoo-shell::after {
