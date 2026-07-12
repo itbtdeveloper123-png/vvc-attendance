@@ -7832,7 +7832,7 @@ ob_end_flush();
                     }
 
                     /* ============================================================
-   LAUNCHER SUBPAGE MENUBAR — Clean Tab-Style Navigation
+   LAUNCHER SUBPAGE MENUBAR — Clean Dropdown-Style Navigation
    ============================================================ */
                     .launcher-menubar {
                         position: relative;
@@ -7840,7 +7840,7 @@ ob_end_flush();
                         align-items: center;
                         justify-content: space-between;
                         gap: 12px;
-                        padding: 8px 8px 8px 12px;
+                        padding: 8px 12px;
                         margin-bottom: 16px;
                         border-radius: 14px;
                         border: 1px solid rgba(226, 232, 240, 0.9);
@@ -7853,61 +7853,67 @@ ob_end_flush();
                         z-index: 1;
                         display: flex;
                         align-items: center;
-                        gap: 4px;
+                        gap: 8px;
                         min-width: 0;
                         flex: 1;
                     }
 
-                    .launcher-menubar-title {
-                        display: none; /* hidden — visual noise removed */
-                    }
-
-                    .launcher-menubar-scroll {
-                        display: flex;
-                        align-items: center;
-                        gap: 3px;
-                        overflow-x: auto;
-                        scrollbar-width: none;
-                        min-width: 0;
-                    }
-
-                    .launcher-menubar-scroll::-webkit-scrollbar {
-                        display: none;
-                    }
-
-                    .launcher-sub-link {
+                    .launcher-select-label {
                         display: inline-flex;
                         align-items: center;
                         gap: 6px;
-                        padding: 7px 13px;
-                        border-radius: 9px;
-                        border: 1px solid transparent;
-                        background: transparent;
-                        color: #64748b;
-                        text-decoration: none;
-                        font-size: 0.8rem;
-                        font-weight: 600;
-                        line-height: 1;
-                        white-space: nowrap;
-                        transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
-                    }
-
-                    .launcher-sub-link i {
-                        font-size: 0.75rem;
-                        opacity: 0.8;
-                    }
-
-                    .launcher-sub-link:hover {
+                        font-size: 0.76rem;
+                        font-weight: 800;
+                        color: #4f46e5;
                         background: rgba(99, 102, 241, 0.07);
-                        color: #4338ca;
-                        border-color: rgba(99, 102, 241, 0.15);
+                        border: 1px solid rgba(99, 102, 241, 0.15);
+                        padding: 6px 12px;
+                        border-radius: 8px;
+                        white-space: nowrap;
                     }
 
-                    .launcher-sub-link.active {
-                        background: rgba(99, 102, 241, 0.1);
-                        color: #4338ca;
-                        border-color: rgba(99, 102, 241, 0.25);
+                    .launcher-select-label i {
+                        font-size: 0.75rem;
+                    }
+
+                    .launcher-select-wrapper {
+                        position: relative;
+                        display: inline-flex;
+                        align-items: center;
+                        width: 280px;
+                        max-width: 100%;
+                    }
+
+                    .launcher-select-input {
+                        width: 100%;
+                        min-height: 34px;
+                        padding: 6px 32px 6px 12px;
+                        border-radius: 8px;
+                        border: 1px solid #cbd5e1;
+                        background: #ffffff;
+                        color: #1e293b;
+                        font-size: 0.8rem;
                         font-weight: 700;
+                        cursor: pointer;
+                        appearance: none;
+                        -webkit-appearance: none;
+                        -moz-appearance: none;
+                        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+                        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+                    }
+
+                    .launcher-select-input:focus {
+                        outline: none;
+                        border-color: #6366f1;
+                        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+                    }
+
+                    .launcher-select-icon {
+                        position: absolute;
+                        right: 12px;
+                        pointer-events: none;
+                        color: #64748b;
+                        font-size: 0.7rem;
                     }
 
                     .launcher-back-link {
@@ -7917,7 +7923,7 @@ ob_end_flush();
                         align-items: center;
                         gap: 6px;
                         padding: 7px 12px;
-                        border-radius: 9px;
+                        border-radius: 8px;
                         border: 1px solid rgba(226, 232, 240, 0.9);
                         color: #64748b;
                         background: #f8fafc;
@@ -7946,10 +7952,6 @@ ob_end_flush();
                         .launcher-menubar-left {
                             width: 100%;
                             min-width: 0;
-                        }
-
-                        .launcher-menubar-scroll {
-                            width: 100%;
                         }
 
                         .launcher-back-link {
@@ -9317,15 +9319,22 @@ ob_end_flush();
                 <?php if ($show_launcher_menubar): ?>
                     <div class="launcher-menubar">
                         <div class="launcher-menubar-left">
-                            <span class="launcher-menubar-title"><i class="fa-solid fa-list"></i> Sub Pages</span>
-                            <div class="launcher-menubar-scroll">
-                                <?php foreach ($submenu_quick_links as $sub_link): ?>
-                                    <a href="<?php echo htmlspecialchars($sub_link['href']); ?>"
-                                        class="launcher-sub-link <?php echo $sub_link['active'] ? 'active' : ''; ?>">
-                                        <i class="<?php echo htmlspecialchars($sub_link['icon']); ?>"></i>
-                                        <span><?php echo $sub_link['label']; ?></span>
-                                    </a>
-                                <?php endforeach; ?>
+                            <span class="launcher-select-label">
+                                <i class="fa-solid fa-layer-group"></i> 
+                                <?php
+                                $main_page_label = trim((string) ($sidebar_menu_items[$launcher_page_group]['menu_text'] ?? ucwords(str_replace('_', ' ', $launcher_page_group))));
+                                echo htmlspecialchars($main_page_label);
+                                ?>
+                            </span>
+                            <div class="launcher-select-wrapper">
+                                <select class="launcher-select-input" onchange="window.location.href=this.value">
+                                    <?php foreach ($submenu_quick_links as $sub_link): ?>
+                                        <option value="<?php echo htmlspecialchars($sub_link['href']); ?>" <?php echo $sub_link['active'] ? 'selected' : ''; ?>>
+                                            <?php echo htmlspecialchars(strip_tags(html_entity_decode($sub_link['label'], ENT_QUOTES, 'UTF-8'))); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <i class="fa-solid fa-chevron-down launcher-select-icon"></i>
                             </div>
                         </div>
                         <a href="?page=dashboard&action=dashboard" class="launcher-back-link">
@@ -24266,44 +24275,106 @@ ob_end_flush();
         .launcher-menubar {
             position: relative;
             margin-bottom: 22px;
-            padding: 16px 18px;
-            border-radius: 24px;
-            border: 1px solid rgba(191, 206, 224, 0.72);
-            background:
-                radial-gradient(circle at top left, rgba(96, 165, 250, 0.12), transparent 34%),
-                radial-gradient(circle at bottom right, rgba(129, 140, 248, 0.12), transparent 30%),
-                linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(245, 248, 252, 0.93));
+            padding: 12px 16px;
+            border-radius: var(--workspace-radius-md, 16px);
+            border: 1px solid var(--workspace-border, rgba(203, 213, 225, 0.82));
+            background: var(--workspace-surface-soft, linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 250, 253, 0.96)));
             box-shadow: var(--workspace-shadow-soft);
             backdrop-filter: blur(18px);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
         }
 
-        .launcher-menubar-title {
-            padding: 8px 12px;
-            border-radius: 999px;
-            background: rgba(37, 99, 235, 0.08);
-            color: #2341a4;
-            font-size: 0.74rem;
-            letter-spacing: 0.08em;
+        .launcher-menubar-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex: 1;
+            min-width: 0;
         }
 
-        .launcher-sub-link,
+        .launcher-select-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.8rem;
+            font-weight: 800;
+            color: var(--workspace-accent, #3156d3);
+            background: var(--workspace-accent-soft, rgba(49, 86, 211, 0.1));
+            border: 1px solid rgba(49, 86, 211, 0.15);
+            padding: 8px 14px;
+            border-radius: var(--workspace-radius-md, 12px);
+            white-space: nowrap;
+        }
+
+        .launcher-select-label i {
+            font-size: 0.8rem;
+        }
+
+        .launcher-select-wrapper {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            width: 280px;
+            max-width: 100%;
+        }
+
+        .launcher-select-input {
+            width: 100%;
+            min-height: 42px;
+            padding: 8px 36px 8px 14px;
+            border-radius: var(--workspace-radius-md, 12px);
+            border: 1px solid var(--workspace-border, rgba(203, 213, 225, 0.82));
+            background: var(--workspace-surface-strong, #ffffff);
+            color: var(--workspace-text, #162033);
+            font-size: 0.85rem;
+            font-weight: 700;
+            cursor: pointer;
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .launcher-select-input:focus {
+            outline: none;
+            border-color: var(--workspace-accent, #3156d3);
+            box-shadow: 0 0 0 3px rgba(49, 86, 211, 0.15);
+        }
+
+        .launcher-select-icon {
+            position: absolute;
+            right: 14px;
+            pointer-events: none;
+            color: var(--workspace-muted, #61748a);
+            font-size: 0.75rem;
+        }
+
         .launcher-back-link {
             min-height: 42px;
-            border-radius: 999px;
-            border: 1px solid rgba(203, 213, 225, 0.82);
-            background: rgba(255, 255, 255, 0.9);
-            box-shadow: 0 10px 20px -18px rgba(30, 41, 59, 0.4);
+            border-radius: var(--workspace-radius-md, 12px);
+            border: 1px solid var(--workspace-border, rgba(203, 213, 225, 0.82));
+            background: var(--workspace-surface-strong, #ffffff);
+            color: var(--workspace-muted, #61748a);
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            text-decoration: none;
+            white-space: nowrap;
+            transition: all 0.2s;
         }
 
-        .launcher-sub-link:hover,
         .launcher-back-link:hover {
-            border-color: rgba(96, 165, 250, 0.72);
-            box-shadow: 0 18px 30px -22px rgba(49, 86, 211, 0.48);
-        }
-
-        .launcher-sub-link.active {
-            background: linear-gradient(135deg, #1d4ed8, #4338ca);
-            box-shadow: 0 22px 34px -26px rgba(37, 99, 235, 0.82);
+            border-color: var(--workspace-accent, #3156d3);
+            color: var(--workspace-accent, #3156d3);
+            background: var(--workspace-accent-soft, rgba(49, 86, 211, 0.05));
         }
 
         .odoo-shell {
