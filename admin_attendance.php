@@ -18387,7 +18387,7 @@ ob_end_flush();
                         </div>
 
                         <?php if ($location_action === 'create_location' && hasPageAccess($mysqli, 'locations', 'create_location', $admin_id_check)): ?>
-                            <div class="card-modern" style="max-width: 900px; margin: 0 auto;">
+                            <div class="card-modern" style="margin: 0 auto;">
                                 <div class="hrm-card-header">
                                     <h3 style="margin:0;"><i class="fa-solid fa-square-plus" style="color: var(--primary);"></i>
                                         បង្កើតទីតាំង
@@ -19664,7 +19664,7 @@ ob_end_flush();
                         </div>
 
                         <?php if ($settings_action === 'panel_settings' && hasPageAccess($mysqli, 'settings', 'panel_settings', $admin_id_check)): ?>
-                            <div class="settings-card" style="max-width: 900px;">
+                            <div class="settings-card">
                                 <div class="settings-card-header">
                                     <h2><i class="fa-solid fa-sliders fa-beat-fade" style="--fa-beat-fade-scale: 1.05;"></i>
                                         ការកំណត់ Panel ទូទៅ
@@ -24251,14 +24251,31 @@ ob_end_flush();
             --workspace-muted: #61748a;
         }
 
+        /* ── Unified 1200px layout alignment ── */
+        /* Top-level chrome elements */
         .main-content > .header,
         .app-breadcrumb-wrap,
         .app-breadcrumb-bar,
-        .launcher-menubar,
+        .launcher-menubar {
+            max-width: 1200px !important;
+            width: 100% !important;
+            margin-left: auto !important;
+            margin-right: auto !important;
+            box-sizing: border-box;
+        }
+
+        /* Every direct child of the shell (page content) */
+        .odoo-shell > *:not(.odoo-shell-bg) {
+            max-width: 1200px !important;
+            width: 100% !important;
+            margin-left: auto !important;
+            margin-right: auto !important;
+            box-sizing: border-box;
+        }
+
+        /* Named page containers that appear outside .odoo-shell */
         .section-container,
         .req-page,
-        .odoo-shell,
-        .odoo-shell-header,
         .dashboard-header-row,
         .hrm-card-create,
         .settings-card,
@@ -24424,7 +24441,7 @@ ob_end_flush();
             justify-content: space-between;
             align-items: flex-end;
             gap: 20px;
-            max-width: 1260px;
+            max-width: 1200px;
             margin: 0 auto;
             padding: 0 6px;
             border: none;
