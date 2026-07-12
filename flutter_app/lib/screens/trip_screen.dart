@@ -763,87 +763,89 @@ class _TripScreenState extends State<TripScreen>
           ),
         ),
 
-        // ── Stats overlay cards (bottom left, above end button) ──
+        // ── Stats and End Trip Action Overlay (bottom) ──
         Positioned(
-          left: 12, right: 12,
-          bottom: 100,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Nav route chip
-              if (_targetLat != null)
+          left: 12,
+          right: 12,
+          bottom: 16,
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Nav route chip
+                if (_targetLat != null)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.65),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            _isLoadingNavRoute ? Icons.hourglass_empty : Icons.directions,
+                            color: const Color(0xFF3b82f6), size: 14,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            _isLoadingNavRoute
+                                ? 'កំពុងគណនា Route...'
+                                : _navRoutePoints.isNotEmpty
+                                    ? 'Route OSRM: ${_navRoutePoints.length} ចំណុច'
+                                    : 'គ្មាន Route ទៅ Customer',
+                            style: const TextStyle(
+                              color: Colors.white, fontSize: 12, fontFamily: 'KhmerFont',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                // Stats row
                 Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.65),
-                    borderRadius: BorderRadius.circular(999),
+                    color: Colors.black.withOpacity(0.70),
+                    borderRadius: BorderRadius.circular(18),
                   ),
                   child: Row(
-                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      Icon(
-                        _isLoadingNavRoute ? Icons.hourglass_empty : Icons.directions,
-                        color: const Color(0xFF3b82f6), size: 14,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        _isLoadingNavRoute
-                            ? 'កំពុងគណនា Route...'
-                            : _navRoutePoints.isNotEmpty
-                                ? 'Route OSRM: ${_navRoutePoints.length} ចំណុច'
-                                : 'គ្មាន Route ទៅ Customer',
-                        style: const TextStyle(
-                          color: Colors.white, fontSize: 12, fontFamily: 'KhmerFont',
-                        ),
-                      ),
+                      _miniStat(Icons.timer, '$_tripDuration', 'នាទី', const Color(0xFF6366f1)),
+                      _divider(),
+                      _miniStat(Icons.route, _tripDistance.toStringAsFixed(2), 'គម', const Color(0xFF10b981)),
+                      _divider(),
+                      _miniStat(Icons.speed, '${speedKmh.toStringAsFixed(1)}', 'km/h', const Color(0xFFf59e0b)),
+                      _divider(),
+                      _miniStat(Icons.location_on, '$_locationPointsSent', 'GPS', const Color(0xFF3b82f6)),
                     ],
                   ),
                 ),
-              // Stats row
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.70),
-                  borderRadius: BorderRadius.circular(18),
+                const SizedBox(height: 12),
+                // ── END TRIP button ──
+                SizedBox(
+                  height: 56,
+                  child: ElevatedButton.icon(
+                    onPressed: _endTrip,
+                    icon: const Icon(Icons.flag, size: 24),
+                    label: const Text(
+                      'បញ្ចប់ដំណើរ',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, fontFamily: 'KhmerFont'),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red.shade600,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      elevation: 6,
+                    ),
+                  ),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _miniStat(Icons.timer, '$_tripDuration', 'នាទី', const Color(0xFF6366f1)),
-                    _divider(),
-                    _miniStat(Icons.route, _tripDistance.toStringAsFixed(2), 'គម', const Color(0xFF10b981)),
-                    _divider(),
-                    _miniStat(Icons.speed, '${speedKmh.toStringAsFixed(1)}', 'km/h', const Color(0xFFf59e0b)),
-                    _divider(),
-                    _miniStat(Icons.location_on, '$_locationPointsSent', 'GPS', const Color(0xFF3b82f6)),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        // ── END TRIP button ──
-        Positioned(
-          left: 16, right: 16, bottom: 32,
-          child: SafeArea(
-            child: SizedBox(
-              height: 56,
-              child: ElevatedButton.icon(
-                onPressed: _endTrip,
-                icon: const Icon(Icons.flag, size: 24),
-                label: const Text(
-                  'បញ្ចប់ដំណើរ',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, fontFamily: 'KhmerFont'),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red.shade600,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  elevation: 6,
-                ),
-              ),
+              ],
             ),
           ),
         ),
