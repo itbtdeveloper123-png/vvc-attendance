@@ -435,10 +435,12 @@ class _HomeContentState extends State<HomeContent> {
     _loadStreak();
     _loadCheckInTime();
     _loadWeather();
-    _pollingTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
+    _pollingTimer = Timer.periodic(const Duration(seconds: 6), (timer) {
       if (mounted) {
         _refreshStatsSilently();
+        _loadNextAction();
         _api.syncOfflineAttendance();
+        Provider.of<UserProvider>(context, listen: false).refreshProfile();
       }
     });
 

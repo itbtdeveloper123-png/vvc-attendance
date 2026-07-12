@@ -51,6 +51,9 @@ class _TripScreenState extends State<TripScreen>
 
   late AnimationController _pulseController;
 
+  Timer? _durationTimer;
+  Timer? _silentPollingTimer;
+
   @override
   void initState() {
     super.initState();
@@ -59,7 +62,124 @@ class _TripScreenState extends State<TripScreen>
       vsync: this,
       duration: const Duration(seconds: 2),
     )..repeat(reverse: true);
-    _loadData();
+    _loadData().then((_) {
+      _startTimers();
+    });
+  }
+
+  void _startTimers() {
+    _stopTimers();
+    // 1. Live Duration Timer (updates duration count smoothly every 2 seconds without full-network refresh)
+    _durationTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+      if (!mounted || !_isTripActive || _tripStartTime == null) return;
+      setState(() {
+        _tripDuration = DateTime.now().difference(_tripStartTime!).inMinutes;
+      });
+    });
+
+    // 2. Silent background data sync and customer state sync (runs every 8 seconds)
+    _silentPollingTimer = Timer.periodic(const Duration(seconds: 8), (timer) {
+      if (mounted) {
+        if (_isTripActive) {
+          _loadActiveTripRoute();
+        } else {
+          _loadDataSilently();
+        }
+      }
+    });
+  }
+
+  void _stopTimers() {
+    _durationTimer?.cancel();
+    _durationTimer = null;
+    _silentPollingTimer?.cancel();
+    _silentPollingTimer = null;
+  }
+
+  Future<void> _loadDataSilently() async {
+    try {
+      final results = await Future.wait([
+        _api.getTrackingCustomers(),
+        _api.getActiveTrip(),
+      ]);
+      final customersRes = results[0];
+      final activeTripRes = results[1];
+
+      if (customersRes['success'] == true) {
+        final List<Map<String, dynamic>> nextCustomers =
+            List<Map<String, dynamic>>.from(customersRes['data'] ?? []);
+        if (mounted) {
+          setState(() {
+            _customers = nextCustomers;
+          });
+        }
+      }
+
+      if (activeTripRes['success'] == true) {
+        final trip = activeTripRes['trip'] as Map<String, dynamic>?;
+        if (trip != null) {
+          final tripIdInt = int.tryParse(trip['id'].toString());
+          final customerId = int.tryParse(trip['customer_id']?.toString() ?? '');
+          final customerName = trip['customer_name']?.toString() ?? '';
+          final startTime = DateTime.tryParse(trip['started_at']?.toString() ?? '');
+          final targetLat = double.tryParse(trip['target_lat']?.toString() ?? '');
+          final targetLng = double.tryParse(trip['target_lng']?.toString() ?? '');
+          final dist = double.tryParse(trip['total_distance_km']?.toString() ?? '0') ?? 0;
+          final dur = int.tryParse(trip['duration_minutes']?.toString() ?? '0') ?? 0;
+
+          if (!_isTripActive || _activeTripId != tripIdInt) {
+            if (mounted) {
+              setState(() {
+                _isTripActive = true;
+                _activeTripId = tripIdInt;
+                _activeCustomerId = customerId;
+                _activeTripCustomer = customerName;
+                _tripStartTime = startTime;
+                _targetLat = targetLat;
+                _targetLng = targetLng;
+                _tripDistance = dist;
+                _tripDuration = dur;
+              });
+              if (tripIdInt != null) {
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.setString('current_active_trip_id', tripIdInt.toString());
+                _ensureBackgroundTrackingService();
+                _loadActiveTripRoute();
+                _startLocationTracking();
+                _startTimers();
+              }
+            }
+          }
+        } else {
+          if (_isTripActive) {
+            // End active trip if closed remotely
+            if (mounted) {
+              setState(() {
+                _isTripActive = false;
+                _activeTripId = null;
+                _activeCustomerId = null;
+                _activeTripCustomer = '';
+                _tripStartTime = null;
+                _targetLat = null;
+                _targetLng = null;
+                _routePoints.clear();
+                _navRoutePoints.clear();
+                _markers.clear();
+                _polylines.clear();
+              });
+              _positionSubscription?.cancel();
+              _positionSubscription = null;
+              final prefs = await SharedPreferences.getInstance();
+              prefs.remove('current_active_trip_id');
+              _stopBackgroundTrackingService();
+              _startTimers();
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error silent polling trip state: $e');
+    }
   }
 
   @override
@@ -68,6 +188,7 @@ class _TripScreenState extends State<TripScreen>
     _positionSubscription?.cancel();
     _mapController?.dispose();
     _pulseController.dispose();
+    _stopTimers();
     super.dispose();
   }
 
@@ -316,6 +437,7 @@ class _TripScreenState extends State<TripScreen>
         _updateMapOverlays();
       });
       _startLocationTracking();
+      _startTimers();
       _showSnack('បានចាប់ផ្តើមដំណើរទៅ $customerName។');
 
       // Fetch OSRM nav route if customer has lat/lng
@@ -485,6 +607,7 @@ class _TripScreenState extends State<TripScreen>
 
     // Reload customers (in case auto-save updated a customer)
     await _loadData();
+    _startTimers();
 
     // Show "Continue to next customer?" dialog
     if (mounted) {

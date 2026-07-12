@@ -48,7 +48,7 @@ class _RequestListScreenState extends State<RequestListScreen> {
     _searchController.addListener(_onSearch);
 
     // Auto-polling for real-time vibe
-    _pollingTimer = Timer.periodic(const Duration(seconds: 15), (timer) {
+    _pollingTimer = Timer.periodic(const Duration(seconds: 6), (timer) {
       if (mounted) {
         _loadDataSilently();
       }
