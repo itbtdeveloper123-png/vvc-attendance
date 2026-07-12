@@ -7750,7 +7750,9 @@ ob_end_flush();
                         align-items: center;
                         justify-content: space-between;
                         gap: 10px;
-                        margin: -8px 0 16px;
+                        margin: -8px auto 16px;
+                        max-width: 1200px;
+                        width: 100%;
                         padding: 8px 12px 8px 10px;
                         border-radius: 12px;
                         border: 1px solid rgba(226, 232, 240, 0.85);
@@ -7841,7 +7843,9 @@ ob_end_flush();
                         justify-content: space-between;
                         gap: 12px;
                         padding: 8px 12px;
-                        margin-bottom: 16px;
+                        margin: 0 auto 16px;
+                        max-width: 1200px;
+                        width: 100%;
                         border-radius: 14px;
                         border: 1px solid rgba(226, 232, 240, 0.9);
                         background: #ffffff;
@@ -14298,8 +14302,8 @@ ob_end_flush();
                                 body .req-page,
                                 body .odoo-shell,
                                 body .dashboard-header-row {
-                                    max-width: 1380px !important;
-                                    width: auto !important;
+                                    max-width: 1200px !important;
+                                    width: 100% !important;
                                     margin-left: auto !important;
                                     margin-right: auto !important;
                                 }
@@ -14326,7 +14330,7 @@ ob_end_flush();
                                     flex-direction: column;
                                     gap: 22px;
                                     width: 100%;
-                                    max-width: 1380px;
+                                    max-width: 1200px;
                                     margin: 0 auto;
                                 }
 
@@ -16634,7 +16638,7 @@ ob_end_flush();
                                 </div> <!-- End Tab Deduction -->
 
                                 <!-- TAB OT -->
-                                <div id="adjust-tab-ot" class="hrm-tab-content" style="display:none;">
+                                <div id="adjust-tab-ot" class="hrm-tab-content" style="display:none; max-width:1200px; margin:0 auto;">
                                     <div class="row" style="display:flex; flex-wrap:wrap; gap:20px;">
                                         <!-- OT Form -->
                                         <div
@@ -16978,7 +16982,7 @@ ob_end_flush();
                         ?>
                         <?php if ($user_action === 'create_user' && hasPageAccess($mysqli, 'users', 'create_user', $current_admin_id)): ?>
                             <div class="hrm-card-create"
-                                style="background:#fff; border-radius:24px; padding:0; box-shadow:0 25px 50px -12px rgba(0,0,0,0.08); border:1px solid #e2e8f0; max-width:1050px; margin:0 auto; overflow:hidden;">
+                                style="background:#fff; border-radius:24px; padding:0; box-shadow:0 25px 50px -12px rgba(0,0,0,0.08); border:1px solid #e2e8f0; max-width:1200px; margin:0 auto; overflow:hidden;">
                                 <div
                                     style="padding:22px 35px; background:linear-gradient(135deg, #6366f1, #4f46e5); color:#fff; display:flex; align-items:center; gap:15px; border-bottom:1px solid rgba(255,255,255,0.1);">
                                     <h3 style="margin:0; font-weight:800; font-size:1.4rem;"><i
@@ -24247,23 +24251,25 @@ ob_end_flush();
             --workspace-muted: #61748a;
         }
 
+        .main-content > .header,
+        .app-breadcrumb-wrap,
+        .app-breadcrumb-bar,
         .launcher-menubar,
         .section-container,
         .req-page,
         .odoo-shell,
-        .dashboard-header-row {
-            max-width: 1380px;
-            margin-left: auto;
-            margin-right: auto;
-        }
-
-        .main-content > .header,
-        .app-breadcrumb-wrap,
-        .app-breadcrumb-bar {
-            max-width: none;
-            margin-left: 0 !important;
-            margin-right: 0 !important;
-            width: auto;
+        .odoo-shell-header,
+        .dashboard-header-row,
+        .hrm-card-create,
+        .settings-card,
+        .card,
+        .content-card,
+        .stock-page-shell {
+            max-width: 1200px !important;
+            width: 100% !important;
+            margin-left: auto !important;
+            margin-right: auto !important;
+            box-sizing: border-box;
         }
 
         .section-container {
