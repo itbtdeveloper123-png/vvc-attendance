@@ -10529,7 +10529,7 @@ ob_end_flush();
                                 });
 
                                 refreshTrips();
-                                refreshInterval = setInterval(refreshTrips, 5000);
+                                refreshInterval = setInterval(refreshTrips, 10000);
                             }
 
                             function refreshTrips() {
@@ -10552,6 +10552,9 @@ ob_end_flush();
                                         document.getElementById('statActiveTrips').textContent = trips.length;
                                         const uniqueEmps = [...new Set(trips.map(t => t.employee_id))];
                                         document.getElementById('statActiveEmployees').textContent = uniqueEmps.length;
+                                        const totalKm = trips.reduce((sum, t) => sum + parseFloat(t.total_distance_km || 0), 0);
+                                        const statKmEl = document.getElementById('statTotalKm');
+                                        if (statKmEl) statKmEl.textContent = totalKm.toFixed(2);
 
                                         // Update trip cards
                                         renderTripCards(trips);
@@ -10590,24 +10593,34 @@ ob_end_flush();
                                 trips.forEach(t => {
                                     const startTime = new Date(t.started_at).toLocaleTimeString('km-KH', { hour: '2-digit', minute: '2-digit' });
                                     const latestLoc = t.latest_location;
-                                    const lastUpdate = latestLoc ? new Date(latestLoc.recorded_at).toLocaleTimeString('km-KH', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'N/A';
                                     const speed = latestLoc ? parseFloat(latestLoc.speed || 0).toFixed(1) : '0';
+                                    const distKm = parseFloat(t.total_distance_km || 0).toFixed(2);
+                                    const isViewing = window.activeViewedTripId == t.id;
+                                    // Time-ago label for last GPS update
+                                    let agoLabel = 'N/A';
+                                    if (latestLoc && latestLoc.recorded_at) {
+                                        const diffSec = Math.floor((Date.now() - new Date(latestLoc.recorded_at).getTime()) / 1000);
+                                        if (diffSec < 60) agoLabel = diffSec + 'វ​ មុន';
+                                        else if (diffSec < 3600) agoLabel = Math.floor(diffSec / 60) + 'នាទី​ មុន';
+                                        else agoLabel = Math.floor(diffSec / 3600) + 'ម​ មុន';
+                                    }
 
                                     html += `
-                            <div class="trip-card" onclick="viewTripRoute(${t.id})" style="cursor:pointer;">
+                            <div class="trip-card" onclick="viewTripRoute(${t.id})" style="cursor:pointer; ${isViewing ? 'border: 2px solid #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,0.15);' : ''}">
                                 <div class="trip-card-header">
                                     <div>
                                         <h4><i class="fa-solid fa-user"></i> ${t.employee_name || t.employee_id}</h4>
                                         <small style="color:var(--text-secondary);">→ ${t.customer_name || 'គ្មានទិសដៅ'}</small>
                                     </div>
-                                    <span class="trip-status-badge active"><span class="pulse-dot"></span> កំពុងដំណើរការ</span>
+                                    <span class="trip-status-badge active"><span class="pulse-dot"></span> ${isViewing ? '📍 កំពុងតាមដាន' : 'Active'}</span>
                                 </div>
                                 <div class="trip-detail-row"><i class="fa-solid fa-clock"></i> ចាប់ផ្ដើម: ${startTime}</div>
                                 <div class="trip-detail-row"><i class="fa-solid fa-gauge-high"></i> ល្បឿន: ${speed} km/h</div>
+                                <div class="trip-detail-row"><i class="fa-solid fa-road"></i> ចម្ងាយ: ${distKm} km</div>
                                 <div class="trip-detail-row"><i class="fa-solid fa-map-pin"></i> ចំណុច GPS: ${t.point_count || 0}</div>
-                                <div class="trip-detail-row"><i class="fa-solid fa-signal"></i> អាប់ដេតចុងក្រោយ: ${lastUpdate}</div>
+                                <div class="trip-detail-row" style="color:${agoLabel === 'N/A' ? 'var(--text-secondary)' : '#10b981'};"><i class="fa-solid fa-satellite-dish"></i> GPS Update: ${agoLabel}</div>
                                 <div style="display:flex; gap:8px; margin-top:12px;">
-                                    <button class="btn btn-sm btn-primary" style="flex:1;" onclick="event.stopPropagation(); viewTripRoute(${t.id})"><i class="fa-solid fa-route"></i> មើលផ្លូវ</button>
+                                    <button class="btn btn-sm btn-primary" style="flex:1;" onclick="event.stopPropagation(); viewTripRoute(${t.id})"><i class="fa-solid fa-route"></i> ${isViewing ? 'Live Route' : 'មើលផ្លូវ'}</button>
                                     <button class="btn btn-sm btn-danger" style="flex:1;" onclick="event.stopPropagation(); endTrip(${t.id})"><i class="fa-solid fa-flag-checkered"></i> បញ្ចប់</button>
                                 </div>
                             </div>`;
