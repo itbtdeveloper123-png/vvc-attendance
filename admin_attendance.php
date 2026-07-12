@@ -7739,6 +7739,9 @@ ob_end_flush();
                         font-weight: 500;
                     }
 
+                    /* ============================================================
+   BREADCRUMB BAR — Refined Minimal Design
+   ============================================================ */
                     .app-breadcrumb-bar {
                         position: sticky;
                         top: var(--breadcrumb-sticky-top);
@@ -7746,22 +7749,22 @@ ob_end_flush();
                         display: flex;
                         align-items: center;
                         justify-content: space-between;
-                        gap: 12px;
-                        margin: -8px 0 18px;
-                        padding: 10px 14px;
-                        border-radius: 14px;
-                        border: 1px solid #e2e8f0;
-                        background: rgba(255, 255, 255, 0.88);
-                        backdrop-filter: blur(10px);
-                        -webkit-backdrop-filter: blur(10px);
-                        box-shadow: 0 10px 24px -24px rgba(15, 23, 42, 0.65);
+                        gap: 10px;
+                        margin: -8px 0 16px;
+                        padding: 8px 12px 8px 10px;
+                        border-radius: 12px;
+                        border: 1px solid rgba(226, 232, 240, 0.85);
+                        background: rgba(255, 255, 255, 0.92);
+                        backdrop-filter: blur(12px);
+                        -webkit-backdrop-filter: blur(12px);
+                        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06), 0 8px 20px -20px rgba(15, 23, 42, 0.2);
                         flex-wrap: wrap;
                     }
 
                     .app-breadcrumb {
                         display: flex;
                         align-items: center;
-                        gap: 8px;
+                        gap: 4px;
                         flex-wrap: wrap;
                         min-width: 0;
                     }
@@ -7771,84 +7774,78 @@ ob_end_flush();
                     .app-breadcrumb-node {
                         display: inline-flex;
                         align-items: center;
-                        gap: 7px;
-                        min-height: 34px;
-                        padding: 7px 12px;
-                        border-radius: 999px;
-                        font-size: 0.8rem;
-                        font-weight: 700;
+                        gap: 6px;
+                        min-height: 30px;
+                        padding: 5px 10px;
+                        border-radius: 8px;
+                        font-size: 0.78rem;
+                        font-weight: 600;
                         line-height: 1;
                     }
 
                     .app-breadcrumb-link {
-                        color: #4f46e5;
+                        color: #5b50d6;
                         text-decoration: none;
-                        background: #eef2ff;
-                        border: 1px solid #c7d2fe;
-                        transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+                        background: rgba(99, 102, 241, 0.07);
+                        border: 1px solid rgba(99, 102, 241, 0.15);
+                        transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
                     }
 
                     .app-breadcrumb-link:hover {
+                        background: rgba(99, 102, 241, 0.14);
+                        color: #3730a3;
+                        border-color: rgba(99, 102, 241, 0.3);
                         transform: translateY(-1px);
-                        background: #e0e7ff;
-                        box-shadow: 0 10px 18px -16px rgba(79, 70, 229, 0.75);
                     }
 
                     .app-breadcrumb-node {
-                        color: #475569;
-                        background: #f8fafc;
-                        border: 1px solid #e2e8f0;
+                        color: #64748b;
+                        background: transparent;
+                        border: 1px solid transparent;
                     }
 
                     .app-breadcrumb-current {
-                        color: #ffffff;
-                        background: linear-gradient(135deg, #6366f1, #4338ca);
-                        box-shadow: 0 12px 20px -18px rgba(67, 56, 202, 0.95);
+                        color: #3730a3;
+                        background: linear-gradient(135deg, rgba(99,102,241,0.12), rgba(79,70,229,0.08));
+                        border: 1px solid rgba(99, 102, 241, 0.22);
+                        font-weight: 700;
                     }
 
                     .app-breadcrumb-sep {
-                        color: #94a3b8;
-                        font-size: 0.75rem;
+                        color: #cbd5e1;
+                        font-size: 0.65rem;
+                        padding: 0 1px;
                     }
 
                     .app-breadcrumb-context {
                         display: inline-flex;
                         align-items: center;
-                        gap: 8px;
-                        padding: 8px 12px;
-                        border-radius: 999px;
-                        background: rgba(99, 102, 241, 0.08);
-                        color: #4338ca;
-                        font-size: 0.76rem;
-                        font-weight: 800;
-                        letter-spacing: 0.02em;
+                        gap: 6px;
+                        padding: 5px 10px;
+                        border-radius: 8px;
+                        background: rgba(15, 23, 42, 0.04);
+                        color: #64748b;
+                        font-size: 0.72rem;
+                        font-weight: 600;
+                        letter-spacing: 0.01em;
+                        border: 1px solid rgba(15, 23, 42, 0.06);
                     }
 
-                    /* ---------- Launcher Subpage Menubar (Odoo style) ---------- */
+                    /* ============================================================
+   LAUNCHER SUBPAGE MENUBAR — Clean Tab-Style Navigation
+   ============================================================ */
                     .launcher-menubar {
                         position: relative;
                         display: flex;
                         align-items: center;
                         justify-content: space-between;
-                        gap: 14px;
-                        padding: 12px 14px;
-                        margin-bottom: 18px;
-                        border-radius: 16px;
-                        border: 1px solid #dcd8f2;
-                        background:
-                            linear-gradient(140deg, rgba(255, 255, 255, 0.95) 0%, rgba(244, 241, 255, 0.92) 100%);
-                        box-shadow: 0 12px 30px -26px rgba(57, 42, 98, 0.75);
-                        overflow: hidden;
-                    }
-
-                    .launcher-menubar::before {
-                        content: '';
-                        position: absolute;
-                        inset: 0;
-                        pointer-events: none;
-                        background:
-                            radial-gradient(circle at 12% -30%, rgba(123, 97, 255, 0.15), transparent 40%),
-                            radial-gradient(circle at 90% 120%, rgba(80, 51, 195, 0.12), transparent 45%);
+                        gap: 12px;
+                        padding: 8px 8px 8px 12px;
+                        margin-bottom: 16px;
+                        border-radius: 14px;
+                        border: 1px solid rgba(226, 232, 240, 0.9);
+                        background: #ffffff;
+                        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05), 0 6px 18px -18px rgba(15, 23, 42, 0.18);
                     }
 
                     .launcher-menubar-left {
@@ -7856,84 +7853,61 @@ ob_end_flush();
                         z-index: 1;
                         display: flex;
                         align-items: center;
-                        gap: 10px;
+                        gap: 4px;
                         min-width: 0;
                         flex: 1;
                     }
 
                     .launcher-menubar-title {
-                        display: inline-flex;
-                        align-items: center;
-                        gap: 6px;
-                        flex-shrink: 0;
-                        padding: 7px 10px;
-                        border-radius: 999px;
-                        font-size: 0.72rem;
-                        font-weight: 800;
-                        color: #5a4f82;
-                        background: rgba(119, 92, 230, 0.1);
-                        text-transform: uppercase;
-                        letter-spacing: 0.6px;
-                    }
-
-                    .launcher-menubar-title i {
-                        color: #6d58c9;
+                        display: none; /* hidden — visual noise removed */
                     }
 
                     .launcher-menubar-scroll {
                         display: flex;
                         align-items: center;
-                        gap: 8px;
+                        gap: 3px;
                         overflow-x: auto;
-                        scrollbar-width: thin;
+                        scrollbar-width: none;
                         min-width: 0;
-                        padding-bottom: 2px;
                     }
 
                     .launcher-menubar-scroll::-webkit-scrollbar {
-                        height: 6px;
-                    }
-
-                    .launcher-menubar-scroll::-webkit-scrollbar-thumb {
-                        background: rgba(108, 88, 198, 0.25);
-                        border-radius: 999px;
+                        display: none;
                     }
 
                     .launcher-sub-link {
                         display: inline-flex;
                         align-items: center;
-                        gap: 7px;
-                        padding: 9px 13px;
-                        border-radius: 999px;
-                        border: 1px solid #e0dbf5;
-                        background: rgba(255, 255, 255, 0.88);
-                        color: #4d446f;
+                        gap: 6px;
+                        padding: 7px 13px;
+                        border-radius: 9px;
+                        border: 1px solid transparent;
+                        background: transparent;
+                        color: #64748b;
                         text-decoration: none;
                         font-size: 0.8rem;
-                        font-weight: 700;
+                        font-weight: 600;
                         line-height: 1;
                         white-space: nowrap;
-                        transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+                        transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
                     }
 
                     .launcher-sub-link i {
-                        font-size: 0.78rem;
-                        opacity: 0.9;
+                        font-size: 0.75rem;
+                        opacity: 0.8;
                     }
 
                     .launcher-sub-link:hover {
-                        transform: translateY(-1px);
-                        background: #ffffff;
-                        color: #4b3ea0;
-                        border-color: #cbc2f0;
-                        box-shadow: 0 10px 16px -14px rgba(95, 78, 176, 0.85);
+                        background: rgba(99, 102, 241, 0.07);
+                        color: #4338ca;
+                        border-color: rgba(99, 102, 241, 0.15);
                     }
 
                     .launcher-sub-link.active {
-                        border-color: transparent;
-                        background: linear-gradient(135deg, #6d58c9 0%, #4f3fa4 100%);
-                        color: #ffffff;
-                        box-shadow: 0 14px 24px -16px rgba(74, 57, 157, 0.95);
+                        background: rgba(99, 102, 241, 0.1);
+                        color: #4338ca;
+                        border-color: rgba(99, 102, 241, 0.25);
+                        font-weight: 700;
                     }
 
                     .launcher-back-link {
@@ -7941,51 +7915,46 @@ ob_end_flush();
                         z-index: 1;
                         display: inline-flex;
                         align-items: center;
-                        gap: 7px;
-                        padding: 9px 13px;
-                        border-radius: 999px;
-                        border: 1px solid #d2cbee;
-                        color: #463f63;
-                        background: #ffffff;
-                        font-size: 0.79rem;
-                        font-weight: 800;
+                        gap: 6px;
+                        padding: 7px 12px;
+                        border-radius: 9px;
+                        border: 1px solid rgba(226, 232, 240, 0.9);
+                        color: #64748b;
+                        background: #f8fafc;
+                        font-size: 0.76rem;
+                        font-weight: 600;
                         letter-spacing: 0.1px;
                         text-decoration: none;
                         white-space: nowrap;
                         flex-shrink: 0;
-                        transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+                        transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
                     }
 
                     .launcher-back-link:hover {
-                        transform: translateY(-1px);
-                        color: #ffffff;
-                        background: linear-gradient(135deg, #6d58c9, #4f3fa4);
-                        border-color: #5f4db5;
-                        box-shadow: 0 12px 22px -15px rgba(86, 67, 181, 0.95);
+                        color: #1e293b;
+                        background: #f1f5f9;
+                        border-color: #cbd5e1;
                     }
 
                     @media (max-width: 900px) {
                         .launcher-menubar {
-                            flex-direction: column;
-                            align-items: stretch;
-                            padding: 12px;
-                            gap: 10px;
+                            flex-wrap: wrap;
+                            padding: 8px;
+                            gap: 8px;
                         }
 
                         .launcher-menubar-left {
                             width: 100%;
-                            flex-direction: column;
-                            align-items: stretch;
-                            gap: 8px;
+                            min-width: 0;
                         }
 
-                        .launcher-menubar-title {
-                            width: fit-content;
+                        .launcher-menubar-scroll {
+                            width: 100%;
                         }
 
                         .launcher-back-link {
                             justify-content: center;
-                            width: 100%;
+                            flex: 1;
                         }
                     }
 
@@ -19494,74 +19463,14 @@ ob_end_flush();
                         $settings_action = $_GET['action'] ?? 'panel_settings';
                         ?>
                         <style>
+                            /* Settings nav is redundant on this page — launcher-menubar already
+                               shows the same sub-page links. Hide it to avoid duplicate navigation. */
                             .settings-nav {
-                                display: flex;
-                                flex-wrap: wrap;
-                                gap: 10px;
-                                margin-bottom: 24px;
-                                padding: 10px 12px;
-                                border-radius: 20px;
-                                border: 1px solid rgba(211, 220, 232, 0.88);
-                                background: rgba(255, 255, 255, 0.9);
-                                box-shadow: 0 18px 28px -30px rgba(15, 23, 42, 0.24);
-                                backdrop-filter: blur(14px);
-                                -webkit-backdrop-filter: blur(14px);
-                                width: 100%;
-                                max-width: 100%;
-                                min-width: 0;
+                                display: none !important;
                             }
 
                             .settings-nav-btn {
-                                flex: 0 0 auto;
-                                min-height: 44px;
-                                padding: 10px 16px;
-                                border-radius: 14px;
-                                border: 1px solid rgba(203, 213, 225, 0.88);
-                                background: rgba(255, 255, 255, 0.88);
-                                box-shadow: 0 16px 24px -28px rgba(15, 23, 42, 0.32);
-                                font-weight: 800;
-                                font-size: 0.82rem;
-                                transition: background 0.2s, color 0.2s, border-color 0.2s, transform 0.2s, box-shadow 0.2s;
-                                display: inline-flex;
-                                align-items: center;
-                                justify-content: center;
-                                gap: 8px;
-                                color: #64748b;
-                                cursor: pointer;
-                                text-decoration: none;
-                                white-space: normal;
-                                line-height: 1.3;
-                                text-align: center;
-                                max-width: 100%;
-                            }
-
-                            .settings-nav-btn.active {
-                                background: linear-gradient(135deg, #1d4ed8, #4338ca);
-                                color: #fff;
-                                border-color: transparent;
-                                box-shadow: 0 22px 30px -22px rgba(37, 99, 235, 0.62);
-                            }
-
-                            .settings-nav-btn:hover:not(.active) {
-                                background: linear-gradient(135deg, #eff6ff, #eef2ff);
-                                color: #1f3ea9;
-                                border-color: rgba(147, 197, 253, 0.86);
-                                transform: translateY(-1px);
-                            }
-
-                            .settings-nav-btn i {
-                                font-size: 0.86rem;
-                            }
-
-                            @media (max-width: 768px) {
-                                .settings-nav {
-                                    padding: 8px 10px;
-                                }
-
-                                .settings-nav-btn {
-                                    min-height: 42px;
-                                    padding: 9px 14px;
-                                }
+                                display: none !important;
                             }
 
                             .settings-grid {
