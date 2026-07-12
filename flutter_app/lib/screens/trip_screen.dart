@@ -84,7 +84,6 @@ class _TripScreenState extends State<TripScreen>
   LocationSettings _buildLocationSettings({
     LocationAccuracy accuracy = LocationAccuracy.bestForNavigation,
     int distanceFilter = 5,
-    Duration timeLimit = const Duration(seconds: 15),
   }) {
     if (defaultTargetPlatform == TargetPlatform.android) {
       return AndroidSettings(
@@ -92,7 +91,6 @@ class _TripScreenState extends State<TripScreen>
         distanceFilter: distanceFilter,
         intervalDuration: const Duration(seconds: 10),
         forceLocationManager: false,
-        timeLimit: timeLimit,
       );
     }
 
@@ -103,14 +101,12 @@ class _TripScreenState extends State<TripScreen>
         distanceFilter: distanceFilter,
         pauseLocationUpdatesAutomatically: false,
         showBackgroundLocationIndicator: true,
-        timeLimit: timeLimit,
       );
     }
 
     return LocationSettings(
       accuracy: accuracy,
       distanceFilter: distanceFilter,
-      timeLimit: timeLimit,
     );
   }
 

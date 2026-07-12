@@ -75,9 +75,8 @@ class BackgroundLocationService {
       return AndroidSettings(
         accuracy: LocationAccuracy.bestForNavigation,
         distanceFilter: 5,
-        intervalDuration: Duration(seconds: 10),
+        intervalDuration: const Duration(seconds: 10),
         forceLocationManager: false,
-        timeLimit: Duration(seconds: 15),
       );
     }
 
@@ -88,14 +87,12 @@ class BackgroundLocationService {
         distanceFilter: 5,
         pauseLocationUpdatesAutomatically: false,
         showBackgroundLocationIndicator: true,
-        timeLimit: Duration(seconds: 15),
       );
     }
 
     return const LocationSettings(
       accuracy: LocationAccuracy.bestForNavigation,
       distanceFilter: 5,
-      timeLimit: Duration(seconds: 15),
     );
   }
 
@@ -157,6 +154,8 @@ class BackgroundLocationService {
       } catch (e) {
         debugPrint('Background Stream Error: $e');
       }
+    }, onError: (dynamic error) {
+      debugPrint('Background location stream error: $error');
     });
 
     service.on('stopService').listen((event) {
