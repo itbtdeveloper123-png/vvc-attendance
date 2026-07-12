@@ -10366,6 +10366,7 @@ ob_end_flush();
                             if (typeof tripMap === 'undefined') window.tripMap = null;
                             if (typeof tripMarkers === 'undefined') window.tripMarkers = {};
                             if (typeof tripPolylines === 'undefined') window.tripPolylines = {};
+                            if (typeof window.activeViewedTripId === 'undefined') window.activeViewedTripId = null;
                             let directionsService = null;
                             let directionsRenderer = null;
                             let refreshInterval = null;
@@ -10557,6 +10558,13 @@ ob_end_flush();
 
                                         // Update map markers
                                         updateMapMarkers(trips);
+                                        if (window.activeViewedTripId) {
+                                            if (trips.find(t => t.id == window.activeViewedTripId)) {
+                                                viewTripRoute(window.activeViewedTripId, true);
+                                            } else {
+                                                window.activeViewedTripId = null;
+                                            }
+                                        }
                                     })
                                     .catch(err => {
                                         console.error('Refresh trips error:', err);
@@ -10769,7 +10777,8 @@ ob_end_flush();
                                 requestAnimationFrame(doStep);
                             }
 
-                            function viewTripRoute(tripId) {
+                            function viewTripRoute(tripId, skipFitBounds = false) {
+                                window.activeViewedTripId = tripId;
                                 const fd = new FormData();
                                 fd.append('ajax_action', 'get_trip_locations');
                                 fd.append('trip_id', tripId);
@@ -10778,7 +10787,7 @@ ob_end_flush();
                                     .then(r => r.json())
                                     .then(res => {
                                         if (res.status !== 'success' || !res.locations || res.locations.length === 0) {
-                                            if (typeof showAjaxMessage === 'function') showAjaxMessage('info', 'មិនមានទិន្នន័យផ្លូវសម្រាប់ដំណើរនេះ។');
+                                            if (typeof showAjaxMessage === 'function' && !skipFitBounds) showAjaxMessage('info', 'មិនមានទិន្នន័យផ្លូវសម្រាប់ដំណើរនេះ។');
                                             return;
                                         }
 
@@ -10819,7 +10828,9 @@ ob_end_flush();
                                                 });
                                             }
                                         }
-                                        tripMap.fitBounds(bounds);
+                                        if (!skipFitBounds) {
+                                            tripMap.fitBounds(bounds);
+                                        }
                                     })
                                     .catch(err => console.error('View route error:', err));
                             }

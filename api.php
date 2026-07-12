@@ -5831,6 +5831,35 @@ switch ($action) {
         ]);
         break;
 
+    case 'update_customer_location':
+        // Auto-save customer lat/lng when trip ends (only if not already set)
+        if (!$user) apiResponse(['success' => false, 'message' => 'Unauthorized']);
+        $customer_id = (int)($_POST['customer_id'] ?? 0);
+        $lat = (float)($_POST['latitude'] ?? 0);
+        $lng = (float)($_POST['longitude'] ?? 0);
+        if ($customer_id <= 0 || $lat == 0 || $lng == 0) {
+            apiResponse(['success' => false, 'message' => 'Invalid parameters']);
+        }
+        // Only update if latitude/longitude are NULL or 0
+        $chk = $mysqli->prepare("SELECT id, latitude, longitude FROM tracking_customers WHERE id = ?");
+        $chk->bind_param('i', $customer_id);
+        $chk->execute();
+        $cust = $chk->get_result()->fetch_assoc();
+        $chk->close();
+        if (!$cust) apiResponse(['success' => false, 'message' => 'Customer not found']);
+        if (!empty($cust['latitude']) && $cust['latitude'] != 0) {
+            // Already has location — skip
+            apiResponse(['success' => true, 'updated' => false, 'message' => 'Customer already has location']);
+        }
+        $upd = $mysqli->prepare("UPDATE tracking_customers SET latitude=?, longitude=? WHERE id=?");
+        $upd->bind_param('ddi', $lat, $lng, $customer_id);
+        if ($upd->execute()) {
+            apiResponse(['success' => true, 'updated' => true, 'message' => 'ទីតាំងអតិថិជនបានរក្សាទុក']);
+        } else {
+            apiResponse(['success' => false, 'message' => $mysqli->error]);
+        }
+        $upd->close();
+        break;
 
     case 'get_my_trips':
         if (!$user) apiResponse(['success' => false, 'message' => 'Unauthorized']);

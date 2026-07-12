@@ -1050,4 +1050,54 @@ class ApiService {
       return null;
     }
   }
+
+  /// Auto-save customer lat/lng after a trip ends (only if customer has no location yet)
+  Future<Map<String, dynamic>> updateCustomerLocation({
+    required int customerId,
+    required double latitude,
+    required double longitude,
+  }) async {
+    final headers = await _authHeaders();
+    return _processRequest(
+      'update_customer_location',
+      headers: headers,
+      body: {
+        'customer_id': customerId.toString(),
+        'latitude': latitude.toString(),
+        'longitude': longitude.toString(),
+      },
+    );
+  }
+
+  /// Fetch a road-following route from OSRM between two points.
+  /// Returns a list of LatLng-like maps [{lat, lng}] on success, or null on failure.
+  static Future<List<Map<String, double>>?> getOsrmRoute({
+    required double startLat,
+    required double startLng,
+    required double endLat,
+    required double endLng,
+  }) async {
+    try {
+      final url = 'https://router.project-osrm.org/route/v1/driving/'
+          '$startLng,$startLat;$endLng,$endLat'
+          '?overview=full&geometries=geojson';
+      final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 10));
+      if (response.statusCode != 200) return null;
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      if (data['code'] != 'Ok') return null;
+      final routes = data['routes'] as List?;
+      if (routes == null || routes.isEmpty) return null;
+      final geometry = routes[0]['geometry'] as Map<String, dynamic>?;
+      if (geometry == null) return null;
+      final coordinates = geometry['coordinates'] as List?;
+      if (coordinates == null) return null;
+      return coordinates.map<Map<String, double>>((c) {
+        final list = c as List;
+        return {'lat': (list[1] as num).toDouble(), 'lng': (list[0] as num).toDouble()};
+      }).toList();
+    } catch (e) {
+      debugPrint('OSRM route error: $e');
+      return null;
+    }
+  }
 }
