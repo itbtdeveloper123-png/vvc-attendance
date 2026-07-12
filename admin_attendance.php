@@ -23169,6 +23169,23 @@ ob_end_flush();
             const $btn = $('#toggleReportsFullscreen');
             if ($btn.length === 0) return;
             const $wrap = $('#reportsTableWrapper');
+
+            // Create floating exit button (once)
+            if (!document.getElementById('fullscreenExitBtn')) {
+                const exitBtn = document.createElement('button');
+                exitBtn.id = 'fullscreenExitBtn';
+                exitBtn.type = 'button';
+                exitBtn.innerHTML = '<i class="fa-solid fa-compress"></i> ចាកចេញ (Exit)';
+                exitBtn.addEventListener('click', function () {
+                    if (isNativeFs()) { exitFs(); }
+                    $wrap.removeClass('fullscreen-fallback');
+                    setIcon(false);
+                    $('body').removeClass('no-scroll');
+                    revertPaginated();
+                });
+                document.body.appendChild(exitBtn);
+            }
+
             function setIcon(isFull) {
                 const i = $btn.find('i');
                 i.toggleClass('fa-expand', !isFull);
@@ -25092,6 +25109,78 @@ ob_end_flush();
             .assignment-scroll-area {
                 padding: 18px !important;
             }
+        }
+
+        /* ── Reports Fullscreen Mode ── */
+        #reportsTableWrapper:fullscreen,
+        #reportsTableWrapper:-webkit-full-screen,
+        #reportsTableWrapper:-moz-full-screen,
+        #reportsTableWrapper:-ms-fullscreen {
+            background: #ffffff !important;
+            padding: 24px 28px !important;
+            overflow-y: auto !important;
+            overflow-x: auto !important;
+            display: flex !important;
+            flex-direction: column !important;
+            box-sizing: border-box !important;
+        }
+
+        #reportsTableWrapper.fullscreen-fallback {
+            position: fixed !important;
+            inset: 0 !important;
+            z-index: 9998 !important;
+            background: #ffffff !important;
+            padding: 24px 28px !important;
+            overflow-y: auto !important;
+            overflow-x: auto !important;
+            display: flex !important;
+            flex-direction: column !important;
+            box-sizing: border-box !important;
+            border-radius: 0 !important;
+        }
+
+        /* Fullscreen table fills remaining space */
+        #reportsTableWrapper:fullscreen #reportsTable,
+        #reportsTableWrapper:-webkit-full-screen #reportsTable,
+        #reportsTableWrapper.fullscreen-fallback #reportsTable {
+            flex: 1;
+            width: 100%;
+        }
+
+        /* Floating exit button inside fullscreen */
+        #fullscreenExitBtn {
+            position: fixed;
+            bottom: 24px;
+            right: 28px;
+            z-index: 9999;
+            display: none;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            border-radius: 50px;
+            border: none;
+            background: linear-gradient(135deg, #3156d3, #1e40af);
+            color: #fff;
+            font-size: 0.85rem;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 8px 24px rgba(49, 86, 211, 0.45);
+            transition: opacity 0.2s, transform 0.2s;
+        }
+
+        #fullscreenExitBtn:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+        }
+
+        /* Show exit btn when fullscreen is active */
+        body.no-scroll #fullscreenExitBtn {
+            display: inline-flex;
+        }
+
+        /* Prevent body scroll in fallback mode */
+        body.no-scroll {
+            overflow: hidden !important;
         }
     </style>
 
@@ -27273,34 +27362,6 @@ ob_end_flush();
             }
         })();
 
-        (function () {
-            const toggleBtn = document.getElementById('toggleReportsFullscreen');
-            if (toggleBtn) {
-                // Create Exit button
-                let exitBtn = document.createElement('button');
-                exitBtn.id = 'fullscreenExitBtn';
-                exitBtn.type = 'button';
-                exitBtn.innerHTML = '<i class="fa-solid fa-compress"></i> ចាកចេញ (Exit)';
-                document.body.appendChild(exitBtn);
-
-                // Toggle On
-                toggleBtn?.addEventListener('click', function () {
-                    document.body.classList.add('fullscreen-mode');
-                });
-
-                // Toggle Off (Exit)
-                exitBtn?.addEventListener('click', function () {
-                    document.body.classList.remove('fullscreen-mode');
-                });
-
-                // Allow ESC key to exit
-                document.addEventListener('keydown', function (e) {
-                    if (e.key === 'Escape' && document.body.classList.contains('fullscreen-mode')) {
-                        document.body.classList.remove('fullscreen-mode');
-                    }
-                });
-            }
-        })();
 
         function printReport(type) {
             const area = document.getElementById('printableReportArea');
@@ -27645,80 +27706,6 @@ ob_end_flush();
                 }
             });
 
-        // Reports fullscreen toggle
-        (function () {
-            const $btn = $('#toggleReportsFullscreen');
-            if ($btn.length === 0) return;
-            const $wrap = $('#reportsTableWrapper');
-            function setIcon(isFull) {
-                const i = $btn.find('i');
-                i.toggleClass('fa-expand', !isFull);
-                i.toggleClass('fa-compress', isFull);
-                $btn.attr('title', isFull ? 'បិទ Fullscreen' : 'បង្ហាញពេញអេក្រង់');
-            }
-            function isNativeFs() { return !!(document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement); }
-            function requestFs(el) {
-                if (el.requestFullscreen) return el.requestFullscreen();
-                if (el.webkitRequestFullscreen) return el.webkitRequestFullscreen();
-                if (el.msRequestFullscreen) return el.msRequestFullscreen();
-            }
-            function exitFs() {
-                if (document.exitFullscreen) return document.exitFullscreen();
-                if (document.webkitExitFullscreen) return document.webkitExitFullscreen();
-                if (document.msExitFullscreen) return document.msExitFullscreen();
-            }
-            function applyAllData() {
-                if ($wrap.data('allDataApplied')) return;
-                const $exportRows = $('#reportsTableExport tbody tr');
-                if ($exportRows.length === 0) return;
-                const $tbody = $('#reportsTable tbody');
-                $wrap.data('originalPaginatedHtml', $tbody.html());
-                let newHtml = '';
-                const ths = Array.from(document.querySelectorAll('#reportsTable thead th[data-col]'));
-                const headers = ths.map(t => ({ key: t.getAttribute('data-col') }));
-                $exportRows.each(function () {
-                    const $r = $(this);
-                    const logPk = $r.data('log-pk') || 0;
-                    const dt = $r.data('dt') || '';
-                    newHtml += '<tr data-log-pk="' + logPk + '" data-dt="' + dt + '">';
-                    headers.forEach(h => {
-                        if (h.key === 'select') {
-                            newHtml += '<td class="col-select" style="text-align:center;"><input type="checkbox" class="report-select" data-id="' + logPk + '"></td>';
-                        } else {
-                            const $cell = $r.find('.col-' + h.key).first();
-                            const cls = 'col-' + h.key + ($cell.attr('class') ? ' ' + $cell.attr('class') : '');
-                            newHtml += '<td class="' + cls + '">' + $cell.html() + '</td>';
-                        }
-                    });
-                    newHtml += '</tr>';
-                });
-                $tbody.html(newHtml);
-                $wrap.data('allDataApplied', true);
-            }
-            function revertPaginated() {
-                if (!$wrap.data('allDataApplied')) return;
-                const original = $wrap.data('originalPaginatedHtml');
-                if (original) $('#reportsTable tbody').html(original);
-                $wrap.removeData('allDataApplied').removeData('originalPaginatedHtml');
-            }
-            $btn.on('click', function () {
-                const el = $wrap.get(0);
-                if (!isNativeFs() && !$wrap.hasClass('fullscreen-fallback')) {
-                    const p = requestFs(el);
-                    if (p && p.catch) p.catch(() => { $wrap.addClass('fullscreen-fallback'); setIcon(true); $('body').addClass('no-scroll'); applyAllData(); });
-                    else { $wrap.addClass('fullscreen-fallback'); setIcon(true); $('body').addClass('no-scroll'); applyAllData(); }
-                } else {
-                    if (isNativeFs()) exitFs();
-                    $wrap.removeClass('fullscreen-fallback'); setIcon(false); $('body').removeClass('no-scroll'); revertPaginated();
-                }
-            });
-            ['fullscreenchange', 'webkitfullscreenchange', 'MSFullscreenChange'].forEach(evt => {
-                document.addEventListener(evt, function () {
-                    if (isNativeFs()) { setIcon(true); $('body').addClass('no-scroll'); applyAllData(); }
-                    else { $wrap.removeClass('fullscreen-fallback'); setIcon(false); $('body').removeClass('no-scroll'); revertPaginated(); }
-                });
-            });
-        })();
 
         window.addTimeRule = function (type) {
             const container = document.getElementById(type + 'RulesContainer');
