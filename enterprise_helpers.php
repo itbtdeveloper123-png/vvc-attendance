@@ -30,7 +30,14 @@ if (!function_exists('gps_normalize_point')) {
             return null;
         }
 
-        return ['lat' => $lat, 'lng' => $lng];
+        $result = ['lat' => $lat, 'lng' => $lng];
+        if (isset($point['accuracy'])) {
+            $result['accuracy'] = floatval($point['accuracy']);
+        }
+        if (isset($point['speed'])) {
+            $result['speed'] = floatval($point['speed']);
+        }
+        return $result;
     }
 }
 
@@ -51,17 +58,36 @@ if (!function_exists('gps_haversine_meters')) {
 }
 
 if (!function_exists('gps_prepare_route_points')) {
-    function gps_prepare_route_points(array $points, $minDistanceMeters = 5.0, $maxPoints = 500)
+    function gps_prepare_route_points(array $points, $minDistanceMeters = 12.0, $maxPoints = 500)
     {
         $prepared = [];
         $previous = null;
 
+        // First pass: filter out bad accuracy points (accuracy > 35m)
+        $filtered = [];
         foreach ($points as $point) {
             $normalized = gps_normalize_point($point);
             if ($normalized === null) {
                 continue;
             }
+            if (isset($normalized['accuracy']) && $normalized['accuracy'] > 35) {
+                continue;
+            }
+            $filtered[] = $normalized;
+        }
 
+        // Fallback to original points if filtered leaves too few points
+        if (count($filtered) < 2) {
+            $filtered = [];
+            foreach ($points as $point) {
+                $normalized = gps_normalize_point($point);
+                if ($normalized !== null) {
+                    $filtered[] = $normalized;
+                }
+            }
+        }
+
+        foreach ($filtered as $normalized) {
             if ($previous !== null) {
                 $distance = gps_haversine_meters(
                     $previous['lat'],
@@ -243,13 +269,19 @@ if (!function_exists('gps_snap_to_roads_osrm')) {
             }
 
             $coords = [];
+            $radiuses = [];
             foreach ($batch as $pt) {
                 $coords[] = $pt['lng'] . ',' . $pt['lat'];
+                $acc = isset($pt['accuracy']) ? floatval($pt['accuracy']) : 25;
+                if ($acc <= 0) $acc = 25;
+                if ($acc > 40) $acc = 40;
+                $radiuses[] = $acc;
             }
             $coordsStr = implode(';', $coords);
+            $radiusesStr = implode(';', $radiuses);
 
             // Use Match API first to snap noisy GPS coordinates to road paths without forcing sequential zig-zags
-            $url = 'https://router.project-osrm.org/match/v1/driving/' . $coordsStr . '?overview=full&geometries=geojson';
+            $url = 'https://router.project-osrm.org/match/v1/driving/' . $coordsStr . '?overview=full&geometries=geojson&radiuses=' . $radiusesStr;
             $response = gps_http_get_json($url);
             
             $data = $response['data'] ?? [];

@@ -5635,7 +5635,7 @@ switch ($action) {
 
         if (!$trip) apiResponse(['success' => false, 'message' => 'Trip not found']);
 
-        $pts_stmt = $mysqli->prepare("SELECT latitude, longitude, speed, recorded_at FROM trip_locations WHERE trip_id = ? ORDER BY recorded_at ASC");
+        $pts_stmt = $mysqli->prepare("SELECT latitude, longitude, speed, accuracy, recorded_at FROM trip_locations WHERE trip_id = ? ORDER BY recorded_at ASC");
         $pts_stmt->bind_param('i', $trip_id);
         $pts_stmt->execute();
         $pts_res = $pts_stmt->get_result();
