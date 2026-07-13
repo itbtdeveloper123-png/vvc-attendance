@@ -62,6 +62,7 @@ if (!function_exists('gps_prepare_route_points')) {
     {
         $prepared = [];
         $previous = null;
+        $last_active_point = null;
 
         // First pass: filter out bad accuracy points (accuracy > 35m)
         $filtered = [];
@@ -88,21 +89,28 @@ if (!function_exists('gps_prepare_route_points')) {
         }
 
         foreach ($filtered as $normalized) {
-            if ($previous !== null) {
-                $distance = gps_haversine_meters(
-                    $previous['lat'],
-                    $previous['lng'],
+            $speed = isset($normalized['speed']) ? floatval($normalized['speed']) : null;
+
+            if ($last_active_point !== null) {
+                $dist_from_active = gps_haversine_meters(
+                    $last_active_point['lat'],
+                    $last_active_point['lng'],
                     $normalized['lat'],
                     $normalized['lng']
                 );
 
-                if ($distance < $minDistanceMeters) {
+                // If user is stationary or speed is extremely low, require a larger distance (e.g. 25m) to clear drift jitter.
+                $is_stationary = ($speed !== null && $speed < 0.6); // < ~2.1 km/h
+                $required_distance = $is_stationary ? 25.0 : $minDistanceMeters;
+
+                if ($dist_from_active < $required_distance) {
                     continue;
                 }
             }
 
             $prepared[] = $normalized;
             $previous = $normalized;
+            $last_active_point = $normalized;
         }
 
         $count = count($prepared);
@@ -280,9 +288,14 @@ if (!function_exists('gps_snap_to_roads_osrm')) {
             $coordsStr = implode(';', $coords);
             $radiusesStr = implode(';', $radiuses);
 
-            // Use Match API first to snap noisy GPS coordinates to road paths without forcing sequential zig-zags
-            $url = 'https://router.project-osrm.org/match/v1/driving/' . $coordsStr . '?overview=full&geometries=geojson&radiuses=' . $radiusesStr;
+            // Try OpenStreetMap's stable routing server first, fallback to demo OSRM server
+            $url = 'https://routing.openstreetmap.de/routed-car/match/v1/driving/' . $coordsStr . '?overview=full&geometries=geojson&radiuses=' . $radiusesStr;
             $response = gps_http_get_json($url);
+            
+            if (!$response['success'] || empty($response['data']['matchings'])) {
+                $urlOSRM = 'https://router.project-osrm.org/match/v1/driving/' . $coordsStr . '?overview=full&geometries=geojson&radiuses=' . $radiusesStr;
+                $response = gps_http_get_json($urlOSRM);
+            }
             
             $data = $response['data'] ?? [];
             if ($response['success'] && ($data['code'] ?? '') === 'Ok' && !empty($data['matchings'])) {
@@ -297,9 +310,14 @@ if (!function_exists('gps_snap_to_roads_osrm')) {
                     }
                 }
             } else {
-                // Fallback to Route API if matching fails
-                $urlRoute = 'https://router.project-osrm.org/route/v1/driving/' . $coordsStr . '?overview=full&geometries=geojson';
+                // Fallback to Route API if matching fails: Try OSM route first, fallback to demo OSRM
+                $urlRoute = 'https://routing.openstreetmap.de/routed-car/route/v1/driving/' . $coordsStr . '?overview=full&geometries=geojson';
                 $responseRoute = gps_http_get_json($urlRoute);
+                if (!$responseRoute['success'] || empty($responseRoute['data']['routes'])) {
+                    $urlRouteOSRM = 'https://router.project-osrm.org/route/v1/driving/' . $coordsStr . '?overview=full&geometries=geojson';
+                    $responseRoute = gps_http_get_json($urlRouteOSRM);
+                }
+                
                 if ($responseRoute['success'] && !empty($responseRoute['data']['routes'])) {
                     $route = $responseRoute['data']['routes'][0];
                     $coordsList = $route['geometry']['coordinates'] ?? [];
