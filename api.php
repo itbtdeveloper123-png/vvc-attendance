@@ -4424,7 +4424,15 @@ switch ($action) {
                 $stmt->bind_param("s", $eid);
                 $stmt->execute();
                 $res = $stmt->get_result();
-                while ($row = $res->fetch_assoc()) { $data[] = $row; }
+                while ($row = $res->fetch_assoc()) {
+                    if (strpos($row['title'], 'ដំណើរ') !== false || strpos($row['title'], '🚗') !== false) {
+                        $row['type'] = 'gps_tracking';
+                        if (preg_match('/#(\d+)/', $row['message'], $matches)) {
+                            $row['target_id'] = (int)$matches[1];
+                        }
+                    }
+                    $data[] = $row;
+                }
                 $stmt->close();
             }
 
@@ -5743,8 +5751,25 @@ switch ($action) {
             }
             // ====================================================
             
-            // Notify HRM/Admin (in-app)
-            sendAppNotificationToRoles($mysqli, ['HRM', 'Admin'], 'ការធ្វើដំណើរថ្មី', "បុគ្គលិក {$empName} ({$eid}) បានចាប់ផ្ដើមដំណើរកាន់ទៅកាន់ទីតាំង {$customer_name}");
+            // Notify HRM/Admin — In-app DB + FCM Push Notification to Flutter app
+            $trip_extra = [
+                'type'          => 'new_trip',
+                'trip_id'       => (string)$trip_id,
+                'employee_id'   => $eid,
+                'employee_name' => $empName,
+                'customer_name' => $customer_name,
+                'navigate_to'   => 'gps_tracking',
+            ];
+            sendAppNotificationToRoles(
+                $mysqli,
+                ['HRM', 'Admin'],
+                '🚗 ការចាប់ផ្ដើមដំណើរថ្មី',
+                "បុគ្គលិក {$empName} ({$eid}) បានចាប់ផ្ដើមដំណើរ #{$trip_id} ទៅ {$customer_name}",
+                'SYSTEM',
+                null,
+                null,
+                $trip_extra
+            );
 
             apiResponse(['success' => true, 'message' => 'ដំណើរត្រូវបានចាប់ផ្ដើម!', 'trip_id' => $trip_id]);
         } else {

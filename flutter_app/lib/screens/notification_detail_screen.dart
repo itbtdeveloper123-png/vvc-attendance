@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../models/notification_model.dart';
 import '../utils/app_theme.dart';
 import 'requests_screen.dart';
+import 'trip_tracking_screen.dart';
 
 class NotificationDetailSheet extends StatelessWidget {
   final NotificationModel notification;
@@ -178,6 +179,32 @@ class NotificationDetailSheet extends StatelessWidget {
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           backgroundColor: AppTheme.primary,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                        ),
+                      ),
+                    ),
+                  ],
+                  if (notification.type == 'gps_tracking' && notification.targetId > 0) ...[
+                    const SizedBox(height: 25),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(context); // Close sheet
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => TripTrackingScreen(tripId: notification.targetId),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.map_rounded),
+                        label: Text("តាមដានផែនទីដំណើរ", style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold)),
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          backgroundColor: const Color(0xFF10b981),
                           foregroundColor: Colors.white,
                           elevation: 0,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
