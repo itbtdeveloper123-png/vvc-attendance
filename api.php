@@ -5714,10 +5714,39 @@ switch ($action) {
             $loc_stmt->execute();
             $loc_stmt->close();
             
-            apiResponse(['success' => true, 'message' => 'ដំណើរត្រូវបានចាប់ផ្ដើម!', 'trip_id' => $trip_id]);
+            // ===== Telegram Group Notification to HR & Admin =====
+            $bot_token = getTelegramBotToken($mysqli, $eid);
+            $tg_chat_id = '';
+            $tg_res = $mysqli->query("SELECT setting_value FROM system_settings WHERE setting_key = 'telegram_chat_id' LIMIT 1");
+            if ($tg_res && $tg_row = $tg_res->fetch_assoc()) $tg_chat_id = $tg_row['setting_value'];
+            if (empty($tg_chat_id)) $tg_chat_id = defined('TELEGRAM_CHAT_ID') ? TELEGRAM_CHAT_ID : '';
+
+            if (!empty($bot_token) && !empty($tg_chat_id)) {
+                $now_str = date('d-m-Y H:i');
+                $tg_msg  = "🚗 <b>ការចាប់ផ្ដើមដំណើរថ្មី!</b>\n\n";
+                $tg_msg .= "👤 <b>បុគ្គលិក:</b> " . htmlspecialchars($empName) . " (" . htmlspecialchars($eid) . ")\n";
+                $tg_msg .= "📍 <b>គោលដៅ:</b> " . htmlspecialchars($customer_name) . "\n";
+                $tg_msg .= "⏰ <b>ចាប់ផ្ដើម:</b> " . $now_str . "\n";
+                $tg_msg .= "🆔 <b>Trip ID:</b> #" . $trip_id;
+
+                $tg_url = "https://api.telegram.org/bot{$bot_token}/sendMessage";
+                $tg_payload = ['chat_id' => $tg_chat_id, 'text' => $tg_msg, 'parse_mode' => 'HTML'];
+                $ch = curl_init();
+                curl_setopt($ch, CURLOPT_URL, $tg_url);
+                curl_setopt($ch, CURLOPT_POST, true);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($tg_payload));
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+                @curl_exec($ch);
+                curl_close($ch);
+            }
+            // ====================================================
             
-            // Notify HRM/Admin
+            // Notify HRM/Admin (in-app)
             sendAppNotificationToRoles($mysqli, ['HRM', 'Admin'], 'ការធ្វើដំណើរថ្មី', "បុគ្គលិក {$empName} ({$eid}) បានចាប់ផ្ដើមដំណើរកាន់ទៅកាន់ទីតាំង {$customer_name}");
+
+            apiResponse(['success' => true, 'message' => 'ដំណើរត្រូវបានចាប់ផ្ដើម!', 'trip_id' => $trip_id]);
         } else {
             apiResponse(['success' => false, 'message' => 'កំហុសក្នុងការបង្កើតដំណើរ: ' . $stmt->error]);
         }

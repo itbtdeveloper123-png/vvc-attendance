@@ -364,6 +364,7 @@ $admin_pages_list = [
         'manage_customers' => 'គ្រប់គ្រងអតិថិជន (Manage Customers)',
         'trip_dashboard' => 'ផ្ទាំងគ្រប់គ្រងការធ្វើដំណើរ (Trip Dashboard)',
         'trip_history' => 'ប្រវត្តិការធ្វើដំណើរ (Trip History)',
+        'trip_combined' => 'ទិដ្ឋភាពរួម - អ្នកធ្វើដំណើរទាំងអស់ (Combined View)',
     ],
     'payroll' => [
         'payroll_dashboard' => 'ទិដ្ឋភាពទូទៅនៃប្រាក់បៀវត្ស',
@@ -3374,9 +3375,10 @@ if (isset($_POST['ajax_action']) || isset($_GET['ajax_action'])) {
                         }
                         $stmt->close();
                         // Also fetch trip info with target coordinates
-                        $trip_stmt = $mysqli->prepare("SELECT t.*, c.latitude as target_lat, c.longitude as target_lng 
+                        $trip_stmt = $mysqli->prepare("SELECT t.*, c.latitude as target_lat, c.longitude as target_lng, u.avatar 
                                                       FROM employee_trips t 
                                                       LEFT JOIN tracking_customers c ON t.customer_id = c.id 
+                                                      LEFT JOIN users u ON t.employee_id = u.employee_id
                                                       WHERE t.id = ?");
                         $trip_stmt->bind_param('i', $trip_id);
                         $trip_stmt->execute();
@@ -7277,6 +7279,13 @@ ob_end_flush();
                                                     class="<?php echo ($is_gps_page && $gps_action == 'trip_history') ? 'sub-active' : ''; ?>"><i
                                                         class="fa-solid fa-clock-rotate-left"></i>
                                                     ប្រវត្តិដំណើរ</a>
+                                            </li>
+                                        <?php endif; ?>
+                                        <?php if (hasPageAccess($mysqli, 'gps_tracking', 'trip_combined', $admin_id_check) && !isSidebarHidden($mysqli, $current_admin_id, 'gps_tracking', 'trip_combined')): ?>
+                                            <li><a href="?page=gps_tracking&action=trip_combined"
+                                                    class="<?php echo ($is_gps_page && $gps_action == 'trip_combined') ? 'sub-active' : ''; ?>"><i
+                                                        class="fa-solid fa-layer-group"></i>
+                                                    រួម (Combined)</a>
                                             </li>
                                         <?php endif; ?>
                                     </ul>
@@ -11203,20 +11212,427 @@ ob_end_flush();
                     document.addEventListener('DOMContentLoaded', loadTripHistory);
                 </script>
 
+
+                    <?php elseif ($gps_action == 'trip_combined'): ?>
+                        <!-- ============================================== -->
+                        <!-- COMBINED VIEW: ALL ACTIVE TRAVELERS MAP        -->
+                        <!-- ============================================== -->
+                        <style>
+                            #combinedMapWrap {
+                                display: flex;
+                                gap: 0;
+                                height: calc(100vh - 140px);
+                                min-height: 520px;
+                                border-radius: 18px;
+                                overflow: hidden;
+                                box-shadow: var(--shadow-md);
+                                border: 2px solid var(--border);
+                            }
+                            #combinedSidebar {
+                                width: 310px;
+                                min-width: 260px;
+                                max-width: 340px;
+                                background: var(--surface);
+                                border-right: 1px solid var(--border);
+                                display: flex;
+                                flex-direction: column;
+                                overflow: hidden;
+                            }
+                            #combinedSidebarHeader {
+                                padding: 16px 18px 12px;
+                                border-bottom: 1px solid var(--border);
+                                display: flex;
+                                justify-content: space-between;
+                                align-items: center;
+                            }
+                            #combinedSidebarHeader h3 {
+                                margin: 0;
+                                font-size: 1rem;
+                                font-weight: 700;
+                                color: var(--primary);
+                                display: flex;
+                                align-items: center;
+                                gap: 8px;
+                            }
+                            #combinedTravelerList {
+                                flex: 1;
+                                overflow-y: auto;
+                                padding: 10px 8px;
+                            }
+                            .combined-traveler-card {
+                                display: flex;
+                                align-items: center;
+                                gap: 12px;
+                                padding: 10px 12px;
+                                border-radius: 12px;
+                                cursor: pointer;
+                                transition: background 0.18s, transform 0.15s;
+                                border: 1px solid transparent;
+                                margin-bottom: 6px;
+                            }
+                            .combined-traveler-card:hover {
+                                background: var(--hover);
+                                transform: translateX(2px);
+                            }
+                            .combined-traveler-card.active-traveler {
+                                background: rgba(99,102,241,0.10);
+                                border-color: rgba(99,102,241,0.35);
+                            }
+                            .combined-traveler-avatar {
+                                width: 44px;
+                                height: 44px;
+                                border-radius: 999px;
+                                overflow: hidden;
+                                flex-shrink: 0;
+                                border: 2px solid #10b981;
+                                background: #e2e8f0;
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                                font-weight: 700;
+                                font-size: 15px;
+                                color: #0f172a;
+                            }
+                            .combined-traveler-avatar img {
+                                width: 100%;
+                                height: 100%;
+                                object-fit: cover;
+                            }
+                            .combined-traveler-info {
+                                flex: 1;
+                                min-width: 0;
+                            }
+                            .combined-traveler-name {
+                                font-weight: 700;
+                                font-size: 0.88rem;
+                                white-space: nowrap;
+                                overflow: hidden;
+                                text-overflow: ellipsis;
+                                color: var(--text-primary);
+                            }
+                            .combined-traveler-dest {
+                                font-size: 0.75rem;
+                                color: #6366f1;
+                                white-space: nowrap;
+                                overflow: hidden;
+                                text-overflow: ellipsis;
+                            }
+                            .combined-traveler-stats {
+                                display: flex;
+                                gap: 6px;
+                                margin-top: 3px;
+                                flex-wrap: wrap;
+                            }
+                            .combined-traveler-stat-chip {
+                                font-size: 0.68rem;
+                                background: var(--bg);
+                                border: 1px solid var(--border);
+                                border-radius: 6px;
+                                padding: 1px 6px;
+                                color: var(--text-secondary);
+                            }
+                            #combinedMap {
+                                flex: 1;
+                                background: #e8f0fe;
+                            }
+                            #combinedEmptyState {
+                                display: none;
+                                flex-direction: column;
+                                align-items: center;
+                                justify-content: center;
+                                height: 100%;
+                                color: var(--text-secondary);
+                                gap: 14px;
+                                text-align: center;
+                                padding: 30px;
+                            }
+                            #combinedEmptyState i {
+                                font-size: 3.5rem;
+                                opacity: 0.15;
+                            }
+                            #combinedCountBadge {
+                                background: #10b981;
+                                color: #fff;
+                                font-size: 0.72rem;
+                                font-weight: 700;
+                                border-radius: 999px;
+                                padding: 2px 8px;
+                                min-width: 22px;
+                                text-align: center;
+                            }
+                            @media (max-width: 700px) {
+                                #combinedMapWrap { flex-direction: column; height: auto; }
+                                #combinedSidebar { width: 100%; max-width: 100%; border-right: none; border-bottom: 1px solid var(--border); max-height: 240px; }
+                            }
+                        </style>
+
+                        <div class="trip-dashboard-header">
+                            <div>
+                                <h2 style="margin:0; font-size:1.3rem;"><i class="fa-solid fa-layer-group" style="color:#6366f1;"></i> ទិដ្ឋភាពរួម – អ្នកធ្វើដំណើរទាំងអស់</h2>
+                                <p style="margin:4px 0 0; color:var(--text-secondary); font-size:0.85rem;">ផែនទីបង្ហាញអ្នកធ្វើដំណើរទាំងអស់ក្នុងពេលតែម្ដង</p>
+                            </div>
+                            <button id="combinedRefreshBtn" onclick="combinedRefresh()" class="btn btn-outline-primary" style="gap:7px; display:flex; align-items:center;">
+                                <i class="fa-solid fa-arrows-rotate"></i> ផ្ទុកឡើងវិញ
+                            </button>
+                        </div>
+
+                        <div id="combinedMapWrap">
+                            <!-- Left sidebar: traveler list -->
+                            <div id="combinedSidebar">
+                                <div id="combinedSidebarHeader">
+                                    <h3><i class="fa-solid fa-users"></i> អ្នកធ្វើដំណើរ</h3>
+                                    <span id="combinedCountBadge">0</span>
+                                </div>
+                                <div id="combinedTravelerList">
+                                    <div id="combinedListLoader" style="text-align:center; padding:30px; color:var(--text-secondary);">
+                                        <i class="fa-solid fa-spinner fa-spin fa-2x" style="opacity:0.4;"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Right: map -->
+                            <div id="combinedMap"></div>
+                        </div>
+
+                        <!-- Empty state overlay (shown over map when no travelers) -->
+                        <div id="combinedEmptyState" style="display:none; padding:50px; text-align:center; color:var(--text-secondary);">
+                            <i class="fa-solid fa-car-side" style="font-size:3rem; opacity:0.13; display:block; margin-bottom:16px;"></i>
+                            <p style="font-size:1rem;">មិនមានអ្នកធ្វើដំណើរណាម្នាក់ឥឡូវនេះ។</p>
+                            <p style="font-size:0.83rem; margin-top:4px;">ពេលមានការចាប់ផ្ដើមដំណើរ វានឹងបង្ហាញនៅទីនេះ។</p>
+                        </div>
+
+                        <script>
+                            (function() {
+                                let combinedMap = null;
+                                let combinedMarkers = {};
+                                let combinedPolylines = {};
+                                let combinedInterval = null;
+                                let combinedFocusedTripId = null;
+
+                                // Utility: get avatar URL
+                                function getCombinedAvatarUrl(trip) {
+                                    const raw = String(trip?.avatar || '').trim();
+                                    return raw || '';
+                                }
+
+                                function getCombinedInitials(trip) {
+                                    const src = String(trip?.employee_name || trip?.employee_id || '?').trim();
+                                    const parts = src.split(/\s+/).filter(Boolean);
+                                    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+                                    return src.substring(0, 2).toUpperCase();
+                                }
+
+                                function removeOverlay(overlay) {
+                                    if (!overlay) return;
+                                    if (typeof overlay.setMap === 'function') { overlay.setMap(null); return; }
+                                    if ('map' in overlay) overlay.map = null;
+                                }
+
+                                function initCombinedMap() {
+                                    if (typeof google === 'undefined' || !google.maps) return;
+                                    combinedMap = new google.maps.Map(document.getElementById('combinedMap'), {
+                                        center: { lat: 11.5564, lng: 104.9282 },
+                                        zoom: 13,
+                                        mapId: 'combined_trip_map',
+                                        mapTypeControl: false,
+                                        fullscreenControl: true,
+                                        streetViewControl: false,
+                                    });
+                                    combinedRefresh();
+                                    combinedInterval = setInterval(combinedRefresh, 10000);
+                                }
+                                window.initCombinedMap = initCombinedMap;
+
+                                function combinedRefresh() {
+                                    const btn = document.getElementById('combinedRefreshBtn');
+                                    if (btn) btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> កំពុងផ្ទុក...';
+
+                                    const fd = new FormData();
+                                    fd.append('ajax_action', 'get_active_trips');
+                                    fetch(window.location.href.split('?')[0] + '?page=gps_tracking&action=trip_dashboard', { method: 'POST', body: fd })
+                                        .then(r => r.json())
+                                        .then(res => {
+                                            if (btn) btn.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> ផ្ទុកឡើងវិញ';
+                                            if (res.status !== 'success') return;
+                                            const trips = Array.isArray(res.data) ? res.data : [];
+                                            document.getElementById('combinedCountBadge').textContent = trips.length;
+                                            renderCombinedSidebar(trips);
+                                            updateCombinedMarkers(trips);
+                                            // Show/hide empty state
+                                            const wrap = document.getElementById('combinedMapWrap');
+                                            const empty = document.getElementById('combinedEmptyState');
+                                            if (trips.length === 0) {
+                                                if (wrap) wrap.style.display = 'none';
+                                                if (empty) empty.style.display = 'flex';
+                                            } else {
+                                                if (wrap) wrap.style.display = 'flex';
+                                                if (empty) empty.style.display = 'none';
+                                            }
+                                        })
+                                        .catch(err => {
+                                            console.error('Combined refresh error:', err);
+                                            if (btn) btn.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> ផ្ទុកឡើងវិញ';
+                                        });
+                                }
+                                window.combinedRefresh = combinedRefresh;
+
+                                function renderCombinedSidebar(trips) {
+                                    const list = document.getElementById('combinedTravelerList');
+                                    if (!list) return;
+                                    if (trips.length === 0) {
+                                        list.innerHTML = '<div style="text-align:center; padding:30px; color:var(--text-secondary); font-size:0.85rem;"><i class="fa-solid fa-car-side" style="font-size:2rem; opacity:0.15; display:block; margin-bottom:10px;"></i>គ្មានអ្នកធ្វើដំណើរ</div>';
+                                        return;
+                                    }
+                                    let html = '';
+                                    trips.forEach(t => {
+                                        const avatarUrl = getCombinedAvatarUrl(t);
+                                        const initials = getCombinedInitials(t);
+                                        const dist = parseFloat(t.total_distance_km || 0).toFixed(2);
+                                        const speed = t.latest_location ? parseFloat(t.latest_location.speed || 0).toFixed(1) : '0';
+                                        const dur = t.duration_minutes || 0;
+                                        const isActive = combinedFocusedTripId == t.id;
+                                        const avatarHtml = avatarUrl
+                                            ? `<img src="${avatarUrl}" alt="" onerror="this.parentElement.textContent='${initials}'">`
+                                            : initials;
+                                        html += `<div class="combined-traveler-card${isActive ? ' active-traveler' : ''}"
+                                                    onclick="combinedFocusTrip(${t.id})"
+                                                    data-trip-id="${t.id}">
+                                            <div class="combined-traveler-avatar">${avatarHtml}</div>
+                                            <div class="combined-traveler-info">
+                                                <div class="combined-traveler-name">${t.employee_name || t.employee_id}</div>
+                                                <div class="combined-traveler-dest"><i class="fa-solid fa-location-dot" style="font-size:0.7rem;"></i> ${t.customer_name || 'N/A'}</div>
+                                                <div class="combined-traveler-stats">
+                                                    <span class="combined-traveler-stat-chip"><i class="fa-solid fa-road" style="font-size:0.65rem;"></i> ${dist} km</span>
+                                                    <span class="combined-traveler-stat-chip"><i class="fa-solid fa-gauge" style="font-size:0.65rem;"></i> ${speed} km/h</span>
+                                                    <span class="combined-traveler-stat-chip"><i class="fa-solid fa-clock" style="font-size:0.65rem;"></i> ${dur} នាទី</span>
+                                                </div>
+                                            </div>
+                                        </div>`;
+                                    });
+                                    list.innerHTML = html;
+                                }
+
+                                function updateCombinedMarkers(trips) {
+                                    if (!combinedMap) return;
+                                    // Remove old markers not in current trips
+                                    Object.keys(combinedMarkers).forEach(id => {
+                                        if (!trips.find(t => String(t.id) === String(id))) {
+                                            removeOverlay(combinedMarkers[id]);
+                                            delete combinedMarkers[id];
+                                            if (combinedPolylines[id]) { removeOverlay(combinedPolylines[id]); delete combinedPolylines[id]; }
+                                        }
+                                    });
+
+                                    trips.forEach(t => {
+                                        if (!t.latest_location) return;
+                                        const lat = parseFloat(t.latest_location.latitude);
+                                        const lng = parseFloat(t.latest_location.longitude);
+                                        if (isNaN(lat) || isNaN(lng)) return;
+                                        const pos = { lat, lng };
+                                        const avatarUrl = getCombinedAvatarUrl(t);
+                                        const initials = getCombinedInitials(t);
+
+                                        if (combinedMarkers[t.id]) {
+                                            // Update position
+                                            if (typeof combinedMarkers[t.id].setPosition === 'function') {
+                                                combinedMarkers[t.id].setPosition(pos);
+                                            } else {
+                                                combinedMarkers[t.id].position = pos;
+                                            }
+                                        } else {
+                                            // Create marker
+                                            const wrapper = document.createElement('div');
+                                            wrapper.style.cssText = 'position:relative;width:46px;height:46px;display:flex;align-items:center;justify-content:center;';
+                                            const bubble = document.createElement('div');
+                                            bubble.style.cssText = 'width:38px;height:38px;border-radius:999px;overflow:hidden;display:flex;align-items:center;justify-content:center;border:3px solid #10b981;box-shadow:0 6px 18px rgba(15,23,42,0.22);background:#e2e8f0;color:#0f172a;font-weight:700;font-size:13px;';
+                                            if (avatarUrl) {
+                                                const img = document.createElement('img');
+                                                img.src = avatarUrl;
+                                                img.alt = initials;
+                                                img.style.cssText = 'width:100%;height:100%;object-fit:cover;';
+                                                img.onerror = () => { bubble.innerHTML = ''; bubble.textContent = initials; };
+                                                bubble.appendChild(img);
+                                            } else {
+                                                bubble.textContent = initials;
+                                            }
+                                            const dot = document.createElement('div');
+                                            dot.style.cssText = 'position:absolute;right:3px;bottom:4px;width:11px;height:11px;border-radius:999px;background:#22c55e;border:2px solid #fff;';
+                                            wrapper.appendChild(bubble);
+                                            wrapper.appendChild(dot);
+
+                                            if (google.maps.marker && google.maps.marker.AdvancedMarkerElement) {
+                                                combinedMarkers[t.id] = new google.maps.marker.AdvancedMarkerElement({
+                                                    position: pos,
+                                                    map: combinedMap,
+                                                    title: t.employee_name || t.employee_id,
+                                                    content: wrapper
+                                                });
+                                            } else {
+                                                combinedMarkers[t.id] = new google.maps.Marker({
+                                                    position: pos,
+                                                    map: combinedMap,
+                                                    title: t.employee_name || t.employee_id,
+                                                });
+                                            }
+
+                                            // Info window
+                                            const infoWindow = new google.maps.InfoWindow({
+                                                content: `<div style="font-family:sans-serif;padding:6px;min-width:160px;">
+                                                    <strong>${t.employee_name || t.employee_id}</strong><br>
+                                                    <small style="color:#6366f1;">→ ${t.customer_name || 'N/A'}</small><br>
+                                                    <div style="margin-top:5px;font-size:11px;">
+                                                        ចម្ងាយ: ${parseFloat(t.total_distance_km||0).toFixed(2)} km<br>
+                                                        ល្បឿន: ${parseFloat(t.latest_location.speed||0).toFixed(1)} km/h
+                                                    </div></div>`
+                                            });
+                                            combinedMarkers[t.id].addListener('click', () => infoWindow.open(combinedMap, combinedMarkers[t.id]));
+                                        }
+                                    });
+                                }
+
+                                function combinedFocusTrip(tripId) {
+                                    combinedFocusedTripId = tripId;
+                                    // Highlight sidebar card
+                                    document.querySelectorAll('.combined-traveler-card').forEach(el => {
+                                        el.classList.toggle('active-traveler', parseInt(el.dataset.tripId) === tripId);
+                                    });
+                                    // Pan map to marker
+                                    const marker = combinedMarkers[tripId];
+                                    if (marker && combinedMap) {
+                                        const pos = (typeof marker.getPosition === 'function') ? marker.getPosition() : marker.position;
+                                        if (pos) combinedMap.panTo(pos);
+                                        combinedMap.setZoom(16);
+                                    }
+                                }
+                                window.combinedFocusTrip = combinedFocusTrip;
+
+                                window.addEventListener('beforeunload', () => {
+                                    if (combinedInterval) clearInterval(combinedInterval);
+                                });
+
+                                // Auto-init when Google Maps API is ready
+                                if (typeof google !== 'undefined' && google.maps) {
+                                    initCombinedMap();
+                                } else {
+                                    window.addEventListener('load', initCombinedMap);
+                                }
+                            })();
+                        </script>
+
                 <?php endif; // end gps_action ?>
 
                 <!-- Global GPS JS Context -->
                 <script>
                     // Callback for Google Maps
                     function initAllGpsMaps() {
-                        // Check if we are on Dashboard page
+                        // Dashboard page
                         if (document.getElementById('tripMap')) {
                             if (typeof initTripMap === 'function') initTripMap();
                         }
-
-                        // Check if we are on History page (or if modal is ready)
-                        // History map is usually initialized when modal opens, 
-                        // but we keep this here just in case.
+                        // Combined view page
+                        if (document.getElementById('combinedMap')) {
+                            if (typeof initCombinedMap === 'function') initCombinedMap();
+                        }
+                        // History map is initialized when modal opens
                     }
                 </script>
                 <script

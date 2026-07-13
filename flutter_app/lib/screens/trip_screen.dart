@@ -5,8 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:vvc_hrm/providers/user_provider.dart';
 import 'package:vvc_hrm/services/api_service.dart';
 import 'package:vvc_hrm/services/background_location_service.dart';
 
@@ -928,6 +930,9 @@ class _TripScreenState extends State<TripScreen>
                       ),
                     ),
                   ),
+                // ── Employee identity card ──
+                _buildEmployeeIdentityCard(),
+                const SizedBox(height: 8),
                 // Stats row
                 Container(
                   padding: const EdgeInsets.all(14),
@@ -972,6 +977,114 @@ class _TripScreenState extends State<TripScreen>
           ),
         ),
       ],
+    );
+  }
+
+  /// Employee name + avatar card shown above stats during active trip
+  Widget _buildEmployeeIdentityCard() {
+    final user = context.read<UserProvider>();
+    final name = user.name ?? '';
+    final avatarUrl = user.avatarUrl ?? '';
+    final initials = name.trim().isEmpty
+        ? '?'
+        : name.trim().split(RegExp(r'\s+')).take(2).map((w) => w[0].toUpperCase()).join();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.70),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          // Avatar circle
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: const Color(0xFF10b981), width: 2),
+            ),
+            child: ClipOval(
+              child: avatarUrl.isNotEmpty
+                  ? Image.network(
+                      avatarUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (ctx, err, stack) => _avatarInitials(initials),
+                    )
+                  : _avatarInitials(initials),
+            ),
+          ),
+          const SizedBox(width: 12),
+          // Name & role
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  name.isNotEmpty ? name : 'បុគ្គលិក',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                    fontFamily: 'KhmerFont',
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    const Icon(Icons.circle, color: Color(0xFF10b981), size: 7),
+                    const SizedBox(width: 4),
+                    const Text(
+                      'កំពុងធ្វើដំណើរ',
+                      style: TextStyle(
+                        color: Color(0xFF10b981),
+                        fontSize: 11,
+                        fontFamily: 'KhmerFont',
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          // Trip ID badge
+          if (_activeTripId != null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFF6366f1).withOpacity(0.25),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFF6366f1).withOpacity(0.5)),
+              ),
+              child: Text(
+                '#$_activeTripId',
+                style: const TextStyle(
+                  color: Color(0xFF6366f1),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _avatarInitials(String initials) {
+    return Container(
+      color: const Color(0xFF1e293b),
+      alignment: Alignment.center,
+      child: Text(
+        initials,
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w700,
+          fontSize: 15,
+        ),
+      ),
     );
   }
 
