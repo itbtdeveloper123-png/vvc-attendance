@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -26,14 +27,36 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
   String _routeSource = 'raw';
   String? _routeMessage;
 
+  Timer? _pollingTimer;
+  bool _isFirstLoad = true;
+
   @override
   void initState() {
     super.initState();
     _loadTripDetails();
+    _startPolling();
+  }
+
+  @override
+  void dispose() {
+    _pollingTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startPolling() {
+    _pollingTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
+      if (!mounted) return;
+      if (_trip == null || _trip?['status'] == 'active') {
+        _loadTripDetailsSilently();
+      } else {
+        _pollingTimer?.cancel();
+      }
+    });
   }
 
   Future<void> _loadTripDetails() async {
     try {
+      _isFirstLoad = true;
       final res = await _api.getTripDetails(widget.tripId);
       if (res['success'] == true) {
         final routeData = (res['snapped_points'] as List?)?.isNotEmpty == true
@@ -60,6 +83,34 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
       }
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _loadTripDetailsSilently() async {
+    try {
+      final res = await _api.getTripDetails(widget.tripId);
+      if (res['success'] == true && mounted) {
+        final routeData = (res['snapped_points'] as List?)?.isNotEmpty == true
+            ? res['snapped_points'] as List
+            : (res['points'] as List? ?? const []);
+
+        setState(() {
+          _trip = res['trip'];
+          _routeSource = res['route_source']?.toString() ?? 'raw';
+          _routeMessage = res['route_message']?.toString();
+          _points = routeData
+              .map(
+                (p) => LatLng(
+                  double.parse((p['latitude'] ?? p['lat']).toString()),
+                  double.parse((p['longitude'] ?? p['lng']).toString()),
+                ),
+              )
+              .toList();
+        });
+        _updateMap();
+      }
+    } catch (_) {
+      // Ignore background errors
     }
   }
 
@@ -95,8 +146,9 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
       ),
     };
 
-    if (_mapController != null) {
+    if (_mapController != null && _isFirstLoad) {
       _mapController?.animateCamera(CameraUpdate.newLatLngZoom(last, 15));
+      _isFirstLoad = false;
     }
   }
 
