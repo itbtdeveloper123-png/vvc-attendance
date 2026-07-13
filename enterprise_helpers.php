@@ -58,7 +58,7 @@ if (!function_exists('gps_haversine_meters')) {
 }
 
 if (!function_exists('gps_prepare_route_points')) {
-    function gps_prepare_route_points(array $points, $minDistanceMeters = 12.0, $maxPoints = 500)
+    function gps_prepare_route_points(array $points, $minDistanceMeters = 25.0, $maxPoints = 100)
     {
         $prepared = [];
         $previous = null;
@@ -99,9 +99,9 @@ if (!function_exists('gps_prepare_route_points')) {
                     $normalized['lng']
                 );
 
-                // If user is stationary or speed is extremely low, require a larger distance (e.g. 25m) to clear drift jitter.
+                // If user is stationary or speed is extremely low, require a larger distance (e.g. 35m) to clear drift jitter.
                 $is_stationary = ($speed !== null && $speed < 0.6); // < ~2.1 km/h
-                $required_distance = $is_stationary ? 25.0 : $minDistanceMeters;
+                $required_distance = $is_stationary ? 35.0 : $minDistanceMeters;
 
                 if ($dist_from_active < $required_distance) {
                     continue;
