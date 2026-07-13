@@ -9889,6 +9889,26 @@ ob_end_flush();
 <?php if ($current_page == 'gps_tracking'):
                     $gps_action = $_GET['action'] ?? 'manage_customers';
                     ?>
+                    <script>
+                        function normalizeTripRoute(points) {
+                            if (!Array.isArray(points)) return [];
+                            return points.map(point => ({
+                                lat: parseFloat(point.lat ?? point.latitude),
+                                lng: parseFloat(point.lng ?? point.longitude)
+                            })).filter(point => !isNaN(point.lat) && !isNaN(point.lng));
+                        }
+
+                        function buildRenderableTripPath(res) {
+                            const rawPath = normalizeTripRoute(res.locations || []);
+                            const snappedPath = normalizeTripRoute(res.snapped_path || []);
+                            return {
+                                rawPath,
+                                displayPath: snappedPath.length >= 2 ? snappedPath : rawPath,
+                                source: snappedPath.length >= 2 ? (res.route_source || 'roads') : 'raw',
+                                message: res.route_message || ''
+                            };
+                        }
+                    </script>
 
                     <?php if ($gps_action == 'manage_customers'): ?>
                         <div class="hrm-toolbar">
@@ -10360,24 +10380,7 @@ ob_end_flush();
                             let refreshInterval = null;
                             if (typeof window.historyMapInstance === 'undefined') window.historyMapInstance = null;
 
-                            function normalizeTripRoute(points) {
-                                if (!Array.isArray(points)) return [];
-                                return points.map(point => ({
-                                    lat: parseFloat(point.lat ?? point.latitude),
-                                    lng: parseFloat(point.lng ?? point.longitude)
-                                })).filter(point => !isNaN(point.lat) && !isNaN(point.lng));
-                            }
 
-                            function buildRenderableTripPath(res) {
-                                const rawPath = normalizeTripRoute(res.locations || []);
-                                const snappedPath = normalizeTripRoute(res.snapped_path || []);
-                                return {
-                                    rawPath,
-                                    displayPath: snappedPath.length >= 2 ? snappedPath : rawPath,
-                                    source: snappedPath.length >= 2 ? (res.route_source || 'roads') : 'raw',
-                                    message: res.route_message || ''
-                                };
-                            }
 
                             function removeMapOverlay(overlay) {
                                 if (!overlay) return;
