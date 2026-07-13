@@ -96,15 +96,6 @@ class BackgroundLocationService {
     );
   }
 
-  static Future<Position?> _resolvePosition() async {
-    try {
-      return await Geolocator.getCurrentPosition(
-        locationSettings: _locationSettings(),
-      );
-    } catch (_) {
-      return Geolocator.getLastKnownPosition();
-    }
-  }
 
   @pragma('vm:entry-point')
   static void onStart(ServiceInstance service) async {
