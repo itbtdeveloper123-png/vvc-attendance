@@ -33,7 +33,8 @@ class _TripScreenState extends State<TripScreen>
   int _tripDuration = 0;
   DateTime? _tripStartTime;
   int _locationPointsSent = 0;
-
+  String _routeSource = 'raw';
+  String? _routeMessage;
 
   double? _targetLat;
   double? _targetLng;
