@@ -5635,6 +5635,17 @@ switch ($action) {
 
         if (!$trip) apiResponse(['success' => false, 'message' => 'Trip not found']);
 
+        // Calculate live duration if trip is still active
+        if (($trip['status'] ?? '') === 'active' && !empty($trip['started_at'])) {
+            try {
+                $start_time = new DateTime($trip['started_at']);
+                $now = new DateTime();
+                $trip['duration_minutes'] = (int)round(($now->getTimestamp() - $start_time->getTimestamp()) / 60);
+            } catch (Exception $e) {
+                // Ignore parsing errors
+            }
+        }
+
         $pts_stmt = $mysqli->prepare("SELECT latitude, longitude, speed, accuracy, recorded_at FROM trip_locations WHERE trip_id = ? ORDER BY recorded_at ASC");
         $pts_stmt->bind_param('i', $trip_id);
         $pts_stmt->execute();
@@ -5741,7 +5752,12 @@ switch ($action) {
         $stmt->bind_param('idddd', $trip_id, $lat, $lng, $speed, $accuracy);
         
         if ($stmt->execute()) {
-            // Update total distance and duration in real-time
+            // Always update duration in real-time
+            $mysqli->query("UPDATE employee_trips SET 
+                            duration_minutes = TIMESTAMPDIFF(MINUTE, started_at, NOW()) 
+                            WHERE id = $trip_id");
+
+            // Increment total distance in real-time if we have a previous point
             $dist_res = $mysqli->query("SELECT latitude, longitude FROM trip_locations WHERE trip_id = $trip_id ORDER BY id DESC LIMIT 2");
             if ($dist_res && $dist_res->num_rows == 2) {
                 $p1 = $dist_res->fetch_assoc(); // New point
@@ -5749,10 +5765,8 @@ switch ($action) {
                 
                 $inc_dist_km = haversine_distance($p1['latitude'], $p1['longitude'], $p2['latitude'], $p2['longitude']) / 1000;
                 
-                // Update trip summary
                 $mysqli->query("UPDATE employee_trips SET 
-                                total_distance_km = total_distance_km + $inc_dist_km, 
-                                duration_minutes = TIMESTAMPDIFF(MINUTE, started_at, NOW()) 
+                                total_distance_km = total_distance_km + $inc_dist_km 
                                 WHERE id = $trip_id");
             }
             apiResponse(['success' => true, 'message' => 'Location recorded']);
