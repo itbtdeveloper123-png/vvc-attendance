@@ -248,41 +248,42 @@ if (!function_exists('gps_snap_to_roads_osrm')) {
             }
             $coordsStr = implode(';', $coords);
 
-            $url = 'https://router.project-osrm.org/route/v1/driving/' . $coordsStr . '?overview=full&geometries=geojson';
+            // Use Match API first to snap noisy GPS coordinates to road paths without forcing sequential zig-zags
+            $url = 'https://router.project-osrm.org/match/v1/driving/' . $coordsStr . '?overview=full&geometries=geojson';
             $response = gps_http_get_json($url);
-            if (!$response['success']) {
-                $errors[] = $response['message'] ?? 'OSRM request failed';
-                foreach ($batch as $pt) {
-                    $snapped[] = $pt;
-                }
-                continue;
-            }
-
+            
             $data = $response['data'] ?? [];
-            if (($data['code'] ?? '') !== 'Ok' || empty($data['routes'])) {
-                $errors[] = $data['message'] ?? 'OSRM returned error: ' . ($data['code'] ?? 'Unknown');
-                foreach ($batch as $pt) {
-                    $snapped[] = $pt;
+            if ($response['success'] && ($data['code'] ?? '') === 'Ok' && !empty($data['matchings'])) {
+                $matching = $data['matchings'][0];
+                $coordsList = $matching['geometry']['coordinates'] ?? [];
+                foreach ($coordsList as $coord) {
+                    if (is_array($coord) && count($coord) >= 2) {
+                        $snapped[] = [
+                            'lat' => (float) $coord[1],
+                            'lng' => (float) $coord[0],
+                        ];
+                    }
                 }
-                continue;
-            }
-
-            $route = $data['routes'][0];
-            $coordsList = $route['geometry']['coordinates'] ?? [];
-            if (!is_array($coordsList) || empty($coordsList)) {
-                $errors[] = 'OSRM returned empty geometry';
-                foreach ($batch as $pt) {
-                    $snapped[] = $pt;
-                }
-                continue;
-            }
-
-            foreach ($coordsList as $coord) {
-                if (is_array($coord) && count($coord) >= 2) {
-                    $snapped[] = [
-                        'lat' => (float) $coord[1],
-                        'lng' => (float) $coord[0],
-                    ];
+            } else {
+                // Fallback to Route API if matching fails
+                $urlRoute = 'https://router.project-osrm.org/route/v1/driving/' . $coordsStr . '?overview=full&geometries=geojson';
+                $responseRoute = gps_http_get_json($urlRoute);
+                if ($responseRoute['success'] && !empty($responseRoute['data']['routes'])) {
+                    $route = $responseRoute['data']['routes'][0];
+                    $coordsList = $route['geometry']['coordinates'] ?? [];
+                    foreach ($coordsList as $coord) {
+                        if (is_array($coord) && count($coord) >= 2) {
+                            $snapped[] = [
+                                'lat' => (float) $coord[1],
+                                'lng' => (float) $coord[0],
+                            ];
+                        }
+                    }
+                } else {
+                    $errors[] = $data['message'] ?? 'OSRM match and route failed';
+                    foreach ($batch as $pt) {
+                        $snapped[] = $pt;
+                    }
                 }
             }
         }

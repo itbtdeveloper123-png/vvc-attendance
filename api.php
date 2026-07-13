@@ -5809,15 +5809,19 @@ switch ($action) {
         }
         $pts_stmt->close();
         
-        // Calculate duration in minutes
-        $start_time = new DateTime($trip['started_at']);
-        $end_time = new DateTime();
-        $duration = (int)round(($end_time->getTimestamp() - $start_time->getTimestamp()) / 60);
-        
         // Update trip
-        $update_stmt = $mysqli->prepare("UPDATE employee_trips SET status='completed', end_lat=?, end_lng=?, total_distance_km=?, duration_minutes=?, ended_at=NOW() WHERE id=?");
-        $update_stmt->bind_param('dddii', $end_lat, $end_lng, $total_dist, $duration, $trip_id);
+        $update_stmt = $mysqli->prepare("UPDATE employee_trips SET status='completed', end_lat=?, end_lng=?, total_distance_km=?, duration_minutes=TIMESTAMPDIFF(MINUTE, started_at, NOW()), ended_at=NOW() WHERE id=?");
+        $update_stmt->bind_param('dddi', $end_lat, $end_lng, $total_dist, $trip_id);
         $update_stmt->execute();
+        
+        // Fetch the calculated duration for response
+        $dur_stmt = $mysqli->prepare("SELECT duration_minutes FROM employee_trips WHERE id=?");
+        $dur_stmt->bind_param('i', $trip_id);
+        $dur_stmt->execute();
+        $dur_res = $dur_stmt->get_result()->fetch_assoc();
+        $duration = (int)($dur_res['duration_minutes'] ?? 0);
+        $dur_stmt->close();
+        
         $update_stmt->close();
         
         apiResponse([

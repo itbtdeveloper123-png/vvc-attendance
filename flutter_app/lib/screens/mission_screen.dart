@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:animate_do/animate_do.dart';
@@ -44,6 +45,7 @@ class _MissionScreenState extends State<MissionScreen> {
   List<dynamic> _missions = [];
   bool _isLoading = true;
   bool _isSubmitting = false;
+  Timer? _pollingTimer;
 
   // Tree state for navigation
   int _treeLevel = 0;
@@ -77,10 +79,14 @@ class _MissionScreenState extends State<MissionScreen> {
       });
     }
     _loadData();
+    _pollingTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (mounted) _loadData();
+    });
   }
 
   @override
   void dispose() {
+    _pollingTimer?.cancel();
     _locationController.dispose();
     _purposeController.dispose();
     _transportController.dispose();

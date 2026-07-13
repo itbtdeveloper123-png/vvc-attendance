@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -26,11 +27,33 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   Map<String, dynamic>? _targetUserData;
   bool _isLoading = false;
+  Timer? _pollingTimer;
 
   @override
   void initState() {
     super.initState();
     _fetchTargetUser();
+    _pollingTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (mounted) _fetchTargetUserSilently();
+    });
+  }
+
+  @override
+  void dispose() {
+    _pollingTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _fetchTargetUserSilently() async {
+    try {
+      final api = ApiService();
+      final res = await api.fetchProfile(employeeId: widget.targetEmployeeId);
+      if (res['success'] == true && res['user'] != null && mounted) {
+        setState(() {
+          _targetUserData = res['user'];
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _fetchTargetUser() async {

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -19,11 +20,32 @@ class _OutsideReportScreenState extends State<OutsideReportScreen> {
   List<dynamic> _allLogs = [];
   bool _isLoading = true;
   DateTime _selectedDate = DateTime.now();
+  Timer? _pollingTimer;
 
   @override
   void initState() {
     super.initState();
     _loadLogs();
+    _pollingTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (mounted) _loadLogsSilently();
+    });
+  }
+
+  @override
+  void dispose() {
+    _pollingTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _loadLogsSilently() async {
+    try {
+      final res = await _api.fetchAllAttendanceLogs();
+      if (res['success'] == true && mounted) {
+        setState(() {
+          _allLogs = res['data'] ?? [];
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadLogs() async {

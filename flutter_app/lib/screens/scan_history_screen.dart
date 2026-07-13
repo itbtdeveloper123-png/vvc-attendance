@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/api_service.dart';
@@ -23,6 +24,7 @@ class _ScanHistoryScreenState extends State<ScanHistoryScreen> {
   int _offset = 0;
   final int _limit = 20;
   bool _hasMore = true;
+  Timer? _pollingTimer;
 
   // Date filter
   DateTime? _startDate;
@@ -33,10 +35,14 @@ class _ScanHistoryScreenState extends State<ScanHistoryScreen> {
     super.initState();
     _fetchHistory();
     _scrollController.addListener(_onScroll);
+    _pollingTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (mounted) _fetchHistorySilently();
+    });
   }
 
   @override
   void dispose() {
+    _pollingTimer?.cancel();
     _scrollController.dispose();
     super.dispose();
   }
@@ -98,6 +104,23 @@ class _ScanHistoryScreenState extends State<ScanHistoryScreen> {
       _endDate = null;
     });
     _fetchHistory();
+  }
+
+  Future<void> _fetchHistorySilently() async {
+    try {
+      final res = await _apiService.fetchAllAttendanceLogs(
+        limit: _limit,
+        offset: 0,
+        startDate: _startDate != null ? _fmtApi(_startDate!) : null,
+        endDate: _endDate != null ? _fmtApi(_endDate!) : null,
+      );
+      if (res['success'] == true && mounted) {
+        final List<dynamic> data = res['data'] ?? [];
+        setState(() {
+          _logs = data;
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _fetchHistory() async {

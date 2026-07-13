@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:animate_do/animate_do.dart';
@@ -37,6 +38,7 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
   bool _isSubmitting = false;
   String _selectedPosition = '';
   DateTime _selectedDate = DateTime.now();
+  Timer? _pollingTimer;
 
   // Tree-navigation state for history tab
   int _treeLevel = 0;
@@ -100,6 +102,19 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
     // Initialize data immediately from provider to avoid loading state
     _initializeLocalUserData();
     _loadData();
+    _pollingTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (mounted) _fetchReports();
+    });
+  }
+
+  @override
+  void dispose() {
+    _pollingTimer?.cancel();
+    _contentController.dispose();
+    _emailController.dispose();
+    _nameController.dispose();
+    _nextPlanDetailsController.dispose();
+    super.dispose();
   }
 
   void _initializeLocalUserData() {

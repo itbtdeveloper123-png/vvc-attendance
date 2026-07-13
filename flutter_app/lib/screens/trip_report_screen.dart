@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:animate_do/animate_do.dart';
@@ -19,18 +20,34 @@ class _TripReportScreenState extends State<TripReportScreen>
   List<dynamic> _allTrips = [];
   bool _isLoading = true;
   late TabController _tabController;
+  Timer? _pollingTimer;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _loadTrips();
+    _pollingTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (mounted) _loadTripsSilently();
+    });
   }
 
   @override
   void dispose() {
+    _pollingTimer?.cancel();
     _tabController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadTripsSilently() async {
+    try {
+      final res = await _api.fetchAllTrips();
+      if (res['success'] == true && mounted) {
+        setState(() {
+          _allTrips = res['data'] ?? [];
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadTrips() async {

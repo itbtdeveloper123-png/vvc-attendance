@@ -3422,22 +3422,10 @@ if (isset($_POST['ajax_action']) || isset($_GET['ajax_action'])) {
                         }
                         $pts_stmt->close();
 
-                        // Calculate duration
-                        $trip_stmt = $mysqli->prepare("SELECT started_at FROM employee_trips WHERE id = ?");
-                        $trip_stmt->bind_param('i', $trip_id);
-                        $trip_stmt->execute();
-                        $trip_info = $trip_stmt->get_result()->fetch_assoc();
-                        $trip_stmt->close();
 
-                        $duration = 0;
-                        if ($trip_info) {
-                            $start_time = new DateTime($trip_info['started_at']);
-                            $end_time = new DateTime();
-                            $duration = (int) round(($end_time->getTimestamp() - $start_time->getTimestamp()) / 60);
-                        }
 
-                        $update_stmt = $mysqli->prepare("UPDATE employee_trips SET status='completed', end_lat=?, end_lng=?, total_distance_km=?, duration_minutes=?, ended_at=NOW() WHERE id=?");
-                        $update_stmt->bind_param('dddii', $end_lat, $end_lng, $total_dist, $duration, $trip_id);
+                        $update_stmt = $mysqli->prepare("UPDATE employee_trips SET status='completed', end_lat=?, end_lng=?, total_distance_km=?, duration_minutes=TIMESTAMPDIFF(MINUTE, started_at, NOW()), ended_at=NOW() WHERE id=?");
+                        $update_stmt->bind_param('dddi', $end_lat, $end_lng, $total_dist, $trip_id);
                         $update_stmt->execute();
                         $update_stmt->close();
 
@@ -11153,30 +11141,36 @@ ob_end_flush();
                                 window._histOverlays.push(polyline);
 
                                 // Start marker
-                                const startPin = new google.maps.marker.PinElement({
-                                    background: '#3b82f6',
-                                    borderColor: '#fff'
-                                });
-                                const startMarker = new google.maps.marker.AdvancedMarkerElement({
+                                const startMarker = new google.maps.Marker({
                                     position: path[0],
                                     map: window.historyMapInstance,
                                     title: 'ចាប់ផ្ដើម',
-                                    content: startPin.element
+                                    icon: { url: 'https://maps.google.com/mapfiles/ms/icons/blue-dot.png' }
                                 });
                                 window._histOverlays.push(startMarker);
 
                                 // End marker
-                                const endPin = new google.maps.marker.PinElement({
-                                    background: '#ef4444',
-                                    borderColor: '#fff'
-                                });
-                                const endMarker = new google.maps.marker.AdvancedMarkerElement({
+                                const endMarker = new google.maps.Marker({
                                     position: path[path.length - 1],
                                     map: window.historyMapInstance,
                                     title: 'បញ្ចប់',
-                                    content: endPin.element
+                                    icon: { url: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png' }
                                 });
                                 window._histOverlays.push(endMarker);
+
+                                // Target customer marker
+                                if (res.trip && res.trip.target_lat && res.trip.target_lng) {
+                                    const targetPos = { lat: parseFloat(res.trip.target_lat), lng: parseFloat(res.trip.target_lng) };
+                                    if (!isNaN(targetPos.lat) && !isNaN(targetPos.lng)) {
+                                        const targetMarker = new google.maps.Marker({
+                                            position: targetPos,
+                                            map: window.historyMapInstance,
+                                            title: 'គោលដៅ: ' + (res.trip.customer_name || 'N/A'),
+                                            icon: { url: 'https://maps.google.com/mapfiles/ms/icons/green-dot.png' }
+                                        });
+                                        window._histOverlays.push(targetMarker);
+                                    }
+                                }
 
                                 // Fit bounds
                                 const bounds = new google.maps.LatLngBounds();

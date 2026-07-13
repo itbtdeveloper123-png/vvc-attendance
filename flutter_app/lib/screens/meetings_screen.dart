@@ -61,6 +61,7 @@ class _MeetingsScreenState extends State<MeetingsScreen>
   List<XFile> _selectedPhotos = [];
   bool _isSubmitting = false;
   Timer? _recordingStateTimer;
+  Timer? _pollingTimer;
   List<MeetingAudioDraft> _audioDrafts = [];
   bool _isLoadingDrafts = true;
 
@@ -152,12 +153,20 @@ class _MeetingsScreenState extends State<MeetingsScreen>
     });
 
     _syncRecordingState();
+
+    _pollingTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (mounted) {
+        _loadMeetingsSilently();
+        _loadAudioDraftsSilently();
+      }
+    });
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _recordingStateTimer?.cancel();
+    _pollingTimer?.cancel();
     _durationSub?.cancel();
     _positionSub?.cancel();
     _playerStateSub?.cancel();
@@ -764,6 +773,29 @@ class _MeetingsScreenState extends State<MeetingsScreen>
         _isLoadingDrafts = false;
       });
     }
+  }
+
+  Future<void> _loadMeetingsSilently() async {
+    try {
+      final res = await _api.fetchMeetings();
+      if (res['status'] == 'success' && mounted) {
+        final list = res['meetings'] ?? res['data'] ?? [];
+        setState(() {
+          _meetingsList = list is List ? list : [];
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _loadAudioDraftsSilently() async {
+    try {
+      final drafts = await MeetingAudioDraftService.getDrafts();
+      if (mounted) {
+        setState(() {
+          _audioDrafts = drafts;
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _saveCurrentRecordingToDraft({bool showFeedback = true}) async {

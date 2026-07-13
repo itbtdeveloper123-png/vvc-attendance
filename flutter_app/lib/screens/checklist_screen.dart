@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
@@ -25,6 +26,7 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
   final ImagePicker _picker = ImagePicker();
   List<dynamic> _items = [];
   bool _isLoading = true;
+  Timer? _pollingTimer;
 
   // Controllers for Add/Edit
   final TextEditingController _taskController = TextEditingController();
@@ -48,6 +50,16 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
   void initState() {
     super.initState();
     _loadData();
+    _pollingTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (mounted) _loadData();
+    });
+  }
+
+  @override
+  void dispose() {
+    _pollingTimer?.cancel();
+    _taskController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadData() async {
