@@ -186,55 +186,53 @@ class _TripReportScreenState extends State<TripReportScreen>
       );
     }
 
-    return Column(
+    return Stack(
       children: [
-        // ── Summary header ──
-        Container(
-          margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                AppTheme.primary.withValues(alpha: 0.2),
-                AppTheme.primary.withValues(alpha: 0.05),
-              ],
-            ),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppTheme.primary.withValues(alpha: 0.3)),
-          ),
-          child: Row(
-            children: [
-              const Icon(
-                Icons.satellite_alt_rounded,
-                color: Colors.greenAccent,
-                size: 16,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'Active map: $activeCount នាក់',
-                style: GoogleFonts.kantumruyPro(
-                  color: Colors.greenAccent,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
-                ),
-              ),
-              const Spacer(),
-              Text(
-                'ផែនទី Satellite',
-                style: GoogleFonts.kantumruyPro(
-                  color: Colors.white54,
-                  fontSize: 12,
-                ),
-              ),
-            ],
+        Positioned.fill(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: _buildActiveTripsMapScreen(context, activeTrips),
           ),
         ),
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(24),
-              child: _buildActiveTripsMapScreen(context, activeTrips),
+        Positioned(
+          top: 16,
+          left: 16,
+          right: 16,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: AppTheme.bgCard.withValues(alpha: 0.88),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: Colors.white12,
+              ),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.satellite_alt_rounded,
+                  color: Colors.greenAccent,
+                  size: 18,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Active map: $activeCount នាក់',
+                    style: GoogleFonts.kantumruyPro(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+                Text(
+                  'Satellite',
+                  style: GoogleFonts.kantumruyPro(
+                    color: Colors.white70,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
             ),
           ),
         ),

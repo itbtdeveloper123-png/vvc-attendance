@@ -1020,8 +1020,8 @@ class _TripScreenState extends State<TripScreen>
 
       final codec = await ui.instantiateImageCodec(
         response.bodyBytes,
-        targetWidth: 96,
-        targetHeight: 96,
+        targetWidth: 48,
+        targetHeight: 48,
       );
       final frame = await codec.getNextFrame();
       final image = frame.image;
@@ -1029,9 +1029,9 @@ class _TripScreenState extends State<TripScreen>
       // Draw circular clipped image with green border
       final recorder = ui.PictureRecorder();
       final canvas = Canvas(recorder);
-      const size = 96.0;
+      const size = 48.0;
       const half = size / 2;
-      const borderWidth = 5.0;
+      const borderWidth = 3.0;
 
       // Green border circle
       final borderPaint = Paint()..color = const Color(0xFF10b981);
@@ -1545,7 +1545,7 @@ class _TripScreenState extends State<TripScreen>
       tiltGesturesEnabled: true,
       mapToolbarEnabled: false,
       compassEnabled: true,
-      mapType: MapType.normal,
+      mapType: MapType.satellite,
     );
   }
 
