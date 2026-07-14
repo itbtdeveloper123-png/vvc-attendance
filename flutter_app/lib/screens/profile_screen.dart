@@ -928,6 +928,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return;
     }
 
+    final currentId = user.employeeId?.toString() ?? '';
+    final currentName = user.name ?? 'គណនីបច្ចុប្បន្នក្នុងប្រព័ន្ធ';
+    final currentAvatar = user.avatarUrl ?? '';
+    final otherAccounts = accounts
+        .where((account) =>
+            account['employeeId']?.toString() != currentId &&
+            account['employeeId']?.toString().isNotEmpty == true)
+        .toList();
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -937,136 +946,230 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
       builder: (ctx) {
         return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.white24,
-                      borderRadius: BorderRadius.circular(2),
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.white24,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'ជ្រើសគណនីដើម្បីប្ដូរ',
-                  style: GoogleFonts.kantumruyPro(
-                    color: AppTheme.textPrimary,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+                  const SizedBox(height: 16),
+                  Text(
+                    'ជ្រើសគណនីដើម្បីប្ដូរ',
+                    style: GoogleFonts.kantumruyPro(
+                      color: AppTheme.textPrimary,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                Column(
-                  children: accounts.map((account) {
-                    final id = account['employeeId']?.toString() ?? '';
-                    final name = account['name']?.toString() ?? id;
-                    final avatarUrl = account['avatar']?.toString() ?? '';
-                    final userType = account['userType']?.toString() ?? 'Employee';
-                    final isCurrent = id == user.employeeId;
+                  const SizedBox(height: 14),
+                  Text(
+                    'គណនីបច្ចុប្បន្ន',
+                    style: GoogleFonts.kantumruyPro(
+                      color: AppTheme.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  ListTile(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18),
+                      side: BorderSide(
+                        color: AppTheme.primary.withValues(alpha: 0.25),
+                      ),
+                    ),
+                    tileColor: AppTheme.bgCard,
+                    leading: CircleAvatar(
+                      radius: 24,
+                      backgroundColor: AppTheme.primary.withValues(alpha: 0.15),
+                      backgroundImage: currentAvatar.isNotEmpty
+                          ? NetworkImage(currentAvatar)
+                              as ImageProvider<Object>?
+                          : null,
+                      child: currentAvatar.isEmpty
+                          ? Text(
+                              currentName
+                                  .trim()
+                                  .split(RegExp(r'\s+'))
+                                  .where((part) => part.isNotEmpty)
+                                  .take(2)
+                                  .map((part) => part[0].toUpperCase())
+                                  .join(),
+                              style: GoogleFonts.kantumruyPro(
+                                color: AppTheme.primary,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            )
+                          : null,
+                    ),
+                    title: Text(
+                      currentName,
+                      style: GoogleFonts.kantumruyPro(
+                        color: AppTheme.textPrimary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    subtitle: Text(
+                      currentId.isNotEmpty ? currentId : 'N/A',
+                      style: GoogleFonts.kantumruyPro(
+                        color: AppTheme.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                    trailing: Text(
+                      'បច្ចុប្បន្ន',
+                      style: GoogleFonts.kantumruyPro(
+                        color: AppTheme.primary,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  if (otherAccounts.isNotEmpty) ...[
+                    Text(
+                      'គណនីចុងក្រោយ',
+                      style: GoogleFonts.kantumruyPro(
+                        color: AppTheme.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Column(
+                      children: otherAccounts.map((account) {
+                        final id = account['employeeId']?.toString() ?? '';
+                        final name = account['name']?.toString() ?? id;
+                        final avatarUrl = account['avatar']?.toString() ?? '';
+                        final userType = account['userType']?.toString() ?? 'Employee';
 
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      child: ListTile(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(18),
-                          side: BorderSide(
-                            color: isCurrent
-                                ? AppTheme.primary.withValues(alpha: 0.25)
-                                : AppTheme.textPrimary.withValues(alpha: 0.08),
-                          ),
-                        ),
-                        tileColor: AppTheme.bgCard,
-                        leading: CircleAvatar(
-                          radius: 22,
-                          backgroundColor: AppTheme.primary.withValues(alpha: 0.18),
-                          backgroundImage: avatarUrl.isNotEmpty
-                              ? NetworkImage(avatarUrl)
-                                  as ImageProvider<Object>?
-                              : null,
-                          child: avatarUrl.isEmpty
-                              ? Text(
-                                  name.isNotEmpty
-                                      ? name
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 6),
+                          child: ListTile(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(18),
+                              side: BorderSide(
+                                color: AppTheme.textPrimary.withValues(alpha: 0.08),
+                              ),
+                            ),
+                            tileColor: AppTheme.bgCard,
+                            leading: CircleAvatar(
+                              radius: 22,
+                              backgroundColor: AppTheme.primary.withValues(alpha: 0.18),
+                              backgroundImage: avatarUrl.isNotEmpty
+                                  ? NetworkImage(avatarUrl)
+                                      as ImageProvider<Object>?
+                                  : null,
+                              child: avatarUrl.isEmpty
+                                  ? Text(
+                                      name
                                           .trim()
                                           .split(RegExp(r'\s+'))
                                           .where((part) => part.isNotEmpty)
                                           .take(2)
                                           .map((part) => part[0].toUpperCase())
-                                          .join()
-                                      : '?',
-                                  style: GoogleFonts.kantumruyPro(
-                                    color: AppTheme.primary,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                )
-                              : null,
-                        ),
-                        title: Text(
-                          name,
-                          style: GoogleFonts.kantumruyPro(
-                            color: AppTheme.textPrimary,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        subtitle: Text(
-                          id,
-                          style: GoogleFonts.kantumruyPro(
-                            color: AppTheme.textSecondary,
-                            fontSize: 12,
-                          ),
-                        ),
-                        trailing: isCurrent
-                            ? Text(
-                                'បច្ចុប្បន្ន',
-                                style: GoogleFonts.kantumruyPro(
-                                  color: AppTheme.primary,
-                                  fontSize: 12,
-                                ),
-                              )
-                            : null,
-                        onTap: isCurrent
-                            ? null
-                            : () async {
-                                if (_isSwitchingAccount) return;
-                                Navigator.of(ctx).pop();
-                                setState(() => _isSwitchingAccount = true);
-                                final result = await user.login(id, userType);
-                                setState(() => _isSwitchingAccount = false);
-                                if (!mounted) return;
-
-                                if (result['success'] == true) {
-                                  Navigator.of(context).pushAndRemoveUntil(
-                                    MaterialPageRoute(
-                                      builder: (_) => const HomeScreen(),
-                                    ),
-                                    (_) => false,
-                                  );
-                                } else {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        result['message'] ?? 'ការប្ដូរការចូលបរាជ័យ',
-                                        style: GoogleFonts.kantumruyPro(),
+                                          .join(),
+                                      style: GoogleFonts.kantumruyPro(
+                                        color: AppTheme.primary,
+                                        fontWeight: FontWeight.bold,
                                       ),
-                                      backgroundColor: Colors.redAccent,
-                                      behavior: SnackBarBehavior.floating,
+                                    )
+                                  : null,
+                            ),
+                            title: Text(
+                              name,
+                              style: GoogleFonts.kantumruyPro(
+                                color: AppTheme.textPrimary,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            subtitle: Text(
+                              id,
+                              style: GoogleFonts.kantumruyPro(
+                                color: AppTheme.textSecondary,
+                                fontSize: 12,
+                              ),
+                            ),
+                            onTap: () async {
+                              if (_isSwitchingAccount) return;
+                              Navigator.of(ctx).pop();
+                              setState(() => _isSwitchingAccount = true);
+                              final result = await user.login(id, userType);
+                              setState(() => _isSwitchingAccount = false);
+                              if (!mounted) return;
+
+                              if (result['success'] == true) {
+                                Navigator.of(context).pushAndRemoveUntil(
+                                  MaterialPageRoute(
+                                    builder: (_) => const HomeScreen(),
+                                  ),
+                                  (_) => false,
+                                );
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      result['message'] ?? 'ការប្ដូរការចូលបរាជ័យ',
+                                      style: GoogleFonts.kantumruyPro(),
                                     ),
-                                  );
-                                }
-                              },
+                                    backgroundColor: Colors.redAccent,
+                                    behavior: SnackBarBehavior.floating,
+                                  ),
+                                );
+                              }
+                            },
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ] else ...[
+                    Center(
+                      child: Text(
+                        'មិនមានគណនីចុងក្រោយផ្សេងទៀតទេ',
+                        style: GoogleFonts.kantumruyPro(
+                          color: AppTheme.textSecondary,
+                          fontSize: 12,
+                        ),
                       ),
-                    );
-                  }).toList(),
-                ),
-              ],
+                    ),
+                    const SizedBox(height: 18),
+                  ],
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(ctx).pop();
+                      Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const LoginScreen()),
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primary,
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size.fromHeight(48),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    child: Text(
+                      'បន្ថែមគណនីថ្មី',
+                      style: GoogleFonts.kantumruyPro(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+              ),
             ),
           ),
         );
