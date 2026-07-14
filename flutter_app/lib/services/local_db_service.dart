@@ -18,8 +18,9 @@ class LocalDbService {
     String path = join(await getDatabasesPath(), 'attendance_offline.db');
     return await openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
     );
   }
 
@@ -41,7 +42,38 @@ class LocalDbService {
         synced INTEGER DEFAULT 0
       )
     ''');
+    await db.execute('''
+      CREATE TABLE offline_trip_points (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        trip_id INTEGER NOT NULL,
+        latitude REAL NOT NULL,
+        longitude REAL NOT NULL,
+        speed REAL DEFAULT 0,
+        accuracy REAL DEFAULT 0,
+        timestamp TEXT NOT NULL,
+        synced INTEGER DEFAULT 0
+      )
+    ''');
   }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS offline_trip_points (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          trip_id INTEGER NOT NULL,
+          latitude REAL NOT NULL,
+          longitude REAL NOT NULL,
+          speed REAL DEFAULT 0,
+          accuracy REAL DEFAULT 0,
+          timestamp TEXT NOT NULL,
+          synced INTEGER DEFAULT 0
+        )
+      ''');
+    }
+  }
+
+  // ─── Offline Punches ────────────────────────────────────────────────────────
 
   Future<int> insertPunch(Map<String, dynamic> punchData) async {
     Database db = await database;
@@ -61,5 +93,50 @@ class LocalDbService {
   Future<int> clearSyncedPunches() async {
     Database db = await database;
     return await db.delete('offline_punches', where: 'synced = 1');
+  }
+
+  // ─── Offline Trip GPS Points ────────────────────────────────────────────────
+
+  Future<int> insertTripPoint({
+    required int tripId,
+    required double latitude,
+    required double longitude,
+    double speed = 0,
+    double accuracy = 0,
+  }) async {
+    final db = await database;
+    return await db.insert('offline_trip_points', {
+      'trip_id': tripId,
+      'latitude': latitude,
+      'longitude': longitude,
+      'speed': speed,
+      'accuracy': accuracy,
+      'timestamp': DateTime.now().toIso8601String(),
+      'synced': 0,
+    });
+  }
+
+  Future<List<Map<String, dynamic>>> getUnsyncedTripPoints() async {
+    final db = await database;
+    return await db.query(
+      'offline_trip_points',
+      where: 'synced = 0',
+      orderBy: 'id ASC',
+    );
+  }
+
+  Future<int> markTripPointSynced(int id) async {
+    final db = await database;
+    return await db.update(
+      'offline_trip_points',
+      {'synced': 1},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<int> clearSyncedTripPoints() async {
+    final db = await database;
+    return await db.delete('offline_trip_points', where: 'synced = 1');
   }
 }

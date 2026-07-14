@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io' show Platform;
 import 'dart:ui';
 
@@ -11,8 +12,22 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api_service.dart';
+import 'local_db_service.dart';
 
 class BackgroundLocationService {
+  static bool _isSuccessfulSyncResponse(http.Response response) {
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      return false;
+    }
+    try {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        return decoded['success'] == true || decoded['status'] == 'success';
+      }
+    } catch (_) {}
+    return false;
+  }
+
   static Future<void> initializeService() async {
     final service = FlutterBackgroundService();
 
@@ -96,58 +111,88 @@ class BackgroundLocationService {
     );
   }
 
-
   @pragma('vm:entry-point')
   static void onStart(ServiceInstance service) async {
     WidgetsFlutterBinding.ensureInitialized();
     DartPluginRegistrant.ensureInitialized();
 
     final prefs = await SharedPreferences.getInstance();
+    final localDb = LocalDbService();
     StreamSubscription<Position>? positionSubscription;
 
-    positionSubscription = Geolocator.getPositionStream(
-      locationSettings: _locationSettings(),
-    ).listen((Position position) async {
-      try {
-        await prefs.reload();
+    positionSubscription =
+        Geolocator.getPositionStream(
+          locationSettings: _locationSettings(),
+        ).listen(
+          (Position position) async {
+            try {
+              await prefs.reload();
 
-        final currentTripId = prefs.getString('current_active_trip_id');
-        final token = prefs.getString('auth_token');
+              final currentTripId = prefs.getString('current_active_trip_id');
+              final token = prefs.getString('auth_token');
 
-        if (currentTripId == null || token == null || token.isEmpty) {
-          return;
-        }
+              if (currentTripId == null || token == null || token.isEmpty) {
+                return;
+              }
 
-        final response = await http
-            .post(
-              Uri.parse(ApiService.baseUrl),
-              body: {
-                'action': 'update_trip_location',
-                'trip_id': currentTripId,
-                'latitude': position.latitude.toString(),
-                'longitude': position.longitude.toString(),
-                'speed': (position.speed * 3.6).toString(),
-                'accuracy': position.accuracy.toString(),
-              },
-              headers: {'Authorization': 'Bearer $token'},
-            )
-            .timeout(const Duration(seconds: 10));
+              final tripIdInt = int.tryParse(currentTripId);
 
-        if (service is AndroidServiceInstance) {
-          service.setForegroundNotificationInfo(
-            title: 'VVC Trip Tracking',
-            content:
-                'GPS ${position.latitude.toStringAsFixed(4)}, ${position.longitude.toStringAsFixed(4)}',
-          );
-        }
+              // ─── Try to send to server ───────────────────────────────────────────
+              bool synced = false;
+              try {
+                final response = await http
+                    .post(
+                      Uri.parse(ApiService.baseUrl),
+                      body: {
+                        'action': 'update_trip_location',
+                        'trip_id': currentTripId,
+                        'latitude': position.latitude.toString(),
+                        'longitude': position.longitude.toString(),
+                        'speed': (position.speed * 3.6).toString(),
+                        'accuracy': position.accuracy.toString(),
+                      },
+                      headers: {'Authorization': 'Bearer $token'},
+                    )
+                    .timeout(const Duration(seconds: 8));
 
-        debugPrint('Background Stream Sync: ${response.statusCode}');
-      } catch (e) {
-        debugPrint('Background Stream Error: $e');
-      }
-    }, onError: (dynamic error) {
-      debugPrint('Background location stream error: $error');
-    });
+                synced = _isSuccessfulSyncResponse(response);
+              } catch (e) {
+                // No internet or timeout — will queue locally
+                synced = false;
+                debugPrint(
+                  'Background GPS send failed (will queue offline): $e',
+                );
+              }
+
+              // ─── Queue locally if server sync failed ─────────────────────────────
+              if (!synced && tripIdInt != null) {
+                await localDb.insertTripPoint(
+                  tripId: tripIdInt,
+                  latitude: position.latitude,
+                  longitude: position.longitude,
+                  speed: position.speed * 3.6,
+                  accuracy: position.accuracy,
+                );
+                debugPrint('GPS point queued offline for trip #$tripIdInt');
+              }
+
+              // ─── Update foreground notification ──────────────────────────────────
+              if (service is AndroidServiceInstance) {
+                final status = synced ? '✅ Online' : '📴 Offline (cached)';
+                service.setForegroundNotificationInfo(
+                  title: 'VVC Trip Tracking — $status',
+                  content:
+                      'GPS ${position.latitude.toStringAsFixed(4)}, ${position.longitude.toStringAsFixed(4)}',
+                );
+              }
+            } catch (e) {
+              debugPrint('Background Stream Error: $e');
+            }
+          },
+          onError: (dynamic error) {
+            debugPrint('Background location stream error: $error');
+          },
+        );
 
     service.on('stopService').listen((event) {
       positionSubscription?.cancel();

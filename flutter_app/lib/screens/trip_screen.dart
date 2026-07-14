@@ -1,9 +1,13 @@
 import 'dart:async';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:http/http.dart' as http;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -11,6 +15,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vvc_hrm/providers/user_provider.dart';
 import 'package:vvc_hrm/services/api_service.dart';
 import 'package:vvc_hrm/services/background_location_service.dart';
+import 'package:vvc_hrm/services/local_db_service.dart';
 
 class TripScreen extends StatefulWidget {
   const TripScreen({super.key});
@@ -35,6 +40,15 @@ class _TripScreenState extends State<TripScreen>
   int _tripDuration = 0;
   DateTime? _tripStartTime;
   int _locationPointsSent = 0;
+
+  // ── Offline & Connectivity ────────────────────────────────────────────────
+  final LocalDbService _localDb = LocalDbService();
+  bool _isOnline = true;
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
+
+  // ── Profile Image Marker Bitmap ───────────────────────────────────────────
+  BitmapDescriptor? _profileMarkerBitmap;
+  bool _hasTriedLoadingBitmap = false;
 
   double? _targetLat;
   double? _targetLng;
@@ -61,8 +75,23 @@ class _TripScreenState extends State<TripScreen>
       vsync: this,
       duration: const Duration(seconds: 2),
     )..repeat(reverse: true);
+
+    // Monitor connectivity changes
+    _connectivitySub = Connectivity().onConnectivityChanged.listen((results) {
+      final online =
+          results.contains(ConnectivityResult.mobile) ||
+          results.contains(ConnectivityResult.wifi);
+      if (mounted) setState(() => _isOnline = online);
+      if (online) {
+        // Flush any queued offline GPS points
+        _flushOfflineTripPoints();
+      }
+    });
+
     _loadData().then((_) {
       _startTimers();
+      // Try to preload profile image marker
+      _loadProfileMarkerBitmap();
     });
   }
 
@@ -118,13 +147,24 @@ class _TripScreenState extends State<TripScreen>
         final trip = activeTripRes['trip'] as Map<String, dynamic>?;
         if (trip != null) {
           final tripIdInt = int.tryParse(trip['id'].toString());
-          final customerId = int.tryParse(trip['customer_id']?.toString() ?? '');
+          final customerId = int.tryParse(
+            trip['customer_id']?.toString() ?? '',
+          );
           final customerName = trip['customer_name']?.toString() ?? '';
-          final startTime = DateTime.tryParse(trip['started_at']?.toString() ?? '');
-          final targetLat = double.tryParse(trip['target_lat']?.toString() ?? '');
-          final targetLng = double.tryParse(trip['target_lng']?.toString() ?? '');
-          final dist = double.tryParse(trip['total_distance_km']?.toString() ?? '0') ?? 0;
-          final dur = int.tryParse(trip['duration_minutes']?.toString() ?? '0') ?? 0;
+          final startTime = DateTime.tryParse(
+            trip['started_at']?.toString() ?? '',
+          );
+          final targetLat = double.tryParse(
+            trip['target_lat']?.toString() ?? '',
+          );
+          final targetLng = double.tryParse(
+            trip['target_lng']?.toString() ?? '',
+          );
+          final dist =
+              double.tryParse(trip['total_distance_km']?.toString() ?? '0') ??
+              0;
+          final dur =
+              int.tryParse(trip['duration_minutes']?.toString() ?? '0') ?? 0;
 
           if (!_isTripActive || _activeTripId != tripIdInt) {
             if (mounted) {
@@ -141,7 +181,10 @@ class _TripScreenState extends State<TripScreen>
               });
               if (tripIdInt != null) {
                 final prefs = await SharedPreferences.getInstance();
-                await prefs.setString('current_active_trip_id', tripIdInt.toString());
+                await prefs.setString(
+                  'current_active_trip_id',
+                  tripIdInt.toString(),
+                );
                 _ensureBackgroundTrackingService();
                 _loadActiveTripRoute();
                 _startLocationTracking();
@@ -185,6 +228,7 @@ class _TripScreenState extends State<TripScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _positionSubscription?.cancel();
+    _connectivitySub?.cancel();
     _mapController?.dispose();
     _pulseController.dispose();
     _stopTimers();
@@ -237,11 +281,17 @@ class _TripScreenState extends State<TripScreen>
       permission = await Geolocator.requestPermission();
     }
     if (permission == LocationPermission.denied) {
-      _showSnack('ត្រូវការការអនុញ្ញាត Location ដើម្បីចាប់ផ្តើមដំណើរ។', isError: true);
+      _showSnack(
+        'ត្រូវការការអនុញ្ញាត Location ដើម្បីចាប់ផ្តើមដំណើរ។',
+        isError: true,
+      );
       return false;
     }
     if (permission == LocationPermission.deniedForever) {
-      _showSnack('Location ត្រូវបានបិទ។ សូមបើកវិញក្នុង Settings។', isError: true);
+      _showSnack(
+        'Location ត្រូវបានបិទ។ សូមបើកវិញក្នុង Settings។',
+        isError: true,
+      );
       await openAppSettings();
       return false;
     }
@@ -251,8 +301,10 @@ class _TripScreenState extends State<TripScreen>
       if (!backgroundStatus.isGranted) {
         final requested = await Permission.locationAlways.request();
         if (!requested.isGranted) {
-          _showSnack('សូមអនុញ្ញាត background location ដើម្បីឲ្យ app តាមដានបានពេលចេញពីកម្មវិធី។',
-              isError: true);
+          _showSnack(
+            'សូមអនុញ្ញាត background location ដើម្បីឲ្យ app តាមដានបានពេលចេញពីកម្មវិធី។',
+            isError: true,
+          );
           await openAppSettings();
           return false;
         }
@@ -288,7 +340,9 @@ class _TripScreenState extends State<TripScreen>
       final activeTripRes = results[1];
 
       if (customersRes['success'] == true) {
-        _customers = List<Map<String, dynamic>>.from(customersRes['data'] ?? []);
+        _customers = List<Map<String, dynamic>>.from(
+          customersRes['data'] ?? [],
+        );
       }
 
       if (activeTripRes['success'] == true && activeTripRes['trip'] != null) {
@@ -297,20 +351,29 @@ class _TripScreenState extends State<TripScreen>
         _activeTripId = int.tryParse(trip['id'].toString());
         _activeCustomerId = int.tryParse(trip['customer_id']?.toString() ?? '');
         _activeTripCustomer = trip['customer_name']?.toString() ?? '';
-        _tripStartTime = DateTime.tryParse(trip['started_at']?.toString() ?? '');
+        _tripStartTime = DateTime.tryParse(
+          trip['started_at']?.toString() ?? '',
+        );
         _targetLat = double.tryParse(trip['target_lat']?.toString() ?? '');
         _targetLng = double.tryParse(trip['target_lng']?.toString() ?? '');
-        _tripDistance = double.tryParse(trip['total_distance_km']?.toString() ?? '0') ?? 0;
-        _tripDuration = int.tryParse(trip['duration_minutes']?.toString() ?? '0') ?? 0;
+        _tripDistance =
+            double.tryParse(trip['total_distance_km']?.toString() ?? '0') ?? 0;
+        _tripDuration =
+            int.tryParse(trip['duration_minutes']?.toString() ?? '0') ?? 0;
 
         if (_activeTripId != null) {
           final prefs = await SharedPreferences.getInstance();
-          await prefs.setString('current_active_trip_id', _activeTripId.toString());
+          await prefs.setString(
+            'current_active_trip_id',
+            _activeTripId.toString(),
+          );
           await _ensureBackgroundTrackingService();
           await _loadActiveTripRoute();
           _startLocationTracking();
           // Fetch nav route if target exists
-          if (_targetLat != null && _targetLng != null && _currentPosition != null) {
+          if (_targetLat != null &&
+              _targetLng != null &&
+              _currentPosition != null) {
             _fetchNavRoute();
           }
         }
@@ -332,21 +395,29 @@ class _TripScreenState extends State<TripScreen>
           : ((res['points'] as List?) ?? const []);
 
       final points = routeData
-          .map((p) => LatLng(
-                double.tryParse((p['latitude'] ?? p['lat']).toString()) ?? 0,
-                double.tryParse((p['longitude'] ?? p['lng']).toString()) ?? 0,
-              ))
+          .map(
+            (p) => LatLng(
+              double.tryParse((p['latitude'] ?? p['lat']).toString()) ?? 0,
+              double.tryParse((p['longitude'] ?? p['lng']).toString()) ?? 0,
+            ),
+          )
           .where((point) => point.latitude != 0 || point.longitude != 0)
           .toList();
 
       final trip = res['trip'] as Map<String, dynamic>?;
       if (!mounted) return;
       setState(() {
-        _routePoints..clear()..addAll(points);
+        _routePoints
+          ..clear()
+          ..addAll(points);
         _locationPointsSent = points.length;
         if (trip != null) {
-          _tripDistance = double.tryParse(trip['total_distance_km']?.toString() ?? '0') ?? _tripDistance;
-          _tripDuration = int.tryParse(trip['duration_minutes']?.toString() ?? '0') ?? _tripDuration;
+          _tripDistance =
+              double.tryParse(trip['total_distance_km']?.toString() ?? '0') ??
+              _tripDistance;
+          _tripDuration =
+              int.tryParse(trip['duration_minutes']?.toString() ?? '0') ??
+              _tripDuration;
         }
         _updateMapOverlays();
       });
@@ -357,7 +428,9 @@ class _TripScreenState extends State<TripScreen>
 
   /// Fetch OSRM navigation route from current position to customer destination
   Future<void> _fetchNavRoute() async {
-    if (_currentPosition == null || _targetLat == null || _targetLng == null) return;
+    if (_currentPosition == null || _targetLat == null || _targetLng == null) {
+      return;
+    }
     if (mounted) setState(() => _isLoadingNavRoute = true);
     try {
       final coords = await ApiService.getOsrmRoute(
@@ -368,7 +441,9 @@ class _TripScreenState extends State<TripScreen>
       );
       if (coords != null && mounted) {
         setState(() {
-          _navRoutePoints = coords.map((c) => LatLng(c['lat']!, c['lng']!)).toList();
+          _navRoutePoints = coords
+              .map((c) => LatLng(c['lat']!, c['lng']!))
+              .toList();
           _updateMapOverlays();
         });
       }
@@ -396,14 +471,20 @@ class _TripScreenState extends State<TripScreen>
         longitude: position.longitude,
       );
       if (res['success'] != true) {
-        _showSnack(res['message']?.toString() ?? 'មិនអាចចាប់ផ្តើមដំណើរបានទេ។', isError: true);
+        _showSnack(
+          res['message']?.toString() ?? 'មិនអាចចាប់ផ្តើមដំណើរបានទេ។',
+          isError: true,
+        );
         return;
       }
       final tripIdInt = res['trip_id'] is int
           ? res['trip_id'] as int
           : int.tryParse(res['trip_id'].toString());
       if (tripIdInt == null) {
-        _showSnack('បានចាប់ផ្តើមដំណើរ ប៉ុន្តែមិនទទួលបានលេខសម្គាល់ Trip។', isError: true);
+        _showSnack(
+          'បានចាប់ផ្តើមដំណើរ ប៉ុន្តែមិនទទួលបានលេខសម្គាល់ Trip។',
+          isError: true,
+        );
         return;
       }
       final prefs = await SharedPreferences.getInstance();
@@ -446,43 +527,55 @@ class _TripScreenState extends State<TripScreen>
 
   void _startLocationTracking() {
     _positionSubscription?.cancel();
-    _positionSubscription = Geolocator.getPositionStream(
-      locationSettings: _buildLocationSettings(),
-    ).listen((Position position) async {
-      if (!_isTripActive || _activeTripId == null) return;
+    _positionSubscription =
+        Geolocator.getPositionStream(
+          locationSettings: _buildLocationSettings(),
+        ).listen(
+          (Position position) async {
+            if (!_isTripActive || _activeTripId == null) return;
 
-      if (mounted) {
-        setState(() {
-          _currentPosition = position;
-          if (_tripStartTime != null) {
-            _tripDuration = DateTime.now().difference(_tripStartTime!).inMinutes;
-          }
-          _appendRoutePoint(LatLng(position.latitude, position.longitude));
-          _updateMapOverlays();
-        });
-      }
+            if (mounted) {
+              setState(() {
+                _currentPosition = position;
+                if (_tripStartTime != null) {
+                  _tripDuration = DateTime.now()
+                      .difference(_tripStartTime!)
+                      .inMinutes;
+                }
+                _appendRoutePoint(
+                  LatLng(position.latitude, position.longitude),
+                );
+                _updateMapOverlays();
+              });
+            }
 
-      // On iOS, sync to the server from the main isolate stream
-      if (defaultTargetPlatform == TargetPlatform.iOS) {
-        await _syncCurrentPositionToServer(position: position);
-      }
+            // On iOS, sync to the server from the main isolate stream
+            if (defaultTargetPlatform == TargetPlatform.iOS) {
+              await _syncCurrentPositionToServer(position: position);
+            }
 
-      if (_mapController != null && mounted) {
-        await _mapController!.animateCamera(
-          CameraUpdate.newLatLng(LatLng(position.latitude, position.longitude)),
+            if (_mapController != null && mounted) {
+              await _mapController!.animateCamera(
+                CameraUpdate.newLatLng(
+                  LatLng(position.latitude, position.longitude),
+                ),
+              );
+            }
+          },
+          onError: (dynamic error) {
+            debugPrint('Location stream error: $error');
+          },
         );
-      }
-    }, onError: (dynamic error) {
-      debugPrint('Location stream error: $error');
-    });
   }
 
   void _appendRoutePoint(LatLng point) {
     if (_routePoints.isNotEmpty) {
       final lastPoint = _routePoints.last;
       final distanceMeters = Geolocator.distanceBetween(
-        lastPoint.latitude, lastPoint.longitude,
-        point.latitude, point.longitude,
+        lastPoint.latitude,
+        lastPoint.longitude,
+        point.latitude,
+        point.longitude,
       );
       if (distanceMeters < 3) return;
       _tripDistance += distanceMeters / 1000;
@@ -496,16 +589,66 @@ class _TripScreenState extends State<TripScreen>
     final gps = position ?? await _getBestCurrentPosition();
     if (gps == null) return;
     try {
-      await _api.updateTripLocation(
+      final res = await _api.updateTripLocation(
         tripId: _activeTripId!,
         latitude: gps.latitude,
         longitude: gps.longitude,
         speed: gps.speed * 3.6,
         accuracy: gps.accuracy,
       );
+      if (res['success'] == true) {
+        if (mounted && !_isOnline) setState(() => _isOnline = true);
+        return;
+      }
+      debugPrint(
+        'Foreground trip sync rejected (queuing offline): ${res['message']}',
+      );
+      await _queueOfflineTripPoint(gps);
+      if (mounted && _isOnline) setState(() => _isOnline = false);
     } catch (e) {
-      debugPrint('Final trip sync failed: $e');
+      debugPrint('Foreground trip sync failed (queuing offline): $e');
+      await _queueOfflineTripPoint(gps);
+      if (mounted && _isOnline) setState(() => _isOnline = false);
     }
+  }
+
+  Future<void> _queueOfflineTripPoint(Position gps) async {
+    if (_activeTripId == null) return;
+    await _localDb.insertTripPoint(
+      tripId: _activeTripId!,
+      latitude: gps.latitude,
+      longitude: gps.longitude,
+      speed: gps.speed * 3.6,
+      accuracy: gps.accuracy,
+    );
+  }
+
+  /// Flush locally-queued GPS points to the server (called when internet restores)
+  Future<void> _flushOfflineTripPoints() async {
+    final points = await _localDb.getUnsyncedTripPoints();
+    if (points.isEmpty) return;
+    debugPrint('Flushing ${points.length} offline GPS points to server...');
+    for (final point in points) {
+      try {
+        final res = await _api.updateTripLocation(
+          tripId: point['trip_id'] as int,
+          latitude: (point['latitude'] as num).toDouble(),
+          longitude: (point['longitude'] as num).toDouble(),
+          speed: (point['speed'] as num?)?.toDouble() ?? 0,
+          accuracy: (point['accuracy'] as num?)?.toDouble() ?? 0,
+        );
+        if (res['success'] == true) {
+          await _localDb.markTripPointSynced(point['id'] as int);
+        } else {
+          debugPrint('Flush offline point rejected: ${res['message']}');
+          break;
+        }
+      } catch (e) {
+        debugPrint('Flush offline point failed: $e');
+        break;
+      }
+    }
+    await _localDb.clearSyncedTripPoints();
   }
 
   Future<void> _endTrip() async {
@@ -532,7 +675,9 @@ class _TripScreenState extends State<TripScreen>
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('បញ្ចប់'),
@@ -551,7 +696,10 @@ class _TripScreenState extends State<TripScreen>
     final res = await _api.endTrip(tripId);
 
     if (res['success'] != true) {
-      _showSnack(res['message']?.toString() ?? 'មិនអាចបញ្ចប់ដំណើរបានទេ។', isError: true);
+      _showSnack(
+        res['message']?.toString() ?? 'មិនអាចបញ្ចប់ដំណើរបានទេ។',
+        isError: true,
+      );
       return;
     }
 
@@ -577,8 +725,12 @@ class _TripScreenState extends State<TripScreen>
     await _stopBackgroundTrackingService();
 
     final trip = res['trip'] as Map<String, dynamic>?;
-    final finalDistance = double.tryParse(trip?['total_distance_km']?.toString() ?? '0') ?? _tripDistance;
-    final finalDuration = int.tryParse(trip?['duration_minutes']?.toString() ?? '0') ?? _tripDuration;
+    final finalDistance =
+        double.tryParse(trip?['total_distance_km']?.toString() ?? '0') ??
+        _tripDistance;
+    final finalDuration =
+        int.tryParse(trip?['duration_minutes']?.toString() ?? '0') ??
+        _tripDuration;
 
     if (!mounted) return;
     setState(() {
@@ -631,23 +783,34 @@ class _TripScreenState extends State<TripScreen>
             const SizedBox(height: 16),
             const Text(
               'តើចង់ធ្វើដំណើរទៅអតិថិជនមួយទៀតដែរអត់?',
-              style: TextStyle(fontFamily: 'KhmerFont', fontWeight: FontWeight.w600),
+              style: TextStyle(
+                fontFamily: 'KhmerFont',
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('ចប់ហើយ', style: TextStyle(fontFamily: 'KhmerFont')),
+            child: const Text(
+              'ចប់ហើយ',
+              style: TextStyle(fontFamily: 'KhmerFont'),
+            ),
           ),
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF6366f1),
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
             icon: const Icon(Icons.directions_car, size: 18),
-            label: const Text('ដំណើរទៅបន្ត', style: TextStyle(fontFamily: 'KhmerFont')),
+            label: const Text(
+              'ដំណើរទៅបន្ត',
+              style: TextStyle(fontFamily: 'KhmerFont'),
+            ),
             onPressed: () {
               Navigator.pop(ctx);
               _showNextCustomerSelector();
@@ -677,13 +840,21 @@ class _TripScreenState extends State<TripScreen>
           children: [
             const SizedBox(height: 12),
             Container(
-              width: 40, height: 4,
-              decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(4)),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(4),
+              ),
             ),
             const SizedBox(height: 16),
             const Text(
               'ជ្រើសរើសអតិថិជនបន្ត',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, fontFamily: 'KhmerFont'),
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                fontFamily: 'KhmerFont',
+              ),
             ),
             const SizedBox(height: 12),
             Expanded(
@@ -694,37 +865,59 @@ class _TripScreenState extends State<TripScreen>
                 itemBuilder: (_, index) {
                   final customer = _customers[index];
                   final name = customer['name']?.toString() ?? '';
-                  final hasLoc = (customer['latitude'] != null &&
+                  final hasLoc =
+                      (customer['latitude'] != null &&
                       double.tryParse(customer['latitude'].toString()) != 0);
                   return ListTile(
                     leading: CircleAvatar(
-                      backgroundColor: const Color(0xFF6366f1).withOpacity(0.12),
+                      backgroundColor: const Color(
+                        0xFF6366f1,
+                      ).withValues(alpha: 0.12),
                       child: Text(
                         name.isEmpty ? '?' : name[0].toUpperCase(),
-                        style: const TextStyle(color: Color(0xFF6366f1), fontWeight: FontWeight.w700),
+                        style: const TextStyle(
+                          color: Color(0xFF6366f1),
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
-                    title: Text(name, style: const TextStyle(fontFamily: 'KhmerFont', fontWeight: FontWeight.w600)),
+                    title: Text(
+                      name,
+                      style: const TextStyle(
+                        fontFamily: 'KhmerFont',
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                     subtitle: Text(
                       hasLoc ? '📍 មានទីតាំង' : '📍 គ្មានទីតាំង',
                       style: TextStyle(
                         fontSize: 12,
                         fontFamily: 'KhmerFont',
-                        color: hasLoc ? const Color(0xFF10b981) : Colors.grey.shade500,
+                        color: hasLoc
+                            ? const Color(0xFF10b981)
+                            : Colors.grey.shade500,
                       ),
                     ),
                     trailing: ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF10b981),
                         foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
                       ),
                       onPressed: () {
                         Navigator.pop(ctx);
                         _startTrip(customer);
                       },
-                      child: const Text('ធ្វើដំណើរ', style: TextStyle(fontFamily: 'KhmerFont')),
+                      child: const Text(
+                        'ធ្វើដំណើរ',
+                        style: TextStyle(fontFamily: 'KhmerFont'),
+                      ),
                     ),
                   );
                 },
@@ -741,49 +934,150 @@ class _TripScreenState extends State<TripScreen>
     _polylines.clear();
 
     if (_routePoints.isNotEmpty) {
-      _markers.add(Marker(
-        markerId: const MarkerId('start'),
-        position: _routePoints.first,
-        infoWindow: const InfoWindow(title: 'ចំណុចចាប់ផ្តើម'),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
-      ));
-      _markers.add(Marker(
-        markerId: const MarkerId('current'),
-        position: _routePoints.last,
-        infoWindow: InfoWindow(
-          title: 'ទីតាំងបច្ចុប្បន្ន',
-          snippet: 'ល្បឿន ${((_currentPosition?.speed ?? 0) * 3.6).toStringAsFixed(1)} km/h',
+      // Start marker (blue dot)
+      _markers.add(
+        Marker(
+          markerId: const MarkerId('start'),
+          position: _routePoints.first,
+          infoWindow: const InfoWindow(title: 'ចំណុចចាប់ផ្តើម'),
+          icon: BitmapDescriptor.defaultMarkerWithHue(
+            BitmapDescriptor.hueAzure,
+          ),
         ),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
-      ));
+      );
+      // Current position marker — use profile image if loaded, else green
+      _markers.add(
+        Marker(
+          markerId: const MarkerId('current'),
+          position: _routePoints.last,
+          infoWindow: InfoWindow(
+            title: 'ទីតាំងបច្ចុប្បន្ន',
+            snippet:
+                'ល្បឿន ${((_currentPosition?.speed ?? 0) * 3.6).toStringAsFixed(1)} km/h',
+          ),
+          icon:
+              _profileMarkerBitmap ??
+              BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+          anchor: const Offset(0.5, 0.5),
+        ),
+      );
       // Traveled route polyline (purple)
-      _polylines.add(Polyline(
-        polylineId: const PolylineId('route'),
-        points: List<LatLng>.from(_routePoints),
-        color: const Color(0xFF6366f1),
-        width: 5,
-      ));
+      _polylines.add(
+        Polyline(
+          polylineId: const PolylineId('route'),
+          points: List<LatLng>.from(_routePoints),
+          color: const Color(0xFF6366f1),
+          width: 5,
+          jointType: JointType.round,
+          endCap: Cap.roundCap,
+          startCap: Cap.roundCap,
+        ),
+      );
     }
 
-    // Navigation route line from current position → destination (blue)
+    // Navigation route line from current position → destination (blue dashed)
     if (_navRoutePoints.isNotEmpty) {
-      _polylines.add(Polyline(
-        polylineId: const PolylineId('nav_route'),
-        points: List<LatLng>.from(_navRoutePoints),
-        color: const Color(0xFF3b82f6),
-        width: 4,
-        patterns: [PatternItem.dash(20), PatternItem.gap(10)],
-      ));
+      _polylines.add(
+        Polyline(
+          polylineId: const PolylineId('nav_route'),
+          points: List<LatLng>.from(_navRoutePoints),
+          color: const Color(0xFF3b82f6),
+          width: 4,
+          jointType: JointType.round,
+          endCap: Cap.roundCap,
+          startCap: Cap.roundCap,
+          patterns: [PatternItem.dash(20), PatternItem.gap(10)],
+        ),
+      );
     }
 
     // Destination marker (red pin)
     if (_targetLat != null && _targetLng != null) {
-      _markers.add(Marker(
-        markerId: const MarkerId('target'),
-        position: LatLng(_targetLat!, _targetLng!),
-        infoWindow: InfoWindow(title: 'គោលដៅ: $_activeTripCustomer'),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-      ));
+      _markers.add(
+        Marker(
+          markerId: const MarkerId('target'),
+          position: LatLng(_targetLat!, _targetLng!),
+          infoWindow: InfoWindow(title: 'គោលដៅ: $_activeTripCustomer'),
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+        ),
+      );
+    }
+  }
+
+  /// Load the user's profile picture and create a circular bitmap marker.
+  Future<void> _loadProfileMarkerBitmap() async {
+    if (_hasTriedLoadingBitmap) return;
+    _hasTriedLoadingBitmap = true;
+    try {
+      final user = context.read<UserProvider>();
+      final avatarUrl = user.avatarUrl ?? '';
+      if (avatarUrl.isEmpty) return;
+
+      final response = await http
+          .get(Uri.parse(avatarUrl))
+          .timeout(const Duration(seconds: 8));
+      if (response.statusCode != 200) return;
+
+      final codec = await ui.instantiateImageCodec(
+        response.bodyBytes,
+        targetWidth: 96,
+        targetHeight: 96,
+      );
+      final frame = await codec.getNextFrame();
+      final image = frame.image;
+
+      // Draw circular clipped image with green border
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder);
+      const size = 96.0;
+      const half = size / 2;
+      const borderWidth = 5.0;
+
+      // Green border circle
+      final borderPaint = Paint()..color = const Color(0xFF10b981);
+      canvas.drawCircle(const Offset(half, half), half, borderPaint);
+
+      // Clip to circle
+      final clipPath = Path()
+        ..addOval(
+          Rect.fromCircle(
+            center: const Offset(half, half),
+            radius: half - borderWidth,
+          ),
+        );
+      canvas.clipPath(clipPath);
+
+      // Draw the image
+      final srcRect = Rect.fromLTWH(
+        0,
+        0,
+        image.width.toDouble(),
+        image.height.toDouble(),
+      );
+      final dstRect = Rect.fromLTWH(
+        borderWidth,
+        borderWidth,
+        size - borderWidth * 2,
+        size - borderWidth * 2,
+      );
+      canvas.drawImageRect(image, srcRect, dstRect, Paint());
+
+      final picture = recorder.endRecording();
+      final img = await picture.toImage(size.toInt(), size.toInt());
+      final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) return;
+
+      final Uint8List bytes = byteData.buffer.asUint8List();
+      final bitmap = BitmapDescriptor.bytes(bytes);
+
+      if (mounted) {
+        setState(() {
+          _profileMarkerBitmap = bitmap;
+          _updateMapOverlays();
+        });
+      }
+    } catch (e) {
+      debugPrint('Failed to load profile marker bitmap: $e');
     }
   }
 
@@ -797,13 +1091,17 @@ class _TripScreenState extends State<TripScreen>
 
   void _showSnack(String msg, {bool isError = false}) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg),
-      backgroundColor: isError ? Colors.red.shade700 : const Color(0xFF10b981),
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      margin: const EdgeInsets.all(16),
-    ));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: isError
+            ? Colors.red.shade700
+            : const Color(0xFF10b981),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
   }
 
   @override
@@ -831,44 +1129,63 @@ class _TripScreenState extends State<TripScreen>
 
         // ── Top AppBar overlay ──
         Positioned(
-          top: 0, left: 0, right: 0,
+          top: 0,
+          left: 0,
+          right: 0,
           child: SafeArea(
             child: Container(
               margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.70),
+                color: Colors.black.withValues(alpha: 0.70),
                 borderRadius: BorderRadius.circular(18),
               ),
               child: Row(
                 children: [
                   GestureDetector(
                     onTap: () => Navigator.maybePop(context),
-                    child: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
+                    child: const Icon(
+                      Icons.arrow_back_ios_new,
+                      color: Colors.white,
+                      size: 20,
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('ការធ្វើដំណើរ',
-                            style: TextStyle(color: Colors.white70, fontSize: 11, fontFamily: 'KhmerFont')),
-                        Text(_activeTripCustomer,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              fontFamily: 'KhmerFont',
-                            ),
-                            overflow: TextOverflow.ellipsis),
+                        const Text(
+                          'ការធ្វើដំណើរ',
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 11,
+                            fontFamily: 'KhmerFont',
+                          ),
+                        ),
+                        Text(
+                          _activeTripCustomer,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            fontFamily: 'KhmerFont',
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ],
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+                    icon: const Icon(
+                      Icons.refresh_rounded,
+                      color: Colors.white,
+                    ),
                     onPressed: () {
                       _loadActiveTripRoute();
-                      if (_targetLat != null && _targetLng != null && _currentPosition != null) {
+                      if (_targetLat != null &&
+                          _targetLng != null &&
+                          _currentPosition != null) {
                         _fetchNavRoute();
                       }
                     },
@@ -895,27 +1212,70 @@ class _TripScreenState extends State<TripScreen>
                     alignment: Alignment.centerLeft,
                     child: Container(
                       margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.65),
+                        color: Colors.black.withValues(alpha: 0.65),
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
-                            _isLoadingNavRoute ? Icons.hourglass_empty : Icons.directions,
-                            color: const Color(0xFF3b82f6), size: 14,
+                            _isLoadingNavRoute
+                                ? Icons.hourglass_empty
+                                : Icons.directions,
+                            color: const Color(0xFF3b82f6),
+                            size: 14,
                           ),
                           const SizedBox(width: 6),
                           Text(
                             _isLoadingNavRoute
                                 ? 'កំពុងគណនា Route...'
                                 : _navRoutePoints.isNotEmpty
-                                    ? 'Route OSRM: ${_navRoutePoints.length} ចំណុច'
-                                    : 'គ្មាន Route ទៅ Customer',
+                                ? 'Route OSRM: ${_navRoutePoints.length} ចំណុច'
+                                : 'គ្មាន Route ទៅ Customer',
                             style: const TextStyle(
-                              color: Colors.white, fontSize: 12, fontFamily: 'KhmerFont',
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontFamily: 'KhmerFont',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                // ── Offline / Online status chip ──
+                if (!_isOnline)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade800.withValues(alpha: 0.9),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.wifi_off_rounded,
+                            color: Colors.white,
+                            size: 13,
+                          ),
+                          SizedBox(width: 6),
+                          Text(
+                            'Offline — GPS ត្រូវបានរក្សាទុកក្នុង Device',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontFamily: 'KhmerFont',
                             ),
                           ),
                         ],
@@ -929,19 +1289,39 @@ class _TripScreenState extends State<TripScreen>
                 Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.70),
+                    color: Colors.black.withValues(alpha: 0.70),
                     borderRadius: BorderRadius.circular(18),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      _miniStat(Icons.timer, '$_tripDuration', 'នាទី', const Color(0xFF6366f1)),
+                      _miniStat(
+                        Icons.timer,
+                        '$_tripDuration',
+                        'នាទី',
+                        const Color(0xFF6366f1),
+                      ),
                       _divider(),
-                      _miniStat(Icons.route, _tripDistance.toStringAsFixed(2), 'គម', const Color(0xFF10b981)),
+                      _miniStat(
+                        Icons.route,
+                        _tripDistance.toStringAsFixed(2),
+                        'គម',
+                        const Color(0xFF10b981),
+                      ),
                       _divider(),
-                      _miniStat(Icons.speed, speedKmh.toStringAsFixed(1), 'km/h', const Color(0xFFf59e0b)),
+                      _miniStat(
+                        Icons.speed,
+                        speedKmh.toStringAsFixed(1),
+                        'km/h',
+                        const Color(0xFFf59e0b),
+                      ),
                       _divider(),
-                      _miniStat(Icons.location_on, '$_locationPointsSent', 'GPS', const Color(0xFF3b82f6)),
+                      _miniStat(
+                        Icons.location_on,
+                        '$_locationPointsSent',
+                        'GPS',
+                        const Color(0xFF3b82f6),
+                      ),
                     ],
                   ),
                 ),
@@ -954,12 +1334,18 @@ class _TripScreenState extends State<TripScreen>
                     icon: const Icon(Icons.flag, size: 24),
                     label: const Text(
                       'បញ្ចប់ដំណើរ',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, fontFamily: 'KhmerFont'),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        fontFamily: 'KhmerFont',
+                      ),
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.red.shade600,
                       foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                       elevation: 6,
                     ),
                   ),
@@ -979,12 +1365,17 @@ class _TripScreenState extends State<TripScreen>
     final avatarUrl = user.avatarUrl ?? '';
     final initials = name.trim().isEmpty
         ? '?'
-        : name.trim().split(RegExp(r'\s+')).take(2).map((w) => w[0].toUpperCase()).join();
+        : name
+              .trim()
+              .split(RegExp(r'\s+'))
+              .take(2)
+              .map((w) => w[0].toUpperCase())
+              .join();
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.70),
+        color: Colors.black.withValues(alpha: 0.70),
         borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
@@ -1002,7 +1393,8 @@ class _TripScreenState extends State<TripScreen>
                   ? Image.network(
                       avatarUrl,
                       fit: BoxFit.cover,
-                      errorBuilder: (ctx, err, stack) => _avatarInitials(initials),
+                      errorBuilder: (ctx, err, stack) =>
+                          _avatarInitials(initials),
                     )
                   : _avatarInitials(initials),
             ),
@@ -1047,9 +1439,11 @@ class _TripScreenState extends State<TripScreen>
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: const Color(0xFF6366f1).withOpacity(0.25),
+                color: const Color(0xFF6366f1).withValues(alpha: 0.25),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFF6366f1).withOpacity(0.5)),
+                border: Border.all(
+                  color: const Color(0xFF6366f1).withValues(alpha: 0.5),
+                ),
               ),
               child: Text(
                 '#$_activeTripId',
@@ -1086,19 +1480,32 @@ class _TripScreenState extends State<TripScreen>
       children: [
         Icon(icon, color: color, size: 18),
         const SizedBox(height: 4),
-        Text(value,
-            style: TextStyle(color: color, fontWeight: FontWeight.w800, fontSize: 16)),
-        Text(label,
-            style: const TextStyle(color: Colors.white54, fontSize: 10, fontFamily: 'KhmerFont')),
+        Text(
+          value,
+          style: TextStyle(
+            color: color,
+            fontWeight: FontWeight.w800,
+            fontSize: 16,
+          ),
+        ),
+        Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white54,
+            fontSize: 10,
+            fontFamily: 'KhmerFont',
+          ),
+        ),
       ],
     );
   }
 
   Widget _divider() => Container(
-        width: 1, height: 40,
-        color: Colors.white.withOpacity(0.15),
-        margin: const EdgeInsets.symmetric(horizontal: 4),
-      );
+    width: 1,
+    height: 40,
+    color: Colors.white.withValues(alpha: 0.15),
+    margin: const EdgeInsets.symmetric(horizontal: 4),
+  );
 
   Widget _buildMapWidget() {
     final isSupported =
@@ -1107,7 +1514,12 @@ class _TripScreenState extends State<TripScreen>
         defaultTargetPlatform == TargetPlatform.iOS;
 
     if (!isSupported) {
-      return const Center(child: Text('Map មិនទាន់គាំទ្រ', style: TextStyle(fontFamily: 'KhmerFont')));
+      return const Center(
+        child: Text(
+          'Map មិនទាន់គាំទ្រ',
+          style: TextStyle(fontFamily: 'KhmerFont'),
+        ),
+      );
     }
 
     return GoogleMap(
@@ -1145,7 +1557,10 @@ class _TripScreenState extends State<TripScreen>
       appBar: AppBar(
         title: const Text(
           'ការធ្វើដំណើរ',
-          style: TextStyle(fontWeight: FontWeight.w700, fontFamily: 'KhmerFont'),
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            fontFamily: 'KhmerFont',
+          ),
         ),
         centerTitle: true,
         elevation: 0,
@@ -1161,10 +1576,20 @@ class _TripScreenState extends State<TripScreen>
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.people_outline, size: 80, color: Colors.grey.shade300),
+                  Icon(
+                    Icons.people_outline,
+                    size: 80,
+                    color: Colors.grey.shade300,
+                  ),
                   const SizedBox(height: 16),
-                  Text('មិនមានអតិថិជនសម្រាប់តាមដានទេ។',
-                      style: TextStyle(fontSize: 18, color: Colors.grey.shade500, fontFamily: 'KhmerFont')),
+                  Text(
+                    'មិនមានអតិថិជនសម្រាប់តាមដានទេ។',
+                    style: TextStyle(
+                      fontSize: 18,
+                      color: Colors.grey.shade500,
+                      fontFamily: 'KhmerFont',
+                    ),
+                  ),
                 ],
               ),
             )
@@ -1173,7 +1598,8 @@ class _TripScreenState extends State<TripScreen>
               child: ListView.builder(
                 padding: const EdgeInsets.all(16),
                 itemCount: _customers.length,
-                itemBuilder: (context, index) => _customerCard(_customers[index]),
+                itemBuilder: (context, index) =>
+                    _customerCard(_customers[index]),
               ),
             ),
     );
@@ -1184,7 +1610,8 @@ class _TripScreenState extends State<TripScreen>
     final phone = customer['phone']?.toString() ?? '';
     final image = customer['profile_image']?.toString();
     final hasImage = image != null && image.isNotEmpty;
-    final hasLoc = (customer['latitude'] != null &&
+    final hasLoc =
+        (customer['latitude'] != null &&
         double.tryParse(customer['latitude'].toString()) != 0);
 
     return Container(
@@ -1193,7 +1620,11 @@ class _TripScreenState extends State<TripScreen>
         color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 12, offset: const Offset(0, 4)),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
         ],
       ),
       child: Padding(
@@ -1202,11 +1633,19 @@ class _TripScreenState extends State<TripScreen>
           children: [
             CircleAvatar(
               radius: 30,
-              backgroundColor: const Color(0xFF6366f1).withOpacity(0.1),
-              backgroundImage: hasImage ? NetworkImage(ApiService.getFullImageUrl(image)) : null,
+              backgroundColor: const Color(0xFF6366f1).withValues(alpha: 0.1),
+              backgroundImage: hasImage
+                  ? NetworkImage(ApiService.getFullImageUrl(image))
+                  : null,
               child: !hasImage
-                  ? Text(name.isEmpty ? '?' : name[0].toUpperCase(),
-                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: Color(0xFF6366f1)))
+                  ? Text(
+                      name.isEmpty ? '?' : name[0].toUpperCase(),
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF6366f1),
+                      ),
+                    )
                   : null,
             ),
             const SizedBox(width: 14),
@@ -1214,46 +1653,80 @@ class _TripScreenState extends State<TripScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(name,
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                  Text(
+                    name,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                   if (phone.isNotEmpty) ...[
                     const SizedBox(height: 4),
-                    Row(children: [
-                      Icon(Icons.phone, size: 14, color: Colors.grey.shade500),
-                      const SizedBox(width: 4),
-                      Text(phone, style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
-                    ]),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.phone,
+                          size: 14,
+                          color: Colors.grey.shade500,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          phone,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
                   const SizedBox(height: 4),
-                  Row(children: [
-                    Icon(
-                      hasLoc ? Icons.location_on : Icons.location_off,
-                      size: 13,
-                      color: hasLoc ? const Color(0xFF10b981) : Colors.grey.shade400,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      hasLoc ? 'មានទីតាំង GPS' : 'គ្មានទីតាំង GPS',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontFamily: 'KhmerFont',
-                        color: hasLoc ? const Color(0xFF10b981) : Colors.grey.shade400,
+                  Row(
+                    children: [
+                      Icon(
+                        hasLoc ? Icons.location_on : Icons.location_off,
+                        size: 13,
+                        color: hasLoc
+                            ? const Color(0xFF10b981)
+                            : Colors.grey.shade400,
                       ),
-                    ),
-                  ]),
+                      const SizedBox(width: 4),
+                      Text(
+                        hasLoc ? 'មានទីតាំង GPS' : 'គ្មានទីតាំង GPS',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontFamily: 'KhmerFont',
+                          color: hasLoc
+                              ? const Color(0xFF10b981)
+                              : Colors.grey.shade400,
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
             ElevatedButton.icon(
               onPressed: () => _startTrip(customer),
               icon: const Icon(Icons.directions_car, size: 18),
-              label: const Text('ធ្វើដំណើរ',
-                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, fontFamily: 'KhmerFont')),
+              label: const Text(
+                'ធ្វើដំណើរ',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                  fontFamily: 'KhmerFont',
+                ),
+              ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF10b981),
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
                 elevation: 2,
               ),
             ),

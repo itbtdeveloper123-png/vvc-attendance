@@ -18,6 +18,7 @@ import 'package:vvc_hrm/firebase_options.dart';
 // Services
 import 'package:vvc_hrm/services/notification_service.dart';
 import 'package:vvc_hrm/services/background_location_service.dart';
+import 'package:vvc_hrm/services/offline_sync_service.dart';
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -52,6 +53,8 @@ void main() async {
       child: const VvcHrmApp(),
     ),
   );
+
+  OfflineSyncService().startListening();
 
   // ---- STEP 3: Initialize Firebase & notifications in background (non-blocking) ----
   _initFirebaseInBackground();
