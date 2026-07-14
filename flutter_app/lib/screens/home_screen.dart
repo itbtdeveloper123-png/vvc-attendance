@@ -1727,7 +1727,10 @@ class _HomeContentState extends State<HomeContent> {
       case SystemRole.worker:
         return _buildWorkerActions(user);
       default:
-        return _buildEmployeeActions(user);
+        final suffix = user.roleVisibilitySuffix;
+        return suffix == '__skill'
+            ? _buildEmployeeActions(user)
+            : _buildDynamicActions(user, suffix);
     }
   }
 
@@ -2148,10 +2151,8 @@ class _HomeContentState extends State<HomeContent> {
   }
 
   String _suffixFromConfigKey(String key) {
-    if (key.endsWith('__worker')) return '__worker';
-    if (key.endsWith('__hrm')) return '__hrm';
-    if (key.endsWith('__admin')) return '__admin';
-    if (key.endsWith('__skill')) return '__skill';
+    final suffixIndex = key.lastIndexOf('__');
+    if (suffixIndex >= 0) return key.substring(suffixIndex);
     return '';
   }
 

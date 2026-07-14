@@ -11,6 +11,110 @@ if (!function_exists('get_google_maps_api_key')) {
     }
 }
 
+if (!function_exists('app_system_roles')) {
+    function app_system_roles()
+    {
+        return [
+            ['value' => 'Employee', 'label' => 'បុគ្គលិក (Employee)', 'visibility_suffix' => 'skill'],
+            ['value' => 'Worker', 'label' => 'កម្មករ (Worker)', 'visibility_suffix' => 'worker'],
+            ['value' => 'Skills', 'label' => 'ជំនាញ (Skills)', 'visibility_suffix' => 'skill'],
+            ['value' => 'IT', 'label' => 'IT', 'visibility_suffix' => 'skill'],
+            ['value' => 'HRM', 'label' => 'ធនធានមនុស្ស (HRM)', 'visibility_suffix' => 'hrm'],
+            ['value' => 'Accounting', 'label' => 'គណនេយ្យ (Accounting)', 'visibility_suffix' => 'skill'],
+            ['value' => 'Admin', 'label' => 'Admin', 'visibility_suffix' => 'admin'],
+            ['value' => 'Store318Head', 'label' => 'ប្រធានហាងទំនិញ 318', 'visibility_suffix' => 'store318_head'],
+            ['value' => 'StoreSKKS2Head', 'label' => 'ប្រធានហាង SKKS2', 'visibility_suffix' => 'store_skks2_head'],
+            ['value' => 'StoreNR3Head', 'label' => 'ប្រធានហាង NR3', 'visibility_suffix' => 'store_nr3_head'],
+            ['value' => 'StoreSKKS2Deputy', 'label' => 'អនុប្រធានហាង SKKS2', 'visibility_suffix' => 'store_skks2_deputy'],
+            ['value' => 'StoreNR3Deputy', 'label' => 'អនុប្រធានហាង NR3', 'visibility_suffix' => 'store_nr3_deputy'],
+            ['value' => 'WarehousePSPHead', 'label' => 'ប្រធានឃ្លាំង PSP', 'visibility_suffix' => 'warehouse_psp_head'],
+            ['value' => 'WarehousePRVHead', 'label' => 'ប្រធានឃ្លាំង PRV', 'visibility_suffix' => 'warehouse_prv_head'],
+            ['value' => 'WarehousePSPAssistant', 'label' => 'ជំនួយការប្រធានឃ្លាំង PSP', 'visibility_suffix' => 'warehouse_psp_assistant'],
+            ['value' => 'WarehousePRVAssistant', 'label' => 'ជំនួយការប្រធានឃ្លាំង PRV', 'visibility_suffix' => 'warehouse_prv_assistant'],
+            ['value' => 'StockGeneralHead', 'label' => 'ប្រធានគ្រប់គ្រងស្តុកទំនិញទូទៅ', 'visibility_suffix' => 'stock_general_head'],
+            ['value' => 'GeneralManagerSK', 'label' => 'ប្រធានគ្រប់គ្រងទូទៅ (SK)', 'visibility_suffix' => 'general_manager_sk'],
+            ['value' => 'GeneralManagerVVC', 'label' => 'ប្រធានគ្រប់គ្រងទូទៅ (VVC)', 'visibility_suffix' => 'general_manager_vvc'],
+            ['value' => 'DirectorGeneral', 'label' => 'អគ្គនាយក', 'visibility_suffix' => 'director_general'],
+        ];
+    }
+}
+
+if (!function_exists('app_system_role_label')) {
+    function app_system_role_label($roleValue)
+    {
+        $roleValue = trim((string) $roleValue);
+        foreach (app_system_roles() as $role) {
+            if (strcasecmp((string) $role['value'], $roleValue) === 0) {
+                return (string) $role['label'];
+            }
+        }
+
+        return $roleValue !== '' ? $roleValue : 'Employee';
+    }
+}
+
+if (!function_exists('app_system_role_visibility_suffix')) {
+    function app_system_role_visibility_suffix($roleValue)
+    {
+        $roleValue = trim((string) $roleValue);
+        foreach (app_system_roles() as $role) {
+            if (strcasecmp((string) $role['value'], $roleValue) === 0) {
+                return (string) $role['visibility_suffix'];
+            }
+        }
+
+        return 'skill';
+    }
+}
+
+if (!function_exists('app_system_visibility_roles')) {
+    function app_system_visibility_roles()
+    {
+        $roles = [
+            ['suffix' => 'skill', 'label' => 'Staff / Employee', 'default_visible' => '1', 'is_custom' => false],
+            ['suffix' => 'worker', 'label' => 'Worker', 'default_visible' => '0', 'is_custom' => false],
+            ['suffix' => 'hrm', 'label' => 'HRM', 'default_visible' => '1', 'is_custom' => false],
+            ['suffix' => 'admin', 'label' => 'Admin', 'default_visible' => '1', 'is_custom' => false],
+        ];
+        $seen = ['skill' => true, 'worker' => true, 'hrm' => true, 'admin' => true];
+
+        foreach (app_system_roles() as $role) {
+            $suffix = (string) ($role['visibility_suffix'] ?? '');
+            if ($suffix === '' || isset($seen[$suffix])) {
+                continue;
+            }
+
+            $roles[] = [
+                'suffix' => $suffix,
+                'label' => (string) $role['label'],
+                'default_visible' => '1',
+                'is_custom' => true,
+            ];
+            $seen[$suffix] = true;
+        }
+
+        return $roles;
+    }
+}
+
+if (!function_exists('app_custom_visibility_roles')) {
+    function app_custom_visibility_roles()
+    {
+        return array_values(array_filter(app_system_visibility_roles(), function ($role) {
+            return !empty($role['is_custom']);
+        }));
+    }
+}
+
+if (!function_exists('app_system_visibility_role_suffixes')) {
+    function app_system_visibility_role_suffixes()
+    {
+        return array_values(array_map(function ($role) {
+            return (string) $role['suffix'];
+        }, app_system_visibility_roles()));
+    }
+}
+
 if (!function_exists('gps_normalize_point')) {
     function gps_normalize_point($point)
     {

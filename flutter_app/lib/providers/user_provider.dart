@@ -9,6 +9,86 @@ import '../services/api_service.dart';
 /// តួនាទីក្នុងប្រព័ន្ធ HRM
 enum SystemRole { employee, worker, skills, it, admin, hrm, accounting }
 
+const List<String> appSystemRoleValues = [
+  'Employee',
+  'Worker',
+  'Skills',
+  'IT',
+  'HRM',
+  'Accounting',
+  'Admin',
+  'Store318Head',
+  'StoreSKKS2Head',
+  'StoreNR3Head',
+  'StoreSKKS2Deputy',
+  'StoreNR3Deputy',
+  'WarehousePSPHead',
+  'WarehousePRVHead',
+  'WarehousePSPAssistant',
+  'WarehousePRVAssistant',
+  'StockGeneralHead',
+  'GeneralManagerSK',
+  'GeneralManagerVVC',
+  'DirectorGeneral',
+];
+
+const Map<String, String> appSystemRoleLabels = {
+  'Employee': 'បុគ្គលិក (Employee)',
+  'Worker': 'កម្មករ (Worker)',
+  'Skills': 'ជំនាញ (Skills)',
+  'IT': 'IT',
+  'HRM': 'ធនធានមនុស្ស (HRM)',
+  'Accounting': 'គណនេយ្យ (Accounting)',
+  'Admin': 'Admin',
+  'Store318Head': 'ប្រធានហាងទំនិញ 318',
+  'StoreSKKS2Head': 'ប្រធានហាង SKKS2',
+  'StoreNR3Head': 'ប្រធានហាង NR3',
+  'StoreSKKS2Deputy': 'អនុប្រធានហាង SKKS2',
+  'StoreNR3Deputy': 'អនុប្រធានហាង NR3',
+  'WarehousePSPHead': 'ប្រធានឃ្លាំង PSP',
+  'WarehousePRVHead': 'ប្រធានឃ្លាំង PRV',
+  'WarehousePSPAssistant': 'ជំនួយការប្រធានឃ្លាំង PSP',
+  'WarehousePRVAssistant': 'ជំនួយការប្រធានឃ្លាំង PRV',
+  'StockGeneralHead': 'ប្រធានគ្រប់គ្រងស្តុកទំនិញទូទៅ',
+  'GeneralManagerSK': 'ប្រធានគ្រប់គ្រងទូទៅ (SK)',
+  'GeneralManagerVVC': 'ប្រធានគ្រប់គ្រងទូទៅ (VVC)',
+  'DirectorGeneral': 'អគ្គនាយក',
+};
+
+const Map<String, String> appRoleVisibilitySuffixes = {
+  'employee': '__skill',
+  'worker': '__worker',
+  'skills': '__skill',
+  'it': '__skill',
+  'hrm': '__hrm',
+  'accounting': '__skill',
+  'admin': '__admin',
+  'store318head': '__store318_head',
+  'storeskks2head': '__store_skks2_head',
+  'storenr3head': '__store_nr3_head',
+  'storeskks2deputy': '__store_skks2_deputy',
+  'storenr3deputy': '__store_nr3_deputy',
+  'warehousepsphead': '__warehouse_psp_head',
+  'warehouseprvhead': '__warehouse_prv_head',
+  'warehousepspassistant': '__warehouse_psp_assistant',
+  'warehouseprvassistant': '__warehouse_prv_assistant',
+  'stockgeneralhead': '__stock_general_head',
+  'generalmanagersk': '__general_manager_sk',
+  'generalmanagervvc': '__general_manager_vvc',
+  'directorgeneral': '__director_general',
+};
+
+String appSystemRoleDisplayLabel(String? roleValue) {
+  final value = (roleValue ?? '').trim();
+  if (value.isEmpty) return 'Employee';
+  return appSystemRoleLabels[value] ?? value;
+}
+
+String appVisibilitySuffixForRole(String? roleValue) {
+  final key = (roleValue ?? '').trim().toLowerCase();
+  return appRoleVisibilitySuffixes[key] ?? '__skill';
+}
+
 extension SystemRoleExt on SystemRole {
   String get value {
     switch (this) {
@@ -107,7 +187,7 @@ class UserProvider with ChangeNotifier {
   String?
   _legacyUserRole; // user_role from older accounts: Admin, Worker, Employee
   String?
-  _systemRoleStr; // system_role from DB: 'Employee','Worker','Skills','IT','Admin','HRM','Accounting'
+  _systemRoleStr; // system_role from DB, including custom app role values.
   String? _systemRoleLabel; // display label
   String? _department;
   String? _position;
@@ -192,7 +272,14 @@ class UserProvider with ChangeNotifier {
   SystemRole get systemRole => systemRoleFromString(_effectiveSystemRoleString);
 
   /// Label for display (ខ្មែរ + English)
-  String get systemRoleLabel => _systemRoleLabel ?? systemRole.label;
+  String get systemRoleLabel {
+    final customLabel = (_systemRoleLabel ?? '').trim();
+    if (customLabel.isNotEmpty) return customLabel;
+    return appSystemRoleDisplayLabel(_effectiveSystemRoleString);
+  }
+
+  String get roleVisibilitySuffix =>
+      appVisibilitySuffixForRole(_effectiveSystemRoleString);
 
   bool get isAdmin => systemRole.isAdminLevel;
   bool get isHRM => systemRole.isHrmLevel;

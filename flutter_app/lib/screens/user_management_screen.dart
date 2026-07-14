@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:path_provider/path_provider.dart';
+import '../providers/user_provider.dart';
 import '../services/api_service.dart';
 import '../utils/app_theme.dart';
 import '../widgets/app_widgets.dart';
@@ -775,9 +776,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     Function(String?) onChanged, {
     List<String>? items,
   }) {
-    final list =
-        items ??
-        ['Employee', 'HRM', 'Admin', 'Accounting', 'IT', 'Worker', 'Skills'];
+    final isSystemRoleDropdown = items == null;
+    final list = items ?? appSystemRoleValues;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -810,7 +810,16 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               ),
               style: TextStyle(color: AppTheme.textPrimary, fontSize: 14),
               items: list
-                  .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                  .map(
+                    (e) => DropdownMenuItem(
+                      value: e,
+                      child: Text(
+                        isSystemRoleDropdown
+                            ? appSystemRoleDisplayLabel(e)
+                            : e,
+                      ),
+                    ),
+                  )
                   .toList(),
               onChanged: onChanged,
             ),

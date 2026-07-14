@@ -3588,7 +3588,8 @@ if (isset($_POST['ajax_action']) || isset($_GET['ajax_action'])) {
 
                     $checkboxes = ['telegram_notify_attendance', 'telegram_notify_requests', 'telegram_notify_attendance__worker', 'telegram_notify_requests__worker', 'app_default_dark_mode', 'attendance_reminder_enabled', 'app_force_update', 'payroll_biometric_required'];
                     $all_keys = ['stats_slider', 'attendance', 'outside_attendance', 'training_quiz', 'announcements', 'meetings', 'checklist', 'daily_report', 'mission', 'trip', 'user_management', 'request_form', 'reports', 'material_request', 'notification', 'notification_history', 'employee_report', 'payroll', 'profile_footer', 'home_footer'];
-                    foreach (['skill', 'worker', 'hrm', 'admin'] as $role) {
+                    $visibility_role_suffixes = function_exists('app_system_visibility_role_suffixes') ? app_system_visibility_role_suffixes() : ['skill', 'worker', 'hrm', 'admin'];
+                    foreach ($visibility_role_suffixes as $role) {
                         foreach ($all_keys as $key) {
                             $checkboxes[] = "show_{$key}_card__{$role}";
                         }
@@ -17482,19 +17483,11 @@ ob_end_flush();
                                                     (App
                                                     Role)*:</label>
                                                 <select name="system_role" class="form-control">
-                                                    <option value="Employee">
-                                                        បុគ្គលិក (Employee)
-                                                    </option>
-                                                    <option value="Worker">កម្មករ (Worker)
-                                                    </option>
-                                                    <option value="Skills">ជំនាញ (Skills)</option>
-                                                    <option value="IT">IT</option>
-                                                    <option value="HRM">
-                                                        ធនធានមនុស្ស
-                                                        (HRM)</option>
-                                                    <option value="Accounting">គណនេយ្យ
-                                                        (Accounting)</option>
-                                                    <option value="Admin">Admin</option>
+                                                    <?php foreach (app_system_roles() as $appRole): ?>
+                                                        <option value="<?php echo htmlspecialchars($appRole['value']); ?>">
+                                                            <?php echo htmlspecialchars($appRole['label']); ?>
+                                                        </option>
+                                                    <?php endforeach; ?>
                                                 </select>
                                             </div>
                                             <div class="form-group">
@@ -18680,10 +18673,11 @@ ob_end_flush();
                                                                     $roleColor = '#8b5cf6';
                                                                 elseif ($sysRoleStr == 'Accounting')
                                                                     $roleColor = '#10b981';
+                                                                $sysRoleLabel = ($user['system_role_label'] ?? '') ?: (function_exists('app_system_role_label') ? app_system_role_label($sysRoleStr) : $sysRoleStr);
                                                                 ?>
                                                                 <span class="role-dot"
                                                                     style="background: <?php echo $roleColor; ?>;"></span>
-                                                                <span><?php echo htmlspecialchars(($user['system_role_label'] ?? '') ?: $sysRoleStr); ?></span>
+                                                                <span><?php echo htmlspecialchars($sysRoleLabel); ?></span>
                                                                 <span style="opacity: 0.5;">•</span>
                                                                 <span><?php echo htmlspecialchars($user['position'] ?? 'Staff'); ?></span>
                                                             </div>
@@ -21098,6 +21092,12 @@ ob_end_flush();
                                     Visibility (HRM)</button>
                                 <button type="button" class="appscan-tab-btn" data-tab="tab-vis-admin"><i
                                         class="fa-solid fa-eye"></i> Visibility (Admin)</button>
+                                <?php foreach (app_custom_visibility_roles() as $visibilityRole): ?>
+                                    <button type="button" class="appscan-tab-btn"
+                                        data-tab="tab-vis-<?php echo htmlspecialchars($visibilityRole['suffix']); ?>"><i
+                                            class="fa-solid fa-eye"></i>
+                                        Visibility (<?php echo htmlspecialchars($visibilityRole['label']); ?>)</button>
+                                <?php endforeach; ?>
                                 <button type="button" class="appscan-tab-btn" data-tab="tab-labels"><i
                                         class="fa-solid fa-font"></i>
                                     Labels</button>
@@ -21687,11 +21687,71 @@ ob_end_flush();
                                 value="<?php echo htmlspecialchars($order_str_admin); ?>">
                         </div>
 
+                        <?php foreach (app_custom_visibility_roles() as $visibilityRole):
+                            $role_suffix = (string) $visibilityRole['suffix'];
+                            $role_label = (string) $visibilityRole['label'];
+                            $default_visible = (string) ($visibilityRole['default_visible'] ?? '1');
+                            $layout_key = "home_layout_type__{$role_suffix}";
+                            $order_key = "home_card_order__{$role_suffix}";
+                            $order_str_custom = get_app_scan_setting($mysqli, $current_admin_id, $order_key, implode(',', $all_keys));
+                            $ordered_keys_custom = explode(',', $order_str_custom);
+                            foreach ($all_keys as $k) {
+                                if (!in_array($k, $ordered_keys_custom, true))
+                                    $ordered_keys_custom[] = $k;
+                            }
+                            ?>
+                            <div id="tab-vis-<?php echo htmlspecialchars($role_suffix); ?>"
+                                class="form-section appscan-tab-panel appscan-tone appscan-tone-sky">
+                                <div style="display:flex; justify-content:space-between; align-items:center;">
+                                    <h4 style="margin:0; color:#0369a1;"><i class="fa-solid fa-user-gear"></i>
+                                        Visibility - <?php echo htmlspecialchars($role_label); ?></h4>
+                                    <div class="form-group" style="margin:0; min-width:200px;">
+                                        <label style="font-size:12px; margin-bottom:4px; display:block;">Card
+                                            Layout:</label>
+                                        <select name="<?php echo htmlspecialchars($layout_key); ?>"
+                                            class="form-control form-control-sm">
+                                            <option value="grid" <?php echo (get_app_scan_setting($mysqli, $current_admin_id, $layout_key, 'grid') == 'grid') ? 'selected' : ''; ?>>Grid Layout
+                                                (Standard)</option>
+                                            <option value="list" <?php echo (get_app_scan_setting($mysqli, $current_admin_id, $layout_key, 'grid') == 'list') ? 'selected' : ''; ?>>List Layout
+                                                (Card List - Unified)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <small class="text-muted">កំណត់មុខងារដែល
+                                    <?php echo htmlspecialchars($role_label); ?> អាចមើលឃើញ
+                                    និងអូសតម្រៀប</small>
+
+                                <div id="sortable-<?php echo htmlspecialchars($role_suffix); ?>" class="sortable-list"
+                                    data-role-sortable="1"
+                                    data-order-input="input-order-<?php echo htmlspecialchars($role_suffix); ?>">
+                                    <?php foreach ($ordered_keys_custom as $key):
+                                        if (!isset($labels[$key]))
+                                            continue;
+                                        ?>
+                                        <div class="sortable-item" data-key="<?php echo htmlspecialchars($key); ?>">
+                                            <div class="sortable-handle"><i class="fa-solid fa-grip-vertical"></i></div>
+                                            <div class="sortable-label"><?php echo $labels[$key]; ?></div>
+                                            <div class="checkbox-item" style="margin:0;">
+                                                <input type="checkbox"
+                                                    name="show_<?php echo htmlspecialchars($key); ?>_card__<?php echo htmlspecialchars($role_suffix); ?>"
+                                                    value="1" <?php echo (get_app_scan_setting($mysqli, $current_admin_id, "show_{$key}_card__{$role_suffix}", $default_visible) == '1') ? 'checked' : ''; ?>>
+                                            </div>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+                                <input type="hidden" name="<?php echo htmlspecialchars($order_key); ?>"
+                                    id="input-order-<?php echo htmlspecialchars($role_suffix); ?>"
+                                    value="<?php echo htmlspecialchars($order_str_custom); ?>">
+                            </div>
+                        <?php endforeach; ?>
+
                         <script>
                             (function () {
                                 function initSortable(id, inputId) {
                                     var el = document.getElementById(id);
                                     if (!el) return;
+                                    if (el.dataset.sortableReady === '1') return;
+                                    el.dataset.sortableReady = '1';
                                     Sortable.create(el, {
                                         animation: 150,
                                         ghostClass: 'sortable-ghost',
@@ -21704,17 +21764,25 @@ ob_end_flush();
                                         }
                                     });
                                 }
+                                function initDynamicRoleSortables() {
+                                    document.querySelectorAll('[data-role-sortable="1"]').forEach(function (el) {
+                                        var inputId = el.getAttribute('data-order-input');
+                                        if (el.id && inputId) initSortable(el.id, inputId);
+                                    });
+                                }
                                 if (window.Sortable) {
                                     initSortable('sortable-hrm', 'input-order-hrm');
                                     initSortable('sortable-admin', 'input-order-admin');
                                     initSortable('sortable-skill', 'input-order-skill');
                                     initSortable('sortable-worker', 'input-order-worker');
+                                    initDynamicRoleSortables();
                                 } else {
                                     setTimeout(function () {
                                         initSortable('sortable-hrm', 'input-order-hrm');
                                         initSortable('sortable-admin', 'input-order-admin');
                                         initSortable('sortable-skill', 'input-order-skill');
                                         initSortable('sortable-worker', 'input-order-worker');
+                                        initDynamicRoleSortables();
                                     }, 1000);
                                 }
                             })();
@@ -23481,13 +23549,9 @@ ob_end_flush();
                         <div class="form-group">
                             <label><i class="fa-solid fa-id-card-clip"></i> តួនាទីក្នុងប្រព័ន្ធ (App Role)*:</label>
                             <select name="system_role" class="form-control" style="border: 1.5px solid #6366f1;">
-                                <option value="Employee" ${u.system_role === 'Employee' ? 'selected' : ''}>បុគ្គលិក (Employee)</option>
-                                <option value="Worker" ${u.system_role === 'Worker' ? 'selected' : ''}>កម្មករ (Worker)</option>
-                                <option value="Skills" ${u.system_role === 'Skills' ? 'selected' : ''}>ជំនាញ (Skills)</option>
-                                <option value="IT" ${u.system_role === 'IT' ? 'selected' : ''}>IT</option>
-                                <option value="HRM" ${u.system_role === 'HRM' ? 'selected' : ''}>ធនធានមនុស្ស (HRM)</option>
-                                <option value="Accounting" ${u.system_role === 'Accounting' ? 'selected' : ''}>គណនេយ្យ (Accounting)</option>
-                                <option value="Admin" ${u.system_role === 'Admin' ? 'selected' : ''}>Admin</option>
+                                <?php foreach (app_system_roles() as $appRole): ?>
+                                <option value="<?php echo htmlspecialchars($appRole['value']); ?>" ${u.system_role === <?php echo json_encode($appRole['value']); ?> ? 'selected' : ''}><?php echo htmlspecialchars($appRole['label']); ?></option>
+                                <?php endforeach; ?>
                             </select>
                         </div>
                         <div class="form-group">
@@ -26968,6 +27032,8 @@ ob_end_flush();
             function initSortable(id, inputId) {
                 var el = document.getElementById(id);
                 if (!el) return;
+                if (el.dataset.sortableReady === '1') return;
+                el.dataset.sortableReady = '1';
                 Sortable.create(el, {
                     animation: 150,
                     ghostClass: 'sortable-ghost',
@@ -26980,17 +27046,25 @@ ob_end_flush();
                     }
                 });
             }
+            function initDynamicRoleSortables() {
+                document.querySelectorAll('[data-role-sortable="1"]').forEach(function (el) {
+                    var inputId = el.getAttribute('data-order-input');
+                    if (el.id && inputId) initSortable(el.id, inputId);
+                });
+            }
             if (window.Sortable) {
                 initSortable('sortable-hrm', 'input-order-hrm');
                 initSortable('sortable-admin', 'input-order-admin');
                 initSortable('sortable-skill', 'input-order-skill');
                 initSortable('sortable-worker', 'input-order-worker');
+                initDynamicRoleSortables();
             } else {
                 setTimeout(function () {
                     initSortable('sortable-hrm', 'input-order-hrm');
                     initSortable('sortable-admin', 'input-order-admin');
                     initSortable('sortable-skill', 'input-order-skill');
                     initSortable('sortable-worker', 'input-order-worker');
+                    initDynamicRoleSortables();
                 }, 1000);
             }
         })();
@@ -28375,4 +28449,3 @@ ob_end_flush();
     </body>
 
 </html>
-

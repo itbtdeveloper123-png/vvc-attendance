@@ -3117,7 +3117,7 @@ switch ($action) {
                 $systemRole = 'Admin';
             }
             $systemRoleLabel = $base['system_role_label'] ?? '';
-            $displayRole = !empty($systemRoleLabel) ? $systemRoleLabel : $systemRole;
+            $displayRole = !empty($systemRoleLabel) ? $systemRoleLabel : (function_exists('app_system_role_label') ? app_system_role_label($systemRole) : $systemRole);
             $loginEmail = !empty($base['email']) ? $base['email'] : ($base['employee_id'] . '@vvc.com');
             $streak = getAttendanceStreak($mysqli, $base['employee_id']);
             apiResponse([
@@ -3235,6 +3235,10 @@ switch ($action) {
             && strcasecmp((string)($profile['user_role'] ?? ''), 'Admin') === 0) {
             $profileSystemRole = 'Admin';
         }
+        $profileSystemRoleLabel = trim((string) ($profile['system_role_label'] ?? ''));
+        if ($profileSystemRoleLabel === '') {
+            $profileSystemRoleLabel = function_exists('app_system_role_label') ? app_system_role_label($profileSystemRole) : $profileSystemRole;
+        }
 
         apiResponse([
             'success' => true,
@@ -3251,7 +3255,7 @@ switch ($action) {
                 'base_salary' => $profile['base_salary'] ?? 0,
                 'role' => $profile['user_role'],
                 'system_role' => $profileSystemRole,
-                'system_role_label' => $profile['system_role_label'],
+                'system_role_label' => $profileSystemRoleLabel,
                 'is_verified' => (int)($profile['is_verified'] ?? 0),
                 'attendance_streak' => $streak,
             ],
@@ -4925,7 +4929,11 @@ switch ($action) {
         $data = [];
         if ($res) {
             while ($row = $res->fetch_assoc()) {
-                $row['role'] = $row['system_role'] ?? ($row['user_role'] ?? '');
+                $systemRoleValue = $row['system_role'] ?? ($row['user_role'] ?? '');
+                $row['role'] = $systemRoleValue;
+                if (empty($row['system_role_label'])) {
+                    $row['system_role_label'] = function_exists('app_system_role_label') ? app_system_role_label($systemRoleValue) : $systemRoleValue;
+                }
                 // Always remove sensitive fields for non-admins
                 if (!$isAdmin) {
                     unset($row['password'], $row['fcm_token'], $row['auth_token'], $row['base_salary'], $row['nssf_id']);
