@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:animate_do/animate_do.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../services/api_service.dart';
 import '../utils/app_theme.dart';
 import '../widgets/app_widgets.dart';
@@ -150,10 +151,10 @@ class _TripReportScreenState extends State<TripReportScreen>
   // ─── Combined View ─────────────────────────────────────────────────────────
 
   Widget _buildCombinedView() {
-    final trips = _getCombinedActiveTrips();
-    final activeCount = trips.where((t) => t['status'] == 'active').length;
+    final activeTrips = _allTrips.where((t) => t['status'] == 'active').toList();
+    final activeCount = activeTrips.length;
 
-    if (trips.isEmpty) {
+    if (activeTrips.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -165,11 +166,20 @@ class _TripReportScreenState extends State<TripReportScreen>
             ),
             const SizedBox(height: 12),
             Text(
-              "មិនទាន់មានការធ្វើដំណើរ",
+              "មិនមានអ្នកបើកសកម្ម",
               style: GoogleFonts.kantumruyPro(
                 color: Colors.white54,
                 fontSize: 16,
               ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              "សូមធ្វើការកែប្រែ និង Refresh ដើម្បីពិនិត្យទិន្នន័យ។",
+              style: GoogleFonts.kantumruyPro(
+                color: Colors.white38,
+                fontSize: 12,
+              ),
+              textAlign: TextAlign.center,
             ),
           ],
         ),
@@ -195,13 +205,13 @@ class _TripReportScreenState extends State<TripReportScreen>
           child: Row(
             children: [
               const Icon(
-                Icons.radio_button_checked,
+                Icons.satellite_alt_rounded,
                 color: Colors.greenAccent,
                 size: 16,
               ),
               const SizedBox(width: 8),
               Text(
-                'Active: $activeCount នាក់',
+                'Active map: $activeCount នាក់',
                 style: GoogleFonts.kantumruyPro(
                   color: Colors.greenAccent,
                   fontWeight: FontWeight.bold,
@@ -210,7 +220,7 @@ class _TripReportScreenState extends State<TripReportScreen>
               ),
               const Spacer(),
               Text(
-                'សរុប: ${trips.length} ដំណើរ',
+                'ផែនទី Satellite',
                 style: GoogleFonts.kantumruyPro(
                   color: Colors.white54,
                   fontSize: 12,
@@ -219,21 +229,13 @@ class _TripReportScreenState extends State<TripReportScreen>
             ],
           ),
         ),
-        // ── Trip list ──
         Expanded(
-          child: ListView.builder(
+          child: Padding(
             padding: const EdgeInsets.all(16),
-            itemCount: trips.length,
-            itemBuilder: (context, index) {
-              final trip = trips[index];
-              final isActive = trip['status'] == 'active';
-              return FadeInLeft(
-                duration: Duration(
-                  milliseconds: 250 + (index * 30).clamp(0, 400),
-                ),
-                child: _buildCombinedCard(trip, isActive),
-              );
-            },
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: _buildActiveTripsMapScreen(context, activeTrips),
+            ),
           ),
         ),
       ],
@@ -529,6 +531,75 @@ class _TripReportScreenState extends State<TripReportScreen>
           fontSize: 13,
         ),
       ),
+    );
+  }
+
+  LatLng? _extractTripLatLng(dynamic trip) {
+    if (trip == null) return null;
+
+    double? parseValue(dynamic value) {
+      if (value == null) return null;
+      if (value is double) return value;
+      if (value is int) return value.toDouble();
+      return double.tryParse(value.toString());
+    }
+
+    final lat = parseValue(trip['latitude'] ?? trip['lat'] ?? trip['current_lat'] ?? trip['target_lat'] ?? trip['customer_lat'] ?? trip['origin_lat'] ?? trip['start_lat']);
+    final lng = parseValue(trip['longitude'] ?? trip['lng'] ?? trip['current_lng'] ?? trip['target_lng'] ?? trip['customer_lng'] ?? trip['origin_lng'] ?? trip['start_lng']);
+
+    if (lat != null && lng != null) {
+      return LatLng(lat, lng);
+    }
+    return null;
+  }
+
+  Widget _buildActiveTripsMapScreen(BuildContext context, List<dynamic> activeTrips) {
+    final markers = <Marker>{};
+    for (final trip in activeTrips) {
+      final point = _extractTripLatLng(trip);
+      if (point == null) continue;
+
+      final name = trip['user_name'] ?? trip['employee_name'] ?? trip['employee_id'] ?? 'N/A';
+      final eid = trip['employee_id'] ?? '';
+
+      markers.add(
+        Marker(
+          markerId: MarkerId('trip_${eid}_${point.latitude}_${point.longitude}'),
+          position: point,
+          infoWindow: InfoWindow(
+            title: name,
+            snippet: eid.isNotEmpty ? 'ID: $eid' : null,
+          ),
+        ),
+      );
+    }
+
+    if (markers.isEmpty) {
+      return Center(
+        child: Text(
+          'មិនមានទីតាំងអ្នកបើកសកម្មទេ។ សូមធ្វើ refresh និងពិនិត្យទិន្នន័យ active trip។',
+          style: GoogleFonts.kantumruyPro(
+            color: Colors.white54,
+            fontSize: 14,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      );
+    }
+
+    final firstMarker = markers.first.position;
+    return GoogleMap(
+      initialCameraPosition: CameraPosition(target: firstMarker, zoom: 13),
+      markers: markers,
+      mapType: MapType.satellite,
+      myLocationButtonEnabled: false,
+      zoomControlsEnabled: true,
+      zoomGesturesEnabled: true,
+      scrollGesturesEnabled: true,
+      rotateGesturesEnabled: true,
+      tiltGesturesEnabled: true,
+      mapToolbarEnabled: false,
+      compassEnabled: true,
     );
   }
 

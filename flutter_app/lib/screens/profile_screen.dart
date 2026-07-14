@@ -11,6 +11,7 @@ import '../providers/user_provider.dart';
 import '../utils/app_theme.dart';
 import '../widgets/app_widgets.dart';
 import '../services/api_service.dart';
+import 'home_screen.dart';
 import 'login_screen.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../widgets/khmer_lunar_calendar_card.dart';
@@ -27,6 +28,7 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   Map<String, dynamic>? _targetUserData;
   bool _isLoading = false;
+  bool _isSwitchingAccount = false;
   Timer? _pollingTimer;
 
   @override
@@ -780,14 +782,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
             endIndent: 16,
           ),
           _buildMenuItem(
-            icon: Icons.switch_account_rounded,
+            icon: Icons.person_outline_rounded,
             label: "ប្ដូរគណនី",
             color: AppTheme.primary,
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const LoginScreen()),
-              );
-            },
+            onTap: () => _showAccountSwitchSheet(context, user),
             trailingWidget: Icon(
               Icons.arrow_forward_ios_rounded,
               size: 14,
@@ -907,6 +905,173 @@ class _ProfileScreenState extends State<ProfileScreen> {
         }
       }
     }
+  }
+
+  Future<void> _showAccountSwitchSheet(
+    BuildContext context,
+    UserProvider user,
+  ) async {
+    final accounts = await user.getRecentAccounts();
+    if (!mounted) return;
+
+    if (accounts.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'មិនមានគណនីចុងក្រោយ',
+            style: GoogleFonts.kantumruyPro(),
+          ),
+          backgroundColor: Colors.orangeAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppTheme.bgDark,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.white24,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'ជ្រើសគណនីដើម្បីប្ដូរ',
+                  style: GoogleFonts.kantumruyPro(
+                    color: AppTheme.textPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Column(
+                  children: accounts.map((account) {
+                    final id = account['employeeId']?.toString() ?? '';
+                    final name = account['name']?.toString() ?? id;
+                    final avatarUrl = account['avatar']?.toString() ?? '';
+                    final userType = account['userType']?.toString() ?? 'Employee';
+                    final isCurrent = id == user.employeeId;
+
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: ListTile(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(18),
+                          side: BorderSide(
+                            color: isCurrent
+                                ? AppTheme.primary.withValues(alpha: 0.25)
+                                : AppTheme.textPrimary.withValues(alpha: 0.08),
+                          ),
+                        ),
+                        tileColor: AppTheme.bgCard,
+                        leading: CircleAvatar(
+                          radius: 22,
+                          backgroundColor: AppTheme.primary.withValues(alpha: 0.18),
+                          backgroundImage: avatarUrl.isNotEmpty
+                              ? NetworkImage(avatarUrl)
+                                  as ImageProvider<Object>?
+                              : null,
+                          child: avatarUrl.isEmpty
+                              ? Text(
+                                  name.isNotEmpty
+                                      ? name
+                                          .trim()
+                                          .split(RegExp(r'\s+'))
+                                          .where((part) => part.isNotEmpty)
+                                          .take(2)
+                                          .map((part) => part[0].toUpperCase())
+                                          .join()
+                                      : '?',
+                                  style: GoogleFonts.kantumruyPro(
+                                    color: AppTheme.primary,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                )
+                              : null,
+                        ),
+                        title: Text(
+                          name,
+                          style: GoogleFonts.kantumruyPro(
+                            color: AppTheme.textPrimary,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        subtitle: Text(
+                          id,
+                          style: GoogleFonts.kantumruyPro(
+                            color: AppTheme.textSecondary,
+                            fontSize: 12,
+                          ),
+                        ),
+                        trailing: isCurrent
+                            ? Text(
+                                'បច្ចុប្បន្ន',
+                                style: GoogleFonts.kantumruyPro(
+                                  color: AppTheme.primary,
+                                  fontSize: 12,
+                                ),
+                              )
+                            : null,
+                        onTap: isCurrent
+                            ? null
+                            : () async {
+                                if (_isSwitchingAccount) return;
+                                Navigator.of(ctx).pop();
+                                setState(() => _isSwitchingAccount = true);
+                                final result = await user.login(id, userType);
+                                setState(() => _isSwitchingAccount = false);
+                                if (!mounted) return;
+
+                                if (result['success'] == true) {
+                                  Navigator.of(context).pushAndRemoveUntil(
+                                    MaterialPageRoute(
+                                      builder: (_) => const HomeScreen(),
+                                    ),
+                                    (_) => false,
+                                  );
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        result['message'] ?? 'ការប្ដូរការចូលបរាជ័យ',
+                                        style: GoogleFonts.kantumruyPro(),
+                                      ),
+                                      backgroundColor: Colors.redAccent,
+                                      behavior: SnackBarBehavior.floating,
+                                    ),
+                                  );
+                                }
+                              },
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   void _showAboutDialog(BuildContext context) async {
