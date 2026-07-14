@@ -35,8 +35,6 @@ class _TripScreenState extends State<TripScreen>
   int _tripDuration = 0;
   DateTime? _tripStartTime;
   int _locationPointsSent = 0;
-  String _routeSource = 'raw';
-  String? _routeMessage;
 
   double? _targetLat;
   double? _targetLng;
@@ -350,8 +348,6 @@ class _TripScreenState extends State<TripScreen>
           _tripDistance = double.tryParse(trip['total_distance_km']?.toString() ?? '0') ?? _tripDistance;
           _tripDuration = int.tryParse(trip['duration_minutes']?.toString() ?? '0') ?? _tripDuration;
         }
-        _routeSource = res['route_source']?.toString() ?? 'raw';
-        _routeMessage = res['route_message']?.toString();
         _updateMapOverlays();
       });
     } catch (e) {
@@ -433,8 +429,6 @@ class _TripScreenState extends State<TripScreen>
         _routePoints.add(LatLng(position.latitude, position.longitude));
         _navRoutePoints.clear();
         _locationPointsSent = _routePoints.length;
-        _routeSource = 'raw';
-        _routeMessage = null;
         _updateMapOverlays();
       });
       _startLocationTracking();
@@ -602,8 +596,6 @@ class _TripScreenState extends State<TripScreen>
       _markers.clear();
       _polylines.clear();
       _currentPosition = null;
-      _routeSource = 'raw';
-      _routeMessage = null;
     });
 
     // Reload customers (in case auto-save updated a customer)
@@ -947,7 +939,7 @@ class _TripScreenState extends State<TripScreen>
                       _divider(),
                       _miniStat(Icons.route, _tripDistance.toStringAsFixed(2), 'គម', const Color(0xFF10b981)),
                       _divider(),
-                      _miniStat(Icons.speed, '${speedKmh.toStringAsFixed(1)}', 'km/h', const Color(0xFFf59e0b)),
+                      _miniStat(Icons.speed, speedKmh.toStringAsFixed(1), 'km/h', const Color(0xFFf59e0b)),
                       _divider(),
                       _miniStat(Icons.location_on, '$_locationPointsSent', 'GPS', const Color(0xFF3b82f6)),
                     ],
