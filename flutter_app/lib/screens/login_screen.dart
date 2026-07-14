@@ -19,6 +19,32 @@ class _LoginScreenState extends State<LoginScreen> {
   final _employeeIdController = TextEditingController();
   final String _selectedType = 'Employee';
   bool _isLoading = false;
+  List<Map<String, dynamic>> _recentAccounts = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRecentAccounts();
+  }
+
+  Future<void> _loadRecentAccounts() async {
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    final accounts = await userProvider.getRecentAccounts();
+    if (!mounted) return;
+    setState(() {
+      _recentAccounts = accounts;
+    });
+  }
+
+  Future<void> _removeRecentAccount(String employeeId) async {
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    await userProvider.removeRecentAccount(employeeId);
+    await _loadRecentAccounts();
+  }
+
+  void _selectRecentAccount(Map<String, dynamic> account) {
+    _employeeIdController.text = account['employeeId']?.toString() ?? '';
+  }
 
   void _handleLogin() async {
     if (_employeeIdController.text.isEmpty) {
@@ -216,6 +242,8 @@ class _LoginScreenState extends State<LoginScreen> {
                             const SizedBox(height: 32),
                             // Login Button
                             _buildLoginButton(),
+                            const SizedBox(height: 24),
+                            _buildRecentAccountsSection(),
                           ],
                         ),
                       ),
@@ -291,6 +319,91 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildRecentAccountsSection() {
+    if (_recentAccounts.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "គណនីចុងក្រោយ",
+          style: GoogleFonts.kantumruyPro(
+            color: AppTheme.textPrimary,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Column(
+          children: _recentAccounts.map((account) {
+            final avatarUrl = account['avatar']?.toString();
+            return Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              decoration: BoxDecoration(
+                color: AppTheme.bgCard,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: AppTheme.textPrimary.withValues(alpha: 0.08),
+                ),
+              ),
+              child: ListTile(
+                onTap: () => _selectRecentAccount(account),
+                leading: CircleAvatar(
+                  backgroundColor: AppTheme.primary.withValues(alpha: 0.2),
+                  backgroundImage: avatarUrl != null && avatarUrl.isNotEmpty
+                      ? NetworkImage(avatarUrl) as ImageProvider<Object>?
+                      : null,
+                  child: avatarUrl == null || avatarUrl.isEmpty
+                      ? Icon(
+                          Icons.person_outline_rounded,
+                          color: AppTheme.primary,
+                        )
+                      : null,
+                ),
+                title: Text(
+                  account['name']?.toString() ?? account['employeeId']?.toString() ?? 'Unknown',
+                  style: GoogleFonts.kantumruyPro(
+                    color: AppTheme.textPrimary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                subtitle: Text(
+                  account['employeeId']?.toString() ?? '',
+                  style: GoogleFonts.kantumruyPro(
+                    color: AppTheme.textSecondary,
+                    fontSize: 12,
+                  ),
+                ),
+                trailing: IconButton(
+                  icon: Icon(
+                    Icons.close_rounded,
+                    color: AppTheme.textPrimary.withValues(alpha: 0.45),
+                  ),
+                  onPressed: () {
+                    final id = account['employeeId']?.toString();
+                    if (id != null && id.isNotEmpty) {
+                      _removeRecentAccount(id);
+                    }
+                  },
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+        Text(
+          "ចុចឈ្មោះដើម្បីបំពេញអត្តលេខឆាប់រហ័ស",
+          style: GoogleFonts.kantumruyPro(
+            color: AppTheme.textSecondary,
+            fontSize: 12,
+          ),
+        ),
+      ],
     );
   }
 

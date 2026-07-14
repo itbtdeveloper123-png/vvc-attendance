@@ -780,6 +780,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
             endIndent: 16,
           ),
           _buildMenuItem(
+            icon: Icons.switch_account_rounded,
+            label: "ប្ដូរគណនី",
+            color: AppTheme.primary,
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const LoginScreen()),
+              );
+            },
+            trailingWidget: Icon(
+              Icons.arrow_forward_ios_rounded,
+              size: 14,
+              color: AppTheme.textPrimary.withValues(alpha: 0.25),
+            ),
+          ),
+          Divider(
+            color: AppTheme.textPrimary.withValues(alpha: 0.12),
+            height: 1,
+            indent: 16,
+            endIndent: 16,
+          ),
+          _buildMenuItem(
             icon: Icons.logout_rounded,
             label: "ចេញពីគណនី",
             color: AppTheme.danger,

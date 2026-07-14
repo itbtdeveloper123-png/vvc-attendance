@@ -198,6 +198,8 @@ class UserProvider with ChangeNotifier {
   int _attendanceStreak = 0;
   Map<String, dynamic> _settings = {};
 
+  static const String _recentAccountsKey = 'recent_accounts';
+
   String? get employeeId => _employeeId;
   String? get name => _name;
   String? get avatar => _avatar;
@@ -210,6 +212,63 @@ class UserProvider with ChangeNotifier {
   bool get isVerified => _isVerified;
   int get attendanceStreak => _attendanceStreak;
   Map<String, dynamic> get settings => _settings;
+
+  Future<List<Map<String, dynamic>>> getRecentAccounts() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_recentAccountsKey) ?? '[]';
+    try {
+      final data = json.decode(raw) as List<dynamic>;
+      return data
+          .whereType<Map<String, dynamic>>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<void> addRecentAccount({
+    required String employeeId,
+    required String name,
+    String? avatar,
+    String? userType,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final accounts = await getRecentAccounts();
+    final normalizedId = employeeId.trim();
+    final existingIndex = accounts.indexWhere(
+      (item) => item['employeeId']?.toString().trim() == normalizedId,
+    );
+    if (existingIndex != -1) {
+      accounts.removeAt(existingIndex);
+    }
+
+    accounts.insert(
+      0,
+      {
+        'employeeId': normalizedId,
+        'name': name.trim(),
+        'avatar': avatar ?? '',
+        'userType': userType ?? 'Employee',
+      },
+    );
+
+    if (accounts.length > 6) {
+      accounts.removeRange(6, accounts.length);
+    }
+
+    await prefs.setString(_recentAccountsKey, json.encode(accounts));
+  }
+
+  Future<void> removeRecentAccount(String employeeId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final accounts = await getRecentAccounts();
+    final normalizedId = employeeId.trim();
+    final remaining = accounts
+        .where((item) => item['employeeId']?.toString().trim() != normalizedId)
+        .toList();
+    await prefs.setString(_recentAccountsKey, json.encode(remaining));
+  }
 
   /// Full URL for avatar image (handles relative path from server)
   String? get avatarUrl {
@@ -460,6 +519,12 @@ class UserProvider with ChangeNotifier {
       await prefs.setString('system_role_label', _systemRoleLabel!);
       await prefs.setBool('is_verified', _isVerified);
       await prefs.setInt('attendance_streak', _attendanceStreak);
+      await addRecentAccount(
+        employeeId: _employeeId!,
+        name: _name ?? _employeeId!,
+        avatar: _avatar,
+        userType: _userType ?? 'Employee',
+      );
 
       // ទាញយកការកំណត់ (Settings) ភ្លាមៗក្រោយពេល Login ជោគជ័យ
       await refreshConfig();
