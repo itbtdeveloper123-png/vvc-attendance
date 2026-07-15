@@ -17,6 +17,7 @@ import '../providers/user_provider.dart';
 import '../services/api_service.dart';
 import '../utils/app_theme.dart';
 import 'profile_screen.dart';
+import 'shared_media_screen.dart';
 
 class TeamChatScreen extends StatefulWidget {
   final String targetUserId;
@@ -39,6 +40,7 @@ class TeamChatScreen extends StatefulWidget {
 class _TeamChatScreenState extends State<TeamChatScreen> {
   final TextEditingController _msgController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final TextEditingController _searchController = TextEditingController();
   String currentUserId = '';
   String currentUserPhoto = '';
   final ImagePicker _picker = ImagePicker();
@@ -53,11 +55,88 @@ class _TeamChatScreenState extends State<TeamChatScreen> {
   Timer? _recordingTimer;
   int _recordingDuration = 0;
 
+  // Phase 1 Features
+  Map<String, dynamic>? _replyTo;
+  late final List<String> _emojiReactions = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
+
+  // Phase 2 Features
+  bool _showSearch = false;
+  String _searchQuery = '';
+  List<String> _pinnedMessageIds = [];
+  StreamSubscription? _typingSubscription;
+
   @override
   void initState() {
     super.initState();
     _recorder = AudioRecorder();
     _loadUser();
+    _loadPinnedMessages();
+    _setupTypingListener();
+  }
+
+  Future<void> _loadPinnedMessages() async {
+    final roomId = _getChatRoomId();
+    final collection = widget.isGroup ? 'groups' : 'chats';
+    try {
+      final doc = await _firestore.collection(collection).doc(roomId).get();
+      if (doc.exists && doc.data()?['pinnedMessages'] != null) {
+        setState(() {
+          _pinnedMessageIds = List<String>.from(doc.data()?['pinnedMessages'] ?? []);
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading pinned messages: $e');
+    }
+  }
+
+  void _setupTypingListener() {
+    if (!widget.isGroup) {
+      _typingSubscription = _firestore
+          .collection('users')
+          .doc(widget.targetUserId)
+          .snapshots()
+          .listen((snapshot) {
+            if (mounted && snapshot.data()?['typing'] == true) {
+              setState(() {});
+            }
+          });
+    }
+  }
+
+  String _getDateSeparator(Timestamp? timestamp) {
+    if (timestamp == null) return '';
+    final date = timestamp.toDate();
+    final now = DateTime.now();
+    final difference = now.difference(date).inDays;
+
+    if (difference == 0) return 'ថ្ងៃនេះ';
+    if (difference == 1) return 'ម្សិលមិញ';
+    return DateFormat('dd MMM yyyy', 'km').format(date);
+  }
+
+  bool _shouldShowDateSeparator(Map<String, dynamic> currentMsg, Map<String, dynamic>? previousMsg) {
+    if (previousMsg == null) return false;
+    final current = _getDateSeparator(currentMsg['timestamp']);
+    final previous = _getDateSeparator(previousMsg['timestamp']);
+    return current != previous;
+  }
+
+  String _getMessageStatus(Map<String, dynamic> msg) {
+    if (!msg.containsKey('seenBy')) return '✓';
+    final seenBy = List.from(msg['seenBy'] ?? []);
+    if (seenBy.contains(widget.targetUserId)) return '✓✓';
+    return '✓';
+  }
+
+  Future<void> _updateTypingStatus(bool isTyping) async {
+    if (currentUserId.isEmpty) return;
+    try {
+      await _firestore.collection('users').doc(currentUserId).set({
+        'typing': isTyping,
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('Error updating typing status: $e');
+    }
   }
 
   Future<void> _loadUser() async {
@@ -139,24 +218,29 @@ class _TeamChatScreenState extends State<TeamChatScreen> {
             .doc(editDocId)
             .update({'message': text, 'isEdited': true});
         _msgController.clear();
+        setState(() => _replyTo = null);
         return;
       }
+
+      final messageData = {
+        'senderId': currentUserId,
+        'senderPhoto': currentUserPhoto,
+        'message': text,
+        'imageBase64': base64Image ?? '',
+        'audioBase64': base64Audio ?? '',
+        'timestamp': FieldValue.serverTimestamp(),
+        'isRead': false,
+        'seenBy': [currentUserId],
+        'isEdited': false,
+        'reactions': {},
+        if (_replyTo != null) 'replyTo': _replyTo,
+      };
 
       await _firestore
           .collection(collection)
           .doc(roomId)
           .collection('messages')
-          .add({
-            'senderId': currentUserId,
-            'senderPhoto': currentUserPhoto,
-            'message': text,
-            'imageBase64': base64Image ?? '',
-            'audioBase64': base64Audio ?? '',
-            'timestamp': FieldValue.serverTimestamp(),
-            'isRead': false,
-            'seenBy': [],
-            'isEdited': false,
-          });
+          .add(messageData);
 
       String lastMsg = text.isNotEmpty
           ? text
@@ -171,7 +255,9 @@ class _TeamChatScreenState extends State<TeamChatScreen> {
       }, SetOptions(merge: true));
 
       if (base64Image == null && base64Audio == null) _msgController.clear();
+      setState(() => _replyTo = null);
       _scrollToBottom();
+      await _updateTypingStatus(false);
     } catch (e) {
       debugPrint(e.toString());
     }
@@ -271,10 +357,13 @@ class _TeamChatScreenState extends State<TeamChatScreen> {
   @override
   void dispose() {
     _updatePresence(false);
+    _updateTypingStatus(false);
     _msgController.dispose();
+    _searchController.dispose();
     _scrollController.dispose();
     _recorder.dispose();
     _recordingTimer?.cancel();
+    _typingSubscription?.cancel();
     super.dispose();
   }
 
@@ -381,6 +470,25 @@ class _TeamChatScreenState extends State<TeamChatScreen> {
                             }
                             final data =
                                 snapshot.data!.data() as Map<String, dynamic>;
+
+                            // Show typing indicator
+                            if (data['typing'] == true) {
+                              return Row(
+                                children: [
+                                  Text(
+                                    'កំពុងវាយ',
+                                    style: GoogleFonts.kantumruyPro(
+                                      fontSize: 10,
+                                      color: Colors.greenAccent,
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  _buildTypingDots(),
+                                ],
+                              );
+                            }
+
                             if (data['isOnline'] == true) {
                               return Text(
                                 'Online',
@@ -405,41 +513,201 @@ class _TeamChatScreenState extends State<TeamChatScreen> {
                 ],
               ),
             ),
+            actions: [
+              if (_pinnedMessageIds.isNotEmpty)
+                IconButton(
+                  icon: const Icon(Icons.push_pin_rounded, size: 20),
+                  onPressed: _showPinnedMessagesBottomSheet,
+                  tooltip: 'ផ្ដេងសារ (${_pinnedMessageIds.length})',
+                ),
+              IconButton(
+                icon: const Icon(Icons.search_rounded, size: 20),
+                onPressed: () => setState(() => _showSearch = !_showSearch),
+              ),
+              if (!widget.isGroup)
+                IconButton(
+                  icon: const Icon(Icons.image_rounded, size: 20),
+                  onPressed: _showMediaGallery,
+                  tooltip: 'វគ្គសិល្ប៍',
+                ),
+            ],
           ),
         ),
       ),
     );
   }
 
+  Widget _buildTypingDots() {
+    return SizedBox(
+      width: 12,
+      height: 8,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: List.generate(3, (i) {
+          return FadeIn(
+            child: Container(
+              width: 3,
+              height: 3,
+              decoration: BoxDecoration(
+                color: Colors.greenAccent,
+                shape: BoxShape.circle,
+              ),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+
   Widget _buildMessageList() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: _messageStream,
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        final messages = snapshot.data!.docs;
-        return ListView.builder(
-          controller: _scrollController,
-          reverse: true,
-          padding: const EdgeInsets.fromLTRB(16, 110, 16, 20),
-          itemCount: messages.length,
-          itemBuilder: (context, index) {
-            final msg = messages[index].data() as Map<String, dynamic>;
-            final isMe = msg['senderId'] == currentUserId;
-            bool showAvatar =
-                index == 0 ||
-                (messages[index - 1].data() as Map)['senderId'] !=
-                    msg['senderId'];
-            return _buildMessageBubble(
-              messages[index].id,
-              msg,
-              isMe,
-              showAvatar,
-            );
-          },
-        );
-      },
+    return Column(
+      children: [
+        if (_showSearch)
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppTheme.bgCard.withValues(alpha: 0.6),
+              border: Border(
+                bottom: BorderSide(
+                  color: Colors.white.withValues(alpha: 0.1),
+                ),
+              ),
+            ),
+            child: TextField(
+              controller: _searchController,
+              style: GoogleFonts.kantumruyPro(color: Colors.white),
+              onChanged: (value) => setState(() => _searchQuery = value),
+              decoration: InputDecoration(
+                hintText: 'ស្វែងរកសារ...',
+                hintStyle: const TextStyle(color: Colors.white30),
+                border: InputBorder.none,
+                prefixIcon: Icon(Icons.search, color: AppTheme.primaryLight),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _searchQuery = '');
+                        },
+                      )
+                    : null,
+              ),
+            ),
+          ),
+        if (_pinnedMessageIds.isNotEmpty)
+          GestureDetector(
+            onTap: _showPinnedMessagesBottomSheet,
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              color: Colors.orange.withValues(alpha: 0.2),
+              child: Row(
+                children: [
+                  Icon(Icons.push_pin_rounded, color: Colors.orange, size: 18),
+                  const SizedBox(width: 8),
+                  Text(
+                    'ផ្ដេងសារ ${_pinnedMessageIds.length}',
+                    style: GoogleFonts.kantumruyPro(
+                      color: Colors.orange,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const Spacer(),
+                  const Icon(Icons.chevron_right, color: Colors.orange, size: 18),
+                ],
+              ),
+            ),
+          ),
+        Expanded(
+          child: StreamBuilder<QuerySnapshot>(
+            stream: _messageStream,
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              var messages = snapshot.data!.docs;
+
+              // Filter based on search
+              if (_searchQuery.isNotEmpty) {
+                messages = messages
+                    .where((doc) {
+                      final msg = doc.data() as Map<String, dynamic>;
+                      final text = (msg['message'] ?? '').toString().toLowerCase();
+                      return text.contains(_searchQuery.toLowerCase());
+                    })
+                    .toList();
+              }
+
+              return ListView.builder(
+                controller: _scrollController,
+                reverse: true,
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
+                itemCount: messages.length,
+                itemBuilder: (context, index) {
+                  final msg = messages[index].data() as Map<String, dynamic>;
+                  final isMe = msg['senderId'] == currentUserId;
+                  bool showAvatar =
+                      index == 0 ||
+                      (messages[index - 1].data() as Map)['senderId'] !=
+                          msg['senderId'];
+
+                  // Show date separator if needed
+                  bool showDateSeparator = false;
+                  if (index < messages.length - 1) {
+                    final nextMsg = messages[index + 1].data() as Map<String, dynamic>;
+                    showDateSeparator = _shouldShowDateSeparator(msg, nextMsg);
+                  } else {
+                    showDateSeparator = true;
+                  }
+
+                  return Column(
+                    children: [
+                      if (showDateSeparator) _buildDateSeparator(msg['timestamp']),
+                      _buildMessageBubble(
+                        messages[index].id,
+                        msg,
+                        isMe,
+                        showAvatar,
+                      ),
+                    ],
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDateSeparator(Timestamp? timestamp) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 16),
+      child: Row(
+        children: [
+          Expanded(
+            child: Container(
+              height: 1,
+              color: Colors.white.withValues(alpha: 0.1),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Text(
+              _getDateSeparator(timestamp),
+              style: GoogleFonts.kantumruyPro(
+                fontSize: 12,
+                color: Colors.white54,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Container(
+              height: 1,
+              color: Colors.white.withValues(alpha: 0.1),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -449,164 +717,298 @@ class _TeamChatScreenState extends State<TeamChatScreen> {
     bool isMe,
     bool showAvatar,
   ) {
+    final hasReply = msg.containsKey('replyTo') && msg['replyTo'] != null;
+
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
         margin: EdgeInsets.only(bottom: showAvatar ? 12 : 4),
         constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.8,
+          maxWidth: MediaQuery.of(context).size.width * 0.75,
         ),
-        child: Row(
-          mainAxisAlignment: isMe
-              ? MainAxisAlignment.end
-              : MainAxisAlignment.start,
-          crossAxisAlignment: CrossAxisAlignment.end,
+        child: Column(
+          crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
           children: [
-            if (!isMe) ...[
-              if (showAvatar)
-                _buildAvatar(
-                  msg['senderId'] ?? '',
-                  msg['senderPhoto'] ?? '',
-                  size: 36,
-                )
-              else
-                const SizedBox(width: 36),
-              const SizedBox(width: 8),
-            ],
-            Flexible(
-              child: GestureDetector(
-                onLongPress: isMe
-                    ? () => _showEditDeleteMenu(
-                        docId,
-                        msg['message'] ?? '',
-                        msg['audioBase64'] != null &&
-                            msg['audioBase64'].isNotEmpty,
-                      )
-                    : null,
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: isMe
-                        ? AppTheme.primary.withValues(alpha: 0.85)
-                        : AppTheme.bgCard.withValues(alpha: 0.6),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.1),
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: isMe
-                        ? CrossAxisAlignment.end
-                        : CrossAxisAlignment.start,
-                    children: [
-                      if (msg['audioBase64'] != null &&
-                          msg['audioBase64'].toString().isNotEmpty)
-                        AudioMessageBubble(
-                          audioBase64: msg['audioBase64'],
-                          isMe: isMe,
-                        )
-                      else ...[
-                        if (msg['imageBase64'] != null &&
-                            msg['imageBase64'].length > 100)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: _buildDecodedImage(msg['imageBase64']),
-                            ),
-                          ),
-                        if (msg['message'] != null && msg['message'].isNotEmpty)
-                          Text(
-                            msg['message'],
-                            style: GoogleFonts.kantumruyPro(
-                              color: Colors.white,
-                              fontSize: 15,
-                            ),
-                          ),
-                      ],
-                      const SizedBox(height: 4),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
+            Row(
+              mainAxisAlignment: isMe
+                  ? MainAxisAlignment.end
+                  : MainAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                if (!isMe) ...[
+                  if (showAvatar)
+                    _buildAvatar(
+                      msg['senderId'] ?? '',
+                      msg['senderPhoto'] ?? '',
+                      size: 36,
+                    )
+                  else
+                    const SizedBox(width: 36),
+                  const SizedBox(width: 8),
+                ],
+                Flexible(
+                  child: GestureDetector(
+                    onLongPress: () => _showMessageOptions(docId, msg, isMe),
+                    onHorizontalDragEnd: (details) {
+                      if (!isMe && details.primaryVelocity! > 0) {
+                        setState(() => _replyTo = {
+                          'id': docId,
+                          'senderId': msg['senderId'],
+                          'text': msg['message'] ?? '(ឯកសារ)',
+                        });
+                      }
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        gradient: isMe
+                            ? LinearGradient(
+                                colors: [
+                                  const Color(0xFF667eea),
+                                  const Color(0xFF764ba2),
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              )
+                            : null,
+                        color: !isMe
+                            ? AppTheme.bgCard.withValues(alpha: 0.8)
+                            : null,
+                        borderRadius: isMe
+                            ? const BorderRadius.only(
+                                topLeft: Radius.circular(20),
+                                topRight: Radius.circular(4),
+                                bottomLeft: Radius.circular(20),
+                                bottomRight: Radius.circular(20),
+                              )
+                            : const BorderRadius.only(
+                                topLeft: Radius.circular(4),
+                                topRight: Radius.circular(20),
+                                bottomLeft: Radius.circular(20),
+                                bottomRight: Radius.circular(20),
+                              ),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.1),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: isMe
+                            ? CrossAxisAlignment.end
+                            : CrossAxisAlignment.start,
                         children: [
-                          if (msg['isEdited'] == true) ...[
-                            Text(
-                              "កែប្រែ ",
-                              style: GoogleFonts.kantumruyPro(
-                                fontSize: 8,
-                                color: Colors.white60,
-                                fontStyle: FontStyle.italic,
+                          // Reply preview inside bubble
+                          if (hasReply) ...[
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              margin: const EdgeInsets.only(bottom: 8),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border(
+                                  left: BorderSide(
+                                    color: AppTheme.primaryLight,
+                                    width: 3,
+                                  ),
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    msg['replyTo']['senderId'] ?? 'Unknown',
+                                    style: GoogleFonts.kantumruyPro(
+                                      fontSize: 10,
+                                      color: AppTheme.primaryLight,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    msg['replyTo']['text'] ?? '',
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.kantumruyPro(
+                                      fontSize: 11,
+                                      color: Colors.white70,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                            const SizedBox(width: 4),
                           ],
-                          Text(
-                            DateFormat('hh:mm a').format(
-                              (msg['timestamp'] as Timestamp?)?.toDate() ??
-                                  DateTime.now(),
-                            ),
-                            style: GoogleFonts.inter(
-                              fontSize: 9,
-                              color: Colors.white70,
-                            ),
+                          // Audio or Image
+                          if (msg['audioBase64'] != null &&
+                              msg['audioBase64'].toString().isNotEmpty)
+                            AudioMessageBubble(
+                              audioBase64: msg['audioBase64'],
+                              isMe: isMe,
+                            )
+                          else ...[
+                            if (msg['imageBase64'] != null &&
+                                msg['imageBase64'].length > 100)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: _buildDecodedImage(msg['imageBase64']),
+                                ),
+                              ),
+                            if (msg['message'] != null && msg['message'].isNotEmpty)
+                              _buildMessageText(msg['message'], _searchQuery),
+                          ],
+                          const SizedBox(height: 4),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (msg['isEdited'] == true) ...[
+                                Text(
+                                  "កែប្រែ ",
+                                  style: GoogleFonts.kantumruyPro(
+                                    fontSize: 8,
+                                    color: Colors.white60,
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                              ],
+                              Text(
+                                DateFormat('hh:mm a').format(
+                                  (msg['timestamp'] as Timestamp?)?.toDate() ??
+                                      DateTime.now(),
+                                ),
+                                style: GoogleFonts.inter(
+                                  fontSize: 9,
+                                  color: Colors.white70,
+                                ),
+                              ),
+                              if (isMe && !widget.isGroup) ...[
+                                const SizedBox(width: 4),
+                                Text(
+                                  _getMessageStatus(msg),
+                                  style: GoogleFonts.inter(
+                                    fontSize: 9,
+                                    color: (msg['seenBy'] as List?)
+                                                ?.contains(widget.targetUserId) ==
+                                            true
+                                        ? Colors.blue
+                                        : Colors.white70,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
-                          if (isMe &&
-                              !widget.isGroup &&
-                              msg['isRead'] == true) ...[
-                            const SizedBox(width: 4),
-                            _buildReadIndicator(
-                              widget.targetUserId,
-                              widget.targetUserPhoto,
-                            ),
-                          ],
                         ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
-              ),
+                if (isMe) ...[
+                  const SizedBox(width: 8),
+                  if (showAvatar)
+                    _buildAvatar(currentUserId, currentUserPhoto, size: 36)
+                  else
+                    const SizedBox(width: 36),
+                ],
+              ],
             ),
-            if (isMe) ...[
-              const SizedBox(width: 8),
-              if (showAvatar)
-                _buildAvatar(currentUserId, currentUserPhoto, size: 36)
-              else
-                const SizedBox(width: 36),
-            ],
+            // Reactions display
+            if ((msg['reactions'] as Map?)?.isNotEmpty == true)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: _buildReactionsDisplay(msg['reactions'] ?? {}),
+              ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildReadIndicator(String id, String photo) {
-    final String url = ApiService.getFullImageUrl(
-      photo.isNotEmpty ? photo : "$id.jpg",
-    );
-    return Container(
-      width: 12,
-      height: 12,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.white, width: 0.5),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(6),
-        child: Image.network(
-          url,
-          fit: BoxFit.cover,
-          errorBuilder: (_, _, _) => const Icon(
-            Icons.check_circle,
-            size: 10,
-            color: Colors.greenAccent,
-          ),
+  Widget _buildMessageText(String text, String searchQuery) {
+    if (searchQuery.isEmpty) {
+      return Text(
+        text,
+        style: GoogleFonts.kantumruyPro(
+          color: Colors.white,
+          fontSize: 15,
         ),
+      );
+    }
+
+    final spans = <TextSpan>[];
+    final pattern = RegExp(searchQuery, caseSensitive: false);
+    var lastIndex = 0;
+
+    for (final match in pattern.allMatches(text)) {
+      if (match.start > lastIndex) {
+        spans.add(TextSpan(text: text.substring(lastIndex, match.start)));
+      }
+      spans.add(
+        TextSpan(
+          text: text.substring(match.start, match.end),
+          style: const TextStyle(backgroundColor: Colors.yellow),
+        ),
+      );
+      lastIndex = match.end;
+    }
+
+    if (lastIndex < text.length) {
+      spans.add(TextSpan(text: text.substring(lastIndex)));
+    }
+
+    return RichText(
+      text: TextSpan(
+        style: GoogleFonts.kantumruyPro(
+          color: Colors.white,
+          fontSize: 15,
+        ),
+        children: spans,
       ),
     );
   }
 
+  Widget _buildReactionsDisplay(Map<dynamic, dynamic> reactions) {
+    if (reactions.isEmpty) return const SizedBox();
+
+    final reactionMap = Map<String, List<String>>.from(
+      reactions.map((k, v) => MapEntry(k.toString(), List<String>.from(v as List)))
+    );
+
+    return Wrap(
+      spacing: 4,
+      children: reactionMap.entries.map((entry) {
+        return GestureDetector(
+          onTap: () => _toggleReaction(entry.key),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: entry.value.contains(currentUserId)
+                    ? AppTheme.primaryLight
+                    : Colors.transparent,
+              ),
+            ),
+            child: Text(
+              '${entry.key} ${entry.value.length}',
+              style: const TextStyle(fontSize: 11),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Future<void> _toggleReaction(String emoji) async {
+    // This would need the message ID to update properly
+    debugPrint('Toggle reaction: $emoji');
+  }
+
+
   Widget _buildInputArea() {
     return Container(
-      constraints: const BoxConstraints(minHeight: 70), // Keep height stable
+      constraints: const BoxConstraints(minHeight: 70),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: AppTheme.bgDark.withValues(alpha: 0.9),
@@ -616,101 +1018,158 @@ class _TeamChatScreenState extends State<TeamChatScreen> {
       ),
       child: SafeArea(
         top: false,
-        child: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 200),
-          child: _isRecording
-              ? _buildRecordingUI()
-              : Row(
-                  key: const ValueKey('input_row'),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Reply preview card
+            if (_replyTo != null)
+              Container(
+                padding: const EdgeInsets.all(8),
+                margin: const EdgeInsets.only(bottom: 8),
+                decoration: BoxDecoration(
+                  color: AppTheme.primary.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border(
+                    left: BorderSide(
+                      color: AppTheme.primaryLight,
+                      width: 3,
+                    ),
+                  ),
+                ),
+                child: Row(
                   children: [
-                    IconButton(
-                      icon: Icon(
-                        Icons.add_photo_alternate_rounded,
-                        color: AppTheme.primaryLight,
-                        size: 28,
-                      ),
-                      onPressed: _pickImage,
-                    ),
                     Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(25),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.1),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'ឆ្លើយក្លាយ: ${_replyTo!['senderId']}',
+                            style: GoogleFonts.kantumruyPro(
+                              fontSize: 10,
+                              color: AppTheme.primaryLight,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
-                        ),
-                        child: TextField(
-                          controller: _msgController,
-                          style: GoogleFonts.kantumruyPro(
-                            color: Colors.white,
-                            fontSize: 15,
+                          const SizedBox(height: 4),
+                          Text(
+                            _replyTo!['text'],
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.kantumruyPro(
+                              fontSize: 11,
+                              color: Colors.white70,
+                            ),
                           ),
-                          maxLines: null,
-                          onChanged: (v) => setState(() {}),
-                          decoration: const InputDecoration(
-                            hintText: "សរសេរសារ...",
-                            border: InputBorder.none,
-                            hintStyle: TextStyle(color: Colors.white30),
-                          ),
-                        ),
+                        ],
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    _msgController.text.trim().isEmpty
-                        ? GestureDetector(
-                            onTap: _isRecording ? null : _startRecording,
-                            child: Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: AppTheme.primary,
-                                shape: BoxShape.circle,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: AppTheme.primary.withValues(
-                                      alpha: 0.3,
-                                    ),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ],
-                              ),
-                              child: Icon(
-                                _isRecording
-                                    ? Icons.mic_rounded
-                                    : Icons.mic_none_rounded,
-                                color: Colors.white,
-                                size: 24,
-                              ),
-                            ),
-                          )
-                        : GestureDetector(
-                            onTap: () => _sendMessage(),
-                            child: Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: AppTheme.primary,
-                                shape: BoxShape.circle,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: AppTheme.primary.withValues(
-                                      alpha: 0.3,
-                                    ),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ],
-                              ),
-                              child: const Icon(
-                                Icons.send_rounded,
-                                color: Colors.white,
-                                size: 24,
-                              ),
-                            ),
-                          ),
+                    IconButton(
+                      icon: const Icon(Icons.close, size: 18),
+                      onPressed: () => setState(() => _replyTo = null),
+                    ),
                   ],
                 ),
+              ),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              child: _isRecording
+                  ? _buildRecordingUI()
+                  : Row(
+                      key: const ValueKey('input_row'),
+                      children: [
+                        IconButton(
+                          icon: Icon(
+                            Icons.add_photo_alternate_rounded,
+                            color: AppTheme.primaryLight,
+                            size: 28,
+                          ),
+                          onPressed: _pickImage,
+                        ),
+                        Expanded(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(25),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.1),
+                              ),
+                            ),
+                            child: TextField(
+                              controller: _msgController,
+                              style: GoogleFonts.kantumruyPro(
+                                color: Colors.white,
+                                fontSize: 15,
+                              ),
+                              maxLines: null,
+                              onChanged: (v) {
+                                setState(() {});
+                                _updateTypingStatus(v.isNotEmpty);
+                              },
+                              decoration: const InputDecoration(
+                                hintText: "សរសេរសារ...",
+                                border: InputBorder.none,
+                                hintStyle: TextStyle(color: Colors.white30),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        _msgController.text.trim().isEmpty
+                            ? GestureDetector(
+                                onTap: _isRecording ? null : _startRecording,
+                                child: Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.primary,
+                                    shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: AppTheme.primary.withValues(
+                                          alpha: 0.3,
+                                        ),
+                                        blurRadius: 10,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Icon(
+                                    _isRecording
+                                        ? Icons.mic_rounded
+                                        : Icons.mic_none_rounded,
+                                    color: Colors.white,
+                                    size: 24,
+                                  ),
+                                ),
+                              )
+                            : GestureDetector(
+                                onTap: () => _sendMessage(),
+                                child: Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.primary,
+                                    shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: AppTheme.primary.withValues(
+                                          alpha: 0.3,
+                                        ),
+                                        blurRadius: 10,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ],
+                                  ),
+                                  child: const Icon(
+                                    Icons.send_rounded,
+                                    color: Colors.white,
+                                    size: 24,
+                                  ),
+                                ),
+                              ),
+                      ],
+                    ),
+            ),
+          ],
         ),
       ),
     );
@@ -868,7 +1327,7 @@ class _TeamChatScreenState extends State<TeamChatScreen> {
     }
   }
 
-  void _showEditDeleteMenu(String docId, String currentMsg, bool isAudio) {
+  void _showMessageOptions(String docId, Map<String, dynamic> msg, bool isMe) {
     showModalBottomSheet(
       context: context,
       backgroundColor: AppTheme.bgCard,
@@ -876,7 +1335,97 @@ class _TeamChatScreenState extends State<TeamChatScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (!isAudio)
+            // Emoji Reactions
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Text(
+                'ប្រតិកម្ម',
+                style: GoogleFonts.kantumruyPro(
+                  color: Colors.white,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+            SizedBox(
+              height: 40,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: _emojiReactions.length,
+                itemBuilder: (context, index) {
+                  return GestureDetector(
+                    onTap: () {
+                      _addReaction(docId, _emojiReactions[index]);
+                      Navigator.pop(context);
+                    },
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        _emojiReactions[index],
+                        style: const TextStyle(fontSize: 20),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const Divider(),
+            // Reply option (if not sender)
+            if (!isMe)
+              ListTile(
+                leading: const Icon(Icons.reply, color: Colors.blue),
+                title: Text(
+                  'ឆ្លើយ',
+                  style: GoogleFonts.kantumruyPro(color: Colors.white),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  setState(() => _replyTo = {
+                    'id': docId,
+                    'senderId': msg['senderId'],
+                    'text': msg['message'] ?? '(ឯកសារ)',
+                  });
+                },
+              ),
+            // Pin message option (if sender or group admin)
+            ListTile(
+              leading: Icon(
+                _pinnedMessageIds.contains(docId)
+                    ? Icons.push_pin
+                    : Icons.push_pin_outlined,
+                color: Colors.orange,
+              ),
+              title: Text(
+                _pinnedMessageIds.contains(docId) ? 'ដក់ផ្ដេង' : 'ផ្ដេង',
+                style: GoogleFonts.kantumruyPro(color: Colors.white),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                _togglePinMessage(docId);
+              },
+            ),
+            // Forward message option
+            ListTile(
+              leading: const Icon(Icons.forward, color: Colors.green),
+              title: Text(
+                'ផ្ញើបន្ត',
+                style: GoogleFonts.kantumruyPro(color: Colors.white),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                _showForwardDialog(msg);
+              },
+            ),
+            // Edit option (if sender and text message)
+            if (isMe && (msg['message'] != null && msg['message'].isNotEmpty))
               ListTile(
                 leading: const Icon(Icons.edit, color: Colors.blue),
                 title: Text(
@@ -885,26 +1434,246 @@ class _TeamChatScreenState extends State<TeamChatScreen> {
                 ),
                 onTap: () {
                   Navigator.pop(context);
-                  _showEditDialog(docId, currentMsg);
+                  _showEditDialog(docId, msg['message']);
                 },
               ),
-            ListTile(
-              leading: const Icon(Icons.delete, color: Colors.red),
-              title: Text(
-                'លុប',
-                style: GoogleFonts.kantumruyPro(color: Colors.white),
+            // Delete option (if sender)
+            if (isMe)
+              ListTile(
+                leading: const Icon(Icons.delete, color: Colors.red),
+                title: Text(
+                  'លុប',
+                  style: GoogleFonts.kantumruyPro(color: Colors.white),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  _firestore
+                      .collection(widget.isGroup ? 'groups' : 'chats')
+                      .doc(_getChatRoomId())
+                      .collection('messages')
+                      .doc(docId)
+                      .delete();
+                },
               ),
-              onTap: () {
-                Navigator.pop(context);
-                _firestore
-                    .collection(widget.isGroup ? 'groups' : 'chats')
-                    .doc(_getChatRoomId())
-                    .collection('messages')
-                    .doc(docId)
-                    .delete();
-              },
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _addReaction(String docId, String emoji) async {
+    final roomId = _getChatRoomId();
+    final collection = widget.isGroup ? 'groups' : 'chats';
+    try {
+      final docRef = _firestore
+          .collection(collection)
+          .doc(roomId)
+          .collection('messages')
+          .doc(docId);
+
+      await docRef.update({
+        'reactions.$emoji': FieldValue.arrayUnion([currentUserId]),
+      }).catchError((_) {
+        // If field doesn't exist, create it
+        return docRef.update({
+          'reactions': {emoji: [currentUserId]}
+        });
+      });
+    } catch (e) {
+      debugPrint('Error adding reaction: $e');
+    }
+  }
+
+  Future<void> _togglePinMessage(String docId) async {
+    final roomId = _getChatRoomId();
+    final collection = widget.isGroup ? 'groups' : 'chats';
+    try {
+      final isPinned = _pinnedMessageIds.contains(docId);
+      if (isPinned) {
+        await _firestore.collection(collection).doc(roomId).update({
+          'pinnedMessages': FieldValue.arrayRemove([docId]),
+        });
+        _pinnedMessageIds.remove(docId);
+      } else {
+        await _firestore.collection(collection).doc(roomId).update({
+          'pinnedMessages': FieldValue.arrayUnion([docId]),
+        });
+        _pinnedMessageIds.add(docId);
+      }
+      setState(() {});
+      _showMessage(isPinned ? 'ដក់ផ្ដេងហើយ' : 'ផ្ដេងហើយ');
+    } catch (e) {
+      debugPrint('Error toggling pin: $e');
+    }
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _showForwardDialog(Map<String, dynamic> msg) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppTheme.bgCard,
+        title: Text(
+          'ផ្ញើបន្ត',
+          style: GoogleFonts.kantumruyPro(color: Colors.white),
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          height: 300,
+          child: FutureBuilder<QuerySnapshot>(
+            future: _firestore
+                .collection('chats')
+                .orderBy('lastTimestamp', descending: true)
+                .limit(20)
+                .get(),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              return ListView.builder(
+                itemCount: snapshot.data!.docs.length,
+                itemBuilder: (context, index) {
+                  final doc = snapshot.data!.docs[index];
+                  final data = doc.data() as Map<String, dynamic>;
+                  return ListTile(
+                    title: Text(
+                      data['lastMessage'] ?? 'ចូលលេង',
+                      style: GoogleFonts.kantumruyPro(color: Colors.white70),
+                    ),
+                    onTap: () {
+                      _forwardMessage(doc.id, msg);
+                      Navigator.pop(context);
+                    },
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _forwardMessage(String targetChatId, Map<String, dynamic> msg) async {
+    try {
+      await _firestore
+          .collection('chats')
+          .doc(targetChatId)
+          .collection('messages')
+          .add({
+            'senderId': currentUserId,
+            'senderPhoto': currentUserPhoto,
+            'message': '[ផ្ញើបន្ត] ${msg['message']}',
+            'imageBase64': msg['imageBase64'] ?? '',
+            'audioBase64': msg['audioBase64'] ?? '',
+            'timestamp': FieldValue.serverTimestamp(),
+            'isRead': false,
+            'seenBy': [currentUserId],
+            'isEdited': false,
+            'reactions': {},
+          });
+      _showMessage('ផ្ញើបន្តដោយបានជោគជ័យ');
+    } catch (e) {
+      debugPrint('Error forwarding message: $e');
+      _showMessage('ការផ្ញើបន្តបរាជ័យ');
+    }
+  }
+
+  void _showPinnedMessagesBottomSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.bgCard,
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                'ផ្ដេងសារ (${_pinnedMessageIds.length})',
+                style: GoogleFonts.kantumruyPro(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            Expanded(
+              child: FutureBuilder<List<DocumentSnapshot>>(
+                future: Future.wait(
+                  _pinnedMessageIds.map((id) {
+                    final collection = widget.isGroup ? 'groups' : 'chats';
+                    return _firestore
+                        .collection(collection)
+                        .doc(_getChatRoomId())
+                        .collection('messages')
+                        .doc(id)
+                        .get();
+                  }),
+                ),
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  return ListView.builder(
+                    itemCount: snapshot.data!.length,
+                    itemBuilder: (context, index) {
+                      final msgDoc = snapshot.data![index];
+                      final msg = msgDoc.data() as Map<String, dynamic>;
+                      return ListTile(
+                        title: Text(
+                          msg['message'] ?? '(ឯកសារ)',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.kantumruyPro(color: Colors.white),
+                        ),
+                        subtitle: Text(
+                          DateFormat('dd MMM hh:mm').format(
+                            (msg['timestamp'] as Timestamp?)?.toDate() ??
+                                DateTime.now(),
+                          ),
+                          style: GoogleFonts.inter(
+                            fontSize: 10,
+                            color: Colors.white54,
+                          ),
+                        ),
+                        onTap: () {
+                          Navigator.pop(context);
+                          _scrollToMessage(msgDoc.id);
+                        },
+                      );
+                    },
+                  );
+                },
+              ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  void _scrollToMessage(String messageId) {
+    // This would need to scroll the ListView to the message
+    debugPrint('Scroll to message: $messageId');
+  }
+
+  void _showMediaGallery() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SharedMediaScreen(
+          targetUserId: widget.targetUserId,
+          targetUserName: widget.targetUserName,
+          roomId: _getChatRoomId(),
         ),
       ),
     );
