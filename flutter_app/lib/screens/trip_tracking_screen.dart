@@ -26,6 +26,8 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
   Set<Polyline> _polylines = {};
   String _routeSource = 'raw';
   String? _routeMessage;
+  // ល្បឿន km/h ពី GPS point ចុងក្រោយ
+  double _lastSpeedKmh = 0;
 
   Timer? _pollingTimer;
   bool _isFirstLoad = true;
@@ -59,14 +61,29 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
       _isFirstLoad = true;
       final res = await _api.getTripDetails(widget.tripId);
       if (res['success'] == true) {
+        // ប្រើ raw points ដើម្បីទាញ speed ចុងក្រោយ
+        final rawPoints = res['points'] as List? ?? const [];
         final routeData = (res['snapped_points'] as List?)?.isNotEmpty == true
             ? res['snapped_points'] as List
-            : (res['points'] as List? ?? const []);
+            : rawPoints;
+
+        // គណនាល្បឿន km/h ពី GPS point ចុងក្រោយ
+        double speedKmh = 0;
+        if (rawPoints.isNotEmpty) {
+          final lastRaw = rawPoints.last;
+          final rawSpeed = lastRaw['speed'] ?? lastRaw['speed_kmh'];
+          if (rawSpeed != null) {
+            speedKmh = (double.tryParse(rawSpeed.toString()) ?? 0);
+            // ប្រសិនបើ server ផ្ញើ m/s ឲ្យបម្លែងជា km/h
+            if (speedKmh < 0.1 && speedKmh != 0) speedKmh *= 3.6;
+          }
+        }
 
         setState(() {
           _trip = res['trip'];
           _routeSource = res['route_source']?.toString() ?? 'raw';
           _routeMessage = res['route_message']?.toString();
+          _lastSpeedKmh = speedKmh;
           _points = routeData
               .map(
                 (p) => LatLng(
@@ -90,14 +107,26 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
     try {
       final res = await _api.getTripDetails(widget.tripId);
       if (res['success'] == true && mounted) {
+        final rawPoints = res['points'] as List? ?? const [];
         final routeData = (res['snapped_points'] as List?)?.isNotEmpty == true
             ? res['snapped_points'] as List
-            : (res['points'] as List? ?? const []);
+            : rawPoints;
+
+        double speedKmh = _lastSpeedKmh;
+        if (rawPoints.isNotEmpty) {
+          final lastRaw = rawPoints.last;
+          final rawSpeed = lastRaw['speed'] ?? lastRaw['speed_kmh'];
+          if (rawSpeed != null) {
+            speedKmh = (double.tryParse(rawSpeed.toString()) ?? speedKmh);
+            if (speedKmh < 0.1 && speedKmh != 0) speedKmh *= 3.6;
+          }
+        }
 
         setState(() {
           _trip = res['trip'];
           _routeSource = res['route_source']?.toString() ?? 'raw';
           _routeMessage = res['route_message']?.toString();
+          _lastSpeedKmh = speedKmh;
           _points = routeData
               .map(
                 (p) => LatLng(
@@ -245,10 +274,20 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
                             _buildInfo(
                               'ចម្ងាយ',
                               '${_trip?['total_distance_km'] ?? '0'} KM',
+                              Icons.straighten_rounded,
+                              AppTheme.primary,
                             ),
                             _buildInfo(
                               'រយៈពេល',
                               '${_trip?['duration_minutes'] ?? '0'} នាទី',
+                              Icons.timer_outlined,
+                              const Color(0xFFf59e0b),
+                            ),
+                            _buildInfo(
+                              'ល្បឿន',
+                              '${_lastSpeedKmh.toStringAsFixed(1)} km/h',
+                              Icons.speed_rounded,
+                              const Color(0xFF3b82f6),
                             ),
                           ],
                         ),
@@ -276,17 +315,35 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
     );
   }
 
-  Widget _buildInfo(String label, String val) {
+  Widget _buildInfo(String label, String val, [IconData? icon, Color? color]) {
+    final effectiveColor = color ?? Colors.white70;
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Text(
-          label,
-          style: GoogleFonts.kantumruyPro(color: Colors.white54, fontSize: 10),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null) ...[
+              Icon(icon, size: 11, color: effectiveColor),
+              const SizedBox(width: 3),
+            ],
+            Text(
+              label,
+              style: GoogleFonts.kantumruyPro(
+                color: Colors.white54,
+                fontSize: 10,
+              ),
+            ),
+          ],
         ),
+        const SizedBox(height: 2),
         Text(
           val,
-          style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold),
+          style: GoogleFonts.inter(
+            color: effectiveColor,
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
+          ),
         ),
       ],
     );
