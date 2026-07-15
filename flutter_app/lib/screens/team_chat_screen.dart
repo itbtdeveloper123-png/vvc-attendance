@@ -37,7 +37,7 @@ class TeamChatScreen extends StatefulWidget {
   State<TeamChatScreen> createState() => _TeamChatScreenState();
 }
 
-class _TeamChatScreenState extends State<TeamChatScreen> {
+class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStateMixin {
   late TextEditingController _msgController;
   late ScrollController _scrollController;
   late TextEditingController _searchController;
@@ -531,7 +531,13 @@ class _TeamChatScreenState extends State<TeamChatScreen> {
                 ),
               IconButton(
                 icon: const Icon(Icons.search_rounded, size: 20),
-                onPressed: () => setState(() => _showSearch = !_showSearch),
+                onPressed: () => setState(() {
+                  _showSearch = !_showSearch;
+                  if (!_showSearch) {
+                    _searchQuery = '';
+                    _searchController.clear();
+                  }
+                }),
               ),
               if (!widget.isGroup)
                 IconButton(
@@ -571,38 +577,44 @@ class _TeamChatScreenState extends State<TeamChatScreen> {
   Widget _buildMessageList() {
     return Column(
       children: [
-        if (_showSearch)
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppTheme.bgCard.withValues(alpha: 0.6),
-              border: Border(
-                bottom: BorderSide(
-                  color: Colors.white.withValues(alpha: 0.1),
-                ),
-              ),
-            ),
-            child: TextField(
-              controller: _searchController,
-              style: GoogleFonts.kantumruyPro(color: Colors.white),
-              onChanged: (value) => setState(() => _searchQuery = value),
-              decoration: InputDecoration(
-                hintText: 'ស្វែងរកសារ...',
-                hintStyle: const TextStyle(color: Colors.white30),
-                border: InputBorder.none,
-                prefixIcon: Icon(Icons.search, color: AppTheme.primaryLight),
-                suffixIcon: _searchQuery.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          _searchController.clear();
-                          setState(() => _searchQuery = '');
-                        },
-                      )
-                    : null,
-              ),
-            ),
-          ),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeInOut,
+          vsync: this,
+          child: _showSearch
+              ? Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppTheme.bgCard.withValues(alpha: 0.6),
+                    border: Border(
+                      bottom: BorderSide(
+                        color: Colors.white.withValues(alpha: 0.1),
+                      ),
+                    ),
+                  ),
+                  child: TextField(
+                    controller: _searchController,
+                    style: GoogleFonts.kantumruyPro(color: Colors.white),
+                    onChanged: (value) => setState(() => _searchQuery = value),
+                    decoration: InputDecoration(
+                      hintText: 'ស្វែងរកសារ...',
+                      hintStyle: const TextStyle(color: Colors.white30),
+                      border: InputBorder.none,
+                      prefixIcon: Icon(Icons.search, color: AppTheme.primaryLight),
+                      suffixIcon: _searchQuery.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() => _searchQuery = '');
+                              },
+                            )
+                          : null,
+                    ),
+                  ),
+                )
+              : const SizedBox.shrink(),
+        ),
         if (_pinnedMessageIds.isNotEmpty)
           GestureDetector(
             onTap: _showPinnedMessagesBottomSheet,

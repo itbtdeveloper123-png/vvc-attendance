@@ -30,13 +30,16 @@ class _TripReportScreenState extends State<TripReportScreen>
   bool _isSidebarOpen = true;
   GoogleMapController? _combinedMapController;
   final Map<String, BitmapDescriptor> _profileBitmaps = {};
+  final Map<String, List<LatLng>> _activeTripRoutes = {};
+  final Map<String, double> _activeTripSpeeds = {};
+  String? _selectedEmployeeId;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
     _loadTrips();
-    _pollingTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+    _pollingTimer = Timer.periodic(const Duration(seconds: 3), (_) {
       if (mounted) _loadTripsSilently();
     });
   }
@@ -58,6 +61,7 @@ class _TripReportScreenState extends State<TripReportScreen>
         });
         final activeTrips = data.where((t) => t['status'] == 'active').toList();
         _loadProfileMarkerBitmaps(activeTrips);
+        _loadActiveTripRoutes(activeTrips);
       }
     } catch (_) {}
   }
@@ -75,6 +79,7 @@ class _TripReportScreenState extends State<TripReportScreen>
         });
         final activeTrips = data.where((t) => t['status'] == 'active').toList();
         _loadProfileMarkerBitmaps(activeTrips);
+        _loadActiveTripRoutes(activeTrips);
       } else {
         setState(() {
           _isLoading = false;
@@ -160,6 +165,49 @@ class _TripReportScreenState extends State<TripReportScreen>
         }
       } catch (e) {
         debugPrint('Failed to load profile marker bitmap for $eid: $e');
+      }
+    }
+  }
+
+  Future<void> _loadActiveTripRoutes(List<dynamic> activeTrips) async {
+    for (final trip in activeTrips) {
+      final tripId = trip['id']?.toString() ?? '';
+      if (tripId.isEmpty) continue;
+
+      try {
+        final res = await _api.getTripDetails(int.parse(tripId));
+        if (res['success'] == true) {
+          final rawPoints = res['points'] as List? ?? const [];
+          final routeData = (res['snapped_points'] as List?)?.isNotEmpty == true
+              ? res['snapped_points'] as List
+              : rawPoints;
+
+          final points = routeData
+              .map((p) => LatLng(
+                    double.parse((p['latitude'] ?? p['lat']).toString()),
+                    double.parse((p['longitude'] ?? p['lng']).toString()),
+                  ))
+              .toList();
+
+          double speedKmh = 0;
+          if (rawPoints.isNotEmpty) {
+            final lastRaw = rawPoints.last;
+            final rawSpeed = lastRaw['speed'] ?? lastRaw['speed_kmh'];
+            if (rawSpeed != null) {
+              speedKmh = (double.tryParse(rawSpeed.toString()) ?? 0);
+              if (speedKmh < 0.1 && speedKmh != 0) speedKmh *= 3.6;
+            }
+          }
+
+          if (mounted) {
+            setState(() {
+              _activeTripRoutes[tripId] = points;
+              _activeTripSpeeds[tripId] = speedKmh;
+            });
+          }
+        }
+      } catch (e) {
+        debugPrint('Failed to load route points for trip $tripId: $e');
       }
     }
   }
@@ -420,25 +468,70 @@ class _TripReportScreenState extends State<TripReportScreen>
 
   Widget _buildActiveTripsMapScreen(BuildContext context, List<dynamic> activeTrips) {
     final markers = <Marker>{};
-    for (final trip in activeTrips) {
+    final polylines = <Polyline>{};
+
+    // Colors for different trips
+    final routeColors = [
+      const Color(0xFF3b82f6),
+      const Color(0xFFf59e0b),
+      const Color(0xFF10b981),
+      const Color(0xFFec4899),
+      const Color(0xFF8b5cf6),
+      const Color(0xFFef4444),
+    ];
+
+    for (int i = 0; i < activeTrips.length; i++) {
+      final trip = activeTrips[i];
       final point = _extractTripLatLng(trip);
       if (point == null) continue;
 
       final name = trip['user_name'] ?? trip['employee_name'] ?? trip['employee_id'] ?? 'N/A';
       final eid = (trip['employee_id'] ?? '').toString();
+      final tripId = (trip['id'] ?? '').toString();
       final customIcon = _profileBitmaps[eid];
+      final routeColor = routeColors[i % routeColors.length];
+
+      final isSelected = eid.isNotEmpty && eid == _selectedEmployeeId;
+      final MarkerId markerId = MarkerId('trip_${eid}_${point.latitude}_${point.longitude}');
+      final icon = isSelected && customIcon != null
+          ? customIcon
+          : BitmapDescriptor.defaultMarkerWithHue(
+              isSelected ? BitmapDescriptor.hueAzure : BitmapDescriptor.hueRed,
+            );
 
       markers.add(
         Marker(
-          markerId: MarkerId('trip_${eid}_${point.latitude}_${point.longitude}'),
+          markerId: markerId,
           position: point,
           infoWindow: InfoWindow(
             title: name,
             snippet: eid.isNotEmpty ? 'ID: $eid' : null,
           ),
-          icon: customIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+          icon: icon,
+          anchor: customIcon != null && isSelected ? const Offset(0.5, 0.5) : const Offset(0.5, 1.0),
+          onTap: () {
+            if (eid.isNotEmpty) {
+              setState(() {
+                _selectedEmployeeId = eid;
+              });
+            }
+          },
         ),
       );
+
+      // Draw route polyline
+      final routePoints = _activeTripRoutes[tripId];
+      if (routePoints != null && routePoints.length > 1) {
+        polylines.add(
+          Polyline(
+            polylineId: PolylineId('route_$tripId'),
+            points: routePoints,
+            color: routeColor,
+            width: 4,
+            patterns: [],
+          ),
+        );
+      }
     }
 
     if (markers.isEmpty) {
@@ -458,6 +551,7 @@ class _TripReportScreenState extends State<TripReportScreen>
     return GoogleMap(
       initialCameraPosition: CameraPosition(target: firstMarker, zoom: 13),
       markers: markers,
+      polylines: polylines,
       mapType: MapType.satellite,
       myLocationButtonEnabled: false,
       zoomControlsEnabled: true,
@@ -486,6 +580,13 @@ class _TripReportScreenState extends State<TripReportScreen>
     }
   }
 
+  void _selectUser(String eid, LatLng point) {
+    setState(() {
+      _selectedEmployeeId = eid;
+    });
+    _focusOnUser(point);
+  }
+
   Widget _buildInitialsAvatarSmall(String initials) {
     return Container(
       color: AppTheme.primary.withValues(alpha: 0.1),
@@ -503,161 +604,256 @@ class _TripReportScreenState extends State<TripReportScreen>
 
   Widget _buildSidebarActiveCard(dynamic trip) {
     final name = trip['user_name'] ?? trip['employee_name'] ?? trip['employee_id'] ?? 'N/A';
-    final eid = trip['employee_id'] ?? '';
+    final eid = (trip['employee_id'] ?? '').toString();
     final customer = trip['customer_name'] ?? 'N/A';
     final duration = trip['duration_minutes'] ?? 0;
-    final double dist = double.tryParse((trip['distance_km'] ?? trip['total_distance_km'] ?? '0').toString()) ?? 0.0;
+    final double dist =
+        double.tryParse((trip['distance_km'] ?? trip['total_distance_km'] ?? '0').toString()) ?? 0.0;
     final avatarUrl = trip['avatar_url']?.toString() ?? '';
+    final tripId = (trip['id'] ?? '').toString();
+
+    // ទាញ ល្បឿន ពី cache
+    final speedKmh = _activeTripSpeeds[tripId] ?? 0.0;
+
     final initials = name.trim().isEmpty
         ? '?'
         : name.trim().split(RegExp(r'\s+')).take(2).map((w) => w[0].toUpperCase()).join();
 
     final point = _extractTripLatLng(trip);
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppTheme.bgDark.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.primary.withValues(alpha: 0.25)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              // Avatar
-              Stack(
+    final isSelected = eid.isNotEmpty && eid == _selectedEmployeeId;
+
+    return InkWell(
+      onTap: point != null ? () => _selectUser(eid, point) : null,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AppTheme.bgDark.withValues(alpha: 0.9)
+              : AppTheme.bgDark.withValues(alpha: 0.7),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected
+                ? AppTheme.primary
+                : Colors.greenAccent.withValues(alpha: 0.2),
+          ),
+        ),
+        child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // ─── Left Stats Column ───────────────────────────────
+            Container(
+              width: 64,
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.25),
+                border: Border(
+                  right: BorderSide(color: Colors.white.withValues(alpha: 0.07)),
+                ),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: AppTheme.primary.withValues(alpha: 0.5), width: 1.5),
-                    ),
-                    child: ClipOval(
-                      child: avatarUrl.isNotEmpty
-                          ? Image.network(
-                              avatarUrl,
-                              fit: BoxFit.cover,
-                              errorBuilder: (ctx, err, stack) => _buildInitialsAvatarSmall(initials),
-                            )
-                          : _buildInitialsAvatarSmall(initials),
-                    ),
+                  _buildStatCell(
+                    icon: Icons.speed_rounded,
+                    value: speedKmh.toStringAsFixed(0),
+                    unit: 'km/h',
+                    color: const Color(0xFF3b82f6),
                   ),
-                  Positioned(
-                    top: 0,
-                    right: 0,
-                    child: Container(
-                      width: 8,
-                      height: 8,
-                      decoration: const BoxDecoration(
-                        color: Colors.greenAccent,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
+                  Divider(color: Colors.white.withValues(alpha: 0.07), height: 6),
+                  _buildStatCell(
+                    icon: Icons.straighten_rounded,
+                    value: dist.toStringAsFixed(1),
+                    unit: 'គម',
+                    color: AppTheme.primary,
+                  ),
+                  Divider(color: Colors.white.withValues(alpha: 0.07), height: 6),
+                  _buildStatCell(
+                    icon: Icons.timer_outlined,
+                    value: duration.toString(),
+                    unit: 'នាទី',
+                    color: const Color(0xFFf59e0b),
                   ),
                 ],
               ),
-              const SizedBox(width: 8),
-              Expanded(
+            ),
+            // ─── Right Profile + Actions Column ─────────────────
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(10),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Avatar + Name
+                    Row(
+                      children: [
+                        Stack(
+                          children: [
+                            Container(
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: Colors.greenAccent.withValues(alpha: 0.6),
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: ClipOval(
+                                child: avatarUrl.isNotEmpty
+                                    ? Image.network(
+                                        avatarUrl,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (ctx, err, stack) =>
+                                            _buildInitialsAvatarSmall(initials),
+                                      )
+                                    : _buildInitialsAvatarSmall(initials),
+                              ),
+                            ),
+                            Positioned(
+                              top: 0,
+                              right: 0,
+                              child: Container(
+                                width: 8,
+                                height: 8,
+                                decoration: const BoxDecoration(
+                                  color: Colors.greenAccent,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                name,
+                                style: GoogleFonts.kantumruyPro(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              if (eid.isNotEmpty)
+                                Text(
+                                  'ID: $eid',
+                                  style: GoogleFonts.inter(
+                                    color: Colors.white38,
+                                    fontSize: 9,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    // Customer destination
                     Text(
-                      name,
+                      '📍 $customer',
                       style: GoogleFonts.kantumruyPro(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
+                        color: Colors.white60,
+                        fontSize: 10,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
-                    Text(
-                      eid.isNotEmpty ? 'ID: $eid' : '',
-                      style: GoogleFonts.inter(
-                        color: Colors.white54,
-                        fontSize: 10,
-                      ),
+                    const SizedBox(height: 8),
+                    // Action Buttons
+                    Row(
+                      children: [
+                        if (point != null) ...[
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => _focusOnUser(point),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.white70,
+                                side: const BorderSide(color: Colors.white24),
+                                padding: const EdgeInsets.symmetric(vertical: 4),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              child: const Icon(Icons.location_searching, size: 13),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                        ],
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => TripTrackingScreen(
+                                    tripId: int.parse(trip['id'].toString()),
+                                  ),
+                                ),
+                              );
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppTheme.primary,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              elevation: 0,
+                            ),
+                            child: Text(
+                              'តាមដាន',
+                              style: GoogleFonts.kantumruyPro(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '📍 $customer',
-            style: GoogleFonts.kantumruyPro(
-              color: Colors.white70,
-              fontSize: 11,
             ),
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 6),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                '⏱ $duration នាទី',
-                style: GoogleFonts.kantumruyPro(color: Colors.amber, fontSize: 10),
-              ),
-              Text(
-                '🛣 ${dist.toStringAsFixed(1)} គម',
-                style: GoogleFonts.kantumruyPro(color: AppTheme.primary, fontSize: 10),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              // Locate Button
-              if (point != null)
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => _focusOnUser(point),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.white,
-                      side: const BorderSide(color: Colors.white24),
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
-                    child: const Icon(Icons.location_searching, size: 14),
-                  ),
-                ),
-              if (point != null) const SizedBox(width: 6),
-              // Track detail Button
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => TripTrackingScreen(
-                          tripId: int.parse(trip['id'].toString()),
-                        ),
-                      ),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    elevation: 0,
-                  ),
-                  child: Text(
-                    "តាមដាន",
-                    style: GoogleFonts.kantumruyPro(fontSize: 10, fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
+          ],
+        ),
       ),
+    );
+  }
+
+  Widget _buildStatCell({
+    required IconData icon,
+    required String value,
+    required String unit,
+    required Color color,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 11, color: color),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: GoogleFonts.inter(
+            color: color,
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        Text(
+          unit,
+          style: GoogleFonts.kantumruyPro(
+            color: Colors.white38,
+            fontSize: 9,
+          ),
+        ),
+      ],
     );
   }
 
