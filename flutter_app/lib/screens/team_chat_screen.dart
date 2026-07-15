@@ -2,16 +2,16 @@ import 'dart:ui';
 import 'dart:convert';
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import 'package:record/record.dart';
+import 'package:record/record.dart' as record_pkg;
 import 'package:audioplayers/audioplayers.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:flutter/foundation.dart';
 import 'package:animate_do/animate_do.dart';
 import '../providers/user_provider.dart';
 import '../services/api_service.dart';
@@ -38,28 +38,27 @@ class TeamChatScreen extends StatefulWidget {
 }
 
 class _TeamChatScreenState extends State<TeamChatScreen> {
-  final TextEditingController _msgController = TextEditingController();
-  final ScrollController _scrollController = ScrollController();
-  final TextEditingController _searchController = TextEditingController();
+  late TextEditingController _msgController;
+  late ScrollController _scrollController;
+  late TextEditingController _searchController;
+  late record_pkg.AudioRecorder _recorder;
+
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final ImagePicker _picker = ImagePicker();
+
   String currentUserId = '';
   String currentUserPhoto = '';
-  final ImagePicker _picker = ImagePicker();
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   Stream<QuerySnapshot>? _messageStream;
   String groupStatus = 'accepted';
 
-  // Audio recording
-  late AudioRecorder _recorder;
   bool _isRecording = false;
-  String? _audioPath;
-  Timer? _recordingTimer;
   int _recordingDuration = 0;
+  Timer? _recordingTimer;
+  String? _audioPath;
 
-  // Phase 1 Features
+  // Phase 1 & 2 Features
   Map<String, dynamic>? _replyTo;
-  late final List<String> _emojiReactions = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
-
-  // Phase 2 Features
+  final List<String> _emojiReactions = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
   bool _showSearch = false;
   String _searchQuery = '';
   List<String> _pinnedMessageIds = [];
@@ -68,39 +67,37 @@ class _TeamChatScreenState extends State<TeamChatScreen> {
   @override
   void initState() {
     super.initState();
-    _recorder = AudioRecorder();
+    _msgController = TextEditingController();
+    _scrollController = ScrollController();
+    _searchController = TextEditingController();
+    _recorder = record_pkg.AudioRecorder();
     _loadUser();
-    _loadPinnedMessages();
-    _setupTypingListener();
   }
 
-  Future<void> _loadPinnedMessages() async {
-    final roomId = _getChatRoomId();
-    final collection = widget.isGroup ? 'groups' : 'chats';
-    try {
-      final doc = await _firestore.collection(collection).doc(roomId).get();
-      if (doc.exists && doc.data()?['pinnedMessages'] != null) {
-        setState(() {
-          _pinnedMessageIds = List<String>.from(doc.data()?['pinnedMessages'] ?? []);
-        });
-      }
-    } catch (e) {
-      debugPrint('Error loading pinned messages: $e');
+  Future<void> _loadUser() async {
+    final prefs = await SharedPreferences.getInstance();
+    currentUserId = prefs.getString('employee_id') ?? 'EMP_UNKNOWN';
+    if (mounted) {
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
+      currentUserPhoto = userProvider.avatar ?? '';
     }
-  }
-
-  void _setupTypingListener() {
-    if (!widget.isGroup) {
-      _typingSubscription = _firestore
-          .collection('users')
+    if (widget.isGroup) {
+      final groupDoc = await _firestore
+          .collection('groups')
           .doc(widget.targetUserId)
-          .snapshots()
-          .listen((snapshot) {
-            if (mounted && snapshot.data()?['typing'] == true) {
-              setState(() {});
-            }
-          });
+          .get();
+      if (groupDoc.exists) {
+        final members = Map<String, dynamic>.from(
+          groupDoc.data()?['members'] ?? {},
+        );
+        setState(() => groupStatus = members[currentUserId] ?? 'none');
+      }
     }
+    _setupMessageStream();
+    _setupTypingListener();
+    _loadPinnedMessages();
+    if (mounted) setState(() {});
+    _updatePresence(true);
   }
 
   String _getDateSeparator(Timestamp? timestamp) {
@@ -139,28 +136,38 @@ class _TeamChatScreenState extends State<TeamChatScreen> {
     }
   }
 
-  Future<void> _loadUser() async {
-    final prefs = await SharedPreferences.getInstance();
-    currentUserId = prefs.getString('employee_id') ?? 'EMP_UNKNOWN';
-    if (mounted) {
-      final userProvider = Provider.of<UserProvider>(context, listen: false);
-      currentUserPhoto = userProvider.avatar ?? '';
-    }
-    if (widget.isGroup) {
-      final groupDoc = await _firestore
-          .collection('groups')
-          .doc(widget.targetUserId)
-          .get();
-      if (groupDoc.exists) {
-        final members = Map<String, dynamic>.from(
-          groupDoc.data()?['members'] ?? {},
-        );
-        setState(() => groupStatus = members[currentUserId] ?? 'none');
+  Future<void> _loadPinnedMessages() async {
+    final roomId = _getChatRoomId();
+    final collection = widget.isGroup ? 'groups' : 'chats';
+    try {
+      final doc = await _firestore.collection(collection).doc(roomId).get();
+      if (doc.exists && doc.data()?['pinnedMessages'] != null) {
+        setState(() {
+          _pinnedMessageIds = List<String>.from(doc.data()?['pinnedMessages'] ?? []);
+        });
       }
+    } catch (e) {
+      debugPrint('Error loading pinned messages: $e');
     }
-    _setupMessageStream();
-    if (mounted) setState(() {});
-    _updatePresence(true);
+  }
+
+  void _setupTypingListener() {
+    if (!widget.isGroup) {
+      _typingSubscription = _firestore
+          .collection('users')
+          .doc(widget.targetUserId)
+          .snapshots()
+          .listen((snapshot) {
+        if (!mounted) return;
+        final data = snapshot.data();
+        if (data?['typing'] == true) {
+          if (mounted) setState(() {});
+          Future.delayed(const Duration(seconds: 3), () {
+            if (mounted) setState(() {});
+          });
+        }
+      });
+    }
   }
 
   void _setupMessageStream() {
@@ -287,20 +294,23 @@ class _TeamChatScreenState extends State<TeamChatScreen> {
 
   // Audio Recording Methods
   Future<void> _startRecording() async {
-    // Close keyboard first to avoid jumping
     FocusScope.of(context).unfocus();
 
     try {
       if (await _recorder.hasPermission()) {
-        String? path;
-        if (!kIsWeb) {
-          final dir = await getTemporaryDirectory();
-          path =
-              '${dir.path}/audio_${DateTime.now().microsecondsSinceEpoch}.m4a';
-        }
+        final fileName = 'audio_${DateTime.now().microsecondsSinceEpoch}.m4a';
+        final path = kIsWeb
+            ? fileName
+            : '${(await getTemporaryDirectory()).path}/$fileName';
         _audioPath = path;
-        const config = RecordConfig();
-        await _recorder.start(config, path: path ?? '');
+        await _recorder.start(
+          record_pkg.RecordConfig(
+            encoder: record_pkg.AudioEncoder.aacLc,
+            bitRate: 128000,
+            sampleRate: 44100,
+          ),
+          path: path,
+        );
         setState(() {
           _isRecording = true;
           _recordingDuration = 0;
@@ -361,7 +371,6 @@ class _TeamChatScreenState extends State<TeamChatScreen> {
     _msgController.dispose();
     _searchController.dispose();
     _scrollController.dispose();
-    _recorder.dispose();
     _recordingTimer?.cancel();
     _typingSubscription?.cancel();
     super.dispose();
