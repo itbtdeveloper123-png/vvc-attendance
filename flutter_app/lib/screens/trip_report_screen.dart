@@ -1,8 +1,12 @@
 import 'dart:async';
+import 'dart:ui' as ui;
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:http/http.dart' as http;
 import '../services/api_service.dart';
 import '../utils/app_theme.dart';
 import '../widgets/app_widgets.dart';
@@ -22,6 +26,10 @@ class _TripReportScreenState extends State<TripReportScreen>
   bool _isLoading = true;
   late TabController _tabController;
   Timer? _pollingTimer;
+
+  bool _isSidebarOpen = true;
+  GoogleMapController? _combinedMapController;
+  final Map<String, BitmapDescriptor> _profileBitmaps = {};
 
   @override
   void initState() {
@@ -44,9 +52,12 @@ class _TripReportScreenState extends State<TripReportScreen>
     try {
       final res = await _api.fetchAllTrips();
       if (res['success'] == true && mounted) {
+        final data = res['data'] ?? [];
         setState(() {
-          _allTrips = res['data'] ?? [];
+          _allTrips = data;
         });
+        final activeTrips = data.where((t) => t['status'] == 'active').toList();
+        _loadProfileMarkerBitmaps(activeTrips);
       }
     } catch (_) {}
   }
@@ -57,10 +68,13 @@ class _TripReportScreenState extends State<TripReportScreen>
     try {
       final res = await _api.fetchAllTrips();
       if (res['success'] == true) {
+        final data = res['data'] ?? [];
         setState(() {
-          _allTrips = res['data'] ?? [];
+          _allTrips = data;
           _isLoading = false;
         });
+        final activeTrips = data.where((t) => t['status'] == 'active').toList();
+        _loadProfileMarkerBitmaps(activeTrips);
       } else {
         setState(() {
           _isLoading = false;
@@ -79,6 +93,77 @@ class _TripReportScreenState extends State<TripReportScreen>
     }
   }
 
+  Future<void> _loadProfileMarkerBitmaps(List<dynamic> activeTrips) async {
+    for (final trip in activeTrips) {
+      final eid = (trip['employee_id'] ?? '').toString();
+      final avatarUrl = trip['avatar_url']?.toString() ?? '';
+      if (eid.isEmpty || avatarUrl.isEmpty || _profileBitmaps.containsKey(eid)) {
+        continue;
+      }
+      try {
+        final response = await http
+            .get(Uri.parse(avatarUrl))
+            .timeout(const Duration(seconds: 8));
+        if (response.statusCode == 200) {
+          final codec = await ui.instantiateImageCodec(
+            response.bodyBytes,
+            targetWidth: 36,
+            targetHeight: 36,
+          );
+          final frame = await codec.getNextFrame();
+          final image = frame.image;
+
+          final recorder = ui.PictureRecorder();
+          final canvas = Canvas(recorder);
+          const size = 36.0;
+          const half = size / 2;
+          const borderWidth = 2.0;
+
+          final borderPaint = Paint()..color = const Color(0xFF10b981);
+          canvas.drawCircle(const Offset(half, half), half, borderPaint);
+
+          final clipPath = Path()
+            ..addOval(
+              Rect.fromCircle(
+                center: const Offset(half, half),
+                radius: half - borderWidth,
+              ),
+            );
+          canvas.clipPath(clipPath);
+
+          final srcRect = Rect.fromLTWH(
+            0,
+            0,
+            image.width.toDouble(),
+            image.height.toDouble(),
+          );
+          final dstRect = Rect.fromLTWH(
+            borderWidth,
+            borderWidth,
+            size - borderWidth * 2,
+            size - borderWidth * 2,
+          );
+          canvas.drawImageRect(image, srcRect, dstRect, Paint());
+
+          final picture = recorder.endRecording();
+          final img = await picture.toImage(size.toInt(), size.toInt());
+          final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
+          if (byteData != null) {
+            final Uint8List bytes = byteData.buffer.asUint8List();
+            final bitmap = BitmapDescriptor.bytes(bytes);
+            if (mounted) {
+              setState(() {
+                _profileBitmaps[eid] = bitmap;
+              });
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint('Failed to load profile marker bitmap for $eid: $e');
+      }
+    }
+  }
+
   List<dynamic> _getFilteredTrips(String role) {
     if (role == 'Skills') {
       return _allTrips.where((t) {
@@ -91,14 +176,6 @@ class _TripReportScreenState extends State<TripReportScreen>
         return r == 'worker';
       }).toList();
     }
-  }
-
-  /// Combined view: all employees, only those with active trips shown prominently
-  List<dynamic> _getCombinedActiveTrips() {
-    // Show active trips first, then recently finished
-    final active = _allTrips.where((t) => t['status'] == 'active').toList();
-    final finished = _allTrips.where((t) => t['status'] != 'active').toList();
-    return [...active, ...finished];
   }
 
   @override
@@ -197,7 +274,7 @@ class _TripReportScreenState extends State<TripReportScreen>
         Positioned(
           top: 16,
           left: 16,
-          right: 16,
+          right: _isSidebarOpen ? 300 : 80,
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
@@ -236,301 +313,91 @@ class _TripReportScreenState extends State<TripReportScreen>
             ),
           ),
         ),
-      ],
-    );
-  }
-
-  Widget _buildCombinedCard(dynamic trip, bool isActive) {
-    final name =
-        trip['user_name'] ??
-        trip['employee_name'] ??
-        trip['employee_id'] ??
-        'N/A';
-    final eid = trip['employee_id'] ?? '';
-    final customer = trip['customer_name'] ?? 'N/A';
-    final duration = trip['duration_minutes'] ?? 0;
-    final double dist =
-        double.tryParse(
-          (trip['distance_km'] ?? trip['total_distance_km'] ?? '0').toString(),
-        ) ??
-        0.0;
-    final started = trip['started_at'] ?? '';
-    final avatarUrl = trip['avatar_url']?.toString() ?? '';
-    final initials = name.trim().isEmpty
-        ? '?'
-        : name
-              .trim()
-              .split(RegExp(r'\s+'))
-              .take(2)
-              .map((w) => w[0].toUpperCase())
-              .join();
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: AppTheme.bgCard,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isActive
-              ? Colors.greenAccent.withValues(alpha: 0.35)
-              : Colors.white.withValues(alpha: 0.05),
-        ),
-        boxShadow: isActive
-            ? [
-                BoxShadow(
-                  color: Colors.greenAccent.withValues(alpha: 0.08),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
+        Positioned(
+          top: 16,
+          right: 16,
+          child: Material(
+            color: AppTheme.bgCard.withValues(alpha: 0.88),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+              side: const BorderSide(color: Colors.white12),
+            ),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: () {
+                setState(() {
+                  _isSidebarOpen = !_isSidebarOpen;
+                });
+              },
+              child: Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Icon(
+                  _isSidebarOpen ? Icons.chevron_right : Icons.menu_open_rounded,
+                  color: Colors.white,
+                  size: 20,
                 ),
-              ]
-            : null,
-      ),
-      child: Row(
-        children: [
-          // ── Side-left stats panel ──────────────────────────────────────────
-          Container(
-            width: 72,
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            decoration: BoxDecoration(
-              color: isActive
-                  ? Colors.greenAccent.withValues(alpha: 0.08)
-                  : Colors.white.withValues(alpha: 0.03),
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(20),
-                bottomLeft: Radius.circular(20),
               ),
             ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _sideStatItem(
-                  Icons.straighten_rounded,
-                  dist.toStringAsFixed(1),
-                  'km',
-                  AppTheme.primary,
-                ),
-                const SizedBox(height: 8),
-                _sideStatItem(
-                  Icons.timer_outlined,
-                  '$duration',
-                  'min',
-                  const Color(0xFFf59e0b),
-                ),
-                const SizedBox(height: 8),
-                _sideStatItem(
-                  isActive ? Icons.circle : Icons.check_circle_outline,
-                  isActive ? 'Live' : 'Done',
-                  '',
-                  isActive ? Colors.greenAccent : Colors.white38,
-                ),
-              ],
-            ),
           ),
-          // ── Main content ───────────────────────────────────────────────────
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      // Avatar
-                      Stack(
-                        children: [
-                          Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: isActive
-                                    ? Colors.greenAccent.withValues(alpha: 0.5)
-                                    : Colors.white24,
-                                width: 2,
-                              ),
-                            ),
-                            child: ClipOval(
-                              child: avatarUrl.isNotEmpty
-                                  ? Image.network(
-                                      avatarUrl,
-                                      fit: BoxFit.cover,
-                                      errorBuilder:
-                                          (context, error, stackTrace) =>
-                                              _buildInitialsAvatar(
-                                                initials,
-                                                isActive,
-                                              ),
-                                    )
-                                  : _buildInitialsAvatar(initials, isActive),
-                            ),
-                          ),
-                          if (isActive)
-                            Positioned(
-                              bottom: 0,
-                              right: 0,
-                              child: Pulse(
-                                infinite: true,
-                                child: Container(
-                                  width: 10,
-                                  height: 10,
-                                  decoration: const BoxDecoration(
-                                    color: Colors.greenAccent,
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(width: 10),
-                      // Name + employee ID
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              name,
-                              style: GoogleFonts.kantumruyPro(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            Text(
-                              '($eid)',
-                              style: GoogleFonts.inter(
-                                color: Colors.white54,
-                                fontSize: 10,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      // Track button (active only)
-                      if (isActive)
-                        GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => TripTrackingScreen(
-                                  tripId: int.parse(trip['id'].toString()),
-                                ),
-                              ),
-                            );
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppTheme.primary,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Text(
-                              'តាមដាន',
-                              style: GoogleFonts.kantumruyPro(
-                                color: Colors.white,
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  // Destination
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.location_on,
-                        size: 12,
-                        color: AppTheme.primary.withValues(alpha: 0.7),
-                      ),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          customer,
-                          style: GoogleFonts.kantumruyPro(
-                            color: Colors.white70,
-                            fontSize: 12,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (started.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.access_time,
-                          size: 11,
-                          color: Colors.white38,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          started,
-                          style: GoogleFonts.inter(
-                            color: Colors.white38,
-                            fontSize: 10,
-                          ),
-                        ),
-                      ],
+        ),
+        if (_isSidebarOpen)
+          Positioned(
+            top: 80,
+            bottom: 16,
+            right: 16,
+            width: 270,
+            child: SlideInRight(
+              duration: const Duration(milliseconds: 250),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: AppTheme.bgCard.withValues(alpha: 0.95),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.white12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.4),
+                      blurRadius: 10,
+                      offset: const Offset(-2, 2),
                     ),
                   ],
-                ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+                      child: Text(
+                        "អ្នកបើកបរលោតសកម្ម",
+                        style: GoogleFonts.kantumruyPro(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                    const Divider(color: Colors.white10, height: 1),
+                    Expanded(
+                      child: ListView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                        itemCount: activeTrips.length,
+                        itemBuilder: (context, index) {
+                          final trip = activeTrips[index];
+                          return _buildSidebarActiveCard(trip);
+                        },
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _sideStatItem(IconData icon, String value, String label, Color color) {
-    return Column(
-      children: [
-        Icon(icon, size: 13, color: color),
-        const SizedBox(height: 2),
-        Text(
-          value,
-          style: GoogleFonts.inter(
-            color: color,
-            fontSize: 11,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        if (label.isNotEmpty)
-          Text(
-            label,
-            style: const TextStyle(color: Colors.white38, fontSize: 9),
           ),
       ],
     );
   }
 
-  Widget _buildInitialsAvatar(String initials, bool isActive) {
-    return Container(
-      color: isActive
-          ? Colors.greenAccent.withValues(alpha: 0.15)
-          : AppTheme.bgCard,
-      alignment: Alignment.center,
-      child: Text(
-        initials,
-        style: TextStyle(
-          color: isActive ? Colors.greenAccent : Colors.white54,
-          fontWeight: FontWeight.bold,
-          fontSize: 13,
-        ),
-      ),
-    );
-  }
+
+
+
 
   LatLng? _extractTripLatLng(dynamic trip) {
     if (trip == null) return null;
@@ -558,7 +425,8 @@ class _TripReportScreenState extends State<TripReportScreen>
       if (point == null) continue;
 
       final name = trip['user_name'] ?? trip['employee_name'] ?? trip['employee_id'] ?? 'N/A';
-      final eid = trip['employee_id'] ?? '';
+      final eid = (trip['employee_id'] ?? '').toString();
+      final customIcon = _profileBitmaps[eid];
 
       markers.add(
         Marker(
@@ -568,6 +436,7 @@ class _TripReportScreenState extends State<TripReportScreen>
             title: name,
             snippet: eid.isNotEmpty ? 'ID: $eid' : null,
           ),
+          icon: customIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
         ),
       );
     }
@@ -598,6 +467,197 @@ class _TripReportScreenState extends State<TripReportScreen>
       tiltGesturesEnabled: true,
       mapToolbarEnabled: false,
       compassEnabled: true,
+      onMapCreated: (controller) {
+        _combinedMapController = controller;
+      },
+      gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
+        Factory<OneSequenceGestureRecognizer>(
+          () => EagerGestureRecognizer(),
+        ),
+      },
+    );
+  }
+
+  void _focusOnUser(LatLng point) {
+    if (_combinedMapController != null) {
+      _combinedMapController!.animateCamera(
+        CameraUpdate.newLatLngZoom(point, 15),
+      );
+    }
+  }
+
+  Widget _buildInitialsAvatarSmall(String initials) {
+    return Container(
+      color: AppTheme.primary.withValues(alpha: 0.1),
+      alignment: Alignment.center,
+      child: Text(
+        initials,
+        style: TextStyle(
+          color: AppTheme.primary,
+          fontWeight: FontWeight.bold,
+          fontSize: 12,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSidebarActiveCard(dynamic trip) {
+    final name = trip['user_name'] ?? trip['employee_name'] ?? trip['employee_id'] ?? 'N/A';
+    final eid = trip['employee_id'] ?? '';
+    final customer = trip['customer_name'] ?? 'N/A';
+    final duration = trip['duration_minutes'] ?? 0;
+    final double dist = double.tryParse((trip['distance_km'] ?? trip['total_distance_km'] ?? '0').toString()) ?? 0.0;
+    final avatarUrl = trip['avatar_url']?.toString() ?? '';
+    final initials = name.trim().isEmpty
+        ? '?'
+        : name.trim().split(RegExp(r'\s+')).take(2).map((w) => w[0].toUpperCase()).join();
+
+    final point = _extractTripLatLng(trip);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppTheme.bgDark.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.primary.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              // Avatar
+              Stack(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: AppTheme.primary.withValues(alpha: 0.5), width: 1.5),
+                    ),
+                    child: ClipOval(
+                      child: avatarUrl.isNotEmpty
+                          ? Image.network(
+                              avatarUrl,
+                              fit: BoxFit.cover,
+                              errorBuilder: (ctx, err, stack) => _buildInitialsAvatarSmall(initials),
+                            )
+                          : _buildInitialsAvatarSmall(initials),
+                    ),
+                  ),
+                  Positioned(
+                    top: 0,
+                    right: 0,
+                    child: Container(
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(
+                        color: Colors.greenAccent,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: GoogleFonts.kantumruyPro(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      eid.isNotEmpty ? 'ID: $eid' : '',
+                      style: GoogleFonts.inter(
+                        color: Colors.white54,
+                        fontSize: 10,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '📍 $customer',
+            style: GoogleFonts.kantumruyPro(
+              color: Colors.white70,
+              fontSize: 11,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 6),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '⏱ $duration នាទី',
+                style: GoogleFonts.kantumruyPro(color: Colors.amber, fontSize: 10),
+              ),
+              Text(
+                '🛣 ${dist.toStringAsFixed(1)} គម',
+                style: GoogleFonts.kantumruyPro(color: AppTheme.primary, fontSize: 10),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              // Locate Button
+              if (point != null)
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => _focusOnUser(point),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      side: const BorderSide(color: Colors.white24),
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    child: const Icon(Icons.location_searching, size: 14),
+                  ),
+                ),
+              if (point != null) const SizedBox(width: 6),
+              // Track detail Button
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => TripTrackingScreen(
+                          tripId: int.parse(trip['id'].toString()),
+                        ),
+                      ),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    elevation: 0,
+                  ),
+                  child: Text(
+                    "តាមដាន",
+                    style: GoogleFonts.kantumruyPro(fontSize: 10, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 

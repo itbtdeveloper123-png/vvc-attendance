@@ -912,21 +912,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     UserProvider user,
   ) async {
     final accounts = await user.getRecentAccounts();
-    if (!mounted) return;
-
-    if (accounts.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'មិនមានគណនីចុងក្រោយ',
-            style: GoogleFonts.kantumruyPro(),
-          ),
-          backgroundColor: Colors.orangeAccent,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      return;
-    }
+    if (!context.mounted) return;
 
     final currentId = user.employeeId?.toString() ?? '';
     final currentName = user.name ?? 'គណនីបច្ចុប្បន្នក្នុងប្រព័ន្ធ';
@@ -1106,7 +1092,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               setState(() => _isSwitchingAccount = true);
                               final result = await user.login(id, userType);
                               setState(() => _isSwitchingAccount = false);
-                              if (!mounted) return;
+                              if (!context.mounted) return;
 
                               if (result['success'] == true) {
                                 Navigator.of(context).pushAndRemoveUntil(

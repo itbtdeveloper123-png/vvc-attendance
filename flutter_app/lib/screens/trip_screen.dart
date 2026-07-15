@@ -934,17 +934,27 @@ class _TripScreenState extends State<TripScreen>
     _polylines.clear();
 
     if (_routePoints.isNotEmpty) {
-      // Start marker (blue dot)
-      _markers.add(
-        Marker(
-          markerId: const MarkerId('start'),
-          position: _routePoints.first,
-          infoWindow: const InfoWindow(title: 'ចំណុចចាប់ផ្តើម'),
-          icon: BitmapDescriptor.defaultMarkerWithHue(
-            BitmapDescriptor.hueAzure,
+      // Only show start marker if we have moved away from it (more than 10 meters)
+      final showStart = _routePoints.length > 1 &&
+          Geolocator.distanceBetween(
+            _routePoints.first.latitude,
+            _routePoints.first.longitude,
+            _routePoints.last.latitude,
+            _routePoints.last.longitude,
+          ) > 10;
+
+      if (showStart) {
+        _markers.add(
+          Marker(
+            markerId: const MarkerId('start'),
+            position: _routePoints.first,
+            infoWindow: const InfoWindow(title: 'ចំណុចចាប់ផ្តើម'),
+            icon: BitmapDescriptor.defaultMarkerWithHue(
+              BitmapDescriptor.hueAzure,
+            ),
           ),
-        ),
-      );
+        );
+      }
       // Current position marker — use profile image if loaded, else green
       _markers.add(
         Marker(
@@ -1020,8 +1030,8 @@ class _TripScreenState extends State<TripScreen>
 
       final codec = await ui.instantiateImageCodec(
         response.bodyBytes,
-        targetWidth: 48,
-        targetHeight: 48,
+        targetWidth: 36,
+        targetHeight: 36,
       );
       final frame = await codec.getNextFrame();
       final image = frame.image;
@@ -1029,9 +1039,9 @@ class _TripScreenState extends State<TripScreen>
       // Draw circular clipped image with green border
       final recorder = ui.PictureRecorder();
       final canvas = Canvas(recorder);
-      const size = 48.0;
+      const size = 36.0;
       const half = size / 2;
-      const borderWidth = 3.0;
+      const borderWidth = 2.0;
 
       // Green border circle
       final borderPaint = Paint()..color = const Color(0xFF10b981);

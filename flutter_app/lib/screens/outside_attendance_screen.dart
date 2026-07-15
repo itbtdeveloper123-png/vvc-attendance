@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:convert';
-import 'dart:ui';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -8,6 +9,7 @@ import 'package:provider/provider.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform;
+import 'package:http/http.dart' as http;
 import '../providers/user_provider.dart';
 import '../services/api_service.dart';
 import '../services/notification_service.dart';
@@ -23,12 +25,101 @@ class OutsideAttendanceScreen extends StatefulWidget {
 class _OutsideAttendanceScreenState extends State<OutsideAttendanceScreen> {
   final ApiService _apiService = ApiService();
   final TextEditingController _locationController = TextEditingController();
-  
+
   bool _isLoading = false;
+  bool _isMapSatellite = false;
   Position? _currentPosition;
   GoogleMapController? _mapController;
   final Set<Marker> _markers = {};
   XFile? _capturedImage;
+  BitmapDescriptor? _profileMarkerBitmap;
+
+  Future<void> _loadProfileMarkerBitmap() async {
+    try {
+      final user = context.read<UserProvider>();
+      final avatarUrl = user.avatarUrl ?? '';
+      if (avatarUrl.isEmpty) return;
+
+      final response = await http
+          .get(Uri.parse(avatarUrl))
+          .timeout(const Duration(seconds: 8));
+      if (response.statusCode != 200) return;
+
+      final codec = await ui.instantiateImageCodec(
+        response.bodyBytes,
+        targetWidth: 48,
+        targetHeight: 48,
+      );
+      final frame = await codec.getNextFrame();
+      final image = frame.image;
+
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder);
+      const size = 48.0;
+      const half = size / 2;
+      const borderWidth = 3.0;
+
+      final borderPaint = Paint()..color = const Color(0xFF10b981);
+      canvas.drawCircle(const Offset(half, half), half, borderPaint);
+
+      final clipPath = Path()
+        ..addOval(
+          Rect.fromCircle(
+            center: const Offset(half, half),
+            radius: half - borderWidth,
+          ),
+        );
+      canvas.clipPath(clipPath);
+
+      final srcRect = Rect.fromLTWH(
+        0,
+        0,
+        image.width.toDouble(),
+        image.height.toDouble(),
+      );
+      final dstRect = Rect.fromLTWH(
+        borderWidth,
+        borderWidth,
+        size - borderWidth * 2,
+        size - borderWidth * 2,
+      );
+      canvas.drawImageRect(image, srcRect, dstRect, Paint());
+
+      final picture = recorder.endRecording();
+      final img = await picture.toImage(size.toInt(), size.toInt());
+      final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) return;
+
+      final Uint8List bytes = byteData.buffer.asUint8List();
+      final bitmap = BitmapDescriptor.bytes(bytes);
+
+      if (mounted) {
+        setState(() {
+          _profileMarkerBitmap = bitmap;
+          _updateProfileMarker();
+        });
+      }
+    } catch (e) {
+      debugPrint('Failed to load profile marker bitmap: $e');
+    }
+  }
+
+  void _updateProfileMarker() {
+    if (_currentPosition == null) return;
+    _markers.removeWhere((m) => m.markerId.value == 'profile');
+    if (_profileMarkerBitmap != null) {
+      _markers.add(
+        Marker(
+          markerId: const MarkerId('profile'),
+          position: LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
+          icon: _profileMarkerBitmap!,
+          anchor: const Offset(0.5, 0.5),
+        ),
+      );
+    }
+    setState(() {});
+  }
+
   Future<void> _captureImage() async {
     final picker = ImagePicker();
     final pickedFile = await picker.pickImage(
@@ -84,24 +175,27 @@ class _OutsideAttendanceScreenState extends State<OutsideAttendanceScreen> {
 
       setState(() {
         _currentPosition = position;
-        _markers.add(Marker(
-          markerId: const MarkerId('current'),
-          position: LatLng(position.latitude, position.longitude),
-          infoWindow: const InfoWindow(title: 'ទីតាំងរបស់អ្នក'),
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-        ));
+        _markers.add(
+          Marker(
+            markerId: const MarkerId('current'),
+            position: LatLng(position.latitude, position.longitude),
+            infoWindow: const InfoWindow(title: 'ទីតាំងរបស់អ្នក'),
+            icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+          ),
+        );
       });
 
       if (_mapController != null) {
         _mapController!.animateCamera(
           CameraUpdate.newLatLngZoom(
-            LatLng(position.latitude, position.longitude), 
-            16.0
+            LatLng(position.latitude, position.longitude),
+            16.0,
           ),
         );
       }
 
-      // Fetch geocoded address and populate the text field if empty
+      _loadProfileMarkerBitmap();
+
       _apiService.reverseGeocode(position.latitude, position.longitude).then((res) {
         if (res['success'] == true && res['address'] != null) {
           if (_locationController.text.trim().isEmpty) {
@@ -141,7 +235,7 @@ class _OutsideAttendanceScreenState extends State<OutsideAttendanceScreen> {
     try {
       String locationRaw = "${_currentPosition!.latitude},${_currentPosition!.longitude}";
       final userProvider = Provider.of<UserProvider>(context, listen: false);
-      
+
       String photoBase64 = base64Encode(await _capturedImage!.readAsBytes());
 
       final result = await _apiService.submitAttendance(
@@ -187,7 +281,7 @@ class _OutsideAttendanceScreenState extends State<OutsideAttendanceScreen> {
       barrierDismissible: false,
       builder: (context) => FadeInScale(
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
           child: AlertDialog(
             backgroundColor: const Color(0xFF1E293B).withValues(alpha: 0.9),
             shape: RoundedRectangleBorder(
@@ -236,9 +330,9 @@ class _OutsideAttendanceScreenState extends State<OutsideAttendanceScreen> {
   }
 
   Widget _buildMapWidget() {
-    bool isSupported = kIsWeb || 
-                       defaultTargetPlatform == TargetPlatform.android || 
-                       defaultTargetPlatform == TargetPlatform.iOS;
+    bool isSupported = kIsWeb ||
+        defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
 
     if (!isSupported) {
       return Container(
@@ -259,10 +353,10 @@ class _OutsideAttendanceScreenState extends State<OutsideAttendanceScreen> {
 
     return GoogleMap(
       initialCameraPosition: CameraPosition(
-        target: _currentPosition != null 
+        target: _currentPosition != null
             ? LatLng(_currentPosition!.latitude, _currentPosition!.longitude)
-            : const LatLng(11.5564, 104.9282), // Default Phnom Penh
-        zoom: 15,
+            : const LatLng(11.5564, 104.9282),
+        zoom: 16,
       ),
       onMapCreated: (controller) => _mapController = controller,
       markers: _markers,
@@ -270,6 +364,45 @@ class _OutsideAttendanceScreenState extends State<OutsideAttendanceScreen> {
       myLocationButtonEnabled: true,
       zoomControlsEnabled: false,
       mapToolbarEnabled: false,
+      mapType: _isMapSatellite ? MapType.satellite : MapType.normal,
+    );
+  }
+
+  Widget _buildMapTypeToggle() {
+    return Positioned(
+      top: 12,
+      right: 12,
+      child: GestureDetector(
+        onTap: () {
+          setState(() => _isMapSatellite = !_isMapSatellite);
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.70),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                _isMapSatellite ? Icons.map_outlined : Icons.satellite_alt_outlined,
+                color: Colors.white,
+                size: 18,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                _isMapSatellite ? 'Normal' : 'Satellite',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontFamily: 'KhmerFont',
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -277,156 +410,167 @@ class _OutsideAttendanceScreenState extends State<OutsideAttendanceScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.bgDark,
-      appBar: AppBar(
-        title: Text(
-          "Check-In ខាងក្រៅ",
-          style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: AppTheme.bgCard,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            onPressed: _determinePosition,
-          ),
-        ],
-      ),
       body: Stack(
         children: [
-          Column(
-            children: [
-              // Map View
-              Expanded(
-                flex: 4,
-                child: Container(
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    border: Border(bottom: BorderSide(color: AppTheme.textPrimary.withValues(alpha: 0.1))),
-                  ),
-                  child: _buildMapWidget(),
+          // Full-screen map
+          Positioned.fill(child: _buildMapWidget()),
+
+          // Map type toggle
+          _buildMapTypeToggle(),
+
+          // Top AppBar overlay
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: SafeArea(
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.70),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Row(
+                  children: [
+                    GestureDetector(
+                      onTap: () => Navigator.maybePop(context),
+                      child: const Icon(
+                        Icons.arrow_back_ios_new,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        "Check-In ខាងក្រៅ",
+                        style: GoogleFonts.kantumruyPro(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          fontSize: 16,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(
+                        Icons.refresh_rounded,
+                        color: Colors.white,
+                      ),
+                      onPressed: _determinePosition,
+                    ),
+                  ],
                 ),
               ),
+            ),
+          ),
 
-              // Controls View
-              Expanded(
-                flex: 6,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-                  decoration: BoxDecoration(
-                    color: AppTheme.bgCard,
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.2),
-                        blurRadius: 20,
-                        offset: const Offset(0, -5),
-                      ),
-                    ],
-                  ),
-                  child: SingleChildScrollView(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Camera Section
-                        Center(
-                          child: GestureDetector(
-                            onTap: _captureImage,
-                            child: Container(
-                              height: 120,
-                              width: 120,
-                              margin: const EdgeInsets.only(bottom: 20),
-                              decoration: BoxDecoration(
-                                color: AppTheme.bgDark,
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(color: AppTheme.primary.withValues(alpha: 0.5), width: 1),
-                                image: _capturedImage != null
-                                    ? DecorationImage(
-                                        image: kIsWeb ? NetworkImage(_capturedImage!.path) as ImageProvider : FileImage(File(_capturedImage!.path)),
-                                        fit: BoxFit.cover,
-                                      )
-                                    : null,
-                              ),
-                              child: _capturedImage == null
-                                  ? Column(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        Icon(Icons.camera_alt_rounded, size: 40, color: AppTheme.primary),
-                                        const SizedBox(height: 8),
-                                        Text(
-                                          "ថតរូបទីតាំង",
-                                          style: GoogleFonts.kantumruyPro(
-                                            color: AppTheme.primary,
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        )
-                                      ],
-                                    )
-                                  : Align(
-                                      alignment: Alignment.bottomRight,
-                                      child: Container(
-                                        padding: const EdgeInsets.all(4),
-                                        margin: const EdgeInsets.all(8),
-                                        decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(8)),
-                                        child: const Icon(Icons.edit, size: 16, color: Colors.white),
+          // Bottom controls overlay
+          Positioned(
+            left: 12,
+            right: 12,
+            bottom: 16,
+            child: SafeArea(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.75),
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Camera Section
+                    Center(
+                      child: GestureDetector(
+                        onTap: _captureImage,
+                        child: Container(
+                          height: 80,
+                          width: 80,
+                          margin: const EdgeInsets.only(bottom: 14),
+                          decoration: BoxDecoration(
+                            color: AppTheme.bgDark,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: AppTheme.primary.withValues(alpha: 0.5), width: 1),
+                            image: _capturedImage != null
+                                ? DecorationImage(
+                                    image: kIsWeb ? NetworkImage(_capturedImage!.path) as ImageProvider : FileImage(File(_capturedImage!.path)),
+                                    fit: BoxFit.cover,
+                                  )
+                                : null,
+                          ),
+                          child: _capturedImage == null
+                              ? Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.camera_alt_rounded, size: 28, color: AppTheme.primary),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      "ថតរូបទីតាំង",
+                                      style: GoogleFonts.kantumruyPro(
+                                        color: AppTheme.primary,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w600,
                                       ),
                                     ),
-                            ),
-                          ),
+                                  ],
+                                )
+                              : Align(
+                                  alignment: Alignment.bottomRight,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(3),
+                                    margin: const EdgeInsets.all(6),
+                                    decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(6)),
+                                    child: const Icon(Icons.edit, size: 14, color: Colors.white),
+                                  ),
+                                ),
                         ),
+                      ),
+                    ),
 
-                        Text(
-                          "ទីតាំងអតិថិជន ឬ គោលដៅ",
-                          style: GoogleFonts.kantumruyPro(
-                            color: AppTheme.textSecondary,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
+                    TextField(
+                      controller: _locationController,
+                      style: GoogleFonts.kantumruyPro(color: AppTheme.textPrimary),
+                      decoration: InputDecoration(
+                        hintText: "ឧទាហរណ៍: ការដ្ឋានបុរី ឬ ឈ្មោះអតិថិជន...",
+                        hintStyle: GoogleFonts.kantumruyPro(color: AppTheme.textMuted),
+                        filled: true,
+                        fillColor: AppTheme.bgDark,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide.none,
+                        ),
+                        prefixIcon: Icon(Icons.business_rounded, color: AppTheme.primary),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildActionButton(
+                            "Check-In",
+                            Colors.cyanAccent,
+                            Icons.login_rounded,
+                            () => _submitAttendance("Check-In"),
                           ),
                         ),
-                        const SizedBox(height: 10),
-                        TextField(
-                          controller: _locationController,
-                          style: GoogleFonts.kantumruyPro(color: AppTheme.textPrimary),
-                          decoration: InputDecoration(
-                            hintText: "ឧទាហរណ៍: ការដ្ឋានបុរី ឬ ឈ្មោះអតិថិជន...",
-                            hintStyle: GoogleFonts.kantumruyPro(color: AppTheme.textMuted),
-                            filled: true,
-                            fillColor: AppTheme.bgDark,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              borderSide: BorderSide.none,
-                            ),
-                            prefixIcon: Icon(Icons.business_rounded, color: AppTheme.primary),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildActionButton(
+                            "Check-Out",
+                            Colors.orangeAccent,
+                            Icons.logout_rounded,
+                            () => _submitAttendance("Check-Out"),
                           ),
-                        ),
-                        const SizedBox(height: 24),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _buildActionButton(
-                                "Check-In",
-                                Colors.cyanAccent,
-                                Icons.login_rounded,
-                                () => _submitAttendance("Check-In"),
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: _buildActionButton(
-                                "Check-Out",
-                                Colors.orangeAccent,
-                                Icons.logout_rounded,
-                                () => _submitAttendance("Check-Out"),
-                              ),
-                            ),
-                          ],
                         ),
                       ],
                     ),
-                  ),
+                  ],
                 ),
               ),
-            ],
+            ),
           ),
 
           if (_isLoading)
@@ -447,9 +591,9 @@ class _OutsideAttendanceScreenState extends State<OutsideAttendanceScreen> {
       style: ElevatedButton.styleFrom(
         backgroundColor: color.withValues(alpha: 0.15),
         foregroundColor: color,
-        padding: const EdgeInsets.symmetric(vertical: 16),
+        padding: const EdgeInsets.symmetric(vertical: 14),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(14),
           side: BorderSide(color: color.withValues(alpha: 0.5), width: 1.5),
         ),
         elevation: 0,
@@ -457,13 +601,13 @@ class _OutsideAttendanceScreenState extends State<OutsideAttendanceScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 22),
+          Icon(icon, size: 20),
           const SizedBox(width: 8),
           Text(
             label,
             style: GoogleFonts.inter(
               fontWeight: FontWeight.w800,
-              fontSize: 16,
+              fontSize: 15,
               letterSpacing: 0.5,
             ),
           ),
