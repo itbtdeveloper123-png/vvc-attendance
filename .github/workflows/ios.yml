@@ -68,7 +68,23 @@ jobs:
           echo "5) Package into unsigned .ipa (normalize to Runner.app)"
           mkdir -p ../build/ios/iphoneos/Payload
           # Force the app folder name to Runner.app so sideloaders that expect Runner.app work
-          cp -r "$APP_PATH" ../build/ios/iphoneos/Payload/Runner.app
+          # Use 'ditto' to copy app bundles on macOS (preserves bundles and resolves symlinks)
+          if command -v ditto >/dev/null 2>&1; then
+            ditto "$APP_PATH" ../build/ios/iphoneos/Payload/Runner.app
+          else
+            # fallback to cp -R but warn (cp may preserve symlinks which can produce empty IPA)
+            echo "Warning: ditto not found, falling back to cp -R"
+            cp -R "$APP_PATH" ../build/ios/iphoneos/Payload/Runner.app
+          fi
+
+          # Verify Info.plist exists inside the copied bundle
+          if [ ! -f ../build/ios/iphoneos/Payload/Runner.app/Info.plist ]; then
+            echo "ERROR: Info.plist not found inside Runner.app after copy"
+            echo "Listing Payload/Runner.app contents:" || true
+            ls -la ../build/ios/iphoneos/Payload || true
+            exit 1
+          fi
+
           cd ../build/ios/iphoneos
           zip -r Runner-unsigned.ipa Payload
           echo "IPA contents:" && unzip -l Runner-unsigned.ipa || true
