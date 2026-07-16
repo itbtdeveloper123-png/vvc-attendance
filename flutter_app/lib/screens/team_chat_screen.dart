@@ -62,6 +62,8 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
 
   // Upload progress tracking: key -> progress (0..1)
   final Map<String, double> _uploadProgress = {};
+  // Failed uploads map: taskId/fileName -> local temp file path for retry
+  final Map<String, String> _failedUploads = {};
   String groupStatus = 'accepted';
 
   bool _isRecording = false;
@@ -296,8 +298,8 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
     }
   }
 
-  // Upload helper with progress and retry support
-  Future<String?> _startUpload(String roomId, String fileName, Uint8List bytes) async {
+  // Upload helper with progress and retry support (uploads from local file path)
+  Future<String?> _startUploadFromPath(String roomId, String fileName, String filePath) async {
     final ref = firebase_storage.FirebaseStorage.instance
         .ref()
         .child('chat_images')
@@ -305,11 +307,19 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
         .child(fileName);
 
     try {
-      final uploadTask = ref.putData(bytes, firebase_storage.SettableMetadata(contentType: 'image/jpeg'));
+      firebase_storage.UploadTask uploadTask;
       final taskId = fileName;
       _uploadProgress[taskId] = 0.0;
-      setState(() {});
+      // Use putFile on native platforms, use putData on web
+      if (kIsWeb) {
+        final bytes = await File(filePath).readAsBytes();
+        uploadTask = ref.putData(bytes, firebase_storage.SettableMetadata(contentType: 'image/jpeg'));
+      } else {
+        final file = File(filePath);
+        uploadTask = ref.putFile(file, firebase_storage.SettableMetadata(contentType: 'image/jpeg'));
+      }
 
+      setState(() {});
       final sub = uploadTask.snapshotEvents.listen((event) {
         final progress = event.totalBytes > 0 ? (event.bytesTransferred / event.totalBytes) : 0.0;
         _uploadProgress[taskId] = progress;
@@ -321,9 +331,25 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
       _uploadProgress.remove(taskId);
       setState(() {});
       final downloadUrl = await snapshot.ref.getDownloadURL();
+      // On success remove any failed entry and delete temp file if exists
+      if (_failedUploads.containsKey(taskId)) {
+        final tempPath = _failedUploads.remove(taskId);
+        if (tempPath != null) {
+          try {
+            await File(tempPath).delete();
+          } catch (_) {}
+        }
+      }
       return downloadUrl;
     } catch (e) {
+      // On failure, keep a record to allow retry from local file
       _uploadProgress.remove(fileName);
+      // only set failed mapping if file exists
+      try {
+        if (await File(filePath).exists()) {
+          _failedUploads[fileName] = filePath;
+        }
+      } catch (_) {}
       setState(() {});
       debugPrint('Upload error: $e');
       return null;
@@ -1225,6 +1251,59 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // Failed uploads list (shows items that can be retried)
+            if (_failedUploads.isNotEmpty)
+              Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.red.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: _failedUploads.entries.map((entry) {
+                    final name = entry.key;
+                    final path = entry.value;
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6.0),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  name,
+                                  style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  path,
+                                  style: GoogleFonts.inter(color: Colors.white54, fontSize: 11),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.refresh, color: Colors.white70, size: 18),
+                            tooltip: 'Retry',
+                            onPressed: () => _retryUpload(name),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline, color: Colors.white54, size: 18),
+                            tooltip: 'Remove',
+                            onPressed: () => _removeFailed(name),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+
             // Upload progress bar(s)
             if (_uploadProgress.isNotEmpty)
               Column(
@@ -1245,10 +1324,10 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
                         Text('${(e.value * 100).toStringAsFixed(0)}%', style: const TextStyle(color: Colors.white70, fontSize: 12)),
                         const SizedBox(width: 8),
                         IconButton(
-                          icon: const Icon(Icons.refresh, color: Colors.white70, size: 18),
+                          icon: const Icon(Icons.cancel, color: Colors.white70, size: 18),
                           onPressed: () {
-                            // retry is not implemented per-file here — inform user
-                            _showMessage('Upload failed or interrupted — try again');
+                            // allow cancelling ongoing upload by key — not implemented fully
+                            _showMessage('ការផ្ទុកឡើងកំពុងដំណើរការ — សូមរង់ចាំ ឬចប់ដៃ');
                           },
                         )
                       ],
@@ -1578,22 +1657,31 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
     if (image != null) {
       final roomId = _getChatRoomId();
       final fileName = 'chat_${DateTime.now().millisecondsSinceEpoch}_${image.name}';
-      Uint8List bytes = await image.readAsBytes();
       try {
-        final downloadUrl = await _startUpload(roomId, fileName, bytes);
+        // Copy to app temp directory to ensure the file persists for retries
+        final tempDir = await getTemporaryDirectory();
+        final targetPath = '${tempDir.path}/$fileName';
+        // On some platforms image.path may be null or empty; guard
+        if (image.path.isNotEmpty) {
+          await File(image.path).copy(targetPath);
+        } else {
+          // fallback: read bytes and write to file
+          final bytes = await image.readAsBytes();
+          await File(targetPath).writeAsBytes(bytes);
+        }
+
+        final downloadUrl = await _startUploadFromPath(roomId, fileName, targetPath);
         if (downloadUrl != null && downloadUrl.isNotEmpty) {
           await _sendMessage(imageUrl: downloadUrl);
         } else {
-          final base64String = await compute(base64Encode, bytes);
-          await _sendMessage(base64Image: base64String);
+          // upload failed — _startUploadFromPath already recorded _failedUploads
+          _showMessage('បរាជ័យក្នុងការផ្ទុកឡើង — ទាញឡើងឡើងវិញពីបញ្ជីការផ្ទុកដែលបរាជ័យ។');
         }
       } catch (e) {
-        debugPrint('Image upload failed: $e');
-        final base64String = await compute(base64Encode, bytes);
-        await _sendMessage(base64Image: base64String);
+        debugPrint('Image upload failed (pick path): $e');
+        _showMessage('មិនអាចផ្ទះក្រុមបាន: $e');
       } finally {
-        // remove progress entry
-        _uploadProgress.remove(fileName);
+        // ensure UI update
         setState(() {});
       }
     }
@@ -1614,6 +1702,41 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
       if (!mounted) return;
       Navigator.pop(context);
     }
+  }
+
+  // Retry a failed upload from local temp file
+  Future<void> _retryUpload(String fileName) async {
+    final path = _failedUploads[fileName];
+    if (path == null) return;
+    final roomId = _getChatRoomId();
+    setState(() {
+      _uploadProgress[fileName] = 0.0;
+      _failedUploads.remove(fileName);
+    });
+
+    final downloadUrl = await _startUploadFromPath(roomId, fileName, path);
+    if (downloadUrl != null && downloadUrl.isNotEmpty) {
+      await _sendMessage(imageUrl: downloadUrl);
+    } else {
+      // re-add to failed if still exists
+      try {
+        if (await File(path).exists()) {
+          setState(() => _failedUploads[fileName] = path);
+        }
+      } catch (_) {}
+    }
+  }
+
+  // Remove failed upload entry and delete temp file
+  Future<void> _removeFailed(String fileName) async {
+    final path = _failedUploads.remove(fileName);
+    if (path != null) {
+      try {
+        final f = File(path);
+        if (await f.exists()) await f.delete();
+      } catch (_) {}
+    }
+    setState(() {});
   }
 
   void _showMessageOptions(String docId, Map<String, dynamic> msg, bool isMe) {
