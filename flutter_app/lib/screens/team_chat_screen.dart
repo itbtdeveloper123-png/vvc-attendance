@@ -225,6 +225,57 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
     _listenForNewerMessages(collection, roomId);
   }
 
+  // Scroll listener placeholder for pagination
+  void _onScroll() {
+    // Optional: trigger loading older messages when near top.
+    if (!_scrollController.hasClients) return;
+    try {
+      final pos = _scrollController.position;
+      if (pos.pixels <= pos.minScrollExtent + 80) {
+        // load more messages or indicate to user; placeholder for future pagination
+        // _loadMoreMessages();
+      }
+    } catch (e) {
+      // ignore errors from position access during dispose
+    }
+  }
+
+  Future<void> _loadInitialMessages(String collection, String roomId, {int limit = 50}) async {
+    try {
+      final snapshot = await _firestore
+          .collection(collection)
+          .doc(roomId)
+          .collection('messages')
+          .orderBy('timestamp', descending: true)
+          .limit(limit)
+          .get();
+      final docsAsc = snapshot.docs.reversed.toList();
+      _messageDocs.clear();
+      _messageDocs.addAll(docsAsc);
+      if (mounted) setState(() {});
+    } catch (e) {
+      debugPrint('Error loading initial messages: $e');
+    }
+  }
+
+  void _listenForNewerMessages(String collection, String roomId) {
+    // Listen to the latest messages and merge with current list using diffing
+    _messageSubscription?.cancel();
+    _messageSubscription = _firestore
+        .collection(collection)
+        .doc(roomId)
+        .collection('messages')
+        .orderBy('timestamp', descending: true)
+        .limit(50)
+        .snapshots()
+        .listen((snapshot) {
+      final docsAsc = snapshot.docs.reversed.toList();
+      _applyListDiff(docsAsc);
+    }, onError: (e) {
+      debugPrint('Message stream error: $e');
+    });
+  }
+
   String _getChatRoomId() {
     if (widget.isGroup) return widget.targetUserId;
     if (widget.targetUserId == 'ALL') return 'GROUP_TEAM_ALL';
