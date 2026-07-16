@@ -41,34 +41,42 @@ jobs:
         working-directory: flutter_app
         run: flutter pub get
 
-      - name: Build Unsigned IPA (no codesign)
+      - name: Build Unsigned IPA for Simulator (no codesign)
         working-directory: flutter_app
         run: |
-          # 1. Build ចេញជា .app bundle (Release mode) ដោយមិនប្រើ Code Sign
-          flutter build ios --release --no-codesign
-          
-          # 2. បង្កើត Folder សម្រាប់ផ្ទុកហ្វាយ IPA ចុងក្រោយ
-          mkdir -p build/ios/iphoneos
-          
-          # 3. ចូលទៅកាន់ Folder build/ios/iphoneos ដើម្បីរៀបចំរចនាសម្ព័ន្ធ Payload
+          # 1. Build Release សម្រាប់ iOS simulator ដោយមិនប្រើ codesign
+          flutter build ios --release --no-codesign --simulator
+
+          # 2. រក Runner.app ដែលបានបង្កើត (គ្រាន់តែគាំទ្រប៉ះពាល់ផ្លូវទាំងពីរ)
+          if [ -d "build/ios/iphonesimulator/Release-iphonesimulator/Runner.app" ]; then
+            APP_PATH="build/ios/iphonesimulator/Release-iphonesimulator/Runner.app"
+          elif [ -d "build/ios/iphonesimulator/Runner.app" ]; then
+            APP_PATH="build/ios/iphonesimulator/Runner.app"
+          else
+            echo "ERROR: Runner.app not found. Build output paths:"
+            ls -la build/ios/iphonesimulator || true
+            exit 1
+          fi
+
+          # 3. បង្កើត Payload និងចម្លង Runner.app ទៅក្នុងវា
+          mkdir -p build/ios/iphoneos/Payload
+          cp -r "$APP_PATH" build/ios/iphoneos/Payload/
+
+          # 4. បញ្ចុះជា zip (.ipa) សម្រាប់ artifact
           cd build/ios/iphoneos
-          mkdir Payload
-          
-          # 4. ចម្លង Runner.app ដែលទើបនឹង build រួច ចូលទៅក្នុង Payload
-          cp -r ../Release-iphoneos/Runner.app Payload/
-          
-          # 5. បង្កើតជាហ្វាយ IPA ដោយការ Zip ថត Payload នោះ
-          zip -r Runner-unsigned.ipa Payload
-          
-          # 6. លុបថត Payload បណ្តោះអាសន្នចេញវិញ
+          zip -r Runner-simulator.ipa Payload
+
+          # 5. លុបថត Payload បណ្ដោះអាសន្ន
           rm -rf Payload
-          
+          cd ../../../..
+
           echo "=== Verification ==="
-          ls -la
+          ls -la "$APP_PATH" || true
+          ls -la build/ios/iphoneos || true
 
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: vvc-hrm-ios-unsigned
-          path: flutter_app/build/ios/iphoneos/Runner-unsigned.ipa
+          name: vvc-hrm-ios-simulator
+          path: flutter_app/build/ios/iphoneos/Runner-simulator.ipa
           if-no-files-found: error
