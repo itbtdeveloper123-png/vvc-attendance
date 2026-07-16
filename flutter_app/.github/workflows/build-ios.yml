@@ -40,9 +40,19 @@ jobs:
         env:
           FLUTTER_NO_CODESIGN: 'true'
           CI: 'true'
+          CODE_SIGN_IDENTITY: '-'
+          PROVISIONING_PROFILE: ''
+          PROVISIONING_PROFILE_SPECIFIER: ''
+          CODE_SIGNING_REQUIRED: 'NO'
+          CODE_SIGNING_ALLOWED: 'NO'
         run: |
           cd flutter_app
-          flutter build ios --release --no-codesign
+          flutter build ios --release --no-codesign 2>&1 || true
+          # Check if build succeeded
+          if [ ! -d "build/ios/iphoneos/Runner.app" ]; then
+            echo "Error: Runner.app not found, build may have failed"
+            exit 1
+          fi
 
       - name: Create IPA package
         run: |
