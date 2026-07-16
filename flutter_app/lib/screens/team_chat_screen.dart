@@ -694,16 +694,32 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
                     showDateSeparator = true;
                   }
 
-                  return Column(
-                    children: [
-                      if (showDateSeparator) _buildDateSeparator(msg['timestamp']),
-                      _buildMessageBubble(
-                        messages[index].id,
-                        msg,
-                        isMe,
-                        showAvatar,
-                      ),
-                    ],
+                  return AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 300),
+                    switchInCurve: Curves.easeOutBack,
+                    switchOutCurve: Curves.easeIn,
+                    transitionBuilder: (child, anim) {
+                      final offsetAnim = Tween<Offset>(
+                        begin: const Offset(0, 0.1),
+                        end: Offset.zero,
+                      ).animate(anim);
+                      return SlideTransition(
+                        position: offsetAnim,
+                        child: FadeTransition(opacity: anim, child: child),
+                      );
+                    },
+                    child: Column(
+                      key: ValueKey(messages[index].id),
+                      children: [
+                        if (showDateSeparator) _buildDateSeparator(msg['timestamp']),
+                        _buildMessageBubble(
+                          messages[index].id,
+                          msg,
+                          isMe,
+                          showAvatar,
+                        ),
+                      ],
+                    ),
                   );
                 },
               );
@@ -789,7 +805,7 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
                 ],
                 Flexible(
                   child: GestureDetector(
-                    onLongPress: () => _showMessageOptions(docId, msg, isMe),
+                    onLongPress: () => _showQuickReactions(docId, msg, isMe),
                     onHorizontalDragEnd: (details) {
                       if (!isMe && details.primaryVelocity! > 0) {
                         setState(() => _replyTo = {
@@ -900,7 +916,17 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
                                 padding: const EdgeInsets.only(bottom: 8),
                                 child: ClipRRect(
                                   borderRadius: BorderRadius.circular(12),
-                                  child: _buildDecodedImage(msg['imageBase64']),
+                                  child: GestureDetector(
+                                   onTap: () {
+                                     Navigator.push(
+                                       context,
+                                       MaterialPageRoute(
+                                         builder: (_) => ImageViewerPage(base64Image: msg['imageBase64']),
+                                       ),
+                                     );
+                                   },
+                                   child: _buildDecodedImage(msg['imageBase64']),
+                                 ),
                                 ),
                               ),
                             if (msg['message'] != null && msg['message'].isNotEmpty)
@@ -1176,12 +1202,11 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
                         ),
                         const SizedBox(width: 8),
                         _msgController.text.trim().isEmpty
-                            ? GestureDetector(
-                                onTap: _isRecording ? null : _startRecording,
-                                child: Container(
-                                  width: 44,
-                                  height: 44,
-                                  alignment: Alignment.center,
+                            ? Material(
+                                color: Colors.transparent,
+                                child: Ink(
+                                  width: 48,
+                                  height: 48,
                                   decoration: BoxDecoration(
                                     gradient: LinearGradient(
                                       colors: [
@@ -1195,39 +1220,62 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
                                     boxShadow: [
                                       BoxShadow(
                                         color: Colors.black.withOpacity(0.35),
-                                        blurRadius: 8,
-                                        offset: const Offset(0, 3),
+                                        blurRadius: 10,
+                                        offset: const Offset(0, 4),
                                       ),
                                     ],
                                   ),
-                                  child: Icon(
-                                    _isRecording ? Icons.mic_rounded : Icons.mic_none_rounded,
-                                    color: Colors.white,
-                                    size: 22,
+                                  child: InkWell(
+                                    onTap: _isRecording ? null : _startRecording,
+                                    customBorder: const CircleBorder(),
+                                    splashColor: Colors.white24,
+                                    child: Center(
+                                      child: AnimatedSwitcher(
+                                        duration: const Duration(milliseconds: 180),
+                                        transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
+                                        child: Icon(
+                                          _isRecording ? Icons.mic_rounded : Icons.mic_none_rounded,
+                                          key: ValueKey<bool>(_isRecording),
+                                          color: Colors.white,
+                                          size: 22,
+                                        ),
+                                      ),
+                                    ),
                                   ),
                                 ),
                               )
-                            : GestureDetector(
-                                onTap: () => _sendMessage(),
-                                child: Container(
-                                  width: 44,
-                                  height: 44,
-                                  alignment: Alignment.center,
+                            : Material(
+                                color: Colors.transparent,
+                                child: Ink(
+                                  width: 48,
+                                  height: 48,
                                   decoration: BoxDecoration(
                                     color: AppTheme.primary,
                                     shape: BoxShape.circle,
                                     boxShadow: [
                                       BoxShadow(
                                         color: Colors.black.withOpacity(0.25),
-                                        blurRadius: 6,
+                                        blurRadius: 8,
                                         offset: const Offset(0, 3),
                                       ),
                                     ],
                                   ),
-                                  child: const Icon(
-                                    Icons.send_rounded,
-                                    color: Colors.white,
-                                    size: 22,
+                                  child: InkWell(
+                                    onTap: () => _sendMessage(),
+                                    customBorder: const CircleBorder(),
+                                    splashColor: Colors.white24,
+                                    child: Center(
+                                      child: AnimatedSwitcher(
+                                        duration: const Duration(milliseconds: 180),
+                                        transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
+                                        child: const Icon(
+                                          Icons.send_rounded,
+                                          key: ValueKey<String>('send_icon'),
+                                          color: Colors.white,
+                                          size: 22,
+                                        ),
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),
@@ -1536,17 +1584,68 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
           .collection('messages')
           .doc(docId);
 
-      await docRef.update({
-        'reactions.$emoji': FieldValue.arrayUnion([currentUserId]),
-      }).catchError((_) {
-        // If field doesn't exist, create it
-        return docRef.update({
-          'reactions': {emoji: [currentUserId]}
-        });
-      });
+      // Toggle reaction: add if not present, remove if already reacted
+      final snapshot = await docRef.get();
+      if (!snapshot.exists) return;
+      final data = snapshot.data() as Map<String, dynamic>;
+      final reactions = Map<String, dynamic>.from(data['reactions'] ?? {});
+      final List current = List.from(reactions[emoji] ?? []);
+      if (current.contains(currentUserId)) {
+        await docRef.update({'reactions.$emoji': FieldValue.arrayRemove([currentUserId])});
+      } else {
+        await docRef.update({'reactions.$emoji': FieldValue.arrayUnion([currentUserId])});
+      }
     } catch (e) {
       debugPrint('Error adding reaction: $e');
     }
+  }
+
+  void _showQuickReactions(String docId, Map<String, dynamic> msg, bool isMe) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(24),
+        child: Align(
+          alignment: Alignment.bottomCenter,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppTheme.bgCard,
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ..._emojiReactions.map((e) => GestureDetector(
+                      onTap: () {
+                        Navigator.pop(context);
+                        _addReaction(docId, e);
+                      },
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 6),
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.04),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(e, style: const TextStyle(fontSize: 22)),
+                      ),
+                    )),
+                const SizedBox(width: 8),
+                IconButton(
+                  icon: const Icon(Icons.more_horiz, color: Colors.white70),
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _showMessageOptions(docId, msg, isMe);
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _togglePinMessage(String docId) async {
