@@ -585,34 +585,45 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
           duration: const Duration(milliseconds: 220),
           curve: Curves.easeInOut,
           child: _showSearch
-              ? Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppTheme.bgCard.withValues(alpha: 0.6),
-                    border: Border(
-                      bottom: BorderSide(
-                        color: Colors.white.withValues(alpha: 0.1),
-                      ),
+              ? Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Container(
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: AppTheme.bgCard.withValues(alpha: 0.7),
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.25),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
-                  ),
-                  child: TextField(
-                    controller: _searchController,
-                    style: GoogleFonts.kantumruyPro(color: Colors.white),
-                    onChanged: (value) => setState(() => _searchQuery = value),
-                    decoration: InputDecoration(
-                      hintText: 'ស្វែងរកសារ...',
-                      hintStyle: const TextStyle(color: Colors.white30),
-                      border: InputBorder.none,
-                      prefixIcon: Icon(Icons.search, color: AppTheme.primaryLight),
-                      suffixIcon: _searchQuery.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.clear),
-                              onPressed: () {
-                                _searchController.clear();
-                                setState(() => _searchQuery = '');
-                              },
-                            )
-                          : null,
+                    child: TextField(
+                      controller: _searchController,
+                      style: GoogleFonts.kantumruyPro(color: Colors.white),
+                      onChanged: (value) => setState(() => _searchQuery = value),
+                      decoration: InputDecoration(
+                        hintText: 'ស្វែងរកសារ...',
+                        hintStyle: const TextStyle(color: Colors.white38),
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                        prefixIcon: Padding(
+                          padding: const EdgeInsets.only(left: 12, right: 8),
+                          child: Icon(Icons.search, color: AppTheme.primaryLight),
+                        ),
+                        prefixIconConstraints: const BoxConstraints(minWidth: 40),
+                        suffixIcon: _searchQuery.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear, color: Colors.white70),
+                                onPressed: () {
+                                  _searchController.clear();
+                                  setState(() => _searchQuery = '');
+                                },
+                              )
+                            : null,
+                      ),
                     ),
                   ),
                 )
@@ -704,30 +715,36 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
   }
 
   Widget _buildDateSeparator(Timestamp? timestamp) {
+    final label = _getDateSeparator(timestamp);
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 16),
+      margin: const EdgeInsets.symmetric(vertical: 12),
       child: Row(
         children: [
           Expanded(
             child: Container(
               height: 1,
-              color: Colors.white.withValues(alpha: 0.1),
+              color: Colors.white.withOpacity(0.06),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            margin: const EdgeInsets.symmetric(horizontal: 10),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.04),
+              borderRadius: BorderRadius.circular(20),
+            ),
             child: Text(
-              _getDateSeparator(timestamp),
+              label,
               style: GoogleFonts.kantumruyPro(
                 fontSize: 12,
-                color: Colors.white54,
+                color: Colors.white70,
               ),
             ),
           ),
           Expanded(
             child: Container(
               height: 1,
-              color: Colors.white.withValues(alpha: 0.1),
+              color: Colors.white.withOpacity(0.06),
             ),
           ),
         ],
@@ -783,36 +800,45 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
                       }
                     },
                     child: Container(
-                      padding: const EdgeInsets.all(12),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                       decoration: BoxDecoration(
                         gradient: isMe
-                            ? LinearGradient(
+                            ? const LinearGradient(
                                 colors: [
-                                  const Color(0xFF667eea),
-                                  const Color(0xFF764ba2),
+                                  Color(0xFF667eea),
+                                  Color(0xFF764ba2),
                                 ],
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
                               )
                             : null,
                         color: !isMe
-                            ? AppTheme.bgCard.withValues(alpha: 0.8)
+                            ? AppTheme.bgCard.withValues(alpha: 0.85)
                             : null,
                         borderRadius: isMe
                             ? const BorderRadius.only(
-                                topLeft: Radius.circular(20),
-                                topRight: Radius.circular(4),
-                                bottomLeft: Radius.circular(20),
-                                bottomRight: Radius.circular(20),
+                                topLeft: Radius.circular(18),
+                                topRight: Radius.circular(10),
+                                bottomLeft: Radius.circular(18),
+                                bottomRight: Radius.circular(18),
                               )
                             : const BorderRadius.only(
-                                topLeft: Radius.circular(4),
-                                topRight: Radius.circular(20),
-                                bottomLeft: Radius.circular(20),
-                                bottomRight: Radius.circular(20),
+                                topLeft: Radius.circular(10),
+                                topRight: Radius.circular(18),
+                                bottomLeft: Radius.circular(18),
+                                bottomRight: Radius.circular(18),
                               ),
+                        boxShadow: isMe
+                            ? [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.35),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 3),
+                                ),
+                              ]
+                            : null,
                         border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.1),
+                          color: Colors.white.withValues(alpha: 0.04),
                         ),
                       ),
                       child: Column(
@@ -1111,30 +1137,40 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
                         ),
                         Expanded(
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            height: 48,
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
                             decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.08),
-                              borderRadius: BorderRadius.circular(25),
+                              color: Colors.white.withValues(alpha: 0.06),
+                              borderRadius: BorderRadius.circular(24),
                               border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.1),
+                                color: Colors.white.withValues(alpha: 0.06),
                               ),
                             ),
-                            child: TextField(
-                              controller: _msgController,
-                              style: GoogleFonts.kantumruyPro(
-                                color: Colors.white,
-                                fontSize: 15,
-                              ),
-                              maxLines: null,
-                              onChanged: (v) {
-                                setState(() {});
-                                _updateTypingStatus(v.isNotEmpty);
-                              },
-                              decoration: const InputDecoration(
-                                hintText: "សរសេរសារ...",
-                                border: InputBorder.none,
-                                hintStyle: TextStyle(color: Colors.white30),
-                              ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: TextField(
+                                    controller: _msgController,
+                                    style: GoogleFonts.kantumruyPro(
+                                      color: Colors.white,
+                                      fontSize: 15,
+                                    ),
+                                    maxLines: 4,
+                                    minLines: 1,
+                                    onChanged: (v) {
+                                      setState(() {});
+                                      _updateTypingStatus(v.isNotEmpty);
+                                    },
+                                    decoration: const InputDecoration(
+                                      hintText: "សរសេរសារ...",
+                                      border: InputBorder.none,
+                                      hintStyle: TextStyle(color: Colors.white30),
+                                      isDense: true,
+                                      contentPadding: EdgeInsets.symmetric(vertical: 12),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
@@ -1143,50 +1179,55 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
                             ? GestureDetector(
                                 onTap: _isRecording ? null : _startRecording,
                                 child: Container(
-                                  padding: const EdgeInsets.all(10),
+                                  width: 44,
+                                  height: 44,
+                                  alignment: Alignment.center,
                                   decoration: BoxDecoration(
-                                    color: AppTheme.primary,
+                                    gradient: LinearGradient(
+                                      colors: [
+                                        AppTheme.primary.withValues(alpha: 1.0),
+                                        AppTheme.primaryLight.withValues(alpha: 1.0),
+                                      ],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                    ),
                                     shape: BoxShape.circle,
                                     boxShadow: [
                                       BoxShadow(
-                                        color: AppTheme.primary.withValues(
-                                          alpha: 0.3,
-                                        ),
-                                        blurRadius: 10,
-                                        offset: const Offset(0, 4),
+                                        color: Colors.black.withOpacity(0.35),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 3),
                                       ),
                                     ],
                                   ),
                                   child: Icon(
-                                    _isRecording
-                                        ? Icons.mic_rounded
-                                        : Icons.mic_none_rounded,
+                                    _isRecording ? Icons.mic_rounded : Icons.mic_none_rounded,
                                     color: Colors.white,
-                                    size: 24,
+                                    size: 22,
                                   ),
                                 ),
                               )
                             : GestureDetector(
                                 onTap: () => _sendMessage(),
                                 child: Container(
-                                  padding: const EdgeInsets.all(10),
+                                  width: 44,
+                                  height: 44,
+                                  alignment: Alignment.center,
                                   decoration: BoxDecoration(
                                     color: AppTheme.primary,
                                     shape: BoxShape.circle,
                                     boxShadow: [
                                       BoxShadow(
-                                        color: AppTheme.primary.withValues(
-                                          alpha: 0.3,
-                                        ),
-                                        blurRadius: 10,
-                                        offset: const Offset(0, 4),
+                                        color: Colors.black.withOpacity(0.25),
+                                        blurRadius: 6,
+                                        offset: const Offset(0, 3),
                                       ),
                                     ],
                                   ),
                                   child: const Icon(
                                     Icons.send_rounded,
                                     color: Colors.white,
-                                    size: 24,
+                                    size: 22,
                                   ),
                                 ),
                               ),
