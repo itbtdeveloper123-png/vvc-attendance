@@ -64,7 +64,35 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
   final Map<String, double> _uploadProgress = {};
   // Failed uploads map: taskId/fileName -> local temp file path for retry
   final Map<String, String> _failedUploads = {};
+  // Active upload tasks for cancellation
+  final Map<String, firebase_storage.UploadTask?> _uploadTasks = {};
   String groupStatus = 'accepted';
+
+  // Persist failed uploads across restarts
+  Future<void> _loadFailedUploadsFromPrefs() async {
+    if (kIsWeb) return; // persistence handled differently on web
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final jsonStr = prefs.getString('failed_uploads') ?? '{}';
+      final Map parsed = jsonDecode(jsonStr) as Map<dynamic, dynamic>;
+      parsed.forEach((k, v) {
+        if (v is String) _failedUploads[k.toString()] = v;
+      });
+      setState(() {});
+    } catch (e) {
+      debugPrint('Failed to load failed uploads prefs: $e');
+    }
+  }
+
+  Future<void> _saveFailedUploadsToPrefs() async {
+    if (kIsWeb) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('failed_uploads', jsonEncode(_failedUploads));
+    } catch (e) {
+      debugPrint('Failed to save failed uploads prefs: $e');
+    }
+  }
 
   bool _isRecording = false;
   int _recordingDuration = 0;
@@ -88,6 +116,8 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
     _recorder = record_pkg.AudioRecorder();
     _scrollController.addListener(_onScroll);
     _loadUser();
+    // Load persisted failed uploads (non-blocking)
+    _loadFailedUploadsFromPrefs();
   }
 
   Future<void> _loadUser() async {
@@ -312,6 +342,7 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
       _uploadProgress[taskId] = 0.0;
       // Use putFile on native platforms, use putData on web
       if (kIsWeb) {
+        // Web: read bytes from XFile path fallback
         final bytes = await File(filePath).readAsBytes();
         uploadTask = ref.putData(bytes, firebase_storage.SettableMetadata(contentType: 'image/jpeg'));
       } else {
@@ -319,7 +350,10 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
         uploadTask = ref.putFile(file, firebase_storage.SettableMetadata(contentType: 'image/jpeg'));
       }
 
+      // store upload task for cancellation
+      _uploadTasks[taskId] = uploadTask;
       setState(() {});
+
       final sub = uploadTask.snapshotEvents.listen((event) {
         final progress = event.totalBytes > 0 ? (event.bytesTransferred / event.totalBytes) : 0.0;
         _uploadProgress[taskId] = progress;
@@ -329,6 +363,7 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
       final snapshot = await uploadTask.whenComplete(() {});
       await sub.cancel();
       _uploadProgress.remove(taskId);
+      _uploadTasks.remove(taskId);
       setState(() {});
       final downloadUrl = await snapshot.ref.getDownloadURL();
       // On success remove any failed entry and delete temp file if exists
@@ -339,15 +374,18 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
             await File(tempPath).delete();
           } catch (_) {}
         }
+        await _saveFailedUploadsToPrefs();
       }
       return downloadUrl;
     } catch (e) {
       // On failure, keep a record to allow retry from local file
       _uploadProgress.remove(fileName);
-      // only set failed mapping if file exists
+      _uploadTasks.remove(fileName);
+      // only set failed mapping if file exists and not web
       try {
-        if (await File(filePath).exists()) {
+        if (!kIsWeb && await File(filePath).exists()) {
           _failedUploads[fileName] = filePath;
+          await _saveFailedUploadsToPrefs();
         }
       } catch (_) {}
       setState(() {});
@@ -1287,10 +1325,38 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
                               ],
                             ),
                           ),
+                          // Thumbnail preview (if available)
+                          if (!kIsWeb && path.isNotEmpty) ...[
+                            Container(
+                              width: 48,
+                              height: 48,
+                              margin: const EdgeInsets.only(right: 8),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(8),
+                                color: Colors.white12,
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.file(
+                                  File(path),
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (c, e, s) => const Icon(Icons.broken_image, color: Colors.white54),
+                                ),
+                              ),
+                            ),
+                          ] else ...[
+                            const SizedBox(width: 8),
+                          ],
+
                           IconButton(
                             icon: const Icon(Icons.refresh, color: Colors.white70, size: 18),
                             tooltip: 'Retry',
                             onPressed: () => _retryUpload(name),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.send_outlined, color: Colors.white70, size: 18),
+                            tooltip: 'Send inline (base64)',
+                            onPressed: () => _sendAsBase64(name),
                           ),
                           IconButton(
                             icon: const Icon(Icons.delete_outline, color: Colors.white54, size: 18),
@@ -1326,8 +1392,8 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
                         IconButton(
                           icon: const Icon(Icons.cancel, color: Colors.white70, size: 18),
                           onPressed: () {
-                            // allow cancelling ongoing upload by key — not implemented fully
-                            _showMessage('ការផ្ទុកឡើងកំពុងដំណើរការ — សូមរង់ចាំ ឬចប់ដៃ');
+                            // Cancel the ongoing upload task if present
+                            _cancelUpload(e.key);
                           },
                         )
                       ],
@@ -1711,17 +1777,20 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
     final roomId = _getChatRoomId();
     setState(() {
       _uploadProgress[fileName] = 0.0;
+      // keep the failed entry until success; remove visually to indicate retry
       _failedUploads.remove(fileName);
     });
 
     final downloadUrl = await _startUploadFromPath(roomId, fileName, path);
     if (downloadUrl != null && downloadUrl.isNotEmpty) {
       await _sendMessage(imageUrl: downloadUrl);
+      // success: save prefs already handled in startUpload
     } else {
       // re-add to failed if still exists
       try {
-        if (await File(path).exists()) {
+        if (!kIsWeb && await File(path).exists()) {
           setState(() => _failedUploads[fileName] = path);
+          await _saveFailedUploadsToPrefs();
         }
       } catch (_) {}
     }
@@ -1735,8 +1804,44 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
         final f = File(path);
         if (await f.exists()) await f.delete();
       } catch (_) {}
+      await _saveFailedUploadsToPrefs();
     }
     setState(() {});
+  }
+
+  // Cancel an ongoing upload
+  Future<void> _cancelUpload(String fileName) async {
+    final task = _uploadTasks[fileName];
+    if (task != null) {
+      try {
+        await task.cancel();
+      } catch (e) {
+        debugPrint('Cancel upload error: $e');
+      }
+    }
+    _uploadTasks.remove(fileName);
+    _uploadProgress.remove(fileName);
+    setState(() {});
+  }
+
+  // Send as inline base64 fallback
+  Future<void> _sendAsBase64(String fileName) async {
+    final path = _failedUploads[fileName];
+    if (path == null) return;
+    try {
+      final bytes = await File(path).readAsBytes();
+      if (bytes.isNotEmpty) {
+        final base64String = base64Encode(bytes);
+        await _sendMessage(base64Image: base64String);
+        // remove failed entry and delete temp file
+        await _removeFailed(fileName);
+      } else {
+        _showError('ឯកសារពុំមានទិន្នន័យ (Empty file)');
+      }
+    } catch (e) {
+      debugPrint('Send as base64 error: $e');
+      _showError('មិនអាចផ្ញើជាកូដ base64 បាន: $e');
+    }
   }
 
   void _showMessageOptions(String docId, Map<String, dynamic> msg, bool isMe) {
