@@ -65,11 +65,10 @@ jobs:
           fi
           echo "Found app: $APP_PATH"
 
-          echo "5) Package into unsigned .ipa"
+          echo "5) Package into unsigned .ipa (normalize to Runner.app)"
           mkdir -p ../build/ios/iphoneos/Payload
-          # preserve original app folder name (some sideloaders expect Runner.app specifically)
-          APP_BASENAME=$(basename "$APP_PATH")
-          cp -r "$APP_PATH" ../build/ios/iphoneos/Payload/"$APP_BASENAME"
+          # Force the app folder name to Runner.app so sideloaders that expect Runner.app work
+          cp -r "$APP_PATH" ../build/ios/iphoneos/Payload/Runner.app
           cd ../build/ios/iphoneos
           zip -r Runner-unsigned.ipa Payload
           echo "IPA contents:" && unzip -l Runner-unsigned.ipa || true
