@@ -296,7 +296,9 @@ class _TripScreenState extends State<TripScreen>
       return false;
     }
     if (permission == LocationPermission.always) return true;
-    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+    // Request background ("always") permission on all non-web platforms (Android & iOS).
+    // Permission.locationAlways works for both platforms via permission_handler.
+    if (!kIsWeb) {
       final backgroundStatus = await Permission.locationAlways.status;
       if (!backgroundStatus.isGranted) {
         final requested = await Permission.locationAlways.request();
@@ -309,11 +311,13 @@ class _TripScreenState extends State<TripScreen>
           return false;
         }
       }
+      // Request notification permission (useful for Android foreground service notification)
       final notificationStatus = await Permission.notification.status;
       if (!notificationStatus.isGranted) {
         await Permission.notification.request();
       }
     }
+
     return true;
   }
 

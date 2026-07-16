@@ -9,6 +9,7 @@ import 'package:google_nav_bar/google_nav_bar.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/user_provider.dart';
+import '../services/background_location_service.dart';
 import '../core/theme/theme_provider.dart';
 import '../utils/app_theme.dart';
 import '../widgets/app_widgets.dart';
@@ -103,9 +104,23 @@ class HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (mounted) {
         _checkForUpdates();
+
+        // Ensure background location service is running if an active trip exists.
+        // Sometimes the user returns to Home and the foreground map was the only
+        // place that kept the location active; any active trip should keep the
+        // background tracker running so location continues.
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          final currentTrip = prefs.getString('current_active_trip_id');
+          if (currentTrip != null && currentTrip.isNotEmpty) {
+            await BackgroundLocationService.startTracking();
+          }
+        } catch (e) {
+          debugPrint('Failed to start background tracking from HomeScreen: $e');
+        }
       }
     });
   }

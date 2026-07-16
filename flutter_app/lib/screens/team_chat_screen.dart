@@ -387,6 +387,10 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
           _buildBackground(),
           Column(
             children: [
+              // Add top spacing to account for the translucent AppBar when
+              // extendBodyBehindAppBar is true so the search field is visible
+              // and not hidden behind the AppBar.
+              SizedBox(height: kToolbarHeight + MediaQuery.of(context).padding.top),
               Expanded(child: _buildMessageList()),
               if (groupStatus == 'pending')
                 _buildInvitationPrompt()
