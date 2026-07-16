@@ -32,11 +32,12 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 const bucket = admin.storage().bucket();
 
-async function migrateCollection(collectionPath, limit = 200) {
-  console.log('Scanning', collectionPath);
+async function migrateCollection(collectionPath, limit = 200, dryRun = true, roomFilter = null) {
+  console.log('Scanning', collectionPath, 'dryRun=', dryRun, 'roomFilter=', roomFilter);
   const rooms = await db.collection(collectionPath).listDocuments();
   for (const roomDoc of rooms) {
     const roomId = roomDoc.id;
+    if (roomFilter && roomId !== roomFilter) continue;
     console.log('Room:', roomId);
     const messagesRef = roomDoc.collection('messages');
     const snapshot = await messagesRef.limit(limit).get();
@@ -45,7 +46,8 @@ async function migrateCollection(collectionPath, limit = 200) {
       const base64 = data.imageBase64;
       if (base64 && typeof base64 === 'string' && base64.length > 100) {
         try {
-          console.log('Migrating message', msgDoc.id);
+          console.log('Found base64 image in message', msgDoc.id);
+          if (dryRun) continue;
           const buffer = Buffer.from(base64, 'base64');
           const fileName = `chat_images/${roomId}/${Date.now()}_${msgDoc.id}.jpg`;
           const file = bucket.file(fileName);
@@ -66,11 +68,22 @@ async function migrateCollection(collectionPath, limit = 200) {
 
 (async () => {
   try {
-    // Migrate top-level chats and groups (adjust as needed)
-    await migrateCollection('chats');
-    await migrateCollection('groups');
+    const args = require('minimist')(process.argv.slice(2));
+    const dryRun = args['dry-run'] !== undefined ? args['dry-run'] === 'true' || args['dry-run'] === true : true;
+    const room = args['room'] || null;
+    const limit = args['limit'] ? parseInt(args['limit'], 10) : 200;
+    const collection = args['collection'] || null; // 'chats' or 'groups' or null for both
+
+    if (collection) {
+      await migrateCollection(collection, limit, dryRun, room);
+    } else {
+      await migrateCollection('chats', limit, dryRun, room);
+      await migrateCollection('groups', limit, dryRun, room);
+    }
+
     console.log('Done migration pass');
   } catch (e) {
     console.error(e);
   }
 })();
+

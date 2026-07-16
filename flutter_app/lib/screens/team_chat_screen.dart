@@ -84,6 +84,7 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
     _scrollController = ScrollController();
     _searchController = TextEditingController();
     _recorder = record_pkg.AudioRecorder();
+    _scrollController.addListener(_onScroll);
     _loadUser();
   }
 
@@ -186,18 +187,10 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
   void _setupMessageStream() {
     final roomId = _getChatRoomId();
     final collection = widget.isGroup ? 'groups' : 'chats';
-    _messageStream = _firestore
-        .collection(collection)
-        .doc(roomId)
-        .collection('messages')
-        .orderBy('timestamp', descending: true)
-        .snapshots();
 
-    // Subscribe and drive AnimatedList diffs
-    _messageSubscription?.cancel();
-    _messageSubscription = _messageStream?.listen((snapshot) {
-      _onMessageSnapshot(snapshot);
-    });
+    // Use paginated initial load + separate listener for new messages
+    _loadInitialMessages(collection, roomId);
+    _listenForNewerMessages(collection, roomId);
   }
 
   String _getChatRoomId() {
@@ -338,89 +331,71 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
   }
 
   void _onMessageSnapshot(QuerySnapshot snapshot) {
-    // Firestore snapshot is descending (newest first). Convert to ascending (oldest -> newest)
-    final newDocsDesc = snapshot.docs;
-    final newDocsAsc = newDocsDesc.reversed.toList();
+    // This method is preserved for compatibility but not used in paginated flow.
+    // See _applyListDiff for updated diffing logic.
+    final newDocsAsc = snapshot.docs.reversed.toList();
+    _applyListDiff(newDocsAsc);
+  }
 
-    // If initial load not done, populate without animations to avoid animating entire history
-    if (!_initialLoadDone) {
-      _messageDocs.clear();
-      _messageDocs.addAll(newDocsAsc);
-      _initialLoadDone = true;
-      setState(() {});
-      // Ensure list scrolls to bottom
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_scrollController.hasClients) {
-          _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
-        }
-      });
-      return;
-    }
-
-    final newIds = newDocsAsc.map((d) => d.id).toList();
+  void _applyListDiff(List<DocumentSnapshot> newDocsAsc) {
     final oldIds = _messageDocs.map((d) => d.id).toList();
+    final newIds = newDocsAsc.map((d) => d.id).toList();
 
-    // Detect removed ids
+    final lcsIds = _longestCommonSubsequence(oldIds, newIds);
+    final lcsSet = lcsIds.toSet();
+
+    // Remove items not in LCS (from end to start)
     for (int i = oldIds.length - 1; i >= 0; i--) {
       final id = oldIds[i];
-      if (!newIds.contains(id)) {
-        final removedIndex = i;
-        final removedDoc = _messageDocs.removeAt(removedIndex);
+      if (!lcsSet.contains(id)) {
+        final removedDoc = _messageDocs.removeAt(i);
         _animatedListKey.currentState?.removeItem(
-          removedIndex,
-          (context, anim) => SizeTransition(
-            sizeFactor: anim,
-            child: _buildMessageBubble(
-              removedDoc.id,
-              removedDoc.data() as Map<String, dynamic>,
-              (removedDoc.data() as Map<String, dynamic>)['senderId'] == currentUserId,
-              true,
-            ),
-          ),
-          duration: const Duration(milliseconds: 250),
-        );
-      }
-    }
-
-    // Handle inserts and moves/updates
-    for (int newIndex = 0; newIndex < newDocsAsc.length; newIndex++) {
-      final doc = newDocsAsc[newIndex];
-      final id = doc.id;
-      final oldIndex = _messageDocs.indexWhere((d) => d.id == id);
-
-      if (oldIndex == -1) {
-        // new insert
-        _messageDocs.insert(newIndex, doc);
-        _animatedListKey.currentState?.insertItem(newIndex, duration: const Duration(milliseconds: 300));
-      } else if (oldIndex != newIndex) {
-        // moved: perform remove then insert to animate move
-        final movedDoc = _messageDocs.removeAt(oldIndex);
-        _animatedListKey.currentState?.removeItem(
-          oldIndex,
-          (context, anim) => SizeTransition(sizeFactor: anim, child: _buildMessageBubble(movedDoc.id, movedDoc.data() as Map<String, dynamic>, (movedDoc.data() as Map<String, dynamic>)['senderId'] == currentUserId, true)),
+          i,
+          (context, anim) => SizeTransition(sizeFactor: anim, child: _buildMessageBubble(removedDoc.id, removedDoc.data() as Map<String, dynamic>, (removedDoc.data() as Map<String, dynamic>)['senderId'] == currentUserId, true)),
           duration: const Duration(milliseconds: 220),
         );
-        // adjust target index if removal was before insertion
-        final insertIndex = newIndex > oldIndex ? newIndex - 1 : newIndex;
-        _messageDocs.insert(insertIndex, doc);
-        _animatedListKey.currentState?.insertItem(insertIndex, duration: const Duration(milliseconds: 300));
-      } else {
-        // same position -> update data
-        _messageDocs[oldIndex] = doc;
       }
     }
 
-    // After processing, ensure newest visible if user at bottom
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        final max = _scrollController.position.maxScrollExtent;
-        final current = _scrollController.offset;
-        // If user is near bottom, scroll to show newest
-        if ((max - current) < 200) {
-          _scrollController.animateTo(max, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
-        }
+    // Insert items from newDocsAsc where not present
+    for (int newIndex = 0; newIndex < newIds.length; newIndex++) {
+      final id = newIds[newIndex];
+      if (!_messageDocs.any((d) => d.id == id)) {
+        final doc = newDocsAsc[newIndex];
+        _messageDocs.insert(newIndex, doc);
+        _animatedListKey.currentState?.insertItem(newIndex, duration: const Duration(milliseconds: 300));
+      } else {
+        // update existing
+        final idx = _messageDocs.indexWhere((d) => d.id == id);
+        _messageDocs[idx] = newDocsAsc[newIndex];
       }
-    });
+    }
+  }
+
+  List<String> _longestCommonSubsequence(List<String> a, List<String> b) {
+    final n = a.length;
+    final m = b.length;
+    final dp = List.generate(n + 1, (_) => List<int>.filled(m + 1, 0));
+    for (int i = n - 1; i >= 0; i--) {
+      for (int j = m - 1; j >= 0; j--) {
+        if (a[i] == b[j]) dp[i][j] = 1 + dp[i + 1][j + 1];
+        else dp[i][j] = dp[i + 1][j] >= dp[i][j + 1] ? dp[i + 1][j] : dp[i][j + 1];
+      }
+    }
+    // reconstruct
+    final res = <String>[];
+    int i = 0, j = 0;
+    while (i < n && j < m) {
+      if (a[i] == b[j]) {
+        res.add(a[i]);
+        i++; j++;
+      } else if (dp[i + 1][j] >= dp[i][j + 1]) {
+        i++;
+      } else {
+        j++;
+      }
+    }
+    return res;
   }
 
   String _formatLastSeen(Timestamp? timestamp) {
