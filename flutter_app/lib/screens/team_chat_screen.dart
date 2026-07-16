@@ -580,7 +580,6 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
         AnimatedSize(
           duration: const Duration(milliseconds: 220),
           curve: Curves.easeInOut,
-          vsync: this,
           child: _showSearch
               ? Container(
                   padding: const EdgeInsets.all(12),
