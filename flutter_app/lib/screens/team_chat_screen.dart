@@ -58,6 +58,10 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
   StreamSubscription<QuerySnapshot>? _messageSubscription;
   final GlobalKey<AnimatedListState> _animatedListKey = GlobalKey<AnimatedListState>();
   final List<DocumentSnapshot> _messageDocs = [];
+  bool _initialLoadDone = false;
+
+  // Upload progress tracking: key -> progress (0..1)
+  final Map<String, double> _uploadProgress = {};
   String groupStatus = 'accepted';
 
   bool _isRecording = false;
@@ -226,6 +230,7 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
     if (text.isEmpty &&
         base64Image == null &&
         base64Audio == null &&
+        (imageUrl == null || imageUrl.isEmpty) &&
         editDocId == null) {
       return;
     }
@@ -278,7 +283,7 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
         'lastSenderId': currentUserId,
       }, SetOptions(merge: true));
 
-      if (base64Image == null && base64Audio == null) _msgController.clear();
+      if ((base64Image == null || base64Image.isEmpty) && (base64Audio == null || base64Audio.isEmpty) && (imageUrl == null || imageUrl.isEmpty)) _msgController.clear();
       setState(() => _replyTo = null);
       _scrollToBottom();
       await _updateTypingStatus(false);
@@ -288,24 +293,74 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
   }
 
   void _scrollToBottom() {
-    // With AnimatedList we keep list in sync; ensure scroll to top (newest) if user is near bottom
+    // Scroll to bottom (end) of list
     if (_scrollController.hasClients) {
       _scrollController.animateTo(
-        0.0,
+        _scrollController.position.maxScrollExtent,
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeOut,
       );
     }
   }
 
+  // Upload helper with progress and retry support
+  Future<String?> _startUpload(String roomId, String fileName, Uint8List bytes) async {
+    final ref = firebase_storage.FirebaseStorage.instance
+        .ref()
+        .child('chat_images')
+        .child(roomId)
+        .child(fileName);
+
+    try {
+      final uploadTask = ref.putData(bytes, firebase_storage.SettableMetadata(contentType: 'image/jpeg'));
+      final taskId = fileName;
+      _uploadProgress[taskId] = 0.0;
+      setState(() {});
+
+      final sub = uploadTask.snapshotEvents.listen((event) {
+        final progress = event.totalBytes > 0 ? (event.bytesTransferred / event.totalBytes) : 0.0;
+        _uploadProgress[taskId] = progress;
+        setState(() {});
+      });
+
+      final snapshot = await uploadTask.whenComplete(() {});
+      await sub.cancel();
+      _uploadProgress.remove(taskId);
+      setState(() {});
+      final downloadUrl = await snapshot.ref.getDownloadURL();
+      return downloadUrl;
+    } catch (e) {
+      _uploadProgress.remove(fileName);
+      setState(() {});
+      debugPrint('Upload error: $e');
+      return null;
+    }
+  }
+
   void _onMessageSnapshot(QuerySnapshot snapshot) {
-    // Convert Firestore snapshot (descending newest-first) to ascending order (oldest-first)
+    // Firestore snapshot is descending (newest first). Convert to ascending (oldest -> newest)
     final newDocsDesc = snapshot.docs;
-    final newDocs = newDocsDesc.reversed.toList(); // now oldest -> newest
-    final newIds = newDocs.map((d) => d.id).toList();
+    final newDocsAsc = newDocsDesc.reversed.toList();
+
+    // If initial load not done, populate without animations to avoid animating entire history
+    if (!_initialLoadDone) {
+      _messageDocs.clear();
+      _messageDocs.addAll(newDocsAsc);
+      _initialLoadDone = true;
+      setState(() {});
+      // Ensure list scrolls to bottom
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_scrollController.hasClients) {
+          _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+        }
+      });
+      return;
+    }
+
+    final newIds = newDocsAsc.map((d) => d.id).toList();
     final oldIds = _messageDocs.map((d) => d.id).toList();
 
-    // Detect removed ids (iterate from end to preserve indices)
+    // Detect removed ids
     for (int i = oldIds.length - 1; i >= 0; i--) {
       final id = oldIds[i];
       if (!newIds.contains(id)) {
@@ -327,35 +382,45 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
       }
     }
 
-    // Detect additions and updates
-    for (int i = 0; i < newDocs.length; i++) {
-      final doc = newDocs[i];
+    // Handle inserts and moves/updates
+    for (int newIndex = 0; newIndex < newDocsAsc.length; newIndex++) {
+      final doc = newDocsAsc[newIndex];
       final id = doc.id;
-      if (!oldIds.contains(id)) {
-        // Insert new item at correct ascending index
-        _messageDocs.insert(i, doc);
-        _animatedListKey.currentState?.insertItem(i, duration: const Duration(milliseconds: 300));
+      final oldIndex = _messageDocs.indexWhere((d) => d.id == id);
 
-        // If inserted is the last (newest), scroll to bottom after frame
-        if (i == _messageDocs.length - 1) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (_scrollController.hasClients) {
-              _scrollController.animateTo(
-                _scrollController.position.maxScrollExtent,
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeOut,
-              );
-            }
-          });
-        }
+      if (oldIndex == -1) {
+        // new insert
+        _messageDocs.insert(newIndex, doc);
+        _animatedListKey.currentState?.insertItem(newIndex, duration: const Duration(milliseconds: 300));
+      } else if (oldIndex != newIndex) {
+        // moved: perform remove then insert to animate move
+        final movedDoc = _messageDocs.removeAt(oldIndex);
+        _animatedListKey.currentState?.removeItem(
+          oldIndex,
+          (context, anim) => SizeTransition(sizeFactor: anim, child: _buildMessageBubble(movedDoc.id, movedDoc.data() as Map<String, dynamic>, (movedDoc.data() as Map<String, dynamic>)['senderId'] == currentUserId, true)),
+          duration: const Duration(milliseconds: 220),
+        );
+        // adjust target index if removal was before insertion
+        final insertIndex = newIndex > oldIndex ? newIndex - 1 : newIndex;
+        _messageDocs.insert(insertIndex, doc);
+        _animatedListKey.currentState?.insertItem(insertIndex, duration: const Duration(milliseconds: 300));
       } else {
-        // update existing doc in place
-        final oldIndex = _messageDocs.indexWhere((d) => d.id == id);
-        if (oldIndex != -1) {
-          _messageDocs[oldIndex] = doc;
-        }
+        // same position -> update data
+        _messageDocs[oldIndex] = doc;
       }
     }
+
+    // After processing, ensure newest visible if user at bottom
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        final max = _scrollController.position.maxScrollExtent;
+        final current = _scrollController.offset;
+        // If user is near bottom, scroll to show newest
+        if ((max - current) < 200) {
+          _scrollController.animateTo(max, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+        }
+      }
+    });
   }
 
   String _formatLastSeen(Timestamp? timestamp) {
@@ -1185,6 +1250,37 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // Upload progress bar(s)
+            if (_uploadProgress.isNotEmpty)
+              Column(
+                children: _uploadProgress.entries.map((e) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 6.0),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: LinearProgressIndicator(
+                            value: e.value,
+                            minHeight: 6,
+                            backgroundColor: Colors.white12,
+                            valueColor: AlwaysStoppedAnimation(AppTheme.primaryLight),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text('${(e.value * 100).toStringAsFixed(0)}%', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          icon: const Icon(Icons.refresh, color: Colors.white70, size: 18),
+                          onPressed: () {
+                            // retry is not implemented per-file here — inform user
+                            _showMessage('Upload failed or interrupted — try again');
+                          },
+                        )
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
             // Reply preview card
             if (_replyTo != null)
               Container(
@@ -1505,28 +1601,25 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
       maxHeight: 2048,
     );
     if (image != null) {
+      final roomId = _getChatRoomId();
+      final fileName = 'chat_${DateTime.now().millisecondsSinceEpoch}_${image.name}';
+      Uint8List bytes = await image.readAsBytes();
       try {
-        // Upload to Firebase Storage and send URL in message
-        final roomId = _getChatRoomId();
-        final fileName = 'chat_${DateTime.now().millisecondsSinceEpoch}_${image.name}';
-        final ref = firebase_storage.FirebaseStorage.instance
-            .ref()
-            .child('chat_images')
-            .child(roomId)
-            .child(fileName);
-
-        Uint8List bytes = await image.readAsBytes();
-        final uploadTask = ref.putData(bytes, firebase_storage.SettableMetadata(contentType: 'image/jpeg'));
-        final snapshot = await uploadTask.whenComplete(() {});
-        final downloadUrl = await snapshot.ref.getDownloadURL();
-
-        await _sendMessage(imageUrl: downloadUrl);
+        final downloadUrl = await _startUpload(roomId, fileName, bytes);
+        if (downloadUrl != null && downloadUrl.isNotEmpty) {
+          await _sendMessage(imageUrl: downloadUrl);
+        } else {
+          final base64String = await compute(base64Encode, bytes);
+          await _sendMessage(base64Image: base64String);
+        }
       } catch (e) {
         debugPrint('Image upload failed: $e');
-        // Fallback to base64 send (legacy)
-        final bytes = await image.readAsBytes();
         final base64String = await compute(base64Encode, bytes);
         await _sendMessage(base64Image: base64String);
+      } finally {
+        // remove progress entry
+        _uploadProgress.remove(fileName);
+        setState(() {});
       }
     }
   }
