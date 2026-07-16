@@ -824,7 +824,7 @@ class _TripReportScreenState extends State<TripReportScreen>
           ],
         ),
       ),
-    );
+    ));
   }
 
   Widget _buildStatCell({
