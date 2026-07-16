@@ -1,3 +1,8 @@
 #include "Generated.xcconfig"
 #include? "MapsApiKey.xcconfig"
 IPHONEOS_DEPLOYMENT_TARGET = 15.0
+
+// Disable code signing for CI/CD builds
+CODE_SIGN_IDENTITY = 
+CODE_SIGNING_REQUIRED = NO
+

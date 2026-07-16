@@ -37,7 +37,12 @@ echo "Getting Flutter packages..."
 flutter pub get
 
 echo "Building unsigned iOS app bundle..."
-flutter build ios --release --no-codesign
+export FLUTTER_NO_CODESIGN=true
+flutter build ios --release --no-codesign 2>&1 || {
+  echo "iOS build failed. Attempting pod install and retry..."
+  cd ios && pod install --repo-update && cd ..
+  flutter build ios --release --no-codesign
+}
 
 if [[ ! -d "$APP_BUNDLE" ]]; then
   echo "Expected app bundle was not found at: $APP_BUNDLE"
