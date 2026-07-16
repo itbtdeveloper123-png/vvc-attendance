@@ -56,10 +56,10 @@ jobs:
           # Put build products into ../build/ios so paths are consistent
           xcodebuild -workspace Runner.xcworkspace -scheme Runner -configuration Release -sdk iphoneos BUILD_DIR=../build/ios clean build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" DEVELOPMENT_TEAM="" 2>&1 | tee ../xcodebuild-device.log || echo "xcodebuild finished with non-zero exit code, continuing to search for app"
 
-          echo "4) Find built Runner.app for device"
-          APP_PATH=$(find ../build/ios -type d -name "Runner.app" | head -n 1 || true)
+          echo "4) Find any built .app for device (supports custom PRODUCT_NAME)"
+          APP_PATH=$(find ../build/ios -type d -name "*.app" | head -n 1 || true)
           if [ -z "$APP_PATH" ]; then
-            echo "ERROR: Runner.app not found. Listing ../build/ios"
+            echo "ERROR: No .app found under ../build/ios. Listing ../build/ios"
             ls -la ../build/ios || true
             exit 1
           fi
@@ -67,9 +67,12 @@ jobs:
 
           echo "5) Package into unsigned .ipa"
           mkdir -p ../build/ios/iphoneos/Payload
-          cp -r "$APP_PATH" ../build/ios/iphoneos/Payload/
+          # preserve original app folder name (some sideloaders expect Runner.app specifically)
+          APP_BASENAME=$(basename "$APP_PATH")
+          cp -r "$APP_PATH" ../build/ios/iphoneos/Payload/"$APP_BASENAME"
           cd ../build/ios/iphoneos
           zip -r Runner-unsigned.ipa Payload
+          echo "IPA contents:" && unzip -l Runner-unsigned.ipa || true
           rm -rf Payload
           cd ../../../..
 
