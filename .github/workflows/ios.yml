@@ -41,43 +41,45 @@ jobs:
         working-directory: flutter_app
         run: flutter pub get
 
-      - name: Build Unsigned IPA for Simulator (no codesign)
+      - name: Build Unsigned IPA for Device (no codesign) (for re-signing locally)
         working-directory: flutter_app
         run: |
-          # 1. Build សម្រាប់ iOS simulator (Profile mode ឬ Debug) ដោយមិនប្រើ codesign
-          #    Release mode មិនគាំទ្រសម្រាប់ simulator (error ពេលហៅ Release)
-          flutter build ios --profile --no-codesign --simulator || flutter build ios --debug --no-codesign --simulator
+          set -euo pipefail
+          echo "1) Try flutter build ios --no-codesign (may fail on some Xcode versions)"
+          flutter build ios --no-codesign || true
 
-          # 2. ស្វែងរក Runner.app ដែលបានបង្កើត សម្រាប់ iphonesimulator (robust search)
-          APP_PATH=""
-          APP_PATH=$(find build/ios -path "*/iphonesimulator/*" -type d -name "Runner.app" | head -n 1 || true)
+          echo "2) Ensure CocoaPods are installed"
+          cd ios
+          pod install --repo-update || pod install || true
+
+          echo "3) Build .app for device using xcodebuild with signing disabled (fallback)"
+          # Put build products into ../build/ios so paths are consistent
+          xcodebuild -workspace Runner.xcworkspace -scheme Runner -configuration Release -sdk iphoneos BUILD_DIR=../build/ios clean build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" DEVELOPMENT_TEAM="" 2>&1 | tee ../xcodebuild-device.log || echo "xcodebuild finished with non-zero exit code, continuing to search for app"
+
+          echo "4) Find built Runner.app for device"
+          APP_PATH=$(find ../build/ios -type d -name "Runner.app" | head -n 1 || true)
           if [ -z "$APP_PATH" ]; then
-            echo "ERROR: Runner.app not found. Listing build/ios contents for debugging:"
-            ls -la build/ios || true
+            echo "ERROR: Runner.app not found. Listing ../build/ios"
+            ls -la ../build/ios || true
             exit 1
           fi
+          echo "Found app: $APP_PATH"
 
-          echo "Found Runner.app at: $APP_PATH"
-
-          # 3. បង្កើត Payload និងចម្លង Runner.app ទៅក្នុងវា
-          mkdir -p build/ios/iphoneos/Payload
-          cp -r "$APP_PATH" build/ios/iphoneos/Payload/
-
-          # 4. បញ្ចុះជា zip (.ipa) សម្រាប់ artifact
-          cd build/ios/iphoneos
-          zip -r Runner-simulator.ipa Payload
-
-          # 5. លុបថត Payload បណ្ដោះអាសន្ន
+          echo "5) Package into unsigned .ipa"
+          mkdir -p ../build/ios/iphoneos/Payload
+          cp -r "$APP_PATH" ../build/ios/iphoneos/Payload/
+          cd ../build/ios/iphoneos
+          zip -r Runner-unsigned.ipa Payload
           rm -rf Payload
           cd ../../../..
 
           echo "=== Verification ==="
           ls -la "$APP_PATH" || true
-          ls -la build/ios/iphoneos || true
+          ls -la flutter_app/build/ios/iphoneos || true
 
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: vvc-hrm-ios-simulator
-          path: flutter_app/build/ios/iphoneos/Runner-simulator.ipa
+          name: vvc-hrm-ios-unsigned
+          path: flutter_app/build/ios/iphoneos/Runner-unsigned.ipa
           if-no-files-found: error
