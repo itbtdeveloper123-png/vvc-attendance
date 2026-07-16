@@ -44,19 +44,20 @@ jobs:
       - name: Build Unsigned IPA for Simulator (no codesign)
         working-directory: flutter_app
         run: |
-          # 1. Build Release សម្រាប់ iOS simulator ដោយមិនប្រើ codesign
-          flutter build ios --release --no-codesign --simulator
+          # 1. Build សម្រាប់ iOS simulator (Profile mode ឬ Debug) ដោយមិនប្រើ codesign
+          #    Release mode មិនគាំទ្រសម្រាប់ simulator (error ពេលហៅ Release)
+          flutter build ios --profile --no-codesign --simulator || flutter build ios --debug --no-codesign --simulator
 
-          # 2. រក Runner.app ដែលបានបង្កើត (គ្រាន់តែគាំទ្រប៉ះពាល់ផ្លូវទាំងពីរ)
-          if [ -d "build/ios/iphonesimulator/Release-iphonesimulator/Runner.app" ]; then
-            APP_PATH="build/ios/iphonesimulator/Release-iphonesimulator/Runner.app"
-          elif [ -d "build/ios/iphonesimulator/Runner.app" ]; then
-            APP_PATH="build/ios/iphonesimulator/Runner.app"
-          else
-            echo "ERROR: Runner.app not found. Build output paths:"
-            ls -la build/ios/iphonesimulator || true
+          # 2. ស្វែងរក Runner.app ដែលបានបង្កើត សម្រាប់ iphonesimulator (robust search)
+          APP_PATH=""
+          APP_PATH=$(find build/ios -path "*/iphonesimulator/*" -type d -name "Runner.app" | head -n 1 || true)
+          if [ -z "$APP_PATH" ]; then
+            echo "ERROR: Runner.app not found. Listing build/ios contents for debugging:"
+            ls -la build/ios || true
             exit 1
           fi
+
+          echo "Found Runner.app at: $APP_PATH"
 
           # 3. បង្កើត Payload និងចម្លង Runner.app ទៅក្នុងវា
           mkdir -p build/ios/iphoneos/Payload
