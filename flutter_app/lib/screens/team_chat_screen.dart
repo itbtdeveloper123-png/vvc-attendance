@@ -1,10 +1,14 @@
 import 'dart:ui';
 import 'dart:convert';
 import 'dart:async';
+import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart' as firebase_storage;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -13,11 +17,13 @@ import 'package:record/record.dart' as record_pkg;
 import 'package:audioplayers/audioplayers.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:animate_do/animate_do.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../providers/user_provider.dart';
 import '../services/api_service.dart';
 import '../utils/app_theme.dart';
 import 'profile_screen.dart';
 import 'shared_media_screen.dart';
+import '../widgets/image_viewer.dart';
 
 class TeamChatScreen extends StatefulWidget {
   final String targetUserId;
@@ -49,6 +55,9 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
   String currentUserId = '';
   String currentUserPhoto = '';
   Stream<QuerySnapshot>? _messageStream;
+  StreamSubscription<QuerySnapshot>? _messageSubscription;
+  final GlobalKey<AnimatedListState> _animatedListKey = GlobalKey<AnimatedListState>();
+  final List<DocumentSnapshot> _messageDocs = [];
   String groupStatus = 'accepted';
 
   bool _isRecording = false;
@@ -179,6 +188,12 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
         .collection('messages')
         .orderBy('timestamp', descending: true)
         .snapshots();
+
+    // Subscribe and drive AnimatedList diffs
+    _messageSubscription?.cancel();
+    _messageSubscription = _messageStream?.listen((snapshot) {
+      _onMessageSnapshot(snapshot);
+    });
   }
 
   String _getChatRoomId() {
@@ -204,6 +219,7 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
   Future<void> _sendMessage({
     String? base64Image,
     String? base64Audio,
+    String? imageUrl,
     String? editDocId,
   }) async {
     final text = _msgController.text.trim();
@@ -234,6 +250,7 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
         'senderPhoto': currentUserPhoto,
         'message': text,
         'imageBase64': base64Image ?? '',
+        'imageUrl': imageUrl ?? '',
         'audioBase64': base64Audio ?? '',
         'timestamp': FieldValue.serverTimestamp(),
         'isRead': false,
@@ -251,9 +268,9 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
 
       String lastMsg = text.isNotEmpty
           ? text
-          : (base64Image != null
+          : (imageUrl != null && imageUrl.isNotEmpty
                 ? '📷 រូបភាព (Image)'
-                : '🎤 សារសំឡេង (Voice Message)');
+                : (base64Image != null ? '📷 រូបភាព (Image)' : '🎤 សារសំឡេង (Voice Message)'));
 
       await _firestore.collection(collection).doc(roomId).set({
         'lastMessage': lastMsg,
@@ -271,12 +288,73 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
   }
 
   void _scrollToBottom() {
+    // With AnimatedList we keep list in sync; ensure scroll to top (newest) if user is near bottom
     if (_scrollController.hasClients) {
       _scrollController.animateTo(
         0.0,
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeOut,
       );
+    }
+  }
+
+  void _onMessageSnapshot(QuerySnapshot snapshot) {
+    // Convert Firestore snapshot (descending newest-first) to ascending order (oldest-first)
+    final newDocsDesc = snapshot.docs;
+    final newDocs = newDocsDesc.reversed.toList(); // now oldest -> newest
+    final newIds = newDocs.map((d) => d.id).toList();
+    final oldIds = _messageDocs.map((d) => d.id).toList();
+
+    // Detect removed ids (iterate from end to preserve indices)
+    for (int i = oldIds.length - 1; i >= 0; i--) {
+      final id = oldIds[i];
+      if (!newIds.contains(id)) {
+        final removedIndex = i;
+        final removedDoc = _messageDocs.removeAt(removedIndex);
+        _animatedListKey.currentState?.removeItem(
+          removedIndex,
+          (context, anim) => SizeTransition(
+            sizeFactor: anim,
+            child: _buildMessageBubble(
+              removedDoc.id,
+              removedDoc.data() as Map<String, dynamic>,
+              (removedDoc.data() as Map<String, dynamic>)['senderId'] == currentUserId,
+              true,
+            ),
+          ),
+          duration: const Duration(milliseconds: 250),
+        );
+      }
+    }
+
+    // Detect additions and updates
+    for (int i = 0; i < newDocs.length; i++) {
+      final doc = newDocs[i];
+      final id = doc.id;
+      if (!oldIds.contains(id)) {
+        // Insert new item at correct ascending index
+        _messageDocs.insert(i, doc);
+        _animatedListKey.currentState?.insertItem(i, duration: const Duration(milliseconds: 300));
+
+        // If inserted is the last (newest), scroll to bottom after frame
+        if (i == _messageDocs.length - 1) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (_scrollController.hasClients) {
+              _scrollController.animateTo(
+                _scrollController.position.maxScrollExtent,
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeOut,
+              );
+            }
+          });
+        }
+      } else {
+        // update existing doc in place
+        final oldIndex = _messageDocs.indexWhere((d) => d.id == id);
+        if (oldIndex != -1) {
+          _messageDocs[oldIndex] = doc;
+        }
+      }
     }
   }
 
@@ -373,6 +451,7 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
     _scrollController.dispose();
     _recordingTimer?.cancel();
     _typingSubscription?.cancel();
+    _messageSubscription?.cancel();
     super.dispose();
   }
 
@@ -653,75 +732,40 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
             ),
           ),
         Expanded(
-          child: StreamBuilder<QuerySnapshot>(
-            stream: _messageStream,
-            builder: (context, snapshot) {
-              if (!snapshot.hasData) {
-                return const Center(child: CircularProgressIndicator());
+          child: AnimatedList(
+            key: _animatedListKey,
+            controller: _scrollController,
+            reverse: false,
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
+            initialItemCount: _messageDocs.length,
+            itemBuilder: (context, index, animation) {
+              final doc = _messageDocs[index];
+              final msg = doc.data() as Map<String, dynamic>;
+              final isMe = msg['senderId'] == currentUserId;
+
+              // Determine whether to show avatar relative to next item
+              bool showAvatar = true;
+              if (index < _messageDocs.length - 1) {
+                final next = _messageDocs[index + 1].data() as Map<String, dynamic>;
+                showAvatar = next['senderId'] != msg['senderId'];
               }
-              var messages = snapshot.data!.docs;
 
-              // Filter based on search
-              if (_searchQuery.isNotEmpty) {
-                messages = messages
-                    .where((doc) {
-                      final msg = doc.data() as Map<String, dynamic>;
-                      final text = (msg['message'] ?? '').toString().toLowerCase();
-                      return text.contains(_searchQuery.toLowerCase());
-                    })
-                    .toList();
+              bool showDateSeparator = false;
+              if (index < _messageDocs.length - 1) {
+                final next = _messageDocs[index + 1].data() as Map<String, dynamic>;
+                showDateSeparator = _shouldShowDateSeparator(msg, next);
+              } else {
+                showDateSeparator = true;
               }
 
-              return ListView.builder(
-                controller: _scrollController,
-                reverse: true,
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
-                itemCount: messages.length,
-                itemBuilder: (context, index) {
-                  final msg = messages[index].data() as Map<String, dynamic>;
-                  final isMe = msg['senderId'] == currentUserId;
-                  bool showAvatar =
-                      index == 0 ||
-                      (messages[index - 1].data() as Map)['senderId'] !=
-                          msg['senderId'];
-
-                  // Show date separator if needed
-                  bool showDateSeparator = false;
-                  if (index < messages.length - 1) {
-                    final nextMsg = messages[index + 1].data() as Map<String, dynamic>;
-                    showDateSeparator = _shouldShowDateSeparator(msg, nextMsg);
-                  } else {
-                    showDateSeparator = true;
-                  }
-
-                  return AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 300),
-                    switchInCurve: Curves.easeOutBack,
-                    switchOutCurve: Curves.easeIn,
-                    transitionBuilder: (child, anim) {
-                      final offsetAnim = Tween<Offset>(
-                        begin: const Offset(0, 0.1),
-                        end: Offset.zero,
-                      ).animate(anim);
-                      return SlideTransition(
-                        position: offsetAnim,
-                        child: FadeTransition(opacity: anim, child: child),
-                      );
-                    },
-                    child: Column(
-                      key: ValueKey(messages[index].id),
-                      children: [
-                        if (showDateSeparator) _buildDateSeparator(msg['timestamp']),
-                        _buildMessageBubble(
-                          messages[index].id,
-                          msg,
-                          isMe,
-                          showAvatar,
-                        ),
-                      ],
-                    ),
-                  );
-                },
+              return SizeTransition(
+                sizeFactor: animation,
+                child: Column(
+                  children: [
+                    if (showDateSeparator) _buildDateSeparator(msg['timestamp']),
+                    _buildMessageBubble(doc.id, msg, isMe, showAvatar),
+                  ],
+                ),
               );
             },
           ),
@@ -910,13 +954,46 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
                               isMe: isMe,
                             )
                           else ...[
-                            if (msg['imageBase64'] != null &&
-                                msg['imageBase64'].length > 100)
+                            if (msg['imageUrl'] != null && (msg['imageUrl'] as String).isNotEmpty)
                               Padding(
                                 padding: const EdgeInsets.only(bottom: 8),
                                 child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(12),
-                                  child: GestureDetector(
+                                 borderRadius: BorderRadius.circular(12),
+                                 child: GestureDetector(
+                                   onTap: () {
+                                     Navigator.push(
+                                       context,
+                                       MaterialPageRoute(
+                                         builder: (_) => ImageViewerPage(imageUrl: msg['imageUrl']),
+                                       ),
+                                     );
+                                   },
+                                   child: CachedNetworkImage(
+                                     imageUrl: msg['imageUrl'],
+                                     placeholder: (c, u) => Container(
+                                       width: double.infinity,
+                                       height: 150,
+                                       color: Colors.black12,
+                                       child: const Center(child: CircularProgressIndicator(color: Colors.white54)),
+                                     ),
+                                     errorWidget: (c, u, e) => Container(
+                                       width: double.infinity,
+                                       height: 150,
+                                       color: Colors.black12,
+                                       child: const Center(child: Icon(Icons.broken_image, color: Colors.white54)),
+                                     ),
+                                     fit: BoxFit.cover,
+                                   ),
+                                 ),
+                                ),
+                              )
+                            else if (msg['imageBase64'] != null &&
+                                (msg['imageBase64'] as String).length > 100)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: ClipRRect(
+                                 borderRadius: BorderRadius.circular(12),
+                                 child: GestureDetector(
                                    onTap: () {
                                      Navigator.push(
                                        context,
@@ -1051,24 +1128,35 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
     );
 
     return Wrap(
-      spacing: 4,
+      spacing: 6,
       children: reactionMap.entries.map((entry) {
+        final reacted = entry.value.contains(currentUserId);
         return GestureDetector(
-          onTap: () => _toggleReaction(entry.key),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: entry.value.contains(currentUserId)
-                    ? AppTheme.primaryLight
-                    : Colors.transparent,
+          onTap: () {
+            HapticFeedback.selectionClick();
+            _toggleReaction(entry.key);
+          },
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 220),
+            transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
+            child: Container(
+              key: ValueKey('${entry.key}-${entry.value.length}-${reacted}'),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: reacted ? AppTheme.primary.withValues(alpha: 0.14) : Colors.white.withOpacity(0.04),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: reacted ? AppTheme.primaryLight : Colors.transparent,
+                ),
               ),
-            ),
-            child: Text(
-              '${entry.key} ${entry.value.length}',
-              style: const TextStyle(fontSize: 11),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(entry.key, style: const TextStyle(fontSize: 14)),
+                  const SizedBox(width: 6),
+                  Text('${entry.value.length}', style: const TextStyle(fontSize: 12))
+                ],
+              ),
             ),
           ),
         );
@@ -1412,14 +1500,34 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
   Future<void> _pickImage() async {
     final XFile? image = await _picker.pickImage(
       source: ImageSource.gallery,
-      imageQuality: 70,
-      maxWidth: 1024,
-      maxHeight: 1024,
+      imageQuality: 80,
+      maxWidth: 2048,
+      maxHeight: 2048,
     );
     if (image != null) {
-      final bytes = await image.readAsBytes();
-      final base64String = await compute(base64Encode, bytes);
-      _sendMessage(base64Image: base64String);
+      try {
+        // Upload to Firebase Storage and send URL in message
+        final roomId = _getChatRoomId();
+        final fileName = 'chat_${DateTime.now().millisecondsSinceEpoch}_${image.name}';
+        final ref = firebase_storage.FirebaseStorage.instance
+            .ref()
+            .child('chat_images')
+            .child(roomId)
+            .child(fileName);
+
+        Uint8List bytes = await image.readAsBytes();
+        final uploadTask = ref.putData(bytes, firebase_storage.SettableMetadata(contentType: 'image/jpeg'));
+        final snapshot = await uploadTask.whenComplete(() {});
+        final downloadUrl = await snapshot.ref.getDownloadURL();
+
+        await _sendMessage(imageUrl: downloadUrl);
+      } catch (e) {
+        debugPrint('Image upload failed: $e');
+        // Fallback to base64 send (legacy)
+        final bytes = await image.readAsBytes();
+        final base64String = await compute(base64Encode, bytes);
+        await _sendMessage(base64Image: base64String);
+      }
     }
   }
 
@@ -1592,8 +1700,10 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
       final List current = List.from(reactions[emoji] ?? []);
       if (current.contains(currentUserId)) {
         await docRef.update({'reactions.$emoji': FieldValue.arrayRemove([currentUserId])});
+        HapticFeedback.selectionClick();
       } else {
         await docRef.update({'reactions.$emoji': FieldValue.arrayUnion([currentUserId])});
+        HapticFeedback.selectionClick();
       }
     } catch (e) {
       debugPrint('Error adding reaction: $e');
