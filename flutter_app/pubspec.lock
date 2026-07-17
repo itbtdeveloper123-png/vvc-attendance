@@ -145,6 +145,46 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.3.1"
+  camera:
+    dependency: "direct main"
+    description:
+      name: camera
+      sha256: "4142a19a38e388d3bab444227636610ba88982e36dff4552d5191a86f65dc437"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.11.4"
+  camera_android_camerax:
+    dependency: transitive
+    description:
+      name: camera_android_camerax
+      sha256: "8516fe308bc341a5067fb1a48edff0ddfa57c0d3cdcc9dbe7ceca3ba119e2577"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.6.30"
+  camera_avfoundation:
+    dependency: transitive
+    description:
+      name: camera_avfoundation
+      sha256: "11b4aee2f5e5e038982e152b4a342c749b414aa27857899d20f4323e94cb5f0b"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.9.23+2"
+  camera_platform_interface:
+    dependency: transitive
+    description:
+      name: camera_platform_interface
+      sha256: "4524ca6eb4176b066864036ad4fe02c3e4863e63b77eadc21a5bf56824f43498"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.13.1"
+  camera_web:
+    dependency: transitive
+    description:
+      name: camera_web
+      sha256: "1245a480a113437f8d46d19c0fb90cea9db921436d9cf2ba5fb11854a1312693"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.3.5+4"
   characters:
     dependency: transitive
     description:
@@ -401,6 +441,30 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "4.1.4"
+  firebase_storage:
+    dependency: "direct main"
+    description:
+      name: firebase_storage
+      sha256: "2a9c9046eca3d4426eac73b671891666297a215019538e0af87eacec7e77ccf1"
+      url: "https://pub.dev"
+    source: hosted
+    version: "13.2.0"
+  firebase_storage_platform_interface:
+    dependency: transitive
+    description:
+      name: firebase_storage_platform_interface
+      sha256: "83f858784ebfdbe4d033d97c431ff67541d41266277ec290c169ce6c4bfda485"
+      url: "https://pub.dev"
+    source: hosted
+    version: "5.2.19"
+  firebase_storage_web:
+    dependency: transitive
+    description:
+      name: firebase_storage_web
+      sha256: "75003d7529cd458c93cfe12194773df1681d3b4722f70e5b4b4ff7b43ab8cd72"
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.11.4"
   fixnum:
     dependency: transitive
     description:
@@ -744,6 +808,22 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.6.2"
+  google_mlkit_commons:
+    dependency: transitive
+    description:
+      name: google_mlkit_commons
+      sha256: af63771903947d5523d9e991a939a4b8bf994f11661c9b9c8a71d7d3997115f8
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.2.0"
+  google_mlkit_face_detection:
+    dependency: "direct main"
+    description:
+      name: google_mlkit_face_detection
+      sha256: db3a14db32640cf279a24202140958a2b017925eedae7e2cdf69dab98e92c23b
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.5.0"
   google_nav_bar:
     dependency: "direct main"
     description:
@@ -1200,6 +1280,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "7.0.2"
+  photo_view:
+    dependency: "direct main"
+    description:
+      name: photo_view
+      sha256: "8036802a00bae2a78fc197af8a158e3e2f7b500561ed23b4c458107685e645bb"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.14.0"
   platform:
     dependency: transitive
     description:
@@ -1256,70 +1344,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.0.2"
-  record:
-    dependency: "direct main"
-    description:
-      name: record
-      sha256: d5b6b334f3ab02460db6544e08583c942dbf23e3504bf1e14fd4cbe3d9409277
-      url: "https://pub.dev"
-    source: hosted
-    version: "6.2.0"
-  record_android:
-    dependency: transitive
-    description:
-      name: record_android
-      sha256: "94783f08403aed33ffb68797bf0715b0812eb852f3c7985644c945faea462ba1"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.5.1"
-  record_ios:
-    dependency: transitive
-    description:
-      name: record_ios
-      sha256: "8df7c136131bd05efc19256af29b2ba6ccc000ccc2c80d4b6b6d7a8d21a3b5a9"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.2.0"
-  record_linux:
-    dependency: transitive
-    description:
-      name: record_linux
-      sha256: c31a35cc158cd666fc6395f7f56fc054f31685571684be6b97670a27649ce5c7
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.3.0"
-  record_macos:
-    dependency: transitive
-    description:
-      name: record_macos
-      sha256: "084902e63fc9c0c224c29203d6c75f0bdf9b6a40536c9d916393c8f4c4256488"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.2.1"
-  record_platform_interface:
-    dependency: transitive
-    description:
-      name: record_platform_interface
-      sha256: "8a81dbc4e14e1272a285bbfef6c9136d070a47d9b0d1f40aa6193516253ee2f6"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.5.0"
-  record_web:
-    dependency: transitive
-    description:
-      name: record_web
-      sha256: "7e9846981c1f2d111d86f0ae3309071f5bba8b624d1c977316706f08fc31d16d"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.3.0"
-  record_windows:
-    dependency: transitive
-    description:
-      name: record_windows
-      sha256: "223258060a1d25c62bae18282c16783f28581ec19401d17e56b5205b9f039d78"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.0.7"
   rxdart:
     dependency: transitive
     description:

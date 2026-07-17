@@ -1,12 +1,16 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 import 'dart:ui';
+import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:animate_do/animate_do.dart';
-import 'package:image_picker/image_picker.dart';
 import '../providers/user_provider.dart';
 import '../services/api_service.dart';
 import '../services/notification_service.dart';
@@ -26,13 +30,18 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     formats: [BarcodeFormat.qrCode],
     detectionTimeoutMs: 1000,
   );
-  final ImagePicker _imagePicker = ImagePicker();
+  CameraController? _cameraController;
+  FaceDetector? _faceDetector;
   final ApiService _apiService = ApiService();
 
   bool _isScanning = false;
   bool _isLoading = false;
   bool _useQrScanner = false;
   bool _faceScanAttempted = false;
+  bool _faceCaptured = false;
+  bool _faceProcessing = false;
+  int _consecutiveFaceFrames = 0;
+  Timer? _faceScanTimeout;
 
   @override
   void initState() {
@@ -45,6 +54,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   @override
   void dispose() {
     controller.dispose();
+    _faceScanTimeout?.cancel();
+    _cameraController?.dispose();
+    _faceDetector?.close();
     super.dispose();
   }
 
@@ -62,35 +74,152 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   Future<void> _tryFaceScanOrFallback() async {
     if (_faceScanAttempted || _useQrScanner) return;
     _faceScanAttempted = true;
+    setState(() => _isLoading = true);
 
     try {
-      final XFile? pickedFile = await _imagePicker.pickImage(
-        source: ImageSource.camera,
-        preferredCameraDevice: CameraDevice.front,
-        imageQuality: 70,
-        maxWidth: 1200,
-      );
-
-      if (!mounted) return;
-      if (pickedFile == null) {
-        setState(() {
-          _useQrScanner = true;
-          _isScanning = true;
-        });
-        return;
+      final permission = await Permission.camera.request();
+      if (!permission.isGranted) {
+        throw Exception('Camera permission denied');
       }
 
-      await _processFaceScan(pickedFile);
-    } catch (_) {
+      final cameras = await availableCameras();
+      if (cameras.isEmpty) {
+        throw Exception('មិនមានកាមេរ៉ាណាមួយ');
+      }
+
+      final frontCamera = cameras.firstWhere(
+        (camera) => camera.lensDirection == CameraLensDirection.front,
+        orElse: () => cameras.first,
+      );
+
+      _cameraController = CameraController(
+        frontCamera,
+        ResolutionPreset.medium,
+        enableAudio: false,
+        imageFormatGroup: ImageFormatGroup.yuv420,
+      );
+
+      await _cameraController!.initialize();
+      _faceDetector = FaceDetector(
+        options: FaceDetectorOptions(
+          performanceMode: FaceDetectorMode.fast,
+          enableLandmarks: false,
+          enableClassification: false,
+          enableContours: false,
+          enableTracking: false,
+        ),
+      );
+
+      await _cameraController!.startImageStream(_processCameraImage);
+      _faceScanTimeout?.cancel();
+      _faceScanTimeout = Timer(const Duration(seconds: 10), () {
+        if (!_faceCaptured && mounted) {
+          _switchToQrScanner();
+        }
+      });
+
+      if (!mounted) return;
+      setState(() {
+        _useQrScanner = false;
+        _isScanning = true;
+        _isLoading = false;
+      });
+    } catch (e) {
       if (!mounted) return;
       setState(() {
         _useQrScanner = true;
         _isScanning = true;
+        _isLoading = false;
       });
     }
   }
 
-  Future<void> _processFaceScan(XFile imageFile) async {
+  Future<void> _switchToQrScanner() async {
+    _faceScanTimeout?.cancel();
+    _faceProcessing = false;
+    _faceCaptured = false;
+    _consecutiveFaceFrames = 0;
+
+    try {
+      if (_cameraController != null && _cameraController!.value.isStreamingImages) {
+        await _cameraController!.stopImageStream();
+      }
+    } catch (_) {}
+
+    try {
+      await _cameraController?.dispose();
+    } catch (_) {}
+    _cameraController = null;
+
+    try {
+      await _faceDetector?.close();
+    } catch (_) {}
+    _faceDetector = null;
+
+    if (!mounted) return;
+    setState(() {
+      _useQrScanner = true;
+      _isScanning = true;
+      _isLoading = false;
+    });
+  }
+
+  void _processCameraImage(CameraImage image) async {
+    if (_faceProcessing || _faceCaptured || _useQrScanner || _cameraController == null) return;
+    _faceProcessing = true;
+
+    try {
+      final inputImage = _convertCameraImage(image, _cameraController!.description.sensorOrientation);
+      final faces = await _faceDetector?.processImage(inputImage) ?? [];
+
+      if (faces.isNotEmpty) {
+        _consecutiveFaceFrames += 1;
+      } else {
+        _consecutiveFaceFrames = 0;
+      }
+
+      if (_consecutiveFaceFrames >= 2 && !_faceCaptured) {
+        _faceCaptured = true;
+        _faceScanTimeout?.cancel();
+        await _submitFaceAttendance();
+      }
+    } catch (_) {
+      // Ignore detection errors and allow fallback timer to trigger.
+    } finally {
+      _faceProcessing = false;
+    }
+  }
+
+  InputImage _convertCameraImage(CameraImage image, int rotation) {
+    final BytesBuilder allBytes = BytesBuilder();
+    for (final Plane plane in image.planes) {
+      allBytes.add(plane.bytes);
+    }
+    final bytes = allBytes.takeBytes();
+
+    final Size imageSize = Size(image.width.toDouble(), image.height.toDouble());
+    final inputImageFormat = InputImageFormatValue.fromRawValue(image.format.raw) ?? InputImageFormat.nv21;
+    final imageRotation = InputImageRotationValue.fromRawValue(rotation) ?? InputImageRotation.rotation0deg;
+
+    final planeData = image.planes.map(
+      (Plane plane) => InputImagePlaneMetadata(
+        bytesPerRow: plane.bytesPerRow,
+        height: plane.height,
+        width: plane.width,
+      ),
+    ).toList();
+
+    final inputImageData = InputImageData(
+      size: imageSize,
+      imageRotation: imageRotation,
+      inputImageFormat: inputImageFormat,
+      planeData: planeData,
+    );
+
+    return InputImage.fromBytes(bytes: bytes, inputImageData: inputImageData);
+  }
+
+  Future<void> _submitFaceAttendance() async {
     if (!mounted) return;
 
     setState(() {
@@ -99,6 +228,13 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     });
 
     try {
+      if (_cameraController != null && _cameraController!.value.isStreamingImages) {
+        await _cameraController!.stopImageStream();
+      }
+
+      final XFile photo = await _cameraController!.takePicture();
+      final String photoBase64 = base64Encode(await photo.readAsBytes());
+
       Position position = await _determinePosition();
       String locationRaw = "${position.latitude},${position.longitude}";
 
@@ -125,7 +261,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
       if (!mounted) return;
       final userProvider = Provider.of<UserProvider>(context, listen: false);
-      final String photoBase64 = base64Encode(await imageFile.readAsBytes());
 
       Future<void> submit(String? reason) async {
         final result = await _apiService.submitAttendance(
@@ -146,7 +281,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
             title: "ជោគជ័យ",
             body: "អ្នកបាន $action ដោយជោគជ័យ!",
           );
-          _showSuccess(result['message']);
+          _showSuccess(result['message'], action: action);
         } else if (result['require_late_reason'] == true) {
           if (!mounted) return;
           setState(() => _isLoading = false);
@@ -158,6 +293,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
             if (mounted) {
               setState(() {
                 _useQrScanner = true;
+                _isScanning = true;
                 _isLoading = false;
               });
             }
@@ -169,12 +305,18 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
       await submit(null);
     } catch (e) {
-      _showError("កំហុស៖ $e");
-      if (mounted) setState(() => _useQrScanner = true);
+      if (mounted) {
+        _showError("កំហុស៖ $e");
+        setState(() {
+          _useQrScanner = true;
+          _isScanning = true;
+        });
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
+
 
   void _processQR(String code) async {
     setState(() {
@@ -264,14 +406,14 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           qrLocationId: locationId,
           lateReason: reason,
         );
-
+ 
         if (result['success'] == true) {
           NotificationService().showNotification(
             id: DateTime.now().millisecondsSinceEpoch.remainder(100000),
             title: "ជោគជ័យ",
             body: "អ្នកបាន $action ដោយជោគជ័យ!",
           );
-          _showSuccess(result['message']);
+          _showSuccess(result['message'], action: action);
         } else if (result['require_late_reason'] == true) {
           if (!mounted) return;
           setState(() => _isLoading = false);
@@ -536,13 +678,20 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     _showResultPopup(message, Icons.error_outline_rounded, Colors.redAccent, isError: true);
   }
 
-  void _showSuccess(String message) {
-    final isCheckIn = message.toLowerCase().contains('check-in') || message.toLowerCase().contains('in');
+  void _showSuccess(String message, {String? action}) {
+    String? result;
+    if (action != null) {
+      if (action == 'Check-In') {
+        result = 'checked_in';
+      } else if (action == 'Check-Out') {
+        result = 'checked_out';
+      }
+    }
     _showResultPopup(
       message,
       Icons.check_circle_outline_rounded,
       Colors.cyanAccent,
-      result: isCheckIn ? 'checked_in' : 'checked_out',
+      result: result,
     );
   }
 

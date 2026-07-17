@@ -22,6 +22,8 @@ dependencies:
   flutter_khmer_chankitec: ^0.0.9
   signature: ^6.3.0
   image_picker: ^1.1.2
+  camera: ^0.11.0+1
+  google_mlkit_face_detection: ^0.5.0
   file_picker: ^10.3.2
   flutter_spinkit: ^5.2.1
   dio: ^5.4.3+1
@@ -36,7 +38,6 @@ dependencies:
   package_info_plus: ^9.0.0
   flutter_inappwebview: ^6.1.5
   pasteboard: ^0.5.0
-  record: ^6.2.0
   audioplayers: ^6.6.0
   path_provider: ^2.1.5
   path: ^1.9.0
@@ -73,14 +74,14 @@ flutter:
   assets:
     - assets/images/
     - assets/icons/
-    - assets/fonts/
+    # - assets/fonts/
 
-  fonts:
-    - family: KhmerFont
-      fonts:
-        - asset: assets/fonts/KantumruyPro-Bold.ttf
-          weight: 700
-
-    - family: Tacteing
-      fonts:
-        - asset: assets/fonts/Tacteing.ttf
+  # fonts:
+  #   - family: KhmerFont
+  #     fonts:
+  #       - asset: assets/fonts/KantumruyPro-Bold.ttf
+  #         weight: 700
+  #
+  #   - family: Tacteing
+  #     fonts:
+  #       - asset: assets/fonts/Tacteing.ttf

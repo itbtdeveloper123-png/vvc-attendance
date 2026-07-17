@@ -962,9 +962,9 @@ if (!function_exists('get_app_scan_setting')) {
         if (isset($app_settings_cache[$cache_key]))
             return $app_settings_cache[$cache_key];
 
-        $sql = "SELECT setting_value FROM app_scan_settings 
-                WHERE setting_key = ? 
-                AND (admin_id = ? OR admin_id = 'SYSTEM_WIDE') 
+        $sql = "SELECT setting_value FROM app_scan_settings
+                WHERE setting_key = ?
+                AND (admin_id = ? OR admin_id = 'SYSTEM_WIDE')
                 ORDER BY (admin_id = ?) DESC LIMIT 1";
         if ($stmt = $mysqli->prepare($sql)) {
             $stmt->bind_param("sss", $key, $resolved_admin_id, $resolved_admin_id);
@@ -3306,14 +3306,14 @@ if (isset($_POST['ajax_action']) || isset($_GET['ajax_action'])) {
                 // ===============================================
                 case 'get_active_trips':
                     $trips = [];
-                    $sql = "SELECT t.*, 
+                    $sql = "SELECT t.*,
                             u.avatar,
                             c.latitude as target_lat, c.longitude as target_lng,
                             (SELECT COUNT(*) FROM trip_locations WHERE trip_id = t.id) as point_count
-                            FROM employee_trips t 
+                            FROM employee_trips t
                             LEFT JOIN users u ON t.employee_id = u.employee_id
                             LEFT JOIN tracking_customers c ON t.customer_id = c.id
-                            WHERE t.status = 'active' 
+                            WHERE t.status = 'active'
                             ORDER BY t.started_at DESC";
                     $res = $mysqli->query($sql);
                     if ($res) {
@@ -3375,9 +3375,9 @@ if (isset($_POST['ajax_action']) || isset($_GET['ajax_action'])) {
                         }
                         $stmt->close();
                         // Also fetch trip info with target coordinates
-                        $trip_stmt = $mysqli->prepare("SELECT t.*, c.latitude as target_lat, c.longitude as target_lng, u.avatar 
-                                                      FROM employee_trips t 
-                                                      LEFT JOIN tracking_customers c ON t.customer_id = c.id 
+                        $trip_stmt = $mysqli->prepare("SELECT t.*, c.latitude as target_lat, c.longitude as target_lng, u.avatar
+                                                      FROM employee_trips t
+                                                      LEFT JOIN tracking_customers c ON t.customer_id = c.id
                                                       LEFT JOIN users u ON t.employee_id = u.employee_id
                                                       WHERE t.id = ?");
                         $trip_stmt->bind_param('i', $trip_id);
@@ -4610,10 +4610,10 @@ if (isset($_POST['ajax_action']) || isset($_GET['ajax_action'])) {
 
                     if (!empty($uid) && !empty($name)) {
                         $sql = "INSERT INTO users (
-                            employee_id, name, latin_name, user_role, system_role, system_role_label, 
-                            position, department, username, email, phone, current_address, joined_at, 
-                            marital_status, contract_start, contract_end, contract_type, 
-                            manager_id, al_total, al_remaining, annual_leave_balance, base_salary, nssf_id, 
+                            employee_id, name, latin_name, user_role, system_role, system_role_label,
+                            position, department, username, email, phone, current_address, joined_at,
+                            marital_status, contract_start, contract_end, contract_type,
+                            manager_id, al_total, al_remaining, annual_leave_balance, base_salary, nssf_id,
                             bank_data_str, custom_data, password, employment_status
                         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active')";
 
@@ -4714,12 +4714,12 @@ if (isset($_POST['ajax_action']) || isset($_GET['ajax_action'])) {
                     $custom_json = $_POST['custom_data'] ?? '{}';
 
                     if (!empty($old_id)) {
-                        $update_sql = "UPDATE users SET 
-                            employee_id = ?, name = ?, latin_name = ?, user_role = ?, 
-                            system_role = ?, system_role_label = ?, position = ?, department = ?, 
-                            username = ?, email = ?, phone = ?, current_address = ?, joined_at = ?, 
-                            marital_status = ?, contract_start = ?, contract_end = ?, contract_type = ?, 
-                            manager_id = ?, al_total = ?, al_remaining = ?, annual_leave_balance = ?, base_salary = ?, 
+                        $update_sql = "UPDATE users SET
+                            employee_id = ?, name = ?, latin_name = ?, user_role = ?,
+                            system_role = ?, system_role_label = ?, position = ?, department = ?,
+                            username = ?, email = ?, phone = ?, current_address = ?, joined_at = ?,
+                            marital_status = ?, contract_start = ?, contract_end = ?, contract_type = ?,
+                            manager_id = ?, al_total = ?, al_remaining = ?, annual_leave_balance = ?, base_salary = ?,
                             nssf_id = ?, bank_data_str = ?, custom_data = ?";
 
                         $params = [
@@ -5003,10 +5003,10 @@ if (isset($_POST['ajax_action']) || isset($_GET['ajax_action'])) {
                             // 5. Loan Repayment
                             $loan_sum = 0;
                             $l_stmt = $mysqli->prepare("
-                                SELECT SUM(monthly_deduction) as total 
-                                FROM payroll_loans 
-                                WHERE employee_id=? 
-                                AND ? >= start_month 
+                                SELECT SUM(monthly_deduction) as total
+                                FROM payroll_loans
+                                WHERE employee_id=?
+                                AND ? >= start_month
                                 AND PERIOD_DIFF(REPLACE(?, '-', ''), REPLACE(start_month, '-', '')) < duration_months
                             ");
                             if ($l_stmt) {
@@ -5470,39 +5470,39 @@ ob_end_flush();
             --primary: #4f46e5;
             --primary-hover: #4338ca;
             --primary-light: #eef2ff;
-            
+
             --success: #10b981;
             --success-hover: #059669;
             --success-light: #ecfdf5;
-            
+
             --warning: #f59e0b;
             --warning-hover: #d97706;
             --warning-light: #fffbeb;
-            
+
             --danger: #ef4444;
             --danger-hover: #dc2626;
             --danger-light: #fef2f2;
-            
+
             --surface: #ffffff;
             --surface-alt: #f8fafc;
             --background: #f1f5f9;
             --border: #e2e8f0;
             --border-hover: #cbd5e1;
-            
+
             --text-primary: #0f172a;
             --text-secondary: #475569;
             --text-muted: #94a3b8;
-            
+
             /* Shadows */
             --shadow-sm: 0 1px 2px 0 rgba(15, 23, 42, 0.05);
             --shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.1), 0 2px 4px -2px rgba(15, 23, 42, 0.1);
             --shadow-lg: 0 10px 15px -3px rgba(15, 23, 42, 0.08), 0 4px 6px -4px rgba(15, 23, 42, 0.08);
-            
+
             /* Radii */
             --radius-sm: 6px;
             --radius: 10px;
             --radius-lg: 16px;
-            
+
             --breadcrumb-sticky-top: 96px;
         }
 
@@ -9322,7 +9322,7 @@ ob_end_flush();
                     <div class="launcher-menubar">
                         <div class="launcher-menubar-left">
                             <span class="launcher-select-label">
-                                <i class="fa-solid fa-layer-group"></i> 
+                                <i class="fa-solid fa-layer-group"></i>
                                 <?php
                                 $main_page_label = trim((string) ($sidebar_menu_items[$launcher_page_group]['menu_text'] ?? ucwords(str_replace('_', ' ', $launcher_page_group))));
                                 echo htmlspecialchars($main_page_label);
@@ -10101,7 +10101,7 @@ ob_end_flush();
                                                 </div>
                                                 <h3 style="margin:0 0 8px 0; font-size: 1.1rem;">${c.name}</h3>
                                                 <div class="detail-row" style="justify-content:center;"><i class="fa-solid fa-phone"></i> ${c.phone || 'N/A'}</div>
-                                                
+
                                                 <div style="display:flex; justify-content:flex-end; margin-top:20px;">
                                                     <div class="action-dropdown">
                                                         <button type="button" class="crud-dots-btn" onclick="toggleActionMenu(this, event)" title="Actions">
@@ -12435,11 +12435,11 @@ ob_end_flush();
                                                 table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
                                                 td, th { border: 1px solid #000; padding: 10px 12px; font-size: 11.5px; }
                                                 .label-cell { font-weight: 600; background: #fdfdfd; }
-                                            
+
                                                 .sig-table { margin-top: 30px; }
                                                 .sig-table th { background: #f8f9fa; font-weight: bold; text-align: center; padding: 12px; }
                                                 .sig-table td { text-align: center; height: 60px; vertical-align: middle; }
-                                            
+
                                                 @media print {
                                                    @page { margin: 10mm; size: A4; }
                                                    body { padding: 0; }
@@ -12453,11 +12453,11 @@ ob_end_flush();
                                                   <img src="https://i.ibb.co/r2JWnd2x/Logo-Van-Van-1.png" alt="Logo">
                                                   <div class="header-title">សំណើសុំច្បាប់ឈប់សម្រាក ប្តូរវេន ចូលមុនម៉ោង មកយឺត និងភ្លេចស្កេនមេដៃផ្សេងៗ</div>
                                               </div>
-                                          
+
                                               <div class="types-box">
                                                   ${typesHtml}
                                               </div>
-                                          
+
                                               <table>
                                                  <tr>
                                                     <td class="label-cell" style="width:22%;">ឈ្មោះអ្នកស្នើសុំ៖</td>
@@ -13518,9 +13518,16 @@ ob_end_flush();
                         $count_params[] = 'Worker';
                         $count_types .= "s";
                     } elseif ($filter_department === 'department') {
-                        $count_sql .= " AND (JSON_EXTRACT(u.custom_data, '$.department') != ? OR JSON_EXTRACT(u.custom_data, '$.department') IS NULL)";
+                        $count_sql .= " AND (JSON_EXTRACT(u.custom_data, '$.department') IS NULL OR JSON_EXTRACT(u.custom_data, '$.department') NOT IN (?, ?, ?))";
                         $count_params[] = 'Worker';
-                        $count_types .= "s";
+                        $count_params[] = 'SKKS2';
+                        $count_params[] = 'SKNR3';
+                        $count_types .= "sss";
+                    } elseif ($filter_department === 'sk') {
+                        $count_sql .= " AND JSON_EXTRACT(u.custom_data, '$.department') IN (?, ?)";
+                        $count_params[] = 'SKKS2';
+                        $count_params[] = 'SKNR3';
+                        $count_types .= "ss";
                     }
 
 
@@ -13557,9 +13564,16 @@ ob_end_flush();
                         $params[] = 'Worker';
                         $types .= "s";
                     } elseif ($filter_department === 'department') {
-                        $sql .= " AND (JSON_EXTRACT(u.custom_data, '$.department') != ? OR JSON_EXTRACT(u.custom_data, '$.department') IS NULL)";
+                        $sql .= " AND (JSON_EXTRACT(u.custom_data, '$.department') IS NULL OR JSON_EXTRACT(u.custom_data, '$.department') NOT IN (?, ?, ?))";
                         $params[] = 'Worker';
-                        $types .= "s";
+                        $params[] = 'SKKS2';
+                        $params[] = 'SKNR3';
+                        $types .= "sss";
+                    } elseif ($filter_department === 'sk') {
+                        $sql .= " AND JSON_EXTRACT(u.custom_data, '$.department') IN (?, ?)";
+                        $params[] = 'SKKS2';
+                        $params[] = 'SKNR3';
+                        $types .= "ss";
                     }
 
 
@@ -13598,9 +13612,16 @@ ob_end_flush();
                         $export_params[] = 'Worker';
                         $export_types .= "s";
                     } elseif ($filter_department === 'department') {
-                        $export_sql .= " AND (JSON_EXTRACT(u.custom_data, '$.department') != ? OR JSON_EXTRACT(u.custom_data, '$.department') IS NULL)";
+                        $export_sql .= " AND (JSON_EXTRACT(u.custom_data, '$.department') IS NULL OR JSON_EXTRACT(u.custom_data, '$.department') NOT IN (?, ?, ?))";
                         $export_params[] = 'Worker';
-                        $export_types .= "s";
+                        $export_params[] = 'SKKS2';
+                        $export_params[] = 'SKNR3';
+                        $export_types .= "sss";
+                    } elseif ($filter_department === 'sk') {
+                        $export_sql .= " AND JSON_EXTRACT(u.custom_data, '$.department') IN (?, ?)";
+                        $export_params[] = 'SKKS2';
+                        $export_params[] = 'SKNR3';
+                        $export_types .= "ss";
                     }
 
                     $export_sql .= " ORDER BY u.name ASC, cl.log_datetime ASC";
@@ -13653,7 +13674,7 @@ ob_end_flush();
 
                         <!-- Start of Unified Card -->
                         <div class="hrm-card" style="padding: 0; overflow: hidden; margin-bottom: 30px; border: 1px solid var(--border); box-shadow: var(--shadow-sm); border-radius: 16px; background: var(--surface);">
-                            
+
                             <!-- Card Header (Toolbar) -->
                             <div class="hrm-card-header" style="display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; border-bottom: 1px solid var(--border); background: var(--surface-alt);">
                                 <div class="hrm-filter-group" style="display: flex; align-items: center; gap: 10px;">
@@ -13753,11 +13774,17 @@ ob_end_flush();
                                 ];
                                 $q_dept = array_merge($base_tab_params, ['filter_department' => 'department']);
                                 $q_worker = array_merge($base_tab_params, ['filter_department' => 'worker']);
+                                $q_sk = array_merge($base_tab_params, ['filter_department' => 'sk']);
                                 ?>
                                 <a href="?<?php echo http_build_query($q_dept); ?>"
                                     class="hrm-tab-item <?php echo ($filter_department === 'department') ? 'active' : ''; ?>">
                                     <i class="fa-solid fa-briefcase"></i>
                                     ផ្នែករដ្ឋបាល/ជំនាញ
+                                </a>
+                                <a href="?<?php echo http_build_query($q_sk); ?>"
+                                    class="hrm-tab-item <?php echo ($filter_department === 'sk') ? 'active' : ''; ?>">
+                                    <i class="fa-solid fa-star"></i>
+                                    SKKS2/SKNR3
                                 </a>
                                 <a href="?<?php echo http_build_query($q_worker); ?>"
                                     class="hrm-tab-item <?php echo ($filter_department === 'worker') ? 'active' : ''; ?>">
@@ -14010,6 +14037,8 @@ ob_end_flush();
                                             <select class="form-control" name="filter_department_select"
                                                 style="width: 100%;">
                                                 <option value="department" <?php echo ($filter_department == 'department') ? 'selected' : ''; ?>>ជំនាញ (Department)
+                                                </option>
+                                                <option value="sk" <?php echo ($filter_department == 'sk') ? 'selected' : ''; ?>>SKKS2/SKNR3 (SK)
                                                 </option>
                                                 <option value="worker" <?php echo ($filter_department == 'worker') ? 'selected' : ''; ?>>កម្មករ (Worker)
                                                 </option>
@@ -22165,7 +22194,7 @@ ob_end_flush();
                                                 ជ្រើសរើសបុគ្គលិក
                                                 --</option>
                                             <?php
-                                            $users_res = $mysqli->query("SELECT u.employee_id, u.name, u.position, 
+                                            $users_res = $mysqli->query("SELECT u.employee_id, u.name, u.position,
                                                     (SELECT g.group_name FROM user_skill_groups g WHERE JSON_UNQUOTE(JSON_EXTRACT(u.custom_data, '$.group_id')) = CAST(g.id AS CHAR) LIMIT 1) as skill_group
                                                     FROM users u WHERE u.employment_status='Active' ORDER BY u.name ASC");
                                             while ($u = $users_res->fetch_assoc()) {
@@ -22657,9 +22686,9 @@ ob_end_flush();
                                     </thead>
                                     <tbody>
                                         <?php
-                                        $history_sql = "SELECT l.*, u.name as user_name 
-                                                           FROM checkin_logs l 
-                                                           LEFT JOIN users u ON l.employee_id = u.employee_id 
+                                        $history_sql = "SELECT l.*, u.name as user_name
+                                                           FROM checkin_logs l
+                                                           LEFT JOIN users u ON l.employee_id = u.employee_id
                                                            ORDER BY l.log_datetime DESC LIMIT 500";
                                         $history_res = $mysqli->query($history_sql);
                                         if ($history_res && $history_res->num_rows > 0):
@@ -28081,7 +28110,7 @@ ob_end_flush();
             fetch(window.location.href, { method: 'POST', body: fd })
                 .then(r => r.json())
                 .then(res => {
-                    if (res.status === 'success') { 
+                    if (res.status === 'success') {
                         let html = '';
                         if (res.data.length === 0) {
                             html = '<div class="hrm-card text-center p-5 text-muted">No meetings scheduled.</div>';
