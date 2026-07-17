@@ -1422,6 +1422,18 @@ class _HomeContentState extends State<HomeContent> {
               return Hero(
                 tag: heroTag,
                 child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      PageRouteBuilder(
+                        opaque: false,
+                        barrierDismissible: true,
+                        pageBuilder: (context, _, _) =>
+                            BannerDetailView(heroTag: heroTag, child: card),
+                      ),
+                    );
+                  },
                   onLongPress: () {
                     Navigator.push(
                       context,

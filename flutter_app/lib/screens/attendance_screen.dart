@@ -6,6 +6,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:animate_do/animate_do.dart';
+import 'package:image_picker/image_picker.dart';
 import '../providers/user_provider.dart';
 import '../services/api_service.dart';
 import '../services/notification_service.dart';
@@ -25,9 +26,21 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     formats: [BarcodeFormat.qrCode],
     detectionTimeoutMs: 1000,
   );
+  final ImagePicker _imagePicker = ImagePicker();
   final ApiService _apiService = ApiService();
-  bool _isScanning = true;
+
+  bool _isScanning = false;
   bool _isLoading = false;
+  bool _useQrScanner = false;
+  bool _faceScanAttempted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _tryFaceScanOrFallback();
+    });
+  }
 
   @override
   void dispose() {
@@ -44,6 +57,123 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
     if (!_isScanning) return;
     _processQR(code);
+  }
+
+  Future<void> _tryFaceScanOrFallback() async {
+    if (_faceScanAttempted || _useQrScanner) return;
+    _faceScanAttempted = true;
+
+    try {
+      final XFile? pickedFile = await _imagePicker.pickImage(
+        source: ImageSource.camera,
+        preferredCameraDevice: CameraDevice.front,
+        imageQuality: 70,
+        maxWidth: 1200,
+      );
+
+      if (!mounted) return;
+      if (pickedFile == null) {
+        setState(() {
+          _useQrScanner = true;
+          _isScanning = true;
+        });
+        return;
+      }
+
+      await _processFaceScan(pickedFile);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _useQrScanner = true;
+        _isScanning = true;
+      });
+    }
+  }
+
+  Future<void> _processFaceScan(XFile imageFile) async {
+    if (!mounted) return;
+
+    setState(() {
+      _isScanning = false;
+      _isLoading = true;
+    });
+
+    try {
+      Position position = await _determinePosition();
+      String locationRaw = "${position.latitude},${position.longitude}";
+
+      String? action = widget.presetAction;
+      if (action == null) {
+        final lastActionData = await _apiService.fetchLastAction();
+        String suggestion = "Check-In";
+        if (lastActionData['success'] == true) {
+          String last = lastActionData['last_action'] ?? "Check-Out";
+          suggestion = (last == "Check-In") ? "Check-Out" : "Check-In";
+        }
+        action = await _showActionDialog(suggested: suggestion);
+      }
+
+      if (action == null) {
+        if (!mounted) return;
+        setState(() {
+          _useQrScanner = true;
+          _isScanning = true;
+          _isLoading = false;
+        });
+        return;
+      }
+
+      if (!mounted) return;
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
+      final String photoBase64 = base64Encode(await imageFile.readAsBytes());
+
+      Future<void> submit(String? reason) async {
+        final result = await _apiService.submitAttendance(
+          action: action!,
+          employeeId: userProvider.employeeId!,
+          workplace: "Face Scan",
+          branch: "Face Scan",
+          locationRaw: locationRaw,
+          qrSecret: "outside_scan",
+          qrLocationId: 0,
+          lateReason: reason,
+          photoBase64: photoBase64,
+        );
+
+        if (result['success'] == true) {
+          NotificationService().showNotification(
+            id: DateTime.now().millisecondsSinceEpoch.remainder(100000),
+            title: "ជោគជ័យ",
+            body: "អ្នកបាន $action ដោយជោគជ័យ!",
+          );
+          _showSuccess(result['message']);
+        } else if (result['require_late_reason'] == true) {
+          if (!mounted) return;
+          setState(() => _isLoading = false);
+          String? inputReason = await _showLateReasonDialog(result['message']);
+          if (inputReason != null && inputReason.trim().isNotEmpty) {
+            setState(() => _isLoading = true);
+            await submit(inputReason.trim());
+          } else {
+            if (mounted) {
+              setState(() {
+                _useQrScanner = true;
+                _isLoading = false;
+              });
+            }
+          }
+        } else {
+          _showError(result['message'] ?? 'បរាជ័យ');
+        }
+      }
+
+      await submit(null);
+    } catch (e) {
+      _showError("កំហុស៖ $e");
+      if (mounted) setState(() => _useQrScanner = true);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   void _processQR(String code) async {
@@ -122,7 +252,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
       // 4. Submit Flow
       final userProvider = Provider.of<UserProvider>(context, listen: false);
-      
+
       Future<void> submit(String? reason) async {
         final result = await _apiService.submitAttendance(
           action: action!,
@@ -549,14 +679,16 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(
-                              Icons.qr_code_scanner_rounded,
+                            Icon(
+                              _useQrScanner
+                                  ? Icons.qr_code_scanner_rounded
+                                  : Icons.face_retouching_natural_rounded,
                               color: Colors.cyanAccent,
                               size: 18,
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              "SCAN QR CODE",
+                              _useQrScanner ? "SCAN QR CODE" : "FACE SCAN",
                               style: GoogleFonts.inter(
                                 color: Colors.white,
                                 fontWeight: FontWeight.w800,
@@ -597,6 +729,70 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                       color: Colors.white.withValues(alpha: 0.6),
                       size: 28,
                     ),
+                  ),
+                ),
+              ),
+            ),
+
+          if (!_useQrScanner && !_isLoading)
+            Positioned(
+              bottom: 140,
+              left: 24,
+              right: 24,
+              child: FadeInUp(
+                duration: const Duration(milliseconds: 600),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 20),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.55),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'សូមបញ្ចូលមុខរបស់អ្នក ដើម្បីស្កេនវត្តមាន',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.kantumruyPro(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'ប្រសិនបើទូរសព្ទនេះមិនគាំទ្រការស្កេនមុខ ឬអ្នកមិនចង់ប្រើមុខ សូម​ប្ដូរទៅ QR code',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.kantumruyPro(
+                          color: AppTheme.textPrimary.withValues(alpha: 0.8),
+                          fontSize: 13,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: () {
+                          setState(() {
+                            _useQrScanner = true;
+                            _isScanning = true;
+                          });
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.cyanAccent,
+                          foregroundColor: Colors.black,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
+                        ),
+                        child: Text(
+                          'ប្រើ QR Code ទៅវិញ',
+                          style: GoogleFonts.kantumruyPro(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
