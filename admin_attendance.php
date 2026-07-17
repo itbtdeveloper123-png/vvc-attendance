@@ -18555,19 +18555,39 @@ ob_end_flush();
                                         <?php
                                         ensure_user_groups_table($mysqli);
                                         $groups_sql = "SELECT id, group_name FROM user_skill_groups ORDER BY sort_order ASC, group_name ASC";
-                                        $groups_list = $mysqli->query($groups_sql);
-                                        while ($g = $groups_list->fetch_assoc()): ?>
+                                        $all_groups = [];
+                                        if ($groups_res = $mysqli->query($groups_sql)) {
+                                            while ($g = $groups_res->fetch_assoc()) {
+                                                $all_groups[] = $g;
+                                            }
+                                            $groups_res->close();
+                                        }
+                                        foreach ($all_groups as $g): ?>
                                             <option value="<?php echo (int) $g['id']; ?>" <?php echo ($selected_group_id === (int) $g['id']) ? 'selected' : ''; ?>>
                                                 <?php echo htmlspecialchars($g['group_name']); ?>
                                             </option>
-                                        <?php endwhile;
-                                        $groups_list->close(); ?>
+                                        <?php endforeach; ?>
                                     </select>
 
                                     <button type="button" id="bulkDeleteBtn" class="btn btn-danger" disabled
                                         style="height: 46px; width: 46px; display:flex; align-items:center; justify-content:center; border-radius:12px; opacity: 0.5;">
                                         <i class="fa-solid fa-trash-can"></i>
                                     </button>
+
+                                    <div class="group-assign-actions" style="display:flex; gap:12px; align-items:center;">
+                                        <select id="assignGroupSelect" class="form-control" style="height:46px; border-radius:12px; min-width:210px;">
+                                            <option value="" selected disabled>Assign selected to group</option>
+                                            <option value="0">Remove from group</option>
+                                            <?php foreach ($all_groups as $g): ?>
+                                                <option value="<?php echo (int) $g['id']; ?>"><?php echo htmlspecialchars($g['group_name']); ?></option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                        <button type="button" id="assignGroupBtn" class="btn btn-secondary"
+                                            style="height:46px; border-radius:12px; padding:0 20px; display:flex; align-items:center; gap:8px;">
+                                            <i class="fa-solid fa-layer-group"></i>
+                                            Assign
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
 
@@ -19929,6 +19949,67 @@ ob_end_flush();
                                         selectionStatus.style.display = 'none';
                                     }
                                 }
+                            });
+
+                            document.addEventListener('DOMContentLoaded', function () {
+                                const assignGroupBtn = document.getElementById('assignGroupBtn');
+                                const assignGroupSelect = document.getElementById('assignGroupSelect');
+
+                                assignGroupBtn?.addEventListener('click', function () {
+                                    const selectedIds = Array.from(document.querySelectorAll('.user-select:checked')).map(el => el.value.trim()).filter(Boolean);
+                                    const targetGroupValue = assignGroupSelect?.value;
+
+                                    if (!selectedIds.length) {
+                                        (typeof showAjaxMessage === 'function' ? showAjaxMessage : alert)('សូមជ្រើសបុគ្គលិកយ៉ាងតិចម្នាក់។');
+                                        return;
+                                    }
+
+                                    if (targetGroupValue === null || targetGroupValue === undefined || targetGroupValue === '') {
+                                        (typeof showAjaxMessage === 'function' ? showAjaxMessage : alert)('សូមជ្រើសរើសក្រុម។');
+                                        return;
+                                    }
+
+                                    const formData = new FormData();
+                                    formData.append('ajax_action', 'assign_user_group');
+                                    if (targetGroupValue === '0') {
+                                        formData.append('group_id', '');
+                                    } else {
+                                        formData.append('group_id', targetGroupValue);
+                                    }
+                                    selectedIds.forEach(id => formData.append('employee_ids[]', id));
+
+                                    assignGroupBtn.disabled = true;
+                                    const originalText = assignGroupBtn.innerHTML;
+                                    assignGroupBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> កំពុងផ្ទុក...';
+
+                                    fetch('admin_attendance.php', {
+                                        method: 'POST',
+                                        body: formData,
+                                        credentials: 'same-origin'
+                                    })
+                                        .then(response => response.json())
+                                        .then(result => {
+                                            if (result.status === 'success' || result.success) {
+                                                (typeof showAjaxMessage === 'function' ? showAjaxMessage : alert)(result.message || 'ប្តូរក្រុមរួចរាល់។');
+                                                setTimeout(() => {
+                                                    if (typeof window.adminSoftReload === 'function') {
+                                                        window.adminSoftReload();
+                                                    } else {
+                                                        window.location.reload();
+                                                    }
+                                                }, 800);
+                                            } else {
+                                                (typeof showAjaxMessage === 'function' ? showAjaxMessage : alert)(result.message || 'មានកំហុសក្នុងការប្តូរក្រុម។');
+                                            }
+                                        })
+                                        .catch(() => {
+                                            (typeof showAjaxMessage === 'function' ? showAjaxMessage : alert)('បាត់បង់ការភ្ជាប់ទៅម៉ាស៊ីនបម្រើ។');
+                                        })
+                                        .finally(() => {
+                                            assignGroupBtn.disabled = false;
+                                            assignGroupBtn.innerHTML = originalText;
+                                        });
+                                });
                             });
                         </script>
                     <?php endif; ?>
