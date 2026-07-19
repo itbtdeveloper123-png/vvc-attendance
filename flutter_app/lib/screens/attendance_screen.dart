@@ -52,6 +52,15 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final faceScanEnabled = Provider.of<UserProvider>(context).faceScanEnabled;
+    if (faceScanEnabled && !_faceScanAttempted && !_isLoading) {
+      _tryFaceScanOrFallback();
+    }
+  }
+
+  @override
   void dispose() {
     controller.dispose();
     _faceScanTimeout?.cancel();
@@ -72,8 +81,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   }
 
   Future<void> _tryFaceScanOrFallback() async {
-    if (_faceScanAttempted || _useQrScanner) return;
-    _faceScanAttempted = true;
+    if (_faceScanAttempted || _useQrScanner || _isLoading) return;
     setState(() => _isLoading = true);
  
     final userProvider = Provider.of<UserProvider>(context, listen: false);
@@ -86,7 +94,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       });
       return;
     }
- 
+    _faceScanAttempted = true;
+
     try {
       final permission = await Permission.camera.request();
       if (!permission.isGranted) {
@@ -142,6 +151,17 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       });
     } catch (e) {
       if (!mounted) return;
+      debugPrint('Face scan setup failed: $e');
+      if (userProvider.faceScanEnabled) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'មិនអាចចាប់ផ្តើមស្កេਨមុខបាន។ កំពុងប្ដូរទៅ QR Code ជំនួស។',
+            ),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
       setState(() {
         _useQrScanner = true;
         _isScanning = true;
