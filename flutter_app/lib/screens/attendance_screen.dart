@@ -98,7 +98,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
     try {
       final permission = await Permission.camera.request();
-      if (!permission.isGranted) {
+      if (!permission.isGranted && !permission.isLimited) {
         throw Exception('Camera permission denied');
       }
 
@@ -122,6 +122,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         frontCamera,
         ResolutionPreset.medium,
         enableAudio: false,
+        imageFormatGroup: ImageFormatGroup.yuv420,
       );
 
       await _cameraController!.initialize();
@@ -153,11 +154,12 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       if (!mounted) return;
       debugPrint('Face scan setup failed: $e');
       if (userProvider.faceScanEnabled) {
+        final errorMessage = e.toString().toLowerCase().contains('camera permission')
+            ? 'សូមបើកការអនុញ្ញាតកាមេរ៉ា ដើម្បីប្រើការស្កេនមុខ។'
+            : 'មិនអាចចាប់ផ្តើមស្កេនមុខបាន។ កំពុងប្ដូរទៅ QR Code ជំនួស។';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              'មិនអាចចាប់ផ្តើមស្កេਨមុខបាន។ កំពុងប្ដូរទៅ QR Code ជំនួស។',
-            ),
+            content: Text(errorMessage),
             duration: const Duration(seconds: 4),
           ),
         );
