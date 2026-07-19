@@ -64,31 +64,31 @@ function getHRMConnection() {
 function getAttendanceStreak($mysqli, $eid) {
     // Fetch unique dates of 'Check-In' logs, most recent first
     // We only care about days they actually scanned
-    $sql = "SELECT DATE(log_datetime) as log_date, status 
-            FROM checkin_logs 
+    $sql = "SELECT DATE(log_datetime) as log_date, status
+            FROM checkin_logs
             WHERE employee_id = ? AND (action_type = 'Check-In' OR action_type = 'checkin')
-            ORDER BY log_datetime DESC 
+            ORDER BY log_datetime DESC
             LIMIT 100";
     $stmt = $mysqli->prepare($sql);
     if (!$stmt) return 0;
-    
+
     $stmt->bind_param("s", $eid);
     $stmt->execute();
     $res = $stmt->get_result();
-    
+
     $streak = 0;
     $processed_dates = [];
-    
+
     while ($row = $res->fetch_assoc()) {
         $date = $row['log_date'];
         if (isset($processed_dates[$date])) continue; // Only one scan per day counts
-        
+
         if ($row['status'] === 'Good' || stripos($row['status'], 'Good') !== false) {
             $streak++;
             $processed_dates[$date] = true;
         } else {
             // If they have any other status (Late, etc.) on a day they worked, streak breaks
-            break; 
+            break;
         }
     }
     $stmt->close();
@@ -163,7 +163,7 @@ function sendDailyReportToTelegram($mysqli, $employee_id, $employee_name, $posit
     if (empty($bot_token)) {
         $bot_token = getTelegramBotToken($mysqli, $employee_id);
     }
-    
+
     if (empty($bot_token)) {
         error_log("Daily Report Telegram: No bot token configured");
         return false;
@@ -193,13 +193,13 @@ function sendDailyReportToTelegram($mysqli, $employee_id, $employee_name, $posit
             'chat_id' => $direct_chat_id,
             'thread_id' => $direct_thread_id ?? ''
         ]];
-    } 
+    }
     // Case C: Fallback to old single settings if no targets yet
     elseif (empty($targets)) {
         // Handle newline-separated or comma-separated lists for bulk sending in legacy fields
         $chat_ids = preg_split('/[\n,]+/', $chat_id_setting, -1, PREG_SPLIT_NO_EMPTY);
         $thread_ids = preg_split('/[\n,]+/', $thread_id_setting, -1, PREG_SPLIT_NO_EMPTY);
-        
+
         if (!empty($chat_ids)) {
             foreach ($chat_ids as $index => $cid) {
                 $targets[] = [
@@ -214,7 +214,7 @@ function sendDailyReportToTelegram($mysqli, $employee_id, $employee_name, $posit
         error_log("Daily Report Telegram: No destination targets found");
         return false;
     }
-    
+
     // 4. Fetch missing user details if needed
     if (empty($employee_name) || empty($position)) {
         $stmt_u = $mysqli->prepare("SELECT name, position, phone FROM users WHERE employee_id = ? LIMIT 1");
@@ -253,7 +253,7 @@ function sendDailyReportToTelegram($mysqli, $employee_id, $employee_name, $posit
             '{phone}' => $phone ?? '',
             '{{phone}}' => $phone ?? '',
         ];
-        
+
         foreach ($replacements as $key => $val) {
             $message = str_ireplace($key, htmlspecialchars($val), $message);
         }
@@ -269,7 +269,7 @@ function sendDailyReportToTelegram($mysqli, $employee_id, $employee_name, $posit
         $message .= "⏰ <b>ពេលវេលា:</b> " . date('H:i:s A') . "\n\n";
         $message .= "📝 <b>ខ្លឹមសារ:</b>\n" . htmlspecialchars($content);
     }
-    
+
     // 5. Send to all targets
     $success_count = 0;
     foreach ($targets as $target) {
@@ -282,7 +282,7 @@ function sendDailyReportToTelegram($mysqli, $employee_id, $employee_name, $posit
         if (!empty($target['thread_id'])) {
             $data['message_thread_id'] = $target['thread_id'];
         }
-        
+
         $options = [
             'http' => [
                 'method'  => 'POST',
@@ -293,13 +293,13 @@ function sendDailyReportToTelegram($mysqli, $employee_id, $employee_name, $posit
         ];
         $context = stream_context_create($options);
         $result = @file_get_contents($url, false, $context);
-        
+
         if ($result !== false) {
             $res_arr = json_decode($result, true);
             if ($res_arr && $res_arr['ok']) $success_count++;
         }
     }
-    
+
     return ($success_count > 0);
 }
 
@@ -329,7 +329,7 @@ function sendMissionTelegram($mysqli, $eid, $data) {
 
     $url = "https://api.telegram.org/bot$bot_token/sendMessage";
     $payload = ['chat_id' => $chat_id, 'text' => $message, 'parse_mode' => 'HTML'];
-    
+
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, $url);
     curl_setopt($ch, CURLOPT_POST, true);
@@ -475,7 +475,7 @@ function ensure_daily_report_telegram_table($mysqli) {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
-    
+
     // Auto-patch bot_token if missing
     $col_check = $mysqli->query("SHOW COLUMNS FROM daily_report_telegram_settings LIKE 'bot_token'");
     if ($col_check && $col_check->num_rows === 0) {
@@ -516,7 +516,7 @@ function ensure_mission_letters_table($mysqli) {
     // Patch columns if they don't exist
     $check = $mysqli->query("SHOW COLUMNS FROM mission_letters LIKE 'person1'");
     if ($check && $check->num_rows === 0) {
-        $mysqli->query("ALTER TABLE mission_letters 
+        $mysqli->query("ALTER TABLE mission_letters
             ADD COLUMN IF NOT EXISTS location VARCHAR(255) AFTER employee_id,
             ADD COLUMN IF NOT EXISTS purpose VARCHAR(255) AFTER location,
             ADD COLUMN IF NOT EXISTS start_time VARCHAR(10) AFTER start_date,
@@ -571,7 +571,7 @@ function ensure_meetings_table($mysqli) {
         while($r = $res->fetch_assoc()){ $cols[] = $r['Field']; }
         $res->close();
     }
-    
+
     $missing = [
         'topic' => 'VARCHAR(255) NOT NULL',
         'department' => 'VARCHAR(100) DEFAULT NULL',
@@ -598,13 +598,13 @@ function ensure_meetings_table($mysqli) {
         'summary_job_message' => 'TEXT DEFAULT NULL',
         'summary_job_updated_at' => 'DATETIME DEFAULT NULL',
     ];
-    
+
     foreach($missing as $col => $type) {
         if(!in_array($col, $cols)) {
             $mysqli->query("ALTER TABLE meetings ADD COLUMN $col $type");
         }
     }
-    
+
 }
 
 function meeting_ai_string_list($value) {
@@ -1919,7 +1919,7 @@ function ensure_work_checklist_table($mysqli) {
         while($r = $res->fetch_assoc()){ $cols[] = $r['Field']; }
         $res->close();
     }
-    
+
     $missing = [
         'category' => "VARCHAR(100) DEFAULT 'General' AFTER task",
         'image_path' => 'VARCHAR(255) DEFAULT NULL',
@@ -1930,7 +1930,7 @@ function ensure_work_checklist_table($mysqli) {
         'reminder_at' => 'DATETIME DEFAULT NULL',
         'user_id' => 'VARCHAR(64) DEFAULT NULL AFTER admin_id'
     ];
-    
+
     foreach($missing as $col => $type) {
         if(!in_array($col, $cols)) {
             $mysqli->query("ALTER TABLE work_checklist ADD COLUMN $col $type");
@@ -2047,7 +2047,7 @@ function haversine_distance($lat1, $lon1, $lat2, $lon2) {
 
 if (!function_exists('is_system_wide_scan_setting_key')) {
     function is_system_wide_scan_setting_key($key) {
-        static $global_keys = ['app_latest_version', 'app_latest_build', 'app_apk_url', 'app_update_message', 'app_force_update'];
+        static $global_keys = ['app_latest_version', 'app_latest_build', 'app_apk_url', 'app_update_message', 'app_force_update', 'face_scan_enabled'];
         return in_array((string)$key, $global_keys, true);
     }
 }
@@ -2058,7 +2058,7 @@ function get_scan_setting($key, $default = '', $mysqli, $employee_id = null) {
     if (is_system_wide_scan_setting_key($key)) {
         $employee_id = null;
     }
-    
+
     // Resolve admin_id
     $admin_id = 'SYSTEM_WIDE';
     if ($employee_id) {
@@ -2378,11 +2378,11 @@ switch ($action) {
         $fcm_token = $_POST['token'] ?? '';
         $platform = $_POST['platform'] ?? (isset($_SERVER['HTTP_USER_AGENT']) && stripos($_SERVER['HTTP_USER_AGENT'], 'Dart') === false ? 'Web' : 'Mobile');
         $eid = $user['employee_id'] ?? '';
-        
+
         if (empty($fcm_token) || empty($eid)) {
             apiResponse(['success' => false, 'message' => 'Missing token']);
         }
-        
+
         // 1. Update legacy column in users (single token)
         $stmtUserToken = $mysqli->prepare("UPDATE users SET fcm_token = ? WHERE employee_id = ?");
         if ($stmtUserToken) {
@@ -2390,9 +2390,9 @@ switch ($action) {
             $stmtUserToken->execute();
             $stmtUserToken->close();
         }
-        
+
         // 2. Save/Update in user_fcm_tokens (multi-device)
-        $stmt = $mysqli->prepare("INSERT INTO user_fcm_tokens (employee_id, fcm_token, platform) VALUES (?, ?, ?) 
+        $stmt = $mysqli->prepare("INSERT INTO user_fcm_tokens (employee_id, fcm_token, platform) VALUES (?, ?, ?)
                                 ON DUPLICATE KEY UPDATE employee_id = VALUES(employee_id), platform = VALUES(platform), last_seen = CURRENT_TIMESTAMP");
         if ($stmt) {
             $stmt->bind_param("sss", $eid, $fcm_token, $platform);
@@ -2450,14 +2450,14 @@ switch ($action) {
 
     case 'save_meeting':
         if (!$user) apiResponse(['success' => false, 'status' => 'error', 'message' => 'Unauthorized']);
-        
+
         $topic = $_POST['topic'] ?? '';
         $department = $_POST['department'] ?? '';
         $date = $_POST['date'] ?? '';
         $description = $_POST['description'] ?? '';
         $external_url = $_POST['external_url'] ?? '';
         $audioOriginalName = trim((string)($_POST['audio_original_name'] ?? ''));
-        
+
         if (empty($topic)) apiResponse(['success' => false, 'status' => 'error', 'message' => 'Topic is required']);
 
         // Handle Audio Upload
@@ -2905,9 +2905,9 @@ switch ($action) {
         $desc = $meeting['description'] ?? '';
         $topic = $meeting['topic'] ?? '';
         $audioPath = $meeting['audio_path'] ?? $meeting['audio_file_path'] ?? '';
-        
+
         $tempUsed = false;
-        
+
         // AUTO-CONVERT to Full URL (ensure it matches what the app plays)
         $actualAudioUrl = $audioPath;
         if (!empty($audioPath) && strpos($audioPath, 'http') !== 0) {
@@ -2947,7 +2947,7 @@ switch ($action) {
             $jsonExec = curl_exec($ch);
             $result = json_decode($jsonExec, true);
             curl_close($ch);
-            
+
             if (isset($result['text'])) {
                 $transcribedText = $result['text'];
                 if (strlen($desc) > 10) $transcribedText .= "\n\n(Context: $desc)";
@@ -2985,7 +2985,7 @@ switch ($action) {
             $err = curl_error($ch);
             $res = json_decode($jsonResponse, true);
             curl_close($ch);
-            
+
             if ($err) {
                 $summary = "កំហុសបច្ចេកទេសក្នុង Groq: " . $err;
             } else {
@@ -3005,12 +3005,12 @@ switch ($action) {
     case 'get_mission_letters':
         if (!$user) apiResponse(['success' => false, 'status' => 'error', 'message' => 'Unauthorized']);
         $eid = $user['employee_id'];
-        $sql = "SELECT *, 
-                       DATE_FORMAT(start_date, '%d/%m/%Y') as start_date_fmt, 
-                       DATE_FORMAT(end_date, '%d/%m/%Y') as end_date_fmt, 
-                       DATE_FORMAT(created_at, '%d/%m/%Y %h:%i %p') as created_at_fmt 
-                FROM mission_letters 
-                WHERE employee_id = ? 
+        $sql = "SELECT *,
+                       DATE_FORMAT(start_date, '%d/%m/%Y') as start_date_fmt,
+                       DATE_FORMAT(end_date, '%d/%m/%Y') as end_date_fmt,
+                       DATE_FORMAT(created_at, '%d/%m/%Y %h:%i %p') as created_at_fmt
+                FROM mission_letters
+                WHERE employee_id = ?
                 ORDER BY id DESC LIMIT 50";
         $stmt = $mysqli->prepare($sql);
         if (!$stmt) apiResponse(['success' => false, 'status' => 'error', 'message' => $mysqli->error]);
@@ -3089,19 +3089,19 @@ switch ($action) {
             if (empty($admin_id_for_limit) || $base['user_role'] === 'Admin') {
                 $admin_id_for_limit = $base['employee_id'];
             }
-            
+
             $max_tokens = 1;
             $res_limit = $mysqli->query("SELECT global_max_tokens FROM users WHERE employee_id = '$admin_id_for_limit' LIMIT 1");
             if ($res_limit && $row_limit = $res_limit->fetch_assoc()) {
                 $max_tokens = (int)($row_limit['global_max_tokens'] ?? 1);
             }
-            
+
             $res_count = $mysqli->query("SELECT COUNT(*) as active_count FROM active_tokens WHERE employee_id = '{$base['employee_id']}'");
             $active_count = 0;
             if ($res_count && $row_count = $res_count->fetch_assoc()) {
                 $active_count = (int)$row_count['active_count'];
             }
-            
+
             if ($active_count >= $max_tokens) {
                 apiResponse(['success' => false, 'message' => "គណនីនេះច្បងបាន Login លើសចំនួនឧបករណ៍ ($active_count/$max_tokens)។ សូម Logout ពីឧបករណ៍ចាស់សិន។"]);
             }
@@ -3120,6 +3120,7 @@ switch ($action) {
             $displayRole = !empty($systemRoleLabel) ? $systemRoleLabel : (function_exists('app_system_role_label') ? app_system_role_label($systemRole) : $systemRole);
             $loginEmail = !empty($base['email']) ? $base['email'] : ($base['employee_id'] . '@vvc.com');
             $streak = getAttendanceStreak($mysqli, $base['employee_id']);
+            $faceScanEnabled = get_scan_setting('face_scan_enabled', '1', $mysqli);
             apiResponse([
                 'success' => true,
                 'token' => $newToken,
@@ -3136,6 +3137,7 @@ switch ($action) {
                     'system_role_label' => $displayRole,
                     'is_verified' => (int)($base['is_verified'] ?? 0),
                     'attendance_streak' => $streak,
+                    'face_scan_enabled' => (($faceScanEnabled === '1' || $faceScanEnabled === 1) ? 1 : 0),
                 ]
             ]);
         } else {
@@ -3239,6 +3241,7 @@ switch ($action) {
         if ($profileSystemRoleLabel === '') {
             $profileSystemRoleLabel = function_exists('app_system_role_label') ? app_system_role_label($profileSystemRole) : $profileSystemRole;
         }
+        $faceScanEnabled = get_scan_setting('face_scan_enabled', '1', $mysqli, $eid);
 
         apiResponse([
             'success' => true,
@@ -3258,6 +3261,7 @@ switch ($action) {
                 'system_role_label' => $profileSystemRoleLabel,
                 'is_verified' => (int)($profile['is_verified'] ?? 0),
                 'attendance_streak' => $streak,
+                'face_scan_enabled' => (($faceScanEnabled === '1' || $faceScanEnabled === 1) ? 1 : 0),
             ],
         ]);
         break;
@@ -3434,7 +3438,7 @@ switch ($action) {
 
     case 'send_app_notification':
         if (!$user) apiResponse(['success' => false, 'message' => 'Unauthorized']);
-        
+
         $title = trim($_POST['notification_title'] ?? '');
         $message = trim($_POST['notification_message'] ?? '');
         $target_type = $_POST['recipient_type'] ?? 'all';
@@ -4316,8 +4320,8 @@ switch ($action) {
                     $diff_minutes = round((strtotime($current_time) - strtotime($expected_time)) / 60);
                     if ($diff_minutes >= 15) {
                         apiResponse([
-                            'success' => false, 
-                            'require_late_reason' => true, 
+                            'success' => false,
+                            'require_late_reason' => true,
                             'message' => 'អ្នកបានស្កេនចូលយឺតជាងពេលកំណត់ (' . $diff_minutes . ' នាទី)។ សូមបំពេញមូលហេតុនៃការយឺតយ៉ាវនេះ!'
                         ]);
                     }
@@ -4351,7 +4355,7 @@ switch ($action) {
             $u_lat = isset($u_lat) ? floatval($u_lat) : null;
             $u_lon = isset($u_lon) ? floatval($u_lon) : null;
             $geo_address = get_address_from_gps($u_lat, $u_lon);
-            
+
             $ins->bind_param("sssssdssddis", $eid, $uname, $action_type, $status, $loc_name, $distance_m, $late_reason, $photo_path, $u_lat, $u_lon, $loc_id, $geo_address);
             if ($ins->execute()) {
                 // Telegram Notification
@@ -4413,11 +4417,11 @@ switch ($action) {
             $eid = $user['employee_id'];
             $uid = (int)$user['id'];
             $sysRole = $user['system_role'] ?? 'Employee';
-            
+
             $data = [];
-            
+
             // 1. Fetch manual notifications
-            $sql = "SELECT n.id, n.title, n.message, n.image_url, DATE_FORMAT(n.sent_at, '%d/%m/%Y %h:%i %p') as created_at, 
+            $sql = "SELECT n.id, n.title, n.message, n.image_url, DATE_FORMAT(n.sent_at, '%d/%m/%Y %h:%i %p') as created_at,
                            COALESCE(un.is_read, 0) as is_read, 'general' as type, 0 as target_id
                     FROM user_notifications un
                     JOIN notifications n ON un.notification_id = n.id
@@ -4443,10 +4447,10 @@ switch ($action) {
             // 2. Fetch Requests as Notifications
             if ($sysRole === 'Admin' || $sysRole === 'HRM') {
                 // For Admins/HRM: Show pending requests as notifications
-                $sqlReq = "SELECT id as target_id, CONCAT('សំណើថ្មីពី: ', requester_name) as title, 
+                $sqlReq = "SELECT id as target_id, CONCAT('សំណើថ្មីពី: ', requester_name) as title,
                                   CONCAT('ប្រភេទ: ', request_type, ' - ', SUBSTRING(reason, 1, 50)) as message,
                                   created_at, 0 as is_read, 'request' as type, id
-                           FROM requests 
+                           FROM requests
                            WHERE status = 'pending'
                            ORDER BY id DESC LIMIT 20";
                 $resReq = $mysqli->query($sqlReq);
@@ -4456,14 +4460,14 @@ switch ($action) {
                 }
             } else {
                 // For regular users: Show status changes of their requests in last 7 days
-                $sqlReq = "SELECT id as target_id, CONCAT('សេចក្តីសម្រេចលើ: ', request_type) as title, 
-                                  CONCAT('ស្ថានភាពសំណើរបស់អ្នកគឺ: ', 
-                                         CASE WHEN status='approved' THEN 'អនុម័ត' 
-                                              WHEN status='rejected' THEN 'បដិសេធ' 
+                $sqlReq = "SELECT id as target_id, CONCAT('សេចក្តីសម្រេចលើ: ', request_type) as title,
+                                  CONCAT('ស្ថានភាពសំណើរបស់អ្នកគឺ: ',
+                                         CASE WHEN status='approved' THEN 'អនុម័ត'
+                                              WHEN status='rejected' THEN 'បដិសេធ'
                                               ELSE status END) as message,
                                   updated_at as created_at, 1 as is_read, 'request_status' as type, id
-                           FROM requests 
-                           WHERE (user_id = ? OR requester_name = ?) 
+                           FROM requests
+                           WHERE (user_id = ? OR requester_name = ?)
                              AND status IN ('approved', 'rejected')
                              AND updated_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
                            ORDER BY updated_at DESC LIMIT 10";
@@ -4531,11 +4535,11 @@ switch ($action) {
         $baseDir = str_replace('api.php', '', $self);
         $baseUrl = "$proto://$host$baseDir";
 
-        while ($row = $res->fetch_assoc()) { 
+        while ($row = $res->fetch_assoc()) {
             if (!empty($row['image_path'])) {
                 $row['image_url'] = $baseUrl . $row['image_path'];
             }
-            $data[] = $row; 
+            $data[] = $row;
         }
         apiResponse(['success' => true, 'status' => 'success', 'data' => $data]);
         break;
@@ -4549,10 +4553,10 @@ switch ($action) {
         $edate = $_POST['end_date'] ?? null;
         $etime = $_POST['end_time'] ?? null;
         $image_base64 = $_POST['image_base64'] ?? '';
-        
+
         if (!$task) apiResponse(['status' => 'error', 'message' => 'Task is required']);
         $eid = $user['employee_id'];
-        
+
         $image_path = null;
         if (!empty($image_base64)) {
             $dir = __DIR__ . '/uploads/checklist/';
@@ -4611,7 +4615,7 @@ switch ($action) {
 
         if (!$tid || !$task) apiResponse(['status' => 'error', 'message' => 'Task ID and Description are required']);
         $eid = $user['employee_id'];
-        
+
         $image_sql = "";
         if (!empty($image_base64)) {
             $dir = __DIR__ . '/uploads/checklist/';
@@ -4635,23 +4639,23 @@ switch ($action) {
     case 'get_report_positions':
         // Get positions that have Telegram Topic mappings configured
         $positions = [];
-        
+
         // Query HRM database if available
         $hrm_db = getHRMConnection();
         $db_to_use = $hrm_db ?: $mysqli;
-        
-        $query = "SELECT DISTINCT 
+
+        $query = "SELECT DISTINCT
                     COALESCE(NULLIF(tgt.position, ''), NULLIF(tgt.category, ''), tg.name) as position_name,
                     tgt.thread_id,
                     tg.chat_id,
                     tgt.id as mapping_id
                   FROM telegram_group_threads tgt
                   JOIN telegram_groups tg ON tgt.group_id = tg.id
-                  WHERE tgt.thread_id IS NOT NULL 
+                  WHERE tgt.thread_id IS NOT NULL
                     AND tgt.thread_id != ''
                     AND (tgt.position IS NOT NULL OR tgt.category IS NOT NULL)
                   ORDER BY position_name ASC";
-        
+
         $result = $db_to_use->query($query);
         if ($result) {
             while ($row = $result->fetch_assoc()) {
@@ -4666,7 +4670,7 @@ switch ($action) {
             }
         }
         if ($hrm_db) $hrm_db->close();
-        
+
         // If no positions found in telegram_group_threads, fall back to user's own position
         if (empty($positions) && $user) {
             $user_pos = $user['position'] ?? '';
@@ -4679,7 +4683,7 @@ switch ($action) {
                 ];
             }
         }
-        
+
         apiResponse([
             'success' => true,
             'positions' => $positions,
@@ -4764,8 +4768,8 @@ switch ($action) {
         if (!$user) apiResponse(['success' => false, 'status' => 'error', 'message' => 'Unauthorized']);
         $isAdmin = (strcasecmp($user['system_role'], 'Admin') === 0 || strcasecmp($user['system_role'], 'HRM') === 0);
         if (!$isAdmin) apiResponse(['success' => false, 'status' => 'error', 'message' => 'Permission denied']);
-        
-        $sql = "SELECT r.id, r.user_id, r.position, r.content, 
+
+        $sql = "SELECT r.id, r.user_id, r.position, r.content,
                        r.report_date as raw_date,
                        DATE_FORMAT(r.report_date, '%d/%m/%Y') as report_date,
                        MIN(u.name) as user_name, MAX(u.avatar) as avatar
@@ -4773,12 +4777,12 @@ switch ($action) {
                 LEFT JOIN users u ON r.user_id = u.employee_id
                 GROUP BY r.id
                 ORDER BY r.report_date DESC, r.id DESC LIMIT 500";
-        
+
         $res = $mysqli->query($sql);
         $data = [];
         if ($res) {
-            while ($row = $res->fetch_assoc()) { 
-                $data[] = $row; 
+            while ($row = $res->fetch_assoc()) {
+                $data[] = $row;
             }
         } else {
              apiResponse(['success' => false, 'message' => 'Query Failed: ' . $mysqli->error]);
@@ -4789,15 +4793,15 @@ switch ($action) {
     case 'get_my_daily_reports':
         if (!$user) apiResponse(['success' => false, 'status' => 'error', 'message' => 'Unauthorized']);
         $eid = $user['employee_id'];
-        
+
         // Use a simpler query first to check if it's a data issue or syntax issue
-        $sql = "SELECT id, user_id, position, content, 
+        $sql = "SELECT id, user_id, position, content,
                        report_date as raw_date,
                        DATE_FORMAT(report_date, '%d/%m/%Y') as report_date
-                FROM daily_reports 
-                WHERE user_id = ? 
+                FROM daily_reports
+                WHERE user_id = ?
                 ORDER BY id DESC LIMIT 50";
-        
+
         $stmt = $mysqli->prepare($sql);
         if (!$stmt) {
              apiResponse(['success' => false, 'message' => 'Query Prepare Failed: ' . $mysqli->error]);
@@ -4807,8 +4811,8 @@ switch ($action) {
         $res = $stmt->get_result();
         $data = [];
         if ($res) {
-            while ($row = $res->fetch_assoc()) { 
-                $data[] = $row; 
+            while ($row = $res->fetch_assoc()) {
+                $data[] = $row;
             }
         }
         apiResponse(['success' => true, 'status' => 'success', 'data' => $data]);
@@ -4868,7 +4872,7 @@ switch ($action) {
         if ($stmt->execute()) {
             // Notification for Admin and HRM
             sendAppNotificationToRoles($mysqli, ['Admin', 'HRM'], 'លិខិតបេសកកម្មថ្មី', 'មានលិខិតបេសកកម្មថ្មីទៅកាន់ ' . $location . ' ពី ' . $user['name'] . ' (' . $eid . ') បានដាក់ជូនហើយ។');
-            
+
             // Send to Telegram
             sendMissionTelegram($mysqli, $eid, [
                 'name' => $user['name'],
@@ -4913,18 +4917,18 @@ switch ($action) {
     case 'get_users':
         if (!$user) apiResponse(['success' => false, 'message' => 'Unauthorized']);
         $isAdmin = strcasecmp($user['system_role'] ?? '', 'Admin') === 0 || strcasecmp($user['system_role'] ?? '', 'HRM') === 0;
-        
+
         if ($isAdmin) {
             // Admins get full user list (for user management)
             $sql = "SELECT * FROM users ORDER BY name ASC";
         } else {
             // Regular users get only safe public fields (for Chat, etc.)
             $sql = "SELECT employee_id, name, position, department, branch, avatar, user_role, system_role
-                    FROM users 
+                    FROM users
                     WHERE (employment_status IS NULL OR employment_status != 'Resigned')
                     ORDER BY name ASC";
         }
-        
+
         $res = $mysqli->query($sql);
         $data = [];
         if ($res) {
@@ -4956,7 +4960,7 @@ switch ($action) {
         $dept = $_POST['department'] ?? '';
         $pos = $_POST['position'] ?? '';
         $branch = $_POST['branch'] ?? '';
-        
+
         // HR Full Info Fields
         $latin_name = trim($_POST['latin_name'] ?? '');
         $username = trim($_POST['username'] ?? '');
@@ -4979,32 +4983,32 @@ switch ($action) {
 
         if ($exists) {
             // Update
-            $sql = "UPDATE users SET 
-                    name = ?, system_role = ?, system_role_label = ?, 
-                    department = ?, position = ?, branch = ?, 
-                    latin_name = ?, username = ?, email = ?, 
-                    current_address = ?, joined_at = ?, marital_status = ?, 
+            $sql = "UPDATE users SET
+                    name = ?, system_role = ?, system_role_label = ?,
+                    department = ?, position = ?, branch = ?,
+                    latin_name = ?, username = ?, email = ?,
+                    current_address = ?, joined_at = ?, marital_status = ?,
                     base_salary = ?, nssf_id = ?";
-            
+
             if ($pass_hash) $sql .= ", password = ?";
             $sql .= " WHERE employee_id = ?";
 
             $stmt = $mysqli->prepare($sql);
             if ($pass_hash) {
-                $stmt->bind_param("sssssssssssssdss", 
-                    $name, $sRole, $sRoleLabel, 
-                    $dept, $pos, $branch, 
-                    $latin_name, $username, $email, 
-                    $address, $joined_at, $marital, 
+                $stmt->bind_param("sssssssssssssdss",
+                    $name, $sRole, $sRoleLabel,
+                    $dept, $pos, $branch,
+                    $latin_name, $username, $email,
+                    $address, $joined_at, $marital,
                     $base_salary, $nssf_id,
                     $pass_hash, $target_eid
                 );
             } else {
-                $stmt->bind_param("sssssssssssssds", 
-                    $name, $sRole, $sRoleLabel, 
-                    $dept, $pos, $branch, 
-                    $latin_name, $username, $email, 
-                    $address, $joined_at, $marital, 
+                $stmt->bind_param("sssssssssssssds",
+                    $name, $sRole, $sRoleLabel,
+                    $dept, $pos, $branch,
+                    $latin_name, $username, $email,
+                    $address, $joined_at, $marital,
                     $base_salary, $nssf_id,
                     $target_eid
                 );
@@ -5013,16 +5017,16 @@ switch ($action) {
             // Insert
             if (!$pass_hash) $pass_hash = password_hash('123456', PASSWORD_DEFAULT);
             $sql = "INSERT INTO users (
-                    employee_id, name, password, system_role, system_role_label, 
-                    department, position, branch, latin_name, username, 
-                    email, current_address, joined_at, marital_status, 
+                    employee_id, name, password, system_role, system_role_label,
+                    department, position, branch, latin_name, username,
+                    email, current_address, joined_at, marital_status,
                     base_salary, nssf_id
                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
             $stmt = $mysqli->prepare($sql);
-            $stmt->bind_param("ssssssssssssssds", 
-                $target_eid, $name, $pass_hash, $sRole, $sRoleLabel, 
-                $dept, $pos, $branch, $latin_name, $username, 
-                $email, $address, $joined_at, $marital, 
+            $stmt->bind_param("ssssssssssssssds",
+                $target_eid, $name, $pass_hash, $sRole, $sRoleLabel,
+                $dept, $pos, $branch, $latin_name, $username,
+                $email, $address, $joined_at, $marital,
                 $base_salary, $nssf_id
             );
         }
@@ -5061,10 +5065,10 @@ switch ($action) {
 
     case 'get_all_attendance_logs':
         if (!$user) apiResponse(['success' => false, 'message' => 'Unauthorized']);
-        
+
         $isAdmin = (strcasecmp($user['system_role'], 'Admin') === 0 || strcasecmp($user['system_role'], 'HRM') === 0);
         $eid = $user['employee_id'];
-        
+
         $sql = "SELECT l.id, l.employee_id, l.action_type, l.status, l.location_name, l.distance_m, l.late_reason, l.photo_path,
                        l.latitude, l.longitude, l.qr_location_id, l.geo_address,
                        DATE_FORMAT(l.log_datetime, '%d/%m/%Y %h:%i %p') as log_datetime,
@@ -5072,7 +5076,7 @@ switch ($action) {
                 FROM checkin_logs l
                 LEFT JOIN users u ON l.employee_id = u.employee_id
                 WHERE 1=1 ";
-        
+
         // If not admin, only show their own logs
         if (!$isAdmin) {
             $sql .= " AND l.employee_id = '" . $mysqli->real_escape_string($eid) . "' ";
@@ -5088,12 +5092,12 @@ switch ($action) {
         if (!empty($end_date) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $end_date)) {
             $sql .= " AND DATE(l.log_datetime) <= '" . $mysqli->real_escape_string($end_date) . "' ";
         }
-        
+
         $limit  = max(1, min(100, (int)($_POST['limit']  ?? 20)));
         $offset = max(0, (int)($_POST['offset'] ?? 0));
-        
+
         $sql .= " ORDER BY l.log_datetime DESC LIMIT $limit OFFSET $offset";
-        
+
         $res = $mysqli->query($sql);
         $data = [];
         if ($res) {
@@ -5227,30 +5231,30 @@ switch ($action) {
 
     case 'update_avatar':
         if (!$user) apiResponse(['success' => false, 'message' => 'Unauthorized']);
-        
+
         $eid = $user['employee_id'];
         $base64Image = $_POST['avatar_base64'] ?? '';
         if (empty($base64Image)) {
             apiResponse(['success' => false, 'message' => 'No image data provided']);
         }
-        
+
         // Remove data URI scheme prefix if present
         if (strpos($base64Image, 'data:image') === 0) {
             $base64Image = preg_replace('/^data:image\/\w+;base64,/', '', $base64Image);
         }
-        
+
         $imageData = base64_decode($base64Image);
         if ($imageData === false) {
             apiResponse(['success' => false, 'message' => 'Invalid image data']);
         }
-        
+
         $fileName = 'avatar_' . $eid . '_' . time() . '.png';
         $uploadPath = __DIR__ . '/uploads/avatars/' . $fileName;
-        
+
         if (!is_dir(__DIR__ . '/uploads/avatars')) {
             mkdir(__DIR__ . '/uploads/avatars', 0755, true);
         }
-        
+
         if (file_put_contents($uploadPath, $imageData)) {
             // Save relative URL path to DB
             $avatarUrl = 'uploads/avatars/' . $fileName;
@@ -5259,7 +5263,7 @@ switch ($action) {
                 $stmt->bind_param("ss", $avatarUrl, $eid);
                 $stmt->execute();
                 $stmt->close();
-                
+
                 apiResponse(['success' => true, 'message' => 'Avatar updated successfully', 'avatar' => $avatarUrl]);
             } else {
                  apiResponse(['success' => false, 'message' => 'Database error']);
@@ -5299,7 +5303,7 @@ switch ($action) {
     case 'get_app_config':
         if (!$user) apiResponse(['success' => false, 'message' => 'Unauthorized']);
         $eid = $user['employee_id'];
-        
+
         // Resolve admin_id hierarchy
         $owner_id = 'SYSTEM_WIDE';
         $stmt_admin = $mysqli->prepare("SELECT user_role, COALESCE(created_by_admin_id, '') AS created_by_admin_id FROM users WHERE employee_id = ? LIMIT 1");
@@ -5310,7 +5314,7 @@ switch ($action) {
             if ($row_admin = $res_admin->fetch_assoc()) {
                 $role = $row_admin['user_role'] ?? '';
                 $creator = $row_admin['created_by_admin_id'] ?? '';
-                
+
                 // Fallback logic: check if user has their own settings, if not use creator
                 $check = $mysqli->prepare("SELECT 1 FROM app_scan_settings WHERE admin_id = ? LIMIT 1");
                 $check->bind_param("s", $eid);
@@ -5333,7 +5337,7 @@ switch ($action) {
                 UNION
                 (SELECT setting_key, setting_value, 1 as priority FROM app_scan_settings WHERE admin_id = ?)
                 ORDER BY priority ASC";
-        
+
         $stmt = $mysqli->prepare($sql);
         if ($stmt) {
             $stmt->bind_param("s", $owner_id);
@@ -5346,7 +5350,7 @@ switch ($action) {
         }
 
         apiResponse([
-            'success' => true, 
+            'success' => true,
             'settings' => $settings,
             'admin_id' => $owner_id
         ]);
@@ -5541,7 +5545,7 @@ switch ($action) {
 
     case 'submit_material_request':
         if (!$user) apiResponse(['success' => false, 'message' => 'Unauthorized']);
-        
+
         $location = trim($_POST['location'] ?? 'N/A');
         $title = trim($_POST['title'] ?? ($_POST['remarks'] ?? 'Material Request'));
         if ($title === '') $title = 'Material Request';
@@ -5550,33 +5554,33 @@ switch ($action) {
         if (!is_array($request_items)) {
             $request_items = [];
         }
-        
+
         if (empty($request_items)) {
             apiResponse(['success' => false, 'message' => 'No items in request']);
         }
-        
+
         $mysqli->begin_transaction();
         try {
             // Generate request number
             $request_no = 'REQ-' . date('Ymd') . '-' . rand(1000, 9999);
-            
+
             $stmt = $mysqli->prepare("INSERT INTO stock_request (user_id, request_no, title, location, status) VALUES (?, ?, ?, ?, 'pending')");
-            $user_db_id = (int)$user['id']; 
+            $user_db_id = (int)$user['id'];
             $stmt->bind_param("isss", $user_db_id, $request_no, $title, $location);
             if (!$stmt->execute()) throw new Exception($stmt->error);
-            
+
             $request_id = $mysqli->insert_id;
             $stmt->close();
-            
+
             $stmt_item = $mysqli->prepare("INSERT INTO stock_request_items (stock_request_id, item_id, item_name_custom, requested_quantity, notes) VALUES (?, ?, ?, ?, ?)");
-            
+
             if ($stmt_item) {
                 foreach ($request_items as $item) {
                     $item_id = isset($item['id']) ? (int)$item['id'] : null;
                     $item_name_custom = $item['name'] ?? null;
                     $qty = (int)($item['quantity'] ?? 0);
                     $notes = $item['notes'] ?? '';
-                    
+
                     $stmt_item->bind_param("iisis", $request_id, $item_id, $item_name_custom, $qty, $notes);
                     if (!$stmt_item->execute()) throw new Exception($stmt_item->error);
                 }
@@ -5584,9 +5588,9 @@ switch ($action) {
             } else {
                 throw new Exception($mysqli->error);
             }
-            
+
             $mysqli->commit();
-            
+
             // Optional: Notify via Telegram
             $tg_data = [
                 'name' => $user['name'] ?? 'Unknown',
@@ -5594,7 +5598,7 @@ switch ($action) {
                 'summary' => "លេខប័ណ្ណ: $request_no\nទីតាំង: $location\nចំនួន: " . count($request_items) . " មុខ",
             ];
             sendRequestTelegram($mysqli, $user['employee_id'], $tg_data);
-            
+
             apiResponse(['success' => true, 'message' => 'Request submitted successfully', 'request_no' => $request_no]);
         } catch (Exception $e) {
             $mysqli->rollback();
@@ -5611,11 +5615,11 @@ switch ($action) {
         if (!$user || !(strcasecmp($user['system_role'], 'Admin') === 0 || strcasecmp($user['system_role'], 'HRM') === 0 || strcasecmp($user['user_role'], 'Admin') === 0)) {
             apiResponse(['success' => false, 'message' => 'Unauthorized']);
         }
-        $sql = "SELECT t.*, t.total_distance_km as distance_km, 
-                COALESCE(u.name, t.employee_name) as user_name, 
-                u.system_role, u.department 
-                FROM employee_trips t 
-                LEFT JOIN users u ON t.employee_id = u.employee_id 
+        $sql = "SELECT t.*, t.total_distance_km as distance_km,
+                COALESCE(u.name, t.employee_name) as user_name,
+                u.system_role, u.department
+                FROM employee_trips t
+                LEFT JOIN users u ON t.employee_id = u.employee_id
                 ORDER BY t.started_at DESC LIMIT 500";
         $res = $mysqli->query($sql);
         if (!$res) {
@@ -5686,7 +5690,7 @@ switch ($action) {
 
     case 'get_tracking_customers':
         if (!$user) apiResponse(['success' => false, 'message' => 'Unauthorized']);
-        
+
         $customers = [];
         $res = $mysqli->query("SELECT * FROM tracking_customers ORDER BY name ASC");
         if ($res) {
@@ -5699,37 +5703,37 @@ switch ($action) {
 
     case 'start_trip':
         if (!$user) apiResponse(['success' => false, 'message' => 'Unauthorized']);
-        
+
         $eid = $user['employee_id'];
         $empName = $user['name'] ?? '';
         $customer_id = (int)($_POST['customer_id'] ?? 0);
         $customer_name = trim($_POST['customer_name'] ?? '');
         $start_lat = (float)($_POST['latitude'] ?? 0);
         $start_lng = (float)($_POST['longitude'] ?? 0);
-        
+
         // Check if there's already an active trip for this employee
         $check_stmt = $mysqli->prepare("SELECT id FROM employee_trips WHERE employee_id = ? AND status = 'active' LIMIT 1");
         $check_stmt->bind_param('s', $eid);
         $check_stmt->execute();
         $existing = $check_stmt->get_result()->fetch_assoc();
         $check_stmt->close();
-        
+
         if ($existing) {
             apiResponse(['success' => false, 'message' => 'អ្នកមានដំណើរមួយដែលកំពុងដំណើរការរួចហើយ។ សូមបញ្ចប់វាមុន។', 'active_trip_id' => $existing['id']]);
         }
-        
+
         $stmt = $mysqli->prepare("INSERT INTO employee_trips (employee_id, employee_name, customer_id, customer_name, start_lat, start_lng, status, started_at) VALUES (?, ?, ?, ?, ?, ?, 'active', NOW())");
         $stmt->bind_param('ssisdd', $eid, $empName, $customer_id, $customer_name, $start_lat, $start_lng);
-        
+
         if ($stmt->execute()) {
             $trip_id = $mysqli->insert_id;
-            
+
             // Record the starting location
             $loc_stmt = $mysqli->prepare("INSERT INTO trip_locations (trip_id, latitude, longitude, speed, accuracy, recorded_at) VALUES (?, ?, ?, 0, 0, NOW())");
             $loc_stmt->bind_param('idd', $trip_id, $start_lat, $start_lng);
             $loc_stmt->execute();
             $loc_stmt->close();
-            
+
             // ===== Telegram Group Notification to HR & Admin =====
             $bot_token = getTelegramBotToken($mysqli, $eid);
             $tg_chat_id = '';
@@ -5758,7 +5762,7 @@ switch ($action) {
                 curl_close($ch);
             }
             // ====================================================
-            
+
             // Notify HRM/Admin — In-app DB + FCM Push Notification to Flutter app
             $trip_extra = [
                 'type'          => 'new_trip',
@@ -5788,35 +5792,35 @@ switch ($action) {
 
     case 'update_trip_location':
         if (!$user) apiResponse(['success' => false, 'message' => 'Unauthorized']);
-        
+
         $trip_id = (int)($_POST['trip_id'] ?? 0);
         $lat = (float)($_POST['latitude'] ?? 0);
         $lng = (float)($_POST['longitude'] ?? 0);
         $speed = (float)($_POST['speed'] ?? 0);
         $accuracy = (float)($_POST['accuracy'] ?? 0);
-        
+
         if ($trip_id <= 0) {
             apiResponse(['success' => false, 'message' => 'Trip ID required']);
         }
-        
+
         // Verify trip belongs to this user and is active
         $verify = $mysqli->prepare("SELECT id FROM employee_trips WHERE id = ? AND employee_id = ? AND status = 'active'");
         $verify->bind_param('is', $trip_id, $user['employee_id']);
         $verify->execute();
         $trip_exists = $verify->get_result()->fetch_assoc();
         $verify->close();
-        
+
         if (!$trip_exists) {
             apiResponse(['success' => false, 'message' => 'Trip not found or already completed']);
         }
-        
+
         $stmt = $mysqli->prepare("INSERT INTO trip_locations (trip_id, latitude, longitude, speed, accuracy, recorded_at) VALUES (?, ?, ?, ?, ?, NOW())");
         $stmt->bind_param('idddd', $trip_id, $lat, $lng, $speed, $accuracy);
-        
+
         if ($stmt->execute()) {
             // Always update duration in real-time
-            $mysqli->query("UPDATE employee_trips SET 
-                            duration_minutes = TIMESTAMPDIFF(MINUTE, started_at, NOW()) 
+            $mysqli->query("UPDATE employee_trips SET
+                            duration_minutes = TIMESTAMPDIFF(MINUTE, started_at, NOW())
                             WHERE id = $trip_id");
 
             // Increment total distance in real-time if we have a previous point
@@ -5824,11 +5828,11 @@ switch ($action) {
             if ($dist_res && $dist_res->num_rows == 2) {
                 $p1 = $dist_res->fetch_assoc(); // New point
                 $p2 = $dist_res->fetch_assoc(); // Previous point
-                
+
                 $inc_dist_km = haversine_distance($p1['latitude'], $p1['longitude'], $p2['latitude'], $p2['longitude']) / 1000;
-                
-                $mysqli->query("UPDATE employee_trips SET 
-                                total_distance_km = total_distance_km + $inc_dist_km 
+
+                $mysqli->query("UPDATE employee_trips SET
+                                total_distance_km = total_distance_km + $inc_dist_km
                                 WHERE id = $trip_id");
             }
             apiResponse(['success' => true, 'message' => 'Location recorded']);
@@ -5840,35 +5844,35 @@ switch ($action) {
 
     case 'end_trip':
         if (!$user) apiResponse(['success' => false, 'message' => 'Unauthorized']);
-        
+
         $trip_id = (int)($_POST['trip_id'] ?? 0);
         $eid = $user['employee_id'];
-        
+
         if ($trip_id <= 0) {
             apiResponse(['success' => false, 'message' => 'Trip ID required']);
         }
-        
+
         // Get trip
         $trip_stmt = $mysqli->prepare("SELECT * FROM employee_trips WHERE id = ? AND employee_id = ? AND status = 'active'");
         $trip_stmt->bind_param('is', $trip_id, $eid);
         $trip_stmt->execute();
         $trip = $trip_stmt->get_result()->fetch_assoc();
         $trip_stmt->close();
-        
+
         if (!$trip) {
             apiResponse(['success' => false, 'message' => 'Trip not found or already completed']);
         }
-        
+
         // Get last location
         $loc_stmt = $mysqli->prepare("SELECT latitude, longitude FROM trip_locations WHERE trip_id = ? ORDER BY recorded_at DESC LIMIT 1");
         $loc_stmt->bind_param('i', $trip_id);
         $loc_stmt->execute();
         $last_loc = $loc_stmt->get_result()->fetch_assoc();
         $loc_stmt->close();
-        
+
         $end_lat = $last_loc['latitude'] ?? 0;
         $end_lng = $last_loc['longitude'] ?? 0;
-        
+
         // Calculate total distance
         $pts_stmt = $mysqli->prepare("SELECT latitude, longitude FROM trip_locations WHERE trip_id = ? ORDER BY recorded_at ASC");
         $pts_stmt->bind_param('i', $trip_id);
@@ -5884,12 +5888,12 @@ switch ($action) {
             $prev = $pt;
         }
         $pts_stmt->close();
-        
+
         // Update trip
         $update_stmt = $mysqli->prepare("UPDATE employee_trips SET status='completed', end_lat=?, end_lng=?, total_distance_km=?, duration_minutes=TIMESTAMPDIFF(MINUTE, started_at, NOW()), ended_at=NOW() WHERE id=?");
         $update_stmt->bind_param('dddi', $end_lat, $end_lng, $total_dist, $trip_id);
         $update_stmt->execute();
-        
+
         // Fetch the calculated duration for response
         $dur_stmt = $mysqli->prepare("SELECT duration_minutes FROM employee_trips WHERE id=?");
         $dur_stmt->bind_param('i', $trip_id);
@@ -5897,9 +5901,9 @@ switch ($action) {
         $dur_res = $dur_stmt->get_result()->fetch_assoc();
         $duration = (int)($dur_res['duration_minutes'] ?? 0);
         $dur_stmt->close();
-        
+
         $update_stmt->close();
-        
+
         apiResponse([
             'success' => true,
             'message' => 'ដំណើរត្រូវបានបញ្ចប់!',
@@ -5943,13 +5947,13 @@ switch ($action) {
 
     case 'get_my_trips':
         if (!$user) apiResponse(['success' => false, 'message' => 'Unauthorized']);
-        
+
         $eid = $user['employee_id'];
         $trips = [];
-        $stmt = $mysqli->prepare("SELECT id, employee_id, customer_id, total_distance_km, 
-                                  DATE_FORMAT(started_at, '%d/%m/%Y %h:%i %p') as started_at, 
-                                  DATE_FORMAT(ended_at, '%d/%m/%Y %h:%i %p') as ended_at, 
-                                  status 
+        $stmt = $mysqli->prepare("SELECT id, employee_id, customer_id, total_distance_km,
+                                  DATE_FORMAT(started_at, '%d/%m/%Y %h:%i %p') as started_at,
+                                  DATE_FORMAT(ended_at, '%d/%m/%Y %h:%i %p') as ended_at,
+                                  status
                                   FROM employee_trips WHERE employee_id = ? ORDER BY started_at DESC LIMIT 50");
         $stmt->bind_param('s', $eid);
         $stmt->execute();
@@ -5978,30 +5982,30 @@ switch ($action) {
 
     case 'get_active_trip':
         if (!$user) apiResponse(['success' => false, 'message' => 'Unauthorized']);
-        
+
         $eid = $user['employee_id'];
-        $stmt = $mysqli->prepare("SELECT t.*, c.latitude as target_lat, c.longitude as target_lng 
-                                  FROM employee_trips t 
-                                  LEFT JOIN tracking_customers c ON t.customer_id = c.id 
-                                  WHERE t.employee_id = ? AND t.status = 'active' 
+        $stmt = $mysqli->prepare("SELECT t.*, c.latitude as target_lat, c.longitude as target_lng
+                                  FROM employee_trips t
+                                  LEFT JOIN tracking_customers c ON t.customer_id = c.id
+                                  WHERE t.employee_id = ? AND t.status = 'active'
                                   ORDER BY t.started_at DESC LIMIT 1");
         $stmt->bind_param('s', $eid);
         $stmt->execute();
         $trip = $stmt->get_result()->fetch_assoc();
         $stmt->close();
-        
+
         apiResponse(['success' => true, 'trip' => $trip]);
         break;
 
     case 'get_payroll_history':
         if (!$user) apiResponse(['success' => false, 'message' => 'Unauthorized']);
         $eid = $_POST['employee_id'] ?? $user['employee_id'];
-        
+
         // Ensure only Admin/HRM can view others
         if (strcasecmp($user['system_role'] ?? '', 'Admin') !== 0 && strcasecmp($user['system_role'] ?? '', 'HRM') !== 0) {
             $eid = $user['employee_id'];
         }
-        
+
         // Ensure table exists
         $mysqli->query("CREATE TABLE IF NOT EXISTS payroll_history (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -6091,9 +6095,9 @@ switch ($action) {
         if (!$user || !(strcasecmp($user['system_role'], 'Admin') === 0 || strcasecmp($user['system_role'], 'HRM') === 0)) {
             apiResponse(['success' => false, 'message' => 'Unauthorized']);
         }
-        
-        $sql = "SELECT employee_id, name, position, department, branch, COALESCE(base_salary, 0) as salary 
-                FROM users 
+
+        $sql = "SELECT employee_id, name, position, department, branch, COALESCE(base_salary, 0) as salary
+                FROM users
                 WHERE employment_status IS NULL OR employment_status != 'Resigned'
                 ORDER BY name ASC";
         $res = $mysqli->query($sql);

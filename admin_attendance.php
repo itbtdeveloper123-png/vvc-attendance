@@ -921,7 +921,7 @@ if (!function_exists('get_app_scan_setting')) {
     if (!function_exists('is_system_wide_app_scan_key')) {
         function is_system_wide_app_scan_key($key)
         {
-            static $global_keys = ['app_latest_version', 'app_latest_build', 'app_apk_url', 'app_update_message', 'app_force_update'];
+            static $global_keys = ['app_latest_version', 'app_latest_build', 'app_apk_url', 'app_update_message', 'app_force_update', 'face_scan_enabled'];
             return in_array((string) $key, $global_keys, true);
         }
     }
@@ -3586,7 +3586,7 @@ if (isset($_POST['ajax_action']) || isset($_GET['ajax_action'])) {
                     // Candidates are now dynamic based on group
                     error_log("SAVE_APP_SCAN_SETTINGS: Success reached before notifications");
 
-                    $checkboxes = ['telegram_notify_attendance', 'telegram_notify_requests', 'telegram_notify_attendance__worker', 'telegram_notify_requests__worker', 'app_default_dark_mode', 'attendance_reminder_enabled', 'app_force_update', 'payroll_biometric_required'];
+                    $checkboxes = ['telegram_notify_attendance', 'telegram_notify_requests', 'telegram_notify_attendance__worker', 'telegram_notify_requests__worker', 'app_default_dark_mode', 'attendance_reminder_enabled', 'app_force_update', 'payroll_biometric_required', 'face_scan_enabled'];
                     $all_keys = ['stats_slider', 'attendance', 'outside_attendance', 'training_quiz', 'announcements', 'meetings', 'checklist', 'daily_report', 'mission', 'trip', 'user_management', 'request_form', 'reports', 'material_request', 'notification', 'notification_history', 'employee_report', 'payroll', 'profile_footer', 'home_footer'];
                     $visibility_role_suffixes = function_exists('app_system_visibility_role_suffixes') ? app_system_visibility_role_suffixes() : ['skill', 'worker', 'hrm', 'admin'];
                     foreach ($visibility_role_suffixes as $role) {
@@ -21364,6 +21364,14 @@ ob_end_flush();
                             </div>
                             <small class="text-muted" style="display:block; margin-top:10px; font-size:11px;">
                                 បើបិទ setting នេះ បុគ្គលិកអាចបើកទំព័រ Payroll បានដោយមិនត្រូវ scan biometric។
+                            </small>
+
+                            <div class="checkbox-item" style="margin-top:16px;">
+                                <input type="checkbox" name="face_scan_enabled" value="1" <?php echo (get_app_scan_setting($mysqli, $current_admin_id, 'face_scan_enabled', '1') == '1') ? 'checked' : ''; ?>>
+                                <span>បើកមុខងារ​ស្កេន​មុខ​សម្រាប់​វត្តមាន</span>
+                            </div>
+                            <small class="text-muted" style="display:block; margin-top:10px; font-size:11px;">
+                                បើបើក កម្មវិធីនឹងព្យាយាមស្កេនមុខជាមុន ហើយប្រសិនបើទូរសព្ទមិនគាំទ្រវា វានឹងត្រឡប់ទៅស្កេន QR ដោយស្វ័យប្រវត្តិ។
                             </small>
 
                             <?php $payroll_bio_records = fetch_payroll_biometric_records($mysqli, 100); ?>
