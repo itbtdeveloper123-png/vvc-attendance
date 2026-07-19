@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui';
 import 'package:camera/camera.dart';
@@ -125,7 +126,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         frontCamera,
         ResolutionPreset.medium,
         enableAudio: false,
-        imageFormatGroup: ImageFormatGroup.yuv420,
+        imageFormatGroup: Platform.isAndroid
+            ? ImageFormatGroup.yuv420
+            : ImageFormatGroup.bgra8888,
       );
 
       await _cameraController!.initialize();
@@ -227,10 +230,11 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   }
 
   Future<void> _switchToFaceScanner() async {
-    _faceScanAttempted = false;
     if (!mounted) return;
     setState(() {
-      _isLoading = true;
+      _faceScanAttempted = false;
+      _useQrScanner = false;
+      _isLoading = false;
       _isScanning = false;
     });
     await _tryFaceScanOrFallback();
@@ -338,9 +342,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       image.width.toDouble(),
       image.height.toDouble(),
     );
-    final inputImageFormat =
-        InputImageFormatValue.fromRawValue(image.format.raw) ??
-        InputImageFormat.nv21;
+    final inputImageFormat = Platform.isIOS
+        ? InputImageFormat.bgra8888
+        : (InputImageFormatValue.fromRawValue(image.format.raw) ?? InputImageFormat.nv21);
     final imageRotation =
         InputImageRotationValue.fromRawValue(rotation) ??
         InputImageRotation.rotation0deg;
