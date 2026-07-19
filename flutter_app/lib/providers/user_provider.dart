@@ -195,6 +195,7 @@ class UserProvider with ChangeNotifier {
   String? _email;
   bool _isLoggedIn = false;
   bool _isVerified = false;
+  bool _faceScanEnabled = true;
   int _attendanceStreak = 0;
   Map<String, dynamic> _settings = {};
 
@@ -210,6 +211,7 @@ class UserProvider with ChangeNotifier {
   String? get phone => _phone;
   String? get email => _email;
   bool get isVerified => _isVerified;
+  bool get faceScanEnabled => _faceScanEnabled;
   int get attendanceStreak => _attendanceStreak;
   Map<String, dynamic> get settings => _settings;
 
@@ -390,6 +392,7 @@ class UserProvider with ChangeNotifier {
     _phone = prefs.getString('user_phone');
     _email = prefs.getString('user_email');
     _isVerified = prefs.getBool('is_verified') ?? false;
+    _faceScanEnabled = prefs.getBool('face_scan_enabled') ?? true;
     _attendanceStreak = prefs.getInt('attendance_streak') ?? 0;
 
     final savedSettings = prefs.getString('app_settings');
@@ -481,6 +484,7 @@ class UserProvider with ChangeNotifier {
       );
       _systemRoleLabel = (result['user']['system_role_label'] as String?) ?? '';
       _isVerified = (result['user']['is_verified'] ?? 0).toString() == '1';
+      _faceScanEnabled = (result['user']['face_scan_enabled'] ?? '1').toString() == '1';
       _attendanceStreak =
           int.tryParse(
             result['user']['attendance_streak']?.toString() ?? '0',
@@ -518,6 +522,7 @@ class UserProvider with ChangeNotifier {
       await prefs.setString('system_role', _systemRoleStr!);
       await prefs.setString('system_role_label', _systemRoleLabel!);
       await prefs.setBool('is_verified', _isVerified);
+      await prefs.setBool('face_scan_enabled', _faceScanEnabled);
       await prefs.setInt('attendance_streak', _attendanceStreak);
       await addRecentAccount(
         employeeId: _employeeId!,
@@ -559,6 +564,7 @@ class UserProvider with ChangeNotifier {
       _systemRoleLabel =
           (user['system_role_label'] as String?) ?? _systemRoleLabel ?? '';
       _isVerified = (user['is_verified'] ?? 0).toString() == '1';
+      _faceScanEnabled = (user['face_scan_enabled'] ?? '1').toString() == '1';
       _attendanceStreak =
           int.tryParse(user['attendance_streak']?.toString() ?? '0') ?? 0;
 
@@ -596,6 +602,7 @@ class UserProvider with ChangeNotifier {
         await prefs.setString('system_role_label', _systemRoleLabel!);
       }
       await prefs.setBool('is_verified', _isVerified);
+      await prefs.setBool('face_scan_enabled', _faceScanEnabled);
       await prefs.setInt('attendance_streak', _attendanceStreak);
       notifyListeners();
     }
@@ -665,6 +672,7 @@ class UserProvider with ChangeNotifier {
     await prefs.remove('system_role');
     await prefs.remove('system_role_label');
     await prefs.remove('is_verified');
+    await prefs.remove('face_scan_enabled');
     await prefs.remove('attendance_streak');
     await prefs.remove('current_active_trip_id');
     await prefs.remove('last_checkin_time');

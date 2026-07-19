@@ -75,7 +75,18 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     if (_faceScanAttempted || _useQrScanner) return;
     _faceScanAttempted = true;
     setState(() => _isLoading = true);
-
+ 
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    if (!userProvider.faceScanEnabled) {
+      if (!mounted) return;
+      setState(() {
+        _useQrScanner = true;
+        _isScanning = true;
+        _isLoading = false;
+      });
+      return;
+    }
+ 
     try {
       final permission = await Permission.camera.request();
       if (!permission.isGranted) {
@@ -102,7 +113,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         frontCamera,
         ResolutionPreset.medium,
         enableAudio: false,
-        imageFormatGroup: ImageFormatGroup.yuv420,
       );
 
       await _cameraController!.initialize();
@@ -857,6 +867,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final bool faceScanEnabled = Provider.of<UserProvider>(context).faceScanEnabled;
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A),
       body: Stack(
@@ -995,30 +1006,55 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
               bottom: 110,
               left: 24,
               right: 24,
-              child: FadeInUp(
-                duration: const Duration(milliseconds: 600),
-                child: ElevatedButton(
-                  onPressed: _switchToFaceScanner,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.black.withValues(alpha: 0.5),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      side: BorderSide(
-                        color: Colors.cyanAccent.withValues(alpha: 0.3),
+              child: faceScanEnabled
+                  ? FadeInUp(
+                      duration: const Duration(milliseconds: 600),
+                      child: ElevatedButton(
+                        onPressed: _switchToFaceScanner,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.black.withValues(alpha: 0.5),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            side: BorderSide(
+                              color: Colors.cyanAccent.withValues(alpha: 0.3),
+                            ),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                        child: Text(
+                          'សាកល្បងស្កេនមុខម្ដងទៀត',
+                          style: GoogleFonts.kantumruyPro(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                    )
+                  : FadeInUp(
+                      duration: const Duration(milliseconds: 600),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 16,
+                          horizontal: 20,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.6),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.12),
+                          ),
+                        ),
+                        child: Text(
+                          'Face Scan មិនត្រូវបានកំណត់សម្រាប់គណនីនេះទេ។ សូមប្រើ QR Code ដើម្បីបញ្ចូលវត្តមាន។',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.kantumruyPro(
+                            color: Colors.white,
+                            fontSize: 13,
+                          ),
+                        ),
                       ),
                     ),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
-                  child: Text(
-                    'សាកល្បងស្កេនមុខម្ដងទៀត',
-                    style: GoogleFonts.kantumruyPro(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
-                  ),
-                ),
-              ),
             ),
 
           if (!_useQrScanner && !_isLoading)
