@@ -12,6 +12,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:animate_do/animate_do.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/user_provider.dart';
 import '../services/api_service.dart';
 import '../services/notification_service.dart';
@@ -41,14 +42,38 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   bool _faceScanAttempted = false;
   bool _faceCaptured = false;
   bool _faceProcessing = false;
+  bool _isFaceRegistered = false; // true = user already completed face setup before
   int _consecutiveFaceFrames = 0;
   int _consecutiveErrorFrames = 0;
   Timer? _faceScanTimeout;
 
+  // ====== SharedPreferences key for face registration status ======
+  static String _faceRegKey(String? employeeId) =>
+      'face_registered_${employeeId ?? 'unknown'}';
+
+  /// Load whether this user has already registered their face before
+  Future<void> _loadFaceRegistrationStatus() async {
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    if (!userProvider.faceScanEnabled) return;
+    final prefs = await SharedPreferences.getInstance();
+    final key = _faceRegKey(userProvider.employeeId);
+    _isFaceRegistered = prefs.getBool(key) ?? false;
+  }
+
+  /// Mark this user's face as registered (called on first successful face attendance)
+  Future<void> _markFaceAsRegistered() async {
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    final prefs = await SharedPreferences.getInstance();
+    final key = _faceRegKey(userProvider.employeeId);
+    await prefs.setBool(key, true);
+    _isFaceRegistered = true;
+  }
+
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _loadFaceRegistrationStatus();
       _tryFaceScanOrFallback();
     });
   }
@@ -56,10 +81,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final faceScanEnabled = Provider.of<UserProvider>(context).faceScanEnabled;
-    if (faceScanEnabled && !_faceScanAttempted && !_isLoading) {
-      _tryFaceScanOrFallback();
-    }
+    // NOTE: Do NOT re-trigger _tryFaceScanOrFallback here —
+    // It is already called from initState's postFrameCallback.
+    // Re-triggering it here causes the face scanner to re-initialise
+    // on every rebuild, which creates the "always shows setup" bug.
   }
 
   @override
@@ -275,6 +300,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         _faceScanTimeout?.cancel();
         if (mounted) {
           await _switchToQrScanner();
+          if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('មិនអាចស្កេនផ្ទៃមុខបានទេ។ កំពុងប្ដូរទៅ QR Code ជំនួស។'),
@@ -423,6 +449,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         );
 
         if (result['success'] == true) {
+          // Mark face as registered on first successful face attendance
+          if (!_isFaceRegistered) {
+            await _markFaceAsRegistered();
+          }
           NotificationService().showNotification(
             id: DateTime.now().millisecondsSinceEpoch.remainder(100000),
             title: "ជោគជ័យ",
@@ -1107,7 +1137,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                     ),
             ),
 
-          if (!_useQrScanner && !_isLoading)
+          // Setup guide: visible ONLY for first-time users (NOT yet registered)
+          if (!_useQrScanner && !_isLoading && !_isFaceRegistered)
             Positioned(
               bottom: 140,
               left: 24,
@@ -1123,14 +1154,31 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                     color: Colors.black.withValues(alpha: 0.55),
                     borderRadius: BorderRadius.circular(24),
                     border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.12),
+                      color: Colors.cyanAccent.withValues(alpha: 0.35),
                     ),
                   ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.face_retouching_natural_rounded,
+                              color: Colors.cyanAccent, size: 20),
+                          const SizedBox(width: 8),
+                          Text(
+                            'ការដំឡើង Face ID លើកដំបូង',
+                            style: GoogleFonts.kantumruyPro(
+                              color: Colors.cyanAccent,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
                       Text(
-                        'សូមបញ្ចូលមុខរបស់អ្នក ដើម្បីស្កេនវត្តមាន',
+                        'សូមបញ្ចូលមុខរបស់អ្នក ដើម្បីដំឡើង Face ID ជាលើកដំបូង',
                         textAlign: TextAlign.center,
                         style: GoogleFonts.kantumruyPro(
                           color: Colors.white,
@@ -1138,9 +1186,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                           fontSize: 15,
                         ),
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 8),
                       Text(
-                        'ប្រសិនបើទូរសព្ទនេះមិនគាំទ្រការស្កេនមុខ ឬអ្នកមិនចង់ប្រើមុខ សូម​ប្ដូរទៅ QR code',
+                        'ប្រសិនបើទូរស័ព្ទនេះមិនគាំទ្រ ឬអ្នកមិនចង់ប្រើ Face Scan សូម​ប្ដូរទៅ QR Code',
                         textAlign: TextAlign.center,
                         style: GoogleFonts.kantumruyPro(
                           color: AppTheme.textPrimary.withValues(alpha: 0.8),
