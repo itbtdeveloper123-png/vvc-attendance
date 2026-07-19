@@ -41,6 +41,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   bool _faceCaptured = false;
   bool _faceProcessing = false;
   int _consecutiveFaceFrames = 0;
+  int _consecutiveErrorFrames = 0;
   Timer? _faceScanTimeout;
 
   @override
@@ -98,11 +99,13 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
     try {
       final permission = await Permission.camera.request();
+      if (!mounted) return;
       if (!permission.isGranted && !permission.isLimited) {
         throw Exception('Camera permission denied');
       }
 
       final cameras = await availableCameras();
+      if (!mounted) return;
       if (cameras.isEmpty) {
         throw Exception('មិនមានកាមេរ៉ាណាមួយ');
       }
@@ -126,6 +129,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       );
 
       await _cameraController!.initialize();
+      if (!mounted) return;
+
       _faceDetector = FaceDetector(
         options: FaceDetectorOptions(
           performanceMode: FaceDetectorMode.fast,
@@ -137,6 +142,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       );
 
       await _cameraController!.startImageStream(_processCameraImage);
+      if (!mounted) return;
+
       _faceScanTimeout?.cancel();
       _faceScanTimeout = Timer(const Duration(seconds: 10), () {
         if (!_faceCaptured && mounted) {
@@ -144,13 +151,28 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         }
       });
 
-      if (!mounted) return;
       setState(() {
         _useQrScanner = false;
         _isScanning = true;
         _isLoading = false;
       });
     } catch (e) {
+      try {
+        if (_cameraController != null &&
+            _cameraController!.value.isStreamingImages) {
+          await _cameraController!.stopImageStream();
+        }
+      } catch (_) {}
+      try {
+        await _cameraController?.dispose();
+      } catch (_) {}
+      _cameraController = null;
+
+      try {
+        await _faceDetector?.close();
+      } catch (_) {}
+      _faceDetector = null;
+
       if (!mounted) return;
       debugPrint('Face scan setup failed: $e');
       if (userProvider.faceScanEnabled) {
@@ -177,6 +199,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     _faceProcessing = false;
     _faceCaptured = false;
     _consecutiveFaceFrames = 0;
+    _consecutiveErrorFrames = 0;
 
     try {
       if (_cameraController != null &&
@@ -228,6 +251,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         _cameraController!.description.sensorOrientation,
       );
       final faces = await _faceDetector?.processImage(inputImage) ?? [];
+      _consecutiveErrorFrames = 0;
 
       if (faces.isNotEmpty) {
         _consecutiveFaceFrames += 1;
@@ -240,8 +264,21 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         _faceScanTimeout?.cancel();
         await _submitFaceAttendance();
       }
-    } catch (_) {
-      // Ignore detection errors and allow fallback timer to trigger.
+    } catch (e) {
+      debugPrint('Face frame detection error: $e');
+      _consecutiveErrorFrames += 1;
+      if (_consecutiveErrorFrames >= 5) {
+        _faceScanTimeout?.cancel();
+        if (mounted) {
+          await _switchToQrScanner();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('មិនអាចស្កេនផ្ទៃមុខបានទេ។ កំពុងប្ដូរទៅ QR Code ជំនួស។'),
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+      }
     } finally {
       _faceProcessing = false;
     }
@@ -340,6 +377,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       if (_cameraController != null &&
           _cameraController!.value.isStreamingImages) {
         await _cameraController!.stopImageStream();
+        await Future.delayed(const Duration(milliseconds: 300));
       }
 
       final XFile photo = await _cameraController!.takePicture();
@@ -360,12 +398,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       }
 
       if (action == null) {
-        if (!mounted) return;
-        setState(() {
-          _useQrScanner = true;
-          _isScanning = true;
-          _isLoading = false;
-        });
+        await _switchToQrScanner();
         return;
       }
 
@@ -400,13 +433,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
             setState(() => _isLoading = true);
             await submit(inputReason.trim());
           } else {
-            if (mounted) {
-              setState(() {
-                _useQrScanner = true;
-                _isScanning = true;
-                _isLoading = false;
-              });
-            }
+            await _switchToQrScanner();
           }
         } else {
           _showError(result['message'] ?? 'បរាជ័យ');
@@ -417,10 +444,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     } catch (e) {
       if (mounted) {
         _showError("កំហុស៖ $e");
-        setState(() {
-          _useQrScanner = true;
-          _isScanning = true;
-        });
+        await _switchToQrScanner();
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);

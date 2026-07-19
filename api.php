@@ -2907,6 +2907,7 @@ switch ($action) {
         $audioPath = $meeting['audio_path'] ?? $meeting['audio_file_path'] ?? '';
 
         $tempUsed = false;
+        $fullPath = '';
 
         // AUTO-CONVERT to Full URL (ensure it matches what the app plays)
         $actualAudioUrl = $audioPath;
@@ -3023,8 +3024,10 @@ switch ($action) {
         } else {
             $stmt->store_result();
             $meta = $stmt->result_metadata();
+            $row = [];
+            $params = [];
             while ($meta && $field = $meta->fetch_field()) { $params[] = &$row[$field->name]; }
-            if (isset($params)) {
+            if (!empty($params)) {
                 call_user_func_array([$stmt, 'bind_result'], $params);
                 while ($stmt->fetch()) {
                     $tmp = [];
