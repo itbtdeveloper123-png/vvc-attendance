@@ -2,7 +2,6 @@ import 'dart:ui';
 import 'dart:convert';
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -43,7 +42,8 @@ class TeamChatScreen extends StatefulWidget {
   State<TeamChatScreen> createState() => _TeamChatScreenState();
 }
 
-class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStateMixin {
+class _TeamChatScreenState extends State<TeamChatScreen>
+    with TickerProviderStateMixin {
   late TextEditingController _msgController;
   late ScrollController _scrollController;
   late TextEditingController _searchController;
@@ -54,11 +54,10 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
 
   String currentUserId = '';
   String currentUserPhoto = '';
-  Stream<QuerySnapshot>? _messageStream;
   StreamSubscription<QuerySnapshot>? _messageSubscription;
-  final GlobalKey<AnimatedListState> _animatedListKey = GlobalKey<AnimatedListState>();
+  final GlobalKey<AnimatedListState> _animatedListKey =
+      GlobalKey<AnimatedListState>();
   final List<DocumentSnapshot> _messageDocs = [];
-  bool _initialLoadDone = false;
 
   // Upload progress tracking: key -> progress (0..1)
   final Map<String, double> _uploadProgress = {};
@@ -157,7 +156,10 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
     return DateFormat('dd MMM yyyy', 'km').format(date);
   }
 
-  bool _shouldShowDateSeparator(Map<String, dynamic> currentMsg, Map<String, dynamic>? previousMsg) {
+  bool _shouldShowDateSeparator(
+    Map<String, dynamic> currentMsg,
+    Map<String, dynamic>? previousMsg,
+  ) {
     if (previousMsg == null) return false;
     final current = _getDateSeparator(currentMsg['timestamp']);
     final previous = _getDateSeparator(previousMsg['timestamp']);
@@ -189,7 +191,9 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
       final doc = await _firestore.collection(collection).doc(roomId).get();
       if (doc.exists && doc.data()?['pinnedMessages'] != null) {
         setState(() {
-          _pinnedMessageIds = List<String>.from(doc.data()?['pinnedMessages'] ?? []);
+          _pinnedMessageIds = List<String>.from(
+            doc.data()?['pinnedMessages'] ?? [],
+          );
         });
       }
     } catch (e) {
@@ -204,15 +208,15 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
           .doc(widget.targetUserId)
           .snapshots()
           .listen((snapshot) {
-        if (!mounted) return;
-        final data = snapshot.data();
-        if (data?['typing'] == true) {
-          if (mounted) setState(() {});
-          Future.delayed(const Duration(seconds: 3), () {
-            if (mounted) setState(() {});
+            if (!mounted) return;
+            final data = snapshot.data();
+            if (data?['typing'] == true) {
+              if (mounted) setState(() {});
+              Future.delayed(const Duration(seconds: 3), () {
+                if (mounted) setState(() {});
+              });
+            }
           });
-        }
-      });
     }
   }
 
@@ -240,7 +244,11 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
     }
   }
 
-  Future<void> _loadInitialMessages(String collection, String roomId, {int limit = 50}) async {
+  Future<void> _loadInitialMessages(
+    String collection,
+    String roomId, {
+    int limit = 50,
+  }) async {
     try {
       final snapshot = await _firestore
           .collection(collection)
@@ -268,12 +276,15 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
         .orderBy('timestamp', descending: true)
         .limit(50)
         .snapshots()
-        .listen((snapshot) {
-      final docsAsc = snapshot.docs.reversed.toList();
-      _applyListDiff(docsAsc);
-    }, onError: (e) {
-      debugPrint('Message stream error: $e');
-    });
+        .listen(
+          (snapshot) {
+            final docsAsc = snapshot.docs.reversed.toList();
+            _applyListDiff(docsAsc);
+          },
+          onError: (e) {
+            debugPrint('Message stream error: $e');
+          },
+        );
   }
 
   String _getChatRoomId() {
@@ -351,7 +362,9 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
           ? text
           : (imageUrl != null && imageUrl.isNotEmpty
                 ? '📷 រូបភាព (Image)'
-                : (base64Image != null ? '📷 រូបភាព (Image)' : '🎤 សារសំឡេង (Voice Message)'));
+                : (base64Image != null
+                      ? '📷 រូបភាព (Image)'
+                      : '🎤 សារសំឡេង (Voice Message)'));
 
       await _firestore.collection(collection).doc(roomId).set({
         'lastMessage': lastMsg,
@@ -359,7 +372,11 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
         'lastSenderId': currentUserId,
       }, SetOptions(merge: true));
 
-      if ((base64Image == null || base64Image.isEmpty) && (base64Audio == null || base64Audio.isEmpty) && (imageUrl == null || imageUrl.isEmpty)) _msgController.clear();
+      if ((base64Image == null || base64Image.isEmpty) &&
+          (base64Audio == null || base64Audio.isEmpty) &&
+          (imageUrl == null || imageUrl.isEmpty)) {
+        _msgController.clear();
+      }
       setState(() => _replyTo = null);
       _scrollToBottom();
       await _updateTypingStatus(false);
@@ -380,7 +397,11 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
   }
 
   // Upload helper with progress and retry support (uploads from local file path)
-  Future<String?> _startUploadFromPath(String roomId, String fileName, String filePath) async {
+  Future<String?> _startUploadFromPath(
+    String roomId,
+    String fileName,
+    String filePath,
+  ) async {
     final ref = firebase_storage.FirebaseStorage.instance
         .ref()
         .child('chat_images')
@@ -395,10 +416,16 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
       if (kIsWeb) {
         // Web: read bytes from XFile path fallback
         final bytes = await File(filePath).readAsBytes();
-        uploadTask = ref.putData(bytes, firebase_storage.SettableMetadata(contentType: 'image/jpeg'));
+        uploadTask = ref.putData(
+          bytes,
+          firebase_storage.SettableMetadata(contentType: 'image/jpeg'),
+        );
       } else {
         final file = File(filePath);
-        uploadTask = ref.putFile(file, firebase_storage.SettableMetadata(contentType: 'image/jpeg'));
+        uploadTask = ref.putFile(
+          file,
+          firebase_storage.SettableMetadata(contentType: 'image/jpeg'),
+        );
       }
 
       // store upload task for cancellation
@@ -406,7 +433,9 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
       setState(() {});
 
       final sub = uploadTask.snapshotEvents.listen((event) {
-        final progress = event.totalBytes > 0 ? (event.bytesTransferred / event.totalBytes) : 0.0;
+        final progress = event.totalBytes > 0
+            ? (event.bytesTransferred / event.totalBytes)
+            : 0.0;
         _uploadProgress[taskId] = progress;
         setState(() {});
       });
@@ -445,13 +474,6 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
     }
   }
 
-  void _onMessageSnapshot(QuerySnapshot snapshot) {
-    // This method is preserved for compatibility but not used in paginated flow.
-    // See _applyListDiff for updated diffing logic.
-    final newDocsAsc = snapshot.docs.reversed.toList();
-    _applyListDiff(newDocsAsc);
-  }
-
   void _applyListDiff(List<DocumentSnapshot> newDocsAsc) {
     final oldIds = _messageDocs.map((d) => d.id).toList();
     final newIds = newDocsAsc.map((d) => d.id).toList();
@@ -466,7 +488,16 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
         final removedDoc = _messageDocs.removeAt(i);
         _animatedListKey.currentState?.removeItem(
           i,
-          (context, anim) => SizeTransition(sizeFactor: anim, child: _buildMessageBubble(removedDoc.id, removedDoc.data() as Map<String, dynamic>, (removedDoc.data() as Map<String, dynamic>)['senderId'] == currentUserId, true)),
+          (context, anim) => SizeTransition(
+            sizeFactor: anim,
+            child: _buildMessageBubble(
+              removedDoc.id,
+              removedDoc.data() as Map<String, dynamic>,
+              (removedDoc.data() as Map<String, dynamic>)['senderId'] ==
+                  currentUserId,
+              true,
+            ),
+          ),
           duration: const Duration(milliseconds: 220),
         );
       }
@@ -478,7 +509,10 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
       if (!_messageDocs.any((d) => d.id == id)) {
         final doc = newDocsAsc[newIndex];
         _messageDocs.insert(newIndex, doc);
-        _animatedListKey.currentState?.insertItem(newIndex, duration: const Duration(milliseconds: 300));
+        _animatedListKey.currentState?.insertItem(
+          newIndex,
+          duration: const Duration(milliseconds: 300),
+        );
       } else {
         // update existing
         final idx = _messageDocs.indexWhere((d) => d.id == id);
@@ -493,8 +527,11 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
     final dp = List.generate(n + 1, (_) => List<int>.filled(m + 1, 0));
     for (int i = n - 1; i >= 0; i--) {
       for (int j = m - 1; j >= 0; j--) {
-        if (a[i] == b[j]) dp[i][j] = 1 + dp[i + 1][j + 1];
-        else dp[i][j] = dp[i + 1][j] >= dp[i][j + 1] ? dp[i + 1][j] : dp[i][j + 1];
+        if (a[i] == b[j]) {
+          dp[i][j] = 1 + dp[i + 1][j + 1];
+        } else {
+          dp[i][j] = dp[i + 1][j] >= dp[i][j + 1] ? dp[i + 1][j] : dp[i][j + 1];
+        }
       }
     }
     // reconstruct
@@ -503,7 +540,8 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
     while (i < n && j < m) {
       if (a[i] == b[j]) {
         res.add(a[i]);
-        i++; j++;
+        i++;
+        j++;
       } else if (dp[i + 1][j] >= dp[i][j + 1]) {
         i++;
       } else {
@@ -624,7 +662,9 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
               // Add top spacing to account for the translucent AppBar when
               // extendBodyBehindAppBar is true so the search field is visible
               // and not hidden behind the AppBar.
-              SizedBox(height: kToolbarHeight + MediaQuery.of(context).padding.top),
+              SizedBox(
+                height: kToolbarHeight + MediaQuery.of(context).padding.top,
+              ),
               Expanded(child: _buildMessageList()),
               if (groupStatus == 'pending')
                 _buildInvitationPrompt()
@@ -820,7 +860,10 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
           curve: Curves.easeInOut,
           child: _showSearch
               ? Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   child: Container(
                     height: 48,
                     decoration: BoxDecoration(
@@ -828,7 +871,7 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
                       borderRadius: BorderRadius.circular(12),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.25),
+                          color: Colors.black.withValues(alpha: 0.25),
                           blurRadius: 8,
                           offset: const Offset(0, 2),
                         ),
@@ -837,20 +880,31 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
                     child: TextField(
                       controller: _searchController,
                       style: GoogleFonts.kantumruyPro(color: Colors.white),
-                      onChanged: (value) => setState(() => _searchQuery = value),
+                      onChanged: (value) =>
+                          setState(() => _searchQuery = value),
                       decoration: InputDecoration(
                         hintText: 'ស្វែងរកសារ...',
                         hintStyle: const TextStyle(color: Colors.white38),
                         border: InputBorder.none,
-                        contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                        contentPadding: const EdgeInsets.symmetric(
+                          vertical: 14,
+                        ),
                         prefixIcon: Padding(
                           padding: const EdgeInsets.only(left: 12, right: 8),
-                          child: Icon(Icons.search, color: AppTheme.primaryLight),
+                          child: Icon(
+                            Icons.search,
+                            color: AppTheme.primaryLight,
+                          ),
                         ),
-                        prefixIconConstraints: const BoxConstraints(minWidth: 40),
+                        prefixIconConstraints: const BoxConstraints(
+                          minWidth: 40,
+                        ),
                         suffixIcon: _searchQuery.isNotEmpty
                             ? IconButton(
-                                icon: const Icon(Icons.clear, color: Colors.white70),
+                                icon: const Icon(
+                                  Icons.clear,
+                                  color: Colors.white70,
+                                ),
                                 onPressed: () {
                                   _searchController.clear();
                                   setState(() => _searchQuery = '');
@@ -881,7 +935,11 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
                     ),
                   ),
                   const Spacer(),
-                  const Icon(Icons.chevron_right, color: Colors.orange, size: 18),
+                  const Icon(
+                    Icons.chevron_right,
+                    color: Colors.orange,
+                    size: 18,
+                  ),
                 ],
               ),
             ),
@@ -901,13 +959,15 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
               // Determine whether to show avatar relative to next item
               bool showAvatar = true;
               if (index < _messageDocs.length - 1) {
-                final next = _messageDocs[index + 1].data() as Map<String, dynamic>;
+                final next =
+                    _messageDocs[index + 1].data() as Map<String, dynamic>;
                 showAvatar = next['senderId'] != msg['senderId'];
               }
 
               bool showDateSeparator = false;
               if (index < _messageDocs.length - 1) {
-                final next = _messageDocs[index + 1].data() as Map<String, dynamic>;
+                final next =
+                    _messageDocs[index + 1].data() as Map<String, dynamic>;
                 showDateSeparator = _shouldShowDateSeparator(msg, next);
               } else {
                 showDateSeparator = true;
@@ -917,7 +977,8 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
                 sizeFactor: animation,
                 child: Column(
                   children: [
-                    if (showDateSeparator) _buildDateSeparator(msg['timestamp']),
+                    if (showDateSeparator)
+                      _buildDateSeparator(msg['timestamp']),
                     _buildMessageBubble(doc.id, msg, isMe, showAvatar),
                   ],
                 ),
@@ -938,14 +999,14 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
           Expanded(
             child: Container(
               height: 1,
-              color: Colors.white.withOpacity(0.06),
+              color: Colors.white.withValues(alpha: 0.06),
             ),
           ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             margin: const EdgeInsets.symmetric(horizontal: 10),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.04),
+              color: Colors.white.withValues(alpha: 0.04),
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
@@ -959,7 +1020,7 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
           Expanded(
             child: Container(
               height: 1,
-              color: Colors.white.withOpacity(0.06),
+              color: Colors.white.withValues(alpha: 0.06),
             ),
           ),
         ],
@@ -983,7 +1044,9 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
           maxWidth: MediaQuery.of(context).size.width * 0.75,
         ),
         child: Column(
-          crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          crossAxisAlignment: isMe
+              ? CrossAxisAlignment.end
+              : CrossAxisAlignment.start,
           children: [
             Row(
               mainAxisAlignment: isMe
@@ -1007,22 +1070,24 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
                     onLongPress: () => _showQuickReactions(docId, msg, isMe),
                     onHorizontalDragEnd: (details) {
                       if (!isMe && details.primaryVelocity! > 0) {
-                        setState(() => _replyTo = {
-                          'id': docId,
-                          'senderId': msg['senderId'],
-                          'text': msg['message'] ?? '(ឯកសារ)',
-                        });
+                        setState(
+                          () => _replyTo = {
+                            'id': docId,
+                            'senderId': msg['senderId'],
+                            'text': msg['message'] ?? '(ឯកសារ)',
+                          },
+                        );
                       }
                     },
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
                       decoration: BoxDecoration(
                         gradient: isMe
                             ? const LinearGradient(
-                                colors: [
-                                  Color(0xFF667eea),
-                                  Color(0xFF764ba2),
-                                ],
+                                colors: [Color(0xFF667eea), Color(0xFF764ba2)],
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
                               )
@@ -1046,7 +1111,7 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
                         boxShadow: isMe
                             ? [
                                 BoxShadow(
-                                  color: Colors.black.withOpacity(0.35),
+                                  color: Colors.black.withValues(alpha: 0.35),
                                   blurRadius: 8,
                                   offset: const Offset(0, 3),
                                 ),
@@ -1109,37 +1174,49 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
                               isMe: isMe,
                             )
                           else ...[
-                            if (msg['imageUrl'] != null && (msg['imageUrl'] as String).isNotEmpty)
+                            if (msg['imageUrl'] != null &&
+                                (msg['imageUrl'] as String).isNotEmpty)
                               Padding(
                                 padding: const EdgeInsets.only(bottom: 8),
                                 child: ClipRRect(
-                                 borderRadius: BorderRadius.circular(12),
-                                 child: GestureDetector(
-                                   onTap: () {
-                                     Navigator.push(
-                                       context,
-                                       MaterialPageRoute(
-                                         builder: (_) => ImageViewerPage(imageUrl: msg['imageUrl']),
-                                       ),
-                                     );
-                                   },
-                                   child: CachedNetworkImage(
-                                     imageUrl: msg['imageUrl'],
-                                     placeholder: (c, u) => Container(
-                                       width: double.infinity,
-                                       height: 150,
-                                       color: Colors.black12,
-                                       child: const Center(child: CircularProgressIndicator(color: Colors.white54)),
-                                     ),
-                                     errorWidget: (c, u, e) => Container(
-                                       width: double.infinity,
-                                       height: 150,
-                                       color: Colors.black12,
-                                       child: const Center(child: Icon(Icons.broken_image, color: Colors.white54)),
-                                     ),
-                                     fit: BoxFit.cover,
-                                   ),
-                                 ),
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => ImageViewerPage(
+                                            imageUrl: msg['imageUrl'],
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                    child: CachedNetworkImage(
+                                      imageUrl: msg['imageUrl'],
+                                      placeholder: (c, u) => Container(
+                                        width: double.infinity,
+                                        height: 150,
+                                        color: Colors.black12,
+                                        child: const Center(
+                                          child: CircularProgressIndicator(
+                                            color: Colors.white54,
+                                          ),
+                                        ),
+                                      ),
+                                      errorWidget: (c, u, e) => Container(
+                                        width: double.infinity,
+                                        height: 150,
+                                        color: Colors.black12,
+                                        child: const Center(
+                                          child: Icon(
+                                            Icons.broken_image,
+                                            color: Colors.white54,
+                                          ),
+                                        ),
+                                      ),
+                                      fit: BoxFit.cover,
+                                    ),
+                                  ),
                                 ),
                               )
                             else if (msg['imageBase64'] != null &&
@@ -1147,21 +1224,26 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
                               Padding(
                                 padding: const EdgeInsets.only(bottom: 8),
                                 child: ClipRRect(
-                                 borderRadius: BorderRadius.circular(12),
-                                 child: GestureDetector(
-                                   onTap: () {
-                                     Navigator.push(
-                                       context,
-                                       MaterialPageRoute(
-                                         builder: (_) => ImageViewerPage(base64Image: msg['imageBase64']),
-                                       ),
-                                     );
-                                   },
-                                   child: _buildDecodedImage(msg['imageBase64']),
-                                 ),
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => ImageViewerPage(
+                                            base64Image: msg['imageBase64'],
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                    child: _buildDecodedImage(
+                                      msg['imageBase64'],
+                                    ),
+                                  ),
                                 ),
                               ),
-                            if (msg['message'] != null && msg['message'].isNotEmpty)
+                            if (msg['message'] != null &&
+                                msg['message'].isNotEmpty)
                               _buildMessageText(msg['message'], _searchQuery),
                           ],
                           const SizedBox(height: 4),
@@ -1195,8 +1277,10 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
                                   _getMessageStatus(msg),
                                   style: GoogleFonts.inter(
                                     fontSize: 9,
-                                    color: (msg['seenBy'] as List?)
-                                                ?.contains(widget.targetUserId) ==
+                                    color:
+                                        (msg['seenBy'] as List?)?.contains(
+                                              widget.targetUserId,
+                                            ) ==
                                             true
                                         ? Colors.blue
                                         : Colors.white70,
@@ -1236,10 +1320,7 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
     if (searchQuery.isEmpty) {
       return Text(
         text,
-        style: GoogleFonts.kantumruyPro(
-          color: Colors.white,
-          fontSize: 15,
-        ),
+        style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 15),
       );
     }
 
@@ -1266,10 +1347,7 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
 
     return RichText(
       text: TextSpan(
-        style: GoogleFonts.kantumruyPro(
-          color: Colors.white,
-          fontSize: 15,
-        ),
+        style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 15),
         children: spans,
       ),
     );
@@ -1279,7 +1357,9 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
     if (reactions.isEmpty) return const SizedBox();
 
     final reactionMap = Map<String, List<String>>.from(
-      reactions.map((k, v) => MapEntry(k.toString(), List<String>.from(v as List)))
+      reactions.map(
+        (k, v) => MapEntry(k.toString(), List<String>.from(v as List)),
+      ),
     );
 
     return Wrap(
@@ -1293,12 +1373,15 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
           },
           child: AnimatedSwitcher(
             duration: const Duration(milliseconds: 220),
-            transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
+            transitionBuilder: (child, anim) =>
+                ScaleTransition(scale: anim, child: child),
             child: Container(
-              key: ValueKey('${entry.key}-${entry.value.length}-${reacted}'),
+              key: ValueKey('${entry.key}-${entry.value.length}-$reacted'),
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: reacted ? AppTheme.primary.withValues(alpha: 0.14) : Colors.white.withOpacity(0.04),
+                color: reacted
+                    ? AppTheme.primary.withValues(alpha: 0.14)
+                    : Colors.white.withValues(alpha: 0.04),
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
                   color: reacted ? AppTheme.primaryLight : Colors.transparent,
@@ -1309,7 +1392,10 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
                 children: [
                   Text(entry.key, style: const TextStyle(fontSize: 14)),
                   const SizedBox(width: 6),
-                  Text('${entry.value.length}', style: const TextStyle(fontSize: 12))
+                  Text(
+                    '${entry.value.length}',
+                    style: const TextStyle(fontSize: 12),
+                  ),
                 ],
               ),
             ),
@@ -1323,7 +1409,6 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
     // This would need the message ID to update properly
     debugPrint('Toggle reaction: $emoji');
   }
-
 
   Widget _buildInputArea() {
     return Container(
@@ -1364,13 +1449,20 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
                               children: [
                                 Text(
                                   name,
-                                  style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                                  style: GoogleFonts.kantumruyPro(
+                                    color: Colors.white,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                   overflow: TextOverflow.ellipsis,
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
                                   path,
-                                  style: GoogleFonts.inter(color: Colors.white54, fontSize: 11),
+                                  style: GoogleFonts.inter(
+                                    color: Colors.white54,
+                                    fontSize: 11,
+                                  ),
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ],
@@ -1391,7 +1483,10 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
                                 child: Image.file(
                                   File(path),
                                   fit: BoxFit.cover,
-                                  errorBuilder: (c, e, s) => const Icon(Icons.broken_image, color: Colors.white54),
+                                  errorBuilder: (c, e, s) => const Icon(
+                                    Icons.broken_image,
+                                    color: Colors.white54,
+                                  ),
                                 ),
                               ),
                             ),
@@ -1400,17 +1495,29 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
                           ],
 
                           IconButton(
-                            icon: const Icon(Icons.refresh, color: Colors.white70, size: 18),
+                            icon: const Icon(
+                              Icons.refresh,
+                              color: Colors.white70,
+                              size: 18,
+                            ),
                             tooltip: 'Retry',
                             onPressed: () => _retryUpload(name),
                           ),
                           IconButton(
-                            icon: const Icon(Icons.send_outlined, color: Colors.white70, size: 18),
+                            icon: const Icon(
+                              Icons.send_outlined,
+                              color: Colors.white70,
+                              size: 18,
+                            ),
                             tooltip: 'Send inline (base64)',
                             onPressed: () => _sendAsBase64(name),
                           ),
                           IconButton(
-                            icon: const Icon(Icons.delete_outline, color: Colors.white54, size: 18),
+                            icon: const Icon(
+                              Icons.delete_outline,
+                              color: Colors.white54,
+                              size: 18,
+                            ),
                             tooltip: 'Remove',
                             onPressed: () => _removeFailed(name),
                           ),
@@ -1434,19 +1541,31 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
                             value: e.value,
                             minHeight: 6,
                             backgroundColor: Colors.white12,
-                            valueColor: AlwaysStoppedAnimation(AppTheme.primaryLight),
+                            valueColor: AlwaysStoppedAnimation(
+                              AppTheme.primaryLight,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 8),
-                        Text('${(e.value * 100).toStringAsFixed(0)}%', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                        Text(
+                          '${(e.value * 100).toStringAsFixed(0)}%',
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 12,
+                          ),
+                        ),
                         const SizedBox(width: 8),
                         IconButton(
-                          icon: const Icon(Icons.cancel, color: Colors.white70, size: 18),
+                          icon: const Icon(
+                            Icons.cancel,
+                            color: Colors.white70,
+                            size: 18,
+                          ),
                           onPressed: () {
                             // Cancel the ongoing upload task if present
                             _cancelUpload(e.key);
                           },
-                        )
+                        ),
                       ],
                     ),
                   );
@@ -1461,10 +1580,7 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
                   color: AppTheme.primary.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(12),
                   border: Border(
-                    left: BorderSide(
-                      color: AppTheme.primaryLight,
-                      width: 3,
-                    ),
+                    left: BorderSide(color: AppTheme.primaryLight, width: 3),
                   ),
                 ),
                 child: Row(
@@ -1545,9 +1661,13 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
                                     decoration: const InputDecoration(
                                       hintText: "សរសេរសារ...",
                                       border: InputBorder.none,
-                                      hintStyle: TextStyle(color: Colors.white30),
+                                      hintStyle: TextStyle(
+                                        color: Colors.white30,
+                                      ),
                                       isDense: true,
-                                      contentPadding: EdgeInsets.symmetric(vertical: 12),
+                                      contentPadding: EdgeInsets.symmetric(
+                                        vertical: 12,
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -1566,7 +1686,9 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
                                     gradient: LinearGradient(
                                       colors: [
                                         AppTheme.primary.withValues(alpha: 1.0),
-                                        AppTheme.primaryLight.withValues(alpha: 1.0),
+                                        AppTheme.primaryLight.withValues(
+                                          alpha: 1.0,
+                                        ),
                                       ],
                                       begin: Alignment.topLeft,
                                       end: Alignment.bottomRight,
@@ -1574,22 +1696,34 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
                                     shape: BoxShape.circle,
                                     boxShadow: [
                                       BoxShadow(
-                                        color: Colors.black.withOpacity(0.35),
+                                        color: Colors.black.withValues(
+                                          alpha: 0.35,
+                                        ),
                                         blurRadius: 10,
                                         offset: const Offset(0, 4),
                                       ),
                                     ],
                                   ),
                                   child: InkWell(
-                                    onTap: _isRecording ? null : _startRecording,
+                                    onTap: _isRecording
+                                        ? null
+                                        : _startRecording,
                                     customBorder: const CircleBorder(),
                                     splashColor: Colors.white24,
                                     child: Center(
                                       child: AnimatedSwitcher(
-                                        duration: const Duration(milliseconds: 180),
-                                        transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
+                                        duration: const Duration(
+                                          milliseconds: 180,
+                                        ),
+                                        transitionBuilder: (child, anim) =>
+                                            ScaleTransition(
+                                              scale: anim,
+                                              child: child,
+                                            ),
                                         child: Icon(
-                                          _isRecording ? Icons.mic_rounded : Icons.mic_none_rounded,
+                                          _isRecording
+                                              ? Icons.mic_rounded
+                                              : Icons.mic_none_rounded,
                                           key: ValueKey<bool>(_isRecording),
                                           color: Colors.white,
                                           size: 22,
@@ -1609,7 +1743,9 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
                                     shape: BoxShape.circle,
                                     boxShadow: [
                                       BoxShadow(
-                                        color: Colors.black.withOpacity(0.25),
+                                        color: Colors.black.withValues(
+                                          alpha: 0.25,
+                                        ),
                                         blurRadius: 8,
                                         offset: const Offset(0, 3),
                                       ),
@@ -1621,8 +1757,14 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
                                     splashColor: Colors.white24,
                                     child: Center(
                                       child: AnimatedSwitcher(
-                                        duration: const Duration(milliseconds: 180),
-                                        transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
+                                        duration: const Duration(
+                                          milliseconds: 180,
+                                        ),
+                                        transitionBuilder: (child, anim) =>
+                                            ScaleTransition(
+                                              scale: anim,
+                                              child: child,
+                                            ),
                                         child: const Icon(
                                           Icons.send_rounded,
                                           key: ValueKey<String>('send_icon'),
@@ -1773,7 +1915,8 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
     );
     if (image != null) {
       final roomId = _getChatRoomId();
-      final fileName = 'chat_${DateTime.now().millisecondsSinceEpoch}_${image.name}';
+      final fileName =
+          'chat_${DateTime.now().millisecondsSinceEpoch}_${image.name}';
       try {
         // Copy to app temp directory to ensure the file persists for retries
         final tempDir = await getTemporaryDirectory();
@@ -1787,12 +1930,18 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
           await File(targetPath).writeAsBytes(bytes);
         }
 
-        final downloadUrl = await _startUploadFromPath(roomId, fileName, targetPath);
+        final downloadUrl = await _startUploadFromPath(
+          roomId,
+          fileName,
+          targetPath,
+        );
         if (downloadUrl != null && downloadUrl.isNotEmpty) {
           await _sendMessage(imageUrl: downloadUrl);
         } else {
           // upload failed — _startUploadFromPath already recorded _failedUploads
-          _showMessage('បរាជ័យក្នុងការផ្ទុកឡើង — ទាញឡើងឡើងវិញពីបញ្ជីការផ្ទុកដែលបរាជ័យ។');
+          _showMessage(
+            'បរាជ័យក្នុងការផ្ទុកឡើង — ទាញឡើងឡើងវិញពីបញ្ជីការផ្ទុកដែលបរាជ័យ។',
+          );
         }
       } catch (e) {
         debugPrint('Image upload failed (pick path): $e');
@@ -1956,11 +2105,13 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
                 ),
                 onTap: () {
                   Navigator.pop(context);
-                  setState(() => _replyTo = {
-                    'id': docId,
-                    'senderId': msg['senderId'],
-                    'text': msg['message'] ?? '(ឯកសារ)',
-                  });
+                  setState(
+                    () => _replyTo = {
+                      'id': docId,
+                      'senderId': msg['senderId'],
+                      'text': msg['message'] ?? '(ឯកសារ)',
+                    },
+                  );
                 },
               ),
             // Pin message option (if sender or group admin)
@@ -2046,10 +2197,14 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
       final reactions = Map<String, dynamic>.from(data['reactions'] ?? {});
       final List current = List.from(reactions[emoji] ?? []);
       if (current.contains(currentUserId)) {
-        await docRef.update({'reactions.$emoji': FieldValue.arrayRemove([currentUserId])});
+        await docRef.update({
+          'reactions.$emoji': FieldValue.arrayRemove([currentUserId]),
+        });
         HapticFeedback.selectionClick();
       } else {
-        await docRef.update({'reactions.$emoji': FieldValue.arrayUnion([currentUserId])});
+        await docRef.update({
+          'reactions.$emoji': FieldValue.arrayUnion([currentUserId]),
+        });
         HapticFeedback.selectionClick();
       }
     } catch (e) {
@@ -2074,21 +2229,23 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                ..._emojiReactions.map((e) => GestureDetector(
-                      onTap: () {
-                        Navigator.pop(context);
-                        _addReaction(docId, e);
-                      },
-                      child: Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 6),
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.04),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(e, style: const TextStyle(fontSize: 22)),
+                ..._emojiReactions.map(
+                  (e) => GestureDetector(
+                    onTap: () {
+                      Navigator.pop(context);
+                      _addReaction(docId, e);
+                    },
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 6),
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.04),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                    )),
+                      child: Text(e, style: const TextStyle(fontSize: 22)),
+                    ),
+                  ),
+                ),
                 const SizedBox(width: 8),
                 IconButton(
                   icon: const Icon(Icons.more_horiz, color: Colors.white70),
@@ -2130,10 +2287,7 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
 
   void _showMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        duration: const Duration(seconds: 2),
-      ),
+      SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
     );
   }
 
@@ -2183,7 +2337,10 @@ class _TeamChatScreenState extends State<TeamChatScreen> with TickerProviderStat
     );
   }
 
-  Future<void> _forwardMessage(String targetChatId, Map<String, dynamic> msg) async {
+  Future<void> _forwardMessage(
+    String targetChatId,
+    Map<String, dynamic> msg,
+  ) async {
     try {
       await _firestore
           .collection('chats')

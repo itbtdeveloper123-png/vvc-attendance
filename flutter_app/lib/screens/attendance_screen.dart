@@ -87,10 +87,16 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         throw Exception('មិនមានកាមេរ៉ាណាមួយ');
       }
 
-      final frontCamera = cameras.firstWhere(
-        (camera) => camera.lensDirection == CameraLensDirection.front,
-        orElse: () => cameras.first,
-      );
+      CameraDescription? frontCamera;
+      for (final camera in cameras) {
+        if (camera.lensDirection == CameraLensDirection.front) {
+          frontCamera = camera;
+          break;
+        }
+      }
+      if (frontCamera == null) {
+        throw Exception('ទូរស័ព្ទនេះមិនមានកាមេរ៉ាមុខសម្រាប់ស្កេនមុខ');
+      }
 
       _cameraController = CameraController(
         frontCamera,
@@ -141,7 +147,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     _consecutiveFaceFrames = 0;
 
     try {
-      if (_cameraController != null && _cameraController!.value.isStreamingImages) {
+      if (_cameraController != null &&
+          _cameraController!.value.isStreamingImages) {
         await _cameraController!.stopImageStream();
       }
     } catch (_) {}
@@ -165,11 +172,18 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   }
 
   void _processCameraImage(CameraImage image) async {
-    if (_faceProcessing || _faceCaptured || _useQrScanner || _cameraController == null) return;
+    if (_faceProcessing ||
+        _faceCaptured ||
+        _useQrScanner ||
+        _cameraController == null)
+      return;
     _faceProcessing = true;
 
     try {
-      final inputImage = _convertCameraImage(image, _cameraController!.description.sensorOrientation);
+      final inputImage = _convertCameraImage(
+        image,
+        _cameraController!.description.sensorOrientation,
+      );
       final faces = await _faceDetector?.processImage(inputImage) ?? [];
 
       if (faces.isNotEmpty) {
@@ -190,6 +204,49 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     }
   }
 
+  Widget _buildFaceScannerPreview() {
+    if (_cameraController == null || !_cameraController!.value.isInitialized) {
+      return Container(color: Colors.black);
+    }
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        CameraPreview(_cameraController!),
+        Container(color: Colors.black.withValues(alpha: 0.2)),
+        Align(
+          alignment: Alignment.topCenter,
+          child: Padding(
+            padding: const EdgeInsets.only(top: 40, left: 24, right: 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'FACE SCAN',
+                  style: GoogleFonts.inter(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.5,
+                    fontSize: 16,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'សូមកាន់កាមេរ៉ាមុខអ្នកជិតមុខ និងមិនដកពីផ្ទៃមុខ',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.kantumruyPro(
+                    color: Colors.white.withValues(alpha: 0.85),
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   InputImage _convertCameraImage(CameraImage image, int rotation) {
     final BytesBuilder allBytes = BytesBuilder();
     for (final Plane plane in image.planes) {
@@ -197,17 +254,26 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     }
     final bytes = allBytes.takeBytes();
 
-    final Size imageSize = Size(image.width.toDouble(), image.height.toDouble());
-    final inputImageFormat = InputImageFormatValue.fromRawValue(image.format.raw) ?? InputImageFormat.nv21;
-    final imageRotation = InputImageRotationValue.fromRawValue(rotation) ?? InputImageRotation.rotation0deg;
+    final Size imageSize = Size(
+      image.width.toDouble(),
+      image.height.toDouble(),
+    );
+    final inputImageFormat =
+        InputImageFormatValue.fromRawValue(image.format.raw) ??
+        InputImageFormat.nv21;
+    final imageRotation =
+        InputImageRotationValue.fromRawValue(rotation) ??
+        InputImageRotation.rotation0deg;
 
-    final planeData = image.planes.map(
-      (Plane plane) => InputImagePlaneMetadata(
-        bytesPerRow: plane.bytesPerRow,
-        height: plane.height,
-        width: plane.width,
-      ),
-    ).toList();
+    final planeData = image.planes
+        .map(
+          (Plane plane) => InputImagePlaneMetadata(
+            bytesPerRow: plane.bytesPerRow,
+            height: plane.height,
+            width: plane.width,
+          ),
+        )
+        .toList();
 
     final inputImageData = InputImageData(
       size: imageSize,
@@ -228,7 +294,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     });
 
     try {
-      if (_cameraController != null && _cameraController!.value.isStreamingImages) {
+      if (_cameraController != null &&
+          _cameraController!.value.isStreamingImages) {
         await _cameraController!.stopImageStream();
       }
 
@@ -316,7 +383,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       if (mounted) setState(() => _isLoading = false);
     }
   }
-
 
   void _processQR(String code) async {
     setState(() {
@@ -406,7 +472,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           qrLocationId: locationId,
           lateReason: reason,
         );
- 
+
         if (result['success'] == true) {
           NotificationService().showNotification(
             id: DateTime.now().millisecondsSinceEpoch.remainder(100000),
@@ -422,7 +488,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
             setState(() => _isLoading = true);
             await submit(inputReason.trim());
           } else {
-             if (mounted) setState(() => _isScanning = true);
+            if (mounted) setState(() => _isScanning = true);
           }
         } else {
           _showError(result['message'] ?? 'បរាជ័យ');
@@ -482,7 +548,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
             backgroundColor: const Color(0xFF1E293B).withValues(alpha: 0.9),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(24),
-              side: BorderSide(color: AppTheme.textPrimary.withValues(alpha: 0.1)),
+              side: BorderSide(
+                color: AppTheme.textPrimary.withValues(alpha: 0.1),
+              ),
             ),
             title: Text(
               "ជ្រើសរើសសកម្មភាព",
@@ -546,12 +614,18 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
             backgroundColor: const Color(0xFF1E293B).withValues(alpha: 0.9),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(24),
-              side: BorderSide(color: Colors.orangeAccent.withValues(alpha: 0.3)),
+              side: BorderSide(
+                color: Colors.orangeAccent.withValues(alpha: 0.3),
+              ),
             ),
             title: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.access_time_rounded, color: Colors.orangeAccent, size: 48),
+                Icon(
+                  Icons.access_time_rounded,
+                  color: Colors.orangeAccent,
+                  size: 48,
+                ),
                 SizedBox(height: 12),
                 Text(
                   "ស្កេនចូលយឺត",
@@ -618,7 +692,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                child: Text("បញ្ជូន", style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold)),
+                child: Text(
+                  "បញ្ជូន",
+                  style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold),
+                ),
               ),
             ],
           ),
@@ -638,7 +715,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       child: Container(
         padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
         decoration: BoxDecoration(
-          color: isSuggested ? color.withValues(alpha: 0.2) : color.withValues(alpha: 0.05),
+          color: isSuggested
+              ? color.withValues(alpha: 0.2)
+              : color.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: color.withValues(alpha: isSuggested ? 0.8 : 0.2),
@@ -675,7 +754,12 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   }
 
   void _showError(String message) {
-    _showResultPopup(message, Icons.error_outline_rounded, Colors.redAccent, isError: true);
+    _showResultPopup(
+      message,
+      Icons.error_outline_rounded,
+      Colors.redAccent,
+      isError: true,
+    );
   }
 
   void _showSuccess(String message, {String? action}) {
@@ -695,7 +779,13 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     );
   }
 
-  void _showResultPopup(String message, IconData icon, Color color, {bool isError = false, String? result}) {
+  void _showResultPopup(
+    String message,
+    IconData icon,
+    Color color, {
+    bool isError = false,
+    String? result,
+  }) {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -762,34 +852,38 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         children: [
           // 1. Background Scanner
           if (_isScanning)
-            MobileScanner(
-              controller: controller,
-              onDetect: _onDetect,
-              errorBuilder: (context, error) {
-                return Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.videocam_off_rounded,
-                        color: AppTheme.textPrimary.withValues(alpha: 0.24),
-                        size: 80,
-                      ),
-                      const SizedBox(height: 20),
-                      Text(
-                        "កំហុសកាមេរ៉ា៖ ${error.errorCode}",
-                        style: GoogleFonts.kantumruyPro(
-                          color: AppTheme.textPrimary,
+            _useQrScanner
+                ? MobileScanner(
+                    controller: controller,
+                    onDetect: _onDetect,
+                    errorBuilder: (context, error) {
+                      return Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.videocam_off_rounded,
+                              color: AppTheme.textPrimary.withValues(
+                                alpha: 0.24,
+                              ),
+                              size: 80,
+                            ),
+                            const SizedBox(height: 20),
+                            Text(
+                              "កំហុសកាមេរ៉ា៖ ${error.errorCode}",
+                              style: GoogleFonts.kantumruyPro(
+                                color: AppTheme.textPrimary,
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
+                      );
+                    },
+                  )
+                : _buildFaceScannerPreview(),
 
           // 2. Scanner Overlay Mask with Corner Borders
-          if (_isScanning)
+          if (_isScanning && _useQrScanner)
             Container(
               decoration: ShapeDecoration(
                 shape: QrScannerOverlayShape(
@@ -817,7 +911,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                       filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                       child: Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 24, vertical: 12),
+                          horizontal: 24,
+                          vertical: 12,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.black.withValues(alpha: 0.3),
                           borderRadius: BorderRadius.circular(30),
@@ -891,11 +987,16 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
               child: FadeInUp(
                 duration: const Duration(milliseconds: 600),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 20),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 18,
+                    horizontal: 20,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.black.withValues(alpha: 0.55),
                     borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.12),
+                    ),
                   ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -921,10 +1022,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                       const SizedBox(height: 16),
                       ElevatedButton(
                         onPressed: () {
-                          setState(() {
-                            _useQrScanner = true;
-                            _isScanning = true;
-                          });
+                          _switchToQrScanner();
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.cyanAccent,
@@ -932,7 +1030,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16),
                           ),
-                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 12,
+                            horizontal: 24,
+                          ),
                         ),
                         child: Text(
                           'ប្រើ QR Code ទៅវិញ',
@@ -988,10 +1089,16 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                     decoration: BoxDecoration(
                       color: Colors.black.withValues(alpha: 0.4),
                       shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.1),
+                      ),
                     ),
                     child: IconButton(
-                      icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
+                      icon: const Icon(
+                        Icons.arrow_back_ios_new_rounded,
+                        color: Colors.white,
+                        size: 20,
+                      ),
                       onPressed: () => Navigator.pop(context),
                       tooltip: "ត្រឡប់ក្រោយ",
                     ),
@@ -1064,7 +1171,9 @@ class QrScannerOverlayShape extends ShapeBorder {
     // Draw background with cutout using evenOdd fill type (more reliable across platforms)
     final backgroundPath = Path()
       ..addRect(rect)
-      ..addRRect(RRect.fromRectAndRadius(cutOutRect, Radius.circular(borderRadius)))
+      ..addRRect(
+        RRect.fromRectAndRadius(cutOutRect, Radius.circular(borderRadius)),
+      )
       ..fillType = PathFillType.evenOdd;
 
     canvas.drawPath(backgroundPath, backgroundPaint);
