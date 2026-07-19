@@ -171,12 +171,23 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     });
   }
 
+  Future<void> _switchToFaceScanner() async {
+    _faceScanAttempted = false;
+    if (!mounted) return;
+    setState(() {
+      _isLoading = true;
+      _isScanning = false;
+    });
+    await _tryFaceScanOrFallback();
+  }
+
   void _processCameraImage(CameraImage image) async {
     if (_faceProcessing ||
         _faceCaptured ||
         _useQrScanner ||
-        _cameraController == null)
+        _cameraController == null) {
       return;
+    }
     _faceProcessing = true;
 
     try {
@@ -973,6 +984,37 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                       Icons.camera_alt_outlined,
                       color: Colors.white.withValues(alpha: 0.6),
                       size: 28,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+          if (_isScanning && _useQrScanner && !_isLoading)
+            Positioned(
+              bottom: 110,
+              left: 24,
+              right: 24,
+              child: FadeInUp(
+                duration: const Duration(milliseconds: 600),
+                child: ElevatedButton(
+                  onPressed: _switchToFaceScanner,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.black.withValues(alpha: 0.5),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      side: BorderSide(
+                        color: Colors.cyanAccent.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  child: Text(
+                    'សាកល្បងស្កេនមុខម្ដងទៀត',
+                    style: GoogleFonts.kantumruyPro(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
                     ),
                   ),
                 ),
