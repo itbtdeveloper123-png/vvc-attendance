@@ -10,3 +10,5 @@ flutter/*.apk
 flutter/*.sha1
 node_modules
 firebase-adminsdk.json
+.gradle/
+.pub-cache/
