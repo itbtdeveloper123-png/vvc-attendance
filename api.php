@@ -2170,6 +2170,8 @@ function get_scan_setting($key, $default = '', $mysqli, $employee_id = null) {
 function render_template_strip_empty_lines($template, $replacements) {
     if (empty($template)) return '';
     $rendered = str_replace(array_keys($replacements), array_values($replacements), $template);
+    // Normalize double-m distance units (e.g., "15mm" -> "15m", "0mm" -> "0m")
+    $rendered = preg_replace('/(\d+)\s*mm\b/iu', '$1m', $rendered);
     // Remove lines that still contain unreplaced placeholders like {{something}}
     // /mu flag ensures it works correctly with Khmer/Unicode text
     $lines = explode("\n", $rendered);
@@ -4280,6 +4282,45 @@ switch ($action) {
             $status = 'Good';
             if (empty($user_loc_raw)) {
                 apiResponse(['success' => false, 'message' => 'មិនអាចទទួលបានទីតាំង GPS របស់អ្នកទេ']);
+            }
+
+            // Detect nearest location based on user's current GPS
+            if ($u_lat !== null && $u_lon !== null) {
+                // Fetch all active/configured locations for this user or general locations
+                $loc_sql = "SELECT l.id, l.location_name, l.latitude, l.longitude, 
+                                   COALESCE(ul.custom_radius_meters, l.radius_meters) as final_radius
+                            FROM locations l
+                            LEFT JOIN user_locations ul ON l.id = ul.location_id AND ul.employee_id = ?";
+                $loc_stmt = $mysqli->prepare($loc_sql);
+                if ($loc_stmt) {
+                    $loc_stmt->bind_param("s", $eid);
+                    $loc_stmt->execute();
+                    $loc_res = $loc_stmt->get_result();
+                    $closest_loc = null;
+                    $min_distance = doubleval(99999999);
+                    
+                    while ($loc_row = $loc_res->fetch_assoc()) {
+                        $dist = haversine_distance($u_lat, $u_lon, $loc_row['latitude'], $loc_row['longitude']);
+                        if ($dist < $min_distance) {
+                            $min_distance = $dist;
+                            $closest_loc = $loc_row;
+                        }
+                    }
+                    $loc_stmt->close();
+
+                    if ($closest_loc !== null) {
+                        // If they are within the allowed radius of this location, associate them with it
+                        if ($min_distance <= (float)$closest_loc['final_radius']) {
+                            $loc_name = $closest_loc['location_name'];
+                            $distance_m = $min_distance;
+                            $loc_id = (int)$closest_loc['id'];
+                        } else {
+                            // If they are outside, we still calculate the correct distance to the closest location
+                            // instead of reporting 0. We can show Area: "Outside" and Distance: actual distance.
+                            $distance_m = $min_distance;
+                        }
+                    }
+                }
             }
         } else {
             // 1. Validate QR & Location
