@@ -916,6 +916,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
             indent: 16,
             endIndent: 16,
           ),
+          _buildSwitchMenuItem(
+            icon: Icons.mic_rounded,
+            label: "បញ្ជាដោយសំឡេង (Voice Control)",
+            color: Colors.purple,
+            value: user.voiceControlEnabled,
+            onChanged: (val) {
+              user.setVoiceControlEnabled(val);
+            },
+          ),
+          Divider(
+            color: AppTheme.textPrimary.withValues(alpha: 0.12),
+            height: 1,
+            indent: 16,
+            endIndent: 16,
+          ),
           _buildMenuItem(
             icon: Icons.logout_rounded,
             label: "ចេញពីគណនី",

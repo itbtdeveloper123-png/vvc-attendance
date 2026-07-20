@@ -198,6 +198,7 @@ class UserProvider with ChangeNotifier {
   bool _faceScanEnabled = true;
   bool _faceRegistered = false;
   int _attendanceStreak = 0;
+  bool _voiceControlEnabled = false;
   Map<String, dynamic> _settings = {};
 
   static const String _recentAccountsKey = 'recent_accounts';
@@ -215,11 +216,18 @@ class UserProvider with ChangeNotifier {
   bool get faceScanEnabled => _faceScanEnabled;
   bool get faceRegistered => _faceRegistered;
   int get attendanceStreak => _attendanceStreak;
+  bool get voiceControlEnabled => _voiceControlEnabled;
   Map<String, dynamic> get settings => _settings;
 
   void setFaceRegistered(bool value) {
     _faceRegistered = value;
     SharedPreferences.getInstance().then((p) => p.setBool('face_registered', value));
+    notifyListeners();
+  }
+
+  void setVoiceControlEnabled(bool value) {
+    _voiceControlEnabled = value;
+    SharedPreferences.getInstance().then((p) => p.setBool('voice_control_enabled', value));
     notifyListeners();
   }
 
@@ -403,6 +411,7 @@ class UserProvider with ChangeNotifier {
     _faceScanEnabled = prefs.getBool('face_scan_enabled') ?? true;
     _faceRegistered = prefs.getBool('face_registered') ?? false;
     _attendanceStreak = prefs.getInt('attendance_streak') ?? 0;
+    _voiceControlEnabled = prefs.getBool('voice_control_enabled') ?? false;
 
     final savedSettings = prefs.getString('app_settings');
     if (savedSettings != null) {
@@ -683,6 +692,8 @@ class UserProvider with ChangeNotifier {
     await prefs.remove('scan_user_type');
     await prefs.remove('user_role');
     await prefs.remove('system_role');
+    await prefs.remove('voice_control_enabled');
+    _voiceControlEnabled = false;
     await prefs.remove('system_role_label');
     await prefs.remove('is_verified');
     await prefs.remove('face_scan_enabled');

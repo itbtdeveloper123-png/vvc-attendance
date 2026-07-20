@@ -42,6 +42,7 @@ import 'chat_list_screen.dart';
 import 'outside_report_screen.dart';
 import 'training_quiz_screen.dart';
 import 'ai_chat_screen.dart';
+import '../services/voice_command_service.dart';
 
 // ========== SLIDE PAGE ROUTE (Feature #9) ==========
 PageRouteBuilder _slideRoute(Widget page) {
@@ -418,6 +419,9 @@ class _HomeContentState extends State<HomeContent> {
   );
   int _currentStatPage = 0;
   Timer? _statsAutoTimer;
+
+  // ===== Voice Control =====
+  final VoiceCommandService _voiceService = VoiceCommandService();
 
   // Banner Slider
   final PageController _bannerController = PageController();
@@ -1210,6 +1214,8 @@ class _HomeContentState extends State<HomeContent> {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
+              // Voice Control Button
+              if (user.voiceControlEnabled) _buildVoiceMicButton(),
               _buildTopIcon(
                 Icons.psychology_rounded,
                 () => Navigator.push(
@@ -1291,6 +1297,355 @@ class _HomeContentState extends State<HomeContent> {
         ),
       ),
     );
+  }
+
+  // ─── Voice Control ─────────────────────────────────────────────────────────
+
+  Widget _buildVoiceMicButton() {
+    return GestureDetector(
+      onTap: () {
+        _hapticLight();
+        _showVoiceSheet();
+      },
+      child: Container(
+        margin: const EdgeInsets.only(left: 2),
+        width: 38,
+        height: 38,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              const Color(0xFF7C3AED),
+              const Color(0xFF4F46E5),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.25),
+            width: 1.2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF7C3AED).withValues(alpha: 0.4),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: const Icon(
+          Icons.mic_rounded,
+          color: Colors.white,
+          size: 20,
+        ),
+      ),
+    );
+  }
+
+  void _showVoiceSheet() {
+    String statusText = 'ចុចប៊ូតុងម៉ៃក ដើម្បីចាប់ផ្ដើម';
+    String resultText = '';
+    bool isListening = false;
+    StateSetter? sheetSetState;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      barrierColor: Colors.black.withValues(alpha: 0.6),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            sheetSetState = setSheetState;
+
+            return Container(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.paddingOf(context).bottom + 24,
+              ),
+              decoration: BoxDecoration(
+                color: AppTheme.bgCard,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.08),
+                  width: 1,
+                ),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(height: 12),
+                  // Drag Handle
+                  Container(
+                    width: 40, height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Title
+                  Text(
+                    'Voice Control',
+                    style: GoogleFonts.kantumruyPro(
+                      color: AppTheme.textPrimary,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 20,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'KM / EN',
+                    style: GoogleFonts.inter(
+                      color: AppTheme.textMuted,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+
+                  // Animated Mic Button
+                  GestureDetector(
+                    onTap: () async {
+                      _hapticMedium();
+                      if (isListening) {
+                        await _voiceService.stopListening();
+                        setSheetState(() {
+                          isListening = false;
+                          statusText = 'ចុចប៊ូតុងម៉ៃក ដើម្បីចាប់ផ្ដើម';
+                        });
+                        return;
+                      }
+
+                      final initialized = await _voiceService.initialize();
+                      if (!initialized) {
+                        setSheetState(() {
+                          statusText = '❌ Speech recognition មិនអាចប្រើបានលើឧបករណ៍នេះ';
+                        });
+                        return;
+                      }
+
+                      setSheetState(() {
+                        isListening = true;
+                        resultText = '';
+                        statusText = '🎙 កំពុងស្ដាប់...';
+                      });
+
+                      await _voiceService.startListening(
+                        onResult: (command) {
+                          if (!mounted) return;
+                          setSheetState(() {
+                            isListening = false;
+                            resultText = '"${command.recognizedText}"';
+                            statusText = command.type == VoiceCommandType.unknown
+                                ? '❓ មិនស្គាល់ពាក្យ — សាកម្ដងទៀត'
+                                : '✅ ${VoiceCommandService.commandLabel(command.type)}';
+                          });
+
+                          if (command.type != VoiceCommandType.unknown) {
+                            final nav = Navigator.of(context);
+                            final cmdType = command.type;
+                            Future.delayed(const Duration(milliseconds: 700), () {
+                              if (nav.canPop()) nav.pop();
+                              _executeVoiceCommand(cmdType);
+                            });
+                          }
+                        },
+                        onListeningChanged: (listening) {
+                          if (sheetSetState != null && mounted) {
+                            sheetSetState!(() {
+                              isListening = listening;
+                            });
+                          }
+                        },
+                      );
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      width: isListening ? 100 : 80,
+                      height: isListening ? 100 : 80,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(
+                          colors: isListening
+                              ? [Colors.redAccent, const Color(0xFFFF6B6B)]
+                              : [const Color(0xFF7C3AED), const Color(0xFF4F46E5)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: (isListening ? Colors.redAccent : const Color(0xFF7C3AED))
+                                .withValues(alpha: 0.5),
+                            blurRadius: isListening ? 30 : 15,
+                            spreadRadius: isListening ? 5 : 0,
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        isListening ? Icons.stop_rounded : Icons.mic_rounded,
+                        color: Colors.white,
+                        size: isListening ? 44 : 36,
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // Status Text
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 300),
+                    child: Text(
+                      statusText,
+                      key: ValueKey(statusText),
+                      style: GoogleFonts.kantumruyPro(
+                        color: isListening ? Colors.redAccent : AppTheme.textSecondary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+
+                  if (resultText.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      resultText,
+                      style: GoogleFonts.kantumruyPro(
+                        color: AppTheme.primaryLight,
+                        fontSize: 13,
+                        fontStyle: FontStyle.italic,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+
+                  const SizedBox(height: 24),
+                  const Divider(height: 1, color: Color(0x18FFFFFF)),
+                  const SizedBox(height: 16),
+
+                  // Command hints
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'ពាក្យដែលអាចប្រើ:',
+                          style: GoogleFonts.kantumruyPro(
+                            color: AppTheme.textMuted,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: VoiceCommandService.commandHints.map((hint) {
+                            return Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                              decoration: BoxDecoration(
+                                color: AppTheme.primary.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: AppTheme.primary.withValues(alpha: 0.2),
+                                ),
+                              ),
+                              child: Text(
+                                '${hint['km']} · ${hint['en']}',
+                                style: GoogleFonts.kantumruyPro(
+                                  color: AppTheme.primaryLight,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    ).then((_) {
+      _voiceService.cancelListening();
+    });
+  }
+
+  void _executeVoiceCommand(VoiceCommandType type) {
+    if (!mounted) return;
+    _hapticSuccess();
+
+    switch (type) {
+      case VoiceCommandType.scanIn:
+        Navigator.push(context, _slideRoute(
+          const AttendanceScreen(presetAction: 'Check-In'),
+        ));
+        break;
+      case VoiceCommandType.scanOut:
+        Navigator.push(context, _slideRoute(
+          const AttendanceScreen(presetAction: 'Check-Out'),
+        ));
+        break;
+      case VoiceCommandType.outside:
+        Navigator.push(context, _slideRoute(const OutsideAttendanceScreen()));
+        break;
+      case VoiceCommandType.home:
+        // Already on home — just scroll to top or do nothing
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('ទំព័រដើម', style: GoogleFonts.kantumruyPro()),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: AppTheme.primary,
+            margin: const EdgeInsets.all(20),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            duration: const Duration(seconds: 1),
+          ),
+        );
+        break;
+      case VoiceCommandType.requests:
+        Navigator.push(context, _slideRoute(const RequestsScreen()));
+        break;
+      case VoiceCommandType.notifications:
+        Navigator.push(context, _slideRoute(const NotificationScreen()));
+        break;
+      case VoiceCommandType.chat:
+        Navigator.push(context, _slideRoute(const ChatListScreen()));
+        break;
+      case VoiceCommandType.meetings:
+        Navigator.push(context, _slideRoute(const MeetingsScreen()));
+        break;
+      case VoiceCommandType.checklist:
+        Navigator.push(context, _slideRoute(const ChecklistScreen()));
+        break;
+      case VoiceCommandType.profile:
+        Navigator.push(context, _slideRoute(const ProfileScreen()));
+        break;
+      case VoiceCommandType.mission:
+        Navigator.push(context, _slideRoute(const MissionScreen()));
+        break;
+      case VoiceCommandType.dailyReport:
+        Navigator.push(context, _slideRoute(const DailyReportScreen()));
+        break;
+      case VoiceCommandType.calendar:
+        Navigator.push(context, _slideRoute(const ProfileScreen()));
+        break;
+      case VoiceCommandType.training:
+        Navigator.push(context, _slideRoute(const TrainingQuizScreen()));
+        break;
+      case VoiceCommandType.trip:
+        Navigator.push(context, _slideRoute(const TripScreen()));
+        break;
+      case VoiceCommandType.payroll:
+        Navigator.push(context, _slideRoute(const PayrollScreen()));
+        break;
+      case VoiceCommandType.unknown:
+        break;
+    }
   }
 
   Widget _buildInitialsAvatar(UserProvider user) {
