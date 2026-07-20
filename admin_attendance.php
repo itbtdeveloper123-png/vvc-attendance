@@ -3692,7 +3692,7 @@ if (isset($_POST['ajax_action']) || isset($_GET['ajax_action'])) {
                     error_log("SAVE_APP_SCAN_SETTINGS: Success reached before notifications");
 
                     $checkboxes = ['telegram_notify_attendance', 'telegram_notify_requests', 'telegram_notify_attendance__worker', 'telegram_notify_requests__worker', 'app_default_dark_mode', 'attendance_reminder_enabled', 'app_force_update', 'payroll_biometric_required', 'face_scan_enabled'];
-                    $all_keys = ['stats_slider', 'attendance', 'outside_attendance', 'training_quiz', 'announcements', 'meetings', 'checklist', 'daily_report', 'mission', 'trip', 'user_management', 'request_form', 'reports', 'material_request', 'notification', 'notification_history', 'employee_report', 'payroll', 'profile_footer', 'home_footer'];
+                    $all_keys = ['stats_slider', 'attendance', 'outside_attendance', 'product_analyzer', 'training_quiz', 'announcements', 'meetings', 'checklist', 'daily_report', 'mission', 'trip', 'user_management', 'request_form', 'reports', 'material_request', 'notification', 'notification_history', 'employee_report', 'payroll', 'profile_footer', 'home_footer'];
                     $visibility_role_suffixes = function_exists('app_system_visibility_role_suffixes') ? app_system_visibility_role_suffixes() : ['skill', 'worker', 'hrm', 'admin'];
                     foreach ($visibility_role_suffixes as $role) {
                         foreach ($all_keys as $key) {
@@ -20902,7 +20902,7 @@ ob_end_flush();
 
                 <!-- START: បន្ថែមកូដថ្មី -->
             <?php elseif ($settings_action === 'manage_app_scan' && hasPageAccess($mysqli, 'settings', 'manage_app_scan', $current_admin_id)):
-                            $all_keys = ['stats_slider', 'attendance', 'outside_attendance', 'training_quiz', 'announcements', 'meetings', 'checklist', 'daily_report', 'mission', 'trip', 'user_management', 'request_form', 'reports', 'material_request', 'notification', 'notification_history', 'employee_report', 'payroll', 'profile_footer', 'home_footer'];
+                            $all_keys = ['stats_slider', 'attendance', 'outside_attendance', 'product_analyzer', 'training_quiz', 'announcements', 'meetings', 'checklist', 'daily_report', 'mission', 'trip', 'user_management', 'request_form', 'reports', 'material_request', 'notification', 'notification_history', 'employee_report', 'payroll', 'profile_footer', 'home_footer'];
                             $labels = [
                                 'attendance' => 'ស្កេនវត្តមាន (Attendance)',
                                 'announcements' => 'ការជូនដំណឹង (News)',
@@ -20921,6 +20921,7 @@ ob_end_flush();
                                 'payroll' => 'ប្រាក់បៀវត្ស (Payroll)',
                                 'stats_slider' => 'ស្ថិតិ (Stats Slider)',
                                 'outside_attendance' => 'ស្កេនខាងក្រៅ (Outside Check-In)',
+                                'product_analyzer' => 'វិភាគផលិតផល (Product Analyzer)',
                                 'training_quiz' => 'វគ្គបណ្តុះបណ្តាល (Training Quiz)',
                                 'profile_footer' => 'Profile Footer',
                                 'home_footer' => 'Home Footer'

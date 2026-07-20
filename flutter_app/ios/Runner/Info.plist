@@ -69,9 +69,11 @@
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>This app needs microphone access to record meeting audio.</string>
+	<string>This app needs microphone access to record meeting audio and for Voice Control commands.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>This app uses speech recognition for Voice Control to navigate and perform actions by voice.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>This app needs camera access to scan QR codes for attendance.</string>
+	<string>This app needs camera access to scan QR codes for attendance and analyze product images.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>VVC HRM uses Face ID to protect your salary information.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
@@ -81,7 +83,7 @@
 	<key>NSLocationAlwaysUsageDescription</key>
 	<string>This app needs background location access to keep tracking trips when the app is not open.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>This app needs access to photo library to pick profile pictures.</string>
+	<string>This app needs access to photo library to pick profile pictures and product images for analysis.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>location</string>

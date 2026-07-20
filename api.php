@@ -5557,6 +5557,83 @@ switch ($action) {
         apiResponse($result);
         break;
 
+    // ─── Analyze Product Image (Vision AI) ───────────────────────────────────
+    case 'analyze_product_image':
+        if (!$user) apiResponse(['success' => false, 'message' => 'Unauthorized']);
+        $imageBase64 = trim((string)($_POST['image_base64'] ?? ''));
+        $barcodeText  = trim((string)($_POST['barcode'] ?? ''));
+        if ($imageBase64 === '' && $barcodeText === '') {
+            apiResponse(['success' => false, 'message' => 'image_base64 or barcode is required']);
+        }
+        // Detect MIME type from base64 header
+        $mimeType = 'image/jpeg';
+        if (strpos($imageBase64, 'data:') === 0) {
+            preg_match('/data:([^;]+);base64,/', $imageBase64, $m);
+            $mimeType    = $m[1] ?? 'image/jpeg';
+            $imageBase64 = (string)preg_replace('/^data:[^;]+;base64,/', '', $imageBase64);
+        }
+        $config = ai_chat_resolve_provider_config();
+        if (!$config) {
+            apiResponse(['success' => false, 'message' => 'AI provider is not configured']);
+        }
+        // Build user prompt
+        $analysisTarget = $imageBase64 !== ''
+            ? 'Analyze this product image carefully.'
+            : 'Use the barcode / QR code text to identify the product as accurately as possible.';
+        $extraContext = '';
+        if ($barcodeText !== '') {
+            $extraContext = "\n\nBarcode / QR code detected on the product: **{$barcodeText}**. Please also identify the country of origin based on the barcode prefix (GS1 prefix lookup).";
+        }
+        $userPrompt = "You are a product analysis expert. {$analysisTarget} Respond in Khmer (ភាសាខ្មែរ) with a structured JSON object. Include all the following fields exactly:\n{\n  \"product_name\": \"...\",\n  \"brand\": \"...\",\n  \"country_of_origin\": \"...\",\n  \"country_flag_emoji\": \"...\",\n  \"category\": \"...\",\n  \"usage\": [\"step1\", \"step2\", ...],\n  \"benefits\": [\"benefit1\", \"benefit2\", ...],\n  \"warnings\": [\"...\"],\n  \"ingredients_summary\": \"...\",\n  \"price_range_usd\": \"...\",\n  \"summary\": \"...\"\n}\nRespond with ONLY the JSON object, no extra text or markdown." . $extraContext;
+        // Build messages with vision content
+        $messages = [
+            [
+                'role'    => 'system',
+                'content' => 'You are a world-class product analyst. Always respond with valid JSON only, using Khmer language for all descriptive values.',
+            ],
+        ];
+        if ($imageBase64 !== '') {
+            $messages[] = [
+                'role'    => 'user',
+                'content' => [
+                    ['type' => 'text', 'text' => $userPrompt],
+                    ['type' => 'image_url', 'image_url' => ['url' => "data:{$mimeType};base64,{$imageBase64}", 'detail' => 'high']],
+                ],
+            ];
+        } else {
+            $messages[] = ['role' => 'user', 'content' => $userPrompt];
+        }
+        // Pick a vision-capable model
+        $visionModel = $config['model'];
+        // Override to vision models when possible
+        if (($config['provider'] ?? '') === 'openai') {
+            $nonVision = ['gpt-4.1-mini', 'gpt-3.5-turbo', 'o1-mini', 'o3-mini'];
+            if (in_array($visionModel, $nonVision, true)) {
+                $visionModel = 'gpt-4o-mini'; // cheapest OpenAI vision model
+            }
+        } elseif (($config['provider'] ?? '') === 'groq') {
+            $groqVisionModels = ['qwen/qwen3.6-27b'];
+            if (!in_array($visionModel, $groqVisionModels, true)) {
+                $visionModel = 'qwen/qwen3.6-27b';
+            }
+        }
+        $visionPayload = ['model' => $visionModel, 'messages' => $messages, 'temperature' => 0.1, 'max_tokens' => 1500];
+        $res = ai_chat_http_post_json($config['endpoint'], $visionPayload, ['Authorization: Bearer ' . $config['api_key']]);
+        if (!($res['ok'] ?? false)) {
+            apiResponse(['success' => false, 'message' => 'AI vision request failed: ' . ($res['message'] ?? 'Unknown error')]);
+        }
+        $rawContent = trim((string)($res['data']['choices'][0]['message']['content'] ?? ''));
+        // Strip markdown code fences if present
+        $rawContent = preg_replace('/^```(?:json)?\s*/i', '', $rawContent);
+        $rawContent = preg_replace('/\s*```\s*$/', '', $rawContent);
+        $parsed = json_decode($rawContent, true);
+        if (!is_array($parsed)) {
+            // Return as raw text if JSON parsing fails
+            apiResponse(['success' => true, 'raw' => $rawContent, 'parsed' => null]);
+        }
+        apiResponse(['success' => true, 'raw' => $rawContent, 'parsed' => $parsed]);
+        break;
+
     case 'remove_ai_chat_image_background':
         if (!$user) apiResponse(['success' => false, 'message' => 'Unauthorized']);
 

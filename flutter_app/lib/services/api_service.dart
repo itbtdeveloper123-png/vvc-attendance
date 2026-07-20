@@ -111,7 +111,10 @@ class ApiService {
     );
   }
 
-  Future<Map<String, dynamic>> reverseGeocode(double latitude, double longitude) async {
+  Future<Map<String, dynamic>> reverseGeocode(
+    double latitude,
+    double longitude,
+  ) async {
     final headers = await _authHeaders();
     return _processRequest(
       'reverse_geocode',
@@ -238,6 +241,25 @@ class ApiService {
     );
   }
 
+  /// Analyze a product image using AI Vision.
+  /// [imageBase64] — full base64 string (may include data: prefix)
+  /// [barcode]     — optional barcode/QR text already scanned
+  Future<Map<String, dynamic>> analyzeProductImage({
+    String imageBase64 = '',
+    String barcode = '',
+  }) async {
+    final headers = await _authHeaders();
+    final body = <String, String>{};
+    if (imageBase64.isNotEmpty) body['image_base64'] = imageBase64;
+    if (barcode.isNotEmpty) body['barcode'] = barcode;
+    return _processRequest(
+      'analyze_product_image',
+      headers: headers,
+      body: body,
+      timeout: const Duration(minutes: 2),
+    );
+  }
+
   Future<Map<String, dynamic>> regenerateAiChatReply(int sessionId) async {
     final headers = await _authHeaders();
     return _processRequest(
@@ -336,7 +358,8 @@ class ApiService {
   Future<Map<String, dynamic>> registerFace(List<String> photosBase64) async {
     final headers = await _authHeaders();
     final requestHeaders = Map<String, String>.from(headers);
-    requestHeaders['Content-Type'] = 'application/x-www-form-urlencoded; charset=UTF-8';
+    requestHeaders['Content-Type'] =
+        'application/x-www-form-urlencoded; charset=UTF-8';
 
     final body = <String, String>{
       'action': 'register_face',
@@ -348,7 +371,10 @@ class ApiService {
           .post(Uri.parse(baseUrl), headers: requestHeaders, body: body)
           .timeout(const Duration(seconds: 30));
       if (response.statusCode == 200) return json.decode(response.body);
-      return {'success': false, 'message': 'Server error: ${response.statusCode}'};
+      return {
+        'success': false,
+        'message': 'Server error: ${response.statusCode}',
+      };
     } catch (e) {
       return {'success': false, 'message': 'Connection error: $e'};
     }
@@ -361,7 +387,9 @@ class ApiService {
   }
 
   /// លុបការចុះឈ្មោះ Face (admin ឬ ខ្លួនឯង)
-  Future<Map<String, dynamic>> deleteFaceRegistration({String? employeeId}) async {
+  Future<Map<String, dynamic>> deleteFaceRegistration({
+    String? employeeId,
+  }) async {
     final headers = await _authHeaders();
     final body = <String, String>{};
     if (employeeId != null) body['target_employee_id'] = employeeId;
@@ -372,7 +400,8 @@ class ApiService {
   Future<Map<String, dynamic>> verifyFace(String photoBase64) async {
     final headers = await _authHeaders();
     final requestHeaders = Map<String, String>.from(headers);
-    requestHeaders['Content-Type'] = 'application/x-www-form-urlencoded; charset=UTF-8';
+    requestHeaders['Content-Type'] =
+        'application/x-www-form-urlencoded; charset=UTF-8';
     final body = <String, String>{
       'action': 'verify_face',
       'photo_base64': photoBase64,
@@ -382,7 +411,10 @@ class ApiService {
           .post(Uri.parse(baseUrl), headers: requestHeaders, body: body)
           .timeout(const Duration(seconds: 20));
       if (response.statusCode == 200) return json.decode(response.body);
-      return {'success': false, 'message': 'Server error: ${response.statusCode}'};
+      return {
+        'success': false,
+        'message': 'Server error: ${response.statusCode}',
+      };
     } catch (e) {
       return {'success': false, 'message': 'Connection error: $e'};
     }
@@ -1143,10 +1175,13 @@ class ApiService {
     required double endLng,
   }) async {
     try {
-      final url = 'https://router.project-osrm.org/route/v1/driving/'
+      final url =
+          'https://router.project-osrm.org/route/v1/driving/'
           '$startLng,$startLat;$endLng,$endLat'
           '?overview=full&geometries=geojson';
-      final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 10));
+      final response = await http
+          .get(Uri.parse(url))
+          .timeout(const Duration(seconds: 10));
       if (response.statusCode != 200) return null;
       final data = jsonDecode(response.body) as Map<String, dynamic>;
       if (data['code'] != 'Ok') return null;
@@ -1158,7 +1193,10 @@ class ApiService {
       if (coordinates == null) return null;
       return coordinates.map<Map<String, double>>((c) {
         final list = c as List;
-        return {'lat': (list[1] as num).toDouble(), 'lng': (list[0] as num).toDouble()};
+        return {
+          'lat': (list[1] as num).toDouble(),
+          'lng': (list[0] as num).toDouble(),
+        };
       }).toList();
     } catch (e) {
       debugPrint('OSRM route error: $e');

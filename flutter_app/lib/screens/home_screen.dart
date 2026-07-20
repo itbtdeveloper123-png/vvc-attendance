@@ -43,6 +43,7 @@ import 'outside_report_screen.dart';
 import 'training_quiz_screen.dart';
 import 'ai_chat_screen.dart';
 import '../services/voice_command_service.dart';
+import 'product_analyzer_screen.dart';
 
 // ========== SLIDE PAGE ROUTE (Feature #9) ==========
 PageRouteBuilder _slideRoute(Widget page) {
@@ -1313,10 +1314,7 @@ class _HomeContentState extends State<HomeContent> {
         height: 38,
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [
-              const Color(0xFF7C3AED),
-              const Color(0xFF4F46E5),
-            ],
+            colors: [const Color(0xFF7C3AED), const Color(0xFF4F46E5)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -1333,11 +1331,7 @@ class _HomeContentState extends State<HomeContent> {
             ),
           ],
         ),
-        child: const Icon(
-          Icons.mic_rounded,
-          color: Colors.white,
-          size: 20,
-        ),
+        child: const Icon(Icons.mic_rounded, color: Colors.white, size: 20),
       ),
     );
   }
@@ -1364,7 +1358,9 @@ class _HomeContentState extends State<HomeContent> {
               ),
               decoration: BoxDecoration(
                 color: AppTheme.bgCard,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(28),
+                ),
                 border: Border.all(
                   color: Colors.white.withValues(alpha: 0.08),
                   width: 1,
@@ -1376,7 +1372,8 @@ class _HomeContentState extends State<HomeContent> {
                   const SizedBox(height: 12),
                   // Drag Handle
                   Container(
-                    width: 40, height: 4,
+                    width: 40,
+                    height: 4,
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(2),
@@ -1419,7 +1416,8 @@ class _HomeContentState extends State<HomeContent> {
                       final initialized = await _voiceService.initialize();
                       if (!initialized) {
                         setSheetState(() {
-                          statusText = '❌ Speech recognition មិនអាចប្រើបានលើឧបករណ៍នេះ';
+                          statusText =
+                              '❌ Speech recognition មិនអាចប្រើបានលើឧបករណ៍នេះ';
                         });
                         return;
                       }
@@ -1436,7 +1434,8 @@ class _HomeContentState extends State<HomeContent> {
                           setSheetState(() {
                             isListening = false;
                             resultText = '"${command.recognizedText}"';
-                            statusText = command.type == VoiceCommandType.unknown
+                            statusText =
+                                command.type == VoiceCommandType.unknown
                                 ? '❓ មិនស្គាល់ពាក្យ — សាកម្ដងទៀត'
                                 : '✅ ${VoiceCommandService.commandLabel(command.type)}';
                           });
@@ -1444,10 +1443,13 @@ class _HomeContentState extends State<HomeContent> {
                           if (command.type != VoiceCommandType.unknown) {
                             final nav = Navigator.of(context);
                             final cmdType = command.type;
-                            Future.delayed(const Duration(milliseconds: 700), () {
-                              if (nav.canPop()) nav.pop();
-                              _executeVoiceCommand(cmdType);
-                            });
+                            Future.delayed(
+                              const Duration(milliseconds: 700),
+                              () {
+                                if (nav.canPop()) nav.pop();
+                                _executeVoiceCommand(cmdType);
+                              },
+                            );
                           }
                         },
                         onListeningChanged: (listening) {
@@ -1468,14 +1470,20 @@ class _HomeContentState extends State<HomeContent> {
                         gradient: LinearGradient(
                           colors: isListening
                               ? [Colors.redAccent, const Color(0xFFFF6B6B)]
-                              : [const Color(0xFF7C3AED), const Color(0xFF4F46E5)],
+                              : [
+                                  const Color(0xFF7C3AED),
+                                  const Color(0xFF4F46E5),
+                                ],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: (isListening ? Colors.redAccent : const Color(0xFF7C3AED))
-                                .withValues(alpha: 0.5),
+                            color:
+                                (isListening
+                                        ? Colors.redAccent
+                                        : const Color(0xFF7C3AED))
+                                    .withValues(alpha: 0.5),
                             blurRadius: isListening ? 30 : 15,
                             spreadRadius: isListening ? 5 : 0,
                           ),
@@ -1498,7 +1506,9 @@ class _HomeContentState extends State<HomeContent> {
                       statusText,
                       key: ValueKey(statusText),
                       style: GoogleFonts.kantumruyPro(
-                        color: isListening ? Colors.redAccent : AppTheme.textSecondary,
+                        color: isListening
+                            ? Colors.redAccent
+                            : AppTheme.textSecondary,
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
                       ),
@@ -1541,14 +1551,21 @@ class _HomeContentState extends State<HomeContent> {
                         Wrap(
                           spacing: 8,
                           runSpacing: 8,
-                          children: VoiceCommandService.commandHints.map((hint) {
+                          children: VoiceCommandService.commandHints.map((
+                            hint,
+                          ) {
                             return Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 5,
+                              ),
                               decoration: BoxDecoration(
                                 color: AppTheme.primary.withValues(alpha: 0.12),
                                 borderRadius: BorderRadius.circular(20),
                                 border: Border.all(
-                                  color: AppTheme.primary.withValues(alpha: 0.2),
+                                  color: AppTheme.primary.withValues(
+                                    alpha: 0.2,
+                                  ),
                                 ),
                               ),
                               child: Text(
@@ -1582,14 +1599,16 @@ class _HomeContentState extends State<HomeContent> {
 
     switch (type) {
       case VoiceCommandType.scanIn:
-        Navigator.push(context, _slideRoute(
-          const AttendanceScreen(presetAction: 'Check-In'),
-        ));
+        Navigator.push(
+          context,
+          _slideRoute(const AttendanceScreen(presetAction: 'Check-In')),
+        );
         break;
       case VoiceCommandType.scanOut:
-        Navigator.push(context, _slideRoute(
-          const AttendanceScreen(presetAction: 'Check-Out'),
-        ));
+        Navigator.push(
+          context,
+          _slideRoute(const AttendanceScreen(presetAction: 'Check-Out')),
+        );
         break;
       case VoiceCommandType.outside:
         Navigator.push(context, _slideRoute(const OutsideAttendanceScreen()));
@@ -1602,7 +1621,9 @@ class _HomeContentState extends State<HomeContent> {
             behavior: SnackBarBehavior.floating,
             backgroundColor: AppTheme.primary,
             margin: const EdgeInsets.all(20),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
             duration: const Duration(seconds: 1),
           ),
         );
@@ -1636,6 +1657,9 @@ class _HomeContentState extends State<HomeContent> {
         break;
       case VoiceCommandType.training:
         Navigator.push(context, _slideRoute(const TrainingQuizScreen()));
+        break;
+      case VoiceCommandType.productAnalyzer:
+        Navigator.push(context, _slideRoute(const ProductAnalyzerScreen()));
         break;
       case VoiceCommandType.trip:
         Navigator.push(context, _slideRoute(const TripScreen()));
@@ -2151,7 +2175,7 @@ class _HomeContentState extends State<HomeContent> {
     final orderStr = user.getConfig(
       'home_card_order$suffix',
       defaultValue:
-          'stats_slider,attendance,outside_attendance,training_quiz,announcements,meetings,checklist,daily_report,mission,trip,user_management,request_form,reports,material_request,notification,payroll',
+          'stats_slider,attendance,outside_attendance,product_analyzer,training_quiz,announcements,meetings,checklist,daily_report,mission,trip,user_management,request_form,reports,material_request,notification,payroll',
     );
 
     final keys = orderStr
@@ -2214,6 +2238,20 @@ class _HomeContentState extends State<HomeContent> {
         onTap: () => Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => const TrainingQuizScreen()),
+        ),
+      ),
+
+      'product_analyzer': (isList) => _buildActionItem(
+        isList: isList,
+        key: 'show_product_analyzer_card$suffix',
+        user: user,
+        label: "វិភាគផលិតផល",
+        subtitle: "ថតរូប ឬ Scan Barcode ដើម្បីឱ្យ AI វិភាគ",
+        icon: Icons.document_scanner_rounded,
+        color: const Color(0xFF8B5CF6),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const ProductAnalyzerScreen()),
         ),
       ),
 
