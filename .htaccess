@@ -1,0 +1,32 @@
+<IfModule mod_headers.c>
+  Header set Access-Control-Allow-Origin "*"
+  Header set Access-Control-Allow-Methods "GET, POST, OPTIONS"
+  Header set Access-Control-Allow-Headers "Origin, X-Requested-With, Content-Type, Accept"
+</IfModule>
+
+# ១. បើកដំណើរការ Rewrite Engine
+RewriteEngine On
+
+# ២. កត់ត្រាការ Redirect ពី homes.php ទៅ HRM/homes.php
+# ប្រើ R=301 (Permanent Redirect) ដើម្បីឲ្យ Google និង Browser ស្គាល់ទីតាំងថ្មីរហូត
+RewriteRule ^homes\.php$ /HRM/homes.php [R=301,L]
+
+# ៣. បន្ថែមកូដសម្រាប់ដំណើរការ Flutter Web App (Single Page Application)
+# កូដនេះជួយឲ្យនៅពេល Refresh Page កម្មវិធីមិន Error (404)
+<IfModule mod_rewrite.c>
+  RewriteBase /
+  RewriteRule ^index\.html$ - [L]
+  # Exclude Node.js Chat Server from PHP/SPA overrides
+  RewriteCond %{REQUEST_URI} !^/app/chat_server
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteCond %{REQUEST_FILENAME} !\.php$
+  RewriteRule . /index.html [L]
+</IfModule>
+
+# php -- BEGIN cPanel-generated handler, do not edit
+# Set the “ea-php84” package as the default “PHP” programming language.
+<IfModule mime_module>
+  AddHandler application/x-httpd-ea-php84___lsphp .php .php8 .phtml
+</IfModule>
+# php -- END cPanel-generated handler, do not edit

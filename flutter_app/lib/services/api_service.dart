@@ -330,10 +330,75 @@ class ApiService {
     }
   }
 
+  // ========== FACE REGISTRATION ==========
+
+  /// ចុះឈ្មោះ Face ថ្មី (ផ្ញើ photos base64 ៣ ដង)
+  Future<Map<String, dynamic>> registerFace(List<String> photosBase64) async {
+    final headers = await _authHeaders();
+    final requestHeaders = Map<String, String>.from(headers);
+    requestHeaders['Content-Type'] = 'application/x-www-form-urlencoded; charset=UTF-8';
+
+    final body = <String, String>{
+      'action': 'register_face',
+      'photos_json': json.encode(photosBase64),
+    };
+
+    try {
+      final response = await http
+          .post(Uri.parse(baseUrl), headers: requestHeaders, body: body)
+          .timeout(const Duration(seconds: 30));
+      if (response.statusCode == 200) return json.decode(response.body);
+      return {'success': false, 'message': 'Server error: ${response.statusCode}'};
+    } catch (e) {
+      return {'success': false, 'message': 'Connection error: $e'};
+    }
+  }
+
+  /// ពិនិត្យថាតើ Face ត្រូវបានចុះឈ្មោះ ឬ យ៉ាង
+  Future<Map<String, dynamic>> getFaceStatus() async {
+    final headers = await _authHeaders();
+    return _processRequest('get_face_status', headers: headers);
+  }
+
+  /// លុបការចុះឈ្មោះ Face (admin ឬ ខ្លួនឯង)
+  Future<Map<String, dynamic>> deleteFaceRegistration({String? employeeId}) async {
+    final headers = await _authHeaders();
+    final body = <String, String>{};
+    if (employeeId != null) body['target_employee_id'] = employeeId;
+    return _processRequest('delete_face', body: body, headers: headers);
+  }
+
+  /// ផ្ទៀងផ្ទាត់ Face ក្នុងពេល Attendance (ប្រៀបធៀបជាមួយ reference)
+  Future<Map<String, dynamic>> verifyFace(String photoBase64) async {
+    final headers = await _authHeaders();
+    final requestHeaders = Map<String, String>.from(headers);
+    requestHeaders['Content-Type'] = 'application/x-www-form-urlencoded; charset=UTF-8';
+    final body = <String, String>{
+      'action': 'verify_face',
+      'photo_base64': photoBase64,
+    };
+    try {
+      final response = await http
+          .post(Uri.parse(baseUrl), headers: requestHeaders, body: body)
+          .timeout(const Duration(seconds: 20));
+      if (response.statusCode == 200) return json.decode(response.body);
+      return {'success': false, 'message': 'Server error: ${response.statusCode}'};
+    } catch (e) {
+      return {'success': false, 'message': 'Connection error: $e'};
+    }
+  }
+
+  /// ទទួលបញ្ជីអ្នកចុះឈ្មោះ Face (admin only)
+  Future<Map<String, dynamic>> getFaceRegistrations() async {
+    final headers = await _authHeaders();
+    return _processRequest('get_face_registrations', headers: headers);
+  }
+
   Future<void> syncOfflineAttendance() async {
     if (kIsWeb) return;
     final dbService = LocalDbService();
     final unsynced = await dbService.getUnsyncedPunches();
+
     if (unsynced.isEmpty) return;
     debugPrint('Syncing ${unsynced.length} offline records...');
     final headers = await _authHeaders();

@@ -12,11 +12,11 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:animate_do/animate_do.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/user_provider.dart';
 import '../services/api_service.dart';
 import '../services/notification_service.dart';
 import '../utils/app_theme.dart';
+import 'face_setup_screen.dart';
 
 class AttendanceScreen extends StatefulWidget {
   /// If set, auto-submits with this action (skips dialog).
@@ -48,25 +48,28 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   int _consecutiveErrorFrames = 0;
   Timer? _faceScanTimeout;
 
-  // ====== SharedPreferences key for face registration status ======
-  static String _faceRegKey(String? employeeId) =>
-      'face_registered_${employeeId ?? 'unknown'}';
-
-  /// Load whether this user has already registered their face before
+  /// Load whether this user has already registered their face
   Future<void> _loadFaceRegistrationStatus() async {
     final userProvider = Provider.of<UserProvider>(context, listen: false);
     if (!userProvider.faceScanEnabled) return;
-    final prefs = await SharedPreferences.getInstance();
-    final key = _faceRegKey(userProvider.employeeId);
-    _isFaceRegistered = prefs.getBool(key) ?? false;
+    // Primary source: UserProvider (syncs with server)
+    _isFaceRegistered = userProvider.faceRegistered;
+    // If not marked locally, check server
+    if (!_isFaceRegistered) {
+      try {
+        final result = await _apiService.getFaceStatus();
+        if (result['registered'] == true) {
+          userProvider.setFaceRegistered(true);
+          _isFaceRegistered = true;
+        }
+      } catch (_) {}
+    }
   }
 
-  /// Mark this user's face as registered (called on first successful face attendance)
+  /// Mark face as registered via UserProvider
   Future<void> _markFaceAsRegistered() async {
     final userProvider = Provider.of<UserProvider>(context, listen: false);
-    final prefs = await SharedPreferences.getInstance();
-    final key = _faceRegKey(userProvider.employeeId);
-    await prefs.setBool(key, true);
+    userProvider.setFaceRegistered(true);
     _isFaceRegistered = true;
   }
 
@@ -120,10 +123,38 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         _isScanning = true;
         _isLoading = false;
       });
-      // បើក QR Scanner ក្រោយដែល Face Scan មិនត្រូវបានកំណត់
       await Future.delayed(const Duration(milliseconds: 100));
-      if (mounted) {
-        try { await controller.start(); } catch (_) {}
+      if (mounted) { try { await controller.start(); } catch (_) {} }
+      return;
+    }
+
+    // Face scan enabled ប៉ុន្តែ face មិនទាន់ register → ណែនាំ Setup
+    if (!_isFaceRegistered) {
+      if (!mounted) return;
+      setState(() { _isLoading = false; });
+      final registered = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const FaceSetupScreen(isFirstTime: true),
+          fullscreenDialog: true,
+        ),
+      );
+      if (!mounted) return;
+      if (registered == true) {
+        _isFaceRegistered = true;
+        // ចាប់ face scan ភ្លាមៗ ក្រោយ setup
+        _faceScanAttempted = false;
+        setState(() { _isLoading = true; });
+        await _tryFaceScanOrFallback();
+      } else {
+        // User បោះបង់ setup → ប្ដូរទៅ QR
+        setState(() {
+          _useQrScanner = true;
+          _isScanning = true;
+          _isLoading = false;
+        });
+        await Future.delayed(const Duration(milliseconds: 100));
+        if (mounted) { try { await controller.start(); } catch (_) {} }
       }
       return;
     }

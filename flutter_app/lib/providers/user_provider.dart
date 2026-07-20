@@ -196,6 +196,7 @@ class UserProvider with ChangeNotifier {
   bool _isLoggedIn = false;
   bool _isVerified = false;
   bool _faceScanEnabled = true;
+  bool _faceRegistered = false;
   int _attendanceStreak = 0;
   Map<String, dynamic> _settings = {};
 
@@ -212,8 +213,15 @@ class UserProvider with ChangeNotifier {
   String? get email => _email;
   bool get isVerified => _isVerified;
   bool get faceScanEnabled => _faceScanEnabled;
+  bool get faceRegistered => _faceRegistered;
   int get attendanceStreak => _attendanceStreak;
   Map<String, dynamic> get settings => _settings;
+
+  void setFaceRegistered(bool value) {
+    _faceRegistered = value;
+    SharedPreferences.getInstance().then((p) => p.setBool('face_registered', value));
+    notifyListeners();
+  }
 
   Future<List<Map<String, dynamic>>> getRecentAccounts() async {
     final prefs = await SharedPreferences.getInstance();
@@ -393,6 +401,7 @@ class UserProvider with ChangeNotifier {
     _email = prefs.getString('user_email');
     _isVerified = prefs.getBool('is_verified') ?? false;
     _faceScanEnabled = prefs.getBool('face_scan_enabled') ?? true;
+    _faceRegistered = prefs.getBool('face_registered') ?? false;
     _attendanceStreak = prefs.getInt('attendance_streak') ?? 0;
 
     final savedSettings = prefs.getString('app_settings');
@@ -485,6 +494,7 @@ class UserProvider with ChangeNotifier {
       _systemRoleLabel = (result['user']['system_role_label'] as String?) ?? '';
       _isVerified = (result['user']['is_verified'] ?? 0).toString() == '1';
       _faceScanEnabled = (result['user']['face_scan_enabled'] ?? '1').toString() == '1';
+      _faceRegistered = (result['user']['face_registered'] ?? '0').toString() == '1';
       _attendanceStreak =
           int.tryParse(
             result['user']['attendance_streak']?.toString() ?? '0',
@@ -523,6 +533,7 @@ class UserProvider with ChangeNotifier {
       await prefs.setString('system_role_label', _systemRoleLabel!);
       await prefs.setBool('is_verified', _isVerified);
       await prefs.setBool('face_scan_enabled', _faceScanEnabled);
+      await prefs.setBool('face_registered', _faceRegistered);
       await prefs.setInt('attendance_streak', _attendanceStreak);
       await addRecentAccount(
         employeeId: _employeeId!,
@@ -565,6 +576,7 @@ class UserProvider with ChangeNotifier {
           (user['system_role_label'] as String?) ?? _systemRoleLabel ?? '';
       _isVerified = (user['is_verified'] ?? 0).toString() == '1';
       _faceScanEnabled = (user['face_scan_enabled'] ?? '1').toString() == '1';
+      _faceRegistered = (user['face_registered'] ?? '0').toString() == '1';
       _attendanceStreak =
           int.tryParse(user['attendance_streak']?.toString() ?? '0') ?? 0;
 
@@ -603,6 +615,7 @@ class UserProvider with ChangeNotifier {
       }
       await prefs.setBool('is_verified', _isVerified);
       await prefs.setBool('face_scan_enabled', _faceScanEnabled);
+      await prefs.setBool('face_registered', _faceRegistered);
       await prefs.setInt('attendance_streak', _attendanceStreak);
       notifyListeners();
     }

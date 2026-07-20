@@ -3226,6 +3226,23 @@ if (isset($_POST['ajax_action']) || isset($_GET['ajax_action'])) {
                         $response = ['status' => 'success', 'message' => 'ស្ថានភាព Verification ត្រូវបានប្តូរ!', 'new_verified' => $new_val];
                     }
                     break;
+                case 'reset_face':
+                    $user_id = $_POST['user_id'] ?? '';
+                    if (!empty($user_id)) {
+                        $user_id_esc = $mysqli->real_escape_string($user_id);
+                        // Delete photos from directory
+                        $res = $mysqli->query("SELECT photo_path FROM employee_face_data WHERE employee_id = '$user_id_esc'");
+                        if ($res) {
+                            while ($pr = $res->fetch_assoc()) {
+                                $fp = __DIR__ . '/' . ltrim($pr['photo_path'], '/');
+                                if (is_file($fp)) @unlink($fp);
+                            }
+                        }
+                        $mysqli->query("DELETE FROM employee_face_data WHERE employee_id = '$user_id_esc'");
+                        $mysqli->query("UPDATE users SET face_registered = 0 WHERE employee_id = '$user_id_esc'");
+                        $response = ['status' => 'success', 'message' => 'ទិន្នន័យ Face ត្រូវបាន Reset ដោយជោគជ័យ!'];
+                    }
+                    break;
                 case 'toggle_user_status':
                     $user_id = $_POST['user_id'] ?? '';
                     if (!empty($user_id)) {
@@ -18606,6 +18623,7 @@ ob_end_flush();
                                             <th style="width: 150px;">
                                                 ថ្ងៃបញ្ចប់ការងារ
                                             </th>
+                                            <th style="width: 130px; text-align: center;">Face ID</th>
                                             <th style="width: 120px; text-align: center;">Actions</th>
                                         </tr>
                                     </thead>
@@ -18764,6 +18782,26 @@ ob_end_flush();
                                                             onchange="updateEmploymentStatus('<?php echo htmlspecialchars($user['employee_id']); ?>', this.closest('tr').querySelector('select').value, this.value)">
                                                     <?php else: ?>
                                                         <span style="color: #cbd5e1; font-size: 0.8rem;">Permanent</span>
+                                                    <?php endif; ?>
+                                                </td>
+                                                <td style="text-align: center; vertical-align: middle;">
+                                                    <?php
+                                                    $face_reg = (int)($user['face_registered'] ?? 0);
+                                                    if ($face_reg === 1): ?>
+                                                        <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                                                            <span class="badge bg-success text-white" style="font-size: 0.75rem; padding: 4px 8px; border-radius: 6px;">
+                                                                <i class="fa-solid fa-circle-check"></i> រៀបចំរួច
+                                                            </span>
+                                                            <button type="button" class="btn btn-xs btn-outline-danger" 
+                                                                    style="padding: 1px 5px; font-size: 0.65rem; border-radius: 4px;"
+                                                                    onclick="resetUserFace('<?php echo htmlspecialchars($user['employee_id']); ?>')">
+                                                                <i class="fa-solid fa-rotate-left"></i> Reset
+                                                            </button>
+                                                        </div>
+                                                    <?php else: ?>
+                                                        <span class="badge bg-secondary text-white" style="font-size: 0.75rem; padding: 4px 8px; border-radius: 6px; opacity: 0.75;">
+                                                            <i class="fa-solid fa-face-meh"></i> មិនទាន់រៀបចំ
+                                                        </span>
                                                     <?php endif; ?>
                                                 </td>
                                                 <td class="users-table-action">
@@ -27873,6 +27911,55 @@ ob_end_flush();
                 })
                 .catch(err => {
                     console.error('Verification toggle error:', err);
+                    alert('Error communicating with server');
+                });
+        };
+
+        window.resetUserFace = function (userId) {
+            if (!confirm('តើអ្នកពិតជាចង់ Reset ទិន្នន័យ Face ID របស់បុគ្គលិកនេះមែនទេ?')) {
+                return;
+            }
+            const fd = new FormData();
+            fd.append('ajax_action', 'reset_face');
+            fd.append('user_id', userId);
+
+            fetch(window.location.href, { method: 'POST', body: fd })
+                .then(r => r.text())
+                .then(text => {
+                    let res;
+                    try {
+                        const jsonStart = text.indexOf('{');
+                        res = JSON.parse(jsonStart >= 0 ? text.slice(jsonStart) : text);
+                    } catch (e) {
+                        console.error('JSON parse error:', text);
+                        alert('Server response error');
+                        return;
+                    }
+                    if (res.status === 'success') {
+                        if (typeof window.showAjaxMessage === 'function') {
+                            window.showAjaxMessage('success', res.message);
+                        } else {
+                            alert(res.message);
+                        }
+                        // Update UI row to show "Not Registered"
+                        const row = document.getElementById(`user-row-${userId}`);
+                        if (row) {
+                            // Find the TD for Face ID (it's the 6th column, index 5)
+                            const cells = row.getElementsByTagName('td');
+                            if (cells.length >= 6) {
+                                cells[cells.length - 2].innerHTML = `
+                                    <span class="badge bg-secondary text-white" style="font-size: 0.75rem; padding: 4px 8px; border-radius: 6px; opacity: 0.75;">
+                                        <i class="fa-solid fa-face-meh"></i> មិនទាន់រៀបចំ
+                                    </span>
+                                `;
+                            }
+                        }
+                    } else {
+                        alert(res.message || 'Error resetting face registration');
+                    }
+                })
+                .catch(err => {
+                    console.error('Reset face error:', err);
                     alert('Error communicating with server');
                 });
         };

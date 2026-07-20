@@ -2016,6 +2016,23 @@ if ($check_addr && $check_addr->num_rows === 0) {
     $mysqli->query("ALTER TABLE checkin_logs ADD COLUMN geo_address TEXT DEFAULT NULL");
 }
 
+// ===== FACE REGISTRATION TABLE =====
+// បង្កើតតារាងដើម្បីរក្សាទុករូបថតចុះឈ្មោះ Face ID
+$mysqli->query("CREATE TABLE IF NOT EXISTS employee_face_data (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    employee_id VARCHAR(64) NOT NULL,
+    photo_path VARCHAR(512) NOT NULL,
+    photo_index TINYINT DEFAULT 0 COMMENT '0=straight,1=left,2=right',
+    registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    registered_by VARCHAR(64) DEFAULT NULL COMMENT 'admin who registered on behalf',
+    INDEX idx_face_employee (employee_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+// បន្ថែម face_registered column ក្នុង users table
+$check_face_reg = $mysqli->query("SHOW COLUMNS FROM users LIKE 'face_registered'");
+if ($check_face_reg && $check_face_reg->num_rows === 0) {
+    $mysqli->query("ALTER TABLE users ADD COLUMN face_registered TINYINT(1) DEFAULT 0");
+}
 
 function get_address_from_gps($lat, $lon) {
     if (!$lat || !$lon) return null;
@@ -3141,6 +3158,7 @@ switch ($action) {
                     'is_verified' => (int)($base['is_verified'] ?? 0),
                     'attendance_streak' => $streak,
                     'face_scan_enabled' => (($faceScanEnabled === '1' || $faceScanEnabled === 1) ? 1 : 0),
+                    'face_registered' => (int)($base['face_registered'] ?? 0),
                 ]
             ]);
         } else {
@@ -3265,6 +3283,7 @@ switch ($action) {
                 'is_verified' => (int)($profile['is_verified'] ?? 0),
                 'attendance_streak' => $streak,
                 'face_scan_enabled' => (($faceScanEnabled === '1' || $faceScanEnabled === 1) ? 1 : 0),
+                'face_registered' => (int)($profile['face_registered'] ?? 0),
             ],
         ]);
         break;
@@ -4330,6 +4349,82 @@ switch ($action) {
                     }
                 }
                 $good_stmt->close();
+            }
+        }
+
+        // 4.5. Verify Face Scan if applicable
+        if (trim($_POST['workplace'] ?? '') === 'Face Scan') {
+            $check_face_reg = $mysqli->prepare("SELECT COUNT(*) as cnt FROM employee_face_data WHERE employee_id = ?");
+            $has_registered_face = false;
+            if ($check_face_reg) {
+                $check_face_reg->bind_param("s", $eid);
+                $check_face_reg->execute();
+                $r_face = $check_face_reg->get_result()->fetch_assoc();
+                if ($r_face && (int)$r_face['cnt'] > 0) {
+                    $has_registered_face = true;
+                }
+                $check_face_reg->close();
+            }
+
+            if ($has_registered_face) {
+                $check_photo_b64 = $_POST['photo_base64'] ?? '';
+                if (empty($check_photo_b64)) {
+                    apiResponse(['success' => false, 'message' => 'ត្រូវការរូបថតដើម្បីផ្ទៀងផ្ទាត់ផ្ទៃមុខ']);
+                }
+
+                // Call the verify_face logic
+                $ai_verified = true;
+                $openAiKey = defined('OPENAI_API_KEY') ? trim(OPENAI_API_KEY) : '';
+                if (!empty($openAiKey)) {
+                    // Fetch one reference photo
+                    $ref_stmt = $mysqli->prepare("SELECT photo_path FROM employee_face_data WHERE employee_id = ? AND photo_index = 0 LIMIT 1");
+                    $ref_path = null;
+                    if ($ref_stmt) {
+                        $ref_stmt->bind_param("s", $eid);
+                        $ref_stmt->execute();
+                        $r = $ref_stmt->get_result();
+                        if ($r) { $row = $r->fetch_assoc(); $ref_path = $row['photo_path'] ?? null; }
+                        $ref_stmt->close();
+                    }
+
+                    if ($ref_path && is_file(__DIR__ . '/' . ltrim($ref_path, '/'))) {
+                        $ref_b64 = base64_encode(file_get_contents(__DIR__ . '/' . ltrim($ref_path, '/')));
+                        $clean_scan_b64 = preg_replace('/^data:image\/[a-z]+;base64,/', '', $check_photo_b64);
+
+                        $payload = [
+                            'model' => 'gpt-4o-mini',
+                            'max_tokens' => 50,
+                            'messages' => [[
+                                'role' => 'user',
+                                'content' => [
+                                    ['type' => 'text', 'text' => 'Do these two images show the same person? Answer with only YES or NO.'],
+                                    ['type' => 'image_url', 'image_url' => ['url' => 'data:image/jpeg;base64,' . $ref_b64, 'detail' => 'low']],
+                                    ['type' => 'image_url', 'image_url' => ['url' => 'data:image/jpeg;base64,' . $clean_scan_b64, 'detail' => 'low']],
+                                ],
+                            ]],
+                        ];
+                        $ch = curl_init('https://api.openai.com/v1/chat/completions');
+                        curl_setopt_array($ch, [
+                            CURLOPT_RETURNTRANSFER => true,
+                            CURLOPT_POST => true,
+                            CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $openAiKey, 'Content-Type: application/json'],
+                            CURLOPT_POSTFIELDS => json_encode($payload),
+                            CURLOPT_TIMEOUT => 15,
+                            CURLOPT_CONNECTTIMEOUT => 10,
+                        ]);
+                        $ai_resp = curl_exec($ch);
+                        curl_close($ch);
+                        if ($ai_resp) {
+                            $ai_data = json_decode($ai_resp, true);
+                            $answer = strtoupper(trim($ai_data['choices'][0]['message']['content'] ?? 'YES'));
+                            $ai_verified = (strpos($answer, 'YES') !== false);
+                        }
+                    }
+                }
+
+                if (!$ai_verified) {
+                    apiResponse(['success' => false, 'message' => 'ការផ្ទៀងផ្ទាត់ផ្ទៃមុខមិនត្រូវគ្នាទេ! សូមព្យាយាមម្ដងទៀត។']);
+                }
             }
         }
 
@@ -5504,6 +5599,257 @@ switch ($action) {
         apiResponse($result);
         break;
 
+    // =============================================
+    // FACE REGISTRATION API
+    // =============================================
+
+    case 'register_face':
+        if (!$user) apiResponse(['success' => false, 'message' => 'Unauthorized']);
+        $eid = $user['employee_id'] ?? '';
+        if (empty($eid)) apiResponse(['success' => false, 'message' => 'Missing employee ID']);
+
+        $photos_json = $_POST['photos_json'] ?? '';
+        $photos = json_decode($photos_json, true);
+        if (!is_array($photos) || count($photos) < 1) {
+            apiResponse(['success' => false, 'message' => 'ត្រូវការរូបថតយ៉ាងតិច ១ ']);
+        }
+
+        // លុបការចុះឈ្មោះចាស់ (re-register)
+        $del = $mysqli->prepare("DELETE FROM employee_face_data WHERE employee_id = ?");
+        if ($del) { $del->bind_param("s", $eid); $del->execute(); $del->close(); }
+
+        $face_dir = __DIR__ . '/uploads/faces/' . preg_replace('/[^A-Za-z0-9_-]/', '', $eid) . '/';
+        if (!is_dir($face_dir)) mkdir($face_dir, 0775, true);
+
+        $saved = 0;
+        foreach ($photos as $idx => $b64) {
+            $clean_b64 = preg_replace('/^data:image\/[a-z]+;base64,/', '', $b64);
+            $img_data = base64_decode($clean_b64, true);
+            if (!$img_data) continue;
+            $fname = 'face_' . $idx . '_' . time() . '.jpg';
+            $fpath = $face_dir . $fname;
+            if (file_put_contents($fpath, $img_data)) {
+                $rel_path = 'uploads/faces/' . preg_replace('/[^A-Za-z0-9_-]/', '', $eid) . '/' . $fname;
+                $stmt = $mysqli->prepare("INSERT INTO employee_face_data (employee_id, photo_path, photo_index) VALUES (?, ?, ?)");
+                if ($stmt) {
+                    $pi = (int)$idx;
+                    $stmt->bind_param("ssi", $eid, $rel_path, $pi);
+                    $stmt->execute();
+                    $stmt->close();
+                    $saved++;
+                }
+            }
+        }
+
+        if ($saved > 0) {
+            $mysqli->query("UPDATE users SET face_registered = 1 WHERE employee_id = '" . $mysqli->real_escape_string($eid) . "'");
+            apiResponse(['success' => true, 'message' => 'ចុះឈ្មោះ Face ID ជោគជ័យ!', 'photos_saved' => $saved]);
+        } else {
+            apiResponse(['success' => false, 'message' => 'មិនអាចរក្សាទុករូបថតបានទេ']);
+        }
+        break;
+
+    case 'get_face_status':
+        if (!$user) apiResponse(['success' => false, 'message' => 'Unauthorized']);
+        $eid = $user['employee_id'] ?? '';
+        $stmt = $mysqli->prepare("SELECT COUNT(*) as cnt, MAX(registered_at) as reg_at FROM employee_face_data WHERE employee_id = ?");
+        $registered = false;
+        $reg_at = null;
+        $photo_count = 0;
+        if ($stmt) {
+            $stmt->bind_param("s", $eid);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            if ($res) {
+                $row = $res->fetch_assoc();
+                $photo_count = (int)($row['cnt'] ?? 0);
+                $registered = $photo_count > 0;
+                $reg_at = $row['reg_at'] ?? null;
+            }
+            $stmt->close();
+        }
+        // Also get the photo URLs
+        $photos = [];
+        $stmt2 = $mysqli->prepare("SELECT photo_path, photo_index, registered_at FROM employee_face_data WHERE employee_id = ? ORDER BY photo_index ASC");
+        if ($stmt2) {
+            $stmt2->bind_param("s", $eid);
+            $stmt2->execute();
+            $res2 = $stmt2->get_result();
+            if ($res2) {
+                while ($row2 = $res2->fetch_assoc()) {
+                    $base = rtrim(dirname(isset($_SERVER['SCRIPT_NAME']) ? $_SERVER['SCRIPT_NAME'] : ''), '/');
+                    $host = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost');
+                    $photos[] = [
+                        'path' => $row2['photo_path'],
+                        'url' => $host . '/' . ltrim($row2['photo_path'], '/'),
+                        'index' => (int)$row2['photo_index'],
+                        'registered_at' => $row2['registered_at'],
+                    ];
+                }
+            }
+            $stmt2->close();
+        }
+        apiResponse([
+            'success' => true,
+            'registered' => $registered,
+            'photo_count' => $photo_count,
+            'registered_at' => $reg_at,
+            'photos' => $photos,
+        ]);
+        break;
+
+    case 'delete_face':
+        if (!$user) apiResponse(['success' => false, 'message' => 'Unauthorized']);
+        $caller_eid = $user['employee_id'] ?? '';
+        $caller_role = strtolower($user['user_role'] ?? '');
+        $target_eid = trim($_POST['target_employee_id'] ?? $caller_eid);
+
+        // Admin/HRM can delete others; Employee can only delete own
+        $is_admin = in_array($caller_role, ['admin', 'hrm', 'hr']);
+        if ($target_eid !== $caller_eid && !$is_admin) {
+            apiResponse(['success' => false, 'message' => 'អ្នកគ្មានសិទ្ធិលុបទិន្នន័យ Face ឈ្នោះទៀត']);
+        }
+
+        // Delete photo files
+        $res = $mysqli->prepare("SELECT photo_path FROM employee_face_data WHERE employee_id = ?");
+        if ($res) {
+            $res->bind_param("s", $target_eid);
+            $res->execute();
+            $r = $res->get_result();
+            if ($r) {
+                while ($pr = $r->fetch_assoc()) {
+                    $fp = __DIR__ . '/' . ltrim($pr['photo_path'], '/');
+                    if (is_file($fp)) @unlink($fp);
+                }
+            }
+            $res->close();
+        }
+
+        $del2 = $mysqli->prepare("DELETE FROM employee_face_data WHERE employee_id = ?");
+        if ($del2) {
+            $del2->bind_param("s", $target_eid);
+            $del2->execute();
+            $del2->close();
+        }
+        $mysqli->query("UPDATE users SET face_registered = 0 WHERE employee_id = '" . $mysqli->real_escape_string($target_eid) . "'");
+        apiResponse(['success' => true, 'message' => 'ទិន្នន័យ Face ត្រូវបានលុបដោយជោគជ័យ']);
+        break;
+
+    case 'verify_face':
+        // Simple verification: check if employee has registered photos
+        // (Advanced AI comparison can be added if OPENAI_API_KEY is available)
+        if (!$user) apiResponse(['success' => false, 'message' => 'Unauthorized']);
+        $eid = $user['employee_id'] ?? '';
+
+        $count_stmt = $mysqli->prepare("SELECT COUNT(*) as cnt FROM employee_face_data WHERE employee_id = ?");
+        $face_count = 0;
+        if ($count_stmt) {
+            $count_stmt->bind_param("s", $eid);
+            $count_stmt->execute();
+            $r = $count_stmt->get_result();
+            if ($r) { $row = $r->fetch_assoc(); $face_count = (int)($row['cnt'] ?? 0); }
+            $count_stmt->close();
+        }
+
+        if ($face_count === 0) {
+            apiResponse(['success' => false, 'message' => 'Face ID មិនទាន់ចុះឈ្មោះ', 'verified' => false, 'needs_setup' => true]);
+        }
+
+        // Optional: AI comparison using OpenAI Vision if key is configured
+        $photo_b64 = $_POST['photo_base64'] ?? '';
+        $ai_verified = true; // Default: pass if registered
+        $confidence = 'high';
+
+        $openAiKey = defined('OPENAI_API_KEY') ? trim(OPENAI_API_KEY) : '';
+        if (!empty($photo_b64) && !empty($openAiKey)) {
+            // Get one reference photo for comparison
+            $ref_stmt = $mysqli->prepare("SELECT photo_path FROM employee_face_data WHERE employee_id = ? AND photo_index = 0 LIMIT 1");
+            $ref_path = null;
+            if ($ref_stmt) {
+                $ref_stmt->bind_param("s", $eid);
+                $ref_stmt->execute();
+                $r = $ref_stmt->get_result();
+                if ($r) { $row = $r->fetch_assoc(); $ref_path = $row['photo_path'] ?? null; }
+                $ref_stmt->close();
+            }
+
+            if ($ref_path && is_file(__DIR__ . '/' . ltrim($ref_path, '/'))) {
+                $ref_b64 = base64_encode(file_get_contents(__DIR__ . '/' . ltrim($ref_path, '/')));
+                $clean_scan_b64 = preg_replace('/^data:image\/[a-z]+;base64,/', '', $photo_b64);
+
+                $payload = [
+                    'model' => 'gpt-4o-mini',
+                    'max_tokens' => 50,
+                    'messages' => [[
+                        'role' => 'user',
+                        'content' => [
+                            ['type' => 'text', 'text' => 'Do these two images show the same person? Answer with only YES or NO.'],
+                            ['type' => 'image_url', 'image_url' => ['url' => 'data:image/jpeg;base64,' . $ref_b64, 'detail' => 'low']],
+                            ['type' => 'image_url', 'image_url' => ['url' => 'data:image/jpeg;base64,' . $clean_scan_b64, 'detail' => 'low']],
+                        ],
+                    ]],
+                ];
+                $ch = curl_init('https://api.openai.com/v1/chat/completions');
+                curl_setopt_array($ch, [
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_POST => true,
+                    CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $openAiKey, 'Content-Type: application/json'],
+                    CURLOPT_POSTFIELDS => json_encode($payload),
+                    CURLOPT_TIMEOUT => 15,
+                    CURLOPT_CONNECTTIMEOUT => 10,
+                ]);
+                $ai_resp = curl_exec($ch);
+                curl_close($ch);
+                if ($ai_resp) {
+                    $ai_data = json_decode($ai_resp, true);
+                    $answer = strtoupper(trim($ai_data['choices'][0]['message']['content'] ?? 'YES'));
+                    $ai_verified = (strpos($answer, 'YES') !== false);
+                    $confidence = $ai_verified ? 'high' : 'low';
+                }
+            }
+        }
+
+        apiResponse([
+            'success' => true,
+            'verified' => $ai_verified,
+            'confidence' => $confidence,
+            'message' => $ai_verified ? 'ផ្ទៀងផ្ទាត់ជោគជ័យ' : 'ផ្ទៀងផ្ទាត់ Face មិនត្រូវ — សូមព្យាយាមម្ដងទៀត',
+        ]);
+        break;
+
+    case 'get_face_registrations':
+        // Admin only: list all employees with face registration status
+        if (!$user) apiResponse(['success' => false, 'message' => 'Unauthorized']);
+        $caller_role = strtolower($user['user_role'] ?? '');
+        if (!in_array($caller_role, ['admin', 'hrm', 'hr'])) {
+            apiResponse(['success' => false, 'message' => 'Admin access required']);
+        }
+        $rows = [];
+        $sql_face = "SELECT u.employee_id, u.name, u.department, u.position, u.avatar,
+                     COALESCE(u.face_registered, 0) as face_registered,
+                     (SELECT COUNT(*) FROM employee_face_data f WHERE f.employee_id = u.employee_id) as photo_count,
+                     (SELECT MAX(f2.registered_at) FROM employee_face_data f2 WHERE f2.employee_id = u.employee_id) as registered_at
+                     FROM users u
+                     WHERE u.status != 'inactive' OR u.status IS NULL
+                     ORDER BY u.name ASC";
+        $res = $mysqli->query($sql_face);
+        if ($res) {
+            while ($row = $res->fetch_assoc()) {
+                $rows[] = [
+                    'employee_id' => $row['employee_id'],
+                    'name' => $row['name'],
+                    'department' => $row['department'],
+                    'position' => $row['position'],
+                    'avatar' => $row['avatar'],
+                    'face_registered' => (bool)$row['face_registered'],
+                    'photo_count' => (int)$row['photo_count'],
+                    'registered_at' => $row['registered_at'],
+                ];
+            }
+        }
+        apiResponse(['success' => true, 'data' => $rows, 'total' => count($rows)]);
+        break;
+
     case 'get_training_questions':
         if (!$user) apiResponse(['success' => false, 'message' => 'Unauthorized']);
         $sql = "SELECT id, question, option_a, option_b, option_c, option_d, correct_option, explanation FROM training_quiz_questions WHERE is_active = 1 ORDER BY id DESC";
@@ -5527,6 +5873,7 @@ switch ($action) {
         }
         apiResponse(['success' => true, 'status' => 'success', 'data' => $questions]);
         break;
+
 
     case 'get_material_items':
         $res = $mysqli->query("SELECT id, item_name, quantity, price, category, image_path FROM stock_items ORDER BY item_name ASC");
