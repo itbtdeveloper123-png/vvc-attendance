@@ -2663,6 +2663,94 @@ if (isset($_POST['ajax_action']) || isset($_GET['ajax_action'])) {
 
             // Converted shared AJAX actions
             switch ($ajax_action) {
+                case 'add_location':
+                    if (!hasPageAccess($mysqli, 'locations', 'create_location', $current_admin_id)) {
+                        $response = ['status' => 'error', 'message' => 'Permission denied.'];
+                        break;
+                    }
+                    $location_name = trim($_POST['location_name'] ?? '');
+                    $latitude = trim($_POST['latitude'] ?? '');
+                    $longitude = trim($_POST['longitude'] ?? '');
+                    $radius_meters = (int)($_POST['radius_meters'] ?? 100);
+
+                    if (empty($location_name) || empty($latitude) || empty($longitude)) {
+                        $response = ['status' => 'error', 'message' => 'សូមបំពេញព័ត៌មានដែលចាំបាច់ទាំងអស់!'];
+                        break;
+                    }
+
+                    // Generate a random unique QR secret key
+                    $qr_secret = 'VVC_LOC_' . bin2hex(random_bytes(8));
+
+                    $stmt = $mysqli->prepare("INSERT INTO locations (location_name, latitude, longitude, radius_meters, qr_secret) VALUES (?, ?, ?, ?, ?)");
+                    if ($stmt) {
+                        $stmt->bind_param("sssis", $location_name, $latitude, $longitude, $radius_meters, $qr_secret);
+                        if ($stmt->execute()) {
+                            $response = ['status' => 'success', 'message' => 'បង្កើតទីតាំងថ្មីដោយជោគជ័យ!'];
+                        } else {
+                            $response = ['status' => 'error', 'message' => 'Database error: ' . $stmt->error];
+                        }
+                        $stmt->close();
+                    } else {
+                        $response = ['status' => 'error', 'message' => 'SQL prepare error: ' . $mysqli->error];
+                    }
+                    break;
+
+                case 'update_location':
+                    if (!hasPageAccess($mysqli, 'locations', 'create_location', $current_admin_id)) {
+                        $response = ['status' => 'error', 'message' => 'Permission denied.'];
+                        break;
+                    }
+                    $loc_id = (int)($_POST['edit_loc_id'] ?? 0);
+                    $location_name = trim($_POST['edit_loc_name'] ?? '');
+                    $latitude = trim($_POST['edit_latitude'] ?? '');
+                    $longitude = trim($_POST['edit_longitude'] ?? '');
+                    $radius_meters = (int)($_POST['edit_radius_meters'] ?? 100);
+
+                    if ($loc_id <= 0 || empty($location_name) || empty($latitude) || empty($longitude)) {
+                        $response = ['status' => 'error', 'message' => 'សូមបំពេញព័ត៌មានដែលចាំបាច់ទាំងអស់!'];
+                        break;
+                    }
+
+                    $stmt = $mysqli->prepare("UPDATE locations SET location_name = ?, latitude = ?, longitude = ?, radius_meters = ? WHERE id = ?");
+                    if ($stmt) {
+                        $stmt->bind_param("sssii", $location_name, $latitude, $longitude, $radius_meters, $loc_id);
+                        if ($stmt->execute()) {
+                            $response = ['status' => 'success', 'message' => 'កែសម្រួលព័ត៌មានទីតាំងដោយជោគជ័យ!'];
+                        } else {
+                            $response = ['status' => 'error', 'message' => 'Database error: ' . $stmt->error];
+                        }
+                        $stmt->close();
+                    } else {
+                        $response = ['status' => 'error', 'message' => 'SQL prepare error: ' . $mysqli->error];
+                    }
+                    break;
+
+                case 'delete_location':
+                    if (!hasPageAccess($mysqli, 'locations', 'create_location', $current_admin_id)) {
+                        $response = ['status' => 'error', 'message' => 'Permission denied.'];
+                        break;
+                    }
+                    $loc_id = (int)($_POST['loc_id'] ?? 0);
+
+                    if ($loc_id <= 0) {
+                        $response = ['status' => 'error', 'message' => 'Invalid Location ID'];
+                        break;
+                    }
+
+                    $stmt = $mysqli->prepare("DELETE FROM locations WHERE id = ?");
+                    if ($stmt) {
+                        $stmt->bind_param("i", $loc_id);
+                        if ($stmt->execute()) {
+                            $response = ['status' => 'success', 'message' => 'លុបទីតាំងដោយជោគជ័យ!'];
+                        } else {
+                            $response = ['status' => 'error', 'message' => 'Database error: ' . $stmt->error];
+                        }
+                        $stmt->close();
+                    } else {
+                        $response = ['status' => 'error', 'message' => 'SQL prepare error: ' . $mysqli->error];
+                    }
+                    break;
+
                 case 'save_notification_template':
                     if (!hasPageAccess($mysqli, 'notifications', 'send_notifications', $current_admin_id)) {
                         $response = ['status' => 'error', 'message' => 'Permission denied.'];
