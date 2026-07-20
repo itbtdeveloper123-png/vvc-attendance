@@ -133,11 +133,34 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     try { await controller.stop(); } catch (_) {}
 
     try {
-      final permission = await Permission.camera.request();
+      // ត្រួតពិនិត្យ permission ដំបូង មុននឹងស្នើសុំ
+      var cameraPermission = await Permission.camera.status;
       if (!mounted) return;
-      if (!permission.isGranted && !permission.isLimited) {
+
+      if (cameraPermission.isPermanentlyDenied) {
+        // អ្នកប្រើបដិសេធជានិច្ច — ត្រូវបង្ហាញ Dialog ឱ្យទៅបើក Settings
+        await _showOpenSettingsDialog();
+        if (!mounted) return;
+        throw Exception('Camera permission permanently denied');
+      }
+
+      if (!cameraPermission.isGranted && !cameraPermission.isLimited) {
+        // ស្នើសុំ permission (ករណីដំបូង ឬ denied)
+        cameraPermission = await Permission.camera.request();
+        if (!mounted) return;
+      }
+
+      if (cameraPermission.isPermanentlyDenied) {
+        // អ្នកប្រើបដិសេធ ក្រោយការស្នើ
+        await _showOpenSettingsDialog();
+        if (!mounted) return;
+        throw Exception('Camera permission permanently denied');
+      }
+
+      if (!cameraPermission.isGranted && !cameraPermission.isLimited) {
         throw Exception('Camera permission denied');
       }
+
 
       final cameras = await availableCameras();
       if (!mounted) return;
@@ -212,16 +235,20 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
       if (!mounted) return;
       debugPrint('Face scan setup failed: $e');
+      final errStr = e.toString().toLowerCase();
       if (userProvider.faceScanEnabled) {
-        final errorMessage = e.toString().toLowerCase().contains('camera permission')
-            ? 'សូមបើកការអនុញ្ញាតកាមេរ៉ា ដើម្បីប្រើការស្កេនមុខ។'
-            : 'មិនអាចចាប់ផ្តើមស្កេនមុខបាន។ កំពុងប្ដូរទៅ QR Code ជំនួស។';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(errorMessage),
-            duration: const Duration(seconds: 4),
-          ),
-        );
+        // ករណី permanentlyDenied — Dialog ត្រូវបានបង្ហាញរួចហើយ មិនចាំបាច់ SnackBar
+        if (!errStr.contains('permanently denied')) {
+          final errorMessage = errStr.contains('camera permission denied')
+              ? 'ការអនុញ្ញាតកាមេរ៉ាត្រូវការ — សូម Restart កម្មវិធី ឬចូល Settings ហើយបើកការអនុញ្ញាត។'
+              : 'មិនអាចចាប់ផ្តើមស្កេនមុខបាន។ កំពុងប្ដូរទៅ QR Code ជំនួស។';
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(errorMessage),
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
       }
       setState(() {
         _useQrScanner = true;
@@ -279,6 +306,76 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     }
   }
 
+  /// បង្ហាញ Dialog ណែនាំអ្នកប្រើប្រាស់ ទៅបើក Settings ពេល permission ត្រូវបានបដិសេធជានិច្ច
+  Future<void> _showOpenSettingsDialog() async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: AlertDialog(
+          backgroundColor: const Color(0xFF1E293B).withValues(alpha: 0.95),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+            side: BorderSide(color: Colors.orangeAccent.withValues(alpha: 0.4)),
+          ),
+          title: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.videocam_off_rounded, color: Colors.orangeAccent, size: 52),
+              const SizedBox(height: 12),
+              Text(
+                'ការអនុញ្ញាតកាមេរ៉ាត្រូវការ',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.kantumruyPro(
+                  color: AppTheme.textPrimary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 17,
+                ),
+              ),
+            ],
+          ),
+          content: Text(
+            'កម្មវិធីនេះត្រូវការការអនុញ្ញាតកាមេរ៉ា ដើម្បីស្កេនមុខ។\n\nសូមទៅកាន់ Settings → ${Platform.isIOS ? "Privacy & Security → Camera" : "Apps → VVC HRM → Permissions → Camera"} ហើយបើកការអនុញ្ញាតឱ្យ Allow.',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.kantumruyPro(
+              color: AppTheme.textPrimary.withValues(alpha: 0.8),
+              fontSize: 13,
+              height: 1.6,
+            ),
+          ),
+          actionsAlignment: MainAxisAlignment.center,
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(
+                'ប្រើ QR Code ជំនួស',
+                style: GoogleFonts.kantumruyPro(color: Colors.white54),
+              ),
+            ),
+            ElevatedButton.icon(
+              onPressed: () async {
+                Navigator.pop(ctx);
+                await openAppSettings();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orangeAccent.withValues(alpha: 0.2),
+                foregroundColor: Colors.orangeAccent,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              icon: const Icon(Icons.settings_rounded, size: 16),
+              label: Text(
+                'បើក Settings',
+                style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _switchToFaceScanner() async {
     if (!mounted) return;
 
@@ -297,6 +394,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     });
     await _tryFaceScanOrFallback();
   }
+
 
   void _processCameraImage(CameraImage image) async {
     if (_faceProcessing ||

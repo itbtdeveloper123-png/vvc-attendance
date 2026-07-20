@@ -40,6 +40,18 @@ post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
     target.build_configurations.each do |config|
+      # Required by permission_handler package for iOS —
+      # Without these macros, Permission.camera / location / etc. always returns
+      # denied on iOS regardless of what the user has granted in Settings.
+      config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= [
+        '$(inherited)',
+        'PERMISSION_CAMERA=1',
+        'PERMISSION_MICROPHONE=1',
+        'PERMISSION_LOCATION_WHEN_IN_USE=1',
+        'PERMISSION_LOCATION_ALWAYS=1',
+        'PERMISSION_PHOTOS=1',
+      ]
+
       # Disable code signing for CI/CD builds (unsigned IPA)
       if ENV['CI'] == 'true' || ENV['FLUTTER_NO_CODESIGN'] == 'true'
         config.build_settings['CODE_SIGN_IDENTITY'] = '-'
