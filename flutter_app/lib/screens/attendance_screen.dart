@@ -28,9 +28,10 @@ class AttendanceScreen extends StatefulWidget {
 }
 
 class _AttendanceScreenState extends State<AttendanceScreen> {
-  final MobileScannerController controller = MobileScannerController(
+  late final MobileScannerController controller = MobileScannerController(
     formats: [BarcodeFormat.qrCode],
     detectionTimeoutMs: 1000,
+    autoStart: false,
   );
   CameraController? _cameraController;
   FaceDetector? _faceDetector;
@@ -119,9 +120,17 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         _isScanning = true;
         _isLoading = false;
       });
+      // បើក QR Scanner ក្រោយដែល Face Scan មិនត្រូវបានកំណត់
+      await Future.delayed(const Duration(milliseconds: 100));
+      if (mounted) {
+        try { await controller.start(); } catch (_) {}
+      }
       return;
     }
     _faceScanAttempted = true;
+
+    // បិទ QR Scanner មុនចាប់ Face camera ដើម្បីកុំអ្នកំរិកាមេរ៉ាផ្តើមួយតែមួយ
+    try { await controller.stop(); } catch (_) {}
 
     try {
       final permission = await Permission.camera.request();
@@ -219,6 +228,11 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         _isScanning = true;
         _isLoading = false;
       });
+      // បើក QR Scanner ក្រោយឯកសារកែល Face Scan បានបរាជ័យ
+      await Future.delayed(const Duration(milliseconds: 200));
+      if (mounted) {
+        try { await controller.start(); } catch (_) {}
+      }
     }
   }
 
@@ -229,6 +243,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     _consecutiveFaceFrames = 0;
     _consecutiveErrorFrames = 0;
 
+    // បិទ Face camera stream ដំបូងសិន
     try {
       if (_cameraController != null &&
           _cameraController!.value.isStreamingImages) {
@@ -252,10 +267,28 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       _isScanning = true;
       _isLoading = false;
     });
+
+    // បើក QR Scanner ក្រោយ Face camera ត្រូវបានទម្លាក់ចោលរួច
+    await Future.delayed(const Duration(milliseconds: 200));
+    if (mounted) {
+      try {
+        await controller.start();
+      } catch (e) {
+        debugPrint('QR Scanner start error: $e');
+      }
+    }
   }
 
   Future<void> _switchToFaceScanner() async {
     if (!mounted) return;
+
+    // បិទ QR Scanner ដំបូងសិន មុនចាប់ Face camera
+    try {
+      await controller.stop();
+    } catch (e) {
+      debugPrint('QR Scanner stop error: $e');
+    }
+
     setState(() {
       _faceScanAttempted = false;
       _useQrScanner = false;
