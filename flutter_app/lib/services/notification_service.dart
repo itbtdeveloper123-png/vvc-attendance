@@ -168,6 +168,57 @@ class NotificationService {
     }
   }
 
+  /// Schedule a notification on a specific notification channel.
+  /// Used by [KhmerCalendarNotificationService] for holiday/sila alerts.
+  Future<void> scheduleNotificationOnChannel({
+    required int id,
+    required String title,
+    required String body,
+    required DateTime scheduledDate,
+    required String channelId,
+    required String channelName,
+    String? payload,
+  }) async {
+    if (kIsWeb) return;
+    if (scheduledDate.isBefore(DateTime.now())) return;
+
+    Future<void> doSchedule(AndroidScheduleMode mode) {
+      return flutterLocalNotificationsPlugin.zonedSchedule(
+        id,
+        title,
+        body,
+        tz.TZDateTime.from(scheduledDate, tz.local),
+        NotificationDetails(
+          android: AndroidNotificationDetails(
+            channelId,
+            channelName,
+            importance: Importance.max,
+            priority: Priority.high,
+            icon: '@mipmap/ic_launcher',
+            playSound: true,
+          ),
+          iOS: const DarwinNotificationDetails(
+            presentAlert: true,
+            presentBadge: true,
+            presentSound: true,
+          ),
+        ),
+        androidScheduleMode: mode,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+        payload: payload,
+      );
+    }
+
+    try {
+      await doSchedule(AndroidScheduleMode.exactAllowWhileIdle);
+    } on PlatformException catch (e) {
+      if (e.code != 'exact_alarms_not_permitted') rethrow;
+      await doSchedule(AndroidScheduleMode.inexactAllowWhileIdle);
+    }
+  }
+
+
   Future<void> _scheduleWithMode({
     required int id,
     required String title,

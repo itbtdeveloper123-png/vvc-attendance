@@ -19,6 +19,7 @@ import 'package:vvc_hrm/firebase_options.dart';
 import 'package:vvc_hrm/services/notification_service.dart';
 import 'package:vvc_hrm/services/background_location_service.dart';
 import 'package:vvc_hrm/services/offline_sync_service.dart';
+import 'package:vvc_hrm/services/khmer_calendar_notification_service.dart';
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -82,6 +83,13 @@ Future<void> _initFirebaseInBackground() async {
       debugPrint("NotificationService init error: $e");
     }
 
+    // Schedule Khmer calendar holiday & sila notifications for the year
+    try {
+      await KhmerCalendarNotificationService().scheduleForYear();
+    } catch (e) {
+      debugPrint("KhmerCalendarNotif scheduleForYear error: $e");
+    }
+
     // Subscribe to Global Topic — NOT supported on web
     if (!kIsWeb) {
       await messaging
@@ -109,17 +117,22 @@ Future<void> _initFirebaseInBackground() async {
         importance: Importance.max,
         playSound: true,
       );
-      await NotificationService().flutterLocalNotificationsPlugin
-          .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin
-          >()
-          ?.createNotificationChannel(channel);
 
-      await NotificationService().flutterLocalNotificationsPlugin
+      const AndroidNotificationChannel calendarChannel = AndroidNotificationChannel(
+        'vvc_khmer_calendar',
+        'ការជូនដំណឹងប្រតិទិនខ្មែរ',
+        description: 'ជូនដំណឹងថ្ងៃបុណ្យ និង ថ្ងៃសីល',
+        importance: Importance.max,
+        playSound: true,
+      );
+
+      final androidPlugin = NotificationService().flutterLocalNotificationsPlugin
           .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin
-          >()
-          ?.createNotificationChannel(callChannel);
+          >();
+      await androidPlugin?.createNotificationChannel(channel);
+      await androidPlugin?.createNotificationChannel(callChannel);
+      await androidPlugin?.createNotificationChannel(calendarChannel);
 
       FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
         debugPrint('Got a message whilst in the foreground!');

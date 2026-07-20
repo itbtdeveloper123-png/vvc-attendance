@@ -18,6 +18,8 @@ import 'package:package_info_plus/package_info_plus.dart';
 
 import '../widgets/khmer_lunar_calendar_card.dart';
 import 'package:flutter_khmer_chankitec/flutter_khmer_chankitec.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../services/khmer_calendar_notification_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   final String? targetEmployeeId;
@@ -32,6 +34,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _isLoading = false;
   bool _isSwitchingAccount = false;
   Timer? _pollingTimer;
+  bool _khmerCalNotificationsEnabled = true;
 
   @override
   void initState() {
@@ -40,6 +43,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _pollingTimer = Timer.periodic(const Duration(seconds: 15), (_) {
       if (mounted) _fetchTargetUserSilently();
     });
+    _loadNotificationPreference();
+  }
+
+  void _loadNotificationPreference() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        _khmerCalNotificationsEnabled =
+            prefs.getBool('khmer_cal_notifications_enabled') ?? true;
+      });
+    }
   }
 
   @override
@@ -878,6 +892,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
             indent: 16,
             endIndent: 16,
           ),
+          _buildSwitchMenuItem(
+            icon: Icons.calendar_month_rounded,
+            label: "ជូនដំណឹងថ្ងៃបុណ្យ/ថ្ងៃសីល",
+            color: Colors.orange,
+            value: _khmerCalNotificationsEnabled,
+            onChanged: (val) async {
+              setState(() {
+                _khmerCalNotificationsEnabled = val;
+              });
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.setBool('khmer_cal_notifications_enabled', val);
+              if (val) {
+                await KhmerCalendarNotificationService().reschedule();
+              } else {
+                await KhmerCalendarNotificationService().cancelAll();
+              }
+            },
+          ),
+          Divider(
+            color: AppTheme.textPrimary.withValues(alpha: 0.12),
+            height: 1,
+            indent: 16,
+            endIndent: 16,
+          ),
           _buildMenuItem(
             icon: Icons.logout_rounded,
             label: "ចេញពីគណនី",
@@ -886,6 +924,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
             onTap: () => _confirmLogout(context, user),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSwitchMenuItem({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return ListTile(
+      leading: Container(
+        width: 38,
+        height: 38,
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Icon(icon, color: color, size: 20),
+      ),
+      title: Text(
+        label,
+        style: GoogleFonts.kantumruyPro(
+          color: AppTheme.textPrimary,
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+      trailing: Switch(
+        value: value,
+        onChanged: onChanged,
+        activeThumbColor: AppTheme.primaryLight,
+        activeTrackColor: AppTheme.primary.withValues(alpha: 0.3),
       ),
     );
   }
