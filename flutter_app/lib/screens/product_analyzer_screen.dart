@@ -191,15 +191,16 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
 
   String _friendlyAnalysisErrorMessage(String raw) {
     final text = raw.trim();
-    if (text.isEmpty ||
-        text.contains('<think') ||
-        text.contains('"product_name"') ||
-        text.length > 180) {
+    if (text.isEmpty) {
       return 'AI មិនអាចរៀបចំលទ្ធផលបានត្រឹមត្រូវទេ។ សូមព្យាយាមម្តងទៀត។';
     }
 
-    if (text.toLowerCase().contains('clean product analysis') ||
-        text.toLowerCase().contains('valid json')) {
+    if (text.contains('AI vision request failed')) {
+      final detail = text.replaceAll('AI vision request failed:', '').trim();
+      return 'មិនអាចទាក់ទងប្រព័ន្ធ AI វិភាគរូបភាពបានទេ ($detail)។ សូមពិនិត្យអ៊ីនធឺណិត ឬព្យាយាមម្តងទៀត។';
+    }
+
+    if (text.contains('<think') || text.contains('"product_name"')) {
       return 'AI មិនអាចរៀបចំលទ្ធផលបានត្រឹមត្រូវទេ។ សូមព្យាយាមម្តងទៀត។';
     }
 

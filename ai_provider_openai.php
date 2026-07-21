@@ -14,7 +14,7 @@ if (!function_exists('ai_chat_resolve_provider_config')) {
                 'provider' => 'openai',
                 'endpoint' => 'https://api.openai.com/v1/chat/completions',
                 'api_key' => $openAiKey,
-                'model' => $modelOverride !== '' ? $modelOverride : 'gpt-4.1-mini',
+                'model' => $modelOverride !== '' ? $modelOverride : 'gpt-4o-mini',
                 'reasoning_effort' => $reasoningEffort,
             ];
         }
@@ -34,7 +34,7 @@ if (!function_exists('ai_chat_resolve_provider_config')) {
                 'provider' => 'openai',
                 'endpoint' => 'https://api.openai.com/v1/chat/completions',
                 'api_key' => $openAiKey,
-                'model' => $modelOverride !== '' ? $modelOverride : 'gpt-4.1-mini',
+                'model' => $modelOverride !== '' ? $modelOverride : 'gpt-4o-mini',
                 'reasoning_effort' => $reasoningEffort,
             ];
         }

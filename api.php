@@ -733,6 +733,82 @@ function product_ai_extract_json_payload($content) {
     return product_ai_find_json_object($text);
 }
 
+function product_ai_fallback_parse_text($content) {
+    $text = trim((string)$content);
+    if ($text === '') {
+        return null;
+    }
+
+    $text = preg_replace('/^\xEF\xBB\xBF/', '', $text);
+    $text = preg_replace('/<think\b[^>]*>.*?<\/think>/is', '', $text);
+    $text = preg_replace('/<reasoning\b[^>]*>.*?<\/reasoning>/is', '', $text);
+    $cleaned = trim((string)$text);
+    if ($cleaned === '') {
+        return null;
+    }
+
+    $productName = 'ផលិតផល';
+    $brand = '—';
+    $country = 'កម្ពុជា';
+    $flag = '🇰🇭';
+    $category = 'ទូទៅ';
+
+    if (preg_match('/(?:product_name|ឈ្មោះផលិតផល|ឈ្មោះ|product)\s*[:=]\s*["\']?([^"\'\n\r]+)/iu', $cleaned, $m)) {
+        $productName = trim($m[1]);
+    } else {
+        $lines = array_filter(array_map('trim', explode("\n", $cleaned)));
+        foreach ($lines as $line) {
+            $lineClean = preg_replace('/^[\#\*\-\s\d\.]+\s*/', '', $line);
+            if (mb_strlen($lineClean) > 2 && mb_strlen($lineClean) < 80) {
+                $productName = $lineClean;
+                break;
+            }
+        }
+    }
+
+    if (preg_match('/(?:brand|ម៉ាក|យីហោ)\s*[:=]\s*["\']?([^"\'\n\r]+)/iu', $cleaned, $m)) {
+        $brand = trim($m[1]);
+    }
+
+    if (preg_match('/(?:country_of_origin|ប្រទេស|ប្រភព|origin)\s*[:=]\s*["\']?([^"\'\n\r]+)/iu', $cleaned, $m)) {
+        $country = trim($m[1]);
+    }
+
+    $benefits = [];
+    $warnings = [];
+    $usage = [];
+
+    foreach (explode("\n", $cleaned) as $line) {
+        $line = trim($line);
+        if (preg_match('/^[\*\-\•\d\.]+\s+(.+)/u', $line, $m)) {
+            $item = trim($m[1]);
+            if (mb_strlen($item) > 3) {
+                if (preg_match('/(ប្រយ័ត្ន|ហាម|កុំ|warning|caution)/iu', $item)) {
+                    $warnings[] = $item;
+                } else if (preg_match('/(ផលប្រយោជន៍|ប្រយោជន៍|ល្អ|benefit|good)/iu', $item)) {
+                    $benefits[] = $item;
+                } else {
+                    $usage[] = $item;
+                }
+            }
+        }
+    }
+
+    return [
+        'product_name' => $productName,
+        'brand' => $brand,
+        'country_of_origin' => $country,
+        'country_flag_emoji' => $flag,
+        'category' => $category,
+        'usage' => !empty($usage) ? array_slice($usage, 0, 5) : ['ប្រើប្រាស់តាមការណែនាំលើសំបកដប/ប្រអប់'],
+        'benefits' => !empty($benefits) ? array_slice($benefits, 0, 5) : ['គុណភាពស្តង់ដារ និងមានសុវត្ថិភាព'],
+        'warnings' => !empty($warnings) ? array_slice($warnings, 0, 3) : ['រក្សាទុកនៅកន្លែងស្ងួត និងត្រជាក់'],
+        'ingredients_summary' => '—',
+        'price_range_usd' => '—',
+        'summary' => $cleaned,
+    ];
+}
+
 function meeting_ai_parse_summary_payload($content) {
     $decoded = meeting_ai_extract_json_payload($content);
     if (!is_array($decoded)) {
@@ -5692,34 +5768,53 @@ switch ($action) {
         } else {
             $messages[] = ['role' => 'user', 'content' => $userPrompt];
         }
-        // Pick a vision-capable model
-        $visionModel = $config['model'];
-        // Override to vision models when possible
-        if (($config['provider'] ?? '') === 'openai') {
-            $nonVision = ['gpt-4.1-mini', 'gpt-3.5-turbo', 'o1-mini', 'o3-mini'];
-            if (in_array($visionModel, $nonVision, true)) {
-                $visionModel = 'gpt-4o-mini'; // cheapest OpenAI vision model
+        // Pick vision-capable candidate models
+        $provider = strtolower((string)($config['provider'] ?? ''));
+        $visionModel = $config['model'] ?? '';
+        $candidateModels = [];
+
+        if ($provider === 'openai') {
+            $candidateModels = ['gpt-4o-mini', 'gpt-4o'];
+        } elseif ($provider === 'groq') {
+            $candidateModels = ['llama-3.2-11b-vision-preview', 'llama-3.2-90b-vision-preview'];
+        } else {
+            $candidateModels = array_filter([$visionModel, 'gpt-4o-mini', 'llama-3.2-11b-vision-preview']);
+        }
+
+        $res = null;
+        $lastError = 'Unknown error';
+
+        foreach ($candidateModels as $modelToTry) {
+            $visionPayload = ['model' => $modelToTry, 'messages' => $messages, 'temperature' => 0.1, 'max_tokens' => 1500];
+            if ($provider === 'openai') {
+                $visionPayload['response_format'] = ['type' => 'json_object'];
             }
-        } elseif (($config['provider'] ?? '') === 'groq') {
-            $groqVisionModels = ['qwen/qwen3.6-27b'];
-            if (!in_array($visionModel, $groqVisionModels, true)) {
-                $visionModel = 'qwen/qwen3.6-27b';
+            $attempt = ai_chat_http_post_json($config['endpoint'], $visionPayload, ['Authorization: Bearer ' . $config['api_key']]);
+            if (($attempt['ok'] ?? false) && !empty($attempt['data']['choices'][0]['message']['content'])) {
+                $res = $attempt;
+                break;
             }
+            $lastError = $attempt['message'] ?? 'Vision API call failed';
         }
-        $visionPayload = ['model' => $visionModel, 'messages' => $messages, 'temperature' => 0.1, 'max_tokens' => 1500];
-        if (($config['provider'] ?? '') === 'openai') {
-            $visionPayload['response_format'] = ['type' => 'json_object'];
+
+        if (!$res) {
+            apiResponse(['success' => false, 'message' => 'AI vision request failed: ' . $lastError]);
         }
-        $res = ai_chat_http_post_json($config['endpoint'], $visionPayload, ['Authorization: Bearer ' . $config['api_key']]);
-        if (!($res['ok'] ?? false)) {
-            apiResponse(['success' => false, 'message' => 'AI vision request failed: ' . ($res['message'] ?? 'Unknown error')]);
-        }
+
         $rawContent = trim((string)($res['data']['choices'][0]['message']['content'] ?? ''));
         $extracted = product_ai_extract_json_payload($rawContent);
+
+        if (!is_array($extracted) || !is_array($extracted['json'] ?? null)) {
+            $fallbackJson = product_ai_fallback_parse_text($rawContent);
+            if ($fallbackJson) {
+                $extracted = ['json' => $fallbackJson, 'raw' => $rawContent];
+            }
+        }
+
         if (!is_array($extracted) || !is_array($extracted['json'] ?? null)) {
             apiResponse([
                 'success' => false,
-                'message' => 'AI could not return a clean product analysis. Please try again.',
+                'message' => 'AI មិនអាចរៀបចំលទ្ធផលបានត្រឹមត្រូវទេ។ សូមព្យាយាមម្តងទៀត។',
                 'raw' => $rawContent,
                 'parsed' => null,
             ]);

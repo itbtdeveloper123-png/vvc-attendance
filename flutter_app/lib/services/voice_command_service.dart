@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 
@@ -44,8 +46,21 @@ class VoiceCommandService {
   final SpeechToText _speechToText = SpeechToText();
   bool _isInitialized = false;
   bool _isListening = false;
+  bool _continuousMode = false;
+  bool _manualStopRequested = false;
+  bool _sessionStarting = false;
+  Timer? _restartTimer;
+  String? _resolvedLocaleId;
+  String _requestedLocaleId = 'km-KH';
 
+  void Function(VoiceCommand command)? _activeResultHandler;
+  void Function(bool isListening)? _activeListeningHandler;
+
+  bool get isInitialized => _isInitialized;
   bool get isListening => _isListening;
+  bool get isContinuousMode => _continuousMode;
+  bool get isAvailable => _isInitialized && _speechToText.isAvailable;
+  String get lastRecognizedWords => _speechToText.lastRecognizedWords;
 
   // ─── Keyword maps ──────────────────────────────────────────────────────────
   // Each entry: list of keyword aliases for a command.
@@ -97,7 +112,6 @@ class VoiceCommandService {
     VoiceCommandType.requests: [
       'ការស្នើ',
       'ស្នើ',
-      'ការស្នើ',
       'ច្បាប់',
       'request',
       'requests',
@@ -231,8 +245,9 @@ class VoiceCommandService {
 
     try {
       _isInitialized = await _speechToText.initialize(
-        onError: (error) => debugPrint('[Voice] STT Error: ${error.errorMsg}'),
-        onStatus: (status) => debugPrint('[Voice] STT Status: $status'),
+        onError: _handleSpeechError,
+        onStatus: _handleSpeechStatus,
+        finalTimeout: const Duration(milliseconds: 900),
       );
       debugPrint('[Voice] Initialized: $_isInitialized');
     } catch (e) {
@@ -242,60 +257,228 @@ class VoiceCommandService {
     return _isInitialized;
   }
 
-  bool get isAvailable => _isInitialized && _speechToText.isAvailable;
+  void _setListening(bool value) {
+    if (_isListening == value) return;
+    _isListening = value;
+    _activeListeningHandler?.call(value);
+  }
 
-  // ─── Listen ────────────────────────────────────────────────────────────────
+  void _handleSpeechStatus(String status) {
+    debugPrint('[Voice] STT Status: $status');
+    if (status == SpeechToText.listeningStatus) {
+      _setListening(true);
+      return;
+    }
 
-  /// Start listening. Calls [onResult] when text is recognized.
+    if (status == SpeechToText.notListeningStatus ||
+        status == SpeechToText.doneStatus) {
+      _setListening(false);
+      if (_continuousMode && !_manualStopRequested) {
+        _scheduleContinuousRestart(delay: const Duration(milliseconds: 450));
+      }
+    }
+  }
+
+  void _handleSpeechError(dynamic error) {
+    final errorMsg = (error.errorMsg ?? '').toString();
+    final permanent = error.permanent == true;
+    debugPrint('[Voice] STT Error: $errorMsg');
+    _setListening(false);
+
+    if (_shouldRetryAfterError(errorMsg, permanent)) {
+      _scheduleContinuousRestart(delay: const Duration(milliseconds: 900));
+    }
+  }
+
+  bool _shouldRetryAfterError(String errorMsg, bool permanent) {
+    if (!_continuousMode || _manualStopRequested) return false;
+    if (!permanent) return true;
+
+    const retryablePermanentErrors = [
+      'error_no_match',
+      'error_speech_timeout',
+      'error_retry',
+      'error_network_timeout',
+      'error_server_disconnected',
+      'error_busy',
+    ];
+    return retryablePermanentErrors.any(errorMsg.contains);
+  }
+
+  void _scheduleContinuousRestart({
+    Duration delay = const Duration(milliseconds: 650),
+  }) {
+    if (!_continuousMode || _manualStopRequested || _sessionStarting) return;
+
+    _restartTimer?.cancel();
+    _restartTimer = Timer(delay, () {
+      if (!_continuousMode || _manualStopRequested) return;
+      _beginListenCycle();
+    });
+  }
+
+  Future<String?> _resolveLocaleId(String localeId) async {
+    if (_resolvedLocaleId != null) return _resolvedLocaleId;
+
+    try {
+      final locales = await _speechToText.locales();
+      if (locales.isEmpty) return null;
+
+      String normalize(String value) => value.replaceAll('_', '-').toLowerCase();
+      final requested = normalize(localeId);
+
+      for (final locale in locales) {
+        if (normalize(locale.localeId) == requested) {
+          _resolvedLocaleId = locale.localeId;
+          return _resolvedLocaleId;
+        }
+      }
+
+      for (final locale in locales) {
+        if (normalize(locale.localeId).startsWith('km')) {
+          _resolvedLocaleId = locale.localeId;
+          return _resolvedLocaleId;
+        }
+      }
+    } catch (e) {
+      debugPrint('[Voice] Locale resolution error: $e');
+    }
+
+    return null;
+  }
+
+  // ─── Listen Methods ────────────────────────────────────────────────────────
+
+  /// Single-shot listen. Calls [onResult] when text is recognized and finalized.
   /// Calls [onListeningChanged] whenever the listening state changes.
   Future<void> startListening({
     required void Function(VoiceCommand command) onResult,
     void Function(bool isListening)? onListeningChanged,
-    String localeId = 'km-KH', // Default to Khmer; falls back if unavailable
+    String localeId = 'km-KH',
   }) async {
     if (!_isInitialized) {
       final ok = await initialize();
       if (!ok) return;
     }
 
-    // Try Khmer first; fall back to system default if not supported
-    final locales = await _speechToText.locales();
-    final hasKhmer = locales.any((l) => l.localeId.startsWith('km'));
-    final finalLocale = hasKhmer ? 'km-KH' : '';
+    _continuousMode = false;
+    _manualStopRequested = false;
+    _activeResultHandler = onResult;
+    _activeListeningHandler = onListeningChanged;
+    _requestedLocaleId = localeId;
 
-    _isListening = true;
-    onListeningChanged?.call(true);
+    final targetLocale = await _resolveLocaleId(localeId);
 
-    await _speechToText.listen(
-      listenOptions: SpeechListenOptions(
-        localeId: finalLocale.isEmpty ? null : finalLocale,
-        listenFor: const Duration(seconds: 10),
-        pauseFor: const Duration(seconds: 2),
-        listenMode: ListenMode.confirmation,
-        cancelOnError: true,
-      ),
-      onResult: (result) {
-        if (result.finalResult) {
-          _isListening = false;
-          onListeningChanged?.call(false);
+    _setListening(true);
+
+    try {
+      await _speechToText.listen(
+        listenOptions: SpeechListenOptions(
+          localeId: targetLocale,
+          listenFor: const Duration(seconds: 10),
+          pauseFor: const Duration(seconds: 2),
+          listenMode: ListenMode.confirmation,
+          cancelOnError: true,
+        ),
+        onResult: (result) {
           final text = result.recognizedWords.toLowerCase().trim();
           final command = _matchCommand(text, result.confidence);
-          onResult(command);
-        }
-      },
-    );
+
+          if (result.finalResult) {
+            _setListening(false);
+            _activeResultHandler?.call(command);
+          }
+        },
+      );
+    } catch (e) {
+      debugPrint('[Voice] startListening error: $e');
+      _setListening(false);
+    }
+  }
+
+  /// Continuous listening mode. Automatically restarts after pause or error.
+  Future<void> startContinuousListening({
+    required void Function(VoiceCommand command) onResult,
+    void Function(bool isListening)? onListeningChanged,
+    String localeId = 'km-KH',
+  }) async {
+    if (!_isInitialized) {
+      final ok = await initialize();
+      if (!ok) return;
+    }
+
+    _continuousMode = true;
+    _manualStopRequested = false;
+    _activeResultHandler = onResult;
+    _activeListeningHandler = onListeningChanged;
+    _requestedLocaleId = localeId;
+
+    await _beginListenCycle();
+  }
+
+  /// Internal worker method for continuous listening cycles
+  Future<void> _beginListenCycle() async {
+    if (!_continuousMode || _manualStopRequested || _sessionStarting) return;
+    if (_speechToText.isListening) return;
+
+    _sessionStarting = true;
+    final targetLocale = await _resolveLocaleId(_requestedLocaleId);
+
+    try {
+      await _speechToText.listen(
+        listenOptions: SpeechListenOptions(
+          localeId: targetLocale,
+          listenFor: const Duration(seconds: 30),
+          pauseFor: const Duration(seconds: 3),
+          listenMode: ListenMode.dictation,
+          cancelOnError: false,
+          partialResults: true,
+        ),
+        onResult: (result) {
+          final text = result.recognizedWords.toLowerCase().trim();
+          final command = _matchCommand(text, result.confidence);
+
+          if (command.type != VoiceCommandType.unknown || result.finalResult) {
+            _activeResultHandler?.call(command);
+          }
+        },
+      );
+    } catch (e) {
+      debugPrint('[Voice] _beginListenCycle error: $e');
+      _scheduleContinuousRestart(delay: const Duration(seconds: 1));
+    } finally {
+      _sessionStarting = false;
+    }
   }
 
   Future<void> stopListening() async {
-    if (_isListening) {
+    _continuousMode = false;
+    _manualStopRequested = true;
+    _restartTimer?.cancel();
+
+    if (_isListening || _speechToText.isListening) {
       await _speechToText.stop();
-      _isListening = false;
+      _setListening(false);
     }
   }
 
   Future<void> cancelListening() async {
+    _continuousMode = false;
+    _manualStopRequested = true;
+    _restartTimer?.cancel();
+
     await _speechToText.cancel();
-    _isListening = false;
+    _setListening(false);
+  }
+
+  void dispose() {
+    _continuousMode = false;
+    _manualStopRequested = true;
+    _restartTimer?.cancel();
+    _speechToText.stop();
+    _activeResultHandler = null;
+    _activeListeningHandler = null;
+    _setListening(false);
   }
 
   // ─── Command matching ──────────────────────────────────────────────────────
@@ -309,15 +492,17 @@ class VoiceCommandService {
       );
     }
 
-    // Score each command type by keyword overlap
+    // Clean text: strip special punctuation while keeping Khmer and English characters
+    final cleanedText = text.replaceAll(RegExp(r'[^\w\s\u1780-\u17FF]'), ' ').toLowerCase().trim();
+
     VoiceCommandType bestType = VoiceCommandType.unknown;
     int bestScore = 0;
 
     for (final entry in _commandKeywords.entries) {
       for (final keyword in entry.value) {
-        final k = keyword.toLowerCase();
+        final k = keyword.toLowerCase().trim();
         // Check if the recognized text contains this keyword
-        if (text.contains(k)) {
+        if (cleanedText.contains(k) || text.contains(k)) {
           // Longer match = better score
           if (k.length > bestScore) {
             bestScore = k.length;
