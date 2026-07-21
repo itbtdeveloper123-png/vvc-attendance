@@ -5673,6 +5673,8 @@ switch ($action) {
             $mimeType    = $m[1] ?? 'image/jpeg';
             $imageBase64 = (string)preg_replace('/^data:[^;]+;base64,/', '', $imageBase64);
         }
+        $cleanImageBase64 = str_replace(["\r", "\n", " "], '', $imageBase64);
+
         $config = ai_chat_resolve_provider_config();
         if (!$config) {
             apiResponse(['success' => false, 'message' => 'AI provider is not configured']);
@@ -5929,20 +5931,23 @@ function ai_verify_face_match($mysqli, $eid, $photo_b64) {
         }
     }
 
+    $cleanRefB64  = str_replace(["\r", "\n", " "], '', (string)$ref_b64);
+    $cleanScanB64 = str_replace(["\r", "\n", " "], '', (string)$clean_scan_b64);
+
     $promptText = "Compare Image 1 (registered employee reference face) with Image 2 (scanned face during attendance check-in). Are these two images showing the exact same human person? Respond strictly with a JSON object: {\"match\": true} or {\"match\": false}.";
 
-    $messages = [
-        [
-            'role' => 'user',
-            'content' => [
-                ['type' => 'text', 'text' => $promptText],
-                ['type' => 'image_url', 'image_url' => ['url' => 'data:image/jpeg;base64,' . $ref_b64, 'detail' => 'low']],
-                ['type' => 'image_url', 'image_url' => ['url' => 'data:image/jpeg;base64,' . $clean_scan_b64, 'detail' => 'low']],
-            ],
-        ],
-    ];
-
     foreach ($candidates as $cand) {
+        $messages = [
+            [
+                'role' => 'user',
+                'content' => [
+                    ['type' => 'text', 'text' => $promptText],
+                    ['type' => 'image_url', 'image_url' => ['url' => 'data:image/jpeg;base64,' . $cleanRefB64]],
+                    ['type' => 'image_url', 'image_url' => ['url' => 'data:image/jpeg;base64,' . $cleanScanB64]],
+                ],
+            ],
+        ];
+
         $payload = [
             'model' => $cand['model'],
             'messages' => $messages,
