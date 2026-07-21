@@ -731,49 +731,107 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                 child: Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF059669).withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: const Color(0xFF059669).withValues(alpha: 0.2),
+                    gradient: LinearGradient(
+                      colors: [
+                        const Color(0xFF10B981).withValues(alpha: 0.15),
+                        const Color(0xFF059669).withValues(alpha: 0.08),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: const Color(0xFF10B981).withValues(alpha: 0.3),
+                      width: 1.5,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF10B981).withValues(alpha: 0.1),
+                        blurRadius: 16,
+                        spreadRadius: -2,
+                      ),
+                    ],
                   ),
                   child: Row(
                     children: [
-                      const Icon(
-                        Icons.check_circle_rounded,
-                        color: Color(0xFF10B981),
-                        size: 20,
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.qr_code_scanner_rounded,
+                          color: Color(0xFF10B981),
+                          size: 24,
+                        ),
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 14),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              'បាន Scan ហើយ!',
-                              style: GoogleFonts.kantumruyPro(
-                                color: const Color(0xFF10B981),
-                                fontWeight: FontWeight.bold,
-                                fontSize: 12,
-                              ),
+                            Row(
+                              children: [
+                                Text(
+                                  'បានស្កេនជោគជ័យ',
+                                  style: GoogleFonts.kantumruyPro(
+                                    color: const Color(0xFF10B981),
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Container(
+                                  width: 6,
+                                  height: 6,
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFF10B981),
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                              ],
                             ),
+                            const SizedBox(height: 3),
                             Text(
-                              _detectedBarcode!,
+                              'លេខកូដ: ${_detectedBarcode!}',
                               style: GoogleFonts.inter(
-                                color: AppTheme.textSecondary,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
+                                color: AppTheme.textPrimary,
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.5,
                               ),
                               overflow: TextOverflow.ellipsis,
                             ),
+                            const SizedBox(height: 4),
                             if (_barcodeCountryInfo(_detectedBarcode!) != null)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.primary.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(
+                                    color: AppTheme.primaryLight.withValues(alpha: 0.25),
+                                    width: 0.8,
+                                  ),
+                                ),
+                                child: Text(
+                                  'មកពីប្រទេស: ${_barcodeCountryInfo(_detectedBarcode!)!}',
+                                  style: GoogleFonts.kantumruyPro(
+                                    color: AppTheme.primaryLight,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              )
+                            else
                               Text(
-                                _barcodeCountryInfo(_detectedBarcode!)!,
+                                'មិនស្គាល់ប្រភពប្រទេសផលិត',
                                 style: GoogleFonts.kantumruyPro(
-                                  color: AppTheme.primaryLight,
-                                  fontSize: 12,
+                                  color: AppTheme.textMuted,
+                                  fontSize: 11,
                                 ),
                               ),
                           ],
@@ -839,121 +897,114 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
   // ─── Barcode country lookup (GS1 prefix) ─────────────────────────────────
 
   String? _barcodeCountryInfo(String barcode) {
-    // Only EAN-13/UPC barcodes have GS1 country prefix
     final digits = barcode.replaceAll(RegExp(r'\D'), '');
     if (digits.length < 3) return null;
     final prefix3 = int.tryParse(digits.substring(0, 3)) ?? -1;
-    final prefix2 = int.tryParse(digits.substring(0, 2)) ?? -1;
 
-    const Map<int, String> gs1 = {
-      0: '🇺🇸 សហរដ្ឋអាមេរិក (USA)',
-      1: '🇺🇸 សហរដ្ឋអាមេរិក (USA)',
-      2: '🇺🇸 សហរដ្ឋអាមេរិក (USA)',
-      3: '🇺🇸 សហរដ្ឋអាមេរិក (USA)',
-      4: '🇺🇸 សហរដ្ឋអាមេរិក (USA)',
-      5: '🇺🇸 សហរដ្ឋអាមេរិក (USA)',
-      6: '🇺🇸 សហរដ្ឋអាមេរិក (USA)',
-      30: '🇫🇷 បារាំង (France)',
-      37: '🇫🇷 បារាំង (France)',
-      40: '🇩🇪 អាល្លឺម៉ង់ (Germany)',
-      45: '🇯🇵 ជប៉ុន (Japan)',
-      49: '🇯🇵 ជប៉ុន (Japan)',
-      50: '🇬🇧 ចក្រភពអង់គ្លេស (UK)',
-      54: '🇧🇪 បែលហ្ស៊ិក (Belgium)',
-      57: '🇩🇰 ដាណឺម៉ាក (Denmark)',
-      60: '🇿🇦 អាហ្វ្រិកខាងត្បូង (South Africa)',
-      64: '🇫🇮 ហ្វាំងឡង់ (Finland)',
-      70: '🇳🇴 នៃវេ (Norway)',
-      73: '🇸🇪 ស៊ុយអែត (Sweden)',
-      76: '🇨🇭 ស្វីស (Switzerland)',
-      80: '🇮🇹 អ៊ីតាលី (Italy)',
-      83: '🇮🇹 អ៊ីតាលី (Italy)',
-      84: '🇪🇸 អេស្ប៉ាញ (Spain)',
-      87: '🇳🇱 ហូល្លង់ (Netherlands)',
-      90: '🇦🇹 អូទ្រីស (Austria)',
-      93: '🇦🇺 អូស្ត្រាលី (Australia)',
-    };
+    // Check ranges
+    if (prefix3 >= 0 && prefix3 <= 139) return '🇺🇸 សហរដ្ឋអាមេរិក (USA)';
+    if (prefix3 >= 300 && prefix3 <= 379) return '🇫🇷 បារាំង (France)';
+    if (prefix3 >= 400 && prefix3 <= 440) return '🇩🇪 អាល្លឺម៉ង់ (Germany)';
+    if (prefix3 >= 450 && prefix3 <= 459) return '🇯🇵 ជប៉ុន (Japan)';
+    if (prefix3 >= 490 && prefix3 <= 499) return '🇯🇵 ជប៉ុន (Japan)';
+    if (prefix3 >= 500 && prefix3 <= 509) return '🇬🇧 ចក្រភពអង់គ្លេស (UK)';
+    if (prefix3 >= 540 && prefix3 <= 549) return '🇧🇪 បែលហ្ស៊ិក (Belgium)';
+    if (prefix3 >= 570 && prefix3 <= 579) return '🇩🇰 ដាណឺម៉ាក (Denmark)';
+    if (prefix3 >= 600 && prefix3 <= 601) return '🇿🇦 អាហ្វ្រិកខាងត្បូង (South Africa)';
+    if (prefix3 >= 640 && prefix3 <= 649) return '🇫🇮 ហ្វាំងឡង់ (Finland)';
+    if (prefix3 >= 690 && prefix3 <= 699) return '🇨🇳 ចិន (China)';
+    if (prefix3 >= 700 && prefix3 <= 709) return '🇳🇴 ន័រវែស (Norway)';
+    if (prefix3 >= 730 && prefix3 <= 739) return '🇸🇪 ស៊ុយអែត (Sweden)';
+    if (prefix3 >= 760 && prefix3 <= 769) return '🇨🇭 ស្វីស (Switzerland)';
+    if (prefix3 >= 800 && prefix3 <= 839) return '🇮🇹 អ៊ីតាលី (Italy)';
+    if (prefix3 >= 840 && prefix3 <= 849) return '🇪🇸 អេស្ប៉ាញ (Spain)';
+    if (prefix3 >= 870 && prefix3 <= 879) return '🇳🇱 ហូឡង់ (Netherlands)';
+    if (prefix3 >= 900 && prefix3 <= 919) return '🇦🇹 អូទ្រីស (Austria)';
+    if (prefix3 >= 930 && prefix3 <= 939) return '🇦🇺 អូស្ត្រាលី (Australia)';
+    if (prefix3 >= 940 && prefix3 <= 949) return '🇳🇿 នូវែលហ្សេឡង់ (New Zealand)';
 
-    const Map<int, String> gs1_3 = {
-      400: '🇩🇪 អាល្លឺម៉ង់ (Germany)',
-      430: '🇯🇵 ជប៉ុន (Japan)',
+    // Specific 3-digit matches
+    final Map<int, String> specific3 = {
+      884: '🇰🇭 កម្ពុជា (Cambodia)',
+      885: '🇹🇭 ថៃ (Thailand)',
+      888: '🇸🇬 សិង្ហបុរី (Singapore)',
+      880: '🇰🇷 កូរ៉េខាងត្បូង (South Korea)',
+      893: '🇻🇳 វៀតណាម (Vietnam)',
+      899: '🇮🇩 ឥណ្ឌូនេស៊ី (Indonesia)',
+      890: '🇮🇳 ឥណ្ឌា (India)',
+      955: '🇲🇾 ម៉ាឡេស៊ី (Malaysia)',
+      958: '🇲🇴 ម៉ាកាវ (Macau)',
+      471: '🇹🇼 តៃវ៉ាន់ (Taiwan)',
+      489: '🇭🇰 ហុងកុង (Hong Kong)',
       480: '🇵🇭 ហ្វីលីពីន (Philippines)',
       482: '🇺🇦 អ៊ុយក្រែន (Ukraine)',
       484: '🇲🇩 ម៉ុលដាវ៉ា (Moldova)',
       485: '🇦🇲 អាមេនី (Armenia)',
-      486: '🇬🇪 ហ្ស្វែហ្ស៊ី (Georgia)',
-      487: '🇰🇿 កាហ្សាស្ថាន (Kazakhstan)',
-      489: '🇭🇰 ហ่ំងកំង (Hong Kong)',
-      490: '🇯🇵 ជប៉ុន (Japan)',
-      499: '🇯🇵 ជប៉ុន (Japan)',
-      500: '🇬🇧 ចក្រភពអង់គ្លេស (UK)',
+      486: '🇬🇪 ហ្សកហ្ស៊ី (Georgia)',
+      487: '🇰🇿 កាហ្សាក់ស្ថាន (Kazakhstan)',
       539: '🇮🇪 អៀរឡង់ (Ireland)',
       560: '🇵🇹 ព័រទុយហ្គាល់ (Portugal)',
       569: '🇮🇸 អ៊ីស្លង់ (Iceland)',
       590: '🇵🇱 ប៉ូឡូញ (Poland)',
       594: '🇷🇴 រូម៉ានី (Romania)',
       599: '🇭🇺 ហុងគ្រី (Hungary)',
-      600: '🇿🇦 អាហ្វ្រិកខាងត្បូង (South Africa)',
       611: '🇲🇦 ម៉ារ៉ុក (Morocco)',
-      613: '🇩🇿 អាល់ហ្ស៊េ (Algeria)',
+      613: '🇩🇿 អាល់ហ្សេរី (Algeria)',
       615: '🇬🇭 ហ្គាណា (Ghana)',
-      616: '🇸🇳 សេណេហ្ស្គាល (Senegal)',
+      616: '🇸🇳 សេនេហ្គាល់ (Senegal)',
       619: '🇹🇳 ទុយនីស៊ី (Tunisia)',
       621: '🇸🇾 ស៊ីរី (Syria)',
       622: '🇪🇬 អេហ្ស៊ីប (Egypt)',
       624: '🇱🇾 លីប៊ី (Libya)',
-      625: '🇯🇴 ហ្ស膿ហ្ស (Jordan)',
-      626: '🇮🇷 អ៊ីរ៉ង់ (Iran)',
-      627: '🇰🇼 គុយវ៉ៃ (Kuwait)',
+      625: '🇯🇴 ហ្សកដានី (Jordan)',
+      626: '🇮🇷 អ៊ីរង់ (Iran)',
+      627: '🇰🇼 គុយវ៉ែត (Kuwait)',
       628: '🇸🇦 អារ៉ាប៊ីសាអូឌីត (Saudi Arabia)',
-      629: '🇦🇪 អេ.អ.អ (UAE)',
-      640: '🇫🇮 ហ្វាំងឡង់ (Finland)',
-      649: '🇫🇮 ហ្វាំងឡង់ (Finland)',
-      690: '🇨🇳 ចិន (China)',
-      699: '🇨🇳 ចិន (China)',
-      700: '🇳🇴 នៃវេ (Norway)',
+      629: '🇦🇪 អេមីរ៉ាតអារ៉ាប់រួម (UAE)',
       729: '🇮🇱 អ៊ីស្រាអែល (Israel)',
-      730: '🇸🇪 ស៊ុយអែត (Sweden)',
-      740: '🇬🇹 ហ្កាតេម៉ាឡា (Guatemala)',
-      750: '🇲🇽 ម៉ិចស៊ិក (Mexico)',
+      740: '🇬🇹 ហ្គាតេម៉ាឡា (Guatemala)',
+      750: '🇲🇽 ម៉ិកស៊ិក (Mexico)',
       754: '🇨🇦 កាណាដា (Canada)',
       759: '🇻🇪 វ៉េណេស៊ុយអេឡា (Venezuela)',
-      760: '🇨🇭 ស្វីស (Switzerland)',
       770: '🇨🇴 កូឡុំប៊ី (Colombia)',
-      773: '🇺🇾 អ៊ុយរូហ្ស្វៃ (Uruguay)',
+      773: '🇺🇾 អ៊ុយរូហ្គាយ (Uruguay)',
       775: '🇵🇪 ប៉េរូ (Peru)',
       777: '🇧🇴 បូលីវី (Bolivia)',
-      780: '🇨🇱 ឈ្លេ (Chile)',
-      784: '🇵🇾 ប៉ារ៉ាហ្ស្វ (Paraguay)',
+      780: '🇨🇱 ឈីលី (Chile)',
+      784: '🇵🇾 ប៉ារ៉ាគ្វាយ (Paraguay)',
       786: '🇪🇨 អេក្វាដ័រ (Ecuador)',
       789: '🇧🇷 ប្រេស៊ីល (Brazil)',
-      800: '🇮🇹 អ៊ីតាលី (Italy)',
-      840: '🇪🇸 អេស្ប៉ាញ (Spain)',
       850: '🇨🇺 គុយបា (Cuba)',
-      858: '🇸🇰 ស្លូវ៉ាគី (Slovakia)',
-      859: '🇨🇿 ឆែក (Czech Republic)',
-      860: '🇷🇸 ស៊ែប (Serbia)',
+      858: '🇸🇰 ស្លូវ៉ាកី (Slovakia)',
+      859: '🇨🇿 សាធារណរដ្ឋឆែក (Czech Republic)',
+      860: '🇷🇸 ស៊ែប៊ី (Serbia)',
       865: '🇲🇳 ម៉ុងហ្គោលី (Mongolia)',
       867: '🇰🇵 កូរ៉េខាងជើង (North Korea)',
-      869: '🇹🇷 តួគីស (Turkey)',
-      870: '🇳🇱 ហូល្លង់ (Netherlands)',
-      880: '🇰🇷 កូរ៉េខាងត្បូង (South Korea)',
-      885: '🇹🇭 ថៃ (Thailand)',
-      888: '🇸🇬 សិង្ហបូរី (Singapore)',
-      890: '🇮🇳 ឥណ្ឌា (India)',
-      893: '🇻🇳 វៀតណាម (Vietnam)',
-      896: '🇵🇰 ប៉ាគីស្ថាន (Pakistan)',
-      899: '🇮🇩 ឥណ្ឌូណេស៊ី (Indonesia)',
-      900: '🇦🇹 អូទ្រីស (Austria)',
-      930: '🇦🇺 អូស្ត្រាលី (Australia)',
-      940: '🇳🇿 នូវែលហ្សេឡង់ (New Zealand)',
-      955: '🇲🇾 ម៉ាឡេស៊ី (Malaysia)',
-      958: '🇲🇴 ម៉ាកាវ (Macau)',
+      869: '🇹🇷 តួកគី (Turkey)',
     };
 
-    // Try 3-digit prefix first
-    if (gs1_3.containsKey(prefix3)) return gs1_3[prefix3];
-    if (gs1.containsKey(prefix2)) return gs1[prefix2];
+    if (specific3.containsKey(prefix3)) return specific3[prefix3];
+
+    // Fallback to 2-digit range
+    final prefix2 = int.tryParse(digits.substring(0, 2)) ?? -1;
+    if (prefix2 >= 0 && prefix2 <= 13) return '🇺🇸 សហរដ្ឋអាមេរិក (USA)';
+    if (prefix2 >= 30 && prefix2 <= 37) return '🇫🇷 បារាំង (France)';
+    if (prefix2 >= 40 && prefix2 <= 44) return '🇩🇪 អាល្លឺម៉ង់ (Germany)';
+    if (prefix2 == 45 || prefix2 == 49) return '🇯🇵 ជប៉ុន (Japan)';
+    if (prefix2 == 50) return '🇬🇧 ចក្រភពអង់គ្លេស (UK)';
+    if (prefix2 == 54) return '🇧🇪 បែលហ្ស៊ិក (Belgium)';
+    if (prefix2 == 57) return '🇩🇰 ដាណឺម៉ាក (Denmark)';
+    if (prefix2 == 60) return '🇿🇦 អាហ្វ្រិកខាងត្បូង (South Africa)';
+    if (prefix2 == 64) return '🇫🇮 ហ្វាំងឡង់ (Finland)';
+    if (prefix2 == 70) return '🇳🇴 ន័រវែស (Norway)';
+    if (prefix2 == 73) return '🇸🇪 ស៊ុយអែត (Sweden)';
+    if (prefix2 == 76) return '🇨🇭 ស្វីស (Switzerland)';
+    if (prefix2 >= 80 && prefix2 <= 83) return '🇮🇹 អ៊ីតាលី (Italy)';
+    if (prefix2 == 84) return '🇪🇸 អេស្ប៉ាញ (Spain)';
+    if (prefix2 == 87) return '🇳🇱 ហូឡង់ (Netherlands)';
+    if (prefix2 >= 90 && prefix2 <= 91) return '🇦🇹 អូទ្រីស (Austria)';
+    if (prefix2 == 93) return '🇦🇺 អូស្ត្រាលី (Australia)';
+
     return null;
   }
 

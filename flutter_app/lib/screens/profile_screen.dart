@@ -70,6 +70,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
         setState(() {
           _targetUserData = res['user'];
         });
+
+        final currentUser = Provider.of<UserProvider>(context, listen: false);
+        final bool isMe = widget.targetEmployeeId == null ||
+            widget.targetEmployeeId == currentUser.employeeId;
+        if (isMe) {
+          final faceReg = (res['user']['face_registered'] ?? 0).toString() == '1' ||
+              res['user']['face_registered'] == true;
+          currentUser.setFaceRegistered(faceReg);
+        }
       }
     } catch (_) {}
   }
@@ -79,12 +88,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final api = ApiService();
     final res = await api.fetchProfile(employeeId: widget.targetEmployeeId);
     if (res['success'] == true && res['user'] != null) {
-      setState(() {
-        _targetUserData = res['user'];
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _targetUserData = res['user'];
+          _isLoading = false;
+        });
+
+        final currentUser = Provider.of<UserProvider>(context, listen: false);
+        final bool isMe = widget.targetEmployeeId == null ||
+            widget.targetEmployeeId == currentUser.employeeId;
+        if (isMe) {
+          final faceReg = (res['user']['face_registered'] ?? 0).toString() == '1' ||
+              res['user']['face_registered'] == true;
+          currentUser.setFaceRegistered(faceReg);
+        }
+      }
     } else {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -863,7 +885,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   );
                   if (registered == true && mounted) {
-                    setState(() {});
+                    user.setFaceRegistered(true);
+                    _fetchTargetUserSilently();
                   }
                 }
               },
@@ -985,32 +1008,58 @@ class _ProfileScreenState extends State<ProfileScreen> {
     bool isDestructive = false,
     Widget? trailingWidget,
   }) {
-    return ListTile(
-      onTap: onTap,
-      leading: Container(
-        width: 38,
-        height: 38,
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Icon(icon, color: color, size: 20),
-      ),
-      title: Text(
-        label,
-        style: GoogleFonts.kantumruyPro(
-          color: isDestructive ? AppTheme.danger : AppTheme.textPrimary,
-          fontSize: 14,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-      trailing:
-          trailingWidget ??
-          Icon(
-            Icons.arrow_forward_ios_rounded,
-            size: 14,
-            color: AppTheme.textPrimary.withValues(alpha: 0.25),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        splashColor: color.withValues(alpha: 0.1),
+        highlightColor: color.withValues(alpha: 0.05),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      color.withValues(alpha: 0.2),
+                      color.withValues(alpha: 0.08),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: color.withValues(alpha: 0.25),
+                    width: 1,
+                  ),
+                ),
+                child: Icon(icon, color: color, size: 20),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  label,
+                  style: GoogleFonts.kantumruyPro(
+                    color: isDestructive ? AppTheme.danger : AppTheme.textPrimary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              trailingWidget ??
+                  Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    size: 14,
+                    color: AppTheme.textPrimary.withValues(alpha: 0.25),
+                  ),
+            ],
           ),
+        ),
+      ),
     );
   }
 

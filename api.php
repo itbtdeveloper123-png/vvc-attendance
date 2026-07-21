@@ -3357,7 +3357,8 @@ switch ($action) {
                        COALESCE(system_role, 'Employee') AS system_role,
                        COALESCE(system_role_label, '') AS system_role_label,
                        branch, workplace, phone, COALESCE(email, '') AS email, base_salary,
-                       COALESCE(is_verified, 0) AS is_verified
+                       COALESCE(is_verified, 0) AS is_verified,
+                       COALESCE(face_registered, 0) AS face_registered
                 FROM users
                 WHERE employee_id = ?
                 LIMIT 1";
@@ -3386,7 +3387,8 @@ switch ($action) {
                         $p_phone,
                         $p_email,
                         $p_salary,
-                        $p_verified
+                        $p_verified,
+                        $p_face_registered
                     );
                     $stmt->fetch();
                     $profile = [
@@ -3404,6 +3406,7 @@ switch ($action) {
                         'email' => $p_email,
                         'base_salary' => $p_salary,
                         'is_verified' => $p_verified,
+                        'face_registered' => $p_face_registered,
                     ];
                 }
             }
@@ -5709,9 +5712,9 @@ switch ($action) {
         if ($provider === 'openai') {
             $candidateModels = ['gpt-4o-mini', 'gpt-4o'];
         } elseif ($provider === 'groq') {
-            $candidateModels = ['llama-3.2-11b-vision-preview', 'llama-3.2-90b-vision-preview'];
+            $candidateModels = ['meta-llama/llama-3.2-11b-vision-instruct', 'meta-llama/llama-3.2-90b-vision-instruct'];
         } else {
-            $candidateModels = array_filter([$visionModel, 'gpt-4o-mini', 'llama-3.2-11b-vision-preview']);
+            $candidateModels = array_filter([$visionModel, 'gpt-4o-mini', 'meta-llama/llama-3.2-11b-vision-instruct']);
         }
 
         $res = null;
@@ -5892,9 +5895,9 @@ function ai_verify_face_match($mysqli, $eid, $photo_b64) {
     if ($provider === 'openai') {
         $candidateModels = ['gpt-4o-mini', 'gpt-4o'];
     } elseif ($provider === 'groq') {
-        $candidateModels = ['llama-3.2-11b-vision-preview', 'llama-3.2-90b-vision-preview'];
+        $candidateModels = ['meta-llama/llama-3.2-11b-vision-instruct', 'meta-llama/llama-3.2-90b-vision-instruct'];
     } else {
-        $candidateModels = array_filter([$config['model'] ?? '', 'gpt-4o-mini', 'llama-3.2-11b-vision-preview']);
+        $candidateModels = array_filter([$config['model'] ?? '', 'gpt-4o-mini', 'meta-llama/llama-3.2-11b-vision-instruct']);
     }
 
     $promptText = "Compare Image 1 (registered employee reference face) with Image 2 (scanned face during attendance check-in). Are these two images showing the exact same human person? Respond strictly with a JSON object: {\"match\": true} or {\"match\": false}.";
