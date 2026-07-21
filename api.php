@@ -5704,34 +5704,47 @@ switch ($action) {
         } else {
             $messages[] = ['role' => 'user', 'content' => $userPrompt];
         }
-        // Pick vision-capable candidate models
-        $provider = strtolower((string)($config['provider'] ?? ''));
-        $visionModel = $config['model'] ?? '';
-        $candidateModels = [];
+        // Pick vision-capable candidate models with fallback between Groq & OpenAI
+        $openAiKey = trim((string)(defined('OPENAI_API_KEY') ? OPENAI_API_KEY : (getenv('OPENAI_API_KEY') ?: '')));
+        $groqKey   = trim((string)(defined('GROQ_API_KEY') ? GROQ_API_KEY : (getenv('GROQ_API_KEY') ?: '')));
+        $provider  = strtolower((string)($config['provider'] ?? ''));
 
+        $candidates = [];
         if ($provider === 'openai') {
-            $candidateModels = ['gpt-4o-mini', 'gpt-4o'];
-        } elseif ($provider === 'groq') {
-            // Groq free vision models (active as of 2025): Llama 4 Scout supports vision natively
-            $candidateModels = ['meta-llama/llama-4-scout-17b-16e-instruct', 'meta-llama/llama-4-maverick-17b-128e-instruct'];
+            if ($openAiKey !== '') {
+                $candidates[] = ['provider' => 'openai', 'model' => 'gpt-4o-mini', 'endpoint' => 'https://api.openai.com/v1/chat/completions', 'key' => $openAiKey];
+                $candidates[] = ['provider' => 'openai', 'model' => 'gpt-4o', 'endpoint' => 'https://api.openai.com/v1/chat/completions', 'key' => $openAiKey];
+            }
+            if ($groqKey !== '') {
+                $candidates[] = ['provider' => 'groq', 'model' => 'llama-3.2-11b-vision-preview', 'endpoint' => 'https://api.groq.com/openai/v1/chat/completions', 'key' => $groqKey];
+                $candidates[] = ['provider' => 'groq', 'model' => 'llama-3.2-90b-vision-preview', 'endpoint' => 'https://api.groq.com/openai/v1/chat/completions', 'key' => $groqKey];
+            }
         } else {
-            $candidateModels = array_filter([$visionModel, 'gpt-4o-mini', 'meta-llama/llama-4-scout-17b-16e-instruct']);
+            // Groq free vision models first, fallback to OpenAI GPT-4o
+            if ($groqKey !== '') {
+                $candidates[] = ['provider' => 'groq', 'model' => 'llama-3.2-11b-vision-preview', 'endpoint' => 'https://api.groq.com/openai/v1/chat/completions', 'key' => $groqKey];
+                $candidates[] = ['provider' => 'groq', 'model' => 'llama-3.2-90b-vision-preview', 'endpoint' => 'https://api.groq.com/openai/v1/chat/completions', 'key' => $groqKey];
+            }
+            if ($openAiKey !== '') {
+                $candidates[] = ['provider' => 'openai', 'model' => 'gpt-4o-mini', 'endpoint' => 'https://api.openai.com/v1/chat/completions', 'key' => $openAiKey];
+                $candidates[] = ['provider' => 'openai', 'model' => 'gpt-4o', 'endpoint' => 'https://api.openai.com/v1/chat/completions', 'key' => $openAiKey];
+            }
         }
 
         $res = null;
         $lastError = 'Unknown error';
 
-        foreach ($candidateModels as $modelToTry) {
-            $visionPayload = ['model' => $modelToTry, 'messages' => $messages, 'temperature' => 0.1, 'max_tokens' => 1500];
-            if ($provider === 'openai') {
+        foreach ($candidates as $cand) {
+            $visionPayload = ['model' => $cand['model'], 'messages' => $messages, 'temperature' => 0.1, 'max_tokens' => 1500];
+            if ($cand['provider'] === 'openai') {
                 $visionPayload['response_format'] = ['type' => 'json_object'];
             }
-            $attempt = ai_chat_http_post_json($config['endpoint'], $visionPayload, ['Authorization: Bearer ' . $config['api_key']]);
+            $attempt = ai_chat_http_post_json($cand['endpoint'], $visionPayload, ['Authorization: Bearer ' . $cand['key']]);
             if (($attempt['ok'] ?? false) && !empty($attempt['data']['choices'][0]['message']['content'])) {
                 $res = $attempt;
                 break;
             }
-            $lastError = $attempt['message'] ?? 'Vision API call failed';
+            $lastError = $attempt['message'] ?? ($attempt['data']['error']['message'] ?? 'Vision API call failed');
         }
 
         if (!$res) {
@@ -5891,15 +5904,29 @@ function ai_verify_face_match($mysqli, $eid, $photo_b64) {
         return ['match' => false, 'message' => 'ម៉ាស៊ីន AI សម្រាប់ផ្ទៀងផ្ទាត់ផ្ទៃមុខមិនទាន់ត្រូវបានកំណត់ទេ។ សូមទាក់ទងអ្នកគ្រប់គ្រង!'];
     }
 
-    $provider = strtolower((string)($config['provider'] ?? ''));
-    $candidateModels = [];
+    $openAiKey = trim((string)(defined('OPENAI_API_KEY') ? OPENAI_API_KEY : (getenv('OPENAI_API_KEY') ?: '')));
+    $groqKey   = trim((string)(defined('GROQ_API_KEY') ? GROQ_API_KEY : (getenv('GROQ_API_KEY') ?: '')));
+    $provider  = strtolower((string)($config['provider'] ?? ''));
+
+    $candidates = [];
     if ($provider === 'openai') {
-        $candidateModels = ['gpt-4o-mini', 'gpt-4o'];
-    } elseif ($provider === 'groq') {
-        // Groq free vision models (active as of 2025): Llama 4 Scout supports vision natively
-        $candidateModels = ['meta-llama/llama-4-scout-17b-16e-instruct', 'meta-llama/llama-4-maverick-17b-128e-instruct'];
+        if ($openAiKey !== '') {
+            $candidates[] = ['provider' => 'openai', 'model' => 'gpt-4o-mini', 'endpoint' => 'https://api.openai.com/v1/chat/completions', 'key' => $openAiKey];
+            $candidates[] = ['provider' => 'openai', 'model' => 'gpt-4o', 'endpoint' => 'https://api.openai.com/v1/chat/completions', 'key' => $openAiKey];
+        }
+        if ($groqKey !== '') {
+            $candidates[] = ['provider' => 'groq', 'model' => 'llama-3.2-11b-vision-preview', 'endpoint' => 'https://api.groq.com/openai/v1/chat/completions', 'key' => $groqKey];
+            $candidates[] = ['provider' => 'groq', 'model' => 'llama-3.2-90b-vision-preview', 'endpoint' => 'https://api.groq.com/openai/v1/chat/completions', 'key' => $groqKey];
+        }
     } else {
-        $candidateModels = array_filter([$config['model'] ?? '', 'gpt-4o-mini', 'meta-llama/llama-4-scout-17b-16e-instruct']);
+        if ($groqKey !== '') {
+            $candidates[] = ['provider' => 'groq', 'model' => 'llama-3.2-11b-vision-preview', 'endpoint' => 'https://api.groq.com/openai/v1/chat/completions', 'key' => $groqKey];
+            $candidates[] = ['provider' => 'groq', 'model' => 'llama-3.2-90b-vision-preview', 'endpoint' => 'https://api.groq.com/openai/v1/chat/completions', 'key' => $groqKey];
+        }
+        if ($openAiKey !== '') {
+            $candidates[] = ['provider' => 'openai', 'model' => 'gpt-4o-mini', 'endpoint' => 'https://api.openai.com/v1/chat/completions', 'key' => $openAiKey];
+            $candidates[] = ['provider' => 'openai', 'model' => 'gpt-4o', 'endpoint' => 'https://api.openai.com/v1/chat/completions', 'key' => $openAiKey];
+        }
     }
 
     $promptText = "Compare Image 1 (registered employee reference face) with Image 2 (scanned face during attendance check-in). Are these two images showing the exact same human person? Respond strictly with a JSON object: {\"match\": true} or {\"match\": false}.";
@@ -5915,18 +5942,18 @@ function ai_verify_face_match($mysqli, $eid, $photo_b64) {
         ],
     ];
 
-    foreach ($candidateModels as $modelToTry) {
+    foreach ($candidates as $cand) {
         $payload = [
-            'model' => $modelToTry,
+            'model' => $cand['model'],
             'messages' => $messages,
             'max_tokens' => 100,
             'temperature' => 0.0,
         ];
-        if ($provider === 'openai') {
+        if ($cand['provider'] === 'openai') {
             $payload['response_format'] = ['type' => 'json_object'];
         }
 
-        $res = ai_chat_http_post_json($config['endpoint'], $payload, ['Authorization: Bearer ' . $config['api_key']]);
+        $res = ai_chat_http_post_json($cand['endpoint'], $payload, ['Authorization: Bearer ' . $cand['key']]);
         if (($res['ok'] ?? false) && !empty($res['data']['choices'][0]['message']['content'])) {
             $rawContent = trim((string)$res['data']['choices'][0]['message']['content']);
             $extracted = product_ai_extract_json_payload($rawContent);

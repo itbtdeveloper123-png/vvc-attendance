@@ -679,7 +679,21 @@ class _TeamChatScreenState extends State<TeamChatScreen>
 
   Widget _buildBackground() {
     return Positioned.fill(
-      child: Container(decoration: BoxDecoration(color: AppTheme.bgSurface)),
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: RadialGradient(
+            center: const Alignment(0.6, -0.8),
+            radius: 1.4,
+            colors: [
+              const Color(0xFF1a2744).withValues(alpha: 0.9),
+              AppTheme.bgSurface,
+            ],
+          ),
+        ),
+        child: CustomPaint(
+          painter: _ChatBackgroundPainter(),
+        ),
+      ),
     );
   }
 
@@ -973,14 +987,22 @@ class _TeamChatScreenState extends State<TeamChatScreen>
                 showDateSeparator = true;
               }
 
-              return SizeTransition(
-                sizeFactor: animation,
-                child: Column(
-                  children: [
-                    if (showDateSeparator)
-                      _buildDateSeparator(msg['timestamp']),
-                    _buildMessageBubble(doc.id, msg, isMe, showAvatar),
-                  ],
+              // នឹមប្រើ FadeTransition + SlideTransition ដើម្បីកុំអស្រួលបំកាត់ animation ពីបន្កាត់ (SizeTransition បន្តាល់ layout jump)
+              final offsetAnim = Tween<Offset>(
+                begin: isMe ? const Offset(0.08, 0) : const Offset(-0.08, 0),
+                end: Offset.zero,
+              ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic));
+              return FadeTransition(
+                opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
+                child: SlideTransition(
+                  position: offsetAnim,
+                  child: Column(
+                    children: [
+                      if (showDateSeparator)
+                        _buildDateSeparator(msg['timestamp']),
+                      _buildMessageBubble(doc.id, msg, isMe, showAvatar),
+                    ],
+                  ),
                 ),
               );
             },
@@ -992,35 +1014,61 @@ class _TeamChatScreenState extends State<TeamChatScreen>
 
   Widget _buildDateSeparator(Timestamp? timestamp) {
     final label = _getDateSeparator(timestamp);
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 12),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16),
       child: Row(
         children: [
           Expanded(
             child: Container(
-              height: 1,
-              color: Colors.white.withValues(alpha: 0.06),
+              height: 0.5,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.transparent,
+                    Colors.white.withValues(alpha: 0.12),
+                  ],
+                ),
+              ),
             ),
           ),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            margin: const EdgeInsets.symmetric(horizontal: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+            margin: const EdgeInsets.symmetric(horizontal: 12),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.04),
+              color: AppTheme.bgCard.withValues(alpha: 0.6),
               borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.08),
+                width: 0.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.15),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
             child: Text(
               label,
               style: GoogleFonts.kantumruyPro(
-                fontSize: 12,
-                color: Colors.white70,
+                fontSize: 11,
+                color: Colors.white.withValues(alpha: 0.65),
+                letterSpacing: 0.3,
               ),
             ),
           ),
           Expanded(
             child: Container(
-              height: 1,
-              color: Colors.white.withValues(alpha: 0.06),
+              height: 0.5,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.white.withValues(alpha: 0.12),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
             ),
           ),
         ],
@@ -1087,38 +1135,42 @@ class _TeamChatScreenState extends State<TeamChatScreen>
                       decoration: BoxDecoration(
                         gradient: isMe
                             ? const LinearGradient(
-                                colors: [Color(0xFF667eea), Color(0xFF764ba2)],
+                                colors: [Color(0xFF5B6CF6), Color(0xFF8B5CF6)],
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
                               )
                             : null,
                         color: !isMe
-                            ? AppTheme.bgCard.withValues(alpha: 0.85)
+                            ? const Color(0xFF1E2942).withValues(alpha: 0.92)
                             : null,
                         borderRadius: isMe
                             ? const BorderRadius.only(
-                                topLeft: Radius.circular(18),
-                                topRight: Radius.circular(10),
-                                bottomLeft: Radius.circular(18),
-                                bottomRight: Radius.circular(18),
+                                topLeft: Radius.circular(20),
+                                topRight: Radius.circular(6),
+                                bottomLeft: Radius.circular(20),
+                                bottomRight: Radius.circular(20),
                               )
                             : const BorderRadius.only(
-                                topLeft: Radius.circular(10),
-                                topRight: Radius.circular(18),
-                                bottomLeft: Radius.circular(18),
-                                bottomRight: Radius.circular(18),
+                                topLeft: Radius.circular(6),
+                                topRight: Radius.circular(20),
+                                bottomLeft: Radius.circular(20),
+                                bottomRight: Radius.circular(20),
                               ),
-                        boxShadow: isMe
-                            ? [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.35),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 3),
-                                ),
-                              ]
-                            : null,
+                        boxShadow: [
+                          BoxShadow(
+                            color: isMe
+                                ? const Color(0xFF5B6CF6).withValues(alpha: 0.25)
+                                : Colors.black.withValues(alpha: 0.20),
+                            blurRadius: isMe ? 14 : 8,
+                            spreadRadius: isMe ? 0 : 0,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
                         border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.04),
+                          color: isMe
+                              ? Colors.white.withValues(alpha: 0.10)
+                              : Colors.white.withValues(alpha: 0.06),
+                          width: 0.8,
                         ),
                       ),
                       child: Column(
@@ -1634,14 +1686,28 @@ class _TeamChatScreenState extends State<TeamChatScreen>
                         ),
                         Expanded(
                           child: Container(
-                            height: 48,
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            constraints: const BoxConstraints(
+                              minHeight: 48,
+                              maxHeight: 120,
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.06),
-                              borderRadius: BorderRadius.circular(24),
+                              color: const Color(0xFF1A2540).withValues(alpha: 0.85),
+                              borderRadius: BorderRadius.circular(26),
                               border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.06),
+                                color: Colors.white.withValues(alpha: 0.09),
+                                width: 0.8,
                               ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.15),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
                             ),
                             child: Row(
                               children: [
@@ -1652,21 +1718,22 @@ class _TeamChatScreenState extends State<TeamChatScreen>
                                       color: Colors.white,
                                       fontSize: 15,
                                     ),
-                                    maxLines: 4,
+                                    maxLines: 5,
                                     minLines: 1,
                                     onChanged: (v) {
                                       setState(() {});
                                       _updateTypingStatus(v.isNotEmpty);
                                     },
-                                    decoration: const InputDecoration(
+                                    decoration: InputDecoration(
                                       hintText: "សរសេរសារ...",
                                       border: InputBorder.none,
                                       hintStyle: TextStyle(
-                                        color: Colors.white30,
+                                        color: Colors.white.withValues(alpha: 0.28),
+                                        fontSize: 14,
                                       ),
                                       isDense: true,
-                                      contentPadding: EdgeInsets.symmetric(
-                                        vertical: 12,
+                                      contentPadding: const EdgeInsets.symmetric(
+                                        vertical: 13,
                                       ),
                                     ),
                                   ),
@@ -2660,3 +2727,23 @@ class _AudioMessageBubbleState extends State<AudioMessageBubble> {
     );
   }
 }
+
+class _ChatBackgroundPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.015)
+      ..strokeWidth = 1.0;
+
+    const step = 32.0;
+    for (double x = 0; x < size.width; x += step) {
+      for (double y = 0; y < size.height; y += step) {
+        canvas.drawCircle(Offset(x, y), 1.2, paint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
