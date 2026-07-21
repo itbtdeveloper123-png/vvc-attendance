@@ -128,10 +128,11 @@ class _FaceSetupScreenState extends State<FaceSetupScreen>
     if (_faceProcessing || _isCaptured || _isSubmitting) return;
     _faceProcessing = true;
     try {
-      final BytesBuilder b = BytesBuilder();
-      for (final p in image.planes) {
-        b.add(p.bytes);
+      final WriteBuffer allBytes = WriteBuffer();
+      for (final Plane p in image.planes) {
+        allBytes.putUint8List(p.bytes);
       }
+      final bytes = allBytes.done().buffer.asUint8List();
       final fmt = Platform.isIOS
           ? InputImageFormat.bgra8888
           : (InputImageFormatValue.fromRawValue(image.format.raw) ?? InputImageFormat.nv21);
@@ -139,18 +140,12 @@ class _FaceSetupScreenState extends State<FaceSetupScreen>
               _cameraController!.description.sensorOrientation) ??
           InputImageRotation.rotation0deg;
       final inputImage = InputImage.fromBytes(
-        bytes: b.takeBytes(),
-        inputImageData: InputImageData(
+        bytes: bytes,
+        metadata: InputImageMetadata(
           size: Size(image.width.toDouble(), image.height.toDouble()),
-          imageRotation: rot,
-          inputImageFormat: fmt,
-          planeData: image.planes
-              .map((p) => InputImagePlaneMetadata(
-                    bytesPerRow: p.bytesPerRow,
-                    height: p.height,
-                    width: p.width,
-                  ))
-              .toList(),
+          rotation: rot,
+          format: fmt,
+          bytesPerRow: image.planes.first.bytesPerRow,
         ),
       );
 

@@ -516,16 +516,12 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   }
 
   InputImage _convertCameraImage(CameraImage image, int rotation) {
-    final BytesBuilder allBytes = BytesBuilder();
+    final WriteBuffer allBytes = WriteBuffer();
     for (final Plane plane in image.planes) {
-      allBytes.add(plane.bytes);
+      allBytes.putUint8List(plane.bytes);
     }
-    final bytes = allBytes.takeBytes();
+    final bytes = allBytes.done().buffer.asUint8List();
 
-    final Size imageSize = Size(
-      image.width.toDouble(),
-      image.height.toDouble(),
-    );
     final inputImageFormat = Platform.isIOS
         ? InputImageFormat.bgra8888
         : (InputImageFormatValue.fromRawValue(image.format.raw) ?? InputImageFormat.nv21);
@@ -533,24 +529,15 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         InputImageRotationValue.fromRawValue(rotation) ??
         InputImageRotation.rotation0deg;
 
-    final planeData = image.planes
-        .map(
-          (Plane plane) => InputImagePlaneMetadata(
-            bytesPerRow: plane.bytesPerRow,
-            height: plane.height,
-            width: plane.width,
-          ),
-        )
-        .toList();
-
-    final inputImageData = InputImageData(
-      size: imageSize,
-      imageRotation: imageRotation,
-      inputImageFormat: inputImageFormat,
-      planeData: planeData,
+    return InputImage.fromBytes(
+      bytes: bytes,
+      metadata: InputImageMetadata(
+        size: Size(image.width.toDouble(), image.height.toDouble()),
+        rotation: imageRotation,
+        format: inputImageFormat,
+        bytesPerRow: image.planes.first.bytesPerRow,
+      ),
     );
-
-    return InputImage.fromBytes(bytes: bytes, inputImageData: inputImageData);
   }
 
   Future<void> _submitFaceAttendance() async {
