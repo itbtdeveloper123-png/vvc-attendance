@@ -5673,7 +5673,7 @@ switch ($action) {
             $mimeType    = $m[1] ?? 'image/jpeg';
             $imageBase64 = (string)preg_replace('/^data:[^;]+;base64,/', '', $imageBase64);
         }
-        $cleanImageBase64 = str_replace(["\r", "\n", " "], '', $imageBase64);
+        $cleanImageBase64 = str_replace(["\r", "\n", " ", "\t"], '', (string)$imageBase64);
 
         $config = ai_chat_resolve_provider_config();
         if (!$config) {
@@ -5689,48 +5689,43 @@ switch ($action) {
         }
         $userPrompt = "You are a product analysis expert. {$analysisTarget} Respond in Khmer (ភាសាខ្មែរ) with a structured JSON object. Do not include chain-of-thought, <think> tags, explanations, or markdown. Include all the following fields exactly:\n{\n  \"product_name\": \"...\",\n  \"brand\": \"...\",\n  \"country_of_origin\": \"...\",\n  \"country_flag_emoji\": \"...\",\n  \"category\": \"...\",\n  \"usage\": [\"step1\", \"step2\", ...],\n  \"benefits\": [\"benefit1\", \"benefit2\", ...],\n  \"warnings\": [\"...\"],\n  \"ingredients_summary\": \"...\",\n  \"price_range_usd\": \"...\",\n  \"summary\": \"...\"\n}\nRespond with ONLY the JSON object, no extra text or markdown." . $extraContext;
         // Build messages with vision content
+        $cleanImageBase64 = str_replace(["\r", "\n", " ", "\t"], '', (string)$imageBase64);
+        $userContent = [];
+        if ($userPrompt !== '') {
+            $userContent[] = ['type' => 'text', 'text' => $userPrompt];
+        }
+        if ($cleanImageBase64 !== '') {
+            $userContent[] = [
+                'type' => 'image_url',
+                'image_url' => ['url' => "data:{$mimeType};base64,{$cleanImageBase64}"]
+            ];
+        }
+
         $messages = [
             [
                 'role'    => 'system',
                 'content' => 'You are a world-class product analyst. Always respond with valid JSON only, using Khmer language for all descriptive values. Never include chain-of-thought, reasoning notes, <think> tags, markdown, or explanatory text outside the JSON object.',
             ],
-        ];
-        if ($imageBase64 !== '') {
-            $messages[] = [
+            [
                 'role'    => 'user',
-                'content' => [
-                    ['type' => 'text', 'text' => $userPrompt],
-                    ['type' => 'image_url', 'image_url' => ['url' => "data:{$mimeType};base64,{$imageBase64}", 'detail' => 'high']],
-                ],
-            ];
-        } else {
-            $messages[] = ['role' => 'user', 'content' => $userPrompt];
-        }
+                'content' => $userContent,
+            ],
+        ];
+
         // Pick vision-capable candidate models with fallback between Groq & OpenAI
         $openAiKey = trim((string)(defined('OPENAI_API_KEY') ? OPENAI_API_KEY : (getenv('OPENAI_API_KEY') ?: '')));
         $groqKey   = trim((string)(defined('GROQ_API_KEY') ? GROQ_API_KEY : (getenv('GROQ_API_KEY') ?: '')));
-        $provider  = strtolower((string)($config['provider'] ?? ''));
 
         $candidates = [];
-        if ($provider === 'openai') {
-            if ($openAiKey !== '') {
-                $candidates[] = ['provider' => 'openai', 'model' => 'gpt-4o-mini', 'endpoint' => 'https://api.openai.com/v1/chat/completions', 'key' => $openAiKey];
-                $candidates[] = ['provider' => 'openai', 'model' => 'gpt-4o', 'endpoint' => 'https://api.openai.com/v1/chat/completions', 'key' => $openAiKey];
-            }
-            if ($groqKey !== '') {
-                $candidates[] = ['provider' => 'groq', 'model' => 'llama-3.2-11b-vision-preview', 'endpoint' => 'https://api.groq.com/openai/v1/chat/completions', 'key' => $groqKey];
-                $candidates[] = ['provider' => 'groq', 'model' => 'llama-3.2-90b-vision-preview', 'endpoint' => 'https://api.groq.com/openai/v1/chat/completions', 'key' => $groqKey];
-            }
-        } else {
-            // Groq free vision models first, fallback to OpenAI GPT-4o
-            if ($groqKey !== '') {
-                $candidates[] = ['provider' => 'groq', 'model' => 'llama-3.2-11b-vision-preview', 'endpoint' => 'https://api.groq.com/openai/v1/chat/completions', 'key' => $groqKey];
-                $candidates[] = ['provider' => 'groq', 'model' => 'llama-3.2-90b-vision-preview', 'endpoint' => 'https://api.groq.com/openai/v1/chat/completions', 'key' => $groqKey];
-            }
-            if ($openAiKey !== '') {
-                $candidates[] = ['provider' => 'openai', 'model' => 'gpt-4o-mini', 'endpoint' => 'https://api.openai.com/v1/chat/completions', 'key' => $openAiKey];
-                $candidates[] = ['provider' => 'openai', 'model' => 'gpt-4o', 'endpoint' => 'https://api.openai.com/v1/chat/completions', 'key' => $openAiKey];
-            }
+        if ($groqKey !== '') {
+            $candidates[] = ['provider' => 'groq', 'model' => 'llama-3.2-11b-vision-preview', 'endpoint' => 'https://api.groq.com/openai/v1/chat/completions', 'key' => $groqKey];
+            $candidates[] = ['provider' => 'groq', 'model' => 'llama-3.2-90b-vision-preview', 'endpoint' => 'https://api.groq.com/openai/v1/chat/completions', 'key' => $groqKey];
+            $candidates[] = ['provider' => 'groq', 'model' => 'llama-3.2-11b-vision-instruct', 'endpoint' => 'https://api.groq.com/openai/v1/chat/completions', 'key' => $groqKey];
+            $candidates[] = ['provider' => 'groq', 'model' => 'llama-3.2-90b-vision-instruct', 'endpoint' => 'https://api.groq.com/openai/v1/chat/completions', 'key' => $groqKey];
+        }
+        if ($openAiKey !== '') {
+            $candidates[] = ['provider' => 'openai', 'model' => 'gpt-4o-mini', 'endpoint' => 'https://api.openai.com/v1/chat/completions', 'key' => $openAiKey];
+            $candidates[] = ['provider' => 'openai', 'model' => 'gpt-4o', 'endpoint' => 'https://api.openai.com/v1/chat/completions', 'key' => $openAiKey];
         }
 
         $res = null;
@@ -5746,7 +5741,8 @@ switch ($action) {
                 $res = $attempt;
                 break;
             }
-            $lastError = $attempt['message'] ?? ($attempt['data']['error']['message'] ?? 'Vision API call failed');
+            $errDetail = $attempt['data']['error']['message'] ?? ($attempt['message'] ?? 'API error');
+            $lastError = "[{$cand['provider']}/{$cand['model']}] " . $errDetail;
         }
 
         if (!$res) {
