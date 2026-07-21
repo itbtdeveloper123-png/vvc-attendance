@@ -55,8 +55,6 @@ class _TeamChatScreenState extends State<TeamChatScreen>
   String currentUserId = '';
   String currentUserPhoto = '';
   StreamSubscription<QuerySnapshot>? _messageSubscription;
-  final GlobalKey<AnimatedListState> _animatedListKey =
-      GlobalKey<AnimatedListState>();
   final List<DocumentSnapshot> _messageDocs = [];
 
   // Upload progress tracking: key -> progress (0..1)
@@ -224,62 +222,21 @@ class _TeamChatScreenState extends State<TeamChatScreen>
     final roomId = _getChatRoomId();
     final collection = widget.isGroup ? 'groups' : 'chats';
 
-    // Use paginated initial load + separate listener for new messages
-    _loadInitialMessages(collection, roomId);
-    _listenForNewerMessages(collection, roomId);
-  }
-
-  // Scroll listener placeholder for pagination
-  void _onScroll() {
-    // Optional: trigger loading older messages when near top.
-    if (!_scrollController.hasClients) return;
-    try {
-      final pos = _scrollController.position;
-      if (pos.pixels <= pos.minScrollExtent + 80) {
-        // load more messages or indicate to user; placeholder for future pagination
-        // _loadMoreMessages();
-      }
-    } catch (e) {
-      // ignore errors from position access during dispose
-    }
-  }
-
-  Future<void> _loadInitialMessages(
-    String collection,
-    String roomId, {
-    int limit = 50,
-  }) async {
-    try {
-      final snapshot = await _firestore
-          .collection(collection)
-          .doc(roomId)
-          .collection('messages')
-          .orderBy('timestamp', descending: true)
-          .limit(limit)
-          .get();
-      final docsAsc = snapshot.docs.reversed.toList();
-      _messageDocs.clear();
-      _messageDocs.addAll(docsAsc);
-      if (mounted) setState(() {});
-    } catch (e) {
-      debugPrint('Error loading initial messages: $e');
-    }
-  }
-
-  void _listenForNewerMessages(String collection, String roomId) {
-    // Listen to the latest messages and merge with current list using diffing
     _messageSubscription?.cancel();
     _messageSubscription = _firestore
         .collection(collection)
         .doc(roomId)
         .collection('messages')
         .orderBy('timestamp', descending: true)
-        .limit(50)
+        .limit(100)
         .snapshots()
         .listen(
           (snapshot) {
-            final docsAsc = snapshot.docs.reversed.toList();
-            _applyListDiff(docsAsc);
+            if (!mounted) return;
+            setState(() {
+              _messageDocs.clear();
+              _messageDocs.addAll(snapshot.docs);
+            });
           },
           onError: (e) {
             debugPrint('Message stream error: $e');
@@ -386,169 +343,14 @@ class _TeamChatScreenState extends State<TeamChatScreen>
   }
 
   void _scrollToBottom() {
-    // Scroll to bottom (end) of list
+    // With reverse: true, 0.0 offset is the bottom (latest message)
     if (_scrollController.hasClients) {
       _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
+        0.0,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOutCubic,
       );
     }
-  }
-
-  // Upload helper with progress and retry support (uploads from local file path)
-  Future<String?> _startUploadFromPath(
-    String roomId,
-    String fileName,
-    String filePath,
-  ) async {
-    final ref = firebase_storage.FirebaseStorage.instance
-        .ref()
-        .child('chat_images')
-        .child(roomId)
-        .child(fileName);
-
-    try {
-      firebase_storage.UploadTask uploadTask;
-      final taskId = fileName;
-      _uploadProgress[taskId] = 0.0;
-      // Use putFile on native platforms, use putData on web
-      if (kIsWeb) {
-        // Web: read bytes from XFile path fallback
-        final bytes = await File(filePath).readAsBytes();
-        uploadTask = ref.putData(
-          bytes,
-          firebase_storage.SettableMetadata(contentType: 'image/jpeg'),
-        );
-      } else {
-        final file = File(filePath);
-        uploadTask = ref.putFile(
-          file,
-          firebase_storage.SettableMetadata(contentType: 'image/jpeg'),
-        );
-      }
-
-      // store upload task for cancellation
-      _uploadTasks[taskId] = uploadTask;
-      setState(() {});
-
-      final sub = uploadTask.snapshotEvents.listen((event) {
-        final progress = event.totalBytes > 0
-            ? (event.bytesTransferred / event.totalBytes)
-            : 0.0;
-        _uploadProgress[taskId] = progress;
-        setState(() {});
-      });
-
-      final snapshot = await uploadTask.whenComplete(() {});
-      await sub.cancel();
-      _uploadProgress.remove(taskId);
-      _uploadTasks.remove(taskId);
-      setState(() {});
-      final downloadUrl = await snapshot.ref.getDownloadURL();
-      // On success remove any failed entry and delete temp file if exists
-      if (_failedUploads.containsKey(taskId)) {
-        final tempPath = _failedUploads.remove(taskId);
-        if (tempPath != null) {
-          try {
-            await File(tempPath).delete();
-          } catch (_) {}
-        }
-        await _saveFailedUploadsToPrefs();
-      }
-      return downloadUrl;
-    } catch (e) {
-      // On failure, keep a record to allow retry from local file
-      _uploadProgress.remove(fileName);
-      _uploadTasks.remove(fileName);
-      // only set failed mapping if file exists and not web
-      try {
-        if (!kIsWeb && await File(filePath).exists()) {
-          _failedUploads[fileName] = filePath;
-          await _saveFailedUploadsToPrefs();
-        }
-      } catch (_) {}
-      setState(() {});
-      debugPrint('Upload error: $e');
-      return null;
-    }
-  }
-
-  void _applyListDiff(List<DocumentSnapshot> newDocsAsc) {
-    final oldIds = _messageDocs.map((d) => d.id).toList();
-    final newIds = newDocsAsc.map((d) => d.id).toList();
-
-    final lcsIds = _longestCommonSubsequence(oldIds, newIds);
-    final lcsSet = lcsIds.toSet();
-
-    // Remove items not in LCS (from end to start)
-    for (int i = oldIds.length - 1; i >= 0; i--) {
-      final id = oldIds[i];
-      if (!lcsSet.contains(id)) {
-        final removedDoc = _messageDocs.removeAt(i);
-        _animatedListKey.currentState?.removeItem(
-          i,
-          (context, anim) => SizeTransition(
-            sizeFactor: anim,
-            child: _buildMessageBubble(
-              removedDoc.id,
-              removedDoc.data() as Map<String, dynamic>,
-              (removedDoc.data() as Map<String, dynamic>)['senderId'] ==
-                  currentUserId,
-              true,
-            ),
-          ),
-          duration: const Duration(milliseconds: 220),
-        );
-      }
-    }
-
-    // Insert items from newDocsAsc where not present
-    for (int newIndex = 0; newIndex < newIds.length; newIndex++) {
-      final id = newIds[newIndex];
-      if (!_messageDocs.any((d) => d.id == id)) {
-        final doc = newDocsAsc[newIndex];
-        _messageDocs.insert(newIndex, doc);
-        _animatedListKey.currentState?.insertItem(
-          newIndex,
-          duration: const Duration(milliseconds: 300),
-        );
-      } else {
-        // update existing
-        final idx = _messageDocs.indexWhere((d) => d.id == id);
-        _messageDocs[idx] = newDocsAsc[newIndex];
-      }
-    }
-  }
-
-  List<String> _longestCommonSubsequence(List<String> a, List<String> b) {
-    final n = a.length;
-    final m = b.length;
-    final dp = List.generate(n + 1, (_) => List<int>.filled(m + 1, 0));
-    for (int i = n - 1; i >= 0; i--) {
-      for (int j = m - 1; j >= 0; j--) {
-        if (a[i] == b[j]) {
-          dp[i][j] = 1 + dp[i + 1][j + 1];
-        } else {
-          dp[i][j] = dp[i + 1][j] >= dp[i][j + 1] ? dp[i + 1][j] : dp[i][j + 1];
-        }
-      }
-    }
-    // reconstruct
-    final res = <String>[];
-    int i = 0, j = 0;
-    while (i < n && j < m) {
-      if (a[i] == b[j]) {
-        res.add(a[i]);
-        i++;
-        j++;
-      } else if (dp[i + 1][j] >= dp[i][j + 1]) {
-        i++;
-      } else {
-        j++;
-      }
-    }
-    return res;
   }
 
   String _formatLastSeen(Timestamp? timestamp) {
@@ -939,7 +741,7 @@ class _TeamChatScreenState extends State<TeamChatScreen>
               color: Colors.orange.withValues(alpha: 0.2),
               child: Row(
                 children: [
-                  Icon(Icons.push_pin_rounded, color: Colors.orange, size: 18),
+                  const Icon(Icons.push_pin_rounded, color: Colors.orange, size: 18),
                   const SizedBox(width: 8),
                   Text(
                     'ផ្ដេងសារ ${_pinnedMessageIds.length}',
@@ -959,51 +761,44 @@ class _TeamChatScreenState extends State<TeamChatScreen>
             ),
           ),
         Expanded(
-          child: AnimatedList(
-            key: _animatedListKey,
+          child: ListView.builder(
             controller: _scrollController,
-            reverse: false,
+            reverse: true,
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
-            initialItemCount: _messageDocs.length,
-            itemBuilder: (context, index, animation) {
+            itemCount: _messageDocs.length,
+            itemBuilder: (context, index) {
               final doc = _messageDocs[index];
               final msg = doc.data() as Map<String, dynamic>;
               final isMe = msg['senderId'] == currentUserId;
 
-              // Determine whether to show avatar relative to next item
+              // In reverse: true
+              // - index - 1 is NEWER (visually lower)
+              // - index + 1 is OLDER (visually higher)
+
+              // Show avatar if this is the bottom-most message of a consecutive block from sender
               bool showAvatar = true;
-              if (index < _messageDocs.length - 1) {
-                final next =
-                    _messageDocs[index + 1].data() as Map<String, dynamic>;
-                showAvatar = next['senderId'] != msg['senderId'];
+              if (index > 0) {
+                final newer = _messageDocs[index - 1].data() as Map<String, dynamic>;
+                showAvatar = newer['senderId'] != msg['senderId'];
               }
 
+              // Show date separator above this message if it's the oldest message (index == length - 1)
+              // OR if date of msg != date of older message (index + 1)
               bool showDateSeparator = false;
-              if (index < _messageDocs.length - 1) {
-                final next =
-                    _messageDocs[index + 1].data() as Map<String, dynamic>;
-                showDateSeparator = _shouldShowDateSeparator(msg, next);
-              } else {
+              if (index == _messageDocs.length - 1) {
                 showDateSeparator = true;
+              } else {
+                final older = _messageDocs[index + 1].data() as Map<String, dynamic>;
+                showDateSeparator = _shouldShowDateSeparator(msg, older);
               }
 
-              // នឹមប្រើ FadeTransition + SlideTransition ដើម្បីកុំអស្រួលបំកាត់ animation ពីបន្កាត់ (SizeTransition បន្តាល់ layout jump)
-              final offsetAnim = Tween<Offset>(
-                begin: isMe ? const Offset(0.08, 0) : const Offset(-0.08, 0),
-                end: Offset.zero,
-              ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic));
-              return FadeTransition(
-                opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
-                child: SlideTransition(
-                  position: offsetAnim,
-                  child: Column(
-                    children: [
-                      if (showDateSeparator)
-                        _buildDateSeparator(msg['timestamp']),
-                      _buildMessageBubble(doc.id, msg, isMe, showAvatar),
-                    ],
-                  ),
-                ),
+              return Column(
+                key: ValueKey(doc.id),
+                children: [
+                  if (showDateSeparator)
+                    _buildDateSeparator(msg['timestamp']),
+                  _buildMessageBubble(doc.id, msg, isMe, showAvatar),
+                ],
               );
             },
           ),

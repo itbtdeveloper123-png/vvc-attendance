@@ -5799,9 +5799,9 @@ switch ($action) {
         apiResponse($result);
         break;
 
-if (!function_exists('ai_call_free_vision_service')) {
-    function ai_call_free_vision_service($systemPrompt, $userPrompt, $imageBase64 = '', $mimeType = 'image/jpeg') {
-        $cleanImageBase64 = str_replace(["\r", "\n", " ", "\t"], '', (string)$imageBase64);
+
+function ai_call_free_vision_service($systemPrompt, $userPrompt, $imageBase64 = '', $mimeType = 'image/jpeg') {
+    $cleanImageBase64 = str_replace(["\r", "\n", " ", "\t"], '', (string)$imageBase64);
 
         $userContent = [];
         if ($userPrompt !== '') {
@@ -5932,7 +5932,6 @@ if (!function_exists('ai_call_free_vision_service')) {
         }
 
         return ['success' => false, 'message' => $lastError];
-    }
 }
 
 function ai_verify_face_match($mysqli, $eid, $photo_b64) {
