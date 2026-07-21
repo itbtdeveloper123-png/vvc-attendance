@@ -5658,6 +5658,140 @@ switch ($action) {
         apiResponse($result);
         break;
 
+function ai_call_free_vision_service($systemPrompt, $userPrompt, $imageBase64 = '', $mimeType = 'image/jpeg') {
+    $cleanImageBase64 = str_replace(["\r", "\n", " ", "\t"], '', (string)$imageBase64);
+
+    $userContent = [];
+    if ($userPrompt !== '') {
+        $userContent[] = ['type' => 'text', 'text' => $userPrompt];
+    }
+    if ($cleanImageBase64 !== '') {
+        $userContent[] = [
+            'type' => 'image_url',
+            'image_url' => ['url' => "data:{$mimeType};base64,{$cleanImageBase64}"]
+        ];
+    }
+
+    $messages = [
+        ['role' => 'system', 'content' => $systemPrompt],
+        ['role' => 'user', 'content' => $userContent],
+    ];
+
+    $openAiKey = trim((string)(defined('OPENAI_API_KEY') ? OPENAI_API_KEY : (getenv('OPENAI_API_KEY') ?: '')));
+    $groqKey   = trim((string)(defined('GROQ_API_KEY') ? GROQ_API_KEY : (getenv('GROQ_API_KEY') ?: '')));
+    $geminiKey = trim((string)(defined('GEMINI_API_KEY') ? GEMINI_API_KEY : (getenv('GEMINI_API_KEY') ?: '')));
+
+    $candidates = [];
+
+    // 1. Pollinations AI (100% Free Public Vision Engine - No API Key Needed)
+    $candidates[] = [
+        'type'     => 'pollinations',
+        'endpoint' => 'https://text.pollinations.ai/',
+        'model'    => 'openai',
+    ];
+
+    // 2. Google Gemini API (100% Free Tier if key available)
+    if ($geminiKey !== '') {
+        $candidates[] = [
+            'type'     => 'gemini',
+            'endpoint' => 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' . $geminiKey,
+            'model'    => 'gemini-2.0-flash',
+        ];
+        $candidates[] = [
+            'type'     => 'gemini',
+            'endpoint' => 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' . $geminiKey,
+            'model'    => 'gemini-1.5-flash',
+        ];
+    }
+
+    // 3. Groq Cloud Vision (If active)
+    if ($groqKey !== '') {
+        $candidates[] = [
+            'type'     => 'openai_compat',
+            'endpoint' => 'https://api.groq.com/openai/v1/chat/completions',
+            'key'      => $groqKey,
+            'model'    => 'llama-3.2-11b-vision-preview',
+        ];
+    }
+
+    // 4. OpenAI API (Fallback if active)
+    if ($openAiKey !== '') {
+        $candidates[] = [
+            'type'     => 'openai_compat',
+            'endpoint' => 'https://api.openai.com/v1/chat/completions',
+            'key'      => $openAiKey,
+            'model'    => 'gpt-4o-mini',
+        ];
+    }
+
+    $lastError = 'Unknown error';
+
+    foreach ($candidates as $cand) {
+        if ($cand['type'] === 'pollinations') {
+            $payload = [
+                'messages' => $messages,
+                'model'    => $cand['model'],
+                'jsonMode' => true,
+            ];
+            $attempt = ai_chat_http_post_json($cand['endpoint'], $payload, ['Content-Type: application/json']);
+            if ($attempt['ok'] ?? false) {
+                $rawText = '';
+                if (is_string($attempt['data'] ?? null)) {
+                    $rawText = trim($attempt['data']);
+                } elseif (!empty($attempt['data']['choices'][0]['message']['content'])) {
+                    $rawText = trim((string)$attempt['data']['choices'][0]['message']['content']);
+                }
+                if ($rawText !== '') {
+                    return ['success' => true, 'content' => $rawText];
+                }
+            }
+            $lastError = $attempt['message'] ?? 'Pollinations vision failed';
+        } elseif ($cand['type'] === 'gemini') {
+            $parts = [['text' => $systemPrompt . "\n\n" . $userPrompt]];
+            if ($cleanImageBase64 !== '') {
+                $parts[] = [
+                    'inline_data' => [
+                        'mime_type' => $mimeType,
+                        'data'      => $cleanImageBase64,
+                    ]
+                ];
+            }
+            $payload = [
+                'contents' => [['parts' => $parts]],
+                'generationConfig' => [
+                    'temperature' => 0.1,
+                    'maxOutputTokens' => 1500,
+                    'responseMimeType' => 'application/json'
+                ]
+            ];
+            $attempt = ai_chat_http_post_json($cand['endpoint'], $payload, ['Content-Type: application/json']);
+            if (($attempt['ok'] ?? false) && !empty($attempt['data']['candidates'][0]['content']['parts'][0]['text'])) {
+                $rawText = trim((string)$attempt['data']['candidates'][0]['content']['parts'][0]['text']);
+                return ['success' => true, 'content' => $rawText];
+            }
+            $lastError = $attempt['data']['error']['message'] ?? ($attempt['message'] ?? 'Gemini vision failed');
+        } elseif ($cand['type'] === 'openai_compat') {
+            $payload = [
+                'model'       => $cand['model'],
+                'messages'    => $messages,
+                'temperature' => 0.1,
+                'max_tokens'  => 1500,
+            ];
+            if (strpos($cand['endpoint'], 'openai.com') !== false) {
+                $payload['response_format'] = ['type' => 'json_object'];
+            }
+            $attempt = ai_chat_http_post_json($cand['endpoint'], $payload, ['Authorization: Bearer ' . $cand['key']]);
+            if (($attempt['ok'] ?? false) && !empty($attempt['data']['choices'][0]['message']['content'])) {
+                $rawText = trim((string)$attempt['data']['choices'][0]['message']['content']);
+                return ['success' => true, 'content' => $rawText];
+            }
+            $lastError = $attempt['data']['error']['message'] ?? ($attempt['message'] ?? 'OpenAI vision failed');
+        }
+    }
+
+    return ['success' => false, 'message' => $lastError];
+}
+
     // ─── Analyze Product Image (Vision AI) ───────────────────────────────────
     case 'analyze_product_image':
         if (!$user) apiResponse(['success' => false, 'message' => 'Unauthorized']);
@@ -5688,68 +5822,14 @@ switch ($action) {
             $extraContext = "\n\nBarcode / QR code detected on the product: **{$barcodeText}**. Please also identify the country of origin based on the barcode prefix (GS1 prefix lookup).";
         }
         $userPrompt = "You are a product analysis expert. {$analysisTarget} Respond in Khmer (ភាសាខ្មែរ) with a structured JSON object. Do not include chain-of-thought, <think> tags, explanations, or markdown. Include all the following fields exactly:\n{\n  \"product_name\": \"...\",\n  \"brand\": \"...\",\n  \"country_of_origin\": \"...\",\n  \"country_flag_emoji\": \"...\",\n  \"category\": \"...\",\n  \"usage\": [\"step1\", \"step2\", ...],\n  \"benefits\": [\"benefit1\", \"benefit2\", ...],\n  \"warnings\": [\"...\"],\n  \"ingredients_summary\": \"...\",\n  \"price_range_usd\": \"...\",\n  \"summary\": \"...\"\n}\nRespond with ONLY the JSON object, no extra text or markdown." . $extraContext;
-        // Build messages with vision content
-        $cleanImageBase64 = str_replace(["\r", "\n", " ", "\t"], '', (string)$imageBase64);
-        $userContent = [];
-        if ($userPrompt !== '') {
-            $userContent[] = ['type' => 'text', 'text' => $userPrompt];
-        }
-        if ($cleanImageBase64 !== '') {
-            $userContent[] = [
-                'type' => 'image_url',
-                'image_url' => ['url' => "data:{$mimeType};base64,{$cleanImageBase64}"]
-            ];
+        $systemPrompt = 'You are a world-class product analyst. Always respond with valid JSON only, using Khmer language for all descriptive values. Never include chain-of-thought, reasoning notes, <think> tags, markdown, or explanatory text outside the JSON object.';
+        $visionRes = ai_call_free_vision_service($systemPrompt, $userPrompt, $imageBase64, $mimeType);
+
+        if (!$visionRes['success']) {
+            apiResponse(['success' => false, 'message' => 'មិនអាចទាក់ទងប្រព័ន្ធ AI វិភាគរូបភាពបានទេ៖ ' . $visionRes['message']]);
         }
 
-        $messages = [
-            [
-                'role'    => 'system',
-                'content' => 'You are a world-class product analyst. Always respond with valid JSON only, using Khmer language for all descriptive values. Never include chain-of-thought, reasoning notes, <think> tags, markdown, or explanatory text outside the JSON object.',
-            ],
-            [
-                'role'    => 'user',
-                'content' => $userContent,
-            ],
-        ];
-
-        // Pick vision-capable candidate models with fallback between Groq & OpenAI
-        $openAiKey = trim((string)(defined('OPENAI_API_KEY') ? OPENAI_API_KEY : (getenv('OPENAI_API_KEY') ?: '')));
-        $groqKey   = trim((string)(defined('GROQ_API_KEY') ? GROQ_API_KEY : (getenv('GROQ_API_KEY') ?: '')));
-
-        $candidates = [];
-        if ($groqKey !== '') {
-            $candidates[] = ['provider' => 'groq', 'model' => 'llama-3.2-11b-vision-preview', 'endpoint' => 'https://api.groq.com/openai/v1/chat/completions', 'key' => $groqKey];
-            $candidates[] = ['provider' => 'groq', 'model' => 'llama-3.2-90b-vision-preview', 'endpoint' => 'https://api.groq.com/openai/v1/chat/completions', 'key' => $groqKey];
-            $candidates[] = ['provider' => 'groq', 'model' => 'llama-3.2-11b-vision-instruct', 'endpoint' => 'https://api.groq.com/openai/v1/chat/completions', 'key' => $groqKey];
-            $candidates[] = ['provider' => 'groq', 'model' => 'llama-3.2-90b-vision-instruct', 'endpoint' => 'https://api.groq.com/openai/v1/chat/completions', 'key' => $groqKey];
-        }
-        if ($openAiKey !== '') {
-            $candidates[] = ['provider' => 'openai', 'model' => 'gpt-4o-mini', 'endpoint' => 'https://api.openai.com/v1/chat/completions', 'key' => $openAiKey];
-            $candidates[] = ['provider' => 'openai', 'model' => 'gpt-4o', 'endpoint' => 'https://api.openai.com/v1/chat/completions', 'key' => $openAiKey];
-        }
-
-        $res = null;
-        $lastError = 'Unknown error';
-
-        foreach ($candidates as $cand) {
-            $visionPayload = ['model' => $cand['model'], 'messages' => $messages, 'temperature' => 0.1, 'max_tokens' => 1500];
-            if ($cand['provider'] === 'openai') {
-                $visionPayload['response_format'] = ['type' => 'json_object'];
-            }
-            $attempt = ai_chat_http_post_json($cand['endpoint'], $visionPayload, ['Authorization: Bearer ' . $cand['key']]);
-            if (($attempt['ok'] ?? false) && !empty($attempt['data']['choices'][0]['message']['content'])) {
-                $res = $attempt;
-                break;
-            }
-            $errDetail = $attempt['data']['error']['message'] ?? ($attempt['message'] ?? 'API error');
-            $lastError = "[{$cand['provider']}/{$cand['model']}] " . $errDetail;
-        }
-
-        if (!$res) {
-            apiResponse(['success' => false, 'message' => 'AI vision request failed: ' . $lastError]);
-        }
-
-        $rawContent = trim((string)($res['data']['choices'][0]['message']['content'] ?? ''));
+        $rawContent = $visionRes['content'];
         $extracted = product_ai_extract_json_payload($rawContent);
 
         if (!is_array($extracted) || !is_array($extracted['json'] ?? null)) {
@@ -5904,59 +5984,75 @@ function ai_verify_face_match($mysqli, $eid, $photo_b64) {
 
     $openAiKey = trim((string)(defined('OPENAI_API_KEY') ? OPENAI_API_KEY : (getenv('OPENAI_API_KEY') ?: '')));
     $groqKey   = trim((string)(defined('GROQ_API_KEY') ? GROQ_API_KEY : (getenv('GROQ_API_KEY') ?: '')));
-    $provider  = strtolower((string)($config['provider'] ?? ''));
+    $geminiKey = trim((string)(defined('GEMINI_API_KEY') ? GEMINI_API_KEY : (getenv('GEMINI_API_KEY') ?: '')));
 
     $candidates = [];
-    if ($provider === 'openai') {
-        if ($openAiKey !== '') {
-            $candidates[] = ['provider' => 'openai', 'model' => 'gpt-4o-mini', 'endpoint' => 'https://api.openai.com/v1/chat/completions', 'key' => $openAiKey];
-            $candidates[] = ['provider' => 'openai', 'model' => 'gpt-4o', 'endpoint' => 'https://api.openai.com/v1/chat/completions', 'key' => $openAiKey];
-        }
-        if ($groqKey !== '') {
-            $candidates[] = ['provider' => 'groq', 'model' => 'llama-3.2-11b-vision-preview', 'endpoint' => 'https://api.groq.com/openai/v1/chat/completions', 'key' => $groqKey];
-            $candidates[] = ['provider' => 'groq', 'model' => 'llama-3.2-90b-vision-preview', 'endpoint' => 'https://api.groq.com/openai/v1/chat/completions', 'key' => $groqKey];
-        }
-    } else {
-        if ($groqKey !== '') {
-            $candidates[] = ['provider' => 'groq', 'model' => 'llama-3.2-11b-vision-preview', 'endpoint' => 'https://api.groq.com/openai/v1/chat/completions', 'key' => $groqKey];
-            $candidates[] = ['provider' => 'groq', 'model' => 'llama-3.2-90b-vision-preview', 'endpoint' => 'https://api.groq.com/openai/v1/chat/completions', 'key' => $groqKey];
-        }
-        if ($openAiKey !== '') {
-            $candidates[] = ['provider' => 'openai', 'model' => 'gpt-4o-mini', 'endpoint' => 'https://api.openai.com/v1/chat/completions', 'key' => $openAiKey];
-            $candidates[] = ['provider' => 'openai', 'model' => 'gpt-4o', 'endpoint' => 'https://api.openai.com/v1/chat/completions', 'key' => $openAiKey];
-        }
+    $candidates[] = ['provider' => 'pollinations', 'model' => 'openai', 'endpoint' => 'https://text.pollinations.ai/'];
+    if ($geminiKey !== '') {
+        $candidates[] = ['provider' => 'gemini', 'model' => 'gemini-2.0-flash', 'endpoint' => 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' . $geminiKey, 'key' => $geminiKey];
+    }
+    if ($groqKey !== '') {
+        $candidates[] = ['provider' => 'groq', 'model' => 'llama-3.2-11b-vision-preview', 'endpoint' => 'https://api.groq.com/openai/v1/chat/completions', 'key' => $groqKey];
+    }
+    if ($openAiKey !== '') {
+        $candidates[] = ['provider' => 'openai', 'model' => 'gpt-4o-mini', 'endpoint' => 'https://api.openai.com/v1/chat/completions', 'key' => $openAiKey];
     }
 
-    $cleanRefB64  = str_replace(["\r", "\n", " "], '', (string)$ref_b64);
-    $cleanScanB64 = str_replace(["\r", "\n", " "], '', (string)$clean_scan_b64);
+    $cleanRefB64  = str_replace(["\r", "\n", " ", "\t"], '', (string)$ref_b64);
+    $cleanScanB64 = str_replace(["\r", "\n", " ", "\t"], '', (string)$photo_b64);
 
     $promptText = "Compare Image 1 (registered employee reference face) with Image 2 (scanned face during attendance check-in). Are these two images showing the exact same human person? Respond strictly with a JSON object: {\"match\": true} or {\"match\": false}.";
 
     foreach ($candidates as $cand) {
-        $messages = [
-            [
-                'role' => 'user',
-                'content' => [
-                    ['type' => 'text', 'text' => $promptText],
-                    ['type' => 'image_url', 'image_url' => ['url' => 'data:image/jpeg;base64,' . $cleanRefB64]],
-                    ['type' => 'image_url', 'image_url' => ['url' => 'data:image/jpeg;base64,' . $cleanScanB64]],
+        $rawContent = null;
+        if ($cand['provider'] === 'pollinations') {
+            $messages = [
+                [
+                    'role' => 'user',
+                    'content' => [
+                        ['type' => 'text', 'text' => $promptText],
+                        ['type' => 'image_url', 'image_url' => ['url' => 'data:image/jpeg;base64,' . $cleanRefB64]],
+                        ['type' => 'image_url', 'image_url' => ['url' => 'data:image/jpeg;base64,' . $cleanScanB64]],
+                    ],
                 ],
-            ],
-        ];
-
-        $payload = [
-            'model' => $cand['model'],
-            'messages' => $messages,
-            'max_tokens' => 100,
-            'temperature' => 0.0,
-        ];
-        if ($cand['provider'] === 'openai') {
-            $payload['response_format'] = ['type' => 'json_object'];
+            ];
+            $payload = ['messages' => $messages, 'model' => $cand['model'], 'jsonMode' => true];
+            $attempt = ai_chat_http_post_json($cand['endpoint'], $payload, ['Content-Type: application/json']);
+            if ($attempt['ok'] ?? false) {
+                if (is_string($attempt['data'] ?? null)) $rawContent = trim($attempt['data']);
+                elseif (!empty($attempt['data']['choices'][0]['message']['content'])) $rawContent = trim((string)$attempt['data']['choices'][0]['message']['content']);
+            }
+        } elseif ($cand['provider'] === 'gemini') {
+            $parts = [
+                ['text' => $promptText],
+                ['inline_data' => ['mime_type' => 'image/jpeg', 'data' => $cleanRefB64]],
+                ['inline_data' => ['mime_type' => 'image/jpeg', 'data' => $cleanScanB64]],
+            ];
+            $payload = ['contents' => [['parts' => $parts]], 'generationConfig' => ['temperature' => 0.0, 'responseMimeType' => 'application/json']];
+            $attempt = ai_chat_http_post_json($cand['endpoint'], $payload, ['Content-Type: application/json']);
+            if (($attempt['ok'] ?? false) && !empty($attempt['data']['candidates'][0]['content']['parts'][0]['text'])) {
+                $rawContent = trim((string)$attempt['data']['candidates'][0]['content']['parts'][0]['text']);
+            }
+        } else {
+            $messages = [
+                [
+                    'role' => 'user',
+                    'content' => [
+                        ['type' => 'text', 'text' => $promptText],
+                        ['type' => 'image_url', 'image_url' => ['url' => 'data:image/jpeg;base64,' . $cleanRefB64]],
+                        ['type' => 'image_url', 'image_url' => ['url' => 'data:image/jpeg;base64,' . $cleanScanB64]],
+                    ],
+                ],
+            ];
+            $payload = ['model' => $cand['model'], 'messages' => $messages, 'max_tokens' => 100, 'temperature' => 0.0];
+            if ($cand['provider'] === 'openai') $payload['response_format'] = ['type' => 'json_object'];
+            $attempt = ai_chat_http_post_json($cand['endpoint'], $payload, ['Authorization: Bearer ' . $cand['key']]);
+            if (($attempt['ok'] ?? false) && !empty($attempt['data']['choices'][0]['message']['content'])) {
+                $rawContent = trim((string)$attempt['data']['choices'][0]['message']['content']);
+            }
         }
 
-        $res = ai_chat_http_post_json($cand['endpoint'], $payload, ['Authorization: Bearer ' . $cand['key']]);
-        if (($res['ok'] ?? false) && !empty($res['data']['choices'][0]['message']['content'])) {
-            $rawContent = trim((string)$res['data']['choices'][0]['message']['content']);
+        if (!empty($rawContent)) {
             $extracted = product_ai_extract_json_payload($rawContent);
             if (is_array($extracted) && is_array($extracted['json'] ?? null)) {
                 $isMatch = ($extracted['json']['match'] == true || (isset($extracted['json']['is_same_person']) && $extracted['json']['is_same_person'] == true));
