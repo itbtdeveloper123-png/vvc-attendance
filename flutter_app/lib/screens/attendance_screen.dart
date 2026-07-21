@@ -135,12 +135,15 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       if (!mounted) return;
       if (registered == true) {
         _isFaceRegistered = true;
-        // ចាប់ face scan ភ្លាមៗ ក្រោយ setup
+        // ចាប់ face scan ភ្លាមៗ ក្រោយ setup — ប្រើ postFrameCallback ដើម្បីជៀសវាង re-entrance
         _faceScanAttempted = false;
-        setState(() { _isLoading = true; });
-        await _tryFaceScanOrFallback();
+        // NOTE: Do NOT set _isLoading=true here! _tryFaceScanOrFallback() uses it as a guard.
+        // Calling it directly after setting _isLoading=true causes permanent stuck loading.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _tryFaceScanOrFallback();
+        });
       } else {
-        // User បោះបង់ setup → ប្ដូរទៅ QR
+        // User បែកបង្ច setup → ប្តូរតូ QR
         setState(() {
           _useQrScanner = true;
           _isScanning = true;

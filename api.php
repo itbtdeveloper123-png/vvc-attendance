@@ -5712,9 +5712,10 @@ switch ($action) {
         if ($provider === 'openai') {
             $candidateModels = ['gpt-4o-mini', 'gpt-4o'];
         } elseif ($provider === 'groq') {
-            $candidateModels = ['meta-llama/llama-3.2-11b-vision-instruct', 'meta-llama/llama-3.2-90b-vision-instruct'];
+            // Groq free vision models (active as of 2025): Llama 4 Scout supports vision natively
+            $candidateModels = ['meta-llama/llama-4-scout-17b-16e-instruct', 'meta-llama/llama-4-maverick-17b-128e-instruct'];
         } else {
-            $candidateModels = array_filter([$visionModel, 'gpt-4o-mini', 'meta-llama/llama-3.2-11b-vision-instruct']);
+            $candidateModels = array_filter([$visionModel, 'gpt-4o-mini', 'meta-llama/llama-4-scout-17b-16e-instruct']);
         }
 
         $res = null;
@@ -5886,8 +5887,8 @@ function ai_verify_face_match($mysqli, $eid, $photo_b64) {
 
     $config = ai_chat_resolve_provider_config();
     if (!$config) {
-        // Fallback: If AI is not configured on server, require face registered check
-        return ['match' => true, 'message' => 'Verified'];
+        // Security: If AI is not configured, deny face scan — user must use QR code instead
+        return ['match' => false, 'message' => 'ម៉ាស៊ីន AI សម្រាប់ផ្ទៀងផ្ទាត់ផ្ទៃមុខមិនទាន់ត្រូវបានកំណត់ទេ។ សូមទាក់ទងអ្នកគ្រប់គ្រង!'];
     }
 
     $provider = strtolower((string)($config['provider'] ?? ''));
@@ -5895,9 +5896,10 @@ function ai_verify_face_match($mysqli, $eid, $photo_b64) {
     if ($provider === 'openai') {
         $candidateModels = ['gpt-4o-mini', 'gpt-4o'];
     } elseif ($provider === 'groq') {
-        $candidateModels = ['meta-llama/llama-3.2-11b-vision-instruct', 'meta-llama/llama-3.2-90b-vision-instruct'];
+        // Groq free vision models (active as of 2025): Llama 4 Scout supports vision natively
+        $candidateModels = ['meta-llama/llama-4-scout-17b-16e-instruct', 'meta-llama/llama-4-maverick-17b-128e-instruct'];
     } else {
-        $candidateModels = array_filter([$config['model'] ?? '', 'gpt-4o-mini', 'meta-llama/llama-3.2-11b-vision-instruct']);
+        $candidateModels = array_filter([$config['model'] ?? '', 'gpt-4o-mini', 'meta-llama/llama-4-scout-17b-16e-instruct']);
     }
 
     $promptText = "Compare Image 1 (registered employee reference face) with Image 2 (scanned face during attendance check-in). Are these two images showing the exact same human person? Respond strictly with a JSON object: {\"match\": true} or {\"match\": false}.";
