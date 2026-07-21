@@ -60,33 +60,56 @@ jobs:
         run: |
           pod install --repo-update || pod install
 
-      - name: Build for iOS Simulator (no codesign required)
+      - name: Build iOS with Flutter (prepare for xcodebuild)
         working-directory: flutter_app
-        env:
-          FLUTTER_NO_CODESIGN: 'true'
-          CI: 'true'
+        run: |
+          flutter build ios --release --no-codesign
+
+      - name: Build Unsigned IPA for Device using xcodebuild
+        working-directory: flutter_app
         run: |
           set -euo pipefail
-
-          echo "1) Build iOS Release App for Simulator using Flutter CLI..."
-          flutter build ios --release --simulator
-
-          echo "2) Package Runner.app into .ipa"
+          
+          echo "Building unsigned IPA for device..."
+          cd ios
+          
+          xcodebuild \
+            -workspace Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -derivedDataPath build/DerivedData \
+            -arch arm64 \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            DEVELOPMENT_TEAM="" \
+            build
+          
+          echo "Packaging into IPA..."
+          cd ..
+          
+          APP_PATH="build/DerivedData/Build/Products/Release-iphoneos/Runner.app"
+          if [ ! -d "$APP_PATH" ]; then
+            echo "App bundle not found at expected location, checking alternatives..."
+            find build -name "Runner.app" -type d
+            exit 1
+          fi
+          
           mkdir -p build/ios/Payload
-          cp -R build/ios/Release-iphonesimulator/Runner.app build/ios/Payload/Runner.app
-
+          cp -R "$APP_PATH" build/ios/Payload/Runner.app
+          
           cd build/ios
-          zip -r Runner-simulator.ipa Payload
+          zip -r Runner-unsigned.ipa Payload
           rm -rf Payload
           cd ../..
-
-          echo "=== IPA Verification ==="
-          ls -la build/ios/Runner-simulator.ipa
+          
+          echo "=== IPA Successfully Created ==="
+          ls -lh build/ios/Runner-unsigned.ipa
 
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: vvc-hrm-ios-simulator
-          path: flutter_app/build/ios/Runner-simulator.ipa
+          name: vvc-hrm-ios-unsigned
+          path: flutter_app/build/ios/Runner-unsigned.ipa
           if-no-files-found: error
 
