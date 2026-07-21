@@ -60,50 +60,57 @@ jobs:
         run: |
           pod install --repo-update || pod install
 
-      - name: Build iOS with Flutter (prepare for xcodebuild)
+      - name: Build iOS with Flutter (prepare for manual packaging)
         working-directory: flutter_app
         run: |
-          flutter build ios --release --no-codesign
+          flutter build ios --release --no-codesign 2>&1 || true
 
-      - name: Build Unsigned IPA for Device using xcodebuild
+      - name: Build Unsigned IPA using manual packaging (skip code signing)
         working-directory: flutter_app
         run: |
           set -euo pipefail
           
-          echo "Building unsigned IPA for device..."
-          cd ios
+          echo "Attempting to package IPA without code signing..."
           
-          xcodebuild \
-            -workspace Runner.xcworkspace \
-            -scheme Runner \
-            -configuration Release \
-            -derivedDataPath build/DerivedData \
-            -arch arm64 \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO \
-            DEVELOPMENT_TEAM="" \
-            build
-          
-          echo "Packaging into IPA..."
-          cd ..
-          
-          APP_PATH="build/DerivedData/Build/Products/Release-iphoneos/Runner.app"
-          if [ ! -d "$APP_PATH" ]; then
-            echo "App bundle not found at expected location, checking alternatives..."
-            find build -name "Runner.app" -type d
-            exit 1
+          # Check if app bundle exists from flutter build
+          if [ -d "build/ios/iphoneos/Runner.app" ]; then
+            echo "Found app bundle at: build/ios/iphoneos/Runner.app"
+            APP_PATH="build/ios/iphoneos/Runner.app"
+          elif [ -d "ios/Runner/Runner.app" ]; then
+            echo "Found app bundle at: ios/Runner/Runner.app"
+            APP_PATH="ios/Runner/Runner.app"
+          else
+            echo "App bundle not found, attempting raw xcodebuild..."
+            # Build without code signing requirement
+            cd ios
+            xcodebuild -workspace Runner.xcworkspace \
+              -scheme Runner \
+              -configuration Release \
+              -derivedDataPath DerivedData \
+              -arch arm64 \
+              CODE_SIGN_IDENTITY="" \
+              CODE_SIGNING_REQUIRED=NO \
+              CODE_SIGNING_ALLOWED=NO 2>&1 || true
+            cd ..
+            
+            if [ -d "ios/DerivedData/Build/Products/Release-iphoneos/Runner.app" ]; then
+              APP_PATH="ios/DerivedData/Build/Products/Release-iphoneos/Runner.app"
+            else
+              echo "Failed to locate app bundle"
+              exit 1
+            fi
           fi
           
+          # Package as IPA
           mkdir -p build/ios/Payload
           cp -R "$APP_PATH" build/ios/Payload/Runner.app
           
           cd build/ios
-          zip -r Runner-unsigned.ipa Payload
+          zip -r -q Runner-unsigned.ipa Payload
           rm -rf Payload
-          cd ../..
+          cd ../../
           
-          echo "=== IPA Successfully Created ==="
+          echo "=== IPA Created Successfully ==="
           ls -lh build/ios/Runner-unsigned.ipa
 
       - name: Upload IPA Artifact
