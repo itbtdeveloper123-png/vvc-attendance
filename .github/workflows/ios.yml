@@ -25,6 +25,9 @@ jobs:
       - name: Print Flutter & Dart version
         run: flutter --version
 
+      - name: Disable Swift Package Manager feature flag in Flutter
+        run: flutter config --no-enable-swift-package-manager
+
       - name: Create local config files from examples
         working-directory: flutter_app
         env:
@@ -67,11 +70,13 @@ jobs:
             -sdk iphoneos \
             BUILD_DIR=../build/ios \
             clean build \
+            CODE_SIGN_STYLE=Manual \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             DEVELOPMENT_TEAM="" \
             PROVISIONING_PROFILE_SPECIFIER="" 2>&1 | tee ../xcodebuild-device.log || echo "xcodebuild finished with non-zero exit code"
+
 
           echo "3) Find built .app for device"
           APP_PATH=$(find ../build/ios -type d -name "*.app" | head -n 1 || true)
