@@ -44,6 +44,14 @@ jobs:
         working-directory: flutter_app
         run: flutter pub get
 
+      - name: Cache Xcode DerivedData
+        uses: actions/cache@v5
+        with:
+          path: ~/Library/Developer/Xcode/DerivedData
+          key: ios-deriveddata-${{ runner.os }}-${{ hashFiles('flutter_app/ios/Podfile.lock') }}
+          restore-keys: |
+            ios-deriveddata-${{ runner.os }}-
+
       - name: Install CocoaPods
         working-directory: flutter_app/ios
         env:
@@ -60,59 +68,20 @@ jobs:
         run: |
           set -euo pipefail
 
-          echo "1) Build .app for device using xcodebuild with signing fully disabled"
-          cd ios
-          xcodebuild -workspace Runner.xcworkspace \
-            -scheme Runner \
-            -configuration Release \
-            -sdk iphoneos \
-            BUILD_DIR=../build/ios \
-            ARCHS="arm64" \
-            ONLY_ACTIVE_ARCH=NO \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
-            DEVELOPMENT_TEAM="" \
-            PROVISIONING_PROFILE_SPECIFIER="" \
-            IPHONEOS_DEPLOYMENT_TARGET=16.0 \
-            clean build \
-            2>&1 | tee ../xcodebuild-device.log
+          echo "1) Build iOS Release App using Flutter CLI (no-codesign)..."
+          flutter build ios --release --no-codesign
 
-          echo "3) Find built .app"
-          APP_PATH=$(find ../build/ios -type d -name "*.app" | head -n 1 || true)
-          if [ -z "$APP_PATH" ]; then
-            echo "ERROR: No .app found. Last 50 lines of xcodebuild log:"
-            tail -50 ../xcodebuild-device.log || true
-            echo "Listing ../build/ios:"
-            ls -la ../build/ios || true
-            exit 1
-          fi
-          echo "Found app: $APP_PATH"
+          echo "2) Package Runner.app into unsigned .ipa"
+          mkdir -p build/ios/iphoneos/Payload
+          cp -R build/ios/iphoneos/Runner.app build/ios/iphoneos/Payload/Runner.app
 
-          echo "4) Package into unsigned .ipa"
-          mkdir -p ../build/ios/iphoneos/Payload
-          if command -v ditto >/dev/null 2>&1; then
-            ditto "$APP_PATH" ../build/ios/iphoneos/Payload/Runner.app
-          else
-            cp -R "$APP_PATH" ../build/ios/iphoneos/Payload/Runner.app
-          fi
-
-          if [ ! -f ../build/ios/iphoneos/Payload/Runner.app/Info.plist ]; then
-            echo "ERROR: Info.plist not found inside Runner.app"
-            ls -la ../build/ios/iphoneos/Payload || true
-            exit 1
-          fi
-
-          cd ../build/ios/iphoneos
+          cd build/ios/iphoneos
           zip -r Runner-unsigned.ipa Payload
-          echo "IPA created successfully!"
-          unzip -l Runner-unsigned.ipa | head -20 || true
           rm -rf Payload
-          cd ../../../..
+          cd ../../..
 
-          echo "=== Final Verification ==="
-          ls -la flutter_app/build/ios/iphoneos/ || true
+          echo "=== IPA Verification ==="
+          ls -la build/ios/iphoneos/Runner-unsigned.ipa
 
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
