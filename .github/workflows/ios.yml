@@ -60,24 +60,15 @@ jobs:
         run: |
           set -euo pipefail
 
-          echo "1) Generate Flutter assets & frameworks (no-codesign workaround)..."
-          # Use flutter assemble to generate Dart kernel & assets without triggering signing check
-          flutter build ios-framework \
-            --no-debug \
-            --no-profile \
-            --release \
-            --output=../ios_frameworks \
-            2>&1 || echo "flutter build ios-framework done (warnings ok)"
-
-          echo "2) Build .app for device using xcodebuild with signing fully disabled"
+          echo "1) Build .app for device using xcodebuild with signing fully disabled"
           cd ios
           xcodebuild -workspace Runner.xcworkspace \
             -scheme Runner \
             -configuration Release \
             -sdk iphoneos \
             BUILD_DIR=../build/ios \
+            ARCHS="arm64" \
             ONLY_ACTIVE_ARCH=NO \
-            EXCLUDED_ARCHS="arm64" \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
@@ -86,7 +77,7 @@ jobs:
             PROVISIONING_PROFILE_SPECIFIER="" \
             IPHONEOS_DEPLOYMENT_TARGET=16.0 \
             clean build \
-            2>&1 | tee ../xcodebuild-device.log || echo "xcodebuild done (check log for errors)"
+            2>&1 | tee ../xcodebuild-device.log
 
           echo "3) Find built .app"
           APP_PATH=$(find ../build/ios -type d -name "*.app" | head -n 1 || true)
