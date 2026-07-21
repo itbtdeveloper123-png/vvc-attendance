@@ -1,7 +1,7 @@
 #include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"
 #include "Generated.xcconfig"
 #include? "MapsApiKey.xcconfig"
-IPHONEOS_DEPLOYMENT_TARGET = 15.0
+IPHONEOS_DEPLOYMENT_TARGET = 16.0
 
 // Disable code signing for CI/CD builds
 CODE_SIGN_IDENTITY = 
