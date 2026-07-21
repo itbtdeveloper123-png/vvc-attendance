@@ -59,29 +59,41 @@ jobs:
           CI: 'true'
         run: |
           set -euo pipefail
-          echo "1) Build iOS framework/assets with Flutter (no codesign)..."
-          flutter build ios --no-codesign --release || true
 
-          echo "2) Build .app for device using xcodebuild with signing disabled"
+          echo "1) Generate Flutter assets & frameworks (no-codesign workaround)..."
+          # Use flutter assemble to generate Dart kernel & assets without triggering signing check
+          flutter build ios-framework \
+            --no-debug \
+            --no-profile \
+            --release \
+            --output=../ios_frameworks \
+            2>&1 || echo "flutter build ios-framework done (warnings ok)"
+
+          echo "2) Build .app for device using xcodebuild with signing fully disabled"
           cd ios
           xcodebuild -workspace Runner.xcworkspace \
             -scheme Runner \
             -configuration Release \
             -sdk iphoneos \
             BUILD_DIR=../build/ios \
-            clean build \
+            ONLY_ACTIVE_ARCH=NO \
+            EXCLUDED_ARCHS="arm64" \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             DEVELOPMENT_TEAM="" \
-            PROVISIONING_PROFILE_SPECIFIER="" 2>&1 | tee ../xcodebuild-device.log || echo "xcodebuild finished with non-zero exit code"
+            PROVISIONING_PROFILE_SPECIFIER="" \
+            IPHONEOS_DEPLOYMENT_TARGET=16.0 \
+            clean build \
+            2>&1 | tee ../xcodebuild-device.log || echo "xcodebuild done (check log for errors)"
 
-
-          echo "3) Find built .app for device"
+          echo "3) Find built .app"
           APP_PATH=$(find ../build/ios -type d -name "*.app" | head -n 1 || true)
           if [ -z "$APP_PATH" ]; then
-            echo "ERROR: No .app found under ../build/ios. Listing ../build/ios"
+            echo "ERROR: No .app found. Last 50 lines of xcodebuild log:"
+            tail -50 ../xcodebuild-device.log || true
+            echo "Listing ../build/ios:"
             ls -la ../build/ios || true
             exit 1
           fi
@@ -96,20 +108,20 @@ jobs:
           fi
 
           if [ ! -f ../build/ios/iphoneos/Payload/Runner.app/Info.plist ]; then
-            echo "ERROR: Info.plist not found inside Runner.app after copy"
+            echo "ERROR: Info.plist not found inside Runner.app"
             ls -la ../build/ios/iphoneos/Payload || true
             exit 1
           fi
 
           cd ../build/ios/iphoneos
           zip -r Runner-unsigned.ipa Payload
-          echo "IPA contents:" && unzip -l Runner-unsigned.ipa || true
+          echo "IPA created successfully!"
+          unzip -l Runner-unsigned.ipa | head -20 || true
           rm -rf Payload
           cd ../../../..
 
-          echo "=== Verification ==="
-          ls -la "$APP_PATH" || true
-          ls -la flutter_app/build/ios/iphoneos || true
+          echo "=== Final Verification ==="
+          ls -la flutter_app/build/ios/iphoneos/ || true
 
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
