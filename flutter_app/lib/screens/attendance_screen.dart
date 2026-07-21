@@ -66,13 +66,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     }
   }
 
-  /// Mark face as registered via UserProvider
-  Future<void> _markFaceAsRegistered() async {
-    final userProvider = Provider.of<UserProvider>(context, listen: false);
-    userProvider.setFaceRegistered(true);
-    _isFaceRegistered = true;
-  }
-
   @override
   void initState() {
     super.initState();
@@ -611,10 +604,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         );
 
         if (result['success'] == true) {
-          // Mark face as registered on first successful face attendance
-          if (!_isFaceRegistered) {
-            await _markFaceAsRegistered();
-          }
           NotificationService().showNotification(
             id: DateTime.now().millisecondsSinceEpoch.remainder(100000),
             title: "ជោគជ័យ",

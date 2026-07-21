@@ -4560,77 +4560,10 @@ switch ($action) {
 
         // 4.5. Verify Face Scan if applicable
         if (trim($_POST['workplace'] ?? '') === 'Face Scan') {
-            $check_face_reg = $mysqli->prepare("SELECT COUNT(*) as cnt FROM employee_face_data WHERE employee_id = ?");
-            $has_registered_face = false;
-            if ($check_face_reg) {
-                $check_face_reg->bind_param("s", $eid);
-                $check_face_reg->execute();
-                $r_face = $check_face_reg->get_result()->fetch_assoc();
-                if ($r_face && (int)$r_face['cnt'] > 0) {
-                    $has_registered_face = true;
-                }
-                $check_face_reg->close();
-            }
-
-            if ($has_registered_face) {
-                $check_photo_b64 = $_POST['photo_base64'] ?? '';
-                if (empty($check_photo_b64)) {
-                    apiResponse(['success' => false, 'message' => 'ត្រូវការរូបថតដើម្បីផ្ទៀងផ្ទាត់ផ្ទៃមុខ']);
-                }
-
-                // Call the verify_face logic
-                $ai_verified = true;
-                $openAiKey = defined('OPENAI_API_KEY') ? trim(OPENAI_API_KEY) : '';
-                if (!empty($openAiKey)) {
-                    // Fetch one reference photo
-                    $ref_stmt = $mysqli->prepare("SELECT photo_path FROM employee_face_data WHERE employee_id = ? AND photo_index = 0 LIMIT 1");
-                    $ref_path = null;
-                    if ($ref_stmt) {
-                        $ref_stmt->bind_param("s", $eid);
-                        $ref_stmt->execute();
-                        $r = $ref_stmt->get_result();
-                        if ($r) { $row = $r->fetch_assoc(); $ref_path = $row['photo_path'] ?? null; }
-                        $ref_stmt->close();
-                    }
-
-                    if ($ref_path && is_file(__DIR__ . '/' . ltrim($ref_path, '/'))) {
-                        $ref_b64 = base64_encode(file_get_contents(__DIR__ . '/' . ltrim($ref_path, '/')));
-                        $clean_scan_b64 = preg_replace('/^data:image\/[a-z]+;base64,/', '', $check_photo_b64);
-
-                        $payload = [
-                            'model' => 'gpt-4o-mini',
-                            'max_tokens' => 50,
-                            'messages' => [[
-                                'role' => 'user',
-                                'content' => [
-                                    ['type' => 'text', 'text' => 'Do these two images show the same person? Answer with only YES or NO.'],
-                                    ['type' => 'image_url', 'image_url' => ['url' => 'data:image/jpeg;base64,' . $ref_b64, 'detail' => 'low']],
-                                    ['type' => 'image_url', 'image_url' => ['url' => 'data:image/jpeg;base64,' . $clean_scan_b64, 'detail' => 'low']],
-                                ],
-                            ]],
-                        ];
-                        $ch = curl_init('https://api.openai.com/v1/chat/completions');
-                        curl_setopt_array($ch, [
-                            CURLOPT_RETURNTRANSFER => true,
-                            CURLOPT_POST => true,
-                            CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $openAiKey, 'Content-Type: application/json'],
-                            CURLOPT_POSTFIELDS => json_encode($payload),
-                            CURLOPT_TIMEOUT => 15,
-                            CURLOPT_CONNECTTIMEOUT => 10,
-                        ]);
-                        $ai_resp = curl_exec($ch);
-                        curl_close($ch);
-                        if ($ai_resp) {
-                            $ai_data = json_decode($ai_resp, true);
-                            $answer = strtoupper(trim($ai_data['choices'][0]['message']['content'] ?? 'YES'));
-                            $ai_verified = (strpos($answer, 'YES') !== false);
-                        }
-                    }
-                }
-
-                if (!$ai_verified) {
-                    apiResponse(['success' => false, 'message' => 'ការផ្ទៀងផ្ទាត់ផ្ទៃមុខមិនត្រូវគ្នាទេ! សូមព្យាយាមម្ដងទៀត។']);
-                }
+            $check_photo_b64 = $_POST['photo_base64'] ?? '';
+            $faceVerification = ai_verify_face_match($mysqli, $eid, $check_photo_b64);
+            if (!($faceVerification['match'] ?? false)) {
+                apiResponse(['success' => false, 'message' => $faceVerification['message'] ?? 'ការផ្ទៀងផ្ទាត់ផ្ទៃមុខមិនត្រូវគ្នាទេ!']);
             }
         }
 
@@ -5905,6 +5838,109 @@ switch ($action) {
         apiResponse($result);
         break;
 
+function ai_verify_face_match($mysqli, $eid, $photo_b64) {
+    if (empty($photo_b64)) {
+        return ['match' => false, 'message' => 'ត្រូវការរូបថតដើម្បីផ្ទៀងផ្ទាត់ផ្ទៃមុខ'];
+    }
+
+    // Check if user has registered face photos
+    $count_stmt = $mysqli->prepare("SELECT COUNT(*) as cnt FROM employee_face_data WHERE employee_id = ?");
+    $face_count = 0;
+    if ($count_stmt) {
+        $count_stmt->bind_param("s", $eid);
+        $count_stmt->execute();
+        $r = $count_stmt->get_result();
+        if ($r) { $row = $r->fetch_assoc(); $face_count = (int)($row['cnt'] ?? 0); }
+        $count_stmt->close();
+    }
+
+    if ($face_count === 0) {
+        return ['match' => false, 'message' => 'អ្នកមិនទាន់បានចុះឈ្មោះ Face ID ទេ។ សូមចុះឈ្មោះ Face ID នៅក្នុង Profile ជាមុនសិន!'];
+    }
+
+    // Get reference photo
+    $ref_stmt = $mysqli->prepare("SELECT photo_path FROM employee_face_data WHERE employee_id = ? ORDER BY photo_index ASC LIMIT 1");
+    $ref_path = null;
+    if ($ref_stmt) {
+        $ref_stmt->bind_param("s", $eid);
+        $ref_stmt->execute();
+        $r = $ref_stmt->get_result();
+        if ($r) { $row = $r->fetch_assoc(); $ref_path = $row['photo_path'] ?? null; }
+        $ref_stmt->close();
+    }
+
+    if (!$ref_path || !is_file(__DIR__ . '/' . ltrim($ref_path, '/'))) {
+        return ['match' => false, 'message' => 'រកមិនឃើញទិន្នន័យរូបថត Face ID ដើមដែលបានចុះឈ្មោះទេ'];
+    }
+
+    $ref_bytes = file_get_contents(__DIR__ . '/' . ltrim($ref_path, '/'));
+    if (!$ref_bytes) {
+        return ['match' => false, 'message' => 'មិនអាចអានទិន្នន័យ Face ID ដើមបានទេ'];
+    }
+
+    $ref_b64 = base64_encode($ref_bytes);
+    $clean_scan_b64 = preg_replace('/^data:image\/[a-z]+;base64,/', '', $photo_b64);
+
+    $config = ai_chat_resolve_provider_config();
+    if (!$config) {
+        // Fallback: If AI is not configured on server, require face registered check
+        return ['match' => true, 'message' => 'Verified'];
+    }
+
+    $provider = strtolower((string)($config['provider'] ?? ''));
+    $candidateModels = [];
+    if ($provider === 'openai') {
+        $candidateModels = ['gpt-4o-mini', 'gpt-4o'];
+    } elseif ($provider === 'groq') {
+        $candidateModels = ['llama-3.2-11b-vision-preview', 'llama-3.2-90b-vision-preview'];
+    } else {
+        $candidateModels = array_filter([$config['model'] ?? '', 'gpt-4o-mini', 'llama-3.2-11b-vision-preview']);
+    }
+
+    $promptText = "Compare Image 1 (registered employee reference face) with Image 2 (scanned face during attendance check-in). Are these two images showing the exact same human person? Respond strictly with a JSON object: {\"match\": true} or {\"match\": false}.";
+
+    $messages = [
+        [
+            'role' => 'user',
+            'content' => [
+                ['type' => 'text', 'text' => $promptText],
+                ['type' => 'image_url', 'image_url' => ['url' => 'data:image/jpeg;base64,' . $ref_b64, 'detail' => 'low']],
+                ['type' => 'image_url', 'image_url' => ['url' => 'data:image/jpeg;base64,' . $clean_scan_b64, 'detail' => 'low']],
+            ],
+        ],
+    ];
+
+    foreach ($candidateModels as $modelToTry) {
+        $payload = [
+            'model' => $modelToTry,
+            'messages' => $messages,
+            'max_tokens' => 100,
+            'temperature' => 0.0,
+        ];
+        if ($provider === 'openai') {
+            $payload['response_format'] = ['type' => 'json_object'];
+        }
+
+        $res = ai_chat_http_post_json($config['endpoint'], $payload, ['Authorization: Bearer ' . $config['api_key']]);
+        if (($res['ok'] ?? false) && !empty($res['data']['choices'][0]['message']['content'])) {
+            $rawContent = trim((string)$res['data']['choices'][0]['message']['content']);
+            $extracted = product_ai_extract_json_payload($rawContent);
+            if (is_array($extracted) && is_array($extracted['json'] ?? null)) {
+                $isMatch = ($extracted['json']['match'] == true || (isset($extracted['json']['is_same_person']) && $extracted['json']['is_same_person'] == true));
+                return ['match' => $isMatch, 'message' => $isMatch ? 'Verified' : 'ការផ្ទៀងផ្ទាត់ផ្ទៃមុខមិនត្រូវគ្នាទេ! មុខដែលបានស្កេន មិនមែនជា Face ID របស់គណនីនេះឡើយ。'];
+            }
+            if (stripos($rawContent, 'true') !== false || stripos($rawContent, 'yes') !== false) {
+                return ['match' => true, 'message' => 'Verified'];
+            }
+            if (stripos($rawContent, 'false') !== false || stripos($rawContent, 'no') !== false) {
+                return ['match' => false, 'message' => 'ការផ្ទៀងផ្ទាត់ផ្ទៃមុខមិនត្រូវគ្នាទេ! មុខដែលបានស្កេន មិនមែនជា Face ID របស់គណនីនេះឡើយ。'];
+            }
+        }
+    }
+
+    return ['match' => false, 'message' => 'ការផ្ទៀងផ្ទាត់ផ្ទៃមុខមិនត្រូវគ្នាទេ! សូមព្យាយាមម្តងទៀត。'];
+}
+
     // =============================================
     // FACE REGISTRATION API
     // =============================================
@@ -6042,84 +6078,18 @@ switch ($action) {
         break;
 
     case 'verify_face':
-        // Simple verification: check if employee has registered photos
-        // (Advanced AI comparison can be added if OPENAI_API_KEY is available)
         if (!$user) apiResponse(['success' => false, 'message' => 'Unauthorized']);
         $eid = $user['employee_id'] ?? '';
-
-        $count_stmt = $mysqli->prepare("SELECT COUNT(*) as cnt FROM employee_face_data WHERE employee_id = ?");
-        $face_count = 0;
-        if ($count_stmt) {
-            $count_stmt->bind_param("s", $eid);
-            $count_stmt->execute();
-            $r = $count_stmt->get_result();
-            if ($r) { $row = $r->fetch_assoc(); $face_count = (int)($row['cnt'] ?? 0); }
-            $count_stmt->close();
-        }
-
-        if ($face_count === 0) {
-            apiResponse(['success' => false, 'message' => 'Face ID មិនទាន់ចុះឈ្មោះ', 'verified' => false, 'needs_setup' => true]);
-        }
-
-        // Optional: AI comparison using OpenAI Vision if key is configured
         $photo_b64 = $_POST['photo_base64'] ?? '';
-        $ai_verified = true; // Default: pass if registered
-        $confidence = 'high';
 
-        $openAiKey = defined('OPENAI_API_KEY') ? trim(OPENAI_API_KEY) : '';
-        if (!empty($photo_b64) && !empty($openAiKey)) {
-            // Get one reference photo for comparison
-            $ref_stmt = $mysqli->prepare("SELECT photo_path FROM employee_face_data WHERE employee_id = ? AND photo_index = 0 LIMIT 1");
-            $ref_path = null;
-            if ($ref_stmt) {
-                $ref_stmt->bind_param("s", $eid);
-                $ref_stmt->execute();
-                $r = $ref_stmt->get_result();
-                if ($r) { $row = $r->fetch_assoc(); $ref_path = $row['photo_path'] ?? null; }
-                $ref_stmt->close();
-            }
-
-            if ($ref_path && is_file(__DIR__ . '/' . ltrim($ref_path, '/'))) {
-                $ref_b64 = base64_encode(file_get_contents(__DIR__ . '/' . ltrim($ref_path, '/')));
-                $clean_scan_b64 = preg_replace('/^data:image\/[a-z]+;base64,/', '', $photo_b64);
-
-                $payload = [
-                    'model' => 'gpt-4o-mini',
-                    'max_tokens' => 50,
-                    'messages' => [[
-                        'role' => 'user',
-                        'content' => [
-                            ['type' => 'text', 'text' => 'Do these two images show the same person? Answer with only YES or NO.'],
-                            ['type' => 'image_url', 'image_url' => ['url' => 'data:image/jpeg;base64,' . $ref_b64, 'detail' => 'low']],
-                            ['type' => 'image_url', 'image_url' => ['url' => 'data:image/jpeg;base64,' . $clean_scan_b64, 'detail' => 'low']],
-                        ],
-                    ]],
-                ];
-                $ch = curl_init('https://api.openai.com/v1/chat/completions');
-                curl_setopt_array($ch, [
-                    CURLOPT_RETURNTRANSFER => true,
-                    CURLOPT_POST => true,
-                    CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $openAiKey, 'Content-Type: application/json'],
-                    CURLOPT_POSTFIELDS => json_encode($payload),
-                    CURLOPT_TIMEOUT => 15,
-                    CURLOPT_CONNECTTIMEOUT => 10,
-                ]);
-                $ai_resp = curl_exec($ch);
-                curl_close($ch);
-                if ($ai_resp) {
-                    $ai_data = json_decode($ai_resp, true);
-                    $answer = strtoupper(trim($ai_data['choices'][0]['message']['content'] ?? 'YES'));
-                    $ai_verified = (strpos($answer, 'YES') !== false);
-                    $confidence = $ai_verified ? 'high' : 'low';
-                }
-            }
-        }
+        $faceVerification = ai_verify_face_match($mysqli, $eid, $photo_b64);
+        $verified = ($faceVerification['match'] ?? false);
 
         apiResponse([
             'success' => true,
-            'verified' => $ai_verified,
-            'confidence' => $confidence,
-            'message' => $ai_verified ? 'ផ្ទៀងផ្ទាត់ជោគជ័យ' : 'ផ្ទៀងផ្ទាត់ Face មិនត្រូវ — សូមព្យាយាមម្ដងទៀត',
+            'verified' => $verified,
+            'confidence' => $verified ? 'high' : 'low',
+            'message' => $verified ? 'ផ្ទៀងផ្ទាត់ជោគជ័យ' : ($faceVerification['message'] ?? 'ផ្ទៀងផ្ទាត់ Face មិនត្រូវ — សូមព្យាយាមម្ដងទៀត'),
         ]);
         break;
 
