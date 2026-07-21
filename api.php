@@ -644,6 +644,95 @@ function meeting_ai_extract_json_payload($content) {
     return is_array($decoded) ? $decoded : null;
 }
 
+function product_ai_find_json_object($content) {
+    $text = trim((string)$content);
+    if ($text === '') {
+        return null;
+    }
+
+    $length = strlen($text);
+    for ($start = 0; $start < $length; $start++) {
+        if ($text[$start] !== '{') {
+            continue;
+        }
+
+        $depth = 0;
+        $inString = false;
+        $escaped = false;
+        for ($i = $start; $i < $length; $i++) {
+            $char = $text[$i];
+
+            if ($inString) {
+                if ($escaped) {
+                    $escaped = false;
+                    continue;
+                }
+                if ($char === '\\') {
+                    $escaped = true;
+                    continue;
+                }
+                if ($char === '"') {
+                    $inString = false;
+                }
+                continue;
+            }
+
+            if ($char === '"') {
+                $inString = true;
+                continue;
+            }
+            if ($char === '{') {
+                $depth++;
+                continue;
+            }
+            if ($char === '}') {
+                $depth--;
+                if ($depth === 0) {
+                    $candidate = substr($text, $start, $i - $start + 1);
+                    $decoded = json_decode($candidate, true);
+                    if (is_array($decoded)) {
+                        return [
+                            'json' => $decoded,
+                            'raw' => $candidate,
+                        ];
+                    }
+                    break;
+                }
+            }
+        }
+    }
+
+    return null;
+}
+
+function product_ai_extract_json_payload($content) {
+    $text = trim((string)$content);
+    if ($text === '') {
+        return null;
+    }
+
+    if (function_exists('ai_chat_fix_mojibake_text')) {
+        $text = ai_chat_fix_mojibake_text($text);
+    }
+
+    $text = preg_replace('/^\xEF\xBB\xBF/', '', $text);
+    $text = preg_replace('/<think\b[^>]*>.*?<\/think>/is', '', $text);
+    $text = preg_replace('/<reasoning\b[^>]*>.*?<\/reasoning>/is', '', $text);
+    $text = preg_replace('/^```(?:json)?\s*/i', '', trim((string)$text));
+    $text = preg_replace('/\s*```\s*$/', '', trim((string)$text));
+    $text = trim((string)$text);
+
+    $decoded = json_decode($text, true);
+    if (is_array($decoded)) {
+        return [
+            'json' => $decoded,
+            'raw' => $text,
+        ];
+    }
+
+    return product_ai_find_json_object($text);
+}
+
 function meeting_ai_parse_summary_payload($content) {
     $decoded = meeting_ai_extract_json_payload($content);
     if (!is_array($decoded)) {
@@ -5584,12 +5673,12 @@ switch ($action) {
         if ($barcodeText !== '') {
             $extraContext = "\n\nBarcode / QR code detected on the product: **{$barcodeText}**. Please also identify the country of origin based on the barcode prefix (GS1 prefix lookup).";
         }
-        $userPrompt = "You are a product analysis expert. {$analysisTarget} Respond in Khmer (ភាសាខ្មែរ) with a structured JSON object. Include all the following fields exactly:\n{\n  \"product_name\": \"...\",\n  \"brand\": \"...\",\n  \"country_of_origin\": \"...\",\n  \"country_flag_emoji\": \"...\",\n  \"category\": \"...\",\n  \"usage\": [\"step1\", \"step2\", ...],\n  \"benefits\": [\"benefit1\", \"benefit2\", ...],\n  \"warnings\": [\"...\"],\n  \"ingredients_summary\": \"...\",\n  \"price_range_usd\": \"...\",\n  \"summary\": \"...\"\n}\nRespond with ONLY the JSON object, no extra text or markdown." . $extraContext;
+        $userPrompt = "You are a product analysis expert. {$analysisTarget} Respond in Khmer (ភាសាខ្មែរ) with a structured JSON object. Do not include chain-of-thought, <think> tags, explanations, or markdown. Include all the following fields exactly:\n{\n  \"product_name\": \"...\",\n  \"brand\": \"...\",\n  \"country_of_origin\": \"...\",\n  \"country_flag_emoji\": \"...\",\n  \"category\": \"...\",\n  \"usage\": [\"step1\", \"step2\", ...],\n  \"benefits\": [\"benefit1\", \"benefit2\", ...],\n  \"warnings\": [\"...\"],\n  \"ingredients_summary\": \"...\",\n  \"price_range_usd\": \"...\",\n  \"summary\": \"...\"\n}\nRespond with ONLY the JSON object, no extra text or markdown." . $extraContext;
         // Build messages with vision content
         $messages = [
             [
                 'role'    => 'system',
-                'content' => 'You are a world-class product analyst. Always respond with valid JSON only, using Khmer language for all descriptive values.',
+                'content' => 'You are a world-class product analyst. Always respond with valid JSON only, using Khmer language for all descriptive values. Never include chain-of-thought, reasoning notes, <think> tags, markdown, or explanatory text outside the JSON object.',
             ],
         ];
         if ($imageBase64 !== '') {
@@ -5618,20 +5707,24 @@ switch ($action) {
             }
         }
         $visionPayload = ['model' => $visionModel, 'messages' => $messages, 'temperature' => 0.1, 'max_tokens' => 1500];
+        if (($config['provider'] ?? '') === 'openai') {
+            $visionPayload['response_format'] = ['type' => 'json_object'];
+        }
         $res = ai_chat_http_post_json($config['endpoint'], $visionPayload, ['Authorization: Bearer ' . $config['api_key']]);
         if (!($res['ok'] ?? false)) {
             apiResponse(['success' => false, 'message' => 'AI vision request failed: ' . ($res['message'] ?? 'Unknown error')]);
         }
         $rawContent = trim((string)($res['data']['choices'][0]['message']['content'] ?? ''));
-        // Strip markdown code fences if present
-        $rawContent = preg_replace('/^```(?:json)?\s*/i', '', $rawContent);
-        $rawContent = preg_replace('/\s*```\s*$/', '', $rawContent);
-        $parsed = json_decode($rawContent, true);
-        if (!is_array($parsed)) {
-            // Return as raw text if JSON parsing fails
-            apiResponse(['success' => true, 'raw' => $rawContent, 'parsed' => null]);
+        $extracted = product_ai_extract_json_payload($rawContent);
+        if (!is_array($extracted) || !is_array($extracted['json'] ?? null)) {
+            apiResponse([
+                'success' => false,
+                'message' => 'AI could not return a clean product analysis. Please try again.',
+                'raw' => $rawContent,
+                'parsed' => null,
+            ]);
         }
-        apiResponse(['success' => true, 'raw' => $rawContent, 'parsed' => $parsed]);
+        apiResponse(['success' => true, 'raw' => $extracted['raw'] ?? $rawContent, 'parsed' => $extracted['json']]);
         break;
 
     case 'remove_ai_chat_image_background':

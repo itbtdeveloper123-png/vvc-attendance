@@ -189,6 +189,23 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
     });
   }
 
+  String _friendlyAnalysisErrorMessage(String raw) {
+    final text = raw.trim();
+    if (text.isEmpty ||
+        text.contains('<think') ||
+        text.contains('"product_name"') ||
+        text.length > 180) {
+      return 'AI មិនអាចរៀបចំលទ្ធផលបានត្រឹមត្រូវទេ។ សូមព្យាយាមម្តងទៀត។';
+    }
+
+    if (text.toLowerCase().contains('clean product analysis') ||
+        text.toLowerCase().contains('valid json')) {
+      return 'AI មិនអាចរៀបចំលទ្ធផលបានត្រឹមត្រូវទេ។ សូមព្យាយាមម្តងទៀត។';
+    }
+
+    return text;
+  }
+
   // ─── Analysis ─────────────────────────────────────────────────────────────
 
   Future<void> _analyze() async {
@@ -207,7 +224,9 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
       if (!(res['success'] as bool? ?? false)) {
         setState(() {
           _isAnalyzing = false;
-          _errorMsg = res['message']?.toString() ?? 'ការវិភាគបានបរាជ័យ';
+          _errorMsg = _friendlyAnalysisErrorMessage(
+            res['message']?.toString() ?? '',
+          );
         });
         return;
       }
@@ -220,7 +239,9 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
         });
       } else {
         setState(() {
-          _errorMsg = res['raw']?.toString() ?? 'AI មិនអាចបកស្រាយបានទេ';
+          _errorMsg = _friendlyAnalysisErrorMessage(
+            res['raw']?.toString() ?? '',
+          );
           _isAnalyzing = false;
         });
       }
