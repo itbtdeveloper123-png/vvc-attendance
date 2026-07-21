@@ -60,7 +60,7 @@ jobs:
         run: |
           pod install --repo-update || pod install
 
-      - name: Build Unsigned IPA for Device (no codesign)
+      - name: Build for iOS Simulator (no codesign required)
         working-directory: flutter_app
         env:
           FLUTTER_NO_CODESIGN: 'true'
@@ -68,25 +68,25 @@ jobs:
         run: |
           set -euo pipefail
 
-          echo "1) Build iOS Release App using Flutter CLI (no-codesign)..."
-          flutter build ios --release --no-codesign
+          echo "1) Build iOS Release App for Simulator using Flutter CLI..."
+          flutter build ios --release --simulator
 
-          echo "2) Package Runner.app into unsigned .ipa"
-          mkdir -p build/ios/iphoneos/Payload
-          cp -R build/ios/iphoneos/Runner.app build/ios/iphoneos/Payload/Runner.app
+          echo "2) Package Runner.app into .ipa"
+          mkdir -p build/ios/Payload
+          cp -R build/ios/Release-iphonesimulator/Runner.app build/ios/Payload/Runner.app
 
-          cd build/ios/iphoneos
-          zip -r Runner-unsigned.ipa Payload
+          cd build/ios
+          zip -r Runner-simulator.ipa Payload
           rm -rf Payload
-          cd ../../..
+          cd ../..
 
           echo "=== IPA Verification ==="
-          ls -la build/ios/iphoneos/Runner-unsigned.ipa
+          ls -la build/ios/Runner-simulator.ipa
 
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: vvc-hrm-ios-unsigned
-          path: flutter_app/build/ios/iphoneos/Runner-unsigned.ipa
+          name: vvc-hrm-ios-simulator
+          path: flutter_app/build/ios/Runner-simulator.ipa
           if-no-files-found: error
 
