@@ -68,7 +68,10 @@ jobs:
         run: |
           set -euo pipefail
           
-          echo "1) Building iOS Release App using xcodebuild (no codesign)..."
+          echo "1) Preparing Flutter iOS build configuration..."
+          flutter build ios --config-only
+          
+          echo "2) Building iOS Release App using xcodebuild (no codesign)..."
           cd ios
           xcodebuild -workspace Runner.xcworkspace \
             -scheme Runner \
