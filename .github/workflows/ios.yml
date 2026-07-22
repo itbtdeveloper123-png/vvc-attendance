@@ -60,63 +60,56 @@ jobs:
         run: |
           pod install --repo-update || pod install
 
-      - name: Build iOS with Flutter (prepare for manual packaging)
+      - name: Build Unsigned iOS App & IPA
         working-directory: flutter_app
-        run: |
-          flutter build ios --release --no-codesign 2>&1 || true
-
-      - name: Build Unsigned IPA using manual packaging (skip code signing)
-        working-directory: flutter_app
+        env:
+          FLUTTER_NO_CODESIGN: 'true'
+          CI: 'true'
         run: |
           set -euo pipefail
           
-          echo "Attempting to package IPA without code signing..."
+          echo "1) Building iOS Release bundle with Flutter..."
+          flutter build ios --release --no-codesign
           
-          # Check if app bundle exists from flutter build
+          echo "2) Checking output..."
           if [ -d "build/ios/iphoneos/Runner.app" ]; then
-            echo "Found app bundle at: build/ios/iphoneos/Runner.app"
             APP_PATH="build/ios/iphoneos/Runner.app"
-          elif [ -d "ios/Runner/Runner.app" ]; then
-            echo "Found app bundle at: ios/Runner/Runner.app"
-            APP_PATH="ios/Runner/Runner.app"
+          elif [ -d "ios/DerivedData/Build/Products/Release-iphoneos/Runner.app" ]; then
+            APP_PATH="ios/DerivedData/Build/Products/Release-iphoneos/Runner.app"
           else
-            echo "App bundle not found, attempting raw xcodebuild..."
-            # Build without code signing requirement
+            echo "Fallback: Building with xcodebuild..."
             cd ios
             xcodebuild -workspace Runner.xcworkspace \
               -scheme Runner \
               -configuration Release \
+              -sdk iphoneos \
               -derivedDataPath DerivedData \
-              -arch arm64 \
               CODE_SIGN_IDENTITY="" \
               CODE_SIGNING_REQUIRED=NO \
-              CODE_SIGNING_ALLOWED=NO 2>&1 || true
+              CODE_SIGNING_ALLOWED=NO \
+              DEVELOPMENT_TEAM="1234567890"
             cd ..
-            
-            if [ -d "ios/DerivedData/Build/Products/Release-iphoneos/Runner.app" ]; then
-              APP_PATH="ios/DerivedData/Build/Products/Release-iphoneos/Runner.app"
-            else
-              echo "Failed to locate app bundle"
-              exit 1
-            fi
+            APP_PATH="ios/DerivedData/Build/Products/Release-iphoneos/Runner.app"
           fi
+
+          echo "Found Runner.app at: $APP_PATH"
           
-          # Package as IPA
-          mkdir -p build/ios/Payload
-          cp -R "$APP_PATH" build/ios/Payload/Runner.app
+          echo "3) Packaging IPA..."
+          mkdir -p build/ios/iphoneos/Payload
+          cp -R "$APP_PATH" build/ios/iphoneos/Payload/Runner.app
           
-          cd build/ios
+          cd build/ios/iphoneos
           zip -r -q Runner-unsigned.ipa Payload
           rm -rf Payload
-          cd ../../
+          cd ../../..
           
           echo "=== IPA Created Successfully ==="
-          ls -lh build/ios/Runner-unsigned.ipa
+          ls -lh build/ios/iphoneos/Runner-unsigned.ipa
 
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
           name: vvc-hrm-ios-unsigned
-          path: flutter_app/build/ios/Runner-unsigned.ipa
+          path: flutter_app/build/ios/iphoneos/Runner-unsigned.ipa
           if-no-files-found: error
 

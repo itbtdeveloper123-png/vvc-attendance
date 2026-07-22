@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
@@ -107,7 +106,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   Future<void> _tryFaceScanOrFallback() async {
     if (_faceScanAttempted || _useQrScanner || _isLoading) return;
     setState(() => _isLoading = true);
- 
+
     final userProvider = Provider.of<UserProvider>(context, listen: false);
     if (!userProvider.faceScanEnabled) {
       if (!mounted) return;
@@ -516,12 +515,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   }
 
   InputImage _convertCameraImage(CameraImage image, int rotation) {
-    final WriteBuffer allBytes = WriteBuffer();
-    for (final Plane plane in image.planes) {
-      allBytes.putUint8List(plane.bytes);
-    }
-    final bytes = allBytes.done().buffer.asUint8List();
-
     final inputImageFormat = Platform.isIOS
         ? InputImageFormat.bgra8888
         : (InputImageFormatValue.fromRawValue(image.format.raw) ?? InputImageFormat.nv21);
@@ -530,7 +523,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         InputImageRotation.rotation0deg;
 
     return InputImage.fromBytes(
-      bytes: bytes,
+      bytes: image.planes.map((plane) => plane.bytes).expand((x) => x).toList(),
       metadata: InputImageMetadata(
         size: Size(image.width.toDouble(), image.height.toDouble()),
         rotation: imageRotation,

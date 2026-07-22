@@ -2411,6 +2411,68 @@ class _TeamChatScreenState extends State<TeamChatScreen>
       },
     );
   }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels ==
+        _scrollController.position.maxScrollExtent) {
+      _loadMoreMessages();
+    }
+  }
+
+  void _loadMoreMessages() {
+    // Load earlier messages when scrolling to the top
+    // Implementation for loading older messages
+  }
+
+  Future<String?> _startUploadFromPath(
+    String roomId,
+    String fileName,
+    String filePath,
+  ) async {
+    try {
+      final file = File(filePath);
+      if (!await file.exists()) {
+        debugPrint('File not found: $filePath');
+        _failedUploads[fileName] = filePath;
+        return null;
+      }
+
+      final uploadRef =
+          firebase_storage.FirebaseStorage.instance.ref().child('chats/$roomId/$fileName');
+
+      final uploadTask = uploadRef.putFile(file);
+      _uploadTasks[fileName] = uploadTask;
+
+      uploadTask.snapshotEvents.listen((event) {
+        final progress = event.bytesTransferred / event.totalBytes;
+        setState(() {
+          _uploadProgress[fileName] = progress;
+        });
+      });
+
+      await uploadTask;
+      final downloadUrl = await uploadRef.getDownloadURL();
+
+      _failedUploads.remove(fileName);
+      _uploadTasks.remove(fileName);
+      _uploadProgress.remove(fileName);
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('failed_uploads', jsonEncode(_failedUploads));
+
+      return downloadUrl;
+    } catch (e) {
+      debugPrint('Upload failed: $e');
+      _failedUploads[fileName] = filePath;
+      _uploadTasks.remove(fileName);
+      _uploadProgress.remove(fileName);
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('failed_uploads', jsonEncode(_failedUploads));
+
+      return null;
+    }
+  }
 }
 
 class AudioMessageBubble extends StatefulWidget {

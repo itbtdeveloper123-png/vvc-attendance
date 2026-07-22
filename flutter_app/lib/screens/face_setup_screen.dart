@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
@@ -128,19 +127,15 @@ class _FaceSetupScreenState extends State<FaceSetupScreen>
     if (_faceProcessing || _isCaptured || _isSubmitting) return;
     _faceProcessing = true;
     try {
-      final WriteBuffer allBytes = WriteBuffer();
-      for (final Plane p in image.planes) {
-        allBytes.putUint8List(p.bytes);
-      }
-      final bytes = allBytes.done().buffer.asUint8List();
       final fmt = Platform.isIOS
           ? InputImageFormat.bgra8888
           : (InputImageFormatValue.fromRawValue(image.format.raw) ?? InputImageFormat.nv21);
       final rot = InputImageRotationValue.fromRawValue(
               _cameraController!.description.sensorOrientation) ??
           InputImageRotation.rotation0deg;
+      
       final inputImage = InputImage.fromBytes(
-        bytes: bytes,
+        bytes: image.planes.map((plane) => plane.bytes).expand((x) => x).toList(),
         metadata: InputImageMetadata(
           size: Size(image.width.toDouble(), image.height.toDouble()),
           rotation: rot,
