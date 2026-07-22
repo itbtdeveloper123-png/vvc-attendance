@@ -82,24 +82,35 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            DEVELOPMENT_TEAM="" \
+            DEVELOPMENT_TEAM="1234567890" \
             PROVISIONING_PROFILE_SPECIFIER="" \
-            clean build 2>&1 | tee ../xcodebuild.log || echo "xcodebuild finished with warnings/errors"
+            clean build > ../xcodebuild.log 2>&1
 
           cd ..
           
-          echo "2) Locating built Runner.app..."
-          APP_PATH=$(find build/ios -type d -name "Runner.app" | head -n 1 || true)
+          echo "3) Locating built Runner.app..."
+          # Look specifically in the Release-iphoneos directory under build/ios
+          APP_PATH="build/ios/Release-iphoneos/Runner.app"
           
-          if [ -z "$APP_PATH" ] || [ ! -d "$APP_PATH" ]; then
-            echo "ERROR: Runner.app not found! Printing last 100 lines of xcodebuild log:"
+          if [ ! -d "$APP_PATH" ]; then
+            echo "ERROR: Runner.app not found at $APP_PATH! Printing last 100 lines of build log:"
+            tail -n 100 xcodebuild.log || true
+            exit 1
+          fi
+
+          # Verify the actual binary exists inside Runner.app (not just an empty dir)
+          if [ ! -f "$APP_PATH/Runner" ]; then
+            echo "ERROR: Runner binary not found inside Runner.app! The build may have failed silently."
+            echo "Contents of Runner.app:"
+            ls -la "$APP_PATH" || true
+            echo "Last 100 lines of build log:"
             tail -n 100 xcodebuild.log || true
             exit 1
           fi
 
           echo "Found Runner.app at: $APP_PATH"
           
-          echo "3) Packaging into unsigned IPA..."
+          echo "4) Packaging into unsigned IPA..."
           mkdir -p build/ios/iphoneos/Payload
           cp -R "$APP_PATH" build/ios/iphoneos/Payload/Runner.app
           
@@ -111,13 +122,15 @@ jobs:
           echo "=== IPA Created Successfully ==="
           ls -lh build/ios/iphoneos/Runner-unsigned.ipa
 
-      - name: Upload Build Log on Failure
-        if: failure()
+      - name: Upload Build Log
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: xcodebuild-log
           path: flutter_app/xcodebuild.log
           if-no-files-found: ignore
+
+
 
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
