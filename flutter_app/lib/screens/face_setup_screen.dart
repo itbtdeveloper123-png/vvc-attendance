@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'dart:ui';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
@@ -135,7 +136,9 @@ class _FaceSetupScreenState extends State<FaceSetupScreen>
           InputImageRotation.rotation0deg;
       
       final inputImage = InputImage.fromBytes(
-        bytes: image.planes.map((plane) => plane.bytes).expand((x) => x).toList(),
+        bytes: Uint8List.fromList(
+          image.planes.map((plane) => plane.bytes).expand((x) => x).toList(),
+        ),
         metadata: InputImageMetadata(
           size: Size(image.width.toDouble(), image.height.toDouble()),
           rotation: rot,
