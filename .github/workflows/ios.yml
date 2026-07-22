@@ -68,49 +68,29 @@ jobs:
         run: |
           set -euo pipefail
           
-          echo "1) Preparing Flutter iOS build configuration..."
-          flutter build ios --config-only
+          echo "1) Building iOS Release App (no codesign)..."
+          flutter build ios --release --no-codesign 2>&1 | tee build_flutter.log
           
-          echo "2) Building iOS Release App using xcodebuild (no codesign)..."
-          cd ios
-          xcodebuild -workspace Runner.xcworkspace \
-            -scheme Runner \
-            -configuration Release \
-            -sdk iphoneos \
-            BUILD_DIR=../build/ios \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
-            DEVELOPMENT_TEAM="1234567890" \
-            PROVISIONING_PROFILE_SPECIFIER="" \
-            clean build > ../xcodebuild.log 2>&1
-
-          cd ..
-          
-          echo "3) Locating built Runner.app..."
-          # Look specifically in the Release-iphoneos directory under build/ios
-          APP_PATH="build/ios/Release-iphoneos/Runner.app"
+          echo "2) Locating built Runner.app..."
+          APP_PATH="build/ios/iphoneos/Runner.app"
           
           if [ ! -d "$APP_PATH" ]; then
-            echo "ERROR: Runner.app not found at $APP_PATH! Printing last 100 lines of build log:"
-            tail -n 100 xcodebuild.log || true
+            echo "ERROR: Runner.app not found at $APP_PATH!"
+            echo "Trying to find Runner.app anywhere in build/:"
+            find build -type d -name "Runner.app" 2>/dev/null || true
             exit 1
           fi
 
-          # Verify the actual binary exists inside Runner.app (not just an empty dir)
           if [ ! -f "$APP_PATH/Runner" ]; then
-            echo "ERROR: Runner binary not found inside Runner.app! The build may have failed silently."
+            echo "ERROR: Runner binary not found inside Runner.app!"
             echo "Contents of Runner.app:"
             ls -la "$APP_PATH" || true
-            echo "Last 100 lines of build log:"
-            tail -n 100 xcodebuild.log || true
             exit 1
           fi
 
-          echo "Found Runner.app at: $APP_PATH"
+          echo "Found Runner.app at: $APP_PATH (size: $(du -sh "$APP_PATH" | cut -f1))"
           
-          echo "4) Packaging into unsigned IPA..."
+          echo "3) Packaging into unsigned IPA..."
           mkdir -p build/ios/iphoneos/Payload
           cp -R "$APP_PATH" build/ios/iphoneos/Payload/Runner.app
           
@@ -127,7 +107,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: xcodebuild-log
-          path: flutter_app/xcodebuild.log
+          path: flutter_app/build_flutter.log
           if-no-files-found: ignore
 
 
