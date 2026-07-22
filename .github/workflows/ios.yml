@@ -108,6 +108,14 @@ jobs:
           echo "=== IPA Created Successfully ==="
           ls -lh build/ios/iphoneos/Runner-unsigned.ipa
 
+      - name: Upload Build Log on Failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-log
+          path: flutter_app/xcodebuild.log
+          if-no-files-found: ignore
+
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
