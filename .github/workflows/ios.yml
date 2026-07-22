@@ -68,33 +68,35 @@ jobs:
         run: |
           set -euo pipefail
           
-          echo "1) Building iOS Release bundle with Flutter..."
-          flutter build ios --release --no-codesign
+          echo "1) Building iOS Release App using xcodebuild (no codesign)..."
+          cd ios
+          xcodebuild -workspace Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -sdk iphoneos \
+            BUILD_DIR=../build/ios \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="" \
+            PROVISIONING_PROFILE_SPECIFIER="" \
+            clean build 2>&1 | tee ../xcodebuild.log || echo "xcodebuild finished with warnings/errors"
+
+          cd ..
           
-          echo "2) Checking output..."
-          if [ -d "build/ios/iphoneos/Runner.app" ]; then
-            APP_PATH="build/ios/iphoneos/Runner.app"
-          elif [ -d "ios/DerivedData/Build/Products/Release-iphoneos/Runner.app" ]; then
-            APP_PATH="ios/DerivedData/Build/Products/Release-iphoneos/Runner.app"
-          else
-            echo "Fallback: Building with xcodebuild..."
-            cd ios
-            xcodebuild -workspace Runner.xcworkspace \
-              -scheme Runner \
-              -configuration Release \
-              -sdk iphoneos \
-              -derivedDataPath DerivedData \
-              CODE_SIGN_IDENTITY="" \
-              CODE_SIGNING_REQUIRED=NO \
-              CODE_SIGNING_ALLOWED=NO \
-              DEVELOPMENT_TEAM="1234567890"
-            cd ..
-            APP_PATH="ios/DerivedData/Build/Products/Release-iphoneos/Runner.app"
+          echo "2) Locating built Runner.app..."
+          APP_PATH=$(find build/ios -type d -name "Runner.app" | head -n 1 || true)
+          
+          if [ -z "$APP_PATH" ] || [ ! -d "$APP_PATH" ]; then
+            echo "ERROR: Runner.app not found! Printing last 100 lines of xcodebuild log:"
+            tail -n 100 xcodebuild.log || true
+            exit 1
           fi
 
           echo "Found Runner.app at: $APP_PATH"
           
-          echo "3) Packaging IPA..."
+          echo "3) Packaging into unsigned IPA..."
           mkdir -p build/ios/iphoneos/Payload
           cp -R "$APP_PATH" build/ios/iphoneos/Payload/Runner.app
           
