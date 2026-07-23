@@ -342,6 +342,89 @@ function sendMissionTelegram($mysqli, $eid, $data) {
     return $result;
 }
 
+function check_api_rate_limit($mysqli) {
+    // 1. Get client IP address
+    $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+    if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+        $parts = explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']);
+        $ip = trim($parts[0]);
+    } elseif (!empty($_SERVER['HTTP_CLIENT_IP'])) {
+        $ip = $_SERVER['HTTP_CLIENT_IP'];
+    }
+
+    // 2. Identify the request endpoint/action
+    $action = $_GET['action'] ?? ($_POST['action'] ?? 'index');
+    $now = time();
+    $limit = 60; // Max 60 requests per minute
+    
+    // Auto-create rate limits table if not exists
+    $mysqli->query("CREATE TABLE IF NOT EXISTS api_rate_limits (
+        ip_address VARCHAR(45) NOT NULL,
+        endpoint VARCHAR(255) NOT NULL,
+        request_count INT NOT NULL DEFAULT 1,
+        first_request_time INT NOT NULL,
+        PRIMARY KEY (ip_address, endpoint)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+    // Retrieve current rate limit state
+    $stmt = $mysqli->prepare("SELECT request_count, first_request_time FROM api_rate_limits WHERE ip_address = ? AND endpoint = ?");
+    if ($stmt) {
+        $stmt->bind_param("ss", $ip, $action);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $row = $result ? $result->fetch_assoc() : null;
+        $stmt->close();
+
+        if ($row) {
+            $count = (int)$row['request_count'];
+            $first_time = (int)$row['first_request_time'];
+
+            if (($now - $first_time) > 60) {
+                // Window expired: Reset count and start a new 60s window
+                $up_stmt = $mysqli->prepare("UPDATE api_rate_limits SET request_count = 1, first_request_time = ? WHERE ip_address = ? AND endpoint = ?");
+                if ($up_stmt) {
+                    $up_stmt->bind_param("iss", $now, $ip, $action);
+                    $up_stmt->execute();
+                    $up_stmt->close();
+                }
+            } else {
+                // Inside window: Check if limit is exceeded
+                if ($count >= $limit) {
+                    http_response_code(429);
+                    echo json_encode([
+                        'success' => false,
+                        'status' => 'error',
+                        'message' => 'សំណើច្រើនពេកត្រូវបានផ្ញើក្នុងពេលតែមួយ។ សូមរង់ចាំមួយរយៈសិន មុននឹងព្យាយាមម្តងទៀត!'
+                    ], JSON_UNESCAPED_UNICODE);
+                    exit;
+                }
+
+                // Increment request count
+                $up_stmt = $mysqli->prepare("UPDATE api_rate_limits SET request_count = request_count + 1 WHERE ip_address = ? AND endpoint = ?");
+                if ($up_stmt) {
+                    $up_stmt->bind_param("ss", $ip, $action);
+                    $up_stmt->execute();
+                    $up_stmt->close();
+                }
+            }
+        } else {
+            // First request in the window: Insert new record
+            $ins_stmt = $mysqli->prepare("INSERT INTO api_rate_limits (ip_address, endpoint, request_count, first_request_time) VALUES (?, ?, 1, ?)");
+            if ($ins_stmt) {
+                $ins_stmt->bind_param("ssi", $ip, $action, $now);
+                $ins_stmt->execute();
+                $ins_stmt->close();
+            }
+        }
+    }
+
+    // 3. Garbage Collection: Clean up rate limits older than 1 hour (1% chance to run)
+    if (rand(1, 100) === 42) {
+        $expiry = $now - 3600;
+        $mysqli->query("DELETE FROM api_rate_limits WHERE first_request_time < $expiry");
+    }
+}
+
 // 2. Database Connection
 $mysqli = new mysqli(DB_SERVER, DB_USERNAME, DB_PASSWORD, DB_NAME);
 if ($mysqli->connect_error) {
@@ -350,6 +433,9 @@ if ($mysqli->connect_error) {
 }
 $mysqli->set_charset("utf8mb4");
 $mysqli->query("SET time_zone = '+07:00'");
+
+// Perform API Rate Limiting Check
+check_api_rate_limit($mysqli);
 
 // Auto-heal DB schema if core columns in users table are missing
 $required_columns = [

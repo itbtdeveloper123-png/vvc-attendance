@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import '../services/api_service.dart';
+import '../services/secure_storage_service.dart';
 
 /// តួនាទីក្នុងប្រព័ន្ធ HRM
 enum SystemRole { employee, worker, skills, it, admin, hrm, accounting }
@@ -395,8 +396,9 @@ class UserProvider with ChangeNotifier {
 
   Future<void> loadSavedUser() async {
     final prefs = await SharedPreferences.getInstance();
-    _token = prefs.getString('auth_token');
-    _employeeId = prefs.getString('employee_id');
+    final secureStorage = SecureStorageService();
+    _token = await secureStorage.read('auth_token');
+    _employeeId = await secureStorage.read('employee_id');
     _name = prefs.getString('user_name');
     _avatar = prefs.getString('avatar');
     _userType = prefs.getString('scan_user_type');
@@ -512,8 +514,9 @@ class UserProvider with ChangeNotifier {
       _isLoggedIn = true;
 
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('auth_token', _token!);
-      await prefs.setString('employee_id', _employeeId!);
+      final secureStorage = SecureStorageService();
+      await secureStorage.write('auth_token', _token!);
+      await secureStorage.write('employee_id', _employeeId!);
       await prefs.setString('user_name', _name!);
       if (_avatar != null) {
         await prefs.setString('avatar', _avatar!);
@@ -681,8 +684,9 @@ class UserProvider with ChangeNotifier {
       debugPrint("Background service stop failed (ignored): $e");
     }
 
-    await prefs.remove('auth_token');
-    await prefs.remove('employee_id');
+    final secureStorage = SecureStorageService();
+    await secureStorage.delete('auth_token');
+    await secureStorage.delete('employee_id');
     await prefs.remove('user_name');
     await prefs.remove('avatar');
     await prefs.remove('user_position');
