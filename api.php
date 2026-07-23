@@ -6904,7 +6904,7 @@ function ai_call_free_vision_service($systemPrompt, $userPrompt, $imageBase64 = 
             ];
         }
 
-        $lastError = 'Unknown error';
+        $errors = [];
 
         foreach ($candidates as $cand) {
             if ($cand['type'] === 'pollinations') {
@@ -6925,7 +6925,8 @@ function ai_call_free_vision_service($systemPrompt, $userPrompt, $imageBase64 = 
                         return ['success' => true, 'content' => $rawText];
                     }
                 }
-                $lastError = $attempt['message'] ?? 'Pollinations vision failed';
+                $err = $attempt['message'] ?? 'Pollinations vision failed';
+                $errors[] = "Pollinations: " . $err;
             } elseif ($cand['type'] === 'gemini') {
                 $parts = [['text' => $systemPrompt . "\n\n" . $userPrompt]];
                 if ($cleanImageBase64 !== '') {
@@ -6949,7 +6950,8 @@ function ai_call_free_vision_service($systemPrompt, $userPrompt, $imageBase64 = 
                     $rawText = trim((string)$attempt['data']['candidates'][0]['content']['parts'][0]['text']);
                     return ['success' => true, 'content' => $rawText];
                 }
-                $lastError = $attempt['data']['error']['message'] ?? ($attempt['message'] ?? 'Gemini vision failed');
+                $err = $attempt['data']['error']['message'] ?? ($attempt['message'] ?? 'Gemini vision failed');
+                $errors[] = $cand['model'] . " (" . (strpos($cand['endpoint'], '/v1beta/') !== false ? 'v1beta' : 'v1') . "): " . $err;
             } elseif ($cand['type'] === 'openai_compat') {
                 $payload = [
                     'model'       => $cand['model'],
@@ -6958,20 +6960,25 @@ function ai_call_free_vision_service($systemPrompt, $userPrompt, $imageBase64 = 
                     'max_tokens'  => 2500,
                 ];
                 if (strpos($cand['endpoint'], 'openai.com') !== false) {
-                    $payload['response_format'] = ['type' => 'json_object'];
+                     $payload['response_format'] = ['type' => 'json_object'];
                 }
                 if (strpos($cand['endpoint'], 'groq.com') !== false) {
-                    $payload['reasoning_format'] = 'hidden';
+                     $payload['reasoning_format'] = 'hidden';
                 }
                 $attempt = ai_chat_http_post_json($cand['endpoint'], $payload, ['Authorization: Bearer ' . $cand['key']]);
                 if (($attempt['ok'] ?? false) && !empty($attempt['data']['choices'][0]['message']['content'])) {
                     $rawText = trim((string)$attempt['data']['choices'][0]['message']['content']);
                     return ['success' => true, 'content' => $rawText];
                 }
-                $lastError = $attempt['data']['error']['message'] ?? ($attempt['message'] ?? 'OpenAI vision failed');
+                $err = $attempt['data']['error']['message'] ?? ($attempt['message'] ?? 'OpenAI vision failed');
+                $errors[] = $cand['model'] . ": " . $err;
             }
         }
 
+        $lastError = implode(' | ', $errors);
+        if ($lastError === '') {
+            $lastError = 'No candidates configured';
+        }
         return ['success' => false, 'message' => $lastError];
 }
 
