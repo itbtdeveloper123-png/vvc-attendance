@@ -5897,10 +5897,6 @@ switch ($action) {
         }
         $cleanImageBase64 = str_replace(["\r", "\n", " ", "\t"], '', (string)$imageBase64);
 
-        $config = ai_chat_resolve_provider_config();
-        if (!$config) {
-            apiResponse(['success' => false, 'message' => 'AI provider is not configured']);
-        }
         // Build user prompt
         $analysisTarget = $imageBase64 !== ''
             ? 'Analyze this product image carefully.'
@@ -6847,211 +6843,54 @@ function product_ai_build_multimodal_content($userPrompt, $imageBase64 = '', $mi
 }
 
 function ai_call_free_vision_service($systemPrompt, $userPrompt, $imageBase64 = '', $mimeType = 'image/jpeg') {
-    $cleanImageBase64 = str_replace(["\r", "\n", " ", "\t"], '', (string)$imageBase64);
-    $userContent = product_ai_build_multimodal_content($userPrompt, $imageBase64, $mimeType);
+    $pollinationsKey = trim((string)(defined('POLLINATIONS_API_KEY') ? POLLINATIONS_API_KEY : ''));
+    if ($pollinationsKey === '') {
+        return ['success' => false, 'message' => 'Pollinations.ai API key is not configured.'];
+    }
 
-    $messages = [
-        ['role' => 'system', 'content' => $systemPrompt],
-        ['role' => 'user', 'content' => empty($userContent) ? $userPrompt : $userContent],
+    $polUserContent = product_ai_build_multimodal_content($userPrompt, $imageBase64, $mimeType);
+    $polPayload = [
+        'model' => 'openai-large',
+        'messages' => [
+           ['role' => 'system', 'content' => $systemPrompt],
+           ['role' => 'user', 'content' => empty($polUserContent) ? $userPrompt : $polUserContent],
+        ],
     ];
+    $polCh = curl_init('https://gen.pollinations.ai/v1/chat/completions');
+    if ($polCh === false) {
+        return ['success' => false, 'message' => 'Pollinations.ai connection could not be initialized.'];
+    }
+    curl_setopt($polCh, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($polCh, CURLOPT_POST, true);
+    curl_setopt($polCh, CURLOPT_HTTPHEADER, [
+        'Content-Type: application/json',
+        'Authorization: Bearer ' . $pollinationsKey,
+    ]);
+    curl_setopt($polCh, CURLOPT_POSTFIELDS, json_encode($polPayload, JSON_UNESCAPED_UNICODE));
+    curl_setopt($polCh, CURLOPT_SSL_VERIFYPEER, true);
+    curl_setopt($polCh, CURLOPT_SSL_VERIFYHOST, 2);
+    curl_setopt($polCh, CURLOPT_CONNECTTIMEOUT, 15);
+    curl_setopt($polCh, CURLOPT_TIMEOUT, 45);
+    $polRaw = curl_exec($polCh);
+    $polErr = curl_error($polCh);
+    $polHttp = (int)curl_getinfo($polCh, CURLINFO_HTTP_CODE);
+    curl_close($polCh);
 
-        $openAiKey   = trim((string)(defined('OPENAI_API_KEY') ? OPENAI_API_KEY : (getenv('OPENAI_API_KEY') ?: '')));
-        $groqKey     = trim((string)(defined('GROQ_API_KEY') ? GROQ_API_KEY : (getenv('GROQ_API_KEY') ?: '')));
-        $geminiKey   = trim((string)(defined('GEMINI_API_KEY') ? GEMINI_API_KEY : (getenv('GEMINI_API_KEY') ?: '')));
-        $githubToken = trim((string)(defined('GITHUB_TOKEN') ? GITHUB_TOKEN : (getenv('GITHUB_TOKEN') ?: '')));
-
-        $candidates = [];
-
-        // 1. Google Gemini API (100% Free Tier if key available)
-        if ($geminiKey !== '') {
-            $candidates[] = [
-                'type'     => 'gemini',
-                'endpoint' => 'https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key=' . $geminiKey,
-                'model'    => 'gemini-2.0-flash',
-            ];
-            $candidates[] = [
-                'type'     => 'gemini',
-                'endpoint' => 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' . $geminiKey,
-                'model'    => 'gemini-2.0-flash',
-            ];
-            $candidates[] = [
-                'type'     => 'gemini',
-                'endpoint' => 'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=' . $geminiKey,
-                'model'    => 'gemini-1.5-flash',
-            ];
-            $candidates[] = [
-                'type'     => 'gemini',
-                'endpoint' => 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' . $geminiKey,
-                'model'    => 'gemini-1.5-flash',
-            ];
-        }
-
-        // 1.5. GitHub Models (Free Azure AI Endpoint using GitHub PAT)
-        // Note: Only works if server can reach Azure. Will timeout quickly if blocked.
-        if ($githubToken !== '') {
-            $candidates[] = [
-                'type'     => 'openai_compat',
-                'endpoint' => 'https://models.inference.ai.azure.com/chat/completions',
-                'key'      => $githubToken,
-                'model'    => 'gpt-4o',
-                'timeout'  => 10,
-            ];
-        }
-
-        // 2. Groq Cloud Vision - multiple model fallbacks
-        if ($groqKey !== '') {
-            // Llama 4 Scout - latest multimodal model from Groq
-            $candidates[] = [
-                'type'     => 'openai_compat',
-                'endpoint' => 'https://api.groq.com/openai/v1/chat/completions',
-                'key'      => $groqKey,
-                'model'    => 'meta-llama/llama-4-scout-17b-16e-instruct',
-                'timeout'  => 30,
-            ];
-            // Llama 4 Maverick - another multimodal option
-            $candidates[] = [
-                'type'     => 'openai_compat',
-                'endpoint' => 'https://api.groq.com/openai/v1/chat/completions',
-                'key'      => $groqKey,
-                'model'    => 'meta-llama/llama-4-maverick-17b-128e-instruct',
-                'timeout'  => 30,
-            ];
-        }
-
-        // 3. OpenAI API (Fallback if active)
-        if ($openAiKey !== '') {
-            $candidates[] = [
-                'type'     => 'openai_compat',
-                'endpoint' => 'https://api.openai.com/v1/chat/completions',
-                'key'      => $openAiKey,
-                'model'    => 'gpt-4o-mini',
-                'timeout'  => 30,
-            ];
-        }
-
-        // 4. Pollinations AI (100% Free Public Vision Engine - Last Fallback)
-        $candidates[] = [
-            'type'     => 'pollinations',
-            'endpoint' => 'https://text.pollinations.ai/openai',
-            'model'    => 'openai-large',
-            'timeout'  => 45,
-        ];
-
-        $errors = [];
-
-        foreach ($candidates as $cand) {
-            if ($cand['type'] === 'pollinations') {
-                // Pollinations OpenAI-compatible endpoint with vision support
-                $polUserContent = product_ai_build_multimodal_content($userPrompt, $imageBase64, $mimeType);
-                $polPayload = [
-                    'model'    => $cand['model'],
-                    'messages' => [
-                        ['role' => 'system', 'content' => $systemPrompt],
-                        ['role' => 'user',   'content' => empty($polUserContent) ? $userPrompt : $polUserContent],
-                    ],
-                ];
-                $polTimeout = isset($cand['timeout']) ? (int)$cand['timeout'] : 45;
-                $polCh = curl_init($cand['endpoint']);
-                curl_setopt($polCh, CURLOPT_RETURNTRANSFER, true);
-                curl_setopt($polCh, CURLOPT_POST, true);
-                curl_setopt($polCh, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-                curl_setopt($polCh, CURLOPT_POSTFIELDS, json_encode($polPayload, JSON_UNESCAPED_UNICODE));
-                curl_setopt($polCh, CURLOPT_SSL_VERIFYPEER, false);
-                curl_setopt($polCh, CURLOPT_CONNECTTIMEOUT, 15);
-                curl_setopt($polCh, CURLOPT_TIMEOUT, $polTimeout);
-                $polRaw  = curl_exec($polCh);
-                $polErr  = curl_error($polCh);
-                $polHttp = (int)curl_getinfo($polCh, CURLINFO_HTTP_CODE);
-                curl_close($polCh);
-                if ($polRaw !== false && $polErr === '' && $polHttp >= 200 && $polHttp < 300) {
-                    $polDec = json_decode($polRaw, true);
-                    $rawText = '';
-                    if (!empty($polDec['choices'][0]['message']['content'])) {
-                        $rawText = trim((string)$polDec['choices'][0]['message']['content']);
-                    } elseif (is_string($polRaw) && strlen($polRaw) > 10 && $polRaw[0] === '{') {
-                        $rawText = trim($polRaw);
-                    }
-                    if ($rawText !== '') {
-                        return ['success' => true, 'content' => $rawText];
-                    }
-                    $errors[] = 'Pollinations: empty content (HTTP ' . $polHttp . ')';
-                } else {
-                    $errors[] = 'Pollinations: ' . ($polErr ?: 'HTTP ' . $polHttp);
-                }
-            } elseif ($cand['type'] === 'gemini') {
-                $parts = [['text' => $systemPrompt . "\n\n" . $userPrompt]];
-                if ($cleanImageBase64 !== '') {
-                    $parts[] = [
-                        'inline_data' => [
-                            'mime_type' => $mimeType,
-                            'data'      => $cleanImageBase64,
-                        ]
-                    ];
-                }
-                $payload = [
-                    'contents' => [['parts' => $parts]],
-                    'generationConfig' => [
-                        'temperature' => 0.1,
-                        'maxOutputTokens' => 1500,
-                        'responseMimeType' => 'application/json'
-                    ]
-                ];
-                $attempt = ai_chat_http_post_json($cand['endpoint'], $payload, ['Content-Type: application/json']);
-                if (($attempt['ok'] ?? false) && !empty($attempt['data']['candidates'][0]['content']['parts'][0]['text'])) {
-                    $rawText = trim((string)$attempt['data']['candidates'][0]['content']['parts'][0]['text']);
-                    return ['success' => true, 'content' => $rawText];
-                }
-                $err = $attempt['data']['error']['message'] ?? ($attempt['message'] ?? 'Gemini vision failed');
-                $errors[] = $cand['model'] . " (" . (strpos($cand['endpoint'], '/v1beta/') !== false ? 'v1beta' : 'v1') . "): " . $err;
-            } elseif ($cand['type'] === 'openai_compat') {
-                $payload = [
-                    'model'       => $cand['model'],
-                    'messages'    => $messages,
-                    'temperature' => 0.1,
-                    'max_tokens'  => 2500,
-                ];
-                if (strpos($cand['endpoint'], 'openai.com') !== false) {
-                     $payload['response_format'] = ['type' => 'json_object'];
-                }
-                if (strpos($cand['endpoint'], 'groq.com') !== false) {
-                     $payload['reasoning_format'] = 'hidden';
-                }
-                $candTimeout = isset($cand['timeout']) ? (int)$cand['timeout'] : 30;
-                $ch = curl_init($cand['endpoint']);
-                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                curl_setopt($ch, CURLOPT_POST, true);
-                curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                    'Content-Type: application/json',
-                    'Authorization: Bearer ' . $cand['key'],
-                ]);
-                curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload, JSON_UNESCAPED_UNICODE));
-                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
-                curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
-                curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, min($candTimeout, 10));
-                curl_setopt($ch, CURLOPT_TIMEOUT, $candTimeout);
-                $rawResponse = curl_exec($ch);
-                $curlError   = curl_error($ch);
-                $httpStatus  = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                curl_close($ch);
-                if ($rawResponse !== false && $curlError === '') {
-                    $decoded = json_decode($rawResponse, true);
-                    if (!empty($decoded['choices'][0]['message']['content'])) {
-                        $rawText = trim((string)$decoded['choices'][0]['message']['content']);
-                        return ['success' => true, 'content' => $rawText];
-                    }
-                    $err = $decoded['error']['message'] ?? ('HTTP ' . $httpStatus . ' empty response');
-                } else {
-                    $err = $curlError !== '' ? $curlError : 'cURL failed';
-                }
-                $errors[] = $cand['model'] . ': ' . $err;
-            }
-        }
-
-        $lastError = implode(' | ', $errors);
-        if ($lastError === '') {
-            $lastError = 'No candidates configured';
-        }
-        return ['success' => false, 'message' => $lastError];
+    if ($polRaw === false || $polErr !== '') {
+        return ['success' => false, 'message' => 'Pollinations.ai request failed: ' . ($polErr !== '' ? $polErr : 'cURL error')];
+    }
+    $polDec = json_decode($polRaw, true);
+    $rawText = is_array($polDec)
+        ? trim((string)($polDec['choices'][0]['message']['content'] ?? ''))
+        : '';
+    if ($polHttp < 200 || $polHttp >= 300) {
+        $message = is_array($polDec) ? (string)($polDec['error']['message'] ?? '') : '';
+        return ['success' => false, 'message' => $message !== '' ? $message : 'Pollinations.ai returned HTTP ' . $polHttp . '.'];
+    }
+    if ($rawText === '') {
+        return ['success' => false, 'message' => 'Pollinations.ai returned an empty analysis.'];
+    }
+    return ['success' => true, 'content' => $rawText];
 }
 
 function ai_verify_face_match($mysqli, $eid, $photo_b64) {
@@ -7209,4 +7048,3 @@ function ai_verify_face_match($mysqli, $eid, $photo_b64) {
 
     return ['match' => false, 'message' => 'ការផ្ទៀងផ្ទាត់ផ្ទៃមុខមានបញ្ហា៖ ' . $lastError];
 }
-

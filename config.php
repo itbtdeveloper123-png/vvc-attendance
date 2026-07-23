@@ -220,6 +220,7 @@ define('AI_CHAT_REASONING_EFFORT', getenv('AI_CHAT_REASONING_EFFORT') ?: '');
 define('OPENAI_API_KEY', getenv('OPENAI_API_KEY') ?: '');
 define('GROQ_API_KEY', getenv('GROQ_API_KEY') ?: '');
 define('GEMINI_API_KEY', getenv('GEMINI_API_KEY') ?: '');
+define('POLLINATIONS_API_KEY', getenv('POLLINATIONS_API_KEY') ?: '');
 define('GITHUB_TOKEN', getenv('GITHUB_TOKEN') ?: '');
 define('MEETING_AI_WORKER_URL', getenv('MEETING_AI_WORKER_URL') ?: '');
 define('MEETING_AI_WORKER_TOKEN', getenv('MEETING_AI_WORKER_TOKEN') ?: '');
