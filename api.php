@@ -6815,8 +6815,8 @@ function ai_verify_face_match($mysqli, $eid, $photo_b64) {
         return ['match' => false, 'message' => 'អ្នកមិនទាន់បានចុះឈ្មោះ Face ID ទេ។ សូមចុះឈ្មោះ Face ID នៅក្នុង Profile ជាមុនសិន!'];
     }
 
-    // Get all registered reference photos (max 2 to comply with Groq limit of 3 images total)
-    $ref_stmt = $mysqli->prepare("SELECT photo_path, photo_index FROM employee_face_data WHERE employee_id = ? ORDER BY photo_index ASC LIMIT 2");
+    // Get all registered reference photos (max 1 to save tokens and prevent Groq TPM limit errors)
+    $ref_stmt = $mysqli->prepare("SELECT photo_path, photo_index FROM employee_face_data WHERE employee_id = ? ORDER BY photo_index ASC LIMIT 1");
     $ref_photos = [];
     if ($ref_stmt) {
         $ref_stmt->bind_param("s", $eid);
@@ -6913,7 +6913,7 @@ function ai_verify_face_match($mysqli, $eid, $photo_b64) {
                     'content' => $userContent,
                 ],
             ];
-            $payload = ['model' => $cand['model'], 'messages' => $messages, 'max_tokens' => 2000, 'temperature' => 0.0];
+            $payload = ['model' => $cand['model'], 'messages' => $messages, 'max_tokens' => 800, 'temperature' => 0.0];
             if ($cand['provider'] === 'openai') $payload['response_format'] = ['type' => 'json_object'];
             if ($cand['provider'] === 'groq') {
                 $payload['reasoning_format'] = 'hidden';
