@@ -2589,7 +2589,7 @@ $action = strtolower(trim($actionSource));
 
 switch ($action) {
     case 'view_face_log':
-        $logPath = __DIR__ . '/face_match_debug.log';
+        $logPath = __DIR__ . '/uploads/face_match_debug.log';
         if (file_exists($logPath)) {
             $content = file_get_contents($logPath);
             echo json_encode(['success' => true, 'log' => $content]);
@@ -6910,7 +6910,7 @@ function ai_verify_face_match($mysqli, $eid, $photo_b64) {
 
         if (!empty($rawContent)) {
             // Write debug log to help trace false matches
-            @file_put_contents(__DIR__ . '/face_match_debug.log', date('[Y-m-d H:i:s] ') . "Provider: " . $cand['provider'] . " | Model: " . $cand['model'] . " | Response: " . str_replace(["\r", "\n"], " ", $rawContent) . "\n", FILE_APPEND);
+            @file_put_contents(__DIR__ . '/uploads/face_match_debug.log', date('[Y-m-d H:i:s] ') . "Provider: " . $cand['provider'] . " | Model: " . $cand['model'] . " | Response: " . str_replace(["\r", "\n"], " ", $rawContent) . "\n", FILE_APPEND);
 
             $extracted = product_ai_extract_json_payload($rawContent);
             if (is_array($extracted) && is_array($extracted['json'] ?? null)) {
