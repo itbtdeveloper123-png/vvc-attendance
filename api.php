@@ -6815,8 +6815,8 @@ function ai_verify_face_match($mysqli, $eid, $photo_b64) {
         return ['match' => false, 'message' => 'អ្នកមិនទាន់បានចុះឈ្មោះ Face ID ទេ។ សូមចុះឈ្មោះ Face ID នៅក្នុង Profile ជាមុនសិន!'];
     }
 
-    // Get all registered reference photos
-    $ref_stmt = $mysqli->prepare("SELECT photo_path, photo_index FROM employee_face_data WHERE employee_id = ? ORDER BY photo_index ASC");
+    // Get all registered reference photos (max 2 to comply with Groq limit of 3 images total)
+    $ref_stmt = $mysqli->prepare("SELECT photo_path, photo_index FROM employee_face_data WHERE employee_id = ? ORDER BY photo_index ASC LIMIT 2");
     $ref_photos = [];
     if ($ref_stmt) {
         $ref_stmt->bind_param("s", $eid);
