@@ -8,6 +8,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:local_auth/local_auth.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform;
 import 'package:http/http.dart' as http;
 import '../providers/user_provider.dart';
@@ -239,6 +240,26 @@ class _OutsideAttendanceScreenState extends State<OutsideAttendanceScreen> {
 
       String photoBase64 = await compressAndEncodeImage(await _capturedImage!.readAsBytes());
 
+      // Local Biometric Authentication
+      final LocalAuthentication localAuth = LocalAuthentication();
+      final bool canCheckBiometrics = await localAuth.canCheckBiometrics;
+      final bool isDeviceSupported = await localAuth.isDeviceSupported();
+      bool deviceAuthenticated = false;
+
+      if (canCheckBiometrics || isDeviceSupported) {
+        deviceAuthenticated = await localAuth.authenticate(
+          localizedReason: "សូមស្កេន Face ID/Fingerprint ដើម្បីបញ្ជាក់អត្តសញ្ញាណស្កេនវត្តមាន",
+          biometricOnly: false,
+          persistAcrossBackgrounding: true,
+        );
+
+        if (!deviceAuthenticated) {
+          _showError("ការផ្ទៀងផ្ទាត់ជីវមាត្រត្រូវបានបដិសេធ។");
+          setState(() => _isLoading = false);
+          return;
+        }
+      }
+
       final result = await _apiService.submitAttendance(
         action: action,
         employeeId: userProvider.employeeId!,
@@ -249,6 +270,7 @@ class _OutsideAttendanceScreenState extends State<OutsideAttendanceScreen> {
         qrLocationId: 0,
         manualLocationName: _locationController.text.trim(),
         photoBase64: photoBase64,
+        biometricVerified: deviceAuthenticated,
       );
 
       if (result['success'] == true) {

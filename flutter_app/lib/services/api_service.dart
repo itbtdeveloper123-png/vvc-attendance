@@ -287,6 +287,7 @@ class ApiService {
     double? manualDistance,
     String? manualLocationName,
     String? photoBase64,
+    bool biometricVerified = false,
   }) async {
     final headers = await _authHeaders();
     final body = <String, String>{
@@ -296,6 +297,7 @@ class ApiService {
       'user_location_raw': locationRaw,
       'qr_secret': qrSecret,
       'qr_location_id': qrLocationId.toString(),
+      'biometric_verified': biometricVerified ? '1' : '0',
     };
     if (lateReason != null) body['late_reason'] = lateReason;
     if (manualDistance != null) {

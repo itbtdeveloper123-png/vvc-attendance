@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui';
 import 'package:camera/camera.dart';
+import 'package:local_auth/local_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -555,6 +556,28 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       final XFile photo = await _cameraController!.takePicture();
       final String photoBase64 = await compressAndEncodeImage(await photo.readAsBytes());
 
+      // Local Biometric Authentication
+      final LocalAuthentication localAuth = LocalAuthentication();
+      final bool canCheckBiometrics = await localAuth.canCheckBiometrics;
+      final bool isDeviceSupported = await localAuth.isDeviceSupported();
+      bool deviceAuthenticated = false;
+
+      if (canCheckBiometrics || isDeviceSupported) {
+        deviceAuthenticated = await localAuth.authenticate(
+          localizedReason: "សូមស្កេន Face ID/Fingerprint ដើម្បីបញ្ជាក់អត្តសញ្ញាណស្កេនវត្តមាន",
+          biometricOnly: false,
+          persistAcrossBackgrounding: true,
+        );
+
+        if (!deviceAuthenticated) {
+          if (mounted) {
+            _showError("ការផ្ទៀងផ្ទាត់ជីវមាត្រត្រូវបានបដិសេធ។");
+            await _switchToQrScanner();
+          }
+          return;
+        }
+      }
+
       Position position = await _determinePosition();
       String locationRaw = "${position.latitude},${position.longitude}";
 
@@ -588,6 +611,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           qrLocationId: 0,
           lateReason: reason,
           photoBase64: photoBase64,
+          biometricVerified: deviceAuthenticated,
         );
 
         if (result['success'] == true) {

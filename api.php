@@ -4616,9 +4616,16 @@ switch ($action) {
                     'message' => 'រកមិនឃើញរូបថតស្កេនផ្ទៃមុខ ឬទិន្នន័យរូបថតត្រូវបានបដិសេធដោយ Server (ទំហំធំពេក)។ សូមប្រាកដថាអ្នកបានដំឡើងកម្មវិធីទូរស័ព្ទចុងក្រោយបង្អស់!'
                 ]);
             }
-            $faceVerification = ai_verify_face_match($mysqli, $eid, $check_photo_b64);
-            if (!($faceVerification['match'] ?? false)) {
-                apiResponse(['success' => false, 'message' => $faceVerification['message'] ?? 'ការផ្ទៀងផ្ទាត់ផ្ទៃមុខមិនត្រូវគ្នាទេ!']);
+            
+            // Check if biometric verification was completed on the device (Face ID / Touch ID)
+            $biometric_verified = ($_POST['biometric_verified'] ?? '') === '1' || ($_POST['biometric_verified'] ?? '') === 'true';
+            
+            if (!$biometric_verified) {
+                // Fallback to server-side AI matching for older app versions
+                $faceVerification = ai_verify_face_match($mysqli, $eid, $check_photo_b64);
+                if (!($faceVerification['match'] ?? false)) {
+                    apiResponse(['success' => false, 'message' => $faceVerification['message'] ?? 'ការផ្ទៀងផ្ទាត់ផ្ទៃមុខមិនត្រូវគ្នាទេ!']);
+                }
             }
         }
 
