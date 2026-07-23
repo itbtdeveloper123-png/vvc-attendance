@@ -6920,15 +6920,21 @@ function ai_verify_face_match($mysqli, $eid, $photo_b64) {
         }
 
         if (!empty($rawContent)) {
+            // Write debug log to help trace false matches
+            @file_put_contents(__DIR__ . '/face_match_debug.log', date('[Y-m-d H:i:s] ') . "Provider: " . $cand['provider'] . " | Model: " . $cand['model'] . " | Response: " . str_replace(["\r", "\n"], " ", $rawContent) . "\n", FILE_APPEND);
+
             $extracted = product_ai_extract_json_payload($rawContent);
             if (is_array($extracted) && is_array($extracted['json'] ?? null)) {
                 $isMatch = ($extracted['json']['match'] == true || (isset($extracted['json']['is_same_person']) && $extracted['json']['is_same_person'] == true));
                 return ['match' => $isMatch, 'message' => $isMatch ? 'Verified' : 'ការផ្ទៀងផ្ទាត់ផ្ទៃមុខមិនត្រូវគ្នាទេ! មុខដែលបានស្កេន មិនមែនជា Face ID របស់គណនីនេះឡើយ。'];
             }
-            if (stripos($rawContent, 'true') !== false || stripos($rawContent, 'yes') !== false) {
+            
+            // Secure fallback: only check for explicit key-value match pairs
+            $cleanRaw = strtolower($rawContent);
+            if (preg_match('/"match"\s*:\s*true/i', $cleanRaw) || preg_match('/"is_same_person"\s*:\s*true/i', $cleanRaw)) {
                 return ['match' => true, 'message' => 'Verified'];
             }
-            if (stripos($rawContent, 'false') !== false || stripos($rawContent, 'no') !== false) {
+            if (preg_match('/"match"\s*:\s*false/i', $cleanRaw) || preg_match('/"is_same_person"\s*:\s*false/i', $cleanRaw)) {
                 return ['match' => false, 'message' => 'ការផ្ទៀងផ្ទាត់ផ្ទៃមុខមិនត្រូវគ្នាទេ! មុខដែលបានស្កេន មិនមែនជា Face ID របស់គណនីនេះឡើយ。'];
             }
         }
