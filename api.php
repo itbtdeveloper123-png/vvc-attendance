@@ -4601,8 +4601,9 @@ switch ($action) {
             }
         }
 
-        // 4.5. Verify Face Scan if applicable
-        if (trim($_POST['workplace'] ?? '') === 'Face Scan') {
+        // 4.5. Verify Face Scan if applicable (both Face Scan inside office and Outside check-in)
+        $wp = trim($_POST['workplace'] ?? '');
+        if (($wp === 'Face Scan' || $wp === 'Outside') && !empty($_POST['photo_base64'])) {
             $check_photo_b64 = $_POST['photo_base64'] ?? '';
             $faceVerification = ai_verify_face_match($mysqli, $eid, $check_photo_b64);
             if (!($faceVerification['match'] ?? false)) {
