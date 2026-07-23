@@ -705,6 +705,20 @@ function product_ai_find_json_object($content) {
     return null;
 }
 
+function product_ai_clean_think_tags_recursive($data) {
+    if (is_array($data)) {
+        foreach ($data as $key => $val) {
+            $data[$key] = product_ai_clean_think_tags_recursive($val);
+        }
+    } elseif (is_string($data)) {
+        $data = preg_replace('/<think\b[^>]*>.*?<\/think>/is', '', $data);
+        $data = preg_replace('/<think\b[^>]*>.*$/is', '', $data);
+        $data = str_ireplace(['<think>', '</think>'], '', $data);
+        $data = trim($data);
+    }
+    return $data;
+}
+
 function product_ai_extract_json_payload($content) {
     $text = trim((string)$content);
     if ($text === '') {
@@ -725,12 +739,16 @@ function product_ai_extract_json_payload($content) {
     $decoded = json_decode($text, true);
     if (is_array($decoded)) {
         return [
-            'json' => $decoded,
+            'json' => product_ai_clean_think_tags_recursive($decoded),
             'raw' => $text,
         ];
     }
 
-    return product_ai_find_json_object($text);
+    $parsed = product_ai_find_json_object($text);
+    if (is_array($parsed) && is_array($parsed['json'] ?? null)) {
+        $parsed['json'] = product_ai_clean_think_tags_recursive($parsed['json']);
+    }
+    return $parsed;
 }
 
 function product_ai_fallback_parse_text($content) {
