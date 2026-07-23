@@ -16,6 +16,7 @@ import '../providers/user_provider.dart';
 import '../services/api_service.dart';
 import '../services/notification_service.dart';
 import '../utils/app_theme.dart';
+import '../utils/image_compress.dart';
 import 'face_setup_screen.dart';
 
 class AttendanceScreen extends StatefulWidget {
@@ -552,7 +553,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       }
 
       final XFile photo = await _cameraController!.takePicture();
-      final String photoBase64 = base64Encode(await photo.readAsBytes());
+      final String photoBase64 = await compressAndEncodeImage(await photo.readAsBytes());
 
       Position position = await _determinePosition();
       String locationRaw = "${position.latitude},${position.longitude}";

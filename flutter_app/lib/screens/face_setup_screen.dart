@@ -11,6 +11,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import '../providers/user_provider.dart';
 import '../services/api_service.dart';
+import '../utils/image_compress.dart';
 
 // ========================
 // FaceSetupScreen
@@ -212,7 +213,7 @@ class _FaceSetupScreenState extends State<FaceSetupScreen>
       await _cameraController!.stopImageStream();
       await Future.delayed(const Duration(milliseconds: 200));
       final photo = await _cameraController!.takePicture();
-      final b64 = base64Encode(await photo.readAsBytes());
+      final b64 = await compressAndEncodeImage(await photo.readAsBytes());
       _capturedPhotos.add(b64);
       _successController.forward(from: 0);
       await Future.delayed(const Duration(milliseconds: 800));

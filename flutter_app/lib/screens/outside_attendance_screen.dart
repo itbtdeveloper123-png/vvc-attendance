@@ -14,6 +14,7 @@ import '../providers/user_provider.dart';
 import '../services/api_service.dart';
 import '../services/notification_service.dart';
 import '../utils/app_theme.dart';
+import '../utils/image_compress.dart';
 
 class OutsideAttendanceScreen extends StatefulWidget {
   const OutsideAttendanceScreen({super.key});
@@ -236,7 +237,7 @@ class _OutsideAttendanceScreenState extends State<OutsideAttendanceScreen> {
       String locationRaw = "${_currentPosition!.latitude},${_currentPosition!.longitude}";
       final userProvider = Provider.of<UserProvider>(context, listen: false);
 
-      String photoBase64 = base64Encode(await _capturedImage!.readAsBytes());
+      String photoBase64 = await compressAndEncodeImage(await _capturedImage!.readAsBytes());
 
       final result = await _apiService.submitAttendance(
         action: action,
