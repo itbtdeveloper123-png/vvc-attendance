@@ -6881,6 +6881,8 @@ function ai_verify_face_match($mysqli, $eid, $photo_b64) {
     $promptText .= "4. Only return match: true if you are 98% or more certain that the scanned face (last image) is the exact same human person as the reference photos. Otherwise, return match: false.\n\n";
     $promptText .= "Respond strictly in JSON: {\"match\": true} or {\"match\": false}.";
 
+    $lastError = 'No candidate vision APIs responded.';
+
     foreach ($candidates as $cand) {
         $rawContent = null;
         if ($cand['provider'] === 'gemini') {
@@ -6894,6 +6896,9 @@ function ai_verify_face_match($mysqli, $eid, $photo_b64) {
             $attempt = ai_chat_http_post_json($cand['endpoint'], $payload, ['Content-Type: application/json']);
             if (($attempt['ok'] ?? false) && !empty($attempt['data']['candidates'][0]['content']['parts'][0]['text'])) {
                 $rawContent = trim((string)$attempt['data']['candidates'][0]['content']['parts'][0]['text']);
+            } else {
+                $lastError = $attempt['data']['error']['message'] ?? ($attempt['message'] ?? 'Gemini call failed');
+                @file_put_contents(__DIR__ . '/uploads/face_match_debug.log', date('[Y-m-d H:i:s] ') . "API call failed for Gemini | Error: " . $lastError . "\n", FILE_APPEND);
             }
         } else {
             $userContent = [['type' => 'text', 'text' => $promptText]];
@@ -6916,6 +6921,9 @@ function ai_verify_face_match($mysqli, $eid, $photo_b64) {
             $attempt = ai_chat_http_post_json($cand['endpoint'], $payload, ['Authorization: Bearer ' . $cand['key']]);
             if (($attempt['ok'] ?? false) && !empty($attempt['data']['choices'][0]['message']['content'])) {
                 $rawContent = trim((string)$attempt['data']['choices'][0]['message']['content']);
+            } else {
+                $lastError = $attempt['data']['error']['message'] ?? ($attempt['message'] ?? 'Groq/OpenAI call failed');
+                @file_put_contents(__DIR__ . '/uploads/face_match_debug.log', date('[Y-m-d H:i:s] ') . "API call failed for Groq/OpenAI | Error: " . $lastError . "\n", FILE_APPEND);
             }
         }
 
@@ -6940,6 +6948,6 @@ function ai_verify_face_match($mysqli, $eid, $photo_b64) {
         }
     }
 
-    return ['match' => false, 'message' => 'ការផ្ទៀងផ្ទាត់ផ្ទៃមុខមិនត្រូវគ្នាទេ! សូមព្យាយាមម្តងទៀត。'];
+    return ['match' => false, 'message' => 'ការផ្ទៀងផ្ទាត់ផ្ទៃមុខមានបញ្ហា៖ ' . $lastError];
 }
 
