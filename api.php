@@ -6754,10 +6754,13 @@ function ai_call_free_vision_service($systemPrompt, $userPrompt, $imageBase64 = 
                     'model'       => $cand['model'],
                     'messages'    => $messages,
                     'temperature' => 0.1,
-                    'max_tokens'  => 1500,
+                    'max_tokens'  => 2500,
                 ];
                 if (strpos($cand['endpoint'], 'openai.com') !== false) {
                     $payload['response_format'] = ['type' => 'json_object'];
+                }
+                if (strpos($cand['endpoint'], 'groq.com') !== false) {
+                    $payload['reasoning_format'] = 'hidden';
                 }
                 $attempt = ai_chat_http_post_json($cand['endpoint'], $payload, ['Authorization: Bearer ' . $cand['key']]);
                 if (($attempt['ok'] ?? false) && !empty($attempt['data']['choices'][0]['message']['content'])) {
@@ -6882,8 +6885,11 @@ function ai_verify_face_match($mysqli, $eid, $photo_b64) {
                     ],
                 ],
             ];
-            $payload = ['model' => $cand['model'], 'messages' => $messages, 'max_tokens' => 100, 'temperature' => 0.0];
+            $payload = ['model' => $cand['model'], 'messages' => $messages, 'max_tokens' => 200, 'temperature' => 0.0];
             if ($cand['provider'] === 'openai') $payload['response_format'] = ['type' => 'json_object'];
+            if ($cand['provider'] === 'groq') {
+                $payload['reasoning_format'] = 'hidden';
+            }
             $attempt = ai_chat_http_post_json($cand['endpoint'], $payload, ['Authorization: Bearer ' . $cand['key']]);
             if (($attempt['ok'] ?? false) && !empty($attempt['data']['choices'][0]['message']['content'])) {
                 $rawContent = trim((string)$attempt['data']['choices'][0]['message']['content']);
