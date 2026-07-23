@@ -356,7 +356,7 @@ function check_api_rate_limit($mysqli) {
     $action = $_GET['action'] ?? ($_POST['action'] ?? 'index');
     $now = time();
     $limit = 60; // Max 60 requests per minute
-    
+
     // Auto-create rate limits table if not exists
     $mysqli->query("CREATE TABLE IF NOT EXISTS api_rate_limits (
         ip_address VARCHAR(45) NOT NULL,
@@ -887,11 +887,11 @@ function product_ai_extract_json_payload($content) {
     }
 
     $text = preg_replace('/^\xEF\xBB\xBF/', '', $text);
-    
+
     // Strip closed think/reasoning tags
     $text = preg_replace('/<think\b[^>]*>.*?<\/think>/is', '', $text);
     $text = preg_replace('/<reasoning\b[^>]*>.*?<\/reasoning>/is', '', $text);
-    
+
     // Handle unclosed think tags before JSON
     $firstBrace = strpos($text, '{');
     if ($firstBrace !== false) {
@@ -4663,7 +4663,7 @@ switch ($action) {
             // Detect nearest location based on user's current GPS
             if ($u_lat !== null && $u_lon !== null) {
                 // Fetch all active/configured locations for this user or general locations
-                $loc_sql = "SELECT l.id, l.location_name, l.latitude, l.longitude, 
+                $loc_sql = "SELECT l.id, l.location_name, l.latitude, l.longitude,
                                    COALESCE(ul.custom_radius_meters, l.radius_meters) as final_radius
                             FROM locations l
                             LEFT JOIN user_locations ul ON l.id = ul.location_id AND ul.employee_id = ?";
@@ -4674,7 +4674,7 @@ switch ($action) {
                     $loc_res = $loc_stmt->get_result();
                     $closest_loc = null;
                     $min_distance = doubleval(99999999);
-                    
+
                     while ($loc_row = $loc_res->fetch_assoc()) {
                         $dist = haversine_distance($u_lat, $u_lon, $loc_row['latitude'], $loc_row['longitude']);
                         if ($dist < $min_distance) {
@@ -4779,10 +4779,10 @@ switch ($action) {
                     'message' => 'រកមិនឃើញរូបថតស្កេនផ្ទៃមុខ ឬទិន្នន័យរូបថតត្រូវបានបដិសេធដោយ Server (ទំហំធំពេក)។ សូមប្រាកដថាអ្នកបានដំឡើងកម្មវិធីទូរស័ព្ទចុងក្រោយបង្អស់!'
                 ]);
             }
-            
+
             // Check if biometric verification was completed on the device (Face ID / Touch ID)
             $biometric_verified = ($_POST['biometric_verified'] ?? '') === '1' || ($_POST['biometric_verified'] ?? '') === 'true';
-            
+
             if (!$biometric_verified) {
                 // Fallback to server-side AI matching for older app versions
                 $faceVerification = ai_verify_face_match($mysqli, $eid, $check_photo_b64);
@@ -6828,24 +6828,32 @@ switch ($action) {
         break;
 }
 
+function product_ai_build_multimodal_content($userPrompt, $imageBase64 = '', $mimeType = 'image/jpeg') {
+    $cleanImageBase64 = str_replace(["\r", "\n", " ", "\t"], '', (string)$imageBase64);
+    $userContent = [];
+
+    if ($userPrompt !== '') {
+        $userContent[] = ['type' => 'text', 'text' => $userPrompt];
+    }
+
+    if ($cleanImageBase64 !== '') {
+        $userContent[] = [
+            'type' => 'image_url',
+            'image_url' => ['url' => "data:{$mimeType};base64,{$cleanImageBase64}"]
+        ];
+    }
+
+    return $userContent;
+}
+
 function ai_call_free_vision_service($systemPrompt, $userPrompt, $imageBase64 = '', $mimeType = 'image/jpeg') {
     $cleanImageBase64 = str_replace(["\r", "\n", " ", "\t"], '', (string)$imageBase64);
+    $userContent = product_ai_build_multimodal_content($userPrompt, $imageBase64, $mimeType);
 
-        $userContent = [];
-        if ($userPrompt !== '') {
-            $userContent[] = ['type' => 'text', 'text' => $userPrompt];
-        }
-        if ($cleanImageBase64 !== '') {
-            $userContent[] = [
-                'type' => 'image_url',
-                'image_url' => ['url' => "data:{$mimeType};base64,{$cleanImageBase64}"]
-            ];
-        }
-
-        $messages = [
-            ['role' => 'system', 'content' => $systemPrompt],
-            ['role' => 'user', 'content' => $userContent],
-        ];
+    $messages = [
+        ['role' => 'system', 'content' => $systemPrompt],
+        ['role' => 'user', 'content' => empty($userContent) ? $userPrompt : $userContent],
+    ];
 
         $openAiKey   = trim((string)(defined('OPENAI_API_KEY') ? OPENAI_API_KEY : (getenv('OPENAI_API_KEY') ?: '')));
         $groqKey     = trim((string)(defined('GROQ_API_KEY') ? GROQ_API_KEY : (getenv('GROQ_API_KEY') ?: '')));
@@ -6933,12 +6941,13 @@ function ai_call_free_vision_service($systemPrompt, $userPrompt, $imageBase64 = 
 
         foreach ($candidates as $cand) {
             if ($cand['type'] === 'pollinations') {
-                // Pollinations OpenAI-compatible endpoint
+                // Pollinations OpenAI-compatible endpoint with vision support
+                $polUserContent = product_ai_build_multimodal_content($userPrompt, $imageBase64, $mimeType);
                 $polPayload = [
                     'model'    => $cand['model'],
                     'messages' => [
                         ['role' => 'system', 'content' => $systemPrompt],
-                        ['role' => 'user',   'content' => $userPrompt],
+                        ['role' => 'user',   'content' => empty($polUserContent) ? $userPrompt : $polUserContent],
                     ],
                 ];
                 $polTimeout = isset($cand['timeout']) ? (int)$cand['timeout'] : 45;
@@ -6952,21 +6961,22 @@ function ai_call_free_vision_service($systemPrompt, $userPrompt, $imageBase64 = 
                 curl_setopt($polCh, CURLOPT_TIMEOUT, $polTimeout);
                 $polRaw  = curl_exec($polCh);
                 $polErr  = curl_error($polCh);
+                $polHttp = (int)curl_getinfo($polCh, CURLINFO_HTTP_CODE);
                 curl_close($polCh);
-                if ($polRaw !== false && $polErr === '') {
+                if ($polRaw !== false && $polErr === '' && $polHttp >= 200 && $polHttp < 300) {
                     $polDec = json_decode($polRaw, true);
                     $rawText = '';
                     if (!empty($polDec['choices'][0]['message']['content'])) {
                         $rawText = trim((string)$polDec['choices'][0]['message']['content']);
-                    } elseif (is_string($polRaw) && strlen($polRaw) > 5) {
+                    } elseif (is_string($polRaw) && strlen($polRaw) > 10 && $polRaw[0] === '{') {
                         $rawText = trim($polRaw);
                     }
                     if ($rawText !== '') {
                         return ['success' => true, 'content' => $rawText];
                     }
-                    $errors[] = 'Pollinations: empty response';
+                    $errors[] = 'Pollinations: empty content (HTTP ' . $polHttp . ')';
                 } else {
-                    $errors[] = 'Pollinations: ' . ($polErr ?: 'cURL failed');
+                    $errors[] = 'Pollinations: ' . ($polErr ?: 'HTTP ' . $polHttp);
                 }
             } elseif ($cand['type'] === 'gemini') {
                 $parts = [['text' => $systemPrompt . "\n\n" . $userPrompt]];
@@ -7185,7 +7195,7 @@ function ai_verify_face_match($mysqli, $eid, $photo_b64) {
                 $isMatch = ($extracted['json']['match'] == true || (isset($extracted['json']['is_same_person']) && $extracted['json']['is_same_person'] == true));
                 return ['match' => $isMatch, 'message' => $isMatch ? 'Verified' : 'ការផ្ទៀងផ្ទាត់ផ្ទៃមុខមិនត្រូវគ្នាទេ! មុខដែលបានស្កេន មិនមែនជា Face ID របស់គណនីនេះឡើយ。'];
             }
-            
+
             // Secure fallback: only check for explicit key-value match pairs
             $cleanRaw = strtolower($rawContent);
             if (preg_match('/"match"\s*:\s*true/i', $cleanRaw) || preg_match('/"is_same_person"\s*:\s*true/i', $cleanRaw)) {
