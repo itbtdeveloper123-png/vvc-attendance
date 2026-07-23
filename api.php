@@ -6794,28 +6794,34 @@ function ai_verify_face_match($mysqli, $eid, $photo_b64) {
         return ['match' => false, 'message' => 'អ្នកមិនទាន់បានចុះឈ្មោះ Face ID ទេ។ សូមចុះឈ្មោះ Face ID នៅក្នុង Profile ជាមុនសិន!'];
     }
 
-    // Get reference photo
-    $ref_stmt = $mysqli->prepare("SELECT photo_path FROM employee_face_data WHERE employee_id = ? ORDER BY photo_index ASC LIMIT 1");
-    $ref_path = null;
+    // Get all registered reference photos
+    $ref_stmt = $mysqli->prepare("SELECT photo_path, photo_index FROM employee_face_data WHERE employee_id = ? ORDER BY photo_index ASC");
+    $ref_photos = [];
     if ($ref_stmt) {
         $ref_stmt->bind_param("s", $eid);
         $ref_stmt->execute();
         $r = $ref_stmt->get_result();
-        if ($r) { $row = $r->fetch_assoc(); $ref_path = $row['photo_path'] ?? null; }
+        if ($r) {
+            while ($row = $r->fetch_assoc()) {
+                $path = $row['photo_path'] ?? '';
+                $fullPath = __DIR__ . '/' . ltrim($path, '/');
+                if ($path !== '' && is_file($fullPath)) {
+                    $bytes = file_get_contents($fullPath);
+                    if ($bytes) {
+                        $ref_photos[(int)$row['photo_index']] = base64_encode($bytes);
+                    }
+                }
+            }
+        }
         $ref_stmt->close();
     }
 
-    if (!$ref_path || !is_file(__DIR__ . '/' . ltrim($ref_path, '/'))) {
-        return ['match' => false, 'message' => 'រកមិនឃើញទិន្នន័យរូបថត Face ID ដើមដែលបានចុះឈ្មោះទេ'];
+    if (empty($ref_photos)) {
+        return ['match' => false, 'message' => 'អ្នកមិនទាន់បានចុះឈ្មោះ Face ID ទេ។ សូមចុះឈ្មោះ Face ID នៅក្នុង Profile ជាមុនសិន!'];
     }
 
-    $ref_bytes = file_get_contents(__DIR__ . '/' . ltrim($ref_path, '/'));
-    if (!$ref_bytes) {
-        return ['match' => false, 'message' => 'មិនអាចអានទិន្នន័យ Face ID ដើមបានទេ'];
-    }
-
-    $ref_b64 = base64_encode($ref_bytes);
     $clean_scan_b64 = preg_replace('/^data:image\/[a-z]+;base64,/', '', $photo_b64);
+    $cleanScanB64 = str_replace(["\r", "\n", " ", "\t"], '', (string)$photo_b64);
 
     $config = ai_chat_resolve_provider_config();
     if (!$config) {
@@ -6840,22 +6846,35 @@ function ai_verify_face_match($mysqli, $eid, $photo_b64) {
     // Pollinations as fallback
     $candidates[] = ['provider' => 'pollinations', 'model' => 'openai', 'endpoint' => 'https://text.pollinations.ai/'];
 
-    $cleanRefB64  = str_replace(["\r", "\n", " ", "\t"], '', (string)$ref_b64);
-    $cleanScanB64 = str_replace(["\r", "\n", " ", "\t"], '', (string)$photo_b64);
-
-    $promptText = "Compare Image 1 (registered employee reference face) with Image 2 (scanned face during attendance check-in). Are these two images showing the exact same human person? Respond strictly with a JSON object: {\"match\": true} or {\"match\": false}.";
+    $promptText = "You are a high-precision, strict biometric facial recognition system.\n";
+    $promptText .= "Compare the scanned check-in face (last image) against the registered reference faces of the employee:\n";
+    $imgCount = 1;
+    foreach ($ref_photos as $index => $b64) {
+        $angle = ($index == 0) ? "Straight view" : (($index == 1) ? "Left-tilted view" : "Right-tilted view");
+        $promptText .= "- Image $imgCount: $angle of the registered employee.\n";
+        $imgCount++;
+    }
+    $promptText .= "- Image $imgCount: Scanned face during attendance check-in.\n\n";
+    $promptText .= "Perform a strict biometric 3D facial feature verification:\n";
+    $promptText .= "1. Compare spacing/shape of eyes, nose bridge profile, nose tip structure, mouth shape, jawline structure, cheekbones, and ear positions.\n";
+    $promptText .= "2. Disregard background, lighting, minor expressions, or slight angle differences.\n";
+    $promptText .= "3. Be highly critical of twins, family members, or similar-looking individuals. If facial bone structure or details do not match the references, they are NOT the same person.\n";
+    $promptText .= "4. Only return match: true if you are 98% or more certain that the scanned face (last image) is the exact same human person as the reference photos. Otherwise, return match: false.\n\n";
+    $promptText .= "Respond strictly in JSON: {\"match\": true} or {\"match\": false}.";
 
     foreach ($candidates as $cand) {
         $rawContent = null;
         if ($cand['provider'] === 'pollinations') {
+            $userContent = [['type' => 'text', 'text' => $promptText]];
+            foreach ($ref_photos as $b64) {
+                $userContent[] = ['type' => 'image_url', 'image_url' => ['url' => 'data:image/jpeg;base64,' . str_replace(["\r", "\n", " ", "\t"], '', $b64)]];
+            }
+            $userContent[] = ['type' => 'image_url', 'image_url' => ['url' => 'data:image/jpeg;base64,' . $cleanScanB64]];
+
             $messages = [
                 [
                     'role' => 'user',
-                    'content' => [
-                        ['type' => 'text', 'text' => $promptText],
-                        ['type' => 'image_url', 'image_url' => ['url' => 'data:image/jpeg;base64,' . $cleanRefB64]],
-                        ['type' => 'image_url', 'image_url' => ['url' => 'data:image/jpeg;base64,' . $cleanScanB64]],
-                    ],
+                    'content' => $userContent,
                 ],
             ];
             $payload = ['messages' => $messages, 'model' => $cand['model'], 'jsonMode' => true];
@@ -6865,25 +6884,28 @@ function ai_verify_face_match($mysqli, $eid, $photo_b64) {
                 elseif (!empty($attempt['data']['choices'][0]['message']['content'])) $rawContent = trim((string)$attempt['data']['choices'][0]['message']['content']);
             }
         } elseif ($cand['provider'] === 'gemini') {
-            $parts = [
-                ['text' => $promptText],
-                ['inline_data' => ['mime_type' => 'image/jpeg', 'data' => $cleanRefB64]],
-                ['inline_data' => ['mime_type' => 'image/jpeg', 'data' => $cleanScanB64]],
-            ];
+            $parts = [['text' => $promptText]];
+            foreach ($ref_photos as $b64) {
+                $parts[] = ['inline_data' => ['mime_type' => 'image/jpeg', 'data' => str_replace(["\r", "\n", " ", "\t"], '', $b64)]];
+            }
+            $parts[] = ['inline_data' => ['mime_type' => 'image/jpeg', 'data' => $cleanScanB64]];
+
             $payload = ['contents' => [['parts' => $parts]], 'generationConfig' => ['temperature' => 0.0, 'responseMimeType' => 'application/json']];
             $attempt = ai_chat_http_post_json($cand['endpoint'], $payload, ['Content-Type: application/json']);
             if (($attempt['ok'] ?? false) && !empty($attempt['data']['candidates'][0]['content']['parts'][0]['text'])) {
                 $rawContent = trim((string)$attempt['data']['candidates'][0]['content']['parts'][0]['text']);
             }
         } else {
+            $userContent = [['type' => 'text', 'text' => $promptText]];
+            foreach ($ref_photos as $b64) {
+                $userContent[] = ['type' => 'image_url', 'image_url' => ['url' => 'data:image/jpeg;base64,' . str_replace(["\r", "\n", " ", "\t"], '', $b64)]];
+            }
+            $userContent[] = ['type' => 'image_url', 'image_url' => ['url' => 'data:image/jpeg;base64,' . $cleanScanB64]];
+
             $messages = [
                 [
                     'role' => 'user',
-                    'content' => [
-                        ['type' => 'text', 'text' => $promptText],
-                        ['type' => 'image_url', 'image_url' => ['url' => 'data:image/jpeg;base64,' . $cleanRefB64]],
-                        ['type' => 'image_url', 'image_url' => ['url' => 'data:image/jpeg;base64,' . $cleanScanB64]],
-                    ],
+                    'content' => $userContent,
                 ],
             ];
             $payload = ['model' => $cand['model'], 'messages' => $messages, 'max_tokens' => 200, 'temperature' => 0.0];

@@ -42,8 +42,8 @@ class _FaceSetupScreenState extends State<FaceSetupScreen>
   final List<String> _capturedPhotos = [];
   final List<String> _stepTitles = [
     'ស្ថានភាពទី ១ — ត្រង់ (Straight)',
-    'ស្ថានភាពទី ២ — ក្បាលទំអែតឆ្វេង (Slight Left)',
-    'ស្ថានភាពទី ៣ — ក្បាលទំអែតស្ដាំ (Slight Right)',
+    'ស្ថានភាពទី ២ — ងាកឆ្វេង (Slight Left)',
+    'ស្ថានភាពទី ៣ — ងាកស្ដាំ (Slight Right)',
   ];
   final List<String> _stepIcons = ['😐', '🙂', '🙃'];
   final List<String> _stepHints = [
@@ -57,11 +57,9 @@ class _FaceSetupScreenState extends State<FaceSetupScreen>
   late AnimationController _successController;
   late Animation<double> _successAnim;
 
-  Timer? _captureTimer;
-  Timer? _countdownTimer;
   bool _faceProcessing = false;
   int _consecutiveFaceFrames = 0;
-  int _captureCountdown = 3;
+  String _poseFeedback = 'សូមដាក់ផ្ទៃមុខឱ្យចំកណ្តាលក្របខ័ណ្ឌ';
 
   @override
   void initState() {
@@ -151,42 +149,60 @@ class _FaceSetupScreenState extends State<FaceSetupScreen>
       if (!mounted) return;
 
       if (faces.isNotEmpty) {
-        _consecutiveFaceFrames++;
-        if (!_isFaceDetected) setState(() => _isFaceDetected = true);
-        if (_consecutiveFaceFrames >= 10 && !_isCaptured && _captureTimer == null) {
-          _startCaptureCountdown();
+        final face = faces.first;
+        final angleY = face.headEulerAngleY ?? 0;
+        
+        bool isCorrectPose = false;
+        String feedback = '';
+        
+        if (_currentStep == 0) {
+          if (angleY.abs() <= 12) {
+            isCorrectPose = true;
+            feedback = 'ទីតាំងត្រឹមត្រូវ! កំពុងថត...';
+          } else {
+            feedback = 'សូមមើលចំកាមេរ៉ាត្រង់';
+          }
+        } else if (_currentStep == 1) {
+          if (angleY <= -15) {
+            isCorrectPose = true;
+            feedback = 'ងាកឆ្វេងត្រឹមត្រូវ! កំពុងថត...';
+          } else {
+            feedback = 'សូមងាកក្បាលទៅខាងឆ្វេងបន្តិច';
+          }
+        } else if (_currentStep == 2) {
+          if (angleY >= 15) {
+            isCorrectPose = true;
+            feedback = 'ងាកស្តាំត្រឹមត្រូវ! កំពុងថត...';
+          } else {
+            feedback = 'សូមងាកក្បាលទៅខាងស្តាំបន្តិច';
+          }
+        }
+        
+        setState(() {
+          _poseFeedback = feedback;
+          _isFaceDetected = true;
+        });
+        
+        if (isCorrectPose) {
+          _consecutiveFaceFrames++;
+          if (_consecutiveFaceFrames >= 8 && !_isCaptured) {
+            _capturePhoto();
+          }
+        } else {
+          _consecutiveFaceFrames = 0;
         }
       } else {
-        _consecutiveFaceFrames = 0;
-        if (_isFaceDetected) {
-          setState(() => _isFaceDetected = false);
-          _cancelCountdown();
-        }
+        setState(() {
+          _consecutiveFaceFrames = 0;
+          _isFaceDetected = false;
+          _poseFeedback = 'សូមដាក់ផ្ទៃមុខឱ្យចំកណ្តាលក្របខ័ណ្ឌ';
+        });
       }
     } catch (_) {
       _consecutiveFaceFrames = 0;
     } finally {
       _faceProcessing = false;
     }
-  }
-
-  void _startCaptureCountdown() {
-    if (_captureTimer != null) return;
-    _captureCountdown = 3;
-    setState(() {});
-    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (t) {
-      if (!mounted) { t.cancel(); return; }
-      _captureCountdown--;
-      setState(() {});
-      if (_captureCountdown <= 0) { t.cancel(); _capturePhoto(); }
-    });
-    _captureTimer = Timer(const Duration(seconds: 4), () {});
-  }
-
-  void _cancelCountdown() {
-    _countdownTimer?.cancel(); _countdownTimer = null;
-    _captureTimer?.cancel(); _captureTimer = null;
-    _captureCountdown = 3;
   }
 
   Future<void> _capturePhoto() async {
@@ -208,9 +224,7 @@ class _FaceSetupScreenState extends State<FaceSetupScreen>
             _isCaptured = false;
             _isFaceDetected = false;
             _consecutiveFaceFrames = 0;
-            _captureTimer = null;
-            _countdownTimer = null;
-            _captureCountdown = 3;
+            _poseFeedback = 'សូមដាក់ផ្ទៃមុខឱ្យចំកណ្តាលក្របខ័ណ្ឌ';
           });
         }
         await _cameraController!.startImageStream(_processFrame);
@@ -239,6 +253,7 @@ class _FaceSetupScreenState extends State<FaceSetupScreen>
           _currentStep = 0; _capturedPhotos.clear();
           _isCaptured = false; _isFaceDetected = false;
           _isSubmitting = false; _consecutiveFaceFrames = 0;
+          _poseFeedback = 'សូមដាក់ផ្ទៃមុខឱ្យចំកណ្តាលក្របខ័ណ្ឌ';
         });
         await _cameraController?.startImageStream(_processFrame);
       }
@@ -316,7 +331,6 @@ class _FaceSetupScreenState extends State<FaceSetupScreen>
 
   @override
   void dispose() {
-    _captureTimer?.cancel(); _countdownTimer?.cancel();
     _pulseController.dispose(); _successController.dispose();
     try { _cameraController?.stopImageStream(); } catch (_) {}
     _cameraController?.dispose();
@@ -331,17 +345,35 @@ class _FaceSetupScreenState extends State<FaceSetupScreen>
       body: Stack(
         fit: StackFit.expand,
         children: [
-          if (!_isInitializing && !_cameraError && _cameraController != null)
+          if (!_isInitializing && !_cameraError && _cameraController != null) ...[
             CameraPreview(_cameraController!),
-          Container(color: Colors.black.withValues(alpha: _isInitializing ? 1.0 : 0.35)),
+            Positioned.fill(
+              child: CustomPaint(
+                painter: FaceIdMaskPainter(
+                  overlayColor: Colors.black.withValues(alpha: 0.65),
+                  cutoutWidth: 260,
+                  cutoutHeight: 260,
+                ),
+              ),
+            ),
+          ],
+          
+          if (!_isInitializing && !_cameraError)
+            Align(
+              alignment: const Alignment(0, -0.2),
+              child: _buildFaceFrame(),
+            ),
+
           SafeArea(
             child: Column(
               children: [
                 _buildTopBar(),
                 _buildStepProgress(),
+                
+                // Reserve space matching alignment offset of Face Frame
+                const SizedBox(height: 260),
+                
                 const Spacer(),
-                _buildFaceFrame(),
-                const SizedBox(height: 16),
                 _buildHintText(),
                 const Spacer(),
                 _buildBottomStatus(),
@@ -455,11 +487,11 @@ class _FaceSetupScreenState extends State<FaceSetupScreen>
         child: child,
       ),
       child: Container(
-        width: 220, height: 270,
+        width: 260, height: 260,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(130),
-          border: Border.all(color: color, width: 3),
-          boxShadow: [BoxShadow(color: color.withValues(alpha: 0.35), blurRadius: 24, spreadRadius: 4)],
+          border: Border.all(color: color, width: 3.5),
+          boxShadow: [BoxShadow(color: color.withValues(alpha: 0.3), blurRadius: 20, spreadRadius: 3)],
         ),
         child: _isCaptured
             ? Center(child: ScaleTransition(scale: _successAnim, child: const Icon(Icons.check_circle_rounded, color: Colors.greenAccent, size: 72)))
@@ -472,9 +504,30 @@ class _FaceSetupScreenState extends State<FaceSetupScreen>
     return Column(children: [
       Text(_stepIcons[_currentStep], style: const TextStyle(fontSize: 36)),
       const SizedBox(height: 8),
-      Text(_stepTitles[_currentStep], style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+      Text(_stepTitles[_currentStep], style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
       const SizedBox(height: 6),
       Text(_stepHints[_currentStep], textAlign: TextAlign.center, style: GoogleFonts.kantumruyPro(color: Colors.white60, fontSize: 13)),
+      const SizedBox(height: 12),
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: _isFaceDetected ? Colors.cyanAccent.withValues(alpha: 0.1) : Colors.black45,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: _isFaceDetected ? Colors.cyanAccent.withValues(alpha: 0.3) : Colors.white12,
+            width: 1,
+          ),
+        ),
+        child: Text(
+          _poseFeedback,
+          textAlign: TextAlign.center,
+          style: GoogleFonts.kantumruyPro(
+            color: _isFaceDetected ? Colors.cyanAccent : Colors.white70,
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
     ]);
   }
 
@@ -482,9 +535,6 @@ class _FaceSetupScreenState extends State<FaceSetupScreen>
     if (_isSubmitting) return const SizedBox.shrink();
     if (_isCaptured) {
       return _statusPill(Colors.greenAccent, Icons.check_rounded, 'ថតបានជោគជ័យ!');
-    }
-    if (_isFaceDetected && _captureCountdown < 3) {
-      return _statusPill(Colors.cyanAccent, Icons.camera_alt_rounded, 'ថតក្នុង $_captureCountdown វិនាទី...');
     }
     if (_isFaceDetected) {
       return Container(
@@ -497,7 +547,7 @@ class _FaceSetupScreenState extends State<FaceSetupScreen>
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.cyanAccent)),
           const SizedBox(width: 10),
-          Text('ផ្ទៀងផ្ទាត់...', style: GoogleFonts.kantumruyPro(color: Colors.cyanAccent, fontWeight: FontWeight.bold)),
+          Text('រកឃើញផ្ទៃមុខ...', style: GoogleFonts.kantumruyPro(color: Colors.cyanAccent, fontWeight: FontWeight.bold)),
         ]),
       );
     }
@@ -518,5 +568,38 @@ class _FaceSetupScreenState extends State<FaceSetupScreen>
         Text(label, style: GoogleFonts.kantumruyPro(color: color, fontWeight: FontWeight.bold)),
       ]),
     );
+  }
+}
+
+class FaceIdMaskPainter extends CustomPainter {
+  final Color overlayColor;
+  final double cutoutWidth;
+  final double cutoutHeight;
+
+  FaceIdMaskPainter({
+    required this.overlayColor,
+    required this.cutoutWidth,
+    required this.cutoutHeight,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = overlayColor;
+    final bgPath = Path()..addRect(Rect.fromLTWH(0, 0, size.width, size.height));
+    
+    // Oval cutout in the center, slightly shifted upwards for UI balance (matching Alignment(0, -0.2))
+    final center = Offset(size.width / 2, size.height * 0.4);
+    final cutoutRect = Rect.fromCenter(center: center, width: cutoutWidth, height: cutoutHeight);
+    final cutoutPath = Path()..addOval(cutoutRect);
+
+    final finalPath = Path.combine(PathOperation.difference, bgPath, cutoutPath);
+    canvas.drawPath(finalPath, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant FaceIdMaskPainter oldDelegate) {
+    return oldDelegate.overlayColor != overlayColor ||
+        oldDelegate.cutoutWidth != cutoutWidth ||
+        oldDelegate.cutoutHeight != cutoutHeight;
   }
 }
