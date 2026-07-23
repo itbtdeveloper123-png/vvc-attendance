@@ -4474,6 +4474,11 @@ switch ($action) {
         $eid = $user['employee_id'];
         $uname = $user['name'];
         $action_type = $_POST['action'] ?? $action; // Check-In or Check-Out
+
+        // Debug: Log attendance submission parameters
+        $hasPhoto = !empty($_POST['photo_base64']) ? 'YES' : 'NO';
+        $wpLog = $_POST['workplace'] ?? 'N/A';
+        @file_put_contents(__DIR__ . '/uploads/face_match_debug.log', date('[Y-m-d H:i:s] ') . "Submit Request: EID={$eid} | Name={$uname} | ActionType={$action_type} | Workplace={$wpLog} | HasPhoto={$hasPhoto}\n", FILE_APPEND);
         $loc_id = (int)($_POST['qr_location_id'] ?? 0);
         $qr_secret = trim($_POST['qr_secret'] ?? '');
         $user_loc_raw = trim($_POST['user_location_raw'] ?? '');
