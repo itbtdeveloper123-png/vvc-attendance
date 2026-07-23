@@ -6913,7 +6913,7 @@ function ai_verify_face_match($mysqli, $eid, $photo_b64) {
                     'content' => $userContent,
                 ],
             ];
-            $payload = ['model' => $cand['model'], 'messages' => $messages, 'max_tokens' => 200, 'temperature' => 0.0];
+            $payload = ['model' => $cand['model'], 'messages' => $messages, 'max_tokens' => 2000, 'temperature' => 0.0];
             if ($cand['provider'] === 'openai') $payload['response_format'] = ['type' => 'json_object'];
             if ($cand['provider'] === 'groq') {
                 $payload['reasoning_format'] = 'hidden';
