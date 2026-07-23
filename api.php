@@ -6658,7 +6658,7 @@ function ai_call_free_vision_service($systemPrompt, $userPrompt, $imageBase64 = 
                 'type'     => 'openai_compat',
                 'endpoint' => 'https://api.groq.com/openai/v1/chat/completions',
                 'key'      => $groqKey,
-                'model'    => 'llama-3.2-11b-vision-instruct',
+                'model'    => 'qwen/qwen3.6-27b',
             ];
         }
 
@@ -6799,7 +6799,7 @@ function ai_verify_face_match($mysqli, $eid, $photo_b64) {
         $candidates[] = ['provider' => 'gemini', 'model' => 'gemini-2.0-flash', 'endpoint' => 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' . $geminiKey, 'key' => $geminiKey];
     }
     if ($groqKey !== '') {
-        $candidates[] = ['provider' => 'groq', 'model' => 'llama-3.2-11b-vision-instruct', 'endpoint' => 'https://api.groq.com/openai/v1/chat/completions', 'key' => $groqKey];
+        $candidates[] = ['provider' => 'groq', 'model' => 'qwen/qwen3.6-27b', 'endpoint' => 'https://api.groq.com/openai/v1/chat/completions', 'key' => $groqKey];
     }
     if ($openAiKey !== '') {
         $candidates[] = ['provider' => 'openai', 'model' => 'gpt-4o-mini', 'endpoint' => 'https://api.openai.com/v1/chat/completions', 'key' => $openAiKey];
