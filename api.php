@@ -6923,7 +6923,7 @@ function ai_verify_face_match($mysqli, $eid, $photo_b64) {
                 $rawContent = trim((string)$attempt['data']['choices'][0]['message']['content']);
             } else {
                 $lastError = $attempt['data']['error']['message'] ?? ($attempt['message'] ?? 'Groq/OpenAI call failed');
-                @file_put_contents(__DIR__ . '/uploads/face_match_debug.log', date('[Y-m-d H:i:s] ') . "API call failed for Groq/OpenAI | Error: " . $lastError . "\n", FILE_APPEND);
+                @file_put_contents(__DIR__ . '/uploads/face_match_debug.log', date('[Y-m-d H:i:s] ') . "API call failed for Groq/OpenAI | Error: " . $lastError . " | Full Response: " . json_encode($attempt, JSON_UNESCAPED_UNICODE) . "\n", FILE_APPEND);
             }
         }
 
