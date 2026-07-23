@@ -730,8 +730,20 @@ function product_ai_extract_json_payload($content) {
     }
 
     $text = preg_replace('/^\xEF\xBB\xBF/', '', $text);
+    
+    // Strip closed think/reasoning tags
     $text = preg_replace('/<think\b[^>]*>.*?<\/think>/is', '', $text);
     $text = preg_replace('/<reasoning\b[^>]*>.*?<\/reasoning>/is', '', $text);
+    
+    // Handle unclosed think tags before JSON
+    $firstBrace = strpos($text, '{');
+    if ($firstBrace !== false) {
+        $leadingText = substr($text, 0, $firstBrace);
+        if (stripos($leadingText, '<think>') !== false || stripos($leadingText, '<reasoning>') !== false) {
+            $text = substr($text, $firstBrace);
+        }
+    }
+
     $text = preg_replace('/^```(?:json)?\s*/i', '', trim((string)$text));
     $text = preg_replace('/\s*```\s*$/', '', trim((string)$text));
     $text = trim((string)$text);
@@ -772,11 +784,12 @@ function product_ai_fallback_parse_text($content) {
     $category = 'ទូទៅ';
 
     if (preg_match('/(?:product_name|ឈ្មោះផលិតផល|ឈ្មោះ|product)\s*[:=]\s*["\']?([^"\'\n\r]+)/iu', $cleaned, $m)) {
-        $productName = trim($m[1]);
+        $productName = trim(trim($m[1], '":,{}[]\''));
     } else {
         $lines = array_filter(array_map('trim', explode("\n", $cleaned)));
         foreach ($lines as $line) {
             $lineClean = preg_replace('/^[\#\*\-\s\d\.]+\s*/', '', $line);
+            $lineClean = trim(trim($lineClean, '":,{}[]\''));
             if (mb_strlen($lineClean) > 2 && mb_strlen($lineClean) < 80) {
                 $productName = $lineClean;
                 break;
@@ -785,11 +798,11 @@ function product_ai_fallback_parse_text($content) {
     }
 
     if (preg_match('/(?:brand|ម៉ាក|យីហោ)\s*[:=]\s*["\']?([^"\'\n\r]+)/iu', $cleaned, $m)) {
-        $brand = trim($m[1]);
+        $brand = trim(trim($m[1], '":,{}[]\''));
     }
 
     if (preg_match('/(?:country_of_origin|ប្រទេស|ប្រភព|origin)\s*[:=]\s*["\']?([^"\'\n\r]+)/iu', $cleaned, $m)) {
-        $country = trim($m[1]);
+        $country = trim(trim($m[1], '":,{}[]\''));
     }
 
     $benefits = [];
