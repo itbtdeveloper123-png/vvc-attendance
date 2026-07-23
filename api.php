@@ -6884,7 +6884,7 @@ function ai_call_free_vision_service($systemPrompt, $userPrompt, $imageBase64 = 
                 'type'     => 'openai_compat',
                 'endpoint' => 'https://models.inference.ai.azure.com/chat/completions',
                 'key'      => $githubToken,
-                'model'    => 'gpt-4o-mini',
+                'model'    => 'gpt-4o',
             ];
         }
 
@@ -6894,7 +6894,7 @@ function ai_call_free_vision_service($systemPrompt, $userPrompt, $imageBase64 = 
                 'type'     => 'openai_compat',
                 'endpoint' => 'https://api.groq.com/openai/v1/chat/completions',
                 'key'      => $groqKey,
-                'model'    => 'llama-3.2-11b-vision-preview',
+                'model'    => 'llama-3.2-11b-vision-instruct',
             ];
         }
 
