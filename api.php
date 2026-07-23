@@ -805,6 +805,77 @@ function product_ai_clean_think_tags_recursive($data) {
     return $data;
 }
 
+function product_ai_heal_truncated_json($json_str) {
+    $json_str = trim($json_str);
+    if ($json_str === '') return '';
+
+    // Check if it already parses successfully
+    if (json_decode($json_str) !== null) {
+        return $json_str;
+    }
+
+    $len = strlen($json_str);
+    $in_string = false;
+    $escaped = false;
+    $stack = [];
+
+    for ($i = 0; $i < $len; $i++) {
+        $char = $json_str[$i];
+
+        if ($in_string) {
+            if ($escaped) {
+                $escaped = false;
+                continue;
+            }
+            if ($char === '\\') {
+                $escaped = true;
+                continue;
+            }
+            if ($char === '"') {
+                $in_string = false;
+            }
+            continue;
+        }
+
+        if ($char === '"') {
+            $in_string = true;
+            continue;
+        }
+
+        if ($char === '{') {
+            $stack[] = '}';
+            continue;
+        }
+        if ($char === '[') {
+            $stack[] = ']';
+            continue;
+        }
+        if ($char === '}' || $char === ']') {
+            if (!empty($stack)) {
+                $last = end($stack);
+                if ($last === $char) {
+                    array_pop($stack);
+                }
+            }
+            continue;
+        }
+    }
+
+    // Heal the string
+    $healed = $json_str;
+    if ($in_string) {
+        $healed .= '"';
+    }
+
+    // Close open structures
+    while (!empty($stack)) {
+        $close_char = array_pop($stack);
+        $healed .= $close_char;
+    }
+
+    return $healed;
+}
+
 function product_ai_extract_json_payload($content) {
     $text = trim((string)$content);
     if ($text === '') {
@@ -834,15 +905,17 @@ function product_ai_extract_json_payload($content) {
     $text = preg_replace('/\s*```\s*$/', '', trim((string)$text));
     $text = trim((string)$text);
 
-    $decoded = json_decode($text, true);
+    // Auto-heal truncated JSON text
+    $healed = product_ai_heal_truncated_json($text);
+    $decoded = json_decode($healed, true);
     if (is_array($decoded)) {
         return [
             'json' => product_ai_clean_think_tags_recursive($decoded),
-            'raw' => $text,
+            'raw' => $healed,
         ];
     }
 
-    $parsed = product_ai_find_json_object($text);
+    $parsed = product_ai_find_json_object($healed);
     if (is_array($parsed) && is_array($parsed['json'] ?? null)) {
         $parsed['json'] = product_ai_clean_think_tags_recursive($parsed['json']);
     }
@@ -869,12 +942,16 @@ function product_ai_fallback_parse_text($content) {
     $flag = '🇰🇭';
     $category = 'ទូទៅ';
 
-    if (preg_match('/(?:product_name|ឈ្មោះផលិតផល|ឈ្មោះ|product)\s*[:=]\s*["\']?([^"\'\n\r]+)/iu', $cleaned, $m)) {
+    if (preg_match('/["\']?(?:product_name|ឈ្មោះផលិតផល|ឈ្មោះ|product)["\']?\s*[:=]\s*["\']?([^"\'\n\r,]+)/iu', $cleaned, $m)) {
         $productName = trim(trim($m[1], '":,{}[]\''));
     } else {
         $lines = array_filter(array_map('trim', explode("\n", $cleaned)));
         foreach ($lines as $line) {
             $lineClean = preg_replace('/^[\#\*\-\s\d\.]+\s*/', '', $line);
+            if (strpos($lineClean, ':') !== false) {
+                $parts = explode(':', $lineClean, 2);
+                $lineClean = trim($parts[1]);
+            }
             $lineClean = trim(trim($lineClean, '":,{}[]\''));
             if (mb_strlen($lineClean) > 2 && mb_strlen($lineClean) < 80) {
                 $productName = $lineClean;
@@ -883,11 +960,11 @@ function product_ai_fallback_parse_text($content) {
         }
     }
 
-    if (preg_match('/(?:brand|ម៉ាក|យីហោ)\s*[:=]\s*["\']?([^"\'\n\r]+)/iu', $cleaned, $m)) {
+    if (preg_match('/["\']?(?:brand|ម៉ាក|យីហោ)["\']?\s*[:=]\s*["\']?([^"\'\n\r,]+)/iu', $cleaned, $m)) {
         $brand = trim(trim($m[1], '":,{}[]\''));
     }
 
-    if (preg_match('/(?:country_of_origin|ប្រទេស|ប្រភព|origin)\s*[:=]\s*["\']?([^"\'\n\r]+)/iu', $cleaned, $m)) {
+    if (preg_match('/["\']?(?:country_of_origin|ប្រទេស|ប្រភព|origin)["\']?\s*[:=]\s*["\']?([^"\'\n\r,]+)/iu', $cleaned, $m)) {
         $country = trim(trim($m[1], '":,{}[]\''));
     }
 
