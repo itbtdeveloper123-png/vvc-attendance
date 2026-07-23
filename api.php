@@ -6885,16 +6885,18 @@ function ai_call_free_vision_service($systemPrompt, $userPrompt, $imageBase64 = 
                 'endpoint' => 'https://models.inference.ai.azure.com/chat/completions',
                 'key'      => $githubToken,
                 'model'    => 'gpt-4o',
+                'timeout'  => 15,
             ];
         }
 
         // 2. Groq Cloud Vision (If active)
         if ($groqKey !== '') {
+            // meta-llama/llama-4-scout-17b supports vision and is recommended by Groq
             $candidates[] = [
                 'type'     => 'openai_compat',
                 'endpoint' => 'https://api.groq.com/openai/v1/chat/completions',
                 'key'      => $groqKey,
-                'model'    => 'llama-3.2-11b-vision-instruct',
+                'model'    => 'meta-llama/llama-4-scout-17b-16e-instruct',
             ];
         }
 
@@ -6976,13 +6978,34 @@ function ai_call_free_vision_service($systemPrompt, $userPrompt, $imageBase64 = 
                 if (strpos($cand['endpoint'], 'groq.com') !== false) {
                      $payload['reasoning_format'] = 'hidden';
                 }
-                $attempt = ai_chat_http_post_json($cand['endpoint'], $payload, ['Authorization: Bearer ' . $cand['key']]);
-                if (($attempt['ok'] ?? false) && !empty($attempt['data']['choices'][0]['message']['content'])) {
-                    $rawText = trim((string)$attempt['data']['choices'][0]['message']['content']);
-                    return ['success' => true, 'content' => $rawText];
+                $candTimeout = isset($cand['timeout']) ? (int)$cand['timeout'] : 30;
+                $ch = curl_init($cand['endpoint']);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_POST, true);
+                curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                    'Content-Type: application/json',
+                    'Authorization: Bearer ' . $cand['key'],
+                ]);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload, JSON_UNESCAPED_UNICODE));
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
+                curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, min($candTimeout, 10));
+                curl_setopt($ch, CURLOPT_TIMEOUT, $candTimeout);
+                $rawResponse = curl_exec($ch);
+                $curlError   = curl_error($ch);
+                $httpStatus  = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                curl_close($ch);
+                if ($rawResponse !== false && $curlError === '') {
+                    $decoded = json_decode($rawResponse, true);
+                    if (!empty($decoded['choices'][0]['message']['content'])) {
+                        $rawText = trim((string)$decoded['choices'][0]['message']['content']);
+                        return ['success' => true, 'content' => $rawText];
+                    }
+                    $err = $decoded['error']['message'] ?? ('HTTP ' . $httpStatus . ' empty response');
+                } else {
+                    $err = $curlError !== '' ? $curlError : 'cURL failed';
                 }
-                $err = $attempt['data']['error']['message'] ?? ($attempt['message'] ?? 'OpenAI vision failed');
-                $errors[] = $cand['model'] . ": " . $err;
+                $errors[] = $cand['model'] . ': ' . $err;
             }
         }
 
