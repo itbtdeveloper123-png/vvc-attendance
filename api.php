@@ -2588,6 +2588,15 @@ $actionSource = $_POST['action'] ?? $_GET['action'] ?? $_POST['ajax_action'] ?? 
 $action = strtolower(trim($actionSource));
 
 switch ($action) {
+    case 'view_face_log':
+        $logPath = __DIR__ . '/face_match_debug.log';
+        if (file_exists($logPath)) {
+            $content = file_get_contents($logPath);
+            echo json_encode(['success' => true, 'log' => $content]);
+        } else {
+            echo json_encode(['success' => false, 'message' => 'Log file not found at: ' . $logPath]);
+        }
+        exit;
     case 'update_fcm_token':
         if (!$user) apiResponse(['success' => false, 'message' => 'Unauthorized']);
         $fcm_token = $_POST['token'] ?? '';
