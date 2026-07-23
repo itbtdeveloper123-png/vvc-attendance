@@ -6879,24 +6879,34 @@ function ai_call_free_vision_service($systemPrompt, $userPrompt, $imageBase64 = 
         }
 
         // 1.5. GitHub Models (Free Azure AI Endpoint using GitHub PAT)
+        // Note: Only works if server can reach Azure. Will timeout quickly if blocked.
         if ($githubToken !== '') {
             $candidates[] = [
                 'type'     => 'openai_compat',
                 'endpoint' => 'https://models.inference.ai.azure.com/chat/completions',
                 'key'      => $githubToken,
                 'model'    => 'gpt-4o',
-                'timeout'  => 15,
+                'timeout'  => 10,
             ];
         }
 
-        // 2. Groq Cloud Vision (If active)
+        // 2. Groq Cloud Vision - multiple model fallbacks
         if ($groqKey !== '') {
-            // meta-llama/llama-4-scout-17b supports vision and is recommended by Groq
+            // Llama 4 Scout - latest multimodal model from Groq
             $candidates[] = [
                 'type'     => 'openai_compat',
                 'endpoint' => 'https://api.groq.com/openai/v1/chat/completions',
                 'key'      => $groqKey,
                 'model'    => 'meta-llama/llama-4-scout-17b-16e-instruct',
+                'timeout'  => 30,
+            ];
+            // Llama 4 Maverick - another multimodal option
+            $candidates[] = [
+                'type'     => 'openai_compat',
+                'endpoint' => 'https://api.groq.com/openai/v1/chat/completions',
+                'key'      => $groqKey,
+                'model'    => 'meta-llama/llama-4-maverick-17b-128e-instruct',
+                'timeout'  => 30,
             ];
         }
 
@@ -6907,39 +6917,57 @@ function ai_call_free_vision_service($systemPrompt, $userPrompt, $imageBase64 = 
                 'endpoint' => 'https://api.openai.com/v1/chat/completions',
                 'key'      => $openAiKey,
                 'model'    => 'gpt-4o-mini',
+                'timeout'  => 30,
             ];
         }
 
-        // 4. Pollinations AI (100% Free Public Vision Engine - Fallback)
+        // 4. Pollinations AI (100% Free Public Vision Engine - Last Fallback)
         $candidates[] = [
             'type'     => 'pollinations',
-            'endpoint' => 'https://text.pollinations.ai/',
-            'model'    => 'openai',
+            'endpoint' => 'https://text.pollinations.ai/openai',
+            'model'    => 'openai-large',
+            'timeout'  => 45,
         ];
 
         $errors = [];
 
         foreach ($candidates as $cand) {
             if ($cand['type'] === 'pollinations') {
-                $payload = [
-                    'messages' => $messages,
+                // Pollinations OpenAI-compatible endpoint
+                $polPayload = [
                     'model'    => $cand['model'],
-                    'jsonMode' => true,
+                    'messages' => [
+                        ['role' => 'system', 'content' => $systemPrompt],
+                        ['role' => 'user',   'content' => $userPrompt],
+                    ],
                 ];
-                $attempt = ai_chat_http_post_json($cand['endpoint'], $payload, ['Content-Type: application/json']);
-                if ($attempt['ok'] ?? false) {
+                $polTimeout = isset($cand['timeout']) ? (int)$cand['timeout'] : 45;
+                $polCh = curl_init($cand['endpoint']);
+                curl_setopt($polCh, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($polCh, CURLOPT_POST, true);
+                curl_setopt($polCh, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+                curl_setopt($polCh, CURLOPT_POSTFIELDS, json_encode($polPayload, JSON_UNESCAPED_UNICODE));
+                curl_setopt($polCh, CURLOPT_SSL_VERIFYPEER, false);
+                curl_setopt($polCh, CURLOPT_CONNECTTIMEOUT, 15);
+                curl_setopt($polCh, CURLOPT_TIMEOUT, $polTimeout);
+                $polRaw  = curl_exec($polCh);
+                $polErr  = curl_error($polCh);
+                curl_close($polCh);
+                if ($polRaw !== false && $polErr === '') {
+                    $polDec = json_decode($polRaw, true);
                     $rawText = '';
-                    if (is_string($attempt['data'] ?? null)) {
-                        $rawText = trim($attempt['data']);
-                    } elseif (!empty($attempt['data']['choices'][0]['message']['content'])) {
-                        $rawText = trim((string)$attempt['data']['choices'][0]['message']['content']);
+                    if (!empty($polDec['choices'][0]['message']['content'])) {
+                        $rawText = trim((string)$polDec['choices'][0]['message']['content']);
+                    } elseif (is_string($polRaw) && strlen($polRaw) > 5) {
+                        $rawText = trim($polRaw);
                     }
                     if ($rawText !== '') {
                         return ['success' => true, 'content' => $rawText];
                     }
+                    $errors[] = 'Pollinations: empty response';
+                } else {
+                    $errors[] = 'Pollinations: ' . ($polErr ?: 'cURL failed');
                 }
-                $err = $attempt['message'] ?? 'Pollinations vision failed';
-                $errors[] = "Pollinations: " . $err;
             } elseif ($cand['type'] === 'gemini') {
                 $parts = [['text' => $systemPrompt . "\n\n" . $userPrompt]];
                 if ($cleanImageBase64 !== '') {
