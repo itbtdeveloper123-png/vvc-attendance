@@ -6875,34 +6875,34 @@ function ai_call_free_vision_service($systemPrompt, $userPrompt, $imageBase64 = 
                 'endpoint' => 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' . $geminiKey,
                 'model'    => 'gemini-1.5-flash',
             ];
-        } else {
-            // 2. Groq Cloud Vision (If active)
-            if ($groqKey !== '') {
-                $candidates[] = [
-                    'type'     => 'openai_compat',
-                    'endpoint' => 'https://api.groq.com/openai/v1/chat/completions',
-                    'key'      => $groqKey,
-                    'model'    => 'qwen/qwen3.6-27b',
-                ];
-            }
+        }
 
-            // 3. OpenAI API (Fallback if active)
-            if ($openAiKey !== '') {
-                $candidates[] = [
-                    'type'     => 'openai_compat',
-                    'endpoint' => 'https://api.openai.com/v1/chat/completions',
-                    'key'      => $openAiKey,
-                    'model'    => 'gpt-4o-mini',
-                ];
-            }
-
-            // 4. Pollinations AI (100% Free Public Vision Engine - Fallback)
+        // 2. Groq Cloud Vision (If active)
+        if ($groqKey !== '') {
             $candidates[] = [
-                'type'     => 'pollinations',
-                'endpoint' => 'https://text.pollinations.ai/',
-                'model'    => 'openai',
+                'type'     => 'openai_compat',
+                'endpoint' => 'https://api.groq.com/openai/v1/chat/completions',
+                'key'      => $groqKey,
+                'model'    => 'llama-3.2-11b-vision-preview',
             ];
         }
+
+        // 3. OpenAI API (Fallback if active)
+        if ($openAiKey !== '') {
+            $candidates[] = [
+                'type'     => 'openai_compat',
+                'endpoint' => 'https://api.openai.com/v1/chat/completions',
+                'key'      => $openAiKey,
+                'model'    => 'gpt-4o-mini',
+            ];
+        }
+
+        // 4. Pollinations AI (100% Free Public Vision Engine - Fallback)
+        $candidates[] = [
+            'type'     => 'pollinations',
+            'endpoint' => 'https://text.pollinations.ai/',
+            'model'    => 'openai',
+        ];
 
         $errors = [];
 
