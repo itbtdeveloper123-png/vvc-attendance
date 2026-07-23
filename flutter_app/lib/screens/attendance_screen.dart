@@ -52,20 +52,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
   /// Load whether this user has already registered their face
   Future<void> _loadFaceRegistrationStatus() async {
-    final userProvider = Provider.of<UserProvider>(context, listen: false);
-    if (!userProvider.faceScanEnabled) return;
-    // Primary source: UserProvider (syncs with server)
-    _isFaceRegistered = userProvider.faceRegistered;
-    // If not marked locally, check server
-    if (!_isFaceRegistered) {
-      try {
-        final result = await _apiService.getFaceStatus();
-        if (result['registered'] == true) {
-          userProvider.setFaceRegistered(true);
-          _isFaceRegistered = true;
-        }
-      } catch (_) {}
-    }
+    // Biometrics are native to device, so we treat it as always registered
+    _isFaceRegistered = true;
   }
 
   @override
