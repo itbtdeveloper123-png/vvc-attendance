@@ -4608,8 +4608,14 @@ switch ($action) {
 
         // 4.5. Verify Face Scan if applicable (both Face Scan inside office and Outside check-in)
         $wp = trim($_POST['workplace'] ?? '');
-        if (($wp === 'Face Scan' || $wp === 'Outside') && !empty($_POST['photo_base64'])) {
-            $check_photo_b64 = $_POST['photo_base64'] ?? '';
+        if ($wp === 'Face Scan' || $wp === 'Outside') {
+            $check_photo_b64 = trim($_POST['photo_base64'] ?? '');
+            if (empty($check_photo_b64)) {
+                apiResponse([
+                    'success' => false,
+                    'message' => 'រកមិនឃើញរូបថតស្កេនផ្ទៃមុខ ឬទិន្នន័យរូបថតត្រូវបានបដិសេធដោយ Server (ទំហំធំពេក)។ សូមប្រាកដថាអ្នកបានដំឡើងកម្មវិធីទូរស័ព្ទចុងក្រោយបង្អស់!'
+                ]);
+            }
             $faceVerification = ai_verify_face_match($mysqli, $eid, $check_photo_b64);
             if (!($faceVerification['match'] ?? false)) {
                 apiResponse(['success' => false, 'message' => $faceVerification['message'] ?? 'ការផ្ទៀងផ្ទាត់ផ្ទៃមុខមិនត្រូវគ្នាទេ!']);
