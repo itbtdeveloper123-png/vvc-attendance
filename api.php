@@ -6847,9 +6847,10 @@ function ai_call_free_vision_service($systemPrompt, $userPrompt, $imageBase64 = 
             ['role' => 'user', 'content' => $userContent],
         ];
 
-        $openAiKey = trim((string)(defined('OPENAI_API_KEY') ? OPENAI_API_KEY : (getenv('OPENAI_API_KEY') ?: '')));
-        $groqKey   = trim((string)(defined('GROQ_API_KEY') ? GROQ_API_KEY : (getenv('GROQ_API_KEY') ?: '')));
-        $geminiKey = trim((string)(defined('GEMINI_API_KEY') ? GEMINI_API_KEY : (getenv('GEMINI_API_KEY') ?: '')));
+        $openAiKey   = trim((string)(defined('OPENAI_API_KEY') ? OPENAI_API_KEY : (getenv('OPENAI_API_KEY') ?: '')));
+        $groqKey     = trim((string)(defined('GROQ_API_KEY') ? GROQ_API_KEY : (getenv('GROQ_API_KEY') ?: '')));
+        $geminiKey   = trim((string)(defined('GEMINI_API_KEY') ? GEMINI_API_KEY : (getenv('GEMINI_API_KEY') ?: '')));
+        $githubToken = trim((string)(defined('GITHUB_TOKEN') ? GITHUB_TOKEN : (getenv('GITHUB_TOKEN') ?: '')));
 
         $candidates = [];
 
@@ -6874,6 +6875,16 @@ function ai_call_free_vision_service($systemPrompt, $userPrompt, $imageBase64 = 
                 'type'     => 'gemini',
                 'endpoint' => 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' . $geminiKey,
                 'model'    => 'gemini-1.5-flash',
+            ];
+        }
+
+        // 1.5. GitHub Models (Free Azure AI Endpoint using GitHub PAT)
+        if ($githubToken !== '') {
+            $candidates[] = [
+                'type'     => 'openai_compat',
+                'endpoint' => 'https://models.inference.ai.azure.com/chat/completions',
+                'key'      => $githubToken,
+                'model'    => 'gpt-4o-mini',
             ];
         }
 
