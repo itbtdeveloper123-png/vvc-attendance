@@ -6662,14 +6662,7 @@ function ai_call_free_vision_service($systemPrompt, $userPrompt, $imageBase64 = 
 
         $candidates = [];
 
-        // 1. Pollinations AI (100% Free Public Vision Engine - No API Key Needed)
-        $candidates[] = [
-            'type'     => 'pollinations',
-            'endpoint' => 'https://text.pollinations.ai/',
-            'model'    => 'openai',
-        ];
-
-        // 2. Google Gemini API (100% Free Tier if key available)
+        // 1. Google Gemini API (100% Free Tier if key available)
         if ($geminiKey !== '') {
             $candidates[] = [
                 'type'     => 'gemini',
@@ -6683,7 +6676,7 @@ function ai_call_free_vision_service($systemPrompt, $userPrompt, $imageBase64 = 
             ];
         }
 
-        // 3. Groq Cloud Vision (If active)
+        // 2. Groq Cloud Vision (If active)
         if ($groqKey !== '') {
             $candidates[] = [
                 'type'     => 'openai_compat',
@@ -6693,7 +6686,7 @@ function ai_call_free_vision_service($systemPrompt, $userPrompt, $imageBase64 = 
             ];
         }
 
-        // 4. OpenAI API (Fallback if active)
+        // 3. OpenAI API (Fallback if active)
         if ($openAiKey !== '') {
             $candidates[] = [
                 'type'     => 'openai_compat',
@@ -6702,6 +6695,13 @@ function ai_call_free_vision_service($systemPrompt, $userPrompt, $imageBase64 = 
                 'model'    => 'gpt-4o-mini',
             ];
         }
+
+        // 4. Pollinations AI (100% Free Public Vision Engine - Fallback)
+        $candidates[] = [
+            'type'     => 'pollinations',
+            'endpoint' => 'https://text.pollinations.ai/',
+            'model'    => 'openai',
+        ];
 
         $lastError = 'Unknown error';
 
@@ -6828,7 +6828,6 @@ function ai_verify_face_match($mysqli, $eid, $photo_b64) {
     $geminiKey = trim((string)(defined('GEMINI_API_KEY') ? GEMINI_API_KEY : (getenv('GEMINI_API_KEY') ?: '')));
 
     $candidates = [];
-    $candidates[] = ['provider' => 'pollinations', 'model' => 'openai', 'endpoint' => 'https://text.pollinations.ai/'];
     if ($geminiKey !== '') {
         $candidates[] = ['provider' => 'gemini', 'model' => 'gemini-2.0-flash', 'endpoint' => 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' . $geminiKey, 'key' => $geminiKey];
     }
@@ -6838,6 +6837,8 @@ function ai_verify_face_match($mysqli, $eid, $photo_b64) {
     if ($openAiKey !== '') {
         $candidates[] = ['provider' => 'openai', 'model' => 'gpt-4o-mini', 'endpoint' => 'https://api.openai.com/v1/chat/completions', 'key' => $openAiKey];
     }
+    // Pollinations as fallback
+    $candidates[] = ['provider' => 'pollinations', 'model' => 'openai', 'endpoint' => 'https://text.pollinations.ai/'];
 
     $cleanRefB64  = str_replace(["\r", "\n", " ", "\t"], '', (string)$ref_b64);
     $cleanScanB64 = str_replace(["\r", "\n", " ", "\t"], '', (string)$photo_b64);
