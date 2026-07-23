@@ -6843,8 +6843,6 @@ function ai_verify_face_match($mysqli, $eid, $photo_b64) {
     if ($openAiKey !== '') {
         $candidates[] = ['provider' => 'openai', 'model' => 'gpt-4o-mini', 'endpoint' => 'https://api.openai.com/v1/chat/completions', 'key' => $openAiKey];
     }
-    // Pollinations as fallback
-    $candidates[] = ['provider' => 'pollinations', 'model' => 'openai', 'endpoint' => 'https://text.pollinations.ai/'];
 
     $promptText = "You are a high-precision, strict biometric facial recognition system.\n";
     $promptText .= "Compare the scanned check-in face (last image) against the registered reference faces of the employee:\n";
@@ -6864,26 +6862,7 @@ function ai_verify_face_match($mysqli, $eid, $photo_b64) {
 
     foreach ($candidates as $cand) {
         $rawContent = null;
-        if ($cand['provider'] === 'pollinations') {
-            $userContent = [['type' => 'text', 'text' => $promptText]];
-            foreach ($ref_photos as $b64) {
-                $userContent[] = ['type' => 'image_url', 'image_url' => ['url' => 'data:image/jpeg;base64,' . str_replace(["\r", "\n", " ", "\t"], '', $b64)]];
-            }
-            $userContent[] = ['type' => 'image_url', 'image_url' => ['url' => 'data:image/jpeg;base64,' . $cleanScanB64]];
-
-            $messages = [
-                [
-                    'role' => 'user',
-                    'content' => $userContent,
-                ],
-            ];
-            $payload = ['messages' => $messages, 'model' => $cand['model'], 'jsonMode' => true];
-            $attempt = ai_chat_http_post_json($cand['endpoint'], $payload, ['Content-Type: application/json']);
-            if ($attempt['ok'] ?? false) {
-                if (is_string($attempt['data'] ?? null)) $rawContent = trim($attempt['data']);
-                elseif (!empty($attempt['data']['choices'][0]['message']['content'])) $rawContent = trim((string)$attempt['data']['choices'][0]['message']['content']);
-            }
-        } elseif ($cand['provider'] === 'gemini') {
+        if ($cand['provider'] === 'gemini') {
             $parts = [['text' => $promptText]];
             foreach ($ref_photos as $b64) {
                 $parts[] = ['inline_data' => ['mime_type' => 'image/jpeg', 'data' => str_replace(["\r", "\n", " ", "\t"], '', $b64)]];
