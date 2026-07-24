@@ -1251,6 +1251,42 @@ function meeting_ai_request_worker_summary(array $meeting, $existingTranscript =
         min(60, max(20, (int)$worker['timeout']))
     );
 
+    // If the request failed due to connection/refusal errors, try a localhost fallback
+    if (!$jobResponse['ok']) {
+        $errMsg = strtolower((string)($jobResponse['message'] ?? ''));
+        if (strpos($errMsg, 'connection refused') !== false || strpos($errMsg, 'failed to connect') !== false || strpos($errMsg, 'refused') !== false) {
+            $parsed = parse_url($worker['url']);
+            if ($parsed && !empty($parsed['host']) && $parsed['host'] !== '127.0.0.1' && $parsed['host'] !== 'localhost') {
+                $alt_host = '127.0.0.1';
+                $scheme = isset($parsed['scheme']) ? $parsed['scheme'] : 'http';
+                $port = isset($parsed['port']) ? ':' . $parsed['port'] : '';
+                $alt_url = $scheme . '://' . $alt_host . $port;
+
+                $jobResponse = meeting_ai_http_post_json(
+                    rtrim($alt_url, '/') . '/summarize-meeting-async',
+                    $payload,
+                    $headers,
+                    min(60, max(20, (int)$worker['timeout']))
+                );
+
+                // If still 404, try synchronous endpoint on fallback host
+                if (!$jobResponse['ok'] && (int)($jobResponse['status'] ?? 0) === 404) {
+                    $jobResponse = meeting_ai_http_post_json(
+                        rtrim($alt_url, '/') . '/summarize-meeting',
+                        $payload,
+                        $headers,
+                        (int)$worker['timeout']
+                    );
+                }
+
+                // If fallback succeeded, update $worker['url'] so callers/logs reflect the host used
+                if ($jobResponse['ok']) {
+                    $worker['url'] = $alt_url;
+                }
+            }
+        }
+    }
+
     if (!$jobResponse['ok'] && (int)($jobResponse['status'] ?? 0) === 404) {
         $jobResponse = meeting_ai_http_post_json(
             $worker['url'] . '/summarize-meeting',
