@@ -6,6 +6,10 @@ signatures/
 !.env.example
 .DS_Store
 *.log
+__pycache__/
+*.pyc
+.venv/
+cloudflared.*
 flutter/*.apk
 flutter/*.sha1
 node_modules
