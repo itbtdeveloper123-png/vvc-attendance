@@ -14,6 +14,7 @@ Local/VPS worker for meeting audio transcription and Khmer summarization.
 
 - `GET /health`
 - `POST /summarize-meeting`
+- `POST /analyze-product`
 - `POST /summarize-meeting-async`
 - `GET /jobs/{job_id}`
 
@@ -59,9 +60,10 @@ Local/VPS worker for meeting audio transcription and Khmer summarization.
 1. Install Python 3.10+
 2. Install FFmpeg and make sure `ffmpeg` works in `PATH`
 3. Install Ollama: <https://ollama.com/download>
-4. Pull a model:
+4. Pull the local models:
 
 ```powershell
+ollama pull gemma3:4b
 ollama pull qwen3:8b
 ```
 
@@ -116,3 +118,4 @@ If `MEETING_AI_LOCAL_ONLY=1`, `api.php` will use only the local worker for meeti
 - For 4-5 hour recordings, prefer `WHISPER_MODEL=small` or `base` on CPU machines
 - Long audio is now chunked automatically; adjust `AUDIO_CHUNK_MINUTES` and `SUMMARY_BATCH_MAX_CHARS` in `.env`
 - If your audio files are very large, increase `MAX_DOWNLOAD_MB`
+- Product Analyzer uses the local Ollama vision model through `/analyze-product`; it does not call Pollinations or another hosted AI API.

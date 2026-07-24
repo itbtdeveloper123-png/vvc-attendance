@@ -63,6 +63,13 @@ class MeetingSummaryRequest(BaseModel):
     language: str = "km"
 
 
+class ProductAnalysisRequest(BaseModel):
+    system_prompt: str = ""
+    user_prompt: str = ""
+    image_base64: str = ""
+    mime_type: str = "image/jpeg"
+
+
 app = FastAPI(title=APP_TITLE, version=APP_VERSION)
 
 
@@ -580,6 +587,44 @@ def summarize_with_ollama(topic: str, department: str, description: str, transcr
     return normalize_analysis(parsed, transcript_text)
 
 
+def analyze_product_with_ollama(request: ProductAnalysisRequest) -> str:
+    message: Dict[str, Any] = {
+        "role": "user",
+        "content": request.user_prompt.strip(),
+    }
+    clean_image = "".join((request.image_base64 or "").split())
+    if clean_image:
+        message["images"] = [clean_image]
+
+    payload = {
+        "model": OLLAMA_MODEL,
+        "stream": False,
+        "format": "json",
+        "messages": [
+            {
+                "role": "system",
+                "content": request.system_prompt.strip()
+                or "You analyze products and return valid JSON only.",
+            },
+            message,
+        ],
+        "options": {
+            "temperature": 0.1,
+        },
+    }
+    response = requests.post(
+        f"{OLLAMA_BASE_URL}/api/chat",
+        json=payload,
+        timeout=(20, WORKER_REQUEST_TIMEOUT),
+    )
+    response.raise_for_status()
+    data = response.json()
+    content = str(((data.get("message") or {}).get("content")) or "").strip()
+    if not content:
+        raise RuntimeError("Ollama returned an empty product analysis.")
+    return content
+
+
 def summarize_transcript_hierarchically(
     topic: str,
     department: str,
@@ -875,6 +920,20 @@ def summarize_meeting(
 ) -> Dict[str, Any]:
     require_token(authorization)
     return build_meeting_summary_response(request)
+
+
+@app.post("/analyze-product")
+def analyze_product(
+    request: ProductAnalysisRequest,
+    authorization: Optional[str] = Header(default=None),
+) -> Dict[str, Any]:
+    require_token(authorization)
+    return {
+        "success": True,
+        "provider": "local-worker",
+        "model": f"ollama:{OLLAMA_MODEL}",
+        "content": analyze_product_with_ollama(request),
+    }
 
 
 @app.post("/summarize-meeting-async")

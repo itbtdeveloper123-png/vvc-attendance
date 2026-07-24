@@ -6843,54 +6843,66 @@ function product_ai_build_multimodal_content($userPrompt, $imageBase64 = '', $mi
 }
 
 function ai_call_free_vision_service($systemPrompt, $userPrompt, $imageBase64 = '', $mimeType = 'image/jpeg') {
-    $pollinationsKey = trim((string)(defined('POLLINATIONS_API_KEY') ? POLLINATIONS_API_KEY : ''));
-    if ($pollinationsKey === '') {
-        return ['success' => false, 'message' => 'Pollinations.ai API key is not configured.'];
+    // 1. ទាញយកការកំណត់របស់ Worker
+    $worker = meeting_ai_get_worker_config();
+    if (empty($worker['enabled']) || empty($worker['url'])) {
+        return ['success' => false, 'message' => 'Local AI worker is not configured or disabled.'];
     }
 
-    $polUserContent = product_ai_build_multimodal_content($userPrompt, $imageBase64, $mimeType);
-    $polPayload = [
-        'model' => 'openai-large',
-        'messages' => [
-           ['role' => 'system', 'content' => $systemPrompt],
-           ['role' => 'user', 'content' => empty($polUserContent) ? $userPrompt : $polUserContent],
-        ],
+    // 2. រៀបចំ Headers
+    $headers = [];
+    if (!empty($worker['token'])) {
+        $headers[] = 'Authorization: Bearer ' . $worker['token'];
+    }
+
+    // 3. សម្អាត Base64 (ដក Prefix data:image/... ចេញ ប្រសិនបើមាន)
+    $cleanImageBase64 = (string)$imageBase64;
+    if (strpos($cleanImageBase64, 'base64,') !== false) {
+        $parts = explode('base64,', $cleanImageBase64);
+        $cleanImageBase64 = end($parts);
+    }
+    // លុបចន្លោះទំនេរ ឬបន្ទាត់ថ្មីចេញពី Base64 string
+    $cleanImageBase64 = str_replace(["\r", "\n", " ", "\t"], '', $cleanImageBase64);
+
+    // 4. រៀបចំទិន្នន័យផ្ញើទៅ API
+    $payload = [
+        'system_prompt' => (string)$systemPrompt,
+        'user_prompt'   => (string)$userPrompt,
+        'image_base64'  => $cleanImageBase64,
+        'mime_type'     => (string)$mimeType,
     ];
-    $polCh = curl_init('https://gen.pollinations.ai/v1/chat/completions');
-    if ($polCh === false) {
-        return ['success' => false, 'message' => 'Pollinations.ai connection could not be initialized.'];
-    }
-    curl_setopt($polCh, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($polCh, CURLOPT_POST, true);
-    curl_setopt($polCh, CURLOPT_HTTPHEADER, [
-        'Content-Type: application/json',
-        'Authorization: Bearer ' . $pollinationsKey,
-    ]);
-    curl_setopt($polCh, CURLOPT_POSTFIELDS, json_encode($polPayload, JSON_UNESCAPED_UNICODE));
-    curl_setopt($polCh, CURLOPT_SSL_VERIFYPEER, true);
-    curl_setopt($polCh, CURLOPT_SSL_VERIFYHOST, 2);
-    curl_setopt($polCh, CURLOPT_CONNECTTIMEOUT, 15);
-    curl_setopt($polCh, CURLOPT_TIMEOUT, 45);
-    $polRaw = curl_exec($polCh);
-    $polErr = curl_error($polCh);
-    $polHttp = (int)curl_getinfo($polCh, CURLINFO_HTTP_CODE);
-    curl_close($polCh);
 
-    if ($polRaw === false || $polErr !== '') {
-        return ['success' => false, 'message' => 'Pollinations.ai request failed: ' . ($polErr !== '' ? $polErr : 'cURL error')];
+    // 5. ហៅទៅកាន់ HTTP Post function (ដែលអ្នកមានស្រាប់ក្នុង api.php)
+    $response = meeting_ai_http_post_json(
+        rtrim($worker['url'], '/') . '/analyze-product',
+        $payload,
+        $headers,
+        (int)($worker['timeout'] ?? 300)
+    );
+
+    // 6. ពិនិត្យលទ្ធផលតបមកវិញ
+    if (!$response['ok']) {
+        return [
+            'success' => false,
+            'message' => 'Local AI error: ' . (string)($response['message'] ?? 'Unknown connection error.'),
+        ];
     }
-    $polDec = json_decode($polRaw, true);
-    $rawText = is_array($polDec)
-        ? trim((string)($polDec['choices'][0]['message']['content'] ?? ''))
-        : '';
-    if ($polHttp < 200 || $polHttp >= 300) {
-        $message = is_array($polDec) ? (string)($polDec['error']['message'] ?? '') : '';
-        return ['success' => false, 'message' => $message !== '' ? $message : 'Pollinations.ai returned HTTP ' . $polHttp . '.'];
+
+    // 7. ទាញយក Content ចេញពី JSON Response
+    $data = $response['data'] ?? [];
+    $content = trim((string)($data['content'] ?? ''));
+
+    if ($content === '') {
+        return ['success' => false, 'message' => 'AI worker returned an empty analysis.'];
     }
-    if ($rawText === '') {
-        return ['success' => false, 'message' => 'Pollinations.ai returned an empty analysis.'];
-    }
-    return ['success' => true, 'content' => $rawText];
+
+    return [
+        'success'  => true,
+        'content'  => $content,
+        'provider' => $data['provider'] ?? 'local-worker',
+        'model'    => $data['model'] ?? 'ollama/vision',
+        'raw_data' => $data // រក្សាទុកសម្រាប់ debug ប្រសិនបើត្រូវការ
+    ];
 }
 
 function ai_verify_face_match($mysqli, $eid, $photo_b64) {
