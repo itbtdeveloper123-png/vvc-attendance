@@ -7,6 +7,7 @@ class SecureStorageService {
   SecureStorageService._internal();
 
   final FlutterSecureStorage _storage = const FlutterSecureStorage(
+    // ignore: deprecated_member_use
     aOptions: AndroidOptions(encryptedSharedPreferences: true),
     iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock),
   );
