@@ -8,6 +8,7 @@ import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:vvc_hrm/utils/app_theme.dart';
 import 'package:vvc_hrm/providers/user_provider.dart';
 import 'package:vvc_hrm/widgets/app_widgets.dart';
+import 'package:vvc_hrm/services/api_service.dart';
 import 'package:provider/provider.dart';
 import 'dart:ui' as ui;
 import 'package:flutter/rendering.dart';
@@ -68,14 +69,12 @@ class _EmployeeReportScreenState extends State<EmployeeReportScreen> {
     setState(() => _isLoading = true);
     try {
       final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
-      final response = await http.post(
-        Uri.parse('https://app.vvc.asia/flutter/public_report.php'),
-        body: {
-          'ajax_action': 'get_report_data_json',
-          'store': _store,
-          'date': dateStr,
-        },
-      );
+      final apiSvc = ApiService();
+      final response = await apiSvc.postPublicReport({
+        'ajax_action': 'get_report_data_json',
+        'store': _store,
+        'date': dateStr,
+      });
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -337,16 +336,14 @@ class _EmployeeReportScreenState extends State<EmployeeReportScreen> {
     });
 
     try {
-      final response = await http.post(
-        Uri.parse('https://app.vvc.asia/flutter/public_report.php'),
-        body: {
-          'ajax_action': 'update_single_attendance',
-          'store': _store,
-          'date': DateFormat('yyyy-MM-dd').format(_selectedDate),
-          'column': col,
-          'value': intValue.toString(),
-        },
-      );
+      final apiSvc = ApiService();
+      final response = await apiSvc.postPublicReport({
+        'ajax_action': 'update_single_attendance',
+        'store': _store,
+        'date': DateFormat('yyyy-MM-dd').format(_selectedDate),
+        'column': col,
+        'value': intValue.toString(),
+      });
       if (response.statusCode == 200) {
         final res = json.decode(response.body);
         if (res['success'] == true) {
@@ -443,14 +440,12 @@ class _EmployeeReportScreenState extends State<EmployeeReportScreen> {
 
   Future<void> _addNewStaffRow() async {
     try {
-      final response = await http.post(
-        Uri.parse('https://app.vvc.asia/flutter/public_report.php'),
-        body: {
-          'ajax_action': 'create_leave_deo_row',
-          'store': _store,
-          'date': DateFormat('yyyy-MM-dd').format(_selectedDate),
-        },
-      );
+      final apiSvc = ApiService();
+      final response = await apiSvc.postPublicReport({
+        'ajax_action': 'create_leave_deo_row',
+        'store': _store,
+        'date': DateFormat('yyyy-MM-dd').format(_selectedDate),
+      });
       if (response.statusCode == 200) {
         final res = json.decode(response.body);
         if (res['success'] == true) {
@@ -496,14 +491,12 @@ class _EmployeeReportScreenState extends State<EmployeeReportScreen> {
     setState(() => _isLoading = true);
     final messenger = ScaffoldMessenger.of(context);
     try {
-      final response = await http.post(
-        Uri.parse('https://app.vvc.asia/flutter/public_report.php'),
-        body: {
-          'ajax_action': 'delete_leave_deo_ajax',
-          'store': _store,
-          'id': id.toString(),
-        },
-      );
+      final apiSvc = ApiService();
+      final response = await apiSvc.postPublicReport({
+        'ajax_action': 'delete_leave_deo_ajax',
+        'store': _store,
+        'id': id.toString(),
+      });
       if (response.statusCode == 200) {
         final res = json.decode(response.body);
         if (res['success'] == true) {
@@ -668,16 +661,14 @@ class _EmployeeReportScreenState extends State<EmployeeReportScreen> {
 
   Future<bool> _updateStaffField(dynamic id, String col, String val) async {
     try {
-      final response = await http.post(
-        Uri.parse('https://app.vvc.asia/flutter/public_report.php'),
-        body: {
-          'ajax_action': 'update_leave_deo_inline',
-          'store': _store,
-          'id': id.toString(),
-          'column': col,
-          'value': val,
-        },
-      );
+      final apiSvc = ApiService();
+      final response = await apiSvc.postPublicReport({
+        'ajax_action': 'update_leave_deo_inline',
+        'store': _store,
+        'id': id.toString(),
+        'column': col,
+        'value': val,
+      });
       if (response.statusCode == 200) {
         final res = json.decode(response.body);
         return res['success'] == true;

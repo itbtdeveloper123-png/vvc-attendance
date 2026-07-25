@@ -1,4 +1,7 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:dio/dio.dart' as dio;
@@ -8,13 +11,101 @@ import 'local_db_service.dart';
 class ApiService {
   static const bool _isLocalMode = false;
 
+  static const String _primaryBaseUrl = 'https://app.vvc.asia/flutter/api.php';
+  static const String _fallbackV4BaseUrl =
+      'https://104.21.2.219/flutter/api.php';
+
   static String get baseUrl {
     if (_isLocalMode) {
       const String localIp = '10.0.2.2';
       return 'http://$localIp/Vvc-Attendace/api.php';
     } else {
-      return 'https://app.vvc.asia/flutter/api.php';
+      return _primaryBaseUrl;
     }
+  }
+
+  static bool _preferIPv4 = false;
+
+  static String get effectiveBaseUrl {
+    if (_isLocalMode) return baseUrl;
+    return _preferIPv4 ? _fallbackV4BaseUrl : _primaryBaseUrl;
+  }
+
+  static http.Client _buildHttpClient({bool forceIPv4 = false}) {
+    if (kIsWeb) return http.Client();
+    final ioClient = HttpClient();
+    if (forceIPv4 || _preferIPv4) {
+      ioClient.connectionTimeout = const Duration(seconds: 12);
+    }
+    ioClient.badCertificateCallback =
+        (X509Certificate cert, String host, int port) {
+      if (forceIPv4 || _preferIPv4) {
+        return host == '104.21.2.219' ||
+            host == '172.67.129.187' ||
+            cert.subject.contains('vvc.asia') ||
+            cert.issuer.contains('Cloudflare') ||
+            cert.issuer.contains('Let\'s Encrypt');
+      }
+      return false;
+    };
+    return http.IOClient(ioClient);
+  }
+
+  static bool _isSocketBindError(Object e) {
+    final s = e.toString();
+    return s.contains('Can\'t assign requested address') ||
+        s.contains('Cannot assign requested address') ||
+        s.contains('EADDRNOTAVAIL') ||
+        s.contains('SocketException: Failed host lookup') ||
+        (e is SocketException &&
+            (e.osError?.errorCode == 99 ||
+                e.osError?.errorCode == 10049 ||
+                e.toString().contains('address')));
+  }
+
+  static String _friendlyError(Object e) {
+    final s = e.toString();
+    if (_isSocketBindError(e)) {
+      return 'មិនអាចភ្ជាប់បាន៖ Network មិនគាំទ្រ IPv6។ កំពុងប្តូរទៅ IPv4...';
+    }
+    if (s.contains('Connection refused') || s.contains('connection failed')) {
+      return 'មិនអាចភ្ជាប់ទៅ Server បាន។ សូមពិនិត្យអ៊ីនធឺណិត';
+    }
+    if (s.contains('Connection timed out') || s.contains('TimeoutException')) {
+      return 'Server ឆ្លើយតបយឺតពេក។ សូមព្យាយាមម្តងទៀត';
+    }
+    if (s.contains('certificate') || s.contains('CERTIFICATE_VERIFY_FAILED')) {
+      return 'កំហុស SSL Certificate៖ កាលបរិច្ឆេទទូរស័ព្ទមិនត្រឹមត្រូវ';
+    }
+    return 'កំហុសការភ្ជាប់៖ $s';
+  }
+
+  static Future<T> _withRetry<T>(
+    Future<T> Function({bool forceIPv4}) fn, {
+    int maxAttempts = 3,
+  }) async {
+    Object? lastError;
+    for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        final tryForceIPv4 = _preferIPv4 || attempt >= 2;
+        return await fn(forceIPv4: tryForceIPv4);
+      } catch (e) {
+        lastError = e;
+        final bindFail = _isSocketBindError(e);
+        if (bindFail) {
+          _preferIPv4 = true;
+          debugPrint(
+              'Detected IPv6 bind failure — switched to IPv4 mode. Attempt $attempt/$maxAttempts');
+        }
+        if (attempt < maxAttempts) {
+          final delayMs = bindFail ? 200 : 400 * attempt;
+          await Future<void>.delayed(Duration(milliseconds: delayMs));
+          continue;
+        }
+      }
+    }
+    if (lastError != null) throw lastError;
+    throw StateError('Retry failed');
   }
 
   static String getFullImageUrl(String? relativePath) {
@@ -33,6 +124,33 @@ class ApiService {
     return '$baseDir$path';
   }
 
+  static const String publicReportUrl =
+      'https://app.vvc.asia/flutter/public_report.php';
+  static const String publicReportFallbackV4 =
+      'https://104.21.2.219/flutter/public_report.php';
+
+  static String get effectivePublicReportUrl =>
+      _preferIPv4 ? publicReportFallbackV4 : publicReportUrl;
+
+  Future<http.Response> postPublicReport(Map<String, String> body) async {
+    return _withRetry<http.Response>(
+        ({required bool forceIPv4}) async {
+      final client = _buildHttpClient(forceIPv4: forceIPv4);
+      try {
+        final hdrs = <String, String>{
+          'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+          if (forceIPv4 || _preferIPv4) 'Host': 'app.vvc.asia',
+        };
+        return await client
+            .post(Uri.parse(effectivePublicReportUrl),
+                headers: hdrs, body: body)
+            .timeout(const Duration(seconds: 20));
+      } finally {
+        client.close();
+      }
+    });
+  }
+
   Future<Map<String, String>> _authHeaders() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('auth_token') ?? '';
@@ -46,27 +164,39 @@ class ApiService {
     Duration timeout = const Duration(seconds: 30),
   }) async {
     try {
-      final finalBody = body != null
-          ? Map<String, String>.from(body)
-          : <String, String>{};
-      finalBody['action'] = action;
+      return await _withRetry<Map<String, dynamic>>(
+          ({required bool forceIPv4}) async {
+        final client = _buildHttpClient(forceIPv4: forceIPv4);
+        try {
+          final finalBody = body != null
+              ? Map<String, String>.from(body)
+              : <String, String>{};
+          finalBody['action'] = action;
 
-      final requestHeaders = headers != null
-          ? Map<String, String>.from(headers)
-          : <String, String>{};
-      requestHeaders['Content-Type'] =
-          'application/x-www-form-urlencoded; charset=UTF-8';
+          final requestHeaders = headers != null
+              ? Map<String, String>.from(headers)
+              : <String, String>{};
+          requestHeaders['Content-Type'] =
+              'application/x-www-form-urlencoded; charset=UTF-8';
+          if (forceIPv4 || _preferIPv4) {
+            requestHeaders['Host'] = 'app.vvc.asia';
+          }
 
-      final response = await http
-          .post(Uri.parse(baseUrl), headers: requestHeaders, body: finalBody)
-          .timeout(timeout);
+          final uri = Uri.parse(effectiveBaseUrl);
+          final response = await client
+              .post(uri, headers: requestHeaders, body: finalBody)
+              .timeout(timeout);
 
-      return await _handleResponse(response);
+          return await _handleResponse(response);
+        } finally {
+          client.close();
+        }
+      });
     } catch (e) {
       return {
         'success': false,
         'status': 'error',
-        'message': 'កំហុសការភ្ជាប់: $e',
+        'message': _friendlyError(e),
       };
     }
   }
@@ -309,25 +439,37 @@ class ApiService {
     if (photoBase64 != null) body['photo_base64'] = photoBase64;
 
     try {
-      final requestHeaders = Map<String, String>.from(headers);
-      requestHeaders['Content-Type'] =
-          'application/x-www-form-urlencoded; charset=UTF-8';
+      return await _withRetry<Map<String, dynamic>>(
+          ({required bool forceIPv4}) async {
+        final client = _buildHttpClient(forceIPv4: forceIPv4);
+        try {
+          final requestHeaders = Map<String, String>.from(headers);
+          requestHeaders['Content-Type'] =
+              'application/x-www-form-urlencoded; charset=UTF-8';
+          if (forceIPv4 || _preferIPv4) {
+            requestHeaders['Host'] = 'app.vvc.asia';
+          }
 
-      final response = await http
-          .post(Uri.parse(baseUrl), headers: requestHeaders, body: body)
-          .timeout(const Duration(seconds: 15));
+          final uri = Uri.parse(effectiveBaseUrl);
+          final response = await client
+              .post(uri, headers: requestHeaders, body: body)
+              .timeout(const Duration(seconds: 15));
 
-      if (response.statusCode == 200) return json.decode(response.body);
-      return {
-        'success': false,
-        'message': 'Server error: ${response.statusCode}',
-      };
+          if (response.statusCode == 200) return json.decode(response.body);
+          return {
+            'success': false,
+            'message': 'Server error: ${response.statusCode}',
+          };
+        } finally {
+          client.close();
+        }
+      });
     } catch (e) {
       if (kIsWeb) {
         return {
           'success': false,
           'status': 'error',
-          'message': 'កំហុសការភ្ជាប់ (Web): $e',
+          'message': 'កំហុសការភ្ជាប់ (Web): ${_friendlyError(e)}',
         };
       }
       final dbService = LocalDbService();
@@ -369,16 +511,27 @@ class ApiService {
     };
 
     try {
-      final response = await http
-          .post(Uri.parse(baseUrl), headers: requestHeaders, body: body)
-          .timeout(const Duration(seconds: 30));
-      if (response.statusCode == 200) return json.decode(response.body);
-      return {
-        'success': false,
-        'message': 'Server error: ${response.statusCode}',
-      };
+      return await _withRetry<Map<String, dynamic>>(
+          ({required bool forceIPv4}) async {
+        final client = _buildHttpClient(forceIPv4: forceIPv4);
+        try {
+          final hdrs = Map<String, String>.from(requestHeaders);
+          if (forceIPv4 || _preferIPv4) hdrs['Host'] = 'app.vvc.asia';
+          final uri = Uri.parse(effectiveBaseUrl);
+          final response = await client
+              .post(uri, headers: hdrs, body: body)
+              .timeout(const Duration(seconds: 30));
+          if (response.statusCode == 200) return json.decode(response.body);
+          return {
+            'success': false,
+            'message': 'Server error: ${response.statusCode}',
+          };
+        } finally {
+          client.close();
+        }
+      });
     } catch (e) {
-      return {'success': false, 'message': 'Connection error: $e'};
+      return {'success': false, 'message': _friendlyError(e)};
     }
   }
 
@@ -409,16 +562,27 @@ class ApiService {
       'photo_base64': photoBase64,
     };
     try {
-      final response = await http
-          .post(Uri.parse(baseUrl), headers: requestHeaders, body: body)
-          .timeout(const Duration(seconds: 20));
-      if (response.statusCode == 200) return json.decode(response.body);
-      return {
-        'success': false,
-        'message': 'Server error: ${response.statusCode}',
-      };
+      return await _withRetry<Map<String, dynamic>>(
+          ({required bool forceIPv4}) async {
+        final client = _buildHttpClient(forceIPv4: forceIPv4);
+        try {
+          final hdrs = Map<String, String>.from(requestHeaders);
+          if (forceIPv4 || _preferIPv4) hdrs['Host'] = 'app.vvc.asia';
+          final uri = Uri.parse(effectiveBaseUrl);
+          final response = await client
+              .post(uri, headers: hdrs, body: body)
+              .timeout(const Duration(seconds: 20));
+          if (response.statusCode == 200) return json.decode(response.body);
+          return {
+            'success': false,
+            'message': 'Server error: ${response.statusCode}',
+          };
+        } finally {
+          client.close();
+        }
+      });
     } catch (e) {
-      return {'success': false, 'message': 'Connection error: $e'};
+      return {'success': false, 'message': _friendlyError(e)};
     }
   }
 
@@ -450,14 +614,28 @@ class ApiService {
           'manual_location_name': punch['manual_location_name'] ?? '',
           'offline_timestamp': punch['timestamp'] ?? '',
         };
-        final response = await http
-            .post(Uri.parse(baseUrl), headers: headers, body: body)
-            .timeout(const Duration(seconds: 15));
+        final response = await _withRetry<http.Response>(
+            ({required bool forceIPv4}) async {
+          final client = _buildHttpClient(forceIPv4: forceIPv4);
+          try {
+            final hdrs = Map<String, String>.from(headers);
+            hdrs['Content-Type'] =
+                'application/x-www-form-urlencoded; charset=UTF-8';
+            if (forceIPv4 || _preferIPv4) hdrs['Host'] = 'app.vvc.asia';
+            final uri = Uri.parse(effectiveBaseUrl);
+            return await client
+                .post(uri, headers: hdrs, body: body)
+                .timeout(const Duration(seconds: 15));
+          } finally {
+            client.close();
+          }
+        });
         if (response.statusCode == 200) {
           final res = json.decode(response.body);
           if (res['success'] == true) await dbService.markAsSynced(punch['id']);
         }
       } catch (e) {
+        debugPrint('Sync item ${punch['id']} failed: ${_friendlyError(e)}');
         break;
       }
     }
@@ -803,77 +981,110 @@ class ApiService {
     List<String>? photoPaths,
   }) async {
     final headers = await _authHeaders();
-    final dioInstance = dio.Dio();
-    final formData = dio.FormData.fromMap({
-      'action': 'save_meeting',
-      'topic': topic,
-      'department': department ?? '',
-      'date': date,
-      'description': description ?? '',
-      'external_url': externalUrl ?? '',
-      'audio_original_name': audioFilename ?? '',
-    });
-    if (audioBytes != null && audioBytes.isNotEmpty) {
-      formData.files.add(
-        MapEntry(
-          'audio_file',
-          dio.MultipartFile.fromBytes(
-            audioBytes,
-            filename: audioFilename ?? 'meeting_audio.m4a',
-          ),
-        ),
-      );
-    } else if (audioPath != null) {
-      if (kIsWeb) {
-        final resp = await http.get(Uri.parse(audioPath));
+
+    Future<Map<String, dynamic>> doPost({required bool forceIPv4}) async {
+      final dioInstance = dio.Dio();
+      if (!kIsWeb) {
+        dioInstance.httpClientAdapter = dio.IOHttpClientAdapter()
+          ..onHttpClientCreate = (client) {
+            client.badCertificateCallback =
+                (X509Certificate cert, String host, int port) {
+              if (forceIPv4 || _preferIPv4) {
+                return host == '104.21.2.219' ||
+                    host == '172.67.129.187' ||
+                    cert.subject.contains('vvc.asia') ||
+                    cert.issuer.contains('Cloudflare') ||
+                    cert.issuer.contains('Let\'s Encrypt');
+              }
+              return false;
+            };
+            return client;
+          };
+      }
+      final formData = dio.FormData.fromMap({
+        'action': 'save_meeting',
+        'topic': topic,
+        'department': department ?? '',
+        'date': date,
+        'description': description ?? '',
+        'external_url': externalUrl ?? '',
+        'audio_original_name': audioFilename ?? '',
+      });
+      if (audioBytes != null && audioBytes.isNotEmpty) {
         formData.files.add(
           MapEntry(
             'audio_file',
             dio.MultipartFile.fromBytes(
-              resp.bodyBytes,
-              filename: audioFilename ?? 'audio.m4a',
+              audioBytes,
+              filename: audioFilename ?? 'meeting_audio.m4a',
             ),
           ),
         );
-      } else {
-        formData.files.add(
-          MapEntry(
-            'audio_file',
-            await dio.MultipartFile.fromFile(
-              audioPath,
-              filename: audioFilename,
-            ),
-          ),
-        );
-      }
-    }
-    if (photoPaths != null) {
-      for (var i = 0; i < photoPaths.length; i++) {
-        var p = photoPaths[i];
+      } else if (audioPath != null) {
         if (kIsWeb) {
-          final resp = await http.get(Uri.parse(p));
+          final resp = await http.get(Uri.parse(audioPath));
           formData.files.add(
             MapEntry(
-              'related_photos[]',
+              'audio_file',
               dio.MultipartFile.fromBytes(
                 resp.bodyBytes,
-                filename: 'photo_$i.jpg',
+                filename: audioFilename ?? 'audio.m4a',
               ),
             ),
           );
         } else {
           formData.files.add(
-            MapEntry('related_photos[]', await dio.MultipartFile.fromFile(p)),
+            MapEntry(
+              'audio_file',
+              await dio.MultipartFile.fromFile(
+                audioPath,
+                filename: audioFilename,
+              ),
+            ),
           );
         }
       }
+      if (photoPaths != null) {
+        for (var i = 0; i < photoPaths.length; i++) {
+          var p = photoPaths[i];
+          if (kIsWeb) {
+            final resp = await http.get(Uri.parse(p));
+            formData.files.add(
+              MapEntry(
+                'related_photos[]',
+                dio.MultipartFile.fromBytes(
+                  resp.bodyBytes,
+                  filename: 'photo_$i.jpg',
+                ),
+              ),
+            );
+          } else {
+            formData.files.add(MapEntry(
+                'related_photos[]', await dio.MultipartFile.fromFile(p)));
+          }
+        }
+      }
+      final postHeaders = Map<String, String>.from(headers);
+      if (forceIPv4 || _preferIPv4) postHeaders['Host'] = 'app.vvc.asia';
+      final response = await dioInstance.post(
+        effectiveBaseUrl,
+        data: formData,
+        options: dio.Options(
+          headers: postHeaders,
+          receiveTimeout: const Duration(seconds: 60),
+          sendTimeout: const Duration(seconds: 120),
+        ),
+      );
+      return response.data is String
+          ? json.decode(response.data)
+          : (response.data as Map<String, dynamic>);
     }
-    final response = await dioInstance.post(
-      baseUrl,
-      data: formData,
-      options: dio.Options(headers: headers),
-    );
-    return response.data is String ? json.decode(response.data) : response.data;
+
+    try {
+      return await _withRetry<Map<String, dynamic>>(doPost);
+    } catch (e) {
+      return {'success': false, 'message': _friendlyError(e)};
+    }
   }
 
   Future<Map<String, dynamic>> fetchDeptHeads() async {
