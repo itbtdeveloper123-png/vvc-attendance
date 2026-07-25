@@ -1,10 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:http/io_client.dart';
 import 'package:dio/dio.dart' as dio;
+import 'package:dio/io.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'local_db_service.dart';
 
@@ -48,7 +49,7 @@ class ApiService {
       }
       return false;
     };
-    return http.IOClient(ioClient);
+    return IOClient(ioClient);
   }
 
   static bool _isSocketBindError(Object e) {
@@ -81,7 +82,7 @@ class ApiService {
   }
 
   static Future<T> _withRetry<T>(
-    Future<T> Function({bool forceIPv4}) fn, {
+    Future<T> Function({required bool forceIPv4}) fn, {
     int maxAttempts = 3,
   }) async {
     Object? lastError;
@@ -985,8 +986,9 @@ class ApiService {
     Future<Map<String, dynamic>> doPost({required bool forceIPv4}) async {
       final dioInstance = dio.Dio();
       if (!kIsWeb) {
-        dioInstance.httpClientAdapter = dio.IOHttpClientAdapter()
-          ..onHttpClientCreate = (client) {
+        dioInstance.httpClientAdapter = IOHttpClientAdapter(
+          createHttpClient: () {
+            final client = HttpClient();
             client.badCertificateCallback =
                 (X509Certificate cert, String host, int port) {
               if (forceIPv4 || _preferIPv4) {
@@ -999,7 +1001,8 @@ class ApiService {
               return false;
             };
             return client;
-          };
+          },
+        );
       }
       final formData = dio.FormData.fromMap({
         'action': 'save_meeting',
