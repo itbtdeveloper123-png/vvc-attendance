@@ -5919,6 +5919,20 @@ switch ($action) {
     // ─── Analyze Product Image (Vision AI) ───────────────────────────────────
     case 'analyze_product_image':
         if (!$user) apiResponse(['success' => false, 'message' => 'Unauthorized']);
+
+        // ការពារ PHP timeout សម្រាប់ Local AI ដែលយូរ (លើសពី 30s default)
+        $_workerCfg = meeting_ai_get_worker_config();
+        $_workerTimeoutMax = max(300, ((int)($_workerCfg['timeout'] ?? 600)) + 180);
+        if (function_exists('set_time_limit')) {
+            @set_time_limit($_workerTimeoutMax);
+        }
+        if (function_exists('ini_set')) {
+            @ini_set('max_execution_time', (string)$_workerTimeoutMax);
+        }
+        if (function_exists('ignore_user_abort')) {
+            @ignore_user_abort(true);
+        }
+
         $imageBase64 = trim((string)($_POST['image_base64'] ?? ''));
         $barcodeText  = trim((string)($_POST['barcode'] ?? ''));
         if ($imageBase64 === '' && $barcodeText === '') {
@@ -6908,36 +6922,177 @@ function ai_call_free_vision_service($systemPrompt, $userPrompt, $imageBase64 = 
         'mime_type'     => (string)$mimeType,
     ];
 
-    // 5. ហៅទៅកាន់ HTTP Post function (ដែលអ្នកមានស្រាប់ក្នុង api.php)
-    $response = meeting_ai_http_post_json(
-        rtrim($worker['url'], '/') . '/analyze-product',
+    // 4b. បង្កើន PHP execution limit (AI local អាចយូរជាង 30s)
+    if (function_exists('set_time_limit')) {
+        @set_time_limit(max(300, ((int)($worker['timeout'] ?? 600)) + 120));
+    }
+    if (function_exists('ini_set')) {
+        @ini_set('max_execution_time', (string)max(300, ((int)($worker['timeout'] ?? 600)) + 120));
+    }
+
+    // 5. ហៅ async endpoint ជាមុន (បើ 404 បោះ fallback ទៅ sync)
+    $workerTimeout = (int)($worker['timeout'] ?? 600);
+    $jobResponse = meeting_ai_http_post_json(
+        rtrim($worker['url'], '/') . '/analyze-product-async',
         $payload,
         $headers,
-        (int)($worker['timeout'] ?? 300)
+        min(60, max(20, $workerTimeout))
     );
 
-    // 6. ពិនិត្យលទ្ធផលតបមកវិញ
-    if (!$response['ok']) {
+    // Fallback: បើ localhost មិនដំណើរការ ព្យាយាម fallback host ដូច meeting ផងដែរ
+    if (!$jobResponse['ok']) {
+        $errMsg = strtolower((string)($jobResponse['message'] ?? ''));
+        if (
+            strpos($errMsg, 'connection refused') !== false ||
+            strpos($errMsg, 'failed to connect') !== false ||
+            strpos($errMsg, 'refused') !== false
+        ) {
+            $parsed = parse_url($worker['url']);
+            if ($parsed && !empty($parsed['host']) && $parsed['host'] !== '127.0.0.1' && $parsed['host'] !== 'localhost') {
+                $alt_host = '127.0.0.1';
+                $scheme = isset($parsed['scheme']) ? $parsed['scheme'] : 'http';
+                $port = isset($parsed['port']) ? ':' . $parsed['port'] : '';
+                $alt_url = $scheme . '://' . $alt_host . $port;
+                $fallbackUrls[] = $alt_url;
+
+                $jobResponse = meeting_ai_http_post_json(
+                    rtrim($alt_url, '/') . '/analyze-product-async',
+                    $payload,
+                    $headers,
+                    min(60, max(20, $workerTimeout))
+                );
+
+                if (!$jobResponse['ok'] && (int)($jobResponse['status'] ?? 0) === 404) {
+                    // Fallback endpoint មិនមាន — ព្យាយាម sync endpoint ជំនួស
+                    $syncResponse = meeting_ai_http_post_json(
+                        rtrim($alt_url, '/') . '/analyze-product',
+                        $payload,
+                        $headers,
+                        $workerTimeout
+                    );
+                    if ($syncResponse['ok']) {
+                        $data = $syncResponse['data'] ?? [];
+                        $content = trim((string)($data['content'] ?? ''));
+                        if ($content !== '') {
+                            return [
+                                'success'  => true,
+                                'content'  => $content,
+                                'provider' => $data['provider'] ?? 'local-worker',
+                                'model'    => $data['model'] ?? 'ollama/vision',
+                                'raw_data' => $data,
+                            ];
+                        }
+                    }
+                }
+
+                if ($jobResponse['ok']) {
+                    $worker['url'] = $alt_url;
+                }
+            }
+        }
+    }
+
+    // បើ async endpoint មិនមាន (404) បោះ sync endpoint ជំនួស
+    if (!$jobResponse['ok'] && (int)($jobResponse['status'] ?? 0) === 404) {
+        $syncResponse = meeting_ai_http_post_json(
+            rtrim($worker['url'], '/') . '/analyze-product',
+            $payload,
+            $headers,
+            $workerTimeout
+        );
+        if (!$syncResponse['ok']) {
+            return [
+                'success' => false,
+                'message' => 'Local AI error: ' . (string)($syncResponse['message'] ?? 'Unknown connection error.'),
+            ];
+        }
+        $data = $syncResponse['data'] ?? [];
+        $content = trim((string)($data['content'] ?? ''));
+        if ($content === '') {
+            return ['success' => false, 'message' => 'AI worker returned an empty analysis.'];
+        }
         return [
-            'success' => false,
-            'message' => 'Local AI error: ' . (string)($response['message'] ?? 'Unknown connection error.'),
+            'success'  => true,
+            'content'  => $content,
+            'provider' => $data['provider'] ?? 'local-worker',
+            'model'    => $data['model'] ?? 'ollama/vision',
+            'raw_data' => $data,
         ];
     }
 
-    // 7. ទាញយក Content ចេញពី JSON Response
-    $data = $response['data'] ?? [];
-    $content = trim((string)($data['content'] ?? ''));
-
-    if ($content === '') {
-        return ['success' => false, 'message' => 'AI worker returned an empty analysis.'];
+    // បើ async request បរាជ័យសរុប
+    if (!$jobResponse['ok']) {
+        return [
+            'success' => false,
+            'message' => 'Local AI error: ' . (string)($jobResponse['message'] ?? 'Unknown connection error.'),
+        ];
     }
 
+    // 6. ទាញ job_id ហើយ Poll រហូតដល់រួច
+    $jobData = is_array($jobResponse['data'] ?? null) ? $jobResponse['data'] : [];
+    $jobId = trim((string)($jobData['job_id'] ?? ''));
+    if ($jobId === '') {
+        return [
+            'success' => false,
+            'message' => 'AI worker did not return a job ID.',
+        ];
+    }
+
+    $deadline = microtime(true) + max(120, $workerTimeout);
+    $pollIntervalUs = 2000000;
+    $lastMessage = 'Local AI worker is processing the product analysis.';
+
+    while (microtime(true) < $deadline) {
+        usleep($pollIntervalUs);
+        $pollResponse = meeting_ai_http_get_json(
+            rtrim($worker['url'], '/') . '/jobs/' . rawurlencode($jobId),
+            $headers,
+            30
+        );
+
+        if (!$pollResponse['ok']) {
+            if ((int)($pollResponse['status'] ?? 0) === 404) {
+                continue;
+            }
+            return [
+                'success' => false,
+                'message' => 'AI worker job status check failed: ' . (string)($pollResponse['message'] ?? ''),
+            ];
+        }
+
+        $statusData = is_array($pollResponse['data'] ?? null) ? $pollResponse['data'] : [];
+        $status = strtolower(trim((string)($statusData['status'] ?? 'queued')));
+        $lastMessage = trim((string)($statusData['message'] ?? $lastMessage));
+
+        if ($status === 'completed') {
+            $result = is_array($statusData['result'] ?? null) ? $statusData['result'] : [];
+            $content = trim((string)($result['content'] ?? ''));
+            if ($content === '') {
+                return ['success' => false, 'message' => 'AI worker returned an empty analysis.'];
+            }
+            return [
+                'success'  => true,
+                'content'  => $content,
+                'provider' => $result['provider'] ?? 'local-worker',
+                'model'    => $result['model'] ?? 'ollama/vision',
+                'raw_data' => $result,
+            ];
+        }
+
+        if ($status === 'failed') {
+            return [
+                'success' => false,
+                'message' => $lastMessage !== '' ? $lastMessage : 'AI worker job failed.',
+            ];
+        }
+    }
+
+    // Timeout
     return [
-        'success'  => true,
-        'content'  => $content,
-        'provider' => $data['provider'] ?? 'local-worker',
-        'model'    => $data['model'] ?? 'ollama/vision',
-        'raw_data' => $data // រក្សាទុកសម្រាប់ debug ប្រសិនបើត្រូវការ
+        'success' => false,
+        'message' => $lastMessage !== ''
+            ? 'AI processing timeout: ' . $lastMessage
+            : 'Local AI worker did not finish within the configured timeout.',
     ];
 }
 

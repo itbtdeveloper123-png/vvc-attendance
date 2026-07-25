@@ -879,6 +879,52 @@ def run_worker_job(job_id: str, request: "MeetingSummaryRequest") -> None:
         )
 
 
+def run_product_analysis_job(job_id: str, request: "ProductAnalysisRequest") -> None:
+    try:
+        update_worker_job(
+            job_id,
+            status="running",
+            started_at=time.time(),
+            message="កំពុងផ្ញើរូបភាពទៅកាន់ Local AI...",
+        )
+        content = analyze_product_with_ollama(request)
+        result = {
+            "success": True,
+            "provider": "local-worker",
+            "model": f"ollama:{OLLAMA_MODEL}",
+            "content": content,
+        }
+        update_worker_job(
+            job_id,
+            status="completed",
+            success=True,
+            result=result,
+            finished_at=time.time(),
+            message="ការវិភាគផលិតផលដោយ AI បានរួចរាល់។",
+        )
+    except HTTPException as exc:
+        update_worker_job(
+            job_id,
+            status="failed",
+            success=False,
+            result=None,
+            finished_at=time.time(),
+            message=str(exc.detail or ("HTTP " + str(exc.status_code))),
+            status_code=exc.status_code,
+        )
+    except Exception as exc:
+        logger.exception("Product analysis async job failed: %s", exc)
+        update_worker_job(
+            job_id,
+            status="failed",
+            success=False,
+            result=None,
+            finished_at=time.time(),
+            message=compact_error_text(exc),
+            status_code=500,
+        )
+
+
 @app.get("/health")
 def health() -> Dict[str, Any]:
     ollama_ok = True
@@ -934,6 +980,28 @@ def analyze_product(
         "model": f"ollama:{OLLAMA_MODEL}",
         "content": analyze_product_with_ollama(request),
     }
+
+
+@app.post("/analyze-product-async")
+def analyze_product_async(
+    request: ProductAnalysisRequest,
+    authorization: Optional[str] = Header(default=None),
+) -> JSONResponse:
+    require_token(authorization)
+    job = create_worker_job(request)
+    thread = threading.Thread(
+        target=run_product_analysis_job, args=(job["job_id"], request), daemon=True
+    )
+    thread.start()
+    return JSONResponse(
+        status_code=202,
+        content={
+            "success": True,
+            "job_id": job["job_id"],
+            "status": "queued",
+            "message": "Product analysis job started.",
+        },
+    )
 
 
 @app.post("/summarize-meeting-async")

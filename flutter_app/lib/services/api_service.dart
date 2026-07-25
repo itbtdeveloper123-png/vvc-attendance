@@ -256,7 +256,7 @@ class ApiService {
       'analyze_product_image',
       headers: headers,
       body: body,
-      timeout: const Duration(minutes: 2),
+      timeout: const Duration(minutes: 15),
     );
   }
 

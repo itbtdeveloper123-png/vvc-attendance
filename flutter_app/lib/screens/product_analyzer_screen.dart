@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:animate_do/animate_do.dart';
@@ -107,6 +108,10 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
   String? _detectedBarcode;
   bool _barcodeLocked = false;
 
+  // Elapsed timer for long-running AI analysis
+  Timer? _elapsedTimer;
+  int _elapsedSeconds = 0;
+
   late final AnimationController _pulseCtrl;
 
   @override
@@ -120,9 +125,31 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
 
   @override
   void dispose() {
+    _elapsedTimer?.cancel();
     _pulseCtrl.dispose();
     _scanController.dispose();
     super.dispose();
+  }
+
+  void _startElapsedTimer() {
+    _elapsedSeconds = 0;
+    _elapsedTimer?.cancel();
+    _elapsedTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) {
+        setState(() => _elapsedSeconds++);
+      }
+    });
+  }
+
+  void _stopElapsedTimer() {
+    _elapsedTimer?.cancel();
+    _elapsedTimer = null;
+  }
+
+  String _formatElapsed(int totalSeconds) {
+    final mins = totalSeconds ~/ 60;
+    final secs = totalSeconds % 60;
+    return '${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
   }
 
   // ─── Haptics ──────────────────────────────────────────────────────────────
@@ -195,6 +222,11 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
       return 'AI មិនអាចរៀបចំលទ្ធផលបានត្រឹមត្រូវទេ។ សូមព្យាយាមម្តងទៀត។';
     }
 
+    final lower = text.toLowerCase();
+    if (lower.contains('timeout') || lower.contains('មកដល់ហើយ') || lower.contains('did not finish')) {
+      return 'AI វិភាគយូរពេក។ ប្រសិនបើប្រើ AI ក្នុងស្រុក (Local AI) វាអាចចំណាយ 3-10 នាទី សូមព្យាយាមម្តងទៀត។';
+    }
+
     if (text.contains('AI vision request failed')) {
       final detail = text.replaceAll('AI vision request failed:', '').trim();
       return 'មិនអាចទាក់ទងប្រព័ន្ធ AI វិភាគរូបភាពបានទេ ($detail)។ សូមពិនិត្យអ៊ីនធឺណិត ឬព្យាយាមម្តងទៀត។';
@@ -211,6 +243,7 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
 
   Future<void> _analyze() async {
     if (_imageBase64 == null && _detectedBarcode == null) return;
+    _startElapsedTimer();
     setState(() {
       _isAnalyzing = true;
       _errorMsg = null;
@@ -222,6 +255,7 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
         imageBase64: _imageBase64 ?? '',
         barcode: _detectedBarcode ?? '',
       );
+      _stopElapsedTimer();
       if (!(res['success'] as bool? ?? false)) {
         setState(() {
           _isAnalyzing = false;
@@ -247,9 +281,18 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
         });
       }
     } catch (e) {
+      _stopElapsedTimer();
+      String msg;
+      final errText = e.toString().toLowerCase();
+      if (errText.contains('timeoutexception') || errText.contains('timeout')) {
+        msg =
+            'កំណត់ពេលមកដល់ហើយ។ AI កំពុងដំណើរការយូរពេក — សូមព្យាយាមម្តងទៀត។ ប្រសិនបើបញ្ហាបន្ត កុំព្យូទ័រ AI ក្នុងស្រុក អាចកំពុងលំហូរខ្លាំង។';
+      } else {
+        msg = 'Error: $e';
+      }
       setState(() {
         _isAnalyzing = false;
-        _errorMsg = 'Error: $e';
+        _errorMsg = msg;
       });
     }
   }
@@ -1071,6 +1114,8 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
   // ─── Analyzing ────────────────────────────────────────────────────────────
 
   Widget _buildAnalyzingCard() {
+    final elapsed = _formatElapsed(_elapsedSeconds);
+    final isLocalSlow = _elapsedSeconds >= 45;
     return FadeInUp(
       duration: const Duration(milliseconds: 400),
       child: Container(
@@ -1106,6 +1151,62 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
                 fontSize: 12,
               ),
             ),
+            const SizedBox(height: 12),
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E0B3A),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(
+                  color: const Color(0xFF7C3AED).withValues(alpha: 0.25),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.timer_outlined,
+                    size: 14,
+                    color: Color(0xFF7C3AED),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    elapsed,
+                    style: GoogleFonts.kantumruyPro(
+                      color: const Color(0xFFA78BFA),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (isLocalSlow) ...[
+              const SizedBox(height: 14),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(
+                    Icons.info_outline_rounded,
+                    size: 15,
+                    color: Color(0xFF38BDF8),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'ប្រព័ន្ធ AI ក្នុងស្រុក (Local AI) ចំណាយពេល 3-10 នាទីដើម្បីវិភាគរូបភាព។ សូមមិនបិទកម្មវិធី...',
+                      style: GoogleFonts.kantumruyPro(
+                        color: const Color(0xFF38BDF8),
+                        fontSize: 11.5,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ],
         ),
       ),
