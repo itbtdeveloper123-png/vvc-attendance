@@ -730,23 +730,106 @@ function meeting_ai_extract_json_payload($content) {
     return is_array($decoded) ? $decoded : null;
 }
 
+function product_ai_utf8_chars($str) {
+    $chars = [];
+    $len = mb_strlen($str, 'UTF-8');
+    for ($i = 0; $i < $len; $i++) {
+        $chars[] = mb_substr($str, $i, 1, 'UTF-8');
+    }
+    return $chars;
+}
+
+function product_ai_remove_trailing_commas($json_str) {
+    $json_str = (string)$json_str;
+    if ($json_str === '') return '';
+
+    $out = '';
+    $chars = product_ai_utf8_chars($json_str);
+    $count = count($chars);
+    $inString = false;
+    $escaped = false;
+
+    for ($i = 0; $i < $count; $i++) {
+        $ch = $chars[$i];
+
+        if ($inString) {
+            if ($escaped) {
+                $escaped = false;
+                $out .= $ch;
+                continue;
+            }
+            if ($ch === '\\') {
+                $escaped = true;
+                $out .= $ch;
+                continue;
+            }
+            if ($ch === '"') {
+                $inString = false;
+                $out .= $ch;
+                continue;
+            }
+            $out .= $ch;
+            continue;
+        }
+
+        if ($ch === '"') {
+            $inString = true;
+            $out .= $ch;
+            continue;
+        }
+
+        if ($ch === ',') {
+            $nextNonWs = null;
+            for ($j = $i + 1; $j < $count; $j++) {
+                $nc = $chars[$j];
+                if ($nc === ' ' || $nc === "\t" || $nc === "\n" || $nc === "\r") continue;
+                $nextNonWs = $nc;
+                break;
+            }
+            if ($nextNonWs === ']' || $nextNonWs === '}') {
+                continue;
+            }
+            $out .= $ch;
+            continue;
+        }
+
+        $out .= $ch;
+    }
+
+    return $out;
+}
+
 function product_ai_find_json_object($content) {
     $text = trim((string)$content);
     if ($text === '') {
         return null;
     }
 
-    $length = strlen($text);
+    $decoded = json_decode($text, true);
+    if (is_array($decoded)) {
+        return ['json' => $decoded, 'raw' => $text];
+    }
+
+    $cleaned = product_ai_remove_trailing_commas($text);
+    $decoded = json_decode($cleaned, true);
+    if (is_array($decoded)) {
+        return ['json' => $decoded, 'raw' => $cleaned];
+    }
+
+    $chars = product_ai_utf8_chars($text);
+    $length = count($chars);
     for ($start = 0; $start < $length; $start++) {
-        if ($text[$start] !== '{') {
+        if ($chars[$start] !== '{') {
             continue;
         }
 
         $depth = 0;
         $inString = false;
         $escaped = false;
+        $candidateChars = [];
         for ($i = $start; $i < $length; $i++) {
-            $char = $text[$i];
+            $char = $chars[$i];
+            $candidateChars[] = $char;
 
             if ($inString) {
                 if ($escaped) {
@@ -774,13 +857,15 @@ function product_ai_find_json_object($content) {
             if ($char === '}') {
                 $depth--;
                 if ($depth === 0) {
-                    $candidate = substr($text, $start, $i - $start + 1);
+                    $candidate = implode('', $candidateChars);
                     $decoded = json_decode($candidate, true);
                     if (is_array($decoded)) {
-                        return [
-                            'json' => $decoded,
-                            'raw' => $candidate,
-                        ];
+                        return ['json' => $decoded, 'raw' => $candidate];
+                    }
+                    $cleaned = product_ai_remove_trailing_commas($candidate);
+                    $decoded = json_decode($cleaned, true);
+                    if (is_array($decoded)) {
+                        return ['json' => $decoded, 'raw' => $cleaned];
                     }
                     break;
                 }
@@ -806,21 +891,26 @@ function product_ai_clean_think_tags_recursive($data) {
 }
 
 function product_ai_heal_truncated_json($json_str) {
-    $json_str = trim($json_str);
+    $json_str = trim((string)$json_str);
     if ($json_str === '') return '';
 
-    // Check if it already parses successfully
     if (json_decode($json_str) !== null) {
         return $json_str;
     }
 
-    $len = strlen($json_str);
+    $noComma = product_ai_remove_trailing_commas($json_str);
+    if (json_decode($noComma, true) !== null) {
+        return $noComma;
+    }
+
+    $chars = product_ai_utf8_chars($json_str);
+    $len = count($chars);
     $in_string = false;
     $escaped = false;
     $stack = [];
 
     for ($i = 0; $i < $len; $i++) {
-        $char = $json_str[$i];
+        $char = $chars[$i];
 
         if ($in_string) {
             if ($escaped) {
@@ -861,18 +951,16 @@ function product_ai_heal_truncated_json($json_str) {
         }
     }
 
-    // Heal the string
     $healed = $json_str;
     if ($in_string) {
         $healed .= '"';
     }
-
-    // Close open structures
     while (!empty($stack)) {
         $close_char = array_pop($stack);
         $healed .= $close_char;
     }
 
+    $healed = product_ai_remove_trailing_commas($healed);
     return $healed;
 }
 
@@ -888,16 +976,14 @@ function product_ai_extract_json_payload($content) {
 
     $text = preg_replace('/^\xEF\xBB\xBF/', '', $text);
 
-    // Strip closed think/reasoning tags
     $text = preg_replace('/<think\b[^>]*>.*?<\/think>/is', '', $text);
     $text = preg_replace('/<reasoning\b[^>]*>.*?<\/reasoning>/is', '', $text);
 
-    // Handle unclosed think tags before JSON
-    $firstBrace = strpos($text, '{');
+    $firstBrace = mb_strpos($text, '{', 0, 'UTF-8');
     if ($firstBrace !== false) {
-        $leadingText = substr($text, 0, $firstBrace);
+        $leadingText = mb_substr($text, 0, $firstBrace, 'UTF-8');
         if (stripos($leadingText, '<think>') !== false || stripos($leadingText, '<reasoning>') !== false) {
-            $text = substr($text, $firstBrace);
+            $text = mb_substr($text, $firstBrace, null, 'UTF-8');
         }
     }
 
@@ -905,7 +991,23 @@ function product_ai_extract_json_payload($content) {
     $text = preg_replace('/\s*```\s*$/', '', trim((string)$text));
     $text = trim((string)$text);
 
-    // Auto-heal truncated JSON text
+    $decoded = json_decode($text, true);
+    if (is_array($decoded)) {
+        return [
+            'json' => product_ai_clean_think_tags_recursive($decoded),
+            'raw' => $text,
+        ];
+    }
+
+    $noComma = product_ai_remove_trailing_commas($text);
+    $decoded = json_decode($noComma, true);
+    if (is_array($decoded)) {
+        return [
+            'json' => product_ai_clean_think_tags_recursive($decoded),
+            'raw' => $noComma,
+        ];
+    }
+
     $healed = product_ai_heal_truncated_json($text);
     $decoded = json_decode($healed, true);
     if (is_array($decoded)) {
@@ -918,22 +1020,27 @@ function product_ai_extract_json_payload($content) {
     $parsed = product_ai_find_json_object($healed);
     if (is_array($parsed) && is_array($parsed['json'] ?? null)) {
         $parsed['json'] = product_ai_clean_think_tags_recursive($parsed['json']);
+        return $parsed;
+    }
+
+    $parsed = product_ai_find_json_object($text);
+    if (is_array($parsed) && is_array($parsed['json'] ?? null)) {
+        $parsed['json'] = product_ai_clean_think_tags_recursive($parsed['json']);
     }
     return $parsed;
 }
 
 function product_ai_fallback_parse_text($content) {
-    $text = trim((string)$content);
-    if ($text === '') {
-        return null;
-    }
+    $originalText = trim((string)$content);
 
+    $text = $originalText;
     $text = preg_replace('/^\xEF\xBB\xBF/', '', $text);
     $text = preg_replace('/<think\b[^>]*>.*?<\/think>/is', '', $text);
     $text = preg_replace('/<reasoning\b[^>]*>.*?<\/reasoning>/is', '', $text);
     $cleaned = trim((string)$text);
+
     if ($cleaned === '') {
-        return null;
+        $cleaned = $originalText !== '' ? $originalText : 'AI បានវិភាគរូបភាពផលិតផល (ទិន្នន័យ JSON របស់ AI មិនទាន់មានទ្រង់ទ្រាយ ត្រឹមត្រូវ)។';
     }
 
     $productName = 'ផលិតផល';
@@ -941,6 +1048,8 @@ function product_ai_fallback_parse_text($content) {
     $country = 'កម្ពុជា';
     $flag = '🇰🇭';
     $category = 'ទូទៅ';
+    $ingredientsSummary = '—';
+    $priceRange = '—';
 
     if (preg_match('/["\']?(?:product_name|ឈ្មោះផលិតផល|ឈ្មោះ|product)["\']?\s*[:=]\s*["\']?([^"\'\n\r,]+)/iu', $cleaned, $m)) {
         $productName = trim(trim($m[1], '":,{}[]\''));
@@ -953,7 +1062,7 @@ function product_ai_fallback_parse_text($content) {
                 $lineClean = trim($parts[1]);
             }
             $lineClean = trim(trim($lineClean, '":,{}[]\''));
-            if (mb_strlen($lineClean) > 2 && mb_strlen($lineClean) < 80) {
+            if (mb_strlen($lineClean, 'UTF-8') > 2 && mb_strlen($lineClean, 'UTF-8') < 120) {
                 $productName = $lineClean;
                 break;
             }
@@ -968,6 +1077,18 @@ function product_ai_fallback_parse_text($content) {
         $country = trim(trim($m[1], '":,{}[]\''));
     }
 
+    if (preg_match('/["\']?(?:category|ប្រភេទ|ផ្នែក)["\']?\s*[:=]\s*["\']?([^"\'\n\r,]+)/iu', $cleaned, $m)) {
+        $category = trim(trim($m[1], '":,{}[]\''));
+    }
+
+    if (preg_match('/["\']?(?:ingredients_summary|ingredients|សមាសធាតុ|គ្រឿងផ្សំ)["\']?\s*[:=]\s*["\']?([^"\'\n\r,]+)/iu', $cleaned, $m)) {
+        $ingredientsSummary = trim(trim($m[1], '":,{}[]\''));
+    }
+
+    if (preg_match('/["\']?(?:price_range_usd|price|តម្លៃ|ជួរតម្លៃ)["\']?\s*[:=]\s*["\']?([^"\'\n\r,]+)/iu', $cleaned, $m)) {
+        $priceRange = trim(trim($m[1], '":,{}[]\''));
+    }
+
     $benefits = [];
     $warnings = [];
     $usage = [];
@@ -976,7 +1097,7 @@ function product_ai_fallback_parse_text($content) {
         $line = trim($line);
         if (preg_match('/^[\*\-\•\d\.]+\s+(.+)/u', $line, $m)) {
             $item = trim($m[1]);
-            if (mb_strlen($item) > 3) {
+            if (mb_strlen($item, 'UTF-8') > 3) {
                 if (preg_match('/(ប្រយ័ត្ន|ហាម|កុំ|warning|caution)/iu', $item)) {
                     $warnings[] = $item;
                 } else if (preg_match('/(ផលប្រយោជន៍|ប្រយោជន៍|ល្អ|benefit|good)/iu', $item)) {
@@ -997,10 +1118,93 @@ function product_ai_fallback_parse_text($content) {
         'usage' => !empty($usage) ? array_slice($usage, 0, 5) : ['ប្រើប្រាស់តាមការណែនាំលើសំបកដប/ប្រអប់'],
         'benefits' => !empty($benefits) ? array_slice($benefits, 0, 5) : ['គុណភាពស្តង់ដារ និងមានសុវត្ថិភាព'],
         'warnings' => !empty($warnings) ? array_slice($warnings, 0, 3) : ['រក្សាទុកនៅកន្លែងស្ងួត និងត្រជាក់'],
-        'ingredients_summary' => '—',
-        'price_range_usd' => '—',
+        'ingredients_summary' => $ingredientsSummary,
+        'price_range_usd' => $priceRange,
         'summary' => $cleaned,
     ];
+}
+
+function product_ai_is_placeholder_string($v) {
+    if ($v === null) return true;
+    if (!is_string($v)) return false;
+    $s = trim($v);
+    if ($s === '') return true;
+    $low = mb_strtolower($s, 'UTF-8');
+    $bad = ['...','—','-','n/a','na','null','none','មិនទាន់ដឹង','មិនស្គាល់','មិនដឹង','unknown','tbd','todo','to be determined'];
+    if (in_array($low, $bad, true)) return true;
+    foreach (['step1','step 1','step2','step2','step 2','benefit1','benefit 1','benefit2','warning1','warning 1','warning2','point1','example1'] as $tok) {
+        if (strpos($low, $tok) !== false) return true;
+    }
+    if (in_array($s, ['ផលិតផល','product','Product','PRODUCT','category','Category','summary','Summary','usage','Usage','benefits','Benefits','warnings','Warnings','brand','Brand','country','Country','origin','Origin','ingredients','Ingredients','price','Price',''], true)) {
+        return true;
+    }
+    if (preg_match('/^(?:ជំហាន|អត្ថប្រយោជន៍|ការព្រមាន|ចំណុច)\s*\d*$/u', $s)) return true;
+    return false;
+}
+
+function product_ai_detect_placeholder_issues(array $parsed) {
+    $issues = [];
+    $requiredKeys = ['product_name','brand','country_of_origin','country_flag_emoji','category','usage','benefits','warnings','ingredients_summary','price_range_usd','summary'];
+    foreach ($requiredKeys as $k) {
+        if (!array_key_exists($k, $parsed)) { $issues[] = 'missing:' . $k; continue; }
+        $v = $parsed[$k];
+        if (in_array($k, ['usage','benefits','warnings'], true)) {
+            if (!is_array($v)) { $issues[] = 'not_list:' . $k; continue; }
+            if (count($v) === 0) { $issues[] = 'empty_list:' . $k; continue; }
+            foreach ($v as $i => $it) {
+                if (product_ai_is_placeholder_string($it)) {
+                    $issues[] = 'placeholder:' . $k . '[' . $i . ']=' . mb_substr((string)$it, 0, 20, 'UTF-8');
+                }
+            }
+        } else {
+            if (product_ai_is_placeholder_string($v)) {
+                $issues[] = 'placeholder:' . $k . '=' . mb_substr((string)$v, 0, 30, 'UTF-8');
+            }
+        }
+    }
+    return $issues;
+}
+
+function product_ai_barcode_country($barcode) {
+    $b = preg_replace('/[^0-9]/', '', (string)$barcode);
+    if ($b === '') return null;
+    $prefix = (int)substr($b, 0, 3);
+    $map = [
+        [[884,884],['កម្ពុជា','🇰🇭']],
+        [[880,880],['កូរ៉េខាងត្បូង','🇰🇷']],
+        [[885,885],['ថៃ','🇹🇭']],
+        [[890,890],['ឥណ្ឌា','🇮🇳']],
+        [[893,893],['វៀតណាម','🇻🇳']],
+        [[899,899],['ឥណ្ឌូណេស៊ី','🇮🇩']],
+        [[955,955],['ម៉ាឡេស៊ី','🇲🇾']],
+        [[958,958],['ម៉ាកាវ','🇲🇴']],
+        [[690,699],['ចិន','🇨🇳']],
+        [[450,459],['ជប៉ុន','🇯🇵']],
+        [[490,499],['ជប៉ុន','🇯🇵']],
+        [[400,440],['អាឡឺម៉ង់','🇩🇪']],
+        [[300,379],['បារាំង','🇫🇷']],
+        [[0,139],['សហរដ្ឋអាមេរិក / កាណាដា','🇺🇸']],
+        [[750,750],['ម៉ិកស៊ិក','🇲🇽']],
+        [[770,771],['កូឡុំប៊ី','🇨🇴']],
+        [[780,780],['ឈីលី','🇨🇱']],
+        [[800,839],['អ៊ីតាលី','🇮🇹']],
+        [[840,849],['អេស្ប៉ាញ','🇪🇸']],
+        [[500,509],['ចក្រភពអង់គ្លេស','🇬🇧']],
+        [[930,939],['អូស្ត្រាលី','🇦🇺']],
+        [[940,949],['នូវែលសេឡង់','🇳🇿']],
+        [[460,469],['រុស្ស៊ី','🇷🇺']],
+        [[481,481],['បេឡារុស្ស','🇧🇾']],
+        [[482,482],['អ៊ុយក្រែន','🇺🇦']],
+        [[471,471],['តៃវ៉ាន់','🇹🇼']],
+        [[476,476],['អាស៊ែបៃហ្សង់','🇦🇿']],
+        [[480,480],['ហ្វីលីពីន','🇵🇭']],
+        [[625,625],['ជ័រដាន','🇯🇴']],
+    ];
+    foreach ($map as $entry) {
+        [$r,$out] = $entry;
+        if ($prefix >= $r[0] && $prefix <= $r[1]) return ['country' => $out[0], 'flag' => $out[1], 'prefix' => str_pad((string)$r[0], 3, '0', STR_PAD_LEFT)];
+    }
+    return null;
 }
 
 function meeting_ai_parse_summary_payload($content) {
@@ -5947,41 +6151,134 @@ switch ($action) {
         }
         $cleanImageBase64 = str_replace(["\r", "\n", " ", "\t"], '', (string)$imageBase64);
 
-        // Build user prompt
-        $analysisTarget = $imageBase64 !== ''
-            ? 'Analyze this product image carefully.'
-            : 'Use the barcode / QR code text to identify the product as accurately as possible.';
-        $extraContext = '';
-        if ($barcodeText !== '') {
-            $extraContext = "\n\nBarcode / QR code detected on the product: **{$barcodeText}**. Please also identify the country of origin based on the barcode prefix (GS1 prefix lookup).";
+        $gs1 = product_ai_barcode_country($barcodeText);
+        $gs1Hint = '';
+        if (is_array($gs1)) {
+            $gs1Hint = " (ប្រកាស GS1 barcode prefix {$gs1['prefix']} = ប្រទេស {$gs1['country']} {$gs1['flag']})";
         }
-        $userPrompt = "You are a product analysis expert. {$analysisTarget} Respond in Khmer (ភាសាខ្មែរ) with a structured JSON object. Do not include chain-of-thought, <think> tags, explanations, or markdown. Include all the following fields exactly:\n{\n  \"product_name\": \"...\",\n  \"brand\": \"...\",\n  \"country_of_origin\": \"...\",\n  \"country_flag_emoji\": \"...\",\n  \"category\": \"...\",\n  \"usage\": [\"step1\", \"step2\", ...],\n  \"benefits\": [\"benefit1\", \"benefit2\", ...],\n  \"warnings\": [\"...\"],\n  \"ingredients_summary\": \"...\",\n  \"price_range_usd\": \"...\",\n  \"summary\": \"...\"\n}\nRespond with ONLY the JSON object, no extra text or markdown." . $extraContext;
-        $systemPrompt = 'You are a world-class product analyst. Always respond with valid JSON only, using Khmer language for all descriptive values. Never include chain-of-thought, reasoning notes, <think> tags, markdown, or explanatory text outside the JSON object.';
-        $visionRes = ai_call_free_vision_service($systemPrompt, $userPrompt, $imageBase64, $mimeType);
-
-        if (!$visionRes['success']) {
-            apiResponse(['success' => false, 'message' => 'មិនអាចទាក់ទងប្រព័ន្ធ AI វិភាគរូបភាពបានទេ៖ ' . $visionRes['message']]);
+        $sysKhmer = 'អ្នកជាអ្នកជំនាញវិភាគផលិតផល Vision AI ដែលអាចមើលរូបភាព និងអានស្លាកផលិតផលបានយ៉ាងច្បាស់លាស់។ គោលការណ៍៖ ១) មើលរូបភាពឲ្យដិតដល់ គ្រប់ជ្រុង (ស្លាក វេចខ្ចប់ បារកូដ ស្លាកថែទាំ)។ ២) សរសេរតម្លៃត្រឹមត្រូវប៉ុណ្ណោះ៖ បើមិនមើលឃើញ ឬមិនប្រាកដ សូមសរសេរ \'មិនបានរកឃើញ\' ជាជាងប៉ាន់ស្មាន (ហាម hallucination)។ ៣) ហាមប្រើ placeholder ដូចជា step1 benefit1 warning1 ... ឬទម្លាប់ស្ដង់ដារណាមួយ។ ៤) គ្រប់តម្លៃពណ៌នា​ត្រូវជាភាសាខ្មែរ (ហាមរាយភាសាអង់គ្លេសលើសពីនាមម៉ាកពិតប្រាកដ)។ ៥) country_flag_emoji តែមួយ emoji ច្បាស់។ ៦) ingredients_summary ជាប្រយោគខ្លីៗនៃសមាសធាតុដែលអានបានពីរូបភាព។ ៧) usage benefits warnings ជា array ខ្លីៗ យ៉ាងហោចណាស់ ២ ធាតុ ប្រសិនបើមានព័ត៌មាន។ ៨) price_range_usd សរសេរជួរតម្លៃគិតជាដុល្លារ អាមេរិក (USD) បើអាចប៉ាន់ស្មានបាន។ ៩) JSON ត្រឹមត្រូវគ្រប់ពេល (ហាម trailing comma កុំប៉ះ)។ ១០) មិនរាយ <think> មិនរាយសំណេរ កុំដាក់ markdown fences។ ឆ្លើយតែ { JSON } ទាំងមូល។';
+        $userKhmerTmpl = "សូមអានរូបភាពផលិតផលនេះឲ្យបានដិតដល់ រួចត្រឡប់ JSON មួយទៀងទាត់ជាមួយ keys ទាំងនេះ៖ product_name, brand, country_of_origin, country_flag_emoji, category, usage (array), benefits (array), warnings (array), ingredients_summary, price_range_usd, summary ។ បើមិនដឹងច្បាស់ សរសេរ 'មិនបានរកឃើញ' ជំនួសវិញ ហាមប្រើ 'step1' ឬ '...' ទេ។ ប្រើភាសាខ្មែរសំរាប់គ្រប់តម្លៃពណ៌នា។";
+        if ($imageBase64 === '' && $barcodeText !== '') {
+            $userKhmerTmpl = "រូបភាពមិនមាន សូមអាស្រ័យលើ barcode/QR និងបរិបទ GS1 ដើម្បីប៉ាន់ស្មានផលិតផល ហើយត្រឡប់ JSON object ជាមួយ keys៖ product_name, brand, country_of_origin, country_flag_emoji, category, usage (array), benefits (array), warnings (array), ingredients_summary, price_range_usd, summary ។ បើមិនដឹង សរសេរ 'មិនបានរកឃើញ'។";
         }
 
-        $rawContent = $visionRes['content'];
-        $extracted = product_ai_extract_json_payload($rawContent);
+        $bestJson = null;
+        $bestIssuesCount = 9999;
+        $bestRaw = '';
+        $lastIssues = [];
 
-        if (!is_array($extracted) || !is_array($extracted['json'] ?? null)) {
-            $fallbackJson = product_ai_fallback_parse_text($rawContent);
-            if ($fallbackJson) {
-                $extracted = ['json' => $fallbackJson, 'raw' => $rawContent];
+        for ($attempt = 1; $attempt <= 3; $attempt++) {
+            $sysPrompt = $sysKhmer;
+            $userPrompt = $userKhmerTmpl;
+            if ($barcodeText !== '') {
+                $userPrompt .= "\n\nបារកូដ / QR ដែលអានបាន៖ « {$barcodeText} »" . $gs1Hint . '។ សូមប្រើប្រាស់ GS1 prefix នេះ ដើម្បីបញ្ជាក់ប្រទេសកំណើតឲ្យបានត្រឹមត្រូវ។';
+            }
+            if ($attempt >= 2 && !empty($lastIssues)) {
+                $note = implode('; ', array_slice($lastIssues, 0, 6));
+                $sysPrompt .= " [ការត្រួតពិនិត្យជំនាន់ {$attempt}/3] ការព្យាយាមមុនមានបញ្ហាដូចនេះ៖ {$note} ។ សូមអានរូបភាពឡើងវិញ ឲ្យច្បាស់ជាងមុន ដក placeholder ទាំងអស់ចេញ បើមិនដឹង សរសេរ 'មិនបានរកឃើញ' ជាជាងប៉ាន់ស្មាន។";
+                $userPrompt .= "\n\n[សូមយកចិត្តទុកដាក់៖ ការឆ្លើយមុនមានទម្លាប់ placeholder មិនត្រឹមត្រូវ។ សូមផ្តល់លទ្ធផលពិត ហើយបើព័ត៌មានខ្វះ សរសេរ 'មិនបានរកឃើញ' ជំនួសឲ្យ placeholder។]";
+            }
+
+            $visionRes = ai_call_free_vision_service($sysPrompt, $userPrompt, $imageBase64, $mimeType);
+            if (!$visionRes['success']) {
+                if ($attempt < 3) { usleep(400000); continue; }
+                apiResponse(['success' => false, 'message' => 'មិនអាចទាក់ទងប្រព័ន្ធ AI វិភាគរូបភាពបានទេ៖ ' . $visionRes['message']]);
+            }
+            $rawContent = $visionRes['content'];
+            $extracted = product_ai_extract_json_payload($rawContent);
+            $parsed = null;
+            if (is_array($extracted) && is_array($extracted['json'] ?? null)) {
+                $parsed = $extracted['json'];
+            } else {
+                $fb = product_ai_fallback_parse_text($rawContent);
+                $parsed = is_array($fb) ? $fb : null;
+            }
+            if (!is_array($parsed)) {
+                if ($attempt < 3) { usleep(200000); continue; }
+                $parsed = product_ai_fallback_parse_text($rawContent ?: 'AI បានវិភាគរូបភាព។');
+            }
+            $issues = product_ai_detect_placeholder_issues($parsed);
+            $cnt = count($issues);
+            if ($cnt < $bestIssuesCount) {
+                $bestIssuesCount = $cnt;
+                $bestJson = $parsed;
+                $bestRaw = $rawContent;
+            }
+            $lastIssues = $issues;
+            if ($cnt === 0 || ($cnt <= 2 && !in_array('placeholder:product_name=' . mb_substr((string)($parsed['product_name'] ?? ''), 0, 30, 'UTF-8'), $issues, true) && !in_array('placeholder:brand=' . mb_substr((string)($parsed['brand'] ?? ''), 0, 30, 'UTF-8'), $issues, true))) {
+                $bestJson = $parsed; $bestRaw = $rawContent; break;
+            }
+            if ($attempt < 3) { usleep(250000); }
+        }
+
+        if (!is_array($bestJson)) {
+            $bestJson = product_ai_fallback_parse_text('AI បានវិភាគរូបភាព។');
+        }
+
+        $bestJson = array_replace([
+            'product_name' => 'មិនបានរកឃើញ',
+            'brand' => 'មិនបានរកឃើញ',
+            'country_of_origin' => 'មិនបានរកឃើញ',
+            'country_flag_emoji' => '🌍',
+            'category' => 'ទូទៅ',
+            'usage' => [],
+            'benefits' => [],
+            'warnings' => [],
+            'ingredients_summary' => 'មិនបានរកឃើញ',
+            'price_range_usd' => 'មិនបានរកឃើញ',
+            'summary' => '',
+        ], $bestJson);
+
+        foreach (['product_name','brand','country_of_origin','category','ingredients_summary','price_range_usd','summary'] as $k) {
+            if (product_ai_is_placeholder_string((string)($bestJson[$k] ?? ''))) {
+                $bestJson[$k] = 'មិនបានរកឃើញ';
+            }
+        }
+        if (product_ai_is_placeholder_string((string)($bestJson['country_flag_emoji'] ?? ''))) {
+            $bestJson['country_flag_emoji'] = '🌍';
+        }
+        foreach (['usage','benefits','warnings'] as $k) {
+            $cleanList = [];
+            foreach ((array)($bestJson[$k] ?? []) as $it) {
+                $s = is_string($it) ? trim($it) : '';
+                if (!product_ai_is_placeholder_string($s) && $s !== '') {
+                    $cleanList[] = $s;
+                }
+            }
+            if (empty($cleanList)) {
+                if ($k === 'usage') $cleanList = ['ប្រើប្រាស់តាមការណែនាំលើសំបកដប/ប្រអប់'];
+                elseif ($k === 'benefits') $cleanList = ['គុណភាពស្តង់ដារ និងមានសុវត្ថិភាព'];
+                else $cleanList = ['រក្សាទុកនៅកន្លែងស្ងួត និងត្រជាក់'];
+            }
+            $bestJson[$k] = array_values(array_slice($cleanList, 0, $k === 'warnings' ? 4 : 5));
+        }
+
+        if (is_array($gs1)) {
+            if (product_ai_is_placeholder_string((string)($bestJson['country_of_origin'] ?? ''))) {
+                $bestJson['country_of_origin'] = $gs1['country'];
+                $bestJson['country_flag_emoji'] = $gs1['flag'];
+            } elseif (empty(trim((string)($bestJson['country_flag_emoji'] ?? ''))) || $bestJson['country_flag_emoji'] === '🌍') {
+                $bestJson['country_flag_emoji'] = $gs1['flag'];
             }
         }
 
-        if (!is_array($extracted) || !is_array($extracted['json'] ?? null)) {
-            apiResponse([
-                'success' => false,
-                'message' => 'AI មិនអាចរៀបចំលទ្ធផលបានត្រឹមត្រូវទេ។ សូមព្យាយាមម្តងទៀត។',
-                'raw' => $rawContent,
-                'parsed' => null,
-            ]);
+        if (trim((string)($bestJson['summary'] ?? '')) === '' || product_ai_is_placeholder_string((string)$bestJson['summary'])) {
+            $parts = [];
+            if (!product_ai_is_placeholder_string((string)$bestJson['product_name'])) $parts[] = 'ឈ្មោះ៖ ' . $bestJson['product_name'];
+            if (!product_ai_is_placeholder_string((string)$bestJson['brand'])) $parts[] = 'ម៉ាក៖ ' . $bestJson['brand'];
+            if (!product_ai_is_placeholder_string((string)$bestJson['country_of_origin'])) $parts[] = 'ប្រភព៖ ' . $bestJson['country_of_origin'];
+            if (!product_ai_is_placeholder_string((string)$bestJson['ingredients_summary'])) $parts[] = 'សមាសធាតុ៖ ' . $bestJson['ingredients_summary'];
+            $bestJson['summary'] = $parts ? implode(' | ', $parts) : 'AI បានវិភាគរូបភាពផលិតផល។';
         }
-        apiResponse(['success' => true, 'raw' => $extracted['raw'] ?? $rawContent, 'parsed' => $extracted['json']]);
+
+        apiResponse([
+            'success' => true,
+            'raw' => $bestRaw !== '' ? $bestRaw : (is_string($rawContent ?? null) ? $rawContent : ''),
+            'parsed' => $bestJson,
+            'quality_issues' => $lastIssues,
+            'quality_score' => max(0, 100 - $bestIssuesCount * 9),
+            'attempts' => $attempt,
+        ]);
         break;
 
     case 'remove_ai_chat_image_background':

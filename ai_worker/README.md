@@ -60,11 +60,20 @@ Local/VPS worker for meeting audio transcription and Khmer summarization.
 1. Install Python 3.10+
 2. Install FFmpeg and make sure `ffmpeg` works in `PATH`
 3. Install Ollama: <https://ollama.com/download>
-4. Pull the local models:
+4. Pull the local models (⚠️ vision model is REQUIRED for AI Product Analyzer):
 
 ```powershell
-ollama pull gemma3:4b
+# Text model — for meeting summaries + general chat
 ollama pull qwen3:8b
+
+# ⚠️ Vision model — MANDATORY for AI Product Analyzer (must pick at least ONE)
+# If you skip this, Product Analyzer will use a TEXT-ONLY model and the AI
+# CANNOT SEE IMAGES → it will always hallucinate placeholders / wrong data.
+ollama pull llava:7b
+# Alternative fast vision models (pick only one primary):
+# ollama pull bakllava:7b
+# ollama pull moondream:2b
+# ollama pull qwen2.5-vl:7b
 ```
 
 5. Create virtual env and install packages:
@@ -89,7 +98,10 @@ uvicorn app:app --host 0.0.0.0 --port 8099
 sudo apt update
 sudo apt install -y ffmpeg python3 python3-venv python3-pip
 curl -fsSL https://ollama.com/install.sh | sh
+# Text model for summaries
 ollama pull qwen3:8b
+# ⚠️ Vision model (REQUIRED for AI Product Analyzer)
+ollama pull llava:7b
 cd ai_worker
 python3 -m venv .venv
 source .venv/bin/activate

@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -8,7 +9,7 @@ import threading
 import time
 import uuid
 from functools import lru_cache
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import requests
 from fastapi import FastAPI, Header, HTTPException
@@ -32,6 +33,13 @@ WHISPER_BEAM_SIZE = int(os.getenv("WHISPER_BEAM_SIZE", "5") or "5")
 WHISPER_VAD_FILTER = os.getenv("WHISPER_VAD_FILTER", "1").strip() not in {"0", "false", "False"}
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3:8b").strip() or "qwen3:8b"
+OLLAMA_VISION_MODEL = os.getenv("OLLAMA_VISION_MODEL", "").strip()
+if not OLLAMA_VISION_MODEL:
+    _guess = OLLAMA_MODEL.lower()
+    if any(v in _guess for v in ("llava", "bakllava", "moondream", "vision", "-vl", "chatgr", "pixtral", "llama3.2-vision", "llama4-vision", "gemma3:4b")):
+        OLLAMA_VISION_MODEL = OLLAMA_MODEL
+    else:
+        OLLAMA_VISION_MODEL = "llava:7b"
 FFMPEG_BINARY = os.getenv("FFMPEG_BINARY", "ffmpeg").strip() or "ffmpeg"
 WORKER_REQUEST_TIMEOUT = int(os.getenv("WORKER_REQUEST_TIMEOUT", "600") or "600")
 MAX_DOWNLOAD_MB = int(os.getenv("MAX_DOWNLOAD_MB", "512") or "512")
@@ -186,8 +194,32 @@ def extract_json_payload(content: str) -> Optional[Dict[str, Any]]:
     if not text:
         return None
 
+    text = text.lstrip("\ufeff")
+    text = re.sub(r"<think\b[^>]*>.*?</think>", "", text, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r"<reasoning\b[^>]*>.*?</reasoning>", "", text, flags=re.DOTALL | re.IGNORECASE)
+
+    first_brace = text.find("{")
+    if first_brace > 0:
+        lead = text[:first_brace]
+        if "<think" in lead.lower() or "<reasoning" in lead.lower():
+            text = text[first_brace:]
+
+    text = re.sub(r"^```(?:json)?\s*", "", text.strip(), flags=re.IGNORECASE)
+    text = re.sub(r"\s*```\s*$", "", text.strip(), flags=re.IGNORECASE)
+    text = text.strip()
+    if not text:
+        return None
+
     try:
         decoded = json.loads(text)
+        if isinstance(decoded, dict):
+            return decoded
+    except Exception:
+        pass
+
+    text_no_trailing = re.sub(r",\s*([}\]])", r"\1", text)
+    try:
+        decoded = json.loads(text_no_trailing)
         if isinstance(decoded, dict):
             return decoded
     except Exception:
@@ -198,13 +230,51 @@ def extract_json_payload(content: str) -> Optional[Dict[str, Any]]:
     if start < 0 or end <= start:
         return None
 
-    candidate = text[start : end + 1]
-    try:
-        decoded = json.loads(candidate)
-        if isinstance(decoded, dict):
-            return decoded
-    except Exception:
-        return None
+    for candidate in (text[start : end + 1], re.sub(r",\s*([}\]])", r"\1", text[start : end + 1])):
+        try:
+            decoded = json.loads(candidate)
+            if isinstance(decoded, dict):
+                return decoded
+        except Exception:
+            continue
+
+    length = len(text)
+    for s in range(length):
+        if text[s] != "{":
+            continue
+        depth = 0
+        in_string = False
+        escaped = False
+        for i in range(s, length):
+            ch = text[i]
+            if in_string:
+                if escaped:
+                    escaped = False
+                    continue
+                if ch == "\\":
+                    escaped = True
+                    continue
+                if ch == '"':
+                    in_string = False
+                continue
+            if ch == '"':
+                in_string = True
+                continue
+            if ch == "{":
+                depth += 1
+                continue
+            if ch == "}":
+                depth -= 1
+                if depth == 0:
+                    candidate = text[s : i + 1]
+                    for c in (candidate, re.sub(r",\s*([}\]])", r"\1", candidate)):
+                        try:
+                            decoded = json.loads(c)
+                            if isinstance(decoded, dict):
+                                return decoded
+                        except Exception:
+                            continue
+                    break
     return None
 
 
@@ -587,42 +657,210 @@ def summarize_with_ollama(topic: str, department: str, description: str, transcr
     return normalize_analysis(parsed, transcript_text)
 
 
+PRODUCT_ANALYSIS_SYSTEM_PROMPT = (
+    "អ្នកជាអ្នកជំនាញវិភាគផលិតផលកម្ពស់ជំនាន់ (World-class Product Analyst) ដែលអាចមើលរូបភាព និងអានស្លាកផលិតផលបានយ៉ាងច្បាស់លាស់។\n"
+    "ការងាររបស់អ្នកគឺ៖\n"
+    "  1. មើលរូបភាពផលិតផលឲ្យបានដិតដល់ គ្រប់ជ្រុងជ្រោយ (រូបខាងមុខ ខាងក្រោយ ស្លាក nutrition barcode ingredients លក្ខណៈវេចខ្ចប់)។\n"
+    "  2. សរសេរតម្លៃឲ្យបានត្រឹមត្រូវគ្រប់ម៉ោង៖ ប្រសិនបើអ្នកមិនទាន់មើលឃើញ ឬមិនប្រាកដ សូមសរសេរ 'មិនបានរកឃើញ' ជាអក្សរតែមួយ៖ កុំធ្វើការប៉ាន់ស្មាន ឬបង្កើតទម្លាប់គ្មានមូលដ្ឋាន (hallucination) ឡើយ។\n"
+    "  3. សូមកុំប្រើ placeholder ដូចជា 'step1' 'benefit1' '...' ឬទម្លាប់ដកស្រង់ពី template ទេ។ គ្រប់ទម្លាប់ដែលអ្នកសរសេរ ត្រូវតែជាខ្លឹមសារពិតប្រាកដដែលមកពីរូបភាព។\n"
+    "  4. សូមប្រើភាសាខ្មែរ (ភាសាកម្ពុជា) សម្រាប់គ្រប់តម្លៃពណ៌នា។ បើនាមម៉ាក ឬឈ្មោះផលិតផលជាភាសាបរទេស អាចរក្សាភាសាដើមបាន។\n"
+    "  5. ប្រទេសកំណើត ព្យាយាមប្រើប្រាស់ GS1 Barcode prefix (បើមាន barcode) ឬវេចខ្ចប់ដែលអាន 'Made in X' / 'ផលិតនៅ' កំណត់ឲ្យបានត្រឹមត្រូវ។\n"
+    "  6. country_flag_emoji ត្រូវតែជា ១ emoji តែមួយ (ឧទាហរណ៍ 🇰🇭 សម្រាប់កម្ពុជា)។ បើមិនដឹង សូម '🌍' ជំនួស ហើយសុំកុំរាយច្រើន។\n"
+    "  7. ingredients_summary ត្រូវតែជាប្រយោគខ្លីៗពីរបីពាក្យ៖ រាយធាតុផ្សំសំខាន់ៗដែលអ្នកអានបានពីស្លាក ជាភាសាខ្មែរ។\n"
+    "  8. តម្លៃនីមួយៗមិនត្រូវជា empty string ទេ។ បើមិនដឹង សរសេរ 'មិនបានរកឃើញ' ជំនួសវិញ។\n"
+    "តែងតែឆ្លើយជា JSON តែមួយ ពោលគឺ { } ទាំងមូល។ កុំបន្ថែមសំណេរ កុំរាយ <think> កុំប្រើ markdown fences។"
+)
+
+PRODUCT_ANALYSIS_DEFAULT_USER_PREFIX = (
+    "សូមមើលរូបភាពផលិតផលនេះឲ្យបានដិតដល់ ហើយត្រឡប់ JSON object តែមួយជាមួយ keys ទាំងនេះ៖\n"
+    "product_name, brand, country_of_origin, country_flag_emoji, category,\n"
+    "usage (array 2-5 ធាតុ), benefits (array 2-5 ធាតុ), warnings (array 1-4 ធាតុ),\n"
+    "ingredients_summary, price_range_usd, summary។\n"
+    "ចងចាំ៖ បើកន្លែងណាមិនដឹង សរសេរ 'មិនបានរកឃើញ'។ កុំប្រើ template placeholder 'step1' ឬ '...' ទេ។"
+)
+
+
+def _product_analysis_is_placeholder(value: Any) -> bool:
+    """Return True if a field looks like a template placeholder instead of real data."""
+    if value is None:
+        return True
+    if isinstance(value, list):
+        if not value:
+            return True
+        return any(_product_analysis_is_placeholder(x) for x in value)
+    if not isinstance(value, str):
+        return False
+    s = value.strip()
+    if s == "":
+        return True
+    low = s.lower()
+    bad_prefixes = ("step", "benefit", "warning", "point", "example")
+    for p in bad_prefixes:
+        if low.startswith(p) and len(low) <= len(p) + 3:
+            rem = low[len(p):]
+            if rem.isdigit() or rem == "":
+                return True
+    if s in {"...", "…", "—", "-", "N/A", "n/a", "NA", "null", "Null", "None"}:
+        return True
+    if any(tok in low for tok in ("step1", "step 1", "step2", "step 2", "benefit1", "benefit 1", "warning1", "warning 1")):
+        return True
+    # Flag very generic literal copy-pastes
+    if s in {
+        "product name", "brand name", "product", "country", "origin country",
+        "category", "usage", "benefits", "warnings", "summary",
+    }:
+        return True
+    return False
+
+
+def _product_analysis_result_quality(parsed: Dict[str, Any]) -> Tuple[int, List[str]]:
+    """Score 0..100 and list of placeholder issue strings."""
+    required_keys = [
+        "product_name", "brand", "country_of_origin", "country_flag_emoji",
+        "category", "usage", "benefits", "warnings",
+        "ingredients_summary", "price_range_usd", "summary",
+    ]
+    issues: List[str] = []
+    for k in required_keys:
+        if k not in parsed:
+            issues.append(f"missing:{k}")
+            continue
+        v = parsed[k]
+        if k in {"usage", "benefits", "warnings"}:
+            if not isinstance(v, list):
+                issues.append(f"not_list:{k}")
+                continue
+            if len(v) == 0:
+                issues.append(f"empty_list:{k}")
+            for idx, item in enumerate(v):
+                if _product_analysis_is_placeholder(item):
+                    issues.append(f"placeholder:{k}[{idx}]={str(item)[:30]}")
+        else:
+            if _product_analysis_is_placeholder(v):
+                issues.append(f"placeholder:{k}={str(v)[:40]}")
+    # Score: start at 100 subtract issues
+    score = max(0, 100 - len(issues) * 9)
+    # Bonus if product_name/brand are real
+    if not _product_analysis_is_placeholder(parsed.get("product_name", "")):
+        score += 3
+    if not _product_analysis_is_placeholder(parsed.get("brand", "")):
+        score += 2
+    return min(100, score), issues
+
+
 def analyze_product_with_ollama(request: ProductAnalysisRequest) -> str:
+    raw_image = "".join((request.image_base64 or "").split())
+
+    # Inject strong default prompts if caller provided weak/empty ones
+    sys_prompt = (request.system_prompt or "").strip()
+    if len(sys_prompt) < 120:
+        sys_prompt = PRODUCT_ANALYSIS_SYSTEM_PROMPT
+
+    user_prompt = (request.user_prompt or "").strip()
+    if len(user_prompt) < 120 or "step1" in user_prompt.lower() or "benefit1" in user_prompt.lower():
+        # Merge: keep any barcode/user context but add strong structure
+        extra = ""
+        if user_prompt:
+            # try to keep anything with barcode / qr / extra context
+            for kw in ("Barcode", "barcode", "QR", "qr", "បាកូដ", "ឧទាហរណ៍នៃ", "context:"):
+                if kw in user_prompt:
+                    extra = "\n\n" + user_prompt
+                    break
+        user_prompt = PRODUCT_ANALYSIS_DEFAULT_USER_PREFIX + extra
+
     message: Dict[str, Any] = {
         "role": "user",
-        "content": request.user_prompt.strip(),
+        "content": user_prompt,
     }
-    clean_image = "".join((request.image_base64 or "").split())
-    if clean_image:
-        message["images"] = [clean_image]
+    if raw_image:
+        message["images"] = [raw_image]
 
-    payload = {
-        "model": OLLAMA_MODEL,
-        "stream": False,
-        "format": "json",
-        "messages": [
-            {
-                "role": "system",
-                "content": request.system_prompt.strip()
-                or "You analyze products and return valid JSON only.",
+    last_content = ""
+    last_issues: List[str] = []
+    best_content = ""
+    best_score = -1
+
+    for attempt in range(3):
+        extra_sys = ""
+        extra_user = ""
+        if attempt == 1 and last_issues:
+            extra_sys = (
+                " ការព្យាយាមមុនរបស់អ្នកមានបញ្ហា៖ " + "; ".join(last_issues[:6]) +
+                "។ សូមអានរូបភាពឡើងវិញយ៉ាងដិតដល់ កុំប្រើ placeholder ទៀត។ បើមិនចេះ សរសេរ 'មិនបានរកឃើញ' ប៉ុណ្ណោះ។"
+            )
+        if attempt == 2:
+            extra_user = (
+                "\n\n[ការព្រមានចុងក្រោយ: លទ្ធផលមុនមាន placeholder ច្រើនពេក។ "
+                "សូមព្យាយាមម្តងទៀត៖ អានរូបភាពដិតដល់ ប្រើប្រាស់ភាសាខ្មែរ ហើយតម្លៃណាមិនដឹង សរសេរ 'មិនបានរកឃើញ'។]"
+            )
+
+        payload = {
+            "model": OLLAMA_VISION_MODEL,
+            "stream": False,
+            "format": "json",
+            "messages": [
+                {
+                    "role": "system",
+                    "content": sys_prompt + extra_sys,
+                },
+                {
+                    **message,
+                    "content": user_prompt + extra_user,
+                },
+            ],
+            "options": {
+                "temperature": 0.05 if attempt == 0 else (0.08 if attempt == 1 else 0.0),
+                "top_p": 0.9,
+                "num_predict": 700,
             },
-            message,
-        ],
-        "options": {
-            "temperature": 0.1,
-        },
-    }
-    response = requests.post(
-        f"{OLLAMA_BASE_URL}/api/chat",
-        json=payload,
-        timeout=(20, WORKER_REQUEST_TIMEOUT),
-    )
-    response.raise_for_status()
-    data = response.json()
-    content = str(((data.get("message") or {}).get("content")) or "").strip()
-    if not content:
-        raise RuntimeError("Ollama returned an empty product analysis.")
-    return content
+        }
+        try:
+            response = requests.post(
+                f"{OLLAMA_BASE_URL}/api/chat",
+                json=payload,
+                timeout=(20, WORKER_REQUEST_TIMEOUT),
+            )
+            response.raise_for_status()
+        except Exception as exc:
+            if attempt < 2:
+                logger.warning("Ollama vision call failed (attempt %d): %s; retrying...", attempt + 1, compact_error_text(exc))
+                time.sleep(1.0)
+                continue
+            raise RuntimeError(f"Ollama request failed: {compact_error_text(exc)}") from exc
+
+        data = response.json()
+        content = str(((data.get("message") or {}).get("content")) or "").strip()
+        if not content:
+            if attempt < 2:
+                time.sleep(0.5)
+                continue
+            raise RuntimeError("Ollama returned an empty product analysis after retries.")
+        last_content = content
+
+        # Try to parse and score quality; if already good, return early
+        parsed = extract_json_payload(content)
+        if isinstance(parsed, dict):
+            score, issues = _product_analysis_result_quality(parsed)
+            if score > best_score:
+                best_score = score
+                best_content = content
+            last_issues = issues
+            if score >= 82 and not any(i.startswith("placeholder:") for i in issues[:3]):
+                logger.info("Product analysis passed quality check: score=%d issues=%d", score, len(issues))
+                return content
+            if attempt < 2:
+                logger.info("Retrying product analysis (attempt=%d score=%d issues=%d)", attempt + 1, score, len(issues))
+                time.sleep(0.2)
+                continue
+        else:
+            # Bad JSON — prefer valid json
+            if best_content == "":
+                best_content = content
+            if attempt < 2:
+                time.sleep(0.2)
+                continue
+
+    return best_content or last_content
 
 
 def summarize_transcript_hierarchically(
@@ -891,7 +1129,7 @@ def run_product_analysis_job(job_id: str, request: "ProductAnalysisRequest") -> 
         result = {
             "success": True,
             "provider": "local-worker",
-            "model": f"ollama:{OLLAMA_MODEL}",
+            "model": f"ollama:{OLLAMA_VISION_MODEL}",
             "content": content,
         }
         update_worker_job(
@@ -977,7 +1215,7 @@ def analyze_product(
     return {
         "success": True,
         "provider": "local-worker",
-        "model": f"ollama:{OLLAMA_MODEL}",
+        "model": f"ollama:{OLLAMA_VISION_MODEL}",
         "content": analyze_product_with_ollama(request),
     }
 
