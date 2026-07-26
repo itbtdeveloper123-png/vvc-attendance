@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:intl/intl.dart';
+import 'package:pasteboard/pasteboard.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -1086,6 +1087,31 @@ class _RequestListScreenState extends State<RequestListScreen> {
 
                       const SizedBox(height: 24),
 
+                      // View as Image button
+                      OutlinedButton.icon(
+                        onPressed: () => _viewAsImage(item),
+                        icon: Icon(
+                          Icons.image_outlined,
+                          color: AppTheme.primary,
+                        ),
+                        label: Text(
+                          "មើលសំណើជារូបភាព",
+                          style: GoogleFonts.kantumruyPro(
+                            color: AppTheme.primary,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(color: AppTheme.primary),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          minimumSize: const Size(double.infinity, 50),
+                        ),
+                      ),
+
+                      const SizedBox(height: 12),
+
                       // Actions Row
                       Row(
                         children: [
@@ -1366,6 +1392,176 @@ class _RequestListScreenState extends State<RequestListScreen> {
     }
   }
 
+  // Captures the hidden report widget as PNG bytes for PDF/image export.
+  Future<Uint8List> _captureReportPng(Map<String, dynamic> item) async {
+    // Ensure signatures are available (they are excluded from list API for performance).
+    if (item['id'] != null &&
+        ((item['signature'] ?? '').toString().isEmpty ||
+            (item['department_head_signature'] ?? '').toString().isEmpty)) {
+      final sigRes = await _api.fetchRequestSignatures(item['id'] as int);
+      if (sigRes['success'] == true && sigRes['signatures'] is Map) {
+        final sigMap = Map<String, dynamic>.from(sigRes['signatures'] as Map);
+        item = {...item, ...sigMap};
+      }
+    }
+
+    // 1. Set the item and trigger a rebuild of the hidden widget
+    setState(() {
+      _currentReportItem = item;
+    });
+
+    // 2. Wait for the widget to be rendered in the current frame
+    await Future.delayed(const Duration(milliseconds: 100));
+
+    // 3. Capture the hidden widget as an image
+    final boundary =
+        _reportKey.currentContext?.findRenderObject()
+            as RenderRepaintBoundary?;
+    if (boundary == null) throw "Could not find report boundary";
+
+    final ui.Image capturedImage = await boundary.toImage(pixelRatio: 3.0);
+    final ByteData? byteData = await capturedImage.toByteData(
+      format: ui.ImageByteFormat.png,
+    );
+    return byteData!.buffer.asUint8List();
+  }
+
+  // ========= View Request as Image (with Copy Image support) =========
+  Future<void> _viewAsImage(Map<String, dynamic> item) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const Center(
+        child: CircularProgressIndicator(color: Colors.orangeAccent),
+      ),
+    );
+
+    try {
+      final Uint8List pngBytes = await _captureReportPng(item);
+
+      if (!mounted) return;
+      Navigator.pop(context); // close loader
+
+      showDialog(
+        context: context,
+        builder: (dialogCtx) => Dialog(
+          backgroundColor: AppTheme.bgCard,
+          insetPadding: const EdgeInsets.all(16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 8, 0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        "ឯកសារសំណើជារូបភាព",
+                        style: GoogleFonts.kantumruyPro(
+                          color: AppTheme.textPrimary,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(dialogCtx),
+                      icon: Icon(
+                        Icons.close_rounded,
+                        color: AppTheme.textPrimary.withValues(alpha: 0.54),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Flexible(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: InteractiveViewer(
+                      maxScale: 5,
+                      child: Image.memory(pngBytes, fit: BoxFit.contain),
+                    ),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                child: ElevatedButton.icon(
+                  onPressed: () => _copyImageToClipboard(dialogCtx, pngBytes),
+                  icon: const Icon(Icons.copy_rounded, size: 20),
+                  label: Text(
+                    "Copy Image",
+                    style: GoogleFonts.kantumruyPro(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primary,
+                    foregroundColor: AppTheme.textPrimary,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    minimumSize: const Size(double.infinity, 50),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    } catch (e) {
+      if (mounted) Navigator.pop(context);
+      debugPrint("IMAGE ERROR: $e");
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            "កំហុសក្នុងការបង្កើតរូបភាព: $e",
+            style: GoogleFonts.kantumruyPro(),
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _copyImageToClipboard(
+    BuildContext dialogCtx,
+    Uint8List pngBytes,
+  ) async {
+    try {
+      await Pasteboard.writeImage(pngBytes);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'បាន Copy រូបភាពរួចរាល់! អ្នកអាច Paste ទៅកន្លែងផ្សេងបាន។',
+            style: GoogleFonts.kantumruyPro(color: Colors.white),
+          ),
+          backgroundColor: Colors.green.shade700,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'មិនអាច Copy រូបភាពបានទេ: $e',
+            style: GoogleFonts.kantumruyPro(),
+          ),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
+  }
+
   // ========= Improved PDF Generation using Widget Rendering (Fixes Khmer Shaping) =========
   Future<void> _generatePDF(Map<String, dynamic> item) async {
     showDialog(
@@ -1377,36 +1573,7 @@ class _RequestListScreenState extends State<RequestListScreen> {
     );
 
     try {
-      // Ensure signatures are available for the PDF (they are excluded from list API for performance).
-      if (item['id'] != null &&
-          ((item['signature'] ?? '').toString().isEmpty ||
-              (item['department_head_signature'] ?? '').toString().isEmpty)) {
-        final sigRes = await _api.fetchRequestSignatures(item['id'] as int);
-        if (sigRes['success'] == true && sigRes['signatures'] is Map) {
-          final sigMap = Map<String, dynamic>.from(sigRes['signatures'] as Map);
-          item = {...item, ...sigMap};
-        }
-      }
-
-      // 1. Set the item and trigger a rebuild of the hidden widget
-      setState(() {
-        _currentReportItem = item;
-      });
-
-      // 2. Wait for the widget to be rendered in the current frame
-      await Future.delayed(const Duration(milliseconds: 100));
-
-      // 3. Capture the hidden widget as an image
-      final boundary =
-          _reportKey.currentContext?.findRenderObject()
-              as RenderRepaintBoundary?;
-      if (boundary == null) throw "Could not find report boundary";
-
-      final ui.Image capturedImage = await boundary.toImage(pixelRatio: 3.0);
-      final ByteData? byteData = await capturedImage.toByteData(
-        format: ui.ImageByteFormat.png,
-      );
-      final Uint8List pngBytes = byteData!.buffer.asUint8List();
+      final Uint8List pngBytes = await _captureReportPng(item);
 
       // 4. Generate the final PDF document
       final doc = pw.Document();
