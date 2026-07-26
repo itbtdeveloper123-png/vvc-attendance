@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../services/api_service.dart';
 import '../utils/app_theme.dart';
+import '../utils/request_form_helpers.dart';
 import '../providers/user_provider.dart';
 import '../widgets/dept_head_selector.dart';
 import '../widgets/app_widgets.dart';
@@ -32,10 +33,10 @@ class _LeaveRequestScreenState extends State<LeaveRequestScreen> {
   final TextEditingController _daysController = TextEditingController(
     text: "1",
   );
+  final TextEditingController _branchController = TextEditingController();
 
   String _selectedPosition = 'ព័ត៌មានវិទ្យា';
   String _selectedDepartment = 'ព័ត៌មានវិទ្យា (IT)';
-  String _selectedBranch = 'VVC-HQ';
   String? _deptHeadSignature;
   bool _isLoading = false;
 
@@ -57,18 +58,11 @@ class _LeaveRequestScreenState extends State<LeaveRequestScreen> {
     'ផ្នែកផលិត/កម្មករ (Worker)',
   ];
 
-  final List<String> _branches = [
-    'VVC-HQ',
-    'VVC-Branch 1',
-    'VVC-Branch 2',
-    'VVC-Branch 3',
-    'VVC-Warehouse',
-  ];
-
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      final user = Provider.of<UserProvider>(context, listen: false);
       if (widget.initialData != null) {
         final d = widget.initialData!;
         _nameController.text = d['requester_name'] ?? '';
@@ -96,14 +90,20 @@ class _LeaveRequestScreenState extends State<LeaveRequestScreen> {
         if (d['department'] != null && _departments.contains(d['department'])) {
           _selectedDepartment = d['department'];
         }
-        if (d['branch'] != null && _branches.contains(d['branch'])) {
-          _selectedBranch = d['branch'];
-        }
+        applyUserBranch(
+          controller: _branchController,
+          initialData: d,
+          user: user,
+        );
         if (mounted) setState(() {});
       } else {
-        final user = Provider.of<UserProvider>(context, listen: false);
         _nameController.text = user.name ?? '';
         _emailController.text = "${user.employeeId ?? ''}@vvc.com";
+        applyUserBranch(
+          controller: _branchController,
+          user: user,
+        );
+        if (mounted) setState(() {});
       }
     });
   }
@@ -124,7 +124,7 @@ class _LeaveRequestScreenState extends State<LeaveRequestScreen> {
       'number_of_days': _daysController.text,
       'position': _selectedPosition,
       'department': _selectedDepartment,
-      'branch': _selectedBranch,
+      'branch': _branchController.text.trim(),
       'department_head_name': _deptHeadController.text,
       'department_head_signature': _deptHeadSignature,
     };
@@ -359,11 +359,7 @@ class _LeaveRequestScreenState extends State<LeaveRequestScreen> {
 
                           _buildLabelField(
                             "សាខា",
-                            _buildDropdown(
-                              _selectedBranch,
-                              _branches,
-                              (v) => setState(() => _selectedBranch = v!),
-                            ),
+                            buildReadOnlyBranchField(_branchController),
                           ),
                           const SizedBox(height: 20),
 

@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../services/api_service.dart';
 import '../utils/app_theme.dart';
+import '../utils/request_form_helpers.dart';
 import '../providers/user_provider.dart';
 import '../widgets/dept_head_selector.dart';
 import '../widgets/app_widgets.dart';
@@ -29,7 +30,7 @@ class _OtRequestScreenState extends State<OtRequestScreen> {
   TimeOfDay _endTime = const TimeOfDay(hour: 20, minute: 0);
   String _selectedPosition = 'ព័ត៌មានវិទ្យា';
   String _selectedDepartment = 'ព័ត៌មានវិទ្យា (IT)';
-  String _selectedBranch = 'VVC-HQ';
+  final TextEditingController _branchController = TextEditingController();
   final TextEditingController _deptHeadController = TextEditingController();
   String? _deptHeadSignature;
   bool _isLoading = false;
@@ -52,18 +53,11 @@ class _OtRequestScreenState extends State<OtRequestScreen> {
     'ផ្នែកផលិត/កម្មករ (Worker)',
   ];
 
-  final List<String> _branches = [
-    'VVC-HQ',
-    'VVC-Branch 1',
-    'VVC-Branch 2',
-    'VVC-Branch 3',
-    'VVC-Warehouse',
-  ];
-
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      final user = Provider.of<UserProvider>(context, listen: false);
       if (widget.initialData != null) {
         final d = widget.initialData!;
         _nameController.text = d['requester_name'] ?? '';
@@ -85,14 +79,16 @@ class _OtRequestScreenState extends State<OtRequestScreen> {
         if (d['department'] != null && _departments.contains(d['department'])) {
           _selectedDepartment = d['department'];
         }
-        if (d['branch'] != null && _branches.contains(d['branch'])) {
-          _selectedBranch = d['branch'];
-        }
+        applyUserBranch(
+          controller: _branchController,
+          initialData: d,
+          user: user,
+        );
         if (mounted) setState(() {});
       } else if (mounted) {
-        final user = Provider.of<UserProvider>(context, listen: false);
         _nameController.text = user.name ?? '';
         _emailController.text = "${user.employeeId ?? ''}@vvc.com";
+        applyUserBranch(controller: _branchController, user: user);
         setState(() {});
       }
     });
@@ -136,7 +132,7 @@ class _OtRequestScreenState extends State<OtRequestScreen> {
       'reason': _reasonController.text,
       'position': _selectedPosition,
       'department': _selectedDepartment,
-      'branch': _selectedBranch,
+      'branch': _branchController.text.trim(),
       'department_head_name': _deptHeadController.text,
       'department_head_signature': _deptHeadSignature,
       'number_of_days': "0",
@@ -370,11 +366,7 @@ class _OtRequestScreenState extends State<OtRequestScreen> {
                           const SizedBox(height: 20),
                           _buildLabelField(
                             "សាខា",
-                            _buildDropdown(
-                              _selectedBranch,
-                              _branches,
-                              (v) => setState(() => _selectedBranch = v!),
-                            ),
+                            buildReadOnlyBranchField(_branchController),
                           ),
                           const SizedBox(height: 20),
                           _buildLabelField(

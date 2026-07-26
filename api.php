@@ -3677,6 +3677,7 @@ switch ($action) {
                        COALESCE(system_role_label, '') AS system_role_label,
                        COALESCE(department, '') AS department,
                        COALESCE(position, '') AS position,
+                       COALESCE(branch, '') AS branch,
                        COALESCE(phone, '') AS phone,
                        COALESCE(email, '') AS email,
                        password,
@@ -3695,11 +3696,11 @@ switch ($action) {
             } else {
                 $stmt->store_result();
                 if ($stmt->num_rows > 0) {
-                    $stmt->bind_result($b_eid, $b_name, $b_role, $b_avatar, $b_sys_role, $b_sys_label, $b_dept, $b_pos, $b_phone, $b_email, $b_pass, $b_creator, $b_max, $b_verified);
+                    $stmt->bind_result($b_eid, $b_name, $b_role, $b_avatar, $b_sys_role, $b_sys_label, $b_dept, $b_pos, $b_branch, $b_phone, $b_email, $b_pass, $b_creator, $b_max, $b_verified);
                     $stmt->fetch();
                     $base = ['employee_id' => $b_eid, 'name' => $b_name, 'user_role' => $b_role, 'avatar' => $b_avatar,
                              'system_role' => $b_sys_role, 'system_role_label' => $b_sys_label, 'department' => $b_dept, 'position' => $b_pos,
-                             'phone' => $b_phone, 'email' => $b_email, 'password' => $b_pass,
+                             'branch' => $b_branch, 'phone' => $b_phone, 'email' => $b_email, 'password' => $b_pass,
                              'created_by_admin_id' => $b_creator, 'global_max_tokens' => $b_max, 'is_verified' => $b_verified];
                 }
             }
@@ -3760,6 +3761,7 @@ switch ($action) {
                     'avatar' => $base['avatar'],
                     'department' => $base['department'] ?? '',
                     'position' => $base['position'] ?? '',
+                    'branch' => $base['branch'] ?? '',
                     'phone' => $base['phone'] ?? '',
                     'email' => $loginEmail,
                     'role' => $base['user_role'],
@@ -4346,7 +4348,19 @@ switch ($action) {
         $numDays = isset($formData['number_of_days']) && $formData['number_of_days'] !== '' ? floatval($formData['number_of_days']) : null;
         $remDays = isset($formData['remaining_days']) && $formData['remaining_days'] !== '' ? floatval($formData['remaining_days']) : null;
         $dept = $formData['department'] ?? '';
-        $branch = $formData['branch'] ?? '';
+        $branch = trim((string) ($formData['branch'] ?? ''));
+        if ($branch === '' && $uid > 0) {
+            if ($branchStmt = $mysqli->prepare("SELECT COALESCE(branch, '') AS branch FROM users WHERE id = ? LIMIT 1")) {
+                $branchStmt->bind_param('i', $uid);
+                $branchStmt->execute();
+                $branchRes = $branchStmt->get_result();
+                $branchRow = $branchRes ? $branchRes->fetch_assoc() : null;
+                $branchStmt->close();
+                if ($branchRow) {
+                    $branch = trim((string) ($branchRow['branch'] ?? ''));
+                }
+            }
+        }
         $lateHours = $formData['late_hours'] ?? '';
         $forgotIn = $formData['forgot_scan_in'] ?? '';
         $forgotOut = $formData['forgot_scan_out'] ?? '';

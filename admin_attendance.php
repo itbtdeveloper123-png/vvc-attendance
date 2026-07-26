@@ -4695,6 +4695,7 @@ if (isset($_POST['ajax_action']) || isset($_GET['ajax_action'])) {
                     $sys_label = $_POST['system_role_label'] ?? '';
                     $pos = $_POST['position'] ?? '';
                     $dept = $_POST['department'] ?? '';
+                    $branch = trim($_POST['branch'] ?? '');
                     $uname = $_POST['username'] ?? '';
                     $email = $_POST['email'] ?? '';
                     $phone = $_POST['phone'] ?? '';
@@ -4716,16 +4717,16 @@ if (isset($_POST['ajax_action']) || isset($_GET['ajax_action'])) {
                     if (!empty($uid) && !empty($name)) {
                         $sql = "INSERT INTO users (
                             employee_id, name, latin_name, user_role, system_role, system_role_label,
-                            position, department, username, email, phone, current_address, joined_at,
+                            position, department, branch, username, email, phone, current_address, joined_at,
                             marital_status, contract_start, contract_end, contract_type,
                             manager_id, al_total, al_remaining, annual_leave_balance, base_salary, nssf_id,
                             bank_data_str, custom_data, password, employment_status
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active')";
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active')";
 
                         $stmt = $mysqli->prepare($sql);
                         if ($stmt) {
                             $stmt->bind_param(
-                                "sssssssssssssssssddddddssss",
+                                "ssssssssssssssssssssddddddssss",
                                 $uid,
                                 $name,
                                 $latin_name,
@@ -4734,6 +4735,7 @@ if (isset($_POST['ajax_action']) || isset($_GET['ajax_action'])) {
                                 $sys_label,
                                 $pos,
                                 $dept,
+                                $branch,
                                 $uname,
                                 $email,
                                 $phone,
@@ -4800,6 +4802,7 @@ if (isset($_POST['ajax_action']) || isset($_GET['ajax_action'])) {
                     $sys_label = $_POST['system_role_label'] ?? '';
                     $pos = $_POST['position'] ?? '';
                     $dept = $_POST['department'] ?? '';
+                    $branch = trim($_POST['branch'] ?? '');
                     $uname = $_POST['username'] ?? '';
                     $email = $_POST['email'] ?? '';
                     $phone = $_POST['phone'] ?? '';
@@ -4821,7 +4824,7 @@ if (isset($_POST['ajax_action']) || isset($_GET['ajax_action'])) {
                     if (!empty($old_id)) {
                         $update_sql = "UPDATE users SET
                             employee_id = ?, name = ?, latin_name = ?, user_role = ?,
-                            system_role = ?, system_role_label = ?, position = ?, department = ?,
+                            system_role = ?, system_role_label = ?, position = ?, department = ?, branch = ?,
                             username = ?, email = ?, phone = ?, current_address = ?, joined_at = ?,
                             marital_status = ?, contract_start = ?, contract_end = ?, contract_type = ?,
                             manager_id = ?, al_total = ?, al_remaining = ?, annual_leave_balance = ?, base_salary = ?,
@@ -4836,6 +4839,7 @@ if (isset($_POST['ajax_action']) || isset($_GET['ajax_action'])) {
                             $sys_label,
                             $pos,
                             $dept,
+                            $branch,
                             $uname,
                             $email,
                             $phone,
@@ -4854,7 +4858,7 @@ if (isset($_POST['ajax_action']) || isset($_GET['ajax_action'])) {
                             $bank_str,
                             $custom_json
                         ];
-                        $types = "sssssssssssssssssdddddsss";
+                        $types = "sssssssssssssssssssdddddsss";
 
                         if (!empty($pass)) {
                             $update_sql .= ", password = ?";
@@ -17636,7 +17640,12 @@ ob_end_flush();
                                             <div class="form-group"><label><i class="fa-solid fa-sitemap"></i>
                                                     ផ្នែក/ដេប៉ាតឺម៉ង់:</label><input
                                                     type="text" name="department" class="form-control"
-                                                    placeholder="ឧ. សាខាភ្នំពេញ">
+                                                    placeholder="ឧ. IT">
+                                            </div>
+                                            <div class="form-group"><label><i class="fa-solid fa-building"></i>
+                                                    សាខា:</label><input
+                                                    type="text" name="branch" class="form-control"
+                                                    placeholder="ឧ. VVC-HQ">
                                             </div>
                                             <div class="form-group"><label><i class="fa-solid fa-circle-user"></i>
                                                     Username*:</label><input type="text" name="username" class="form-control"
@@ -23784,6 +23793,7 @@ ob_end_flush();
                         </div>
                         <div class="form-group"><label><i class="fa-solid fa-user-tag"></i> មុខតំណែង*:</label><input type="text" name="position" class="form-control" value="${u.position || ''}" required></div>
                         <div class="form-group"><label><i class="fa-solid fa-sitemap"></i> ផ្នែក/ដេប៉ាតឺម៉ង់:</label><input type="text" name="department" class="form-control" value="${u.department || ''}"></div>
+                        <div class="form-group"><label><i class="fa-solid fa-building"></i> សាខា:</label><input type="text" name="branch" class="form-control" value="${u.branch || ''}" placeholder="ឧ. VVC-HQ"></div>
                         <div class="form-group"><label><i class="fa-solid fa-circle-user"></i> ឈ្មោះគណនី (Username)*:</label><input type="text" name="username" class="form-control" value="${u.username || ''}" required></div>
                         <div class="form-group"><label><i class="fa-solid fa-envelope"></i> អ៊ីមែល*:</label><input type="email" name="email" class="form-control" value="${u.email || ''}" required></div>
                         <div class="form-group"><label><i class="fa-solid fa-phone"></i> លេខទូរស័ព្ទ (Phone):</label><input type="text" name="phone" class="form-control" value="${u.phone || ''}" placeholder="0XX XXX XXX"></div>
