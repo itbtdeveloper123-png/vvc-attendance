@@ -4,6 +4,55 @@
 
 Form Builder System គឺជាប្រព័ន្ធដែលអនុញ្ញាតឱ្យអ្នកគ្រប់គ្រងបង្កើត Form សំណើ ឬលិខិតបេសកម្មដោយប្រើ Drag & Drop ដោយមិនចាំបាច់សរសេរកូដ។
 
+## ការដំឡើងលើក (Setup Instructions)
+
+### 1. ដំឡើង Database (Database Installation)
+
+សំខាន់៖ ត្រូវតែដំឡើង database schema មុននឹងប្រើ Form Builder។
+
+```bash
+# វិធីទី 1: ដោយប្រើ command line
+mysql -u username -p database_name < form_builder_schema.sql
+
+# វិធីទី 2: ដោយប្រើ phpMyAdmin
+# 1. បើក phpMyAdmin
+# 2. ជ្រើសរើស database របស់អ្នក
+# 3. ចុច "Import" tab
+# 4. ជ្រើសរើស file form_builder_schema.sql
+# 5. ចុច "Go"
+```
+
+### 2. ការពិនិត្យ Database Setup
+
+បន្ទាប់ពីដំឡើង សូមពិនិត្យថា tables ត្រូវបានបង្កើតត្រឹមត្រូវ៖
+
+```sql
+-- ពិនិត្យ tables
+SHOW TABLES LIKE 'form_%';
+
+-- គួរតែឃើញ:
+-- form_fields
+-- form_submissions  
+-- form_templates
+```
+
+### 3. ការដំឡើង Files
+
+```bash
+# Copy files ទៅ server
+cp form_builder_api.php /path/to/server/
+cp form_builder.php /path/to/server/
+```
+
+### 4. ការដំឡើង Admin Panel Integration
+
+Form Builder ត្រូវបានបន្ថែមទៅ Admin Panel ដោយស្វ័យប្រវត្តិ៖
+
+- Menu Item: "Form Builder" នឹងបង្ហាញក្នុង sidebar
+- Icon: `fa-solid fa-wand-magic-sparkles`
+- Position: រវាង "គ្រប់គ្រងសំណើរ" និង "ការជូនដំណឹង"
+- Access: Super Admin និង Admin ដែលមានសិទ្ធិ
+
 ## សមាសភាពដែលបានបង្កើត (Components Created)
 
 ### 1. Database Schema (`form_builder_schema.sql`)
@@ -50,28 +99,19 @@ Form Builder System គឺជាប្រព័ន្ធដែលអនុញ្
 
 ## របៀបប្រើប្រាស់ (How to Use)
 
-### 1. ដំឡើង Database (Installation)
+### 1. ចូលប្រើ Form Builder
 
-```bash
-# Import database schema
-mysql -u username -p database_name < form_builder_schema.sql
-```
+**វិធីទី 1: ពី Admin Panel**
+1. Login ទៅ Admin Panel
+2. រក "Form Builder" menu ក្នុង sidebar
+3. ចុចលើ "Form Builder" (នឹងបើកក្នុង tab ថ្មី)
 
-### 2. ដំឡើង Admin Panel
-
-```bash
-# Copy files to server
-cp form_builder_api.php /path/to/server/
-cp form_builder.php /path/to/server/
-```
-
-### 3. ចូលប្រើ Form Builder
-
+**វិធីទី 2: Direct Access**
 ```
 http://your-server.com/form_builder.php
 ```
 
-### 4. បង្កើត Form Template ថ្មី
+### 2. បង្កើត Form Template ថ្មី
 
 1. ចុច "បង្កើត Template ថ្មី"
 2. បញ្ចូលឈ្មោះ, ការពិពណ៌នា, និងប្រភេទ
@@ -79,7 +119,29 @@ http://your-server.com/form_builder.php
 4. កែប្រែ field properties តាមតម្រូវការ
 5. ចុច "រក្សាទុក"
 
-### 5. ប្រើក្នុង Flutter App
+### 3. កែប្រែ Template ដែលមានស្រាប់
+
+**បង្ហាញ Template List:**
+- Form Builder នឹងបង្ហាញ Template ទាំងអស់ក្នុង sidebar ខាងឆ្វេង
+- Templates ដែលបានបង្កើតពី database schema នឹងបង្ហាញដោយស្វ័យប្រវត្តិ
+- Template ដែលកំពុងកែប្រែនឹងមានពណ៌ខ្លែង (active state)
+
+**ការកែប្រែ Template:**
+1. ចុចលើ Template ក្នុង sidebar
+2. Fields ទាំងអស់នឹងបង្ហាញក្នុង canvas
+3. អាចកែប្រែ field properties
+4. អាចបន្ថែម field ថ្មី
+5. អាចលុប field
+6. ចុច "រក្សាទុក" ដើម្បីរក្សាការកែប្រែ
+
+**Sample Templates ដែលបានបង្កើតដោយស្វ័យប្រវត្តិ:**
+- សំណើសុំច្បាប់ឈប់សម្រាក
+- សំណើសុំថែមម៉ោង
+- សំណើសុំមកយឺត
+- សំណើសុំភ្លេចស្កេនមេដៃ
+- លិខិតបេសកម្ម
+
+### 4. ប្រើក្នុង Flutter App
 
 ```dart
 // Navigate to dynamic form
