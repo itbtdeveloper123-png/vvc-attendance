@@ -324,6 +324,9 @@ $admin_pages_list = [
     'requests' => [
         'requests' => 'គ្រប់គ្រងសំណើរ (Manage Requests)',
     ],
+    'form_builder' => [
+        'form_builder' => 'Form Builder - កម្មវិធីបង្កើតសំណើ',
+    ],
     'notifications' => [
         'send_notifications' => 'ផ្ញើការជូនដំណឹងទៅអ្នកប្រើប្រាស់',
         'manage_banners' => 'គ្រប់គ្រងស្លាយ (Home Slider Banners)',
@@ -1090,6 +1093,7 @@ if (!function_exists('initialize_sidebar_settings')) {
                 'users' => ['text' => 'គ្រប់គ្រងអ្នកប្រើប្រាស់', 'icon' => 'fa-solid fa-users', 'order' => 20],
                 'reports' => ['text' => 'របាយការណ៍វត្តមាន', 'icon' => 'fa-solid fa-chart-simple', 'order' => 30],
                 'requests' => ['text' => 'គ្រប់គ្រងសំណើរ', 'icon' => 'fa-solid fa-file-signature', 'order' => 40],
+                'form_builder' => ['text' => 'Form Builder', 'icon' => 'fa-solid fa-wand-magic-sparkles', 'order' => 42],
                 'notifications' => ['text' => 'ការជូនដំណឹង', 'icon' => 'fa-solid fa-bell', 'order' => 45],
                 'locations' => ['text' => 'គ្រប់គ្រងទីតាំង/QR', 'icon' => 'fa-solid fa-map-location-dot', 'order' => 50],
                 'categories' => ['text' => 'គ្រប់គ្រងប្រភេទ', 'icon' => 'fa-solid fa-folder-open', 'order' => 60],
@@ -7023,6 +7027,7 @@ ob_end_flush();
             $is_users_page = ($current_page == 'users');
             $is_reports_page = ($current_page == 'reports');
             $is_requests_page = ($current_page == 'requests');
+            $is_form_builder_page = ($current_page == 'form_builder');
             $is_notifications_page = ($current_page == 'notifications');
             $is_locations_page = ($current_page == 'locations');
             $is_categories_page = ($current_page == 'categories');
@@ -7034,6 +7039,7 @@ ob_end_flush();
                 $sidebar_default_users_action = '';
             }
             $sidebar_default_reports_action = resolveFirstAccessibleAdminAction($mysqli, 'reports', $admin_id_check, ['reports', 'late_report_summary', 'forgotten_scan_report', 'leave_deo_report', 'combined_report'], $current_admin_id);
+            $sidebar_default_form_builder_action = resolveFirstAccessibleAdminAction($mysqli, 'form_builder', $admin_id_check, ['form_builder'], $current_admin_id);
             $sidebar_default_notifications_action = resolveFirstAccessibleAdminAction($mysqli, 'notifications', $admin_id_check, ['send_notifications', 'manage_banners'], $current_admin_id);
             $sidebar_default_locations_action = resolveFirstAccessibleAdminAction($mysqli, 'locations', $admin_id_check, ['list_locations', 'create_location', 'assign_location'], $current_admin_id);
             $sidebar_default_tokens_action = resolveFirstAccessibleAdminAction($mysqli, 'tokens', $admin_id_check, ['active_sessions', 'global_settings'], $current_admin_id);
@@ -7047,6 +7053,7 @@ ob_end_flush();
             $can_see_users = ($sidebar_default_users_action !== '');
             $can_see_reports = ($sidebar_default_reports_action !== '');
             $can_see_requests = hasPageAccess($mysqli, 'requests', 'requests', $admin_id_check);
+            $can_see_form_builder = ($sidebar_default_form_builder_action !== '');
             $can_see_notifications = ($sidebar_default_notifications_action !== '');
             $can_see_locations = ($sidebar_default_locations_action !== '');
             $can_see_categories = hasPageAccess($mysqli, 'categories', 'categories', $admin_id_check);
@@ -7203,6 +7210,14 @@ ob_end_flush();
                                     <?php if ($pending_requests_count > 0): ?>
                                         <span class="notification-badge"><?php echo $pending_requests_count; ?></span>
                                     <?php endif; ?>
+                                </a>
+                            <?php endif;
+                            break;
+
+                        case 'form_builder':
+                            if (!isSidebarHidden($mysqli, $current_admin_id, 'form_builder')): ?>
+                                <a href="form_builder.php" class="<?php echo ($current_page == 'form_builder') ? 'active' : ''; ?>" target="_blank">
+                                    <i class="<?php echo $menu_icon; ?>"></i> <?php echo $menu_text; ?>
                                 </a>
                             <?php endif;
                             break;
@@ -9363,6 +9378,10 @@ ob_end_flush();
                         $push_submenu_link(hasPageAccess($mysqli, 'requests', 'requests', $admin_id_check) && !isSidebarHidden($mysqli, $current_admin_id, 'requests', 'requests'), '?page=requests&action=requests', htmlspecialchars($submenu_texts['requests']['requests'] ?? 'Manage Requests'), ($current_page == 'requests'), 'fa-solid fa-file-signature');
                         break;
 
+                    case 'form_builder':
+                        $push_submenu_link(hasPageAccess($mysqli, 'form_builder', 'form_builder', $admin_id_check) && !isSidebarHidden($mysqli, $current_admin_id, 'form_builder', 'form_builder'), 'form_builder.php', htmlspecialchars($submenu_texts['form_builder']['form_builder'] ?? 'Form Builder'), ($current_page == 'form_builder'), 'fa-solid fa-wand-magic-sparkles');
+                        break;
+
                     case 'notifications':
                         $push_submenu_link(hasPageAccess($mysqli, 'notifications', 'send_notifications', $admin_id_check) && !isSidebarHidden($mysqli, $current_admin_id, 'notifications', 'send_notifications'), '?page=notifications&action=send_notifications', htmlspecialchars($submenu_texts['notifications']['send_notifications'] ?? 'Send Notifications'), ($current_page == 'notifications' && $current_action == 'send_notifications'), 'fa-solid fa-paper-plane');
                         $push_submenu_link(hasPageAccess($mysqli, 'notifications', 'manage_banners', $admin_id_check) && !isSidebarHidden($mysqli, $current_admin_id, 'notifications', 'manage_banners'), '?page=notifications&action=manage_banners', htmlspecialchars($submenu_texts['notifications']['manage_banners'] ?? 'Manage Banners'), ($current_page == 'notifications' && $current_action == 'manage_banners'), 'fa-solid fa-images');
@@ -9625,6 +9644,12 @@ ob_end_flush();
                                 $visible = ($reports_action !== '');
                                 $badge = ((int) $today_late_count > 0) ? number_format($today_late_count) : '';
                                 $badge_class = 'odoo-badge-warning';
+                                break;
+
+                            case 'form_builder':
+                                $href = 'form_builder.php';
+                                $subtitle = (string) ($submenu_texts['form_builder']['form_builder'] ?? ($admin_pages_list['form_builder']['form_builder'] ?? 'Form Builder'));
+                                $visible = hasPageAccess($mysqli, 'form_builder', 'form_builder', $admin_id_check);
                                 break;
 
                             case 'requests':
