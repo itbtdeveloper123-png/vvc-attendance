@@ -19,12 +19,16 @@ echo "<style>
     code { background: #f4f4f4; padding: 2px 5px; border-radius: 3px; }
 </style>";
 
-$mysqli = get_db_connection();
+// Database connection
+$mysqli = new mysqli(DB_SERVER, DB_USERNAME, DB_PASSWORD, DB_NAME);
 
-if (!$mysqli) {
-    echo "<div class='error'>❌ Database connection failed</div>";
+if ($mysqli->connect_error) {
+    echo "<div class='error'>❌ Database connection failed: " . htmlspecialchars($mysqli->connect_error) . "</div>";
     exit;
 }
+
+$mysqli->set_charset("utf8mb4");
+echo "<div class='success'>✅ Database connected successfully</div>";
 
 echo "<div class='success'>✅ Database connected successfully</div>";
 
