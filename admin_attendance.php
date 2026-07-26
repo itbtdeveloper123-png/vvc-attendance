@@ -4726,7 +4726,7 @@ if (isset($_POST['ajax_action']) || isset($_GET['ajax_action'])) {
                         $stmt = $mysqli->prepare($sql);
                         if ($stmt) {
                             $stmt->bind_param(
-                                "ssssssssssssssssssssddddddssss",
+                                "sssssssssssssssssssddddssss",
                                 $uid,
                                 $name,
                                 $latin_name,
@@ -4858,7 +4858,7 @@ if (isset($_POST['ajax_action']) || isset($_GET['ajax_action'])) {
                             $bank_str,
                             $custom_json
                         ];
-                        $types = "sssssssssssssssssssdddddsss";
+                        $types = "sssssssssssssssssssddddsss";
 
                         if (!empty($pass)) {
                             $update_sql .= ", password = ?";
