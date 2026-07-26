@@ -9,7 +9,8 @@ import '../providers/user_provider.dart';
 import '../widgets/dept_head_selector.dart';
 
 class LateRequestScreen extends StatefulWidget {
-  const LateRequestScreen({super.key});
+  final Map<String, dynamic>? initialData;
+  const LateRequestScreen({super.key, this.initialData});
 
   @override
   State<LateRequestScreen> createState() => _LateRequestScreenState();
@@ -62,10 +63,56 @@ class _LateRequestScreenState extends State<LateRequestScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final user = Provider.of<UserProvider>(context, listen: false);
-      _nameController.text = user.name ?? '';
-      _emailController.text = "${user.employeeId ?? ''}@vvc.com";
+      if (widget.initialData != null) {
+        final d = widget.initialData!;
+        _nameController.text = d['requester_name'] ?? '';
+        _reasonController.text = d['reason'] ?? '';
+        _deptHeadController.text = d['department_head_name'] ?? '';
+        _deptHeadSignature = d['department_head_signature'];
+
+        if (d['request_date'] != null) {
+          try {
+            _selectedDate = DateTime.parse(d['request_date'].toString());
+          } catch (_) {}
+        }
+        _actualTime = _parseTime(d['time_in']?.toString());
+
+        if (d['position'] != null && _positions.contains(d['position'])) {
+          _selectedPosition = d['position'];
+        }
+        if (d['department'] != null && _departments.contains(d['department'])) {
+          _selectedDepartment = d['department'];
+        }
+        if (d['branch'] != null && _branches.contains(d['branch'])) {
+          _selectedBranch = d['branch'];
+        }
+        if (mounted) setState(() {});
+      } else {
+        final user = Provider.of<UserProvider>(context, listen: false);
+        _nameController.text = user.name ?? '';
+        _emailController.text = "${user.employeeId ?? ''}@vvc.com";
+      }
     });
+  }
+
+  TimeOfDay _parseTime(String? raw) {
+    if (raw == null || raw.isEmpty) {
+      return TimeOfDay.now();
+    }
+    try {
+      if (raw.contains('T') || raw.contains('-')) {
+        final dt = DateTime.parse(raw);
+        return TimeOfDay(hour: dt.hour, minute: dt.minute);
+      }
+      final parts = raw.split(':');
+      if (parts.length >= 2) {
+        return TimeOfDay(
+          hour: int.parse(parts[0]),
+          minute: int.parse(parts[1]),
+        );
+      }
+    } catch (_) {}
+    return TimeOfDay.now();
   }
 
   void _submit() async {
@@ -88,7 +135,12 @@ class _LateRequestScreenState extends State<LateRequestScreen> {
       'number_of_days': "0",
     };
 
-    final result = await _apiService.submitRequest('Late', formData);
+    final result = widget.initialData != null
+        ? await _apiService.updateRequest(
+            int.parse(widget.initialData!['id'].toString()),
+            formData,
+          )
+        : await _apiService.submitRequest('Late', formData);
     setState(() => _isLoading = false);
 
     if (!mounted) return;
@@ -213,7 +265,9 @@ class _LateRequestScreenState extends State<LateRequestScreen> {
                           ),
                           const SizedBox(height: 16),
                           Text(
-                            "បំពេញព័ត៌មានចូលយឺត",
+                            widget.initialData != null
+                                ? "កែសម្រួលសំណើចូលយឺត"
+                                : "បំពេញព័ត៌មានចូលយឺត",
                             style: GoogleFonts.kantumruyPro(
                               color: AppTheme.textPrimary,
                               fontSize: 22,
@@ -376,7 +430,9 @@ class _LateRequestScreenState extends State<LateRequestScreen> {
                             backgroundColor: AppTheme.accent,
                           ),
                           child: Text(
-                            "បញ្ជូនសំណើចូលយឺត",
+                            widget.initialData != null
+                                ? "រក្សាទុកការកែសម្រួល"
+                                : "បញ្ជូនសំណើចូលយឺត",
                             style: GoogleFonts.kantumruyPro(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,

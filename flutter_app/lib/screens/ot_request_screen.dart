@@ -9,7 +9,8 @@ import '../widgets/dept_head_selector.dart';
 import '../widgets/app_widgets.dart';
 
 class OtRequestScreen extends StatefulWidget {
-  const OtRequestScreen({super.key});
+  final Map<String, dynamic>? initialData;
+  const OtRequestScreen({super.key, this.initialData});
 
   @override
   State<OtRequestScreen> createState() => _OtRequestScreenState();
@@ -63,13 +64,58 @@ class _OtRequestScreenState extends State<OtRequestScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
+      if (widget.initialData != null) {
+        final d = widget.initialData!;
+        _nameController.text = d['requester_name'] ?? '';
+        _reasonController.text = d['reason'] ?? '';
+        _deptHeadController.text = d['department_head_name'] ?? '';
+        _deptHeadSignature = d['department_head_signature'];
+
+        if (d['request_date'] != null) {
+          try {
+            _selectedDate = DateTime.parse(d['request_date'].toString());
+          } catch (_) {}
+        }
+        _startTime = _parseTime(d['time_in']?.toString());
+        _endTime = _parseTime(d['time_out']?.toString());
+
+        if (d['position'] != null && _positions.contains(d['position'])) {
+          _selectedPosition = d['position'];
+        }
+        if (d['department'] != null && _departments.contains(d['department'])) {
+          _selectedDepartment = d['department'];
+        }
+        if (d['branch'] != null && _branches.contains(d['branch'])) {
+          _selectedBranch = d['branch'];
+        }
+        if (mounted) setState(() {});
+      } else if (mounted) {
         final user = Provider.of<UserProvider>(context, listen: false);
         _nameController.text = user.name ?? '';
         _emailController.text = "${user.employeeId ?? ''}@vvc.com";
         setState(() {});
       }
     });
+  }
+
+  TimeOfDay _parseTime(String? raw) {
+    if (raw == null || raw.isEmpty) {
+      return const TimeOfDay(hour: 17, minute: 0);
+    }
+    try {
+      if (raw.contains('T') || raw.contains('-')) {
+        final dt = DateTime.parse(raw);
+        return TimeOfDay(hour: dt.hour, minute: dt.minute);
+      }
+      final parts = raw.split(':');
+      if (parts.length >= 2) {
+        return TimeOfDay(
+          hour: int.parse(parts[0]),
+          minute: int.parse(parts[1]),
+        );
+      }
+    } catch (_) {}
+    return const TimeOfDay(hour: 17, minute: 0);
   }
 
   void _submit() async {
@@ -97,7 +143,12 @@ class _OtRequestScreenState extends State<OtRequestScreen> {
     };
 
     try {
-      final result = await _apiService.submitRequest('Overtime', formData);
+      final result = widget.initialData != null
+          ? await _apiService.updateRequest(
+              int.parse(widget.initialData!['id'].toString()),
+              formData,
+            )
+          : await _apiService.submitRequest('Overtime', formData);
       if (mounted) setState(() => _isLoading = false);
       if (!mounted) return;
       if (result['success'] == true) {
@@ -234,7 +285,9 @@ class _OtRequestScreenState extends State<OtRequestScreen> {
                           ),
                           const SizedBox(height: 16),
                           Text(
-                            "បំពេញព័ត៌មានថែមម៉ោង",
+                            widget.initialData != null
+                                ? "កែសម្រួលសំណើ OT"
+                                : "បំពេញព័ត៌មានថែមម៉ោង",
                             style: GoogleFonts.kantumruyPro(
                               color: AppTheme.textPrimary,
                               fontSize: 22,
@@ -414,7 +467,9 @@ class _OtRequestScreenState extends State<OtRequestScreen> {
                             backgroundColor: AppTheme.secondary,
                           ),
                           child: Text(
-                            "បញ្ជូនសំណើ OT",
+                            widget.initialData != null
+                                ? "រក្សាទុកការកែសម្រួល"
+                                : "បញ្ជូនសំណើ OT",
                             style: GoogleFonts.kantumruyPro(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,

@@ -4476,7 +4476,7 @@ switch ($action) {
         }
 
         $row = null;
-        if ($stmt = $mysqli->prepare("SELECT user_id, status FROM requests WHERE id = ? LIMIT 1")) {
+        if ($stmt = $mysqli->prepare("SELECT user_id, status, request_type FROM requests WHERE id = ? LIMIT 1")) {
             $stmt->bind_param("i", $rid);
             $stmt->execute();
             $res = $stmt->get_result();
@@ -4494,6 +4494,76 @@ switch ($action) {
             apiResponse(['success' => false, 'message' => 'Permission denied']);
         }
 
+        if (!$isAdmin && strtolower((string) ($row['status'] ?? '')) !== 'pending') {
+            apiResponse(['success' => false, 'message' => 'មានតែសំណើរង់ចាំប៉ុណ្ណោះដែលអាចកែប្រែបាន']);
+        }
+
+        $reqType = (string) ($row['request_type'] ?? '');
+        $normalized = [];
+        if (array_key_exists('reason', $formData)) {
+            $normalized['reason'] = $formData['reason'];
+        } elseif (array_key_exists('leave_reason', $formData)) {
+            $normalized['reason'] = $formData['leave_reason'];
+        } elseif (array_key_exists('ot_reason', $formData)) {
+            $normalized['reason'] = $formData['ot_reason'];
+        } elseif (array_key_exists('late_reason_text', $formData)) {
+            $normalized['reason'] = $formData['late_reason_text'];
+        }
+
+        if (array_key_exists('request_date', $formData)) {
+            $normalized['request_date'] = $formData['request_date'];
+        } elseif (array_key_exists('leave_date', $formData)) {
+            $normalized['request_date'] = $formData['leave_date'];
+        } elseif (array_key_exists('ot_date', $formData)) {
+            $normalized['request_date'] = $formData['ot_date'];
+        } elseif (array_key_exists('late_date', $formData)) {
+            $normalized['request_date'] = $formData['late_date'];
+        }
+
+        if (array_key_exists('time_in', $formData)) {
+            $normalized['time_in'] = $formData['time_in'];
+        } elseif (array_key_exists('ot_start_time', $formData)) {
+            $normalized['time_in'] = $formData['ot_start_time'];
+        } elseif (array_key_exists('actual_check_in_time', $formData)) {
+            $normalized['time_in'] = $formData['actual_check_in_time'];
+        }
+
+        if (array_key_exists('time_out', $formData)) {
+            $normalized['time_out'] = $formData['time_out'];
+        } elseif (array_key_exists('ot_end_time', $formData)) {
+            $normalized['time_out'] = $formData['ot_end_time'];
+        }
+
+        if (array_key_exists('contact_number', $formData)) {
+            $normalized['contact_number'] = $formData['contact_number'];
+        } elseif (array_key_exists('leave_contact', $formData)) {
+            $normalized['contact_number'] = $formData['leave_contact'];
+        }
+
+        if (array_key_exists('assigned_to', $formData)) {
+            $normalized['assigned_to'] = $formData['assigned_to'];
+        } elseif (array_key_exists('leave_handoff', $formData)) {
+            $normalized['assigned_to'] = $formData['leave_handoff'];
+        }
+
+        foreach (['return_date', 'number_of_days', 'department_head_name', 'department_head_signature', 'position', 'department', 'branch'] as $key) {
+            if (array_key_exists($key, $formData)) {
+                $normalized[$key] = $formData[$key];
+            }
+        }
+
+        if (isset($normalized['time_in'], $normalized['time_out']) && in_array($reqType, ['Overtime', 'OT'], true)) {
+            $startParts = explode(':', (string) $normalized['time_in']);
+            $endParts = explode(':', (string) $normalized['time_out']);
+            if (count($startParts) >= 2 && count($endParts) >= 2) {
+                $startMinutes = ((int) $startParts[0] * 60) + (int) $startParts[1];
+                $endMinutes = ((int) $endParts[0] * 60) + (int) $endParts[1];
+                if ($endMinutes >= $startMinutes) {
+                    $normalized['total_hours'] = number_format(($endMinutes - $startMinutes) / 60, 2, '.', '');
+                }
+            }
+        }
+
         $fields = [];
         $params = [];
         $types = '';
@@ -4509,15 +4579,18 @@ switch ($action) {
             'assigned_to',
             'position',
             'department',
-            'branch'
+            'branch',
+            'time_in',
+            'time_out',
+            'total_hours',
         ];
 
         foreach ($allowed as $key) {
-            if (!array_key_exists($key, $formData)) {
+            if (!array_key_exists($key, $normalized)) {
                 continue;
             }
             $fields[] = "$key = ?";
-            $params[] = $formData[$key];
+            $params[] = $normalized[$key];
             $types .= 's';
             $updatedFields[] = $key;
         }
@@ -4546,7 +4619,7 @@ switch ($action) {
                 'Request fields updated.',
                 ['fields' => $updatedFields]
             );
-            apiResponse(['success' => true, 'message' => 'Request updated successfully']);
+            apiResponse(['success' => true, 'message' => 'បច្ចុប្បន្នភាពសំណើបានជោគជ័យ']);
         } else {
             apiResponse(['success' => false, 'message' => 'Update failed: ' . $mysqli->error]);
         }

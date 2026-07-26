@@ -16,6 +16,8 @@ import '../utils/app_theme.dart';
 import '../providers/user_provider.dart';
 import '../widgets/app_widgets.dart';
 import 'leave_request_screen.dart';
+import 'ot_request_screen.dart';
+import 'late_request_screen.dart';
 
 class RequestListScreen extends StatefulWidget {
   const RequestListScreen({super.key});
@@ -1847,13 +1849,20 @@ class _RequestListScreenState extends State<RequestListScreen> {
   void _handleEdit(Map<String, dynamic> item) {
     Navigator.pop(context); // close modal
 
-    // Check type and navigate to respective screen with initialData
-    if (item['request_type'] == 'Leave') {
+    final type = (item['request_type'] ?? '').toString().toLowerCase();
+    Widget? screen;
+    if (type == 'leave') {
+      screen = LeaveRequestScreen(initialData: item);
+    } else if (type == 'overtime' || type == 'ot') {
+      screen = OtRequestScreen(initialData: item);
+    } else if (type == 'late') {
+      screen = LateRequestScreen(initialData: item);
+    }
+
+    if (screen != null) {
       Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (_) => LeaveRequestScreen(initialData: item),
-        ),
+        MaterialPageRoute(builder: (_) => screen!),
       ).then((_) => _loadData());
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
