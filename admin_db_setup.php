@@ -36,6 +36,8 @@ if (!function_exists('ensure_core_tables')) {
         $mysqli->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS access_mode VARCHAR(50) DEFAULT 'Normal'");
         $mysqli->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(50) DEFAULT NULL");
         $mysqli->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_verified TINYINT(1) DEFAULT 0");
+        $mysqli->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS branch VARCHAR(100) DEFAULT NULL");
+        $mysqli->query("ALTER TABLE requests ADD COLUMN IF NOT EXISTS branch VARCHAR(100) DEFAULT NULL");
         // Fix any NULL values so toggle (0→1, 1→0) works correctly
         $mysqli->query("UPDATE users SET is_verified = 0 WHERE is_verified IS NULL");
     }
