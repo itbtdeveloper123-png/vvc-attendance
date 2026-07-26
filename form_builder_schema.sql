@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS form_templates (
 CREATE TABLE IF NOT EXISTS form_fields (
   id INT AUTO_INCREMENT PRIMARY KEY,
   template_id INT NOT NULL,
-  field_type ENUM('text', 'number', 'email', 'date', 'select', 'textarea', 'checkbox', 'file', 'signature', 'branch', 'department', 'position') NOT NULL,
+  field_type ENUM('text', 'number', 'email', 'date', 'time', 'select', 'textarea', 'checkbox', 'file', 'signature', 'branch', 'department', 'position') NOT NULL,
   field_name VARCHAR(255) NOT NULL,
   field_label VARCHAR(255) NOT NULL,
   placeholder VARCHAR(255),

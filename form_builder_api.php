@@ -311,6 +311,12 @@ function handleCreateField($mysqli) {
         sendResponse(false, 'Missing required fields');
     }
     
+    // Validate field type (allow time type now)
+    $valid_types = ['text', 'number', 'email', 'date', 'time', 'select', 'textarea', 'checkbox', 'file', 'signature', 'branch', 'department', 'position'];
+    if (!in_array($field_type, $valid_types)) {
+        sendResponse(false, 'Invalid field type: ' . $field_type);
+    }
+    
     $options_json = $options ? json_encode($options) : null;
     $validation_json = $validation_rules ? json_encode($validation_rules) : null;
     

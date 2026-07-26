@@ -465,6 +465,9 @@ $page_title = 'Form Builder - កម្មវិធីបង្កើតសំ�
     <div class="header">
         <h1>📝 Form Builder - កម្មវិធីបង្កើតសំណើ</h1>
         <div class="header-actions">
+            <button onclick="openImportModal()">
+                <i class="fas fa-file-import"></i> នាំចូល Form
+            </button>
             <button onclick="openTemplateModal()">
                 <i class="fas fa-plus"></i> បង្កើត Template ថ្មី
             </button>
@@ -493,6 +496,10 @@ $page_title = 'Form Builder - កម្មវិធីបង្កើតសំ�
                 <div class="field-type" draggable="true" data-type="date">
                     <i class="fas fa-calendar"></i>
                     <span>Date</span>
+                </div>
+                <div class="field-type" draggable="true" data-type="time">
+                    <i class="fas fa-clock"></i>
+                    <span>Time</span>
                 </div>
                 <div class="field-type" draggable="true" data-type="select">
                     <i class="fas fa-list"></i>
@@ -597,6 +604,34 @@ $page_title = 'Form Builder - កម្មវិធីបង្កើតសំ�
         </div>
     </div>
     
+    <!-- Import Modal -->
+    <div class="modal" id="import-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>នាំចូល Form ពី Flutter App</h2>
+                <button class="modal-close" onclick="closeImportModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>ជ្រើសរើស Form ដែលត្រូវនាំចូល</label>
+                    <select id="import-form-select">
+                        <option value="">-- ជ្រើសរើស Form --</option>
+                        <option value="leave_request">សំណើសុំច្បាប់ឈប់សម្រាក (Leave Request)</option>
+                        <option value="ot_request">សំណើសុំថែមម៉ោង (OT Request)</option>
+                        <option value="late_request">សំណើសុំមកយឺត (Late Request)</option>
+                    </select>
+                </div>
+                <div class="info-text" style="color: #666; font-size: 14px; margin-top: 10px;">
+                    <i class="fas fa-info-circle"></i> នេះនឹងបង្កើត Template ដោយផ្លាស់ប្តូរ field structure ពី Flutter Form ដែលមានស្រាប់
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeImportModal()">បោះបង់</button>
+                <button class="btn btn-primary" onclick="importForm()">នាំចូល</button>
+            </div>
+        </div>
+    </div>
+    
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.14.0/Sortable.min.js"></script>
     <script>
@@ -683,6 +718,7 @@ $page_title = 'Form Builder - កម្មវិធីបង្កើតសំ�
                 number: 'Number Field',
                 email: 'Email Field',
                 date: 'Date Field',
+                time: 'Time Field',
                 select: 'Select Field',
                 textarea: 'Textarea',
                 checkbox: 'Checkbox',
@@ -698,6 +734,7 @@ $page_title = 'Form Builder - កម្មវិធីបង្កើតសំ�
                 number: 'fa-hashtag',
                 email: 'fa-envelope',
                 date: 'fa-calendar',
+                time: 'fa-clock',
                 select: 'fa-list',
                 textarea: 'fa-align-left',
                 checkbox: 'fa-check-square',
@@ -760,6 +797,8 @@ $page_title = 'Form Builder - កម្មវិធីបង្កើតសំ�
                     return `<input type="${fieldType}" placeholder="${placeholder}" disabled>`;
                 case 'date':
                     return `<input type="date" disabled>`;
+                case 'time':
+                    return `<input type="time" disabled>`;
                 case 'select':
                     return `<select disabled><option>Select option...</option></select>`;
                 case 'textarea':
@@ -879,6 +918,27 @@ $page_title = 'Form Builder - កម្មវិធីបង្កើតសំ�
         
         function closeTemplateModal() {
             document.getElementById('template-modal').classList.remove('active');
+        }
+        
+        function openImportModal() {
+            document.getElementById('import-modal').classList.add('active');
+        }
+        
+        function closeImportModal() {
+            document.getElementById('import-modal').classList.remove('active');
+        }
+        
+        function importForm() {
+            const formKey = document.getElementById('import-form-select').value;
+            
+            if (!formKey) {
+                alert('សូមជ្រើសរើស Form ដែលត្រូវនាំចូល');
+                return;
+            }
+            
+            // Redirect to import helper script
+            window.open('form_import_helper.php?import=' + formKey, '_blank');
+            closeImportModal();
         }
         
         function createTemplate() {
