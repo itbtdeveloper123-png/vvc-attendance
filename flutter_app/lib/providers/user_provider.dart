@@ -192,6 +192,7 @@ class UserProvider with ChangeNotifier {
   String? _systemRoleLabel; // display label
   String? _department;
   String? _position;
+  String? _branch;
   String? _phone;
   String? _email;
   bool _isLoggedIn = false;
@@ -211,6 +212,7 @@ class UserProvider with ChangeNotifier {
   String? get userType => _userType;
   String? get department => _department;
   String? get position => _position;
+  String? get branch => _branch;
   String? get phone => _phone;
   String? get email => _email;
   bool get isVerified => _isVerified;
@@ -407,6 +409,7 @@ class UserProvider with ChangeNotifier {
     _systemRoleLabel = prefs.getString('system_role_label') ?? '';
     _department = prefs.getString('user_department');
     _position = prefs.getString('user_position');
+    _branch = prefs.getString('user_branch');
     _phone = prefs.getString('user_phone');
     _email = prefs.getString('user_email');
     _isVerified = prefs.getBool('is_verified') ?? false;
@@ -493,6 +496,7 @@ class UserProvider with ChangeNotifier {
       _avatar = result['user']['avatar'] as String?;
       _department = result['user']['department'] as String?;
       _position = result['user']['position'] as String?;
+      _branch = result['user']['branch']?.toString();
       _phone = result['user']['phone']?.toString();
       _email = result['user']['email'] as String?;
       _userType = userType;
@@ -532,6 +536,11 @@ class UserProvider with ChangeNotifier {
         await prefs.setString('user_department', _department!);
       } else {
         await prefs.remove('user_department');
+      }
+      if (_branch != null && _branch!.isNotEmpty) {
+        await prefs.setString('user_branch', _branch!);
+      } else {
+        await prefs.remove('user_branch');
       }
       if (_phone != null) await prefs.setString('user_phone', _phone!);
       if (_email != null) await prefs.setString('user_email', _email!);
@@ -579,6 +588,7 @@ class UserProvider with ChangeNotifier {
       _phone = user['phone']?.toString();
       _email = user['email'] as String?;
       _department = user['department'] as String?;
+      _branch = user['branch']?.toString();
       _legacyUserRole = user['role']?.toString() ?? _legacyUserRole;
       _systemRoleStr = _resolveSystemRoleString(
         user['system_role'],
@@ -613,6 +623,11 @@ class UserProvider with ChangeNotifier {
         await prefs.setString('user_department', _department!);
       } else {
         await prefs.remove('user_department');
+      }
+      if (_branch != null && _branch!.isNotEmpty) {
+        await prefs.setString('user_branch', _branch!);
+      } else {
+        await prefs.remove('user_branch');
       }
       if (_phone != null) await prefs.setString('user_phone', _phone!);
       if (_email != null) await prefs.setString('user_email', _email!);
@@ -691,6 +706,7 @@ class UserProvider with ChangeNotifier {
     await prefs.remove('avatar');
     await prefs.remove('user_position');
     await prefs.remove('user_department');
+    await prefs.remove('user_branch');
     await prefs.remove('user_phone');
     await prefs.remove('user_email');
     await prefs.remove('scan_user_type');
@@ -716,6 +732,7 @@ class UserProvider with ChangeNotifier {
     _systemRoleLabel = null;
     _department = null;
     _position = null;
+    _branch = null;
     _phone = null;
     _email = null;
     _isLoggedIn = false;
