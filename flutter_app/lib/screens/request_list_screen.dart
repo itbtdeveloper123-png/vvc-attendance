@@ -5,11 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
-import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../services/api_service.dart';
 import '../utils/app_theme.dart';
@@ -40,8 +40,8 @@ class _RequestListScreenState extends State<RequestListScreen> {
   Timer? _pollingTimer;
 
   static const Color _brandOrange = Color(0xFFF2994A);
-  static const double _lblSize = 11.5;
-  static const double _valSize = 11.5;
+  static const double _lblSize = 9.5;
+  static const double _valSize = 9.5;
 
   @override
   void initState() {
@@ -1413,7 +1413,7 @@ class _RequestListScreenState extends State<RequestListScreen> {
       final image = pw.MemoryImage(pngBytes);
       doc.addPage(
         pw.Page(
-          pageFormat: PdfPageFormat.a4,
+          pageFormat: PdfPageFormat.a5,
           margin: pw.EdgeInsets.zero,
           build: (pw.Context context) {
             return pw.Center(child: pw.Image(image));
@@ -1446,7 +1446,7 @@ class _RequestListScreenState extends State<RequestListScreen> {
   // Hidden Report Widget that renders in the background for capture
   Widget _buildHiddenReport(BuildContext context) {
     if (_currentReportItem == null) {
-      return Container(color: AppTheme.textPrimary, width: 600, height: 850);
+      return Container(color: AppTheme.textPrimary, width: 450, height: 640);
     }
 
     final item = _currentReportItem!;
@@ -1519,7 +1519,7 @@ class _RequestListScreenState extends State<RequestListScreen> {
     return Material(
       color: AppTheme.textPrimary,
       child: Container(
-        width: 800, // Increased to fill A4 better
+        width: 450, // Adjusted for A5
         padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 10),
         child: Container(
           // Outer document frame
@@ -1527,7 +1527,7 @@ class _RequestListScreenState extends State<RequestListScreen> {
             border: Border.all(color: Colors.black, width: 1.5),
             borderRadius: BorderRadius.circular(2),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 15),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -1537,31 +1537,30 @@ class _RequestListScreenState extends State<RequestListScreen> {
                   // Logo only
                   Image.network(
                     'https://i.ibb.co/r2JWnd2x/Logo-Van-Van-1.png',
-                    width: 100,
-                    height: 100,
+                    width: 120,
+                    height: 120,
                     errorBuilder: (_, _, _) =>
-                        const SizedBox(width: 100, height: 80),
+                        const SizedBox(width: 120, height: 100),
                   ),
-                  const SizedBox(height: 10),
-                  const Text(
+                  const SizedBox(height: 6),
+                  Text(
                     "សំណើសុំច្បាប់ឈប់សម្រាក ប្តូរវេន ចូលមុនម៉ោង មកយឺត និងភ្លេចស្កេនមេដៃផ្សេងៗ",
-                    style: TextStyle(
-                      fontSize: 16,
+                    style: GoogleFonts.koulen(
+                      fontSize: 14,
                       fontWeight: FontWeight.bold,
                       color: Colors.black,
-                      fontFamily: 'KhmerFont',
                     ),
                     textAlign: TextAlign.center,
                   ),
                 ],
               ),
-              const SizedBox(height: 25),
+              const SizedBox(height: 15),
 
               // Request Selection Area (Refined Chips Grid)
               Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 15,
-                  vertical: 12,
+                  horizontal: 10,
+                  vertical: 8,
                 ),
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.grey.shade400, width: 0.8),
@@ -1569,8 +1568,8 @@ class _RequestListScreenState extends State<RequestListScreen> {
                   color: Colors.grey.shade50.withValues(alpha: 0.5),
                 ),
                 child: Wrap(
-                  spacing: 15,
-                  runSpacing: 10,
+                  spacing: 10,
+                  runSpacing: 6,
                   alignment: WrapAlignment.center,
                   children: types.map((t) {
                     final isSelected =
@@ -1579,39 +1578,45 @@ class _RequestListScreenState extends State<RequestListScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Container(
-                          width: 14,
-                          height: 14,
+                          width: 16,
+                          height: 16,
                           decoration: BoxDecoration(
                             shape: BoxShape.rectangle,
                             border: Border.all(
                               color: isSelected
                                   ? _brandOrange
-                                  : Colors.grey.shade500,
-                              width: 1.2,
+                                  : Colors.grey.shade600,
+                              width: 1.5,
                             ),
                             color: isSelected
                                 ? _brandOrange
-                                : Colors.transparent,
+                                : Colors.white,
                             borderRadius: BorderRadius.circular(3),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.1),
+                                blurRadius: 2,
+                                offset: const Offset(0, 1),
+                              ),
+                            ],
                           ),
                           child: isSelected
                               ? Icon(
                                   Icons.check,
-                                  size: 10,
-                                  color: AppTheme.textPrimary,
+                                  size: 11,
+                                  color: Colors.white,
                                 )
                               : null,
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 6),
                         Text(
                           t,
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: isSelected ? Colors.black : Colors.black54,
+                          style: GoogleFonts.battambang(
+                            fontSize: 8,
+                            color: isSelected ? Colors.black87 : Colors.black54,
                             fontWeight: isSelected
                                 ? FontWeight.w600
                                 : FontWeight.normal,
-                            fontFamily: 'KhmerFont',
                           ),
                         ),
                       ],
@@ -1619,7 +1624,7 @@ class _RequestListScreenState extends State<RequestListScreen> {
                   }).toList(),
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 12),
 
               // Main Table (Enlarged and Full Width)
               Table(
@@ -1698,7 +1703,7 @@ class _RequestListScreenState extends State<RequestListScreen> {
                 ],
               ),
 
-              const SizedBox(height: 30),
+              const SizedBox(height: 20),
 
               // Signatures Table Footer (High Contrast)
               Table(
@@ -1748,12 +1753,11 @@ class _RequestListScreenState extends State<RequestListScreen> {
         final isLabel = (idx == 0 || idx == 2);
 
         return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
           child: Text(
             v,
-            style: TextStyle(
+            style: GoogleFonts.battambang(
               fontSize: isLabel ? _lblSize : _valSize,
-              fontFamily: 'KhmerFont',
               fontWeight: isLabel ? FontWeight.w600 : FontWeight.normal,
               color: isLabel ? Colors.black87 : Colors.black,
             ),
@@ -1767,16 +1771,15 @@ class _RequestListScreenState extends State<RequestListScreen> {
 
   Widget _headerCell(String text) {
     return Container(
-      padding: const EdgeInsets.all(15),
+      padding: const EdgeInsets.all(10),
       color: Colors.grey.shade50,
       child: Center(
         child: Text(
           text,
-          style: const TextStyle(
+          style: GoogleFonts.battambang(
             fontSize: _lblSize,
             fontWeight: FontWeight.bold,
             color: Colors.black,
-            fontFamily: 'KhmerFont',
           ),
         ),
       ),
@@ -1792,52 +1795,49 @@ class _RequestListScreenState extends State<RequestListScreen> {
     return TableRow(
       children: [
         Padding(
-          padding: const EdgeInsets.all(18),
+          padding: const EdgeInsets.all(12),
           child: Text(
             label,
-            style: const TextStyle(
+            style: GoogleFonts.battambang(
               fontSize: _lblSize,
               fontWeight: FontWeight.bold,
               color: Colors.black,
-              fontFamily: 'KhmerFont',
             ),
           ),
         ),
         Padding(
-          padding: const EdgeInsets.all(18),
+          padding: const EdgeInsets.all(12),
           child: Center(
             child: Text(
               name,
-              style: const TextStyle(
+              style: GoogleFonts.battambang(
                 fontSize: _valSize,
                 color: Colors.black,
-                fontFamily: 'KhmerFont',
               ),
             ),
           ),
         ),
         Container(
-          height: 80,
-          padding: const EdgeInsets.all(8),
+          height: 60,
+          padding: const EdgeInsets.all(6),
           child: sig != null
               ? Image.memory(sig, fit: BoxFit.contain)
               : Center(
                   child: Container(
-                    width: 70,
+                    width: 50,
                     height: 1.0,
                     color: Colors.black45,
                   ),
                 ),
         ),
         Padding(
-          padding: const EdgeInsets.all(18),
+          padding: const EdgeInsets.all(12),
           child: Center(
             child: Text(
               date,
-              style: const TextStyle(
+              style: GoogleFonts.battambang(
                 fontSize: _valSize,
                 color: Colors.black,
-                fontFamily: 'KhmerFont',
               ),
             ),
           ),
