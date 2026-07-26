@@ -13,7 +13,6 @@ import '../widgets/app_widgets.dart';
 import '../services/api_service.dart';
 import 'home_screen.dart';
 import 'login_screen.dart';
-import 'face_setup_screen.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../widgets/khmer_lunar_calendar_card.dart';
