@@ -711,7 +711,7 @@ $page_title = 'Form Builder - កម្មវិធីបង្កើតសំ�
             return `
                 <div class="form-field" id="${field.id}" data-field-id="${field.id}">
                     <div class="field-header">
-                        <h3><i class="fas ${icons[field.type]}"></i> ${fieldLabels[field.type]}</h3>
+                        <h3><i class="fas ${icons[field.type] || 'fa-font'}"></i> ${fieldLabels[field.type] || 'Field'}</h3>
                         <div class="field-actions">
                             <button onclick="moveFieldUp('${field.id}')"><i class="fas fa-arrow-up"></i></button>
                             <button onclick="moveFieldDown('${field.id}')"><i class="fas fa-arrow-down"></i></button>
@@ -727,15 +727,15 @@ $page_title = 'Form Builder - កម្មវិធីបង្កើតសំ�
                         <div class="field-properties">
                             <div class="property-group">
                                 <label>Label</label>
-                                <input type="text" value="${field.label}" onchange="updateFieldProperty('${field.id}', 'label', this.value)">
+                                <input type="text" value="${field.label || ''}" onchange="updateFieldProperty('${field.id}', 'label', this.value)">
                             </div>
                             <div class="property-group">
                                 <label>Field Name</label>
-                                <input type="text" value="${field.name}" onchange="updateFieldProperty('${field.id}', 'name', this.value)">
+                                <input type="text" value="${field.name || ''}" onchange="updateFieldProperty('${field.id}', 'name', this.value)">
                             </div>
                             <div class="property-group">
                                 <label>Placeholder</label>
-                                <input type="text" value="${field.placeholder}" onchange="updateFieldProperty('${field.id}', 'placeholder', this.value)">
+                                <input type="text" value="${field.placeholder || ''}" onchange="updateFieldProperty('${field.id}', 'placeholder', this.value)">
                             </div>
                             <div class="property-group">
                                 <label>
@@ -750,19 +750,22 @@ $page_title = 'Form Builder - កម្មវិធីបង្កើតសំ�
         }
         
         function createFieldPreview(field) {
-            switch(field.type) {
+            const fieldType = field.type || 'text';
+            const placeholder = field.placeholder || '';
+            
+            switch(fieldType) {
                 case 'text':
                 case 'email':
                 case 'number':
-                    return `<input type="${field.type}" placeholder="${field.placeholder}" disabled>`;
+                    return `<input type="${fieldType}" placeholder="${placeholder}" disabled>`;
                 case 'date':
                     return `<input type="date" disabled>`;
                 case 'select':
                     return `<select disabled><option>Select option...</option></select>`;
                 case 'textarea':
-                    return `<textarea rows="3" placeholder="${field.placeholder}" disabled></textarea>`;
+                    return `<textarea rows="3" placeholder="${placeholder}" disabled></textarea>`;
                 case 'checkbox':
-                    return `<input type="checkbox" disabled> ${field.placeholder}`;
+                    return `<input type="checkbox" disabled> ${placeholder}`;
                 case 'file':
                     return `<input type="file" disabled>`;
                 case 'signature':
@@ -770,9 +773,9 @@ $page_title = 'Form Builder - កម្មវិធីបង្កើតសំ�
                 case 'branch':
                 case 'department':
                 case 'position':
-                    return `<select disabled><option>Select ${field.type}...</option></select>`;
+                    return `<select disabled><option>Select ${fieldType}...</option></select>`;
                 default:
-                    return `<input type="text" placeholder="${field.placeholder}" disabled>`;
+                    return `<input type="text" placeholder="${placeholder}" disabled>`;
             }
         }
         
@@ -967,7 +970,26 @@ $page_title = 'Form Builder - កម្មវិធីបង្កើតសំ�
                     if (response.success) {
                         currentTemplate = response.data;
                         document.getElementById('template-title').textContent = response.data.name;
-                        formFields = response.data.fields || [];
+                        
+                        // Convert database fields to frontend format
+                        formFields = (response.data.fields || []).map(field => ({
+                            id: 'field_' + field.id,
+                            type: field.field_type,
+                            name: field.field_name,
+                            label: field.field_label,
+                            placeholder: field.placeholder || '',
+                            required: field.required,
+                            options: field.options || [],
+                            validation: field.validation_rules || {},
+                            displayOrder: field.display_order
+                        }));
+                        
+                        // Update field counter to avoid conflicts
+                        if (formFields.length > 0) {
+                            const maxId = Math.max(...formFields.map(f => parseInt(f.id.replace('field_', '')) || 0));
+                            fieldCounter = maxId + 1;
+                        }
+                        
                         reRenderAllFields();
                         loadTemplates(); // Refresh to show active state
                     }
@@ -1001,6 +1023,7 @@ $page_title = 'Form Builder - កម្មវិធីបង្កើតសំ�
                         });
                         
                         // Create new fields
+                        let savedCount = 0;
                         formFields.forEach((field, index) => {
                             $.ajax({
                                 url: 'form_builder_api.php',
@@ -1017,13 +1040,14 @@ $page_title = 'Form Builder - កម្មវិធីបង្កើតសំ�
                                 },
                                 success: function(fieldResponse) {
                                     if (fieldResponse.success) {
-                                        field.id = fieldResponse.data.id;
+                                        savedCount++;
+                                        if (savedCount === formFields.length) {
+                                            alert('បានរក្សាទុក Template ដោយជោគជ័យ!');
+                                        }
                                     }
                                 }
                             });
                         });
-                        
-                        alert('បានរក្សាទុក Template ដោយជោគជ័យ!');
                     }
                 },
                 error: function() {
