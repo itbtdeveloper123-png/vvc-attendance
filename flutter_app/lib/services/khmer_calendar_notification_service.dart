@@ -214,39 +214,101 @@ class KhmerCalendarNotificationService {
     if (m == 4 && d >= 13 && d <= 16) return _SpecialDayInfo(name: 'ចូលឆ្នាំខ្មែរ', typeLabel: 'ថ្ងៃបុណ្យ', emoji: '🎊', isMajor: true);
     if (m == 5 && d == 14) return _SpecialDayInfo(name: 'បុណ្យចម្រើនព្រះជន្ម', typeLabel: 'ថ្ងៃបុណ្យ', emoji: '👑', isMajor: true);
     if (m == 9 && d == 24) return _SpecialDayInfo(name: 'ទិវាប្រកាសរដ្ឋធម្មនុញ្ញ', typeLabel: 'ថ្ងៃបុណ្យ', emoji: '📜', isMajor: true);
-    if (m == 11 && d == 9) return _SpecialDayInfo(name: 'បុណ្យឯករាជ្យជាតិ', typeLabel: 'ថ្ងៃបុណ្យជាតិ', emoji: '🎉', isMajor: true);
+    if (m == 11 && d == 9) return _SpecialDayInfo(name: 'បុណ្យឯករាជ្យជាតិ', typeLabel: 'ថ្ងៃបុណ្យជាតិ', emoji: '�🇭', isMajor: true);
+
+    // Other notable days
+    if (m == 1 && d == 1) return _SpecialDayInfo(name: 'ចូលឆ្នាំសកល', typeLabel: 'ថ្ងៃបុណ្យ', emoji: '🎆', isMajor: false);
+    if (m == 3 && d == 8) return _SpecialDayInfo(name: 'ទិវានារី', typeLabel: 'ទិវា', emoji: '💐', isMajor: false);
+    if (m == 5 && d == 1) return _SpecialDayInfo(name: 'ទិវាពលកម្ម', typeLabel: 'ទិវា', emoji: '⚒️', isMajor: false);
+    if (m == 6 && d == 18) return _SpecialDayInfo(name: 'ចម្រើនព្រះជន្ម សម្ដេចម៉ែ', typeLabel: 'ថ្ងៃបុណ្យ', emoji: '👑', isMajor: false);
+    if (m == 10 && d == 15) return _SpecialDayInfo(name: 'ទិវាគោរពព្រះវិញ្ញាណក្ខន្ធ', typeLabel: 'ទិវា', emoji: '🕯️', isMajor: false);
+    if (m == 10 && d == 29) return _SpecialDayInfo(name: 'បុណ្យគ្រងរាជ្យ', typeLabel: 'ថ្ងៃបុណ្យ', emoji: '👑', isMajor: false);
+    if (m == 12 && d == 29) return _SpecialDayInfo(name: 'ទិវាសន្តិភាព', typeLabel: 'ទិវា', emoji: '🕊️', isMajor: false);
 
     return null;
   }
 
   _SpecialDayInfo? _getLunarHoliday(DateTime date, Chhankitek lunar) {
-    // Lunar new year (around April 13-16)
-    if (lunar.month == 1 && lunar.day == 1) {
+    // Extract lunar date information from Chhankitek
+    // Chhankitek.fromDate() returns an object that can be converted to string
+    // We need to parse the lunar date information from the string representation
+    final lunarString = lunar.toString();
+    
+    // Parse the lunar string to extract month and day
+    // The format is typically: "ថ្ងៃW d ខែm ឆ្នាំa e ព.ស. b"
+    // We need to extract the month and day values
+    final lunarDateInfo = _parseLunarDate(lunarString);
+    final lunarMonth = lunarDateInfo['month'];
+    final lunarDay = lunarDateInfo['day'];
+    
+    if (lunarMonth == null || lunarDay == null) {
+      debugPrint('[KhmerCalendarNotif] Could not parse lunar date: $lunarString');
+      return null;
+    }
+
+    // Lunar new year (around April 13-16, lunar month 1)
+    if (lunarMonth == 1 && lunarDay == 1) {
       return _SpecialDayInfo(name: 'ចូលឆ្នាំខ្មែរ (ថ្ងៃទី ១)', typeLabel: 'ថ្ងៃបុណ្យ', emoji: '🎊', isMajor: true);
     }
-    if (lunar.month == 1 && lunar.day == 2) {
+    if (lunarMonth == 1 && lunarDay == 2) {
       return _SpecialDayInfo(name: 'ចូលឆ្នាំខ្មែរ (ថ្ងៃទី ២)', typeLabel: 'ថ្ងៃបុណ្យ', emoji: '🎊', isMajor: true);
     }
-    if (lunar.month == 1 && lunar.day == 3) {
+    if (lunarMonth == 1 && lunarDay == 3) {
       return _SpecialDayInfo(name: 'ចូលឆ្នាំខ្មែរ (ថ្ងៃទី ៣)', typeLabel: 'ថ្ងៃបុណ្យ', emoji: '🎊', isMajor: true);
     }
 
     // Pchum Ben (around September-October, lunar month 10)
-    if (lunar.month == 10 && lunar.day >= 1 && lunar.day <= 15) {
-      return _SpecialDayInfo(name: 'បុណ្យភ្ជុំបិណ្ឌ (ថ្ងៃទី ${lunar.day})', typeLabel: 'ថ្ងៃបុណ្យ', emoji: '🙏', isMajor: true);
+    if (lunarMonth == 10 && lunarDay >= 1 && lunarDay <= 15) {
+      return _SpecialDayInfo(name: 'បុណ្យភ្ជុំបិណ្ឌ (ថ្ងៃទី $lunarDay)', typeLabel: 'ថ្ងៃបុណ្យ', emoji: '🙏', isMajor: true);
     }
 
     // Visak Bochea (lunar month 6, day 15)
-    if (lunar.month == 6 && lunar.day == 15) {
+    if (lunarMonth == 6 && lunarDay == 15) {
       return _SpecialDayInfo(name: 'ពិធីបុណ្យវិសាខបូជា', typeLabel: 'ថ្ងៃបុណ្យ', emoji: '🙏', isMajor: true);
     }
 
     // Meak Bochea (lunar month 3, day 15)
-    if (lunar.month == 3 && lunar.day == 15) {
+    if (lunarMonth == 3 && lunarDay == 15) {
       return _SpecialDayInfo(name: 'ពិធីបុណ្យមាឃបុជា', typeLabel: 'ថ្ងៃបុណ្យ', emoji: '🙏', isMajor: true);
     }
 
     return null;
+  }
+
+  /// Parse the lunar date string to extract month and day information
+  Map<String, int?> _parseLunarDate(String lunarString) {
+    // The lunar string format is: "ថ្ងៃW d ខែm ឆ្នាំa e ព.ស. b"
+    // We need to extract the day (d) and month (m) values
+    
+    // Use regex to extract the numbers
+    final dayRegex = RegExp(r'(\d+)\s+ខែ');
+    final monthRegex = RegExp(r'ខែ\s*(\d+)');
+    
+    final dayMatch = dayRegex.firstMatch(lunarString);
+    final monthMatch = monthRegex.firstMatch(lunarString);
+    
+    int? day;
+    int? month;
+    
+    if (dayMatch != null) {
+      day = int.tryParse(dayMatch.group(1)!);
+    }
+    
+    if (monthMatch != null) {
+      month = int.tryParse(monthMatch.group(1)!);
+    }
+    
+    // If regex didn't work, try alternative parsing
+    if (day == null || month == null) {
+      // Alternative parsing: extract all numbers
+      final numbers = RegExp(r'\d+').allMatches(lunarString).map((m) => int.parse(m.group(0)!)).toList();
+      if (numbers.length >= 2) {
+        day = numbers[0]; // First number is typically the day
+        month = numbers[1]; // Second number is typically the month
+      }
+    }
+    
+    return {'day': day, 'month': month};
   }
 }
 

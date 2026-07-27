@@ -7095,27 +7095,72 @@ switch ($action) {
         break;
 
     // Poll Management API endpoints
+    case 'test_poll_api':
+        error_log("API: test_poll_api called");
+        apiResponse(['success' => true, 'message' => 'Poll API is working', 'timestamp' => date('Y-m-d H:i:s')]);
+        break;
+
     case 'get_polls':
-        // Check if table exists first
-        $table_check = $mysqli->query("SHOW TABLES LIKE 'poll_events'");
-        if (!$table_check || $table_check->num_rows == 0) {
-            apiResponse(['success' => false, 'message' => 'Poll table does not exist. Please run database setup.']);
-            break;
+        try {
+            error_log("API: get_polls called");
+            
+            // First test basic database connection
+            if (!$mysqli || $mysqli->connect_error) {
+                error_log("API: Database connection error: " . ($mysqli->connect_error ?? 'Unknown error'));
+                apiResponse(['success' => false, 'message' => 'Database connection failed']);
+                break;
+            }
+            error_log("API: Database connection OK");
+            
+            // Check if table exists first
+            $table_check = $mysqli->query("SHOW TABLES LIKE 'poll_events'");
+            if (!$table_check) {
+                error_log("API: Table check query failed: " . $mysqli->error);
+                apiResponse(['success' => false, 'message' => 'Database error checking table existence']);
+                break;
+            }
+            if ($table_check->num_rows == 0) {
+                error_log("API: poll_events table does not exist");
+                apiResponse(['success' => false, 'message' => 'Poll table does not exist. Please run database setup.']);
+                break;
+            }
+            error_log("API: poll_events table exists");
+            
+            $stmt = $mysqli->prepare("SELECT * FROM poll_events ORDER BY created_at DESC");
+            if (!$stmt) {
+                error_log("API: Prepare statement failed: " . $mysqli->error);
+                apiResponse(['success' => false, 'message' => 'Database error: ' . $mysqli->error]);
+                break;
+            }
+            error_log("API: Statement prepared successfully");
+            
+            if (!$stmt->execute()) {
+                error_log("API: Execute failed: " . $stmt->error);
+                apiResponse(['success' => false, 'message' => 'Database error: ' . $stmt->error]);
+                $stmt->close();
+                break;
+            }
+            error_log("API: Statement executed successfully");
+            
+            $result = $stmt->get_result();
+            $polls = [];
+            while ($row = $result->fetch_assoc()) {
+                $polls[] = $row;
+            }
+            $stmt->close();
+            error_log("API: Retrieved " . count($polls) . " polls");
+            
+            // Ensure we always return valid JSON even if empty
+            if (empty($polls)) {
+                error_log("API: No polls found, returning empty array");
+                apiResponse(['success' => true, 'data' => []]);
+            } else {
+                apiResponse(['success' => true, 'data' => $polls]);
+            }
+        } catch (Exception $e) {
+            error_log("API: Exception in get_polls: " . $e->getMessage());
+            apiResponse(['success' => false, 'message' => 'Server error: ' . $e->getMessage()]);
         }
-        
-        $stmt = $mysqli->prepare("SELECT * FROM poll_events ORDER BY created_at DESC");
-        if (!$stmt) {
-            apiResponse(['success' => false, 'message' => 'Database error: ' . $mysqli->error]);
-            break;
-        }
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $polls = [];
-        while ($row = $result->fetch_assoc()) {
-            $polls[] = $row;
-        }
-        $stmt->close();
-        apiResponse(['success' => true, 'data' => $polls]);
         break;
 
     case 'get_poll':
