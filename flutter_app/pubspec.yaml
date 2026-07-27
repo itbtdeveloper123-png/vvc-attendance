@@ -63,6 +63,7 @@ dependencies:
   speech_to_text: ^7.4.0
   flutter_secure_storage: 9.0.0
 dependency_overrides:
+  flutter_khmer_chankitec: 0.1.0
   signature: 5.4.0
   image_picker: 1.1.2
   camera: 0.10.5+9
