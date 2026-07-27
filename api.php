@@ -7112,42 +7112,23 @@ switch ($action) {
             }
             error_log("API: Database connection OK");
             
-            // Check if table exists first
-            $table_check = $mysqli->query("SHOW TABLES LIKE 'poll_events'");
-            if (!$table_check) {
-                error_log("API: Table check query failed: " . $mysqli->error);
-                apiResponse(['success' => false, 'message' => 'Database error checking table existence']);
-                break;
-            }
-            if ($table_check->num_rows == 0) {
-                error_log("API: poll_events table does not exist");
-                apiResponse(['success' => false, 'message' => 'Poll table does not exist. Please run database setup.']);
-                break;
-            }
-            error_log("API: poll_events table exists");
+            // Use simple query first to avoid prepared statement issues
+            $query = "SELECT * FROM poll_events ORDER BY created_at DESC";
+            error_log("API: Executing query: " . $query);
             
-            $stmt = $mysqli->prepare("SELECT * FROM poll_events ORDER BY created_at DESC");
-            if (!$stmt) {
-                error_log("API: Prepare statement failed: " . $mysqli->error);
-                apiResponse(['success' => false, 'message' => 'Database error: ' . $mysqli->error]);
+            $result = $mysqli->query($query);
+            if (!$result) {
+                error_log("API: Query failed: " . $mysqli->error);
+                apiResponse(['success' => false, 'message' => 'Database query failed: ' . $mysqli->error]);
                 break;
             }
-            error_log("API: Statement prepared successfully");
+            error_log("API: Query executed successfully");
             
-            if (!$stmt->execute()) {
-                error_log("API: Execute failed: " . $stmt->error);
-                apiResponse(['success' => false, 'message' => 'Database error: ' . $stmt->error]);
-                $stmt->close();
-                break;
-            }
-            error_log("API: Statement executed successfully");
-            
-            $result = $stmt->get_result();
             $polls = [];
             while ($row = $result->fetch_assoc()) {
                 $polls[] = $row;
             }
-            $stmt->close();
+            $result->free();
             error_log("API: Retrieved " . count($polls) . " polls");
             
             // Ensure we always return valid JSON even if empty
@@ -7159,6 +7140,7 @@ switch ($action) {
             }
         } catch (Exception $e) {
             error_log("API: Exception in get_polls: " . $e->getMessage());
+            error_log("API: Exception trace: " . $e->getTraceAsString());
             apiResponse(['success' => false, 'message' => 'Server error: ' . $e->getMessage()]);
         }
         break;
