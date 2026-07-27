@@ -745,17 +745,27 @@ class _EmployeeReportScreenState extends State<EmployeeReportScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Expanded(
-                child: InteractiveViewer(
-                  constrained: false,
-                  child: RepaintBoundary(
-                    key: _previewKey,
-                    child: Container(
-                      color: Colors.white,
-                      padding: const EdgeInsets.all(24),
-                      width: 800, // Fixed width for A4-like preview
-                      child: _buildPrintableContent(),
-                    ),
-                  ),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    // Responsive width: use screen width but capped at 600 for mobile, 800 for desktop
+                    final double containerWidth = constraints.maxWidth < 600 
+                        ? constraints.maxWidth - 40 
+                        : 800;
+                    final bool isMobile = constraints.maxWidth < 600;
+                    
+                    return InteractiveViewer(
+                      constrained: false,
+                      child: RepaintBoundary(
+                        key: _previewKey,
+                        child: Container(
+                          color: Colors.white,
+                          padding: EdgeInsets.all(isMobile ? 16 : 24),
+                          width: containerWidth,
+                          child: _buildPrintableContent(isMobile: isMobile),
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ),
               const SizedBox(height: 16),
@@ -829,33 +839,34 @@ class _EmployeeReportScreenState extends State<EmployeeReportScreen> {
     );
   }
 
-  Widget _buildPrintableContent() {
+  Widget _buildPrintableContent({bool isMobile = false}) {
+    // Responsive font sizes based on screen width
     final titleStyle = GoogleFonts.kantumruyPro(
       color: const Color(0xFF1E3A8A),
-      fontSize: 20,
+      fontSize: isMobile ? 16 : 20,
       fontWeight: FontWeight.bold,
     );
     final dateStyle = GoogleFonts.kantumruyPro(
       color: const Color(0xFF1E3A8A),
-      fontSize: 14,
+      fontSize: isMobile ? 12 : 14,
     );
     final headingStyle = GoogleFonts.kantumruyPro(
       color: const Color(0xFF1E3A8A),
-      fontSize: 16,
+      fontSize: isMobile ? 14 : 16,
       fontWeight: FontWeight.bold,
     );
     final thStyle = GoogleFonts.kantumruyPro(
       color: Colors.white,
-      fontSize: 13,
+      fontSize: isMobile ? 11 : 13,
       fontWeight: FontWeight.bold,
     );
     final tdStyle = GoogleFonts.kantumruyPro(
       color: Colors.black87,
-      fontSize: 13,
+      fontSize: isMobile ? 11 : 13,
     );
     final tdBoldStyle = GoogleFonts.kantumruyPro(
       color: Colors.black,
-      fontSize: 13,
+      fontSize: isMobile ? 11 : 13,
       fontWeight: FontWeight.bold,
     );
 
@@ -870,9 +881,9 @@ class _EmployeeReportScreenState extends State<EmployeeReportScreen> {
     final tableHeader = TableRow(
       decoration: const BoxDecoration(color: Color(0xFF0F172A)),
       children: [
-        _buildTh('ព័ត៌មាន', thStyle),
-        ...deps.values.map((v) => _buildTh(v, thStyle)),
-        _buildTh('សរុប', thStyle),
+        _buildTh('ព័ត៌មាន', thStyle, isMobile: isMobile),
+        ...deps.values.map((v) => _buildTh(v, thStyle, isMobile: isMobile)),
+        _buildTh('សរុប', thStyle, isMobile: isMobile),
       ],
     );
 
@@ -887,9 +898,10 @@ class _EmployeeReportScreenState extends State<EmployeeReportScreen> {
           'female',
           tdStyle,
           isFirstGrp: true,
+          isMobile: isMobile,
         ),
       );
-      rows.add(_buildKs2Row('', 'ប្រុស', 'morning', 'male', tdStyle));
+      rows.add(_buildKs2Row('', 'ប្រុស', 'morning', 'male', tdStyle, isMobile: isMobile));
       rows.add(
         _buildKs2Row(
           '',
@@ -898,6 +910,7 @@ class _EmployeeReportScreenState extends State<EmployeeReportScreen> {
           'total',
           tdBoldStyle,
           isTotal: true,
+          isMobile: isMobile,
         ),
       );
 
@@ -909,9 +922,10 @@ class _EmployeeReportScreenState extends State<EmployeeReportScreen> {
           'female',
           tdStyle,
           isFirstGrp: true,
+          isMobile: isMobile,
         ),
       );
-      rows.add(_buildKs2Row('', 'ប្រុស', 'evening', 'male', tdStyle));
+      rows.add(_buildKs2Row('', 'ប្រុស', 'evening', 'male', tdStyle, isMobile: isMobile));
       rows.add(
         _buildKs2Row(
           '',
@@ -920,25 +934,26 @@ class _EmployeeReportScreenState extends State<EmployeeReportScreen> {
           'total',
           tdBoldStyle,
           isTotal: true,
+          isMobile: isMobile,
         ),
       );
 
-      rows.add(_buildOverallKs2Row('សរុបរួមតាមផ្នែក', tdBoldStyle));
+      rows.add(_buildOverallKs2Row('សរុបរួមតាមផ្នែក', tdBoldStyle, isMobile: isMobile));
     } else {
-      rows.add(_buildSimpleRow('ស្រី', 'female', tdStyle));
-      rows.add(_buildSimpleRow('ប្រុស', 'male', tdStyle));
-      rows.add(_buildSimpleRow('សរុប', 'total', tdBoldStyle, isTotal: true));
+      rows.add(_buildSimpleRow('ស្រី', 'female', tdStyle, isMobile: isMobile));
+      rows.add(_buildSimpleRow('ប្រុស', 'male', tdStyle, isMobile: isMobile));
+      rows.add(_buildSimpleRow('សរុប', 'total', tdBoldStyle, isTotal: true, isMobile: isMobile));
     }
 
     // Staff Table
     final staffHeader = TableRow(
       decoration: const BoxDecoration(color: Color(0xFF0F172A)),
       children: [
-        _buildTh('ល.រ', thStyle),
-        _buildTh('ឈ្មោះ', thStyle),
-        _buildTh('តួនាទី', thStyle),
-        _buildTh('អធិប្បាយ', thStyle),
-        _buildTh('ថ្ងៃរាយការណ៍', thStyle),
+        _buildTh('ល.រ', thStyle, isMobile: isMobile),
+        _buildTh('ឈ្មោះ', thStyle, isMobile: isMobile),
+        _buildTh('តួនាទី', thStyle, isMobile: isMobile),
+        _buildTh('អធិប្បាយ', thStyle, isMobile: isMobile),
+        _buildTh('ថ្ងៃរាយការណ៍', thStyle, isMobile: isMobile),
       ],
     );
 
@@ -948,23 +963,26 @@ class _EmployeeReportScreenState extends State<EmployeeReportScreen> {
         TableRow(
           decoration: const BoxDecoration(color: Colors.white),
           children: [
-            _buildTd(s['number']?.toString() ?? '', tdStyle),
+            _buildTd(s['number']?.toString() ?? '', tdStyle, isMobile: isMobile),
             _buildTd(
               s['name']?.toString() ?? '',
               tdStyle,
               align: TextAlign.left,
+              isMobile: isMobile,
             ),
             _buildTd(
               s['role']?.toString() ?? '',
               tdStyle,
               align: TextAlign.left,
+              isMobile: isMobile,
             ),
             _buildTd(
               s['note']?.toString() ?? '',
               tdStyle,
               align: TextAlign.left,
+              isMobile: isMobile,
             ),
-            _buildTd(DateFormat('yyyy-MM-dd').format(_selectedDate), tdStyle),
+            _buildTd(DateFormat('yyyy-MM-dd').format(_selectedDate), tdStyle, isMobile: isMobile),
           ],
         ),
       );
@@ -974,7 +992,7 @@ class _EmployeeReportScreenState extends State<EmployeeReportScreen> {
       staffRows.add(
         TableRow(
           decoration: const BoxDecoration(color: Colors.white),
-          children: List.generate(5, (_) => _buildTd('', tdStyle)),
+          children: List.generate(5, (_) => _buildTd('', tdStyle, isMobile: isMobile)),
         ),
       );
     }
@@ -994,10 +1012,10 @@ class _EmployeeReportScreenState extends State<EmployeeReportScreen> {
         Table(
           border: TableBorder.all(color: Colors.grey.shade300, width: 1),
           columnWidths: {
-            0: const FlexColumnWidth(1.2),
+            0: FlexColumnWidth(isMobile ? 1.0 : 1.2),
             for (int i = 1; i < columnsCount - 1; i++)
-              i: const FlexColumnWidth(1),
-            columnsCount - 1: const FlexColumnWidth(0.8),
+              i: FlexColumnWidth(isMobile ? 0.8 : 1),
+            columnsCount - 1: FlexColumnWidth(isMobile ? 0.6 : 0.8),
           },
           children: rows,
         ),
@@ -1009,12 +1027,12 @@ class _EmployeeReportScreenState extends State<EmployeeReportScreen> {
         const SizedBox(height: 12),
         Table(
           border: TableBorder.all(color: Colors.grey.shade300, width: 1),
-          columnWidths: const {
-            0: FlexColumnWidth(0.5),
-            1: FlexColumnWidth(2),
-            2: FlexColumnWidth(2),
-            3: FlexColumnWidth(3),
-            4: FlexColumnWidth(1.5),
+          columnWidths: {
+            0: FlexColumnWidth(isMobile ? 0.4 : 0.5),
+            1: FlexColumnWidth(isMobile ? 1.5 : 2),
+            2: FlexColumnWidth(isMobile ? 1.5 : 2),
+            3: FlexColumnWidth(isMobile ? 2.0 : 3),
+            4: FlexColumnWidth(isMobile ? 1.2 : 1.5),
           },
           children: staffRows,
         ),
@@ -1022,9 +1040,9 @@ class _EmployeeReportScreenState extends State<EmployeeReportScreen> {
     );
   }
 
-  Widget _buildTh(String text, TextStyle style) {
+  Widget _buildTh(String text, TextStyle style, {bool isMobile = false}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+      padding: EdgeInsets.symmetric(vertical: isMobile ? 8 : 12, horizontal: isMobile ? 4 : 8),
       child: Text(text, style: style, textAlign: TextAlign.center),
     );
   }
@@ -1033,9 +1051,10 @@ class _EmployeeReportScreenState extends State<EmployeeReportScreen> {
     String text,
     TextStyle style, {
     TextAlign align = TextAlign.center,
+    bool isMobile = false,
   }) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+      padding: EdgeInsets.symmetric(vertical: isMobile ? 8 : 12, horizontal: isMobile ? 4 : 8),
       child: Text(text, style: style, textAlign: align),
     );
   }
@@ -1051,6 +1070,7 @@ class _EmployeeReportScreenState extends State<EmployeeReportScreen> {
     TextStyle style, {
     bool isFirstGrp = false,
     bool isTotal = false,
+    bool isMobile = false,
   }) {
     final deps = _getDepartmentsForStore().keys.toList();
     Color bgColor = isTotal ? Colors.grey.shade100 : Colors.white;
@@ -1068,7 +1088,7 @@ class _EmployeeReportScreenState extends State<EmployeeReportScreen> {
               Expanded(
                 flex: 1,
                 child: Padding(
-                  padding: const EdgeInsets.only(left: 8),
+                  padding: EdgeInsets.only(left: isMobile ? 4 : 8),
                   child: Text(
                     grp,
                     style: style.copyWith(fontWeight: FontWeight.bold),
@@ -1091,7 +1111,7 @@ class _EmployeeReportScreenState extends State<EmployeeReportScreen> {
       }
       rowTotal += val;
       cells.add(
-        Container(color: bgColor, child: _buildTd(val.toString(), style)),
+        Container(color: bgColor, child: _buildTd(val.toString(), style, isMobile: isMobile)),
       );
     }
 
@@ -1101,6 +1121,7 @@ class _EmployeeReportScreenState extends State<EmployeeReportScreen> {
         child: _buildTd(
           rowTotal.toString(),
           style.copyWith(fontWeight: FontWeight.bold),
+          isMobile: isMobile,
         ),
       ),
     );
@@ -1108,7 +1129,7 @@ class _EmployeeReportScreenState extends State<EmployeeReportScreen> {
     return TableRow(children: cells);
   }
 
-  TableRow _buildOverallKs2Row(String title, TextStyle style) {
+  TableRow _buildOverallKs2Row(String title, TextStyle style, {bool isMobile = false}) {
     final deps = _getDepartmentsForStore().keys.toList();
     Color bgColor = Colors.grey.shade200;
     int overallTotal = 0;
@@ -1117,7 +1138,7 @@ class _EmployeeReportScreenState extends State<EmployeeReportScreen> {
     cells.add(
       Container(
         color: bgColor,
-        child: _buildTd(title, style, align: TextAlign.left),
+        child: _buildTd(title, style, align: TextAlign.left, isMobile: isMobile),
       ),
     );
 
@@ -1129,14 +1150,14 @@ class _EmployeeReportScreenState extends State<EmployeeReportScreen> {
           _getVal('${d}_male_evening');
       overallTotal += val;
       cells.add(
-        Container(color: bgColor, child: _buildTd(val.toString(), style)),
+        Container(color: bgColor, child: _buildTd(val.toString(), style, isMobile: isMobile)),
       );
     }
 
     cells.add(
       Container(
         color: bgColor,
-        child: _buildTd(overallTotal.toString(), style),
+        child: _buildTd(overallTotal.toString(), style, isMobile: isMobile),
       ),
     );
     return TableRow(children: cells);
@@ -1153,7 +1174,7 @@ class _EmployeeReportScreenState extends State<EmployeeReportScreen> {
 
     int rowTotal = 0;
     List<Widget> cells = [];
-    cells.add(Container(color: bgColor, child: _buildTd(title, style)));
+    cells.add(Container(color: bgColor, child: _buildTd(title, style, isMobile: isMobile)));
 
     for (var d in deps) {
       int val;
@@ -1164,7 +1185,7 @@ class _EmployeeReportScreenState extends State<EmployeeReportScreen> {
       }
       rowTotal += val;
       cells.add(
-        Container(color: bgColor, child: _buildTd(val.toString(), style)),
+        Container(color: bgColor, child: _buildTd(val.toString(), style, isMobile: isMobile)),
       );
     }
 
@@ -1174,6 +1195,7 @@ class _EmployeeReportScreenState extends State<EmployeeReportScreen> {
         child: _buildTd(
           rowTotal.toString(),
           style.copyWith(fontWeight: FontWeight.bold),
+          isMobile: isMobile,
         ),
       ),
     );

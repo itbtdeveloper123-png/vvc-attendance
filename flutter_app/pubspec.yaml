@@ -77,14 +77,14 @@ flutter:
   assets:
     - assets/images/
     - assets/icons/
-    # - assets/fonts/
+    - assets/fonts/
 
-  # fonts:
-  #   - family: KhmerFont
-  #     fonts:
-  #       - asset: assets/fonts/KantumruyPro-Bold.ttf
-  #         weight: 700
-  #
-  #   - family: Tacteing
-  #     fonts:
-  #       - asset: assets/fonts/Tacteing.ttf
+  fonts:
+    - family: KhmerFont
+      fonts:
+        - asset: assets/fonts/KantumruyPro-Bold.ttf
+          weight: 700
+
+    - family: Tacteing
+      fonts:
+        - asset: assets/fonts/Tacteing.ttf
