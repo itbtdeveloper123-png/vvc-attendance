@@ -44,6 +44,7 @@ import 'training_quiz_screen.dart';
 import 'ai_chat_screen.dart';
 import '../services/voice_command_service.dart';
 import 'product_analyzer_screen.dart';
+import 'poll_voting_screen.dart';
 
 // ========== SLIDE PAGE ROUTE (Feature #9) ==========
 PageRouteBuilder _slideRoute(Widget page) {
@@ -2252,6 +2253,20 @@ class _HomeContentState extends State<HomeContent> {
         onTap: () => Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => const ProductAnalyzerScreen()),
+        ),
+      ),
+
+      'poll_voting': (isList) => _buildActionItem(
+        isList: isList,
+        key: 'show_poll_voting_card$suffix',
+        user: user,
+        label: "បោះឆ្នោតបុគ្គលិក",
+        subtitle: "ចូលរួមបោះឆ្នោតបុគ្គលិកល្អ",
+        icon: Icons.how_to_vote_rounded,
+        color: const Color(0xFF10B981),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const PollVotingScreen()),
         ),
       ),
 

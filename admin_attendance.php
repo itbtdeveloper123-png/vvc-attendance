@@ -331,6 +331,11 @@ $admin_pages_list = [
         'send_notifications' => 'ផ្ញើការជូនដំណឹងទៅអ្នកប្រើប្រាស់',
         'manage_banners' => 'គ្រប់គ្រងស្លាយ (Home Slider Banners)',
     ],
+    'polls' => [
+        'manage_polls' => 'គ្រប់គ្រងការបោះឆ្នោត',
+        'create_poll' => 'បង្កើតការបោះឆ្នោតថ្មី',
+        'poll_results' => 'លទ្ធផលការបោះឆ្នោត',
+    ],
     'meetings' => [
         'post_meeting' => 'បង្ហោះកិច្ចប្រជុំ',
         'list_meetings' => 'បញ្ជីកិច្ចប្រជុំ',
@@ -1096,6 +1101,7 @@ if (!function_exists('initialize_sidebar_settings')) {
                 'requests' => ['text' => 'គ្រប់គ្រងសំណើរ', 'icon' => 'fa-solid fa-file-signature', 'order' => 40],
                 'form_builder' => ['text' => 'Form Builder', 'icon' => 'fa-solid fa-wand-magic-sparkles', 'order' => 42],
                 'notifications' => ['text' => 'ការជូនដំណឹង', 'icon' => 'fa-solid fa-bell', 'order' => 45],
+                'polls' => ['text' => 'គ្រប់គ្រងការបោះឆ្នោត', 'icon' => 'fa-solid fa-square-poll-vertical', 'order' => 47],
                 'locations' => ['text' => 'គ្រប់គ្រងទីតាំង/QR', 'icon' => 'fa-solid fa-map-location-dot', 'order' => 50],
                 'categories' => ['text' => 'គ្រប់គ្រងប្រភេទ', 'icon' => 'fa-solid fa-folder-open', 'order' => 60],
                 'tokens' => ['text' => 'គ្រប់គ្រង Token & Session', 'icon' => 'fa-solid fa-key', 'order' => 70],
@@ -7086,6 +7092,7 @@ ob_end_flush();
             $is_requests_page = ($current_page == 'requests');
             $is_form_builder_page = ($current_page == 'form_builder');
             $is_notifications_page = ($current_page == 'notifications');
+            $is_polls_page = ($current_page == 'polls');
             $is_locations_page = ($current_page == 'locations');
             $is_categories_page = ($current_page == 'categories');
             $is_tokens_page = ($current_page == 'tokens');
@@ -7098,6 +7105,7 @@ ob_end_flush();
             $sidebar_default_reports_action = resolveFirstAccessibleAdminAction($mysqli, 'reports', $admin_id_check, ['reports', 'late_report_summary', 'forgotten_scan_report', 'leave_deo_report', 'combined_report'], $current_admin_id);
             $sidebar_default_form_builder_action = resolveFirstAccessibleAdminAction($mysqli, 'form_builder', $admin_id_check, ['form_builder'], $current_admin_id);
             $sidebar_default_notifications_action = resolveFirstAccessibleAdminAction($mysqli, 'notifications', $admin_id_check, ['send_notifications', 'manage_banners'], $current_admin_id);
+            $sidebar_default_polls_action = resolveFirstAccessibleAdminAction($mysqli, 'polls', $admin_id_check, ['manage_polls', 'create_poll', 'poll_results'], $current_admin_id);
             $sidebar_default_locations_action = resolveFirstAccessibleAdminAction($mysqli, 'locations', $admin_id_check, ['list_locations', 'create_location', 'assign_location'], $current_admin_id);
             $sidebar_default_tokens_action = resolveFirstAccessibleAdminAction($mysqli, 'tokens', $admin_id_check, ['active_sessions', 'global_settings'], $current_admin_id);
             $sidebar_default_payroll_action = resolveFirstAccessibleAdminAction($mysqli, 'payroll', $admin_id_check, ['payroll_dashboard', 'manage_salaries', 'payroll_history', 'payroll_settings'], $current_admin_id);
@@ -7112,6 +7120,7 @@ ob_end_flush();
             $can_see_requests = hasPageAccess($mysqli, 'requests', 'requests', $admin_id_check);
             $can_see_form_builder = ($sidebar_default_form_builder_action !== '');
             $can_see_notifications = ($sidebar_default_notifications_action !== '');
+            $can_see_polls = ($sidebar_default_polls_action !== '');
             $can_see_locations = ($sidebar_default_locations_action !== '');
             $can_see_categories = hasPageAccess($mysqli, 'categories', 'categories', $admin_id_check);
             $can_see_tokens = ($sidebar_default_tokens_action !== '');
@@ -7297,6 +7306,36 @@ ob_end_flush();
                                         <?php if (hasPageAccess($mysqli, 'notifications', 'manage_banners', $admin_id_check)): ?>
                                             <li><a href="?page=notifications&action=manage_banners"
                                                     class="<?php echo ($is_notifications_page && $notif_action == 'manage_banners') ? 'sub-active' : ''; ?>"><?php echo htmlspecialchars($submenu_texts['notifications']['manage_banners'] ?? 'គ្រប់គ្រងស្លាយ (Banners)'); ?></a>
+                                            </li>
+                                        <?php endif; ?>
+                                    </ul>
+                                </div>
+                            <?php endif;
+                            break;
+
+                        case 'polls':
+                            if (hasPageAccess($mysqli, 'polls', 'manage_polls', $admin_id_check) && !isSidebarHidden($mysqli, $current_admin_id, 'polls')):
+                                $polls_action = $_GET['action'] ?? 'manage_polls'; ?>
+                                <div class="sidebar-item has-submenu <?php echo ($current_page == 'polls') ? 'active open' : ''; ?>">
+                                    <a href="?page=polls&action=manage_polls"
+                                        class="submenu-toggle <?php echo ($current_page == 'polls') ? 'active' : ''; ?>">
+                                        <span><i class="<?php echo $menu_icon; ?>"></i> <?php echo $menu_text; ?></span>
+                                        <i class="fa-solid fa-chevron-down submenu-arrow"></i>
+                                    </a>
+                                    <ul class="submenu">
+                                        <?php if (hasPageAccess($mysqli, 'polls', 'manage_polls', $admin_id_check)): ?>
+                                            <li><a href="?page=polls&action=manage_polls"
+                                                    class="<?php echo ($current_page == 'polls' && $polls_action == 'manage_polls') ? 'sub-active' : ''; ?>"><?php echo htmlspecialchars($submenu_texts['polls']['manage_polls'] ?? 'គ្រប់គ្រងការបោះឆ្នោត'); ?></a>
+                                            </li>
+                                        <?php endif; ?>
+                                        <?php if (hasPageAccess($mysqli, 'polls', 'create_poll', $admin_id_check)): ?>
+                                            <li><a href="?page=polls&action=create_poll"
+                                                    class="<?php echo ($current_page == 'polls' && $polls_action == 'create_poll') ? 'sub-active' : ''; ?>"><?php echo htmlspecialchars($submenu_texts['polls']['create_poll'] ?? 'បង្កើតការបោះឆ្នោតថ្មី'); ?></a>
+                                            </li>
+                                        <?php endif; ?>
+                                        <?php if (hasPageAccess($mysqli, 'polls', 'poll_results', $admin_id_check)): ?>
+                                            <li><a href="?page=polls&action=poll_results"
+                                                    class="<?php echo ($current_page == 'polls' && $polls_action == 'poll_results') ? 'sub-active' : ''; ?>"><?php echo htmlspecialchars($submenu_texts['polls']['poll_results'] ?? 'លទ្ធផលការបោះឆ្នោត'); ?></a>
                                             </li>
                                         <?php endif; ?>
                                     </ul>
@@ -9447,6 +9486,12 @@ ob_end_flush();
                     case 'notifications':
                         $push_submenu_link(hasPageAccess($mysqli, 'notifications', 'send_notifications', $admin_id_check) && !isSidebarHidden($mysqli, $current_admin_id, 'notifications', 'send_notifications'), '?page=notifications&action=send_notifications', htmlspecialchars($submenu_texts['notifications']['send_notifications'] ?? 'Send Notifications'), ($current_page == 'notifications' && $current_action == 'send_notifications'), 'fa-solid fa-paper-plane');
                         $push_submenu_link(hasPageAccess($mysqli, 'notifications', 'manage_banners', $admin_id_check) && !isSidebarHidden($mysqli, $current_admin_id, 'notifications', 'manage_banners'), '?page=notifications&action=manage_banners', htmlspecialchars($submenu_texts['notifications']['manage_banners'] ?? 'Manage Banners'), ($current_page == 'notifications' && $current_action == 'manage_banners'), 'fa-solid fa-images');
+                        break;
+
+                    case 'polls':
+                        $push_submenu_link(hasPageAccess($mysqli, 'polls', 'manage_polls', $admin_id_check) && !isSidebarHidden($mysqli, $current_admin_id, 'polls', 'manage_polls'), '?page=polls&action=manage_polls', htmlspecialchars($submenu_texts['polls']['manage_polls'] ?? 'គ្រប់គ្រងការបោះឆ្នោត'), ($current_page == 'polls' && $current_action == 'manage_polls'), 'fa-solid fa-square-poll-vertical');
+                        $push_submenu_link(hasPageAccess($mysqli, 'polls', 'create_poll', $admin_id_check) && !isSidebarHidden($mysqli, $current_admin_id, 'polls', 'create_poll'), '?page=polls&action=create_poll', htmlspecialchars($submenu_texts['polls']['create_poll'] ?? 'បង្កើតការបោះឆ្នោតថ្មី'), ($current_page == 'polls' && $current_action == 'create_poll'), 'fa-solid fa-plus-circle');
+                        $push_submenu_link(hasPageAccess($mysqli, 'polls', 'poll_results', $admin_id_check) && !isSidebarHidden($mysqli, $current_admin_id, 'polls', 'poll_results'), '?page=polls&action=poll_results', htmlspecialchars($submenu_texts['polls']['poll_results'] ?? 'លទ្ធផលការបោះឆ្នោត'), ($current_page == 'polls' && $current_action == 'poll_results'), 'fa-solid fa-chart-bar');
                         break;
 
                     case 'locations':
@@ -14953,6 +14998,494 @@ ob_end_flush();
                                 </script>
                             <?php else: ?>
                                 <?php include 'admin_notifications.php'; ?>
+                            <?php endif; ?>
+                        <?php endif; ?>
+
+                        <?php if ($current_page == 'polls'): ?>
+                            <?php if ($current_action == 'manage_polls'): ?>
+                                <div id="polls-module" class="action-section">
+                                    <div class="section-container">
+                                        <div class="section-header"
+                                            style="justify-content: space-between; align-items: center; display: flex;">
+                                            <h2 class="section-title"><i class="fa-solid fa-square-poll-vertical"></i>
+                                                គ្រប់គ្រងការបោះឆ្នោត</h2>
+                                            <button class="btn btn-primary" onclick="window.openPollModal()"><i
+                                                    class="fa-solid fa-plus-circle"></i>
+                                                បង្កើតការបោះឆ្នោតថ្មី</button>
+                                        </div>
+
+                                        <div class="hrm-card"
+                                            style="border:none; box-shadow: 0 10px 40px rgba(0,0,0,0.05); border-radius: 20px; overflow: hidden; background: #fff; padding: 20px;">
+                                            <div class="table-responsive">
+                                                <table class="table table-hover" id="polls-table">
+                                                    <thead>
+                                                        <tr>
+                                                            <th width="80">ID</th>
+                                                            <th>ចំណងជើង</th>
+                                                            <th>ត្រីមាស</th>
+                                                            <th>ទីតាំង/ឃ្លាំង</th>
+                                                            <th>កាលបរិច្ឆេទ</th>
+                                                            <th>ស្ថានភាព</th>
+                                                            <th width="150" style="text-align:center;">សកម្មភាព</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody id="polls-list">
+                                                        <tr>
+                                                            <td colspan="7" style="text-align:center; padding:50px;"><i
+                                                                    class="fa-solid fa-spinner fa-spin"></i>
+                                                                កំពុងផ្ទុក...
+                                                            </td>
+                                                        </tr>
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Poll Modal -->
+                                <div id="pollModal" class="modal"
+                                    style="display:none; position:fixed; z-index:9999; left:0; top:0; width:100%; height:100%; background:rgba(0,0,0,0.5);">
+                                    <div class="modal-content"
+                                        style="background:#fff; margin:2% auto; padding:0; width:90%; max-width:800px; border-radius:20px; box-shadow:0 20px 60px rgba(0,0,0,0.3); overflow:hidden; max-height:90vh; overflow-y:auto;">
+                                        <div
+                                            style="background: linear-gradient(135deg, var(--primary, #6366f1), #4f46e5); color:#fff; padding: 20px 30px; display:flex; justify-content:space-between; align-items:center; position:sticky; top:0; z-index:10;">
+                                            <h3 id="pollModalTitle"
+                                                style="margin:0; font-size:1.3rem; font-weight:800; display:flex; align-items:center; gap:10px;">
+                                                <i class="fa-solid fa-square-poll-vertical"></i>
+                                                បង្កើតការបោះឆ្នោតថ្មី
+                                            </h3>
+                                            <span onclick="window.closePollModal()"
+                                                style="cursor:pointer; font-size:24px; color:rgba(255,255,255,0.7);">&times;</span>
+                                        </div>
+                                        <form id="pollForm" onsubmit="window.savePoll(event)"
+                                            style="padding: 30px;">
+                                            <input type="hidden" name="id" id="poll_id">
+
+                                            <div class="form-group" style="margin-bottom:20px;">
+                                                <label style="font-weight:700; display:block; margin-bottom:8px;">
+                                                    ចំណងជើង <span class="text-danger">*</span>
+                                                </label>
+                                                <input type="text" name="title" id="poll_title" class="form-control" required
+                                                    style="border-radius:12px; padding:12px;">
+                                            </div>
+
+                                            <div class="form-group" style="margin-bottom:20px;">
+                                                <label style="font-weight:700; display:block; margin-bottom:8px;">
+                                                    ត្រីមាស
+                                                </label>
+                                                <select name="quarter" id="poll_quarter" class="form-control"
+                                                    style="border-radius:12px; padding:12px;">
+                                                    <option value="">ជ្រើសរើសត្រីមាស</option>
+                                                    <option value="Q1">ត្រីមាសទី ១</option>
+                                                    <option value="Q2">ត្រីមាសទី ២</option>
+                                                    <option value="Q3">ត្រីមាសទី ៣</option>
+                                                    <option value="Q4">ត្រីមាសទី ៤</option>
+                                                </select>
+                                            </div>
+
+                                            <div class="form-group" style="margin-bottom:20px;">
+                                                <label style="font-weight:700; display:block; margin-bottom:8px;">
+                                                    Warehouse (ទីតាំង/ឃ្លាំង)
+                                                </label>
+                                                <select name="location" id="poll_location" class="form-control"
+                                                    style="border-radius:12px; padding:12px;">
+                                                    <option value="">ជ្រើសរើសទីតាំង</option>
+                                                    <option value="Head Office">ការិយាល័យកណ្តាល</option>
+                                                    <option value="Store 318">ហាងទំនិញ ៣១៨</option>
+                                                    <option value="Warehouse PSP">ឃ្លាំង PSP</option>
+                                                    <option value="Warehouse PRV">ឃ្លាំង PRV</option>
+                                                </select>
+                                            </div>
+
+                                            <div class="form-grid"
+                                                style="display:grid; grid-template-columns: 1fr 1fr; gap:20px; margin-bottom:20px;">
+                                                <div class="form-group">
+                                                    <label style="font-weight:700; display:block; margin-bottom:8px;">
+                                                        កាលបរិច្ឆេទចាប់ផ្ដើម <span class="text-danger">*</span>
+                                                    </label>
+                                                    <input type="date" name="start_date" id="poll_start_date" class="form-control" required
+                                                        style="border-radius:12px; padding:12px;">
+                                                </div>
+                                                <div class="form-group">
+                                                    <label style="font-weight:700; display:block; margin-bottom:8px;">
+                                                        កាលបរិច្ឆេទបញ្ចប់ <span class="text-danger">*</span>
+                                                    </label>
+                                                    <input type="date" name="end_date" id="poll_end_date" class="form-control" required
+                                                        style="border-radius:12px; padding:12px;">
+                                                </div>
+                                            </div>
+
+                                            <div class="form-group" style="margin-bottom:20px;">
+                                                <label style="font-weight:700; display:block; margin-bottom:8px;">
+                                                    លេខកូដប្រើចូលមើលលទ្ធផល (ទុកទទេបើមិនចង់ប្រើ)
+                                                </label>
+                                                <input type="text" name="access_code" id="poll_access_code" class="form-control"
+                                                    placeholder="បញ្ចូលលេខកូដ (ជ្រើសរើស)"
+                                                    style="border-radius:12px; padding:12px;">
+                                            </div>
+
+                                            <div class="form-group" style="margin-bottom:20px;">
+                                                <label style="font-weight:700; display:block; margin-bottom:8px;">
+                                                    ឈ្មោះដែលមិនត្រូវបោះឆ្នោត (Optional)
+                                                </label>
+                                                <div id="excluded_employees_container" style="border:1px solid #ddd; border-radius:12px; padding:15px; max-height:200px; overflow-y:auto;">
+                                                    <div style="text-align:center; color:#999; padding:20px;">
+                                                        <i class="fa-solid fa-spinner fa-spin"></i> កំពុងផ្ទុក...
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div class="form-group" style="margin-bottom:20px;">
+                                                <label style="font-weight:700; display:block; margin-bottom:8px;">
+                                                    បុគ្គលិកដែលអនុញ្ញាតឱ្យបោះឆ្នោត
+                                                </label>
+                                                <div id="allowed_employees_container" style="border:1px solid #ddd; border-radius:12px; padding:15px; max-height:300px; overflow-y:auto;">
+                                                    <div style="text-align:center; color:#999; padding:20px;">
+                                                        <i class="fa-solid fa-spinner fa-spin"></i> កំពុងផ្ទុក...
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div class="form-group" style="margin-bottom:20px;">
+                                                <label style="font-weight:700; display:block; margin-bottom:8px;">
+                                                    ស្ថានភាព
+                                                </label>
+                                                <div style="display:flex; gap:20px; align-items:center;">
+                                                    <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                                                        <input type="radio" name="is_active" value="1" checked> 
+                                                        <span>សកម្ម</span>
+                                                    </label>
+                                                    <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                                                        <input type="radio" name="is_active" value="0"> 
+                                                        <span>មិនសកម្ម</span>
+                                                    </label>
+                                                </div>
+                                            </div>
+
+                                            <div style="display:flex; gap:15px; justify-content:flex-end; margin-top:30px;">
+                                                <button type="button" onclick="window.closePollModal()"
+                                                    style="padding:12px 24px; border:none; border-radius:12px; background:#e5e7eb; color:#374151; font-weight:600; cursor:pointer;">
+                                                    បោះបង់
+                                                </button>
+                                                <button type="submit"
+                                                    style="padding:12px 24px; border:none; border-radius:12px; background:linear-gradient(135deg, #6366f1, #4f46e5); color:#fff; font-weight:600; cursor:pointer;">
+                                                    <i class="fa-solid fa-save"></i> រក្សាទុក
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+
+                                <script>
+                                    window.loadPolls = function() {
+                                        const list = document.getElementById('polls-list');
+                                        if (!list) return;
+
+                                        fetch('api.php?action=get_polls')
+                                            .then(res => res.json())
+                                            .then(res => {
+                                                if (res.success && res.data) {
+                                                    let html = '';
+                                                    res.data.forEach(poll => {
+                                                        const statusBadge = poll.is_active == 1 
+                                                            ? '<span style="background:#10b981; color:#fff; padding:4px 12px; border-radius:20px; font-size:12px;">សកម្ម</span>'
+                                                            : '<span style="background:#ef4444; color:#fff; padding:4px 12px; border-radius:20px; font-size:12px;">មិនសកម្ម</span>';
+                                                        
+                                                        html += `
+                                                            <tr>
+                                                                <td>${poll.id}</td>
+                                                                <td><strong>${poll.title}</strong></td>
+                                                                <td>${poll.quarter || '-'}</td>
+                                                                <td>${poll.location || '-'}</td>
+                                                                <td>
+                                                                    <small style="display:block;">ចាប់ផ្ដើម: ${poll.start_date || '-'}</small>
+                                                                    <small style="display:block;">បញ្ចប់: ${poll.end_date || '-'}</small>
+                                                                </td>
+                                                                <td>${statusBadge}</td>
+                                                                <td style="text-align:center;">
+                                                                    <button onclick="window.editPoll(${poll.id})" 
+                                                                        style="padding:6px 12px; border:none; border-radius:8px; background:#3b82f6; color:#fff; cursor:pointer; margin-right:5px;">
+                                                                        <i class="fa-solid fa-edit"></i>
+                                                                    </button>
+                                                                    <button onclick="window.deletePoll(${poll.id})" 
+                                                                        style="padding:6px 12px; border:none; border-radius:8px; background:#ef4444; color:#fff; cursor:pointer;">
+                                                                        <i class="fa-solid fa-trash"></i>
+                                                                    </button>
+                                                                </td>
+                                                            </tr>
+                                                        `;
+                                                    });
+                                                    list.innerHTML = html;
+                                                } else {
+                                                    list.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:40px; color:#ef4444;">' + (res.message || 'កំហុសក្នុងការទាញយកទិន្នន័យ។') + '</td></tr>';
+                                                }
+                                            })
+                                            .catch(err => {
+                                                console.error('Load polls error:', err);
+                                                list.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:40px; color:#ef4444;">កំហុសបច្ចេកទេស (Network Error)។ សូមព្យាយាម Refresh ម្តងទៀត។</td></tr>';
+                                            });
+                                    };
+
+                                    window.loadEmployees = function() {
+                                        // Load employees for selection
+                                        fetch('api.php?action=get_employees')
+                                            .then(res => res.json())
+                                            .then(res => {
+                                                if (res.success && res.data) {
+                                                    const allowedContainer = document.getElementById('allowed_employees_container');
+                                                    const excludedContainer = document.getElementById('excluded_employees_container');
+                                                    
+                                                    if (allowedContainer) {
+                                                        let allowedHtml = '';
+                                                        res.data.forEach(emp => {
+                                                            allowedHtml += `
+                                                                <label style="display:flex; align-items:center; gap:10px; padding:8px; border-bottom:1px solid #eee; cursor:pointer;">
+                                                                    <input type="checkbox" name="allowed_employees[]" value="${emp.employee_id}" 
+                                                                        style="width:18px; height:18px;">
+                                                                    <span>${emp.name} (${emp.employee_id})</span>
+                                                                    <small style="color:#666; margin-left:auto;">${emp.branch || ''}</small>
+                                                                </label>
+                                                            `;
+                                                        });
+                                                        allowedContainer.innerHTML = allowedHtml;
+                                                    }
+
+                                                    if (excludedContainer) {
+                                                        let excludedHtml = '';
+                                                        res.data.forEach(emp => {
+                                                            excludedHtml += `
+                                                                <label style="display:flex; align-items:center; gap:10px; padding:8px; border-bottom:1px solid #eee; cursor:pointer;">
+                                                                    <input type="checkbox" name="excluded_employees[]" value="${emp.employee_id}" 
+                                                                        style="width:18px; height:18px;">
+                                                                    <span>${emp.name} (${emp.employee_id})</span>
+                                                                    <small style="color:#666; margin-left:auto;">${emp.branch || ''}</small>
+                                                                </label>
+                                                            `;
+                                                        });
+                                                        excludedContainer.innerHTML = excludedHtml;
+                                                    }
+                                                }
+                                            })
+                                            .catch(err => {
+                                                console.error('Load employees error:', err);
+                                            });
+                                    };
+
+                                    window.openPollModal = function() {
+                                        const form = document.getElementById('pollForm');
+                                        if (form) form.reset();
+                                        document.getElementById('poll_id').value = '';
+                                        document.getElementById('pollModalTitle').innerHTML = '<i class="fa-solid fa-plus-circle"></i> បង្កើតការបោះឆ្នោតថ្មី';
+                                        document.getElementById('pollModal').style.display = 'block';
+                                        window.loadEmployees();
+                                    };
+
+                                    window.closePollModal = function() {
+                                        document.getElementById('pollModal').style.display = 'none';
+                                    };
+
+                                    window.savePoll = function(e) {
+                                        e.preventDefault();
+                                        const form = document.getElementById('pollForm');
+                                        const formData = new FormData(form);
+                                        
+                                        // Get selected employees
+                                        const allowedEmployees = [];
+                                        document.querySelectorAll('input[name="allowed_employees[]"]:checked').forEach(cb => {
+                                            allowedEmployees.push(cb.value);
+                                        });
+                                        formData.append('allowed_employee_ids', JSON.stringify(allowedEmployees));
+
+                                        const excludedEmployees = [];
+                                        document.querySelectorAll('input[name="excluded_employees[]"]:checked').forEach(cb => {
+                                            excludedEmployees.push(cb.value);
+                                        });
+                                        formData.append('excluded_employee_ids', JSON.stringify(excludedEmployees));
+
+                                        fetch('api.php?action=save_poll', {
+                                            method: 'POST',
+                                            body: formData
+                                        })
+                                        .then(res => res.json())
+                                        .then(res => {
+                                            if (res.success) {
+                                                alert('រក្សាទុកការបោះឆ្នោតបានជោគជ័យ!');
+                                                window.closePollModal();
+                                                window.loadPolls();
+                                            } else {
+                                                alert('កំហុស: ' + (res.message || 'មិនអាចរក្សាទុកបានទេ'));
+                                            }
+                                        })
+                                        .catch(err => {
+                                            console.error('Save poll error:', err);
+                                            alert('កំហុសបច្ចេកទេស។ សូមព្យាយាមម្តងទៀត។');
+                                        });
+                                    };
+
+                                    window.editPoll = function(id) {
+                                        // Load poll data for editing
+                                        fetch('api.php?action=get_poll&id=' + id)
+                                            .then(res => res.json())
+                                            .then(res => {
+                                                if (res.success && res.data) {
+                                                    const poll = res.data;
+                                                    document.getElementById('poll_id').value = poll.id;
+                                                    document.getElementById('poll_title').value = poll.title;
+                                                    document.getElementById('poll_quarter').value = poll.quarter || '';
+                                                    document.getElementById('poll_location').value = poll.location || '';
+                                                    document.getElementById('poll_start_date').value = poll.start_date || '';
+                                                    document.getElementById('poll_end_date').value = poll.end_date || '';
+                                                    document.getElementById('poll_access_code').value = poll.access_code || '';
+                                                    
+                                                    // Set radio button for active status
+                                                    const activeRadios = document.getElementsByName('is_active');
+                                                    activeRadios.forEach(radio => {
+                                                        radio.checked = (radio.value == poll.is_active);
+                                                    });
+
+                                                    document.getElementById('pollModalTitle').innerHTML = '<i class="fa-solid fa-edit"></i> កែសម្រួលការបោះឆ្នោត';
+                                                    document.getElementById('pollModal').style.display = 'block';
+                                                    window.loadEmployees();
+
+                                                    // Set selected employees after loading
+                                                    setTimeout(() => {
+                                                        if (poll.allowed_employee_ids) {
+                                                            const allowedIds = JSON.parse(poll.allowed_employee_ids);
+                                                            allowedIds.forEach(id => {
+                                                                const cb = document.querySelector(`input[name="allowed_employees[]"][value="${id}"]`);
+                                                                if (cb) cb.checked = true;
+                                                            });
+                                                        }
+                                                        if (poll.excluded_employee_ids) {
+                                                            const excludedIds = JSON.parse(poll.excluded_employee_ids);
+                                                            excludedIds.forEach(id => {
+                                                                const cb = document.querySelector(`input[name="excluded_employees[]"][value="${id}"]`);
+                                                                if (cb) cb.checked = true;
+                                                            });
+                                                        }
+                                                    }, 500);
+                                                } else {
+                                                    alert('កំហុស: ' + (res.message || 'មិនអាចទាញយកទិន្នន័យបានទេ'));
+                                                }
+                                            })
+                                            .catch(err => {
+                                                console.error('Load poll error:', err);
+                                                alert('កំហុសបច្ចេកទេស។ សូមព្យាយាមម្តងទៀត។');
+                                            });
+                                    };
+
+                                    window.deletePoll = function(id) {
+                                        if (confirm('តើអ្នកប្រាកដជាចង់លុបការបោះឆ្នោតនេះមែនទេ?')) {
+                                            fetch('api.php?action=delete_poll&id=' + id, {
+                                                method: 'POST'
+                                            })
+                                            .then(res => res.json())
+                                            .then(res => {
+                                                if (res.success) {
+                                                    alert('លុបការបោះឆ្នោតបានជោគជ័យ!');
+                                                    window.loadPolls();
+                                                } else {
+                                                    alert('កំហុស: ' + (res.message || 'មិនអាចលុបបានទេ'));
+                                                }
+                                            })
+                                            .catch(err => {
+                                                console.error('Delete poll error:', err);
+                                                alert('កំហុសបច្ចេកទេស។ សូមព្យាយាមម្តងទៀត។');
+                                            });
+                                        }
+                                    };
+
+                                    // Initialize
+                                    if (document.readyState === 'complete') {
+                                        window.loadPolls();
+                                    } else {
+                                        window.addEventListener('load', window.loadPolls);
+                                    }
+                                </script>
+                            <?php elseif ($current_action == 'create_poll'): ?>
+                                <div id="poll-create-module" class="action-section">
+                                    <div class="section-container">
+                                        <div class="section-header">
+                                            <h2 class="section-title"><i class="fa-solid fa-plus-circle"></i>
+                                                បង្កើតការបោះឆ្នោតថ្មី</h2>
+                                        </div>
+                                        <div style="text-align:center; padding:50px;">
+                                            <a href="?page=polls&action=manage_polls" class="btn btn-primary">
+                                                <i class="fa-solid fa-arrow-left"></i> ត្រឡប់ទៅគ្រប់គ្រងការបោះឆ្នោត
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            <?php elseif ($current_action == 'poll_results'): ?>
+                                <div id="poll-results-module" class="action-section">
+                                    <div class="section-container">
+                                        <div class="section-header">
+                                            <h2 class="section-title"><i class="fa-solid fa-chart-bar"></i>
+                                                លទ្ធផលការបោះឆ្នោត</h2>
+                                        </div>
+                                        <div class="hrm-card" style="padding:20px;">
+                                            <div id="poll-results-content">
+                                                <div style="text-align:center; padding:50px;">
+                                                    <i class="fa-solid fa-spinner fa-spin"></i> កំពុងផ្ទុក...
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <script>
+                                    window.loadPollResults = function() {
+                                        const container = document.getElementById('poll-results-content');
+                                        if (!container) return;
+
+                                        fetch('api.php?action=get_poll_results')
+                                            .then(res => res.json())
+                                            .then(res => {
+                                                if (res.success && res.data) {
+                                                    let html = '';
+                                                    res.data.forEach(result => {
+                                                        html += `
+                                                            <div style="margin-bottom:30px; padding:20px; border:1px solid #eee; border-radius:12px;">
+                                                                <h3 style="margin-bottom:15px;">${result.title}</h3>
+                                                                <p style="color:#666; margin-bottom:15px;">
+                                                                    <strong>ត្រីមាស:</strong> ${result.quarter || '-'} | 
+                                                                    <strong>ទីតាំង:</strong> ${result.location || '-'} |
+                                                                    <strong>ស្ថានភាព:</strong> ${result.is_active == 1 ? 'សកម្ម' : 'មិនសកម្ម'}
+                                                                </p>
+                                                                <div style="margin-top:20px;">
+                                                                    <h4>លទ្ធផលបោះឆ្នោត:</h4>
+                                                                    ${result.results ? result.results.map(r => `
+                                                                        <div style="margin:10px 0;">
+                                                                            <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                                                                                <span>${r.name}</span>
+                                                                                <span>${r.votes} សំឡេង (${r.percentage}%)</span>
+                                                                            </div>
+                                                                            <div style="width:100%; background:#eee; border-radius:10px; overflow:hidden;">
+                                                                                <div style="width:${r.percentage}%; background:linear-gradient(135deg, #6366f1, #4f46e5); height:20px;"></div>
+                                                                            </div>
+                                                                        </div>
+                                                                    `).join('') : '<p style="color:#999;">មិនទាន់មានសំឡេងបោះឆ្នោតទេ</p>'}
+                                                                </div>
+                                                            </div>
+                                                        `;
+                                                    });
+                                                    container.innerHTML = html;
+                                                } else {
+                                                    container.innerHTML = '<div style="text-align:center; padding:40px; color:#ef4444;">' + (res.message || 'កំហុសក្នុងការទាញយកទិន្នន័យ។') + '</div>';
+                                                }
+                                            })
+                                            .catch(err => {
+                                                console.error('Load poll results error:', err);
+                                                container.innerHTML = '<div style="text-align:center; padding:40px; color:#ef4444;">កំហុសបច្ចេកទេស (Network Error)។ សូមព្យាយាម Refresh ម្តងទៀត។</div>';
+                                            });
+                                    };
+
+                                    if (document.readyState === 'complete') {
+                                        window.loadPollResults();
+                                    } else {
+                                        window.addEventListener('load', window.loadPollResults);
+                                    }
+                                </script>
                             <?php endif; ?>
                         <?php endif; ?>
 
