@@ -72,6 +72,12 @@ post_install do |installer|
         config.build_settings['ONLY_ACTIVE_ARCH'] = 'YES'
       end
 
+      # Fix for Google Maps SDK
+      if target.name.start_with?('GoogleMaps') || target.name == 'GoogleMaps'
+        config.build_settings['CLANG_ENABLE_MODULES'] = 'YES'
+        config.build_settings['SWIFT_COMPILATION_MODE'] = 'wholemodule'
+      end
+
       # Fix for Swift Package Manager issues
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '16.0'
     end
