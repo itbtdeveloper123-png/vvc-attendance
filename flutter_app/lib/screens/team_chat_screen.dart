@@ -47,7 +47,7 @@ class _TeamChatScreenState extends State<TeamChatScreen>
   late TextEditingController _msgController;
   late ScrollController _scrollController;
   late TextEditingController _searchController;
-  late record_pkg.AudioRecorder _recorder;
+  late record_pkg.Record _recorder;
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final ImagePicker _picker = ImagePicker();
@@ -110,7 +110,7 @@ class _TeamChatScreenState extends State<TeamChatScreen>
     _msgController = TextEditingController();
     _scrollController = ScrollController();
     _searchController = TextEditingController();
-    _recorder = record_pkg.AudioRecorder();
+    _recorder = record_pkg.Record();
     _scrollController.addListener(_onScroll);
     _loadUser();
     // Load persisted failed uploads (non-blocking)
@@ -377,12 +377,9 @@ class _TeamChatScreenState extends State<TeamChatScreen>
             : '${(await getTemporaryDirectory()).path}/$fileName';
         _audioPath = path;
         await _recorder.start(
-          record_pkg.RecordConfig(
-            encoder: record_pkg.AudioEncoder.aacLc,
-            bitRate: 128000,
-            sampleRate: 44100,
-          ),
           path: path,
+          encoder: record_pkg.AudioEncoder.aacLc,
+          bitRate: 128000,
         );
         setState(() {
           _isRecording = true;
@@ -2520,7 +2517,7 @@ class _AudioMessageBubbleState extends State<AudioMessageBubble> {
       if (_position > Duration.zero && _position < _duration) {
         await _player.resume();
       } else {
-        await _player.play(BytesSource(_audioBytes!, mimeType: 'audio/mp4'));
+        await _player.play(BytesSource(_audioBytes!));
       }
       setState(() => _isPlaying = true);
     }

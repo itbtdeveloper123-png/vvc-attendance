@@ -8,7 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:record/record.dart';
+import 'package:record/record.dart' as record_pkg;
 import 'package:audioplayers/audioplayers.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -34,7 +34,7 @@ class _MeetingsScreenState extends State<MeetingsScreen>
     with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late TabController _tabController;
   final ApiService _api = ApiService();
-  final AudioRecorder _recorder = AudioRecorder();
+  final record_pkg.Record _recorder = record_pkg.Record();
   final MeetingAudioPlayerService _audioPlayerService =
       MeetingAudioPlayerService.instance;
   final ImagePicker _picker = ImagePicker();
@@ -687,14 +687,12 @@ class _MeetingsScreenState extends State<MeetingsScreen>
 
           // Speech-focused audio config:
           // 48kbps AAC mono at 32kHz keeps voice clear while reducing upload size a lot.
-          const config = RecordConfig(
-            encoder: AudioEncoder.aacLc,
+          await _recorder.start(
+            path: path ?? '',
+            encoder: record_pkg.AudioEncoder.aacLc,
             bitRate: 48000,
-            sampleRate: 32000,
             numChannels: 1,
           );
-
-          await _recorder.start(config, path: path ?? '');
           _recordingStartTime = DateTime.now();
           setState(() {
             _isRecording = true;

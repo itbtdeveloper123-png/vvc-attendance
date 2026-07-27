@@ -55,7 +55,6 @@ class MeetingAudioPlayerService extends ChangeNotifier {
     await player.setAudioContext(
       AudioContextConfig(
         stayAwake: true,
-        focus: AudioContextConfigFocus.gain,
       ).build(),
     );
 
