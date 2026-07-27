@@ -7783,6 +7783,26 @@ function api_save_theme($mysqli) {
     $description = $_POST['description'] ?? '';
     $display_order = isset($_POST['display_order']) ? (int)$_POST['display_order'] : 0;
     
+    // Handle file upload for app icon
+    if (isset($_FILES['app_icon']) && $_FILES['app_icon']['error'] === UPLOAD_ERR_OK) {
+        $upload_dir = __DIR__ . '/uploads/theme_icons/';
+        if (!file_exists($upload_dir)) {
+            mkdir($upload_dir, 0777, true);
+        }
+        
+        $file_extension = strtolower(pathinfo($_FILES['app_icon']['name'], PATHINFO_EXTENSION));
+        $allowed_extensions = ['png', 'jpg', 'jpeg'];
+        
+        if (in_array($file_extension, $allowed_extensions)) {
+            $new_filename = $theme_id . '_icon.' . $file_extension;
+            $upload_path = $upload_dir . $new_filename;
+            
+            if (move_uploaded_file($_FILES['app_icon']['tmp_name'], $upload_path)) {
+                $app_icon = 'uploads/theme_icons/' . $new_filename;
+            }
+        }
+    }
+    
     if (empty($theme_id) || empty($theme_name)) {
         apiResponse(['success' => false, 'message' => 'Theme ID and name are required']);
     }

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'api_service.dart';
+import 'app_icon_service.dart';
 
 class BackendTheme {
   final String themeId;
@@ -186,6 +187,7 @@ class ThemeService {
   ThemeService._internal();
 
   final ApiService _api = ApiService();
+  final AppIconService _iconService = AppIconService();
   BackendTheme? _currentTheme;
   List<BackendTheme> _availableThemes = [];
   
@@ -193,6 +195,7 @@ class ThemeService {
 
   BackendTheme? get currentTheme => _currentTheme;
   List<BackendTheme> get availableThemes => _availableThemes;
+  AppIconService get iconService => _iconService;
 
   // Initialize theme service
   Future<void> initialize() async {
@@ -274,6 +277,7 @@ class ThemeService {
       final response = await _api.setActiveTheme(themeId);
       if (response['success'] == true) {
         await _fetchActiveTheme(); // Refresh current theme
+        await _iconService.setIconForTheme(themeId); // Update app icon
         return true;
       }
     } catch (e) {

@@ -23289,6 +23289,19 @@ ob_end_flush();
                                     <textarea name="description" id="description" class="form-control" rows="3"></textarea>
                                 </div>
 
+                                <h4>App Icon Settings</h4>
+                                <div class="form-group">
+                                    <label>App Icon (Upload PNG, 1024x1024 recommended)</label>
+                                    <input type="file" name="app_icon" id="app_icon" class="form-control" accept="image/png">
+                                    <small class="text-muted">អាចទុករូបភាពប្រភេទ PNG ដើម្បីធ្វើជា Icon របស់កម្មវិធីសម្រាប់ Theme នេះ</small>
+                                </div>
+                                <div class="form-group">
+                                    <label>Current Icon Preview</label>
+                                    <div id="icon-preview-container" style="width: 80px; height: 80px; border: 2px dashed #ccc; display: flex; align-items: center; justify-content: center; border-radius: 16px; background: #f5f5f5;">
+                                        <span style="color: #999; font-size: 12px;">No Icon</span>
+                                    </div>
+                                </div>
+
                                 <div class="modal-footer">
                                     <button type="button" class="btn btn-secondary" onclick="closeThemeEditor()">បោះបង់</button>
                                     <button type="submit" class="btn btn-primary">រក្សាទុក Theme</button>
@@ -23329,11 +23342,16 @@ ob_end_flush();
                         container.innerHTML = themes.map(theme => `
                             <div class="theme-card ${theme.is_active ? 'active' : ''}" style="border: 1px solid #ddd; padding: 15px; margin-bottom: 15px; border-radius: 8px; ${theme.is_active ? 'border-color: #0E7490; background: #f0f9ff;' : ''}">
                                 <div style="display: flex; justify-content: space-between; align-items: start;">
-                                    <div>
-                                        <h4 style="margin: 0 0 5px 0;">${theme.theme_name} ${theme.theme_name_kh ? `(${theme.theme_name_kh})` : ''}</h4>
-                                        <p style="margin: 0; color: #666; font-size: 12px;">${theme.theme_category} - ${theme.theme_type}</p>
-                                        ${theme.is_active ? '<span class="badge badge-success">Active</span>' : ''}
-                                        ${theme.auto_activate ? '<span class="badge badge-info">Auto</span>' : ''}
+                                    <div style="display: flex; gap: 15px; align-items: start;">
+                                        ${theme.app_icon ? `<div style="width: 60px; height: 60px; border: 2px solid #ddd; border-radius: 12px; display: flex; align-items: center; justify-content: center; background: #f5f5f5; overflow: hidden;">
+                                            <img src="${theme.app_icon}" alt="${theme.theme_name}" style="width: 100%; height: 100%; object-fit: cover;">
+                                        </div>` : ''}
+                                        <div>
+                                            <h4 style="margin: 0 0 5px 0;">${theme.theme_name} ${theme.theme_name_kh ? `(${theme.theme_name_kh})` : ''}</h4>
+                                            <p style="margin: 0; color: #666; font-size: 12px;">${theme.theme_category} - ${theme.theme_type}</p>
+                                            ${theme.is_active ? '<span class="badge badge-success">Active</span>' : ''}
+                                            ${theme.auto_activate ? '<span class="badge badge-info">Auto</span>' : ''}
+                                        </div>
                                     </div>
                                     <div style="display: flex; gap: 5px;">
                                         ${!theme.is_active ? `<button type="button" class="btn btn-sm btn-success" onclick="activateTheme('${theme.theme_id}')">Activate</button>` : ''}
@@ -23389,6 +23407,14 @@ ob_end_flush();
                                         document.getElementById('festival_date_start').value = theme.festival_date_start || '';
                                         document.getElementById('festival_date_end').value = theme.festival_date_end || '';
                                         document.getElementById('description').value = theme.description || '';
+                                        
+                                        // Update icon preview
+                                        const iconPreview = document.getElementById('icon-preview-container');
+                                        if (theme.app_icon) {
+                                            iconPreview.innerHTML = `<img src="${theme.app_icon}" alt="Icon" style="width: 100%; height: 100%; object-fit: cover; border-radius: 14px;">`;
+                                        } else {
+                                            iconPreview.innerHTML = '<span style="color: #999; font-size: 12px;">No Icon</span>';
+                                        }
                                     }
                                 }
                             });
@@ -23397,6 +23423,10 @@ ob_end_flush();
                             form.reset();
                             document.getElementById('theme_id_input').disabled = false;
                             document.getElementById('theme_id_hidden').value = '';
+                            
+                            // Reset icon preview
+                            const iconPreview = document.getElementById('icon-preview-container');
+                            iconPreview.innerHTML = '<span style="color: #999; font-size: 12px;">No Icon</span>';
                         }
                         
                         modal.style.display = 'block';
@@ -23409,6 +23439,19 @@ ob_end_flush();
                     function editTheme(themeId) {
                         openThemeEditor(themeId);
                     }
+
+                    // Icon upload preview functionality
+                    document.getElementById('app_icon').addEventListener('change', function(e) {
+                        const file = e.target.files[0];
+                        if (file) {
+                            const reader = new FileReader();
+                            reader.onload = function(e) {
+                                const iconPreview = document.getElementById('icon-preview-container');
+                                iconPreview.innerHTML = `<img src="${e.target.result}" alt="Icon Preview" style="width: 100%; height: 100%; object-fit: cover; border-radius: 14px;">`;
+                            };
+                            reader.readAsDataURL(file);
+                        }
+                    });
 
                     function activateTheme(themeId) {
                         if (!confirm('តើអ្នកចង់ធ្វើឱ្យ Theme នេះសកម្មភាពមែនទេ?')) return;
