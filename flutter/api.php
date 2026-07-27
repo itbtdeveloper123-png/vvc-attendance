@@ -2991,6 +2991,8 @@ $actionSource = $_POST['action'] ?? $_GET['action'] ?? $_POST['ajax_action'] ?? 
 $action = strtolower(trim($actionSource));
 
 error_log("API: Action received: '$action' (source: '$actionSource')");
+error_log("API: GET params: " . json_encode(array_keys($_GET)));
+error_log("API: POST params: " . json_encode(array_keys($_POST)));
 
 switch ($action) {
     case 'view_face_log':
@@ -7785,6 +7787,7 @@ switch ($action) {
         break;
 
     default:
+        error_log("API: Unknown action received: '$action'");
         $len = strlen($action);
         $hex = bin2hex($action);
         apiResponse(['success' => false, 'message' => "Action '$action' (len:$len, hex:$hex) not implemented in Central API"]);
