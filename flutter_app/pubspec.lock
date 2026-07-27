@@ -846,21 +846,21 @@ packages:
     source: hosted
     version: "0.5.14+3"
   google_mlkit_commons:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
       name: google_mlkit_commons
-      sha256: c7fc384bdb66c3b83e24e3a41818e61d7a378d900f65f5e775344fbca95a0917
+      sha256: "7e9a6d6e66b44aa8cfe944bda9bc3346c52486dd890ca49e5bc98845cda40d7f"
       url: "https://pub.dev"
     source: hosted
-    version: "0.12.0"
+    version: "0.9.0"
   google_mlkit_face_detection:
     dependency: "direct main"
     description:
       name: google_mlkit_face_detection
-      sha256: "719735518c0a961072d1757a097af8fec458426accad0a58eae0763942a3f14c"
+      sha256: "5b597061cafe4dfa70f66adddadd19381eb88bd3312b074528c62b246392304b"
       url: "https://pub.dev"
     source: hosted
-    version: "0.14.0"
+    version: "0.11.0"
   google_nav_bar:
     dependency: "direct main"
     description:
