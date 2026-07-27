@@ -242,6 +242,19 @@ class ApiService {
     );
   }
 
+  // Generic GET method for compatibility
+  Future<Map<String, dynamic>> get(String action) async {
+    return _processRequest(action);
+  }
+
+  // Generic POST method for compatibility
+  Future<Map<String, dynamic>> post(String action, Map<String, dynamic> body) async {
+    return _processRequest(
+      action,
+      body: body.map((key, value) => MapEntry(key, value.toString())),
+    );
+  }
+
   Future<Map<String, dynamic>> reverseGeocode(
     double latitude,
     double longitude,

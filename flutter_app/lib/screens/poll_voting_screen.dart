@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:provider/provider.dart';
-import '../providers/user_provider.dart';
 import '../services/api_service.dart';
 import '../utils/app_theme.dart';
 
@@ -34,12 +32,12 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
       final response = await _api.get('get_active_polls');
       if (response['success'] == true && response['data'] != null) {
         setState(() {
-          _polls = response['data'];
+          _polls = response['data'] as List<dynamic>;
           _isLoading = false;
         });
       } else {
         setState(() {
-          _errorMessage = response['message'] ?? 'មិនអាចទាញយកការបោះឆ្នោតបានទេ';
+          _errorMessage = response['message']?.toString() ?? 'មិនអាចទាញយកការបោះឆ្នោតបានទេ';
           _isLoading = false;
         });
       }
@@ -52,8 +50,6 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
   }
 
   Future<void> _castVote(int pollId, int candidateId) async {
-    final userProvider = Provider.of<UserProvider>(context, listen: false);
-    
     // Show confirmation dialog
     final confirmed = await showDialog<bool>(
       context: context,
@@ -79,6 +75,7 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
     if (confirmed != true) return;
 
     // Show loading indicator
+    if (!mounted) return;
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -89,18 +86,20 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
 
     try {
       final response = await _api.post('cast_vote', {
-        'poll_id': pollId,
-        'candidate_id': candidateId,
+        'poll_id': pollId.toString(),
+        'candidate_id': candidateId.toString(),
       });
 
       // Hide loading indicator
+      if (!mounted) return;
       Navigator.pop(context);
 
       if (response['success'] == true) {
         // Show success message
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(response['message'] ?? 'បោះឆ្នោតបានជោគជ័យ!'),
+            content: Text(response['message']?.toString() ?? 'បោះឆ្នោតបានជោគជ័យ!'),
             backgroundColor: Colors.green,
           ),
         );
@@ -108,15 +107,17 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
         _loadActivePolls();
       } else {
         // Show error message
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(response['message'] ?? 'មិនអាចបោះឆ្នោតបានទេ'),
+            content: Text(response['message']?.toString() ?? 'មិនអាចបោះឆ្នោតបានទេ'),
             backgroundColor: Colors.red,
           ),
         );
       }
     } catch (e) {
       // Hide loading indicator
+      if (!mounted) return;
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -230,7 +231,7 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppTheme.cardBg,
+        color: AppTheme.bgCard,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: hasVoted 
@@ -363,7 +364,7 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
         color: AppTheme.bgDark,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: AppTheme.borderLight,
+          color: AppTheme.borderDark,
         ),
       ),
       child: Row(

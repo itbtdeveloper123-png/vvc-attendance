@@ -5,6 +5,9 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'notification_service.dart';
 
+// Handle both Chhankitek and KhmerLunarDate from the package
+typedef LunarDate = dynamic;
+
 /// Service for scheduling Khmer Calendar holiday & Sila day notifications.
 ///
 /// Rules:
@@ -190,7 +193,14 @@ class KhmerCalendarNotificationService {
       if (lunarHoliday != null) return lunarHoliday;
 
       // Check Sila day
-      if (lunar.isSilaDay) {
+      bool isSilaDay = false;
+      try {
+        isSilaDay = lunar.isSilaDay;
+      } catch (e) {
+        debugPrint('[KhmerCalendarNotif] Error checking Sila day: $e');
+      }
+      
+      if (isSilaDay) {
         return _SpecialDayInfo(
           name: 'ថ្ងៃសីល',
           typeLabel: 'ថ្ងៃសីល',
@@ -228,21 +238,37 @@ class KhmerCalendarNotificationService {
     return null;
   }
 
-  _SpecialDayInfo? _getLunarHoliday(DateTime date, Chhankitek lunar) {
-    // Extract lunar date information from Chhankitek
-    // Chhankitek.fromDate() returns an object that can be converted to string
-    // We need to parse the lunar date information from the string representation
-    final lunarString = lunar.toString();
+  _SpecialDayInfo? _getLunarHoliday(DateTime date, dynamic lunar) {
+    // Extract lunar date information from KhmerLunarDate
+    // KhmerLunarDate has properties like lunarMonthIndex and lunarDay numeric
+    int? lunarMonth;
+    int? lunarDay;
     
-    // Parse the lunar string to extract month and day
-    // The format is typically: "ថ្ងៃW d ខែm ឆ្នាំa e ព.ស. b"
-    // We need to extract the month and day values
-    final lunarDateInfo = _parseLunarDate(lunarString);
-    final lunarMonth = lunarDateInfo['month'];
-    final lunarDay = lunarDateInfo['day'];
+    try {
+      // Try to access properties from KhmerLunarDate object
+      if (lunar is KhmerLunarDate) {
+        lunarMonth = lunar.lunarMonthIndex;
+        // Extract numeric day from lunarDay property
+        final lunarDayObj = lunar.lunarDay;
+        final lunarDayStr = lunarDayObj.toString();
+        final dayNumbers = RegExp(r'\d+').allMatches(lunarDayStr).map((m) => int.parse(m.group(0)!)).toList();
+        if (dayNumbers.isNotEmpty) {
+          lunarDay = dayNumbers[0];
+        }
+      } else {
+        // Fallback to string parsing for older Chhankitek objects
+        final lunarString = lunar.toString();
+        final lunarDateInfo = _parseLunarDate(lunarString);
+        lunarMonth = lunarDateInfo['month'];
+        lunarDay = lunarDateInfo['day'];
+      }
+    } catch (e) {
+      debugPrint('[KhmerCalendarNotif] Error extracting lunar date: $e');
+      return null;
+    }
     
     if (lunarMonth == null || lunarDay == null) {
-      debugPrint('[KhmerCalendarNotif] Could not parse lunar date: $lunarString');
+      debugPrint('[KhmerCalendarNotif] Could not extract lunar date');
       return null;
     }
 

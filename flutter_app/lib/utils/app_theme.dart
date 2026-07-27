@@ -23,6 +23,10 @@ class AppTheme {
   static Color bgSurface = const Color(0xFF0B1120);
   static Color cardDark = const Color(0xFF1F2937);
   static Color borderDark = const Color(0xFF475569);
+  
+  // Additional theme colors for compatibility
+  static Color get cardBg => bgCard;
+  static Color get borderLight => borderDark;
 
   static Color textPrimary = Colors.white;
   static Color textSecondary = const Color(0xFFCBD5E1);
