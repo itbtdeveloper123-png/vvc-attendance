@@ -146,7 +146,7 @@ class MeetingPlaybackService : Service() {
             persistState()
             updatePlaybackState()
             updateNotification()
-            handler.postDelayed(this, 1000L)
+            handler.postDelayed(this, 100L)
         }
     }
 
@@ -298,6 +298,7 @@ class MeetingPlaybackService : Service() {
             return
         }
 
+        // Immediate state update for responsiveness
         runCatching { player.pause() }
         persistState()
         updatePlaybackState()
@@ -310,6 +311,7 @@ class MeetingPlaybackService : Service() {
             return
         }
 
+        // Immediate state update for responsiveness
         runCatching {
             applyPlaybackSpeed()
             player.start()
@@ -337,6 +339,7 @@ class MeetingPlaybackService : Service() {
         }
 
         val safePosition = positionMs.coerceAtLeast(0L)
+        // Immediate state update for responsiveness
         runCatching { player.seekTo(safePosition.toInt()) }
         persistState()
         updatePlaybackState()
@@ -357,6 +360,7 @@ class MeetingPlaybackService : Service() {
         }
 
         val player = mediaPlayer ?: return
+        // Immediate state update for responsiveness
         runCatching {
             player.playbackParams = player.playbackParams.setSpeed(playbackSpeed)
         }

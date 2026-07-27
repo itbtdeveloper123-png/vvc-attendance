@@ -1461,11 +1461,21 @@ class _MeetingsScreenState extends State<MeetingsScreen>
                         "Listen",
                         Colors.green,
                         () async {
+                          // Immediate UI feedback
+                          setState(() {
+                            _isPlayerLoading = true;
+                            _isPlaying = true;
+                          });
+                          
                           await _audioPlayerService.playPath(
                             draft.path,
                             title: "Draft ${_formatDraftDate(draft.createdAt)}",
                           );
+                          
                           if (mounted) {
+                            setState(() {
+                              _isPlayerLoading = false;
+                            });
                             _showAudioPlayerModal();
                           }
                         },
@@ -2727,22 +2737,40 @@ class _MeetingsScreenState extends State<MeetingsScreen>
       debugPrint("PLAY_REQ: $fullUrl");
 
       if (_currentlyPlayingPath == path) {
+        // Immediate UI feedback for toggle
+        setState(() {
+          _isPlaying = !_isPlaying;
+        });
+        
         if (_isPlaying) {
-          await _audioPlayerService.pause();
-        } else {
           await _audioPlayerService.resume();
+        } else {
+          await _audioPlayerService.pause();
+        }
+        
+        // Sync with actual state
+        if (mounted) {
+          setState(() {
+            _isPlaying = _audioPlayerService.isPlaying;
+          });
         }
       } else {
-        setState(() => _isPlayerLoading = true);
-        _currentlyPlayingPath = path;
-        _position = Duration.zero;
-        _duration = Duration.zero;
+        // Immediate UI feedback for new audio
+        setState(() {
+          _isPlayerLoading = true;
+          _currentlyPlayingPath = path;
+          _position = Duration.zero;
+          _duration = Duration.zero;
+          _isPlaying = true; // Assume it will play
+        });
+        
         await _audioPlayerService.playPath(
           fullUrl,
           title: title,
           forceRemote: true,
           displayPath: path,
         );
+        
         if (mounted) {
           setState(() => _isPlayerLoading = false);
         }
@@ -2956,11 +2984,24 @@ class _MeetingsScreenState extends State<MeetingsScreen>
                               : Icons.play_circle_filled_rounded,
                           color: AppTheme.primary,
                         ),
-                        onPressed: () {
+                        onPressed: () async {
+                          // Immediate UI feedback
+                          setState(() {
+                            _isPlaying = !_isPlaying;
+                          });
+                          
+                          // Execute the actual audio operation
                           if (_isPlaying) {
-                            _audioPlayerService.pause();
+                            await _audioPlayerService.resume();
                           } else {
-                            _audioPlayerService.resume();
+                            await _audioPlayerService.pause();
+                          }
+                          
+                          // Sync state with actual player state
+                          if (mounted) {
+                            setState(() {
+                              _isPlaying = _audioPlayerService.isPlaying;
+                            });
                           }
                         },
                       ),

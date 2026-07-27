@@ -101,6 +101,7 @@ class MeetingAudioPlayerService extends ChangeNotifier {
     _position = Duration.zero;
     _duration = Duration.zero;
     _isActive = true;
+    _isPlaying = false; // Will be set to true when actually playing
     notifyListeners();
 
     try {
@@ -112,6 +113,7 @@ class MeetingAudioPlayerService extends ChangeNotifier {
           'forceRemote': forceRemote,
         });
         _startAndroidPolling();
+        // Immediate sync after starting playback
         await _syncAndroidState();
         return;
       }
@@ -122,6 +124,13 @@ class MeetingAudioPlayerService extends ChangeNotifier {
       await player.resume();
       _isPlaying = true;
       _isActive = true;
+    } catch (e) {
+      // Ensure loading state is cleared on error
+      _isLoading = false;
+      _isPlaying = false;
+      _isActive = false;
+      notifyListeners();
+      rethrow;
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -130,18 +139,27 @@ class MeetingAudioPlayerService extends ChangeNotifier {
 
   Future<void> pause() async {
     await initialize();
+    
+    // Immediate state update for responsiveness
+    _isPlaying = false;
+    notifyListeners();
+    
     if (_useNativeAndroid) {
       await _channel.invokeMethod<void>('pause');
       await _syncAndroidState();
       return;
     }
     await player.pause();
-    _isPlaying = false;
     notifyListeners();
   }
 
   Future<void> resume() async {
     await initialize();
+    
+    // Immediate state update for responsiveness
+    _isPlaying = true;
+    notifyListeners();
+    
     if (_useNativeAndroid) {
       await _channel.invokeMethod<void>('resume');
       _startAndroidPolling();
@@ -149,7 +167,6 @@ class MeetingAudioPlayerService extends ChangeNotifier {
       return;
     }
     await player.resume();
-    _isPlaying = true;
     notifyListeners();
   }
 
@@ -195,7 +212,7 @@ class MeetingAudioPlayerService extends ChangeNotifier {
 
   void _startAndroidPolling() {
     _androidPollTimer?.cancel();
-    _androidPollTimer = Timer.periodic(const Duration(milliseconds: 500), (_) {
+    _androidPollTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
       unawaited(_syncAndroidState());
     });
   }
