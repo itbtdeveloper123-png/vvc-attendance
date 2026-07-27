@@ -15182,7 +15182,7 @@ ob_end_flush();
                                         const list = document.getElementById('polls-list');
                                         if (!list) return;
 
-                                        fetch('api.php?action=get_polls')
+                                        fetch('flutter/api.php?action=get_polls')
                                             .then(res => res.json())
                                             .then(res => {
                                                 if (res.success && res.data) {
@@ -15229,7 +15229,7 @@ ob_end_flush();
 
                                     window.loadEmployees = function() {
                                         // Load employees for selection
-                                        fetch('api.php?action=get_employees')
+                                        fetch('flutter/api.php?action=get_employees')
                                             .then(res => res.json())
                                             .then(res => {
                                                 if (res.success && res.data) {
@@ -15303,7 +15303,7 @@ ob_end_flush();
                                         });
                                         formData.append('excluded_employee_ids', JSON.stringify(excludedEmployees));
 
-                                        fetch('api.php?action=save_poll', {
+                                        fetch('flutter/api.php?action=save_poll', {
                                             method: 'POST',
                                             body: formData
                                         })
@@ -15325,7 +15325,7 @@ ob_end_flush();
 
                                     window.editPoll = function(id) {
                                         // Load poll data for editing
-                                        fetch('api.php?action=get_poll&id=' + id)
+                                        fetch('flutter/api.php?action=get_poll&id=' + id)
                                             .then(res => res.json())
                                             .then(res => {
                                                 if (res.success && res.data) {
@@ -15377,7 +15377,7 @@ ob_end_flush();
 
                                     window.deletePoll = function(id) {
                                         if (confirm('តើអ្នកប្រាកដជាចង់លុបការបោះឆ្នោតនេះមែនទេ?')) {
-                                            fetch('api.php?action=delete_poll&id=' + id, {
+                                            fetch('flutter/api.php?action=delete_poll&id=' + id, {
                                                 method: 'POST'
                                             })
                                             .then(res => res.json())
@@ -15438,7 +15438,7 @@ ob_end_flush();
                                         const container = document.getElementById('poll-results-content');
                                         if (!container) return;
 
-                                        fetch('api.php?action=get_poll_results')
+                                        fetch('flutter/api.php?action=get_poll_results')
                                             .then(res => res.json())
                                             .then(res => {
                                                 if (res.success && res.data) {
