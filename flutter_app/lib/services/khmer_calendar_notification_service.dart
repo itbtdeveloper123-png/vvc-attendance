@@ -100,8 +100,8 @@ class KhmerCalendarNotificationService {
     final plugin = NotificationService().flutterLocalNotificationsPlugin;
     // Cancel IDs in range 8000-8366 (day-before) and 9000-9366 (day-of)
     for (int i = 0; i <= 366; i++) {
-      await plugin.cancel(id: _dayBeforeOffset + i);
-      await plugin.cancel(id: _dayOfOffset + i);
+      await plugin.cancel(_dayBeforeOffset + i);
+      await plugin.cancel(_dayOfOffset + i);
     }
   }
 

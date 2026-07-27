@@ -64,7 +64,7 @@ class NotificationService {
         );
 
     await flutterLocalNotificationsPlugin.initialize(
-      initializationSettings,
+      initializationSettings: initializationSettings,
       onDidReceiveNotificationResponse: (NotificationResponse response) async {
         debugPrint('Notification clicked with payload: ${response.payload}');
       },
@@ -126,10 +126,10 @@ class NotificationService {
     );
 
     await flutterLocalNotificationsPlugin.show(
-      id,
-      title,
-      body,
-      notificationDetails,
+      id: id,
+      title: title,
+      body: body,
+      notificationDetails: notificationDetails,
       payload: payload,
     );
   }
@@ -184,11 +184,11 @@ class NotificationService {
 
     Future<void> doSchedule(AndroidScheduleMode mode) {
       return flutterLocalNotificationsPlugin.zonedSchedule(
-        id,
-        title,
-        body,
-        tz.TZDateTime.from(scheduledDate, tz.local),
-        NotificationDetails(
+        id: id,
+        title: title,
+        body: body,
+        scheduledDate: tz.TZDateTime.from(scheduledDate, tz.local),
+        notificationDetails: NotificationDetails(
           android: const AndroidNotificationDetails(
             'vvc_khmer_calendar',
             'ការជូនដំណឹងប្រតិទិនខ្មែរ',
@@ -227,15 +227,14 @@ class NotificationService {
     String? payload,
   }) {
     return flutterLocalNotificationsPlugin.zonedSchedule(
-      id,
-      title,
-      body,
-      tz.TZDateTime.from(scheduledDate, tz.local),
-      const NotificationDetails(
+      id: id,
+      title: title,
+      body: body,
+      scheduledDate: tz.TZDateTime.from(scheduledDate, tz.local),
+      notificationDetails: const NotificationDetails(
         android: AndroidNotificationDetails(
-          'vvc_hrm_checklist',
-          'Checklist Reminders',
-          'ការជូនដំណឹងរំលឹកកិច្ចការងារ',
+          channelId: 'vvc_hrm_checklist',
+          channelName: 'Checklist Reminders',
           importance: Importance.max,
           priority: Priority.high,
           icon: '@mipmap/ic_launcher',
@@ -253,7 +252,7 @@ class NotificationService {
   }
 
   Future<void> cancelNotification(int id) async {
-    await flutterLocalNotificationsPlugin.cancel(id: id);
+    await flutterLocalNotificationsPlugin.cancel(id);
   }
 }
 
