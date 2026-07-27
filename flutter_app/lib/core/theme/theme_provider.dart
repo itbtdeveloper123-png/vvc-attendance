@@ -7,11 +7,11 @@ class SeasonalThemeProvider extends ChangeNotifier {
   AppThemeSeason _currentSeason = AppThemeSeason.defaultHRM;
   bool _isAutoMode = true;
   final ThemeService _themeService = ThemeService();
-  AppTheme? _backendTheme;
+  BackendTheme? _backendTheme;
 
   AppThemeSeason get currentSeason => _currentSeason;
   bool get isAutoMode => _isAutoMode;
-  AppTheme? get backendTheme => _backendTheme;
+  BackendTheme? get backendTheme => _backendTheme;
 
   ThemeData get themeData {
     // If backend theme is available, use it

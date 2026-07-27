@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'api_service.dart';
 
-class AppTheme {
+class BackendTheme {
   final String themeId;
   final String themeName;
   final String? themeNameKh;
@@ -36,7 +36,7 @@ class AppTheme {
   final String? description;
   final String? previewImage;
 
-  AppTheme({
+  BackendTheme({
     required this.themeId,
     required this.themeName,
     this.themeNameKh,
@@ -62,8 +62,8 @@ class AppTheme {
     this.previewImage,
   });
 
-  factory AppTheme.fromJson(Map<String, dynamic> json) {
-    return AppTheme(
+  factory BackendTheme.fromJson(Map<String, dynamic> json) {
+    return BackendTheme(
       themeId: json['theme_id'] ?? 'default',
       themeName: json['theme_name'] ?? 'Default Theme',
       themeNameKh: json['theme_name_kh'],
@@ -186,13 +186,13 @@ class ThemeService {
   ThemeService._internal();
 
   final ApiService _api = ApiService();
-  AppTheme? _currentTheme;
-  List<AppTheme> _availableThemes = [];
+  BackendTheme? _currentTheme;
+  List<BackendTheme> _availableThemes = [];
   
   static const String _cachedThemeKey = 'cached_app_theme';
 
-  AppTheme? get currentTheme => _currentTheme;
-  List<AppTheme> get availableThemes => _availableThemes;
+  BackendTheme? get currentTheme => _currentTheme;
+  List<BackendTheme> get availableThemes => _availableThemes;
 
   // Initialize theme service
   Future<void> initialize() async {
@@ -207,7 +207,7 @@ class ThemeService {
       final cachedThemeJson = prefs.getString(_cachedThemeKey);
       if (cachedThemeJson != null) {
         final themeJson = jsonDecode(cachedThemeJson);
-        _currentTheme = AppTheme.fromJson(themeJson);
+        _currentTheme = BackendTheme.fromJson(themeJson);
       }
     } catch (e) {
       // If cache fails, will fetch from server
@@ -216,7 +216,7 @@ class ThemeService {
   }
 
   // Cache theme locally
-  Future<void> _cacheTheme(AppTheme theme) async {
+  Future<void> _cacheTheme(BackendTheme theme) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_cachedThemeKey, jsonEncode(theme.toJson()));
@@ -230,7 +230,7 @@ class ThemeService {
     try {
       final response = await _api.getActiveTheme();
       if (response['success'] == true && response['theme'] != null) {
-        _currentTheme = AppTheme.fromJson(response['theme']);
+        _currentTheme = BackendTheme.fromJson(response['theme']);
         await _cacheTheme(_currentTheme!);
       }
     } catch (e) {
@@ -240,12 +240,12 @@ class ThemeService {
   }
 
   // Fetch all available themes
-  Future<List<AppTheme>> fetchThemes() async {
+  Future<List<BackendTheme>> fetchThemes() async {
     try {
       final response = await _api.getThemes();
       if (response['success'] == true && response['themes'] != null) {
         _availableThemes = (response['themes'] as List)
-            .map((json) => AppTheme.fromJson(json))
+            .map((json) => BackendTheme.fromJson(json))
             .toList();
         return _availableThemes;
       }
@@ -256,11 +256,11 @@ class ThemeService {
   }
 
   // Get auto-active theme based on current date
-  Future<AppTheme?> getAutoTheme() async {
+  Future<BackendTheme?> getAutoTheme() async {
     try {
       final response = await _api.getAutoTheme();
       if (response['success'] == true && response['theme'] != null) {
-        return AppTheme.fromJson(response['theme']);
+        return BackendTheme.fromJson(response['theme']);
       }
     } catch (e) {
       debugPrint('Failed to get auto theme: $e');
@@ -283,7 +283,7 @@ class ThemeService {
   }
 
   // Save theme (Admin only)
-  Future<bool> saveTheme(AppTheme theme) async {
+  Future<bool> saveTheme(BackendTheme theme) async {
     try {
       final response = await _api.saveTheme(theme.toJson());
       if (response['success'] == true) {

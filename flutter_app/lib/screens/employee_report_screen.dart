@@ -1168,6 +1168,7 @@ class _EmployeeReportScreenState extends State<EmployeeReportScreen> {
     String type,
     TextStyle style, {
     bool isTotal = false,
+    bool isMobile = false,
   }) {
     final deps = _getDepartmentsForStore().keys.toList();
     Color bgColor = isTotal ? Colors.grey.shade100 : Colors.white;

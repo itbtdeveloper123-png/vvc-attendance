@@ -1457,10 +1457,15 @@ class ApiService {
   /// Save theme (Admin only)
   Future<Map<String, dynamic>> saveTheme(Map<String, dynamic> themeData) async {
     final headers = await _authHeaders();
+    // Convert dynamic map to string map for _processRequest
+    final stringBody = <String, String>{};
+    themeData.forEach((key, value) {
+      stringBody[key] = value?.toString() ?? '';
+    });
     return _processRequest(
       'save_theme',
       headers: headers,
-      body: themeData,
+      body: stringBody,
     );
   }
 
