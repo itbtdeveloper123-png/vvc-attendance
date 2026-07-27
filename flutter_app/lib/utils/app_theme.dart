@@ -21,6 +21,8 @@ class AppTheme {
   static Color bgCard = const Color(0xFF1F2937);
   static Color bgCardLight = const Color(0xFF374151);
   static Color bgSurface = const Color(0xFF0B1120);
+  static Color cardDark = const Color(0xFF1F2937);
+  static Color borderDark = const Color(0xFF475569);
 
   static Color textPrimary = Colors.white;
   static Color textSecondary = const Color(0xFFCBD5E1);
