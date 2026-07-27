@@ -23177,6 +23177,44 @@ ob_end_flush();
                                 <button type="button" class="btn btn-secondary" onclick="refreshThemes()">
                                     <i class="fa-solid fa-sync"></i> ធ្វើបច្ចុប្បន្នភាព
                                 </button>
+                                <button type="button" class="btn btn-info" onclick="toggleThemePreview()">
+                                    <i class="fa-solid fa-mobile-alt"></i> បង្ហាញ App Preview
+                                </button>
+                            </div>
+
+                            <!-- Theme Preview Section -->
+                            <div id="theme-preview-section" style="display: none; margin-bottom: 20px; padding: 20px; background: #f8f9fa; border-radius: 10px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                                    <h4><i class="fa-solid fa-mobile-alt"></i> App Home Screen Preview</h4>
+                                    <button type="button" class="btn btn-sm btn-secondary" onclick="toggleThemePreview()">
+                                        <i class="fa-solid fa-times"></i> បិទ
+                                    </button>
+                                </div>
+                                <div style="display: flex; gap: 20px; align-items: flex-start;">
+                                    <div style="flex: 1;">
+                                        <div class="form-group">
+                                            <label>ជ្រើស Theme សម្រាប់ Preview:</label>
+                                            <select id="preview-theme-selector" class="form-control" onchange="updatePreviewTheme()">
+                                                <option value="default">Default (លំនាំដើម)</option>
+                                                <option value="khmer_new_year">Khmer New Year (បុណ្យចូលឆ្នាំខ្មែរ)</option>
+                                                <option value="pchum_ben">Pchum Ben (បុណ្យភ្ជុំបិណ្ឌ)</option>
+                                                <option value="water_festival">Water Festival (បុណ្យអុំទូក)</option>
+                                                <option value="christmas">Christmas (បុណ្យណូអែល)</option>
+                                                <option value="valentine">Valentine (បុណ្យស្នេហ៍)</option>
+                                                <option value="smart_glass">Smart Glass (កញ្ចក់ឆ្លាតវៃ)</option>
+                                                <option value="lunar">Lunar (ពន្លឺព្រះចន្ទ)</option>
+                                            </select>
+                                        </div>
+                                        <div class="color-preview-mini" style="display: flex; gap: 10px; margin-top: 10px;">
+                                            <div class="color-swatch-mini" id="preview-primary" style="width: 30px; height: 30px; border-radius: 5px; background: #0E7490; border: 2px solid #ddd;" title="Primary"></div>
+                                            <div class="color-swatch-mini" id="preview-secondary" style="width: 30px; height: 30px; border-radius: 5px; background: #2563EB; border: 2px solid #ddd;" title="Secondary"></div>
+                                            <div class="color-swatch-mini" id="preview-accent" style="width: 30px; height: 30px; border-radius: 5px; background: #F59E0B; border: 2px solid #ddd;" title="Accent"></div>
+                                        </div>
+                                    </div>
+                                    <div style="flex: 1; display: flex; justify-content: center;">
+                                        <iframe id="theme-preview-iframe" src="theme_preview.html" style="width: 320px; height: 650px; border: none; border-radius: 20px; box-shadow: 0 5px 20px rgba(0,0,0,0.2);"></iframe>
+                                    </div>
+                                </div>
                             </div>
 
                             <div id="themes-list" class="themes-grid">
@@ -23452,6 +23490,39 @@ ob_end_flush();
                             reader.readAsDataURL(file);
                         }
                     });
+
+                    function toggleThemePreview() {
+                        const previewSection = document.getElementById('theme-preview-section');
+                        previewSection.style.display = previewSection.style.display === 'none' ? 'block' : 'none';
+                    }
+
+                    function updatePreviewTheme() {
+                        const themeId = document.getElementById('preview-theme-selector').value;
+                        const iframe = document.getElementById('theme-preview-iframe');
+                        
+                        // Update color swatches
+                        const themes = {
+                            default: { primary: '#0E7490', secondary: '#2563EB', accent: '#F59E0B' },
+                            khmer_new_year: { primary: '#EAB308', secondary: '#CA8A04', accent: '#FEF08A' },
+                            pchum_ben: { primary: '#9333EA', secondary: '#7E22CE', accent: '#D8B4FE' },
+                            water_festival: { primary: '#0284C7', secondary: '#0369A1', accent: '#7DD3FC' },
+                            christmas: { primary: '#DC2626', secondary: '#991B1B', accent: '#FCA5A5' },
+                            valentine: { primary: '#DB2777', secondary: '#9D174D', accent: '#F9A8D4' },
+                            smart_glass: { primary: '#6366F1', secondary: '#8B5CF6', accent: '#EC4899' },
+                            lunar: { primary: '#1F4B99', secondary: '#15346A', accent: '#6391E2' }
+                        };
+                        
+                        const theme = themes[themeId] || themes.default;
+                        
+                        document.getElementById('preview-primary').style.background = theme.primary;
+                        document.getElementById('preview-secondary').style.background = theme.secondary;
+                        document.getElementById('preview-accent').style.background = theme.accent;
+                        
+                        // Communicate with iframe to update theme
+                        if (iframe.contentWindow) {
+                            iframe.contentWindow.postMessage({ themeId: themeId }, '*');
+                        }
+                    }
 
                     function activateTheme(themeId) {
                         if (!confirm('តើអ្នកចង់ធ្វើឱ្យ Theme នេះសកម្មភាពមែនទេ?')) return;
