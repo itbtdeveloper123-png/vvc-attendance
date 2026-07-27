@@ -7096,7 +7096,18 @@ switch ($action) {
 
     // Poll Management API endpoints
     case 'get_polls':
+        // Check if table exists first
+        $table_check = $mysqli->query("SHOW TABLES LIKE 'poll_events'");
+        if (!$table_check || $table_check->num_rows == 0) {
+            apiResponse(['success' => false, 'message' => 'Poll table does not exist. Please run database setup.']);
+            break;
+        }
+        
         $stmt = $mysqli->prepare("SELECT * FROM poll_events ORDER BY created_at DESC");
+        if (!$stmt) {
+            apiResponse(['success' => false, 'message' => 'Database error: ' . $mysqli->error]);
+            break;
+        }
         $stmt->execute();
         $result = $stmt->get_result();
         $polls = [];
@@ -7111,8 +7122,20 @@ switch ($action) {
         $poll_id = (int)($_GET['id'] ?? 0);
         if ($poll_id <= 0) {
             apiResponse(['success' => false, 'message' => 'Poll ID required']);
+            break;
         }
+        
+        $table_check = $mysqli->query("SHOW TABLES LIKE 'poll_events'");
+        if (!$table_check || $table_check->num_rows == 0) {
+            apiResponse(['success' => false, 'message' => 'Poll table does not exist. Please run database setup.']);
+            break;
+        }
+        
         $stmt = $mysqli->prepare("SELECT * FROM poll_events WHERE id = ?");
+        if (!$stmt) {
+            apiResponse(['success' => false, 'message' => 'Database error: ' . $mysqli->error]);
+            break;
+        }
         $stmt->bind_param('i', $poll_id);
         $stmt->execute();
         $result = $stmt->get_result();
@@ -7139,15 +7162,30 @@ switch ($action) {
 
         if (empty($title)) {
             apiResponse(['success' => false, 'message' => 'ចំណងជើងត្រូវបានទាមទារ']);
+            break;
+        }
+
+        $table_check = $mysqli->query("SHOW TABLES LIKE 'poll_events'");
+        if (!$table_check || $table_check->num_rows == 0) {
+            apiResponse(['success' => false, 'message' => 'Poll table does not exist. Please run database setup.']);
+            break;
         }
 
         if ($poll_id > 0) {
             // Update existing poll
             $stmt = $mysqli->prepare("UPDATE poll_events SET title=?, quarter=?, location=?, start_date=?, end_date=?, access_code=?, allowed_employee_ids=?, excluded_employee_ids=?, is_active=? WHERE id=?");
+            if (!$stmt) {
+                apiResponse(['success' => false, 'message' => 'Database error: ' . $mysqli->error]);
+                break;
+            }
             $stmt->bind_param('sssssssis', $title, $quarter, $location, $start_date, $end_date, $access_code, $allowed_employee_ids, $excluded_employee_ids, $is_active, $poll_id);
         } else {
             // Create new poll
             $stmt = $mysqli->prepare("INSERT INTO poll_events (title, quarter, location, start_date, end_date, access_code, allowed_employee_ids, excluded_employee_ids, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            if (!$stmt) {
+                apiResponse(['success' => false, 'message' => 'Database error: ' . $mysqli->error]);
+                break;
+            }
             $stmt->bind_param('sssssssis', $title, $quarter, $location, $start_date, $end_date, $access_code, $allowed_employee_ids, $excluded_employee_ids, $is_active);
         }
 
@@ -7163,8 +7201,20 @@ switch ($action) {
         $poll_id = (int)($_POST['id'] ?? 0);
         if ($poll_id <= 0) {
             apiResponse(['success' => false, 'message' => 'Poll ID required']);
+            break;
         }
+        
+        $table_check = $mysqli->query("SHOW TABLES LIKE 'poll_events'");
+        if (!$table_check || $table_check->num_rows == 0) {
+            apiResponse(['success' => false, 'message' => 'Poll table does not exist. Please run database setup.']);
+            break;
+        }
+        
         $stmt = $mysqli->prepare("DELETE FROM poll_events WHERE id = ?");
+        if (!$stmt) {
+            apiResponse(['success' => false, 'message' => 'Database error: ' . $mysqli->error]);
+            break;
+        }
         $stmt->bind_param('i', $poll_id);
         if ($stmt->execute()) {
             apiResponse(['success' => true, 'message' => 'លុបការបោះឆ្នោតបានជោគជ័យ']);
@@ -7175,10 +7225,20 @@ switch ($action) {
         break;
 
     case 'get_poll_results':
+        $table_check = $mysqli->query("SHOW TABLES LIKE 'poll_events'");
+        if (!$table_check || $table_check->num_rows == 0) {
+            apiResponse(['success' => false, 'message' => 'Poll table does not exist. Please run database setup.']);
+            break;
+        }
+        
         $stmt = $mysqli->prepare("SELECT p.*, 
             (SELECT COUNT(*) FROM poll_votes WHERE poll_id = p.id) as total_votes
             FROM poll_events p 
             ORDER BY p.created_at DESC");
+        if (!$stmt) {
+            apiResponse(['success' => false, 'message' => 'Database error: ' . $mysqli->error]);
+            break;
+        }
         $stmt->execute();
         $result = $stmt->get_result();
         $polls = [];
@@ -7194,27 +7254,29 @@ switch ($action) {
                 WHERE c.poll_id = ?
                 ORDER BY votes DESC
             ");
-            $candidate_stmt->bind_param('i', $poll_id);
-            $candidate_stmt->execute();
-            $candidate_result = $candidate_stmt->get_result();
-            $candidates = [];
-            $total_votes = $row['total_votes'];
-            
-            while ($candidate_row = $candidate_result->fetch_assoc()) {
-                $votes = $candidate_row['votes'];
-                $percentage = $total_votes > 0 ? round(($votes / $total_votes) * 100, 1) : 0;
-                $candidates[] = [
-                    'id' => $candidate_row['id'],
-                    'name' => $candidate_row['name'] ?? $candidate_row['employee_id'],
-                    'employee_id' => $candidate_row['employee_id'],
-                    'category' => $candidate_row['category'],
-                    'votes' => $votes,
-                    'percentage' => $percentage
-                ];
+            if ($candidate_stmt) {
+                $candidate_stmt->bind_param('i', $poll_id);
+                $candidate_stmt->execute();
+                $candidate_result = $candidate_stmt->get_result();
+                $candidates = [];
+                $total_votes = $row['total_votes'];
+                
+                while ($candidate_row = $candidate_result->fetch_assoc()) {
+                    $votes = $candidate_row['votes'];
+                    $percentage = $total_votes > 0 ? round(($votes / $total_votes) * 100, 1) : 0;
+                    $candidates[] = [
+                        'id' => $candidate_row['id'],
+                        'name' => $candidate_row['name'] ?? $candidate_row['employee_id'],
+                        'employee_id' => $candidate_row['employee_id'],
+                        'category' => $candidate_row['category'],
+                        'votes' => $votes,
+                        'percentage' => $percentage
+                    ];
+                }
+                $candidate_stmt->close();
+                
+                $row['results'] = $candidates;
             }
-            $candidate_stmt->close();
-            
-            $row['results'] = $candidates;
             $polls[] = $row;
         }
         $stmt->close();
@@ -7222,7 +7284,17 @@ switch ($action) {
         break;
 
     case 'get_employees':
+        $table_check = $mysqli->query("SHOW TABLES LIKE 'users'");
+        if (!$table_check || $table_check->num_rows == 0) {
+            apiResponse(['success' => false, 'message' => 'Users table does not exist.']);
+            break;
+        }
+        
         $stmt = $mysqli->prepare("SELECT employee_id, name, branch FROM users WHERE employment_status = 'Active' ORDER BY name ASC");
+        if (!$stmt) {
+            apiResponse(['success' => false, 'message' => 'Database error: ' . $mysqli->error]);
+            break;
+        }
         $stmt->execute();
         $result = $stmt->get_result();
         $employees = [];
@@ -7237,6 +7309,12 @@ switch ($action) {
         // For mobile app - get active polls for employee voting
         if (!$user) apiResponse(['success' => false, 'message' => 'Unauthorized']);
         
+        $table_check = $mysqli->query("SHOW TABLES LIKE 'poll_events'");
+        if (!$table_check || $table_check->num_rows == 0) {
+            apiResponse(['success' => false, 'message' => 'Poll table does not exist. Please run database setup.']);
+            break;
+        }
+        
         $eid = $user['employee_id'];
         $current_date = date('Y-m-d');
         
@@ -7250,6 +7328,10 @@ switch ($action) {
             AND (p.excluded_employee_ids IS NULL OR p.excluded_employee_ids = '[]' OR NOT JSON_CONTAINS(p.excluded_employee_ids, ?, '$'))
             ORDER BY p.created_at DESC
         ");
+        if (!$stmt) {
+            apiResponse(['success' => false, 'message' => 'Database error: ' . $mysqli->error]);
+            break;
+        }
         $stmt->bind_param('ssss', $current_date, $current_date, $eid, $eid);
         $stmt->execute();
         $result = $stmt->get_result();
@@ -7258,11 +7340,13 @@ switch ($action) {
             // Check if user has already voted
             $poll_id = $row['id'];
             $vote_check = $mysqli->prepare("SELECT COUNT(*) as voted FROM poll_votes WHERE poll_id = ? AND voter_employee_id = ?");
-            $vote_check->bind_param('is', $poll_id, $eid);
-            $vote_check->execute();
-            $vote_result = $vote_check->get_result()->fetch_assoc();
-            $row['has_voted'] = $vote_result['voted'] > 0;
-            $vote_check->close();
+            if ($vote_check) {
+                $vote_check->bind_param('is', $poll_id, $eid);
+                $vote_check->execute();
+                $vote_result = $vote_check->get_result()->fetch_assoc();
+                $row['has_voted'] = $vote_result['voted'] > 0;
+                $vote_check->close();
+            }
             
             // Get candidates
             $candidate_stmt = $mysqli->prepare("
@@ -7271,21 +7355,22 @@ switch ($action) {
                 LEFT JOIN users u ON c.employee_id = u.employee_id
                 WHERE c.poll_id = ?
             ");
-            $candidate_stmt->bind_param('i', $poll_id);
-            $candidate_stmt->execute();
-            $candidate_result = $candidate_stmt->get_result();
-            $candidates = [];
-            while ($candidate_row = $candidate_result->fetch_assoc()) {
-                $candidates[] = [
-                    'id' => $candidate_row['id'],
-                    'employee_id' => $candidate_row['employee_id'],
-                    'name' => $candidate_row['name'] ?? $candidate_row['employee_id'],
-                    'category' => $candidate_row['category']
-                ];
+            if ($candidate_stmt) {
+                $candidate_stmt->bind_param('i', $poll_id);
+                $candidate_stmt->execute();
+                $candidate_result = $candidate_stmt->get_result();
+                $candidates = [];
+                while ($candidate_row = $candidate_result->fetch_assoc()) {
+                    $candidates[] = [
+                        'id' => $candidate_row['id'],
+                        'employee_id' => $candidate_row['employee_id'],
+                        'name' => $candidate_row['name'] ?? $candidate_row['employee_id'],
+                        'category' => $candidate_row['category']
+                    ];
+                }
+                $candidate_stmt->close();
+                $row['candidates'] = $candidates;
             }
-            $candidate_stmt->close();
-            
-            $row['candidates'] = $candidates;
             $polls[] = $row;
         }
         $stmt->close();
@@ -7295,16 +7380,27 @@ switch ($action) {
     case 'cast_vote':
         if (!$user) apiResponse(['success' => false, 'message' => 'Unauthorized']);
         
+        $table_check = $mysqli->query("SHOW TABLES LIKE 'poll_events'");
+        if (!$table_check || $table_check->num_rows == 0) {
+            apiResponse(['success' => false, 'message' => 'Poll table does not exist. Please run database setup.']);
+            break;
+        }
+        
         $poll_id = (int)($_POST['poll_id'] ?? 0);
         $candidate_id = (int)($_POST['candidate_id'] ?? 0);
         $eid = $user['employee_id'];
         
         if ($poll_id <= 0 || $candidate_id <= 0) {
             apiResponse(['success' => false, 'message' => 'Poll ID and Candidate ID required']);
+            break;
         }
         
         // Check if poll is still active
         $poll_check = $mysqli->prepare("SELECT * FROM poll_events WHERE id = ? AND is_active = 1 AND start_date <= CURDATE() AND end_date >= CURDATE()");
+        if (!$poll_check) {
+            apiResponse(['success' => false, 'message' => 'Database error: ' . $mysqli->error]);
+            break;
+        }
         $poll_check->bind_param('i', $poll_id);
         $poll_check->execute();
         $poll = $poll_check->get_result()->fetch_assoc();
@@ -7312,6 +7408,7 @@ switch ($action) {
         
         if (!$poll) {
             apiResponse(['success' => false, 'message' => 'ការបោះឆ្នោតនេះមិនសកម្ម ឬមិនមានក្នុងរយៈពេលបោះឆ្នោតទេ']);
+            break;
         }
         
         // Check if user is allowed to vote
@@ -7319,6 +7416,7 @@ switch ($action) {
             $allowed_ids = json_decode($poll['allowed_employee_ids'], true);
             if (!in_array($eid, $allowed_ids)) {
                 apiResponse(['success' => false, 'message' => 'អ្នកមិនមានសិទ្ធិបោះឆ្នោតសម្រាប់ការបោះឆ្នោតនេះទេ']);
+                break;
             }
         }
         
@@ -7327,22 +7425,30 @@ switch ($action) {
             $excluded_ids = json_decode($poll['excluded_employee_ids'], true);
             if (in_array($eid, $excluded_ids)) {
                 apiResponse(['success' => false, 'message' => 'អ្នកមិនមានសិទ្ធិបោះឆ្នោតសម្រាប់ការបោះឆ្នោតនេះទេ']);
+                break;
             }
         }
         
         // Check if already voted
         $vote_check = $mysqli->prepare("SELECT COUNT(*) as voted FROM poll_votes WHERE poll_id = ? AND voter_employee_id = ?");
-        $vote_check->bind_param('is', $poll_id, $eid);
-        $vote_check->execute();
-        $vote_result = $vote_check->get_result()->fetch_assoc();
-        $vote_check->close();
-        
-        if ($vote_result['voted'] > 0) {
-            apiResponse(['success' => false, 'message' => 'អ្នកបានបោះឆ្នោតរួចហើយសម្រាប់ការបោះឆ្នោតនេះ']);
+        if ($vote_check) {
+            $vote_check->bind_param('is', $poll_id, $eid);
+            $vote_check->execute();
+            $vote_result = $vote_check->get_result()->fetch_assoc();
+            $vote_check->close();
+            
+            if ($vote_result['voted'] > 0) {
+                apiResponse(['success' => false, 'message' => 'អ្នកបានបោះឆ្នោតរួចហើយសម្រាប់ការបោះឆ្នោតនេះ']);
+                break;
+            }
         }
         
         // Check if candidate exists and belongs to this poll
         $candidate_check = $mysqli->prepare("SELECT * FROM poll_candidates WHERE id = ? AND poll_id = ?");
+        if (!$candidate_check) {
+            apiResponse(['success' => false, 'message' => 'Database error: ' . $mysqli->error]);
+            break;
+        }
         $candidate_check->bind_param('ii', $candidate_id, $poll_id);
         $candidate_check->execute();
         $candidate = $candidate_check->get_result()->fetch_assoc();
@@ -7350,10 +7456,15 @@ switch ($action) {
         
         if (!$candidate) {
             apiResponse(['success' => false, 'message' => 'បេក្ខជនមិនមានក្នុងការបោះឆ្នោតនេះទេ']);
+            break;
         }
         
         // Cast the vote
         $vote_stmt = $mysqli->prepare("INSERT INTO poll_votes (poll_id, voter_employee_id, candidate_id) VALUES (?, ?, ?)");
+        if (!$vote_stmt) {
+            apiResponse(['success' => false, 'message' => 'Database error: ' . $mysqli->error]);
+            break;
+        }
         $vote_stmt->bind_param('isi', $poll_id, $eid, $candidate_id);
         
         if ($vote_stmt->execute()) {
@@ -7371,9 +7482,20 @@ switch ($action) {
         
         if ($poll_id <= 0) {
             apiResponse(['success' => false, 'message' => 'Poll ID required']);
+            break;
+        }
+        
+        $table_check = $mysqli->query("SHOW TABLES LIKE 'poll_events'");
+        if (!$table_check || $table_check->num_rows == 0) {
+            apiResponse(['success' => false, 'message' => 'Poll table does not exist. Please run database setup.']);
+            break;
         }
         
         $stmt = $mysqli->prepare("SELECT * FROM poll_events WHERE id = ?");
+        if (!$stmt) {
+            apiResponse(['success' => false, 'message' => 'Database error: ' . $mysqli->error]);
+            break;
+        }
         $stmt->bind_param('i', $poll_id);
         $stmt->execute();
         $result = $stmt->get_result();
@@ -7382,11 +7504,13 @@ switch ($action) {
         
         if (!$poll) {
             apiResponse(['success' => false, 'message' => 'Poll not found']);
+            break;
         }
         
         // Check access code if required
         if (!empty($poll['access_code']) && $poll['access_code'] !== $access_code) {
             apiResponse(['success' => false, 'message' => 'លេខកូដមិនត្រឹមត្រូវ']);
+            break;
         }
         
         // Get results
@@ -7399,32 +7523,34 @@ switch ($action) {
             WHERE c.poll_id = ?
             ORDER BY votes DESC
         ");
-        $candidate_stmt->bind_param('i', $poll_id);
-        $candidate_stmt->execute();
-        $candidate_result = $candidate_stmt->get_result();
-        $candidates = [];
-        $total_votes = 0;
-        
-        while ($candidate_row = $candidate_result->fetch_assoc()) {
-            $votes = $candidate_row['votes'];
-            $total_votes += $votes;
-            $candidates[] = [
-                'id' => $candidate_row['id'],
-                'name' => $candidate_row['name'] ?? $candidate_row['employee_id'],
-                'employee_id' => $candidate_row['employee_id'],
-                'category' => $candidate_row['category'],
-                'votes' => $votes
-            ];
+        if ($candidate_stmt) {
+            $candidate_stmt->bind_param('i', $poll_id);
+            $candidate_stmt->execute();
+            $candidate_result = $candidate_stmt->get_result();
+            $candidates = [];
+            $total_votes = 0;
+            
+            while ($candidate_row = $candidate_result->fetch_assoc()) {
+                $votes = $candidate_row['votes'];
+                $total_votes += $votes;
+                $candidates[] = [
+                    'id' => $candidate_row['id'],
+                    'name' => $candidate_row['name'] ?? $candidate_row['employee_id'],
+                    'employee_id' => $candidate_row['employee_id'],
+                    'category' => $candidate_row['category'],
+                    'votes' => $votes
+                ];
+            }
+            $candidate_stmt->close();
+            
+            // Calculate percentages
+            foreach ($candidates as &$candidate) {
+                $candidate['percentage'] = $total_votes > 0 ? round(($candidate['votes'] / $total_votes) * 100, 1) : 0;
+            }
+            
+            $poll['candidates'] = $candidates;
+            $poll['total_votes'] = $total_votes;
         }
-        $candidate_stmt->close();
-        
-        // Calculate percentages
-        foreach ($candidates as &$candidate) {
-            $candidate['percentage'] = $total_votes > 0 ? round(($candidate['votes'] / $total_votes) * 100, 1) : 0;
-        }
-        
-        $poll['candidates'] = $candidates;
-        $poll['total_votes'] = $total_votes;
         
         apiResponse(['success' => true, 'data' => $poll]);
         break;
