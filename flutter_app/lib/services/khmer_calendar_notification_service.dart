@@ -100,8 +100,8 @@ class KhmerCalendarNotificationService {
     final plugin = NotificationService().flutterLocalNotificationsPlugin;
     // Cancel IDs in range 8000-8366 (day-before) and 9000-9366 (day-of)
     for (int i = 0; i <= 366; i++) {
-      await plugin.cancel(_dayBeforeOffset + i);
-      await plugin.cancel(_dayOfOffset + i);
+      await plugin.cancel(id: _dayBeforeOffset + i);
+      await plugin.cancel(id: _dayOfOffset + i);
     }
   }
 
@@ -214,33 +214,38 @@ class KhmerCalendarNotificationService {
     if (m == 4 && d >= 13 && d <= 16) return _SpecialDayInfo(name: 'ចូលឆ្នាំខ្មែរ', typeLabel: 'ថ្ងៃបុណ្យ', emoji: '🎊', isMajor: true);
     if (m == 5 && d == 14) return _SpecialDayInfo(name: 'បុណ្យចម្រើនព្រះជន្ម', typeLabel: 'ថ្ងៃបុណ្យ', emoji: '👑', isMajor: true);
     if (m == 9 && d == 24) return _SpecialDayInfo(name: 'ទិវាប្រកាសរដ្ឋធម្មនុញ្ញ', typeLabel: 'ថ្ងៃបុណ្យ', emoji: '📜', isMajor: true);
-    if (m == 11 && d == 9) return _SpecialDayInfo(name: 'បុណ្យឯករាជ្យជាតិ', typeLabel: 'ថ្ងៃបុណ្យជាតិ', emoji: '🇰🇭', isMajor: true);
-
-    // Other notable days
-    if (m == 1 && d == 1) return _SpecialDayInfo(name: 'ចូលឆ្នាំសកល', typeLabel: 'ថ្ងៃបុណ្យ', emoji: '🎆', isMajor: false);
-    if (m == 3 && d == 8) return _SpecialDayInfo(name: 'ទិវានារី', typeLabel: 'ទិវា', emoji: '💐', isMajor: false);
-    if (m == 5 && d == 1) return _SpecialDayInfo(name: 'ទិវាពលកម្ម', typeLabel: 'ទិវា', emoji: '⚒️', isMajor: false);
-    if (m == 6 && d == 18) return _SpecialDayInfo(name: 'ចម្រើនព្រះជន្ម សម្ដេចម៉ែ', typeLabel: 'ថ្ងៃបុណ្យ', emoji: '👑', isMajor: false);
-    if (m == 10 && d == 15) return _SpecialDayInfo(name: 'ទិវាគោរពព្រះវិញ្ញាណក្ខន្ធ', typeLabel: 'ទិវា', emoji: '🕯️', isMajor: false);
-    if (m == 10 && d == 29) return _SpecialDayInfo(name: 'បុណ្យគ្រងរាជ្យ', typeLabel: 'ថ្ងៃបុណ្យ', emoji: '👑', isMajor: false);
-    if (m == 12 && d == 29) return _SpecialDayInfo(name: 'ទិវាសន្តិភាព', typeLabel: 'ទិវា', emoji: '🕊️', isMajor: false);
+    if (m == 11 && d == 9) return _SpecialDayInfo(name: 'បុណ្យឯករាជ្យជាតិ', typeLabel: 'ថ្ងៃបុណ្យជាតិ', emoji: '🎉', isMajor: true);
 
     return null;
   }
 
-  _SpecialDayInfo? _getLunarHoliday(DateTime date, KhmerLunarDate lunar) {
-    final m = lunar.format('m');
-    final d = lunar.lunarDay.toString();
+  _SpecialDayInfo? _getLunarHoliday(DateTime date, Chhankitek lunar) {
+    // Lunar new year (around April 13-16)
+    if (lunar.month == 1 && lunar.day == 1) {
+      return _SpecialDayInfo(name: 'ចូលឆ្នាំខ្មែរ (ថ្ងៃទី ១)', typeLabel: 'ថ្ងៃបុណ្យ', emoji: '🎊', isMajor: true);
+    }
+    if (lunar.month == 1 && lunar.day == 2) {
+      return _SpecialDayInfo(name: 'ចូលឆ្នាំខ្មែរ (ថ្ងៃទី ២)', typeLabel: 'ថ្ងៃបុណ្យ', emoji: '🎊', isMajor: true);
+    }
+    if (lunar.month == 1 && lunar.day == 3) {
+      return _SpecialDayInfo(name: 'ចូលឆ្នាំខ្មែរ (ថ្ងៃទី ៣)', typeLabel: 'ថ្ងៃបុណ្យ', emoji: '🎊', isMajor: true);
+    }
 
-    if (m == 'ភទ្របទ' && d.contains('១៥ រោច')) {
-      return _SpecialDayInfo(name: 'ភ្ជុំបិណ្ឌ', typeLabel: 'ថ្ងៃបុណ្យ', emoji: '🙏', isMajor: true);
+    // Pchum Ben (around September-October, lunar month 10)
+    if (lunar.month == 10 && lunar.day >= 1 && lunar.day <= 15) {
+      return _SpecialDayInfo(name: 'បុណ្យភ្ជុំបិណ្ឌ (ថ្ងៃទី ${lunar.day})', typeLabel: 'ថ្ងៃបុណ្យ', emoji: '🙏', isMajor: true);
     }
-    if (m == 'ភទ្របទ' && (d.contains('១៤ រោច') || d.contains('១៣ រោច'))) {
-      return _SpecialDayInfo(name: 'កាន់បិណ្ឌ', typeLabel: 'ថ្ងៃបុណ្យ', emoji: '🙏', isMajor: true);
+
+    // Visak Bochea (lunar month 6, day 15)
+    if (lunar.month == 6 && lunar.day == 15) {
+      return _SpecialDayInfo(name: 'ពិធីបុណ្យវិសាខបូជា', typeLabel: 'ថ្ងៃបុណ្យ', emoji: '🙏', isMajor: true);
     }
-    if (m == 'កត្តិក' && (d.contains('១៤ កើត') || d.contains('១៥ កើត'))) {
-      return _SpecialDayInfo(name: 'បុណ្យអុំទូក', typeLabel: 'ថ្ងៃបុណ្យ', emoji: '🚣', isMajor: true);
+
+    // Meak Bochea (lunar month 3, day 15)
+    if (lunar.month == 3 && lunar.day == 15) {
+      return _SpecialDayInfo(name: 'ពិធីបុណ្យមាឃបុជា', typeLabel: 'ថ្ងៃបុណ្យ', emoji: '🙏', isMajor: true);
     }
+
     return null;
   }
 }
@@ -251,7 +256,7 @@ class _SpecialDayInfo {
   final String emoji;
   final bool isMajor;
 
-  const _SpecialDayInfo({
+  _SpecialDayInfo({
     required this.name,
     required this.typeLabel,
     required this.emoji,
