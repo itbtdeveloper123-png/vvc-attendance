@@ -64,7 +64,7 @@ class NotificationService {
         );
 
     await flutterLocalNotificationsPlugin.initialize(
-      initializationSettings: initializationSettings,
+      initializationSettings,
       onDidReceiveNotificationResponse: (NotificationResponse response) async {
         debugPrint('Notification clicked with payload: ${response.payload}');
       },
@@ -192,7 +192,6 @@ class NotificationService {
           android: const AndroidNotificationDetails(
             'vvc_khmer_calendar',
             'ការជូនដំណឹងប្រតិទិនខ្មែរ',
-            channelDescription: 'ជូនដំណឹងថ្ងៃបុណ្យ និង ថ្ងៃសីល',
             importance: Importance.max,
             priority: Priority.high,
             icon: '@mipmap/ic_launcher',
@@ -233,8 +232,8 @@ class NotificationService {
       scheduledDate: tz.TZDateTime.from(scheduledDate, tz.local),
       notificationDetails: const NotificationDetails(
         android: AndroidNotificationDetails(
-          channelId: 'vvc_hrm_checklist',
-          channelName: 'Checklist Reminders',
+          'vvc_hrm_checklist',
+          'Checklist Reminders',
           importance: Importance.max,
           priority: Priority.high,
           icon: '@mipmap/ic_launcher',
@@ -252,7 +251,7 @@ class NotificationService {
   }
 
   Future<void> cancelNotification(int id) async {
-    await flutterLocalNotificationsPlugin.cancel(id);
+    await flutterLocalNotificationsPlugin.cancel(id: id);
   }
 }
 
