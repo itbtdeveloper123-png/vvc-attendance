@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:intl/intl.dart';
@@ -34,6 +35,7 @@ class _MissionScreenState extends State<MissionScreen> {
   final _materialsController = TextEditingController();
 
   // Khmer date
+  DateTime _khmerDate = DateTime.now();
   final _dateKhmerPart1Controller = TextEditingController();
   final _dateKhmerPart2Controller = TextEditingController(
     text: 'រាជធានីភ្នំពេញ, ថ្ងៃទី  ខែ  ឆ្នាំ២០២៦',
@@ -68,6 +70,16 @@ class _MissionScreenState extends State<MissionScreen> {
     'ធ្នូ',
   ];
 
+  static const _khmerDays = [
+    'អាទិត្យ',
+    'ចន្ទ',
+    'អង្គារ',
+    'ពុធ',
+    'ព្រហស្បតិ៍',
+    'សុក្រ',
+    'សៅរ៍',
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -78,6 +90,8 @@ class _MissionScreenState extends State<MissionScreen> {
         'role': TextEditingController(),
       });
     }
+    // Initialize Khmer date fields with current date
+    _updateKhmerDateFields(_khmerDate);
     _loadData();
     _pollingTimer = Timer.periodic(const Duration(seconds: 10), (_) {
       if (mounted) _loadData();
@@ -125,6 +139,36 @@ class _MissionScreenState extends State<MissionScreen> {
     final h = t.hour.toString().padLeft(2, '0');
     final m = t.minute.toString().padLeft(2, '0');
     return '$h:$m';
+  }
+
+  String _toKhmerNumber(String number) {
+    const khmerDigits = ['០', '១', '២', '៣', '៤', '៥', '៦', '៧', '៨', '៩'];
+    String result = '';
+    for (int i = 0; i < number.length; i++) {
+      int digit = int.tryParse(number[i]) ?? -1;
+      if (digit >= 0 && digit <= 9) {
+        result += khmerDigits[digit];
+      } else {
+        result += number[i];
+      }
+    }
+    return result;
+  }
+
+  void _updateKhmerDateFields(DateTime selectedDate) {
+    setState(() {
+      _khmerDate = selectedDate;
+      
+      // Update Khmer Line 1 with day name
+      int weekdayIndex = selectedDate.weekday % 7; // 0=Sunday, 1=Monday, etc.
+      _dateKhmerPart1Controller.text = _khmerDays[weekdayIndex];
+      
+      // Update Khmer Line 2 with full date
+      String day = _toKhmerNumber(selectedDate.day.toString());
+      String month = _khmerMonths[selectedDate.month];
+      String year = _toKhmerNumber(selectedDate.year.toString());
+      _dateKhmerPart2Controller.text = 'រាជធានីភ្នំពេញ, ថ្ងៃទី$day ខែ$month ឆ្នាំ$year';
+    });
   }
 
   Future<void> _submitMission() async {
@@ -189,7 +233,9 @@ class _MissionScreenState extends State<MissionScreen> {
     _purposeController.clear();
     _transportController.clear();
     _materialsController.clear();
-    _dateKhmerPart1Controller.clear();
+    // Reset Khmer date to current date
+    _khmerDate = DateTime.now();
+    _updateKhmerDateFields(_khmerDate);
     for (final row in _personnel) {
       row['name']!.clear();
       row['role']!.clear();
@@ -936,13 +982,72 @@ class _MissionScreenState extends State<MissionScreen> {
           hint: "ឧ. ថ្ងៃសីល...",
           label: "ខ្មែរ បន្ទាត់១",
           icon: Icons.edit,
+          enabled: false, // Auto-filled from date picker
         ),
         const SizedBox(height: 12),
-        _buildTextField(
-          controller: _dateKhmerPart2Controller,
-          hint: "រាជធានីភ្នំពេញ...",
-          label: "ខ្មែរ បន្ទាត់២",
-          icon: Icons.place,
+        _buildKhmerDateField(),
+      ],
+    );
+  }
+
+  Widget _buildKhmerDateField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "ខ្មែរ បន្ទាត់២",
+          style: GoogleFonts.kantumruyPro(
+            fontSize: 12,
+            color: AppTheme.textSecondary,
+          ),
+        ),
+        const SizedBox(height: 8),
+        GestureDetector(
+          onTap: () async {
+            final DateTime? picked = await showDatePicker(
+              context: context,
+              initialDate: _khmerDate,
+              firstDate: DateTime(2000),
+              lastDate: DateTime(2100),
+              helpText: 'ជ្រើសរើសថ្ងៃខែឆ្នាំ',
+              cancelText: 'បោះបង់',
+              confirmText: 'យល់ព្រម',
+            );
+            if (picked != null) {
+              _updateKhmerDateFields(picked);
+            }
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: AppTheme.cardDark,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppTheme.borderDark),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.calendar_today,
+                  color: AppTheme.primary,
+                  size: 20,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    _dateKhmerPart2Controller.text,
+                    style: GoogleFonts.kantumruyPro(
+                      fontSize: 14,
+                      color: AppTheme.textPrimary,
+                    ),
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_drop_down,
+                  color: AppTheme.textSecondary,
+                ),
+              ],
+            ),
+          ),
         ),
       ],
     );
@@ -986,6 +1091,7 @@ class _MissionScreenState extends State<MissionScreen> {
     required String hint,
     required String label,
     required IconData icon,
+    bool enabled = true,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1000,6 +1106,7 @@ class _MissionScreenState extends State<MissionScreen> {
         const SizedBox(height: 5),
         TextField(
           controller: controller,
+          enabled: enabled,
           decoration: AppTheme.inputDecoration(hint, icon),
           style: GoogleFonts.kantumruyPro(fontSize: 14),
         ),
