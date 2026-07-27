@@ -37,8 +37,8 @@ class NotificationService {
   Future<void> _initInternal() async {
     // Initialize Timezones
     tz.initializeTimeZones();
-    final TimezoneInfo timeZoneInfo = await FlutterTimezone.getLocalTimezone();
-    tz.setLocalLocation(tz.getLocation(timeZoneInfo.name));
+    final String timeZoneName = await FlutterTimezone.getLocalTimezone();
+    tz.setLocalLocation(tz.getLocation(timeZoneName));
 
     // ស្នើសុំសិទ្ធិសម្រាប់ Android 13+ (POST_NOTIFICATIONS)
     try {
@@ -64,7 +64,7 @@ class NotificationService {
         );
 
     await flutterLocalNotificationsPlugin.initialize(
-      initializationSettings: initializationSettings,
+      initializationSettings,
       onDidReceiveNotificationResponse: (NotificationResponse response) async {
         debugPrint('Notification clicked with payload: ${response.payload}');
       },
@@ -126,10 +126,10 @@ class NotificationService {
     );
 
     await flutterLocalNotificationsPlugin.show(
-      id: id,
-      title: title,
-      body: body,
-      notificationDetails: notificationDetails,
+      id,
+      title,
+      body,
+      notificationDetails,
       payload: payload,
     );
   }
@@ -184,14 +184,15 @@ class NotificationService {
 
     Future<void> doSchedule(AndroidScheduleMode mode) {
       return flutterLocalNotificationsPlugin.zonedSchedule(
-        id: id,
-        title: title,
-        body: body,
-        scheduledDate: tz.TZDateTime.from(scheduledDate, tz.local),
-        notificationDetails: NotificationDetails(
-          android: AndroidNotificationDetails(
-            channelId: channelId,
-            channelName: channelName,
+        id,
+        title,
+        body,
+        tz.TZDateTime.from(scheduledDate, tz.local),
+        NotificationDetails(
+          android: const AndroidNotificationDetails(
+            'vvc_khmer_calendar',
+            'ការជូនដំណឹងប្រតិទិនខ្មែរ',
+            channelDescription: 'ជូនដំណឹងថ្ងៃបុណ្យ និង ថ្ងៃសីល',
             importance: Importance.max,
             priority: Priority.high,
             icon: '@mipmap/ic_launcher',
@@ -204,8 +205,6 @@ class NotificationService {
           ),
         ),
         androidScheduleMode: mode,
-        uiLocalNotificationDateInterpretation:
-            UILocalNotificationDateInterpretation.absoluteTime,
         payload: payload,
       );
     }
@@ -228,15 +227,15 @@ class NotificationService {
     String? payload,
   }) {
     return flutterLocalNotificationsPlugin.zonedSchedule(
-      id: id,
-      title: title,
-      body: body,
-      scheduledDate: tz.TZDateTime.from(scheduledDate, tz.local),
-      notificationDetails: const NotificationDetails(
+      id,
+      title,
+      body,
+      tz.TZDateTime.from(scheduledDate, tz.local),
+      const NotificationDetails(
         android: AndroidNotificationDetails(
           'vvc_hrm_checklist',
           'Checklist Reminders',
-          channelDescription: 'ការជូនដំណឹងរំលឹកកិច្ចការងារ',
+          'ការជូនដំណឹងរំលឹកកិច្ចការងារ',
           importance: Importance.max,
           priority: Priority.high,
           icon: '@mipmap/ic_launcher',
@@ -249,8 +248,6 @@ class NotificationService {
         ),
       ),
       androidScheduleMode: androidScheduleMode,
-      uiLocalNotificationDateInterpretation:
-          UILocalNotificationDateInterpretation.absoluteTime,
       payload: payload,
     );
   }
