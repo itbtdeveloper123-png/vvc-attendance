@@ -711,10 +711,10 @@ packages:
     dependency: "direct main"
     description:
       name: flutter_svg
-      sha256: d44bf546b13025ec7353091516f6881f1d4c633993cb109c3916c3a0159dadf1
+      sha256: "8f11725d2b075516efc364ec2cbcaacdf76e292725f02afa2657fbfb8af4a781"
       url: "https://pub.dev"
     source: hosted
-    version: "2.1.0"
+    version: "2.0.10"
   flutter_test:
     dependency: "direct dev"
     description: flutter
@@ -913,10 +913,10 @@ packages:
     dependency: "direct main"
     description:
       name: image_picker
-      sha256: d8402284df184bc05f4a2210c6c23983b0720f4cd87cbd05c5390a78af602667
+      sha256: "021834d9c0c3de46bf0fe40341fa07168407f694d9b2bb18d532dc1261867f7a"
       url: "https://pub.dev"
     source: hosted
-    version: "1.2.3"
+    version: "1.1.2"
   image_picker_android:
     dependency: transitive
     description:
