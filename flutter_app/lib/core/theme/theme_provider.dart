@@ -1,20 +1,62 @@
 import 'package:flutter/material.dart';
 import '../../utils/app_theme.dart';
 import 'app_theme_season.dart';
+import '../../services/theme_service.dart';
 
 class SeasonalThemeProvider extends ChangeNotifier {
   AppThemeSeason _currentSeason = AppThemeSeason.defaultHRM;
   bool _isAutoMode = true;
+  final ThemeService _themeService = ThemeService();
+  AppTheme? _backendTheme;
 
   AppThemeSeason get currentSeason => _currentSeason;
   bool get isAutoMode => _isAutoMode;
+  AppTheme? get backendTheme => _backendTheme;
 
-  ThemeData get themeData => AppTheme.isDarkMode ? AppTheme.darkTheme : AppTheme.lightTheme;
+  ThemeData get themeData {
+    // If backend theme is available, use it
+    if (_backendTheme != null) {
+      return _backendTheme!.toThemeData();
+    }
+    // Otherwise use legacy seasonal theme
+    return AppTheme.isDarkMode ? AppTheme.darkTheme : AppTheme.lightTheme;
+  }
+
+  SeasonalThemeProvider() {
+    _initializeThemeService();
+  }
+
+  Future<void> _initializeThemeService() async {
+    await _themeService.initialize();
+    _backendTheme = _themeService.currentTheme;
+    
+    // Check for auto-active themes
+    await _themeService.checkAutoTheme();
+    _backendTheme = _themeService.currentTheme;
+    
+    // Schedule periodic auto-theme checks
+    _themeService.scheduleAutoThemeCheck();
+    
+    notifyListeners();
+  }
+  
+  @override
+  void dispose() {
+    _themeService.cancelAutoThemeCheck();
+    super.dispose();
+  }
+
+  Future<void> refreshTheme() async {
+    await _themeService.initialize();
+    _backendTheme = _themeService.currentTheme;
+    notifyListeners();
+  }
 
   void setTheme(AppThemeSeason season, {bool save = true}) {
     _currentSeason = season;
     if (save) _isAutoMode = false;
     _updateColors(season);
+    _backendTheme = null; // Clear backend theme when using manual seasonal theme
     notifyListeners();
   }
 
@@ -22,6 +64,7 @@ class SeasonalThemeProvider extends ChangeNotifier {
     _isAutoMode = true;
     _currentSeason = AppThemeSeason.defaultHRM;
     _updateColors(AppThemeSeason.defaultHRM);
+    _backendTheme = null; // Clear backend theme when using auto mode
     notifyListeners();
   }
 

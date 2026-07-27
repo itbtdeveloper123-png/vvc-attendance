@@ -94,6 +94,87 @@ if (!function_exists('ensure_user_groups_table')) {
 }
 
 /**
+ * Ensure app themes table exists for theme management system.
+ */
+if (!function_exists('ensure_app_themes_table')) {
+    function ensure_app_themes_table($mysqli) {
+        $mysqli->query("CREATE TABLE IF NOT EXISTS app_themes (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            theme_id VARCHAR(50) UNIQUE NOT NULL,
+            theme_name VARCHAR(100) NOT NULL,
+            theme_name_kh VARCHAR(100),
+            theme_category VARCHAR(50) DEFAULT 'modern',
+            theme_type ENUM('festival', 'modern', 'seasonal', 'custom') DEFAULT 'modern',
+            is_active TINYINT(1) DEFAULT 0,
+            is_premium TINYINT(1) DEFAULT 0,
+            display_order INT DEFAULT 0,
+            
+            -- Color scheme
+            primary_color VARCHAR(7) DEFAULT '#0E7490',
+            secondary_color VARCHAR(7) DEFAULT '#2563EB',
+            accent_color VARCHAR(7) DEFAULT '#F59E0B',
+            background_color VARCHAR(7) DEFAULT '#111827',
+            card_color VARCHAR(7) DEFAULT '#1F2937',
+            text_primary_color VARCHAR(7) DEFAULT '#FFFFFF',
+            text_secondary_color VARCHAR(7) DEFAULT '#CBD5E1',
+            
+            -- Assets
+            background_image VARCHAR(255),
+            app_icon VARCHAR(255),
+            splash_image VARCHAR(255),
+            
+            -- Festival/Seasonal settings
+            festival_date_start DATE,
+            festival_date_end DATE,
+            auto_activate TINYINT(1) DEFAULT 0,
+            
+            -- Metadata
+            description TEXT,
+            preview_image VARCHAR(255),
+            created_by VARCHAR(50),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+        
+        // Insert default themes if table is empty
+        $check = $mysqli->query("SELECT COUNT(*) as count FROM app_themes");
+        if ($check && $check->fetch_assoc()['count'] == 0) {
+            // Default Modern Theme
+            $mysqli->query("INSERT INTO app_themes (theme_id, theme_name, theme_name_kh, theme_category, theme_type, is_active, display_order, primary_color, secondary_color, accent_color, background_color, card_color, text_primary_color, text_secondary_color, description) VALUES 
+                ('default', 'Default Modern', 'លំនាំដើម', 'modern', 'modern', 1, 1, '#0E7490', '#2563EB', '#F59E0B', '#111827', '#1F2937', '#FFFFFF', '#CBD5E1', 'Default modern theme with teal and blue colors')");
+            
+            // Khmer New Year Theme
+            $mysqli->query("INSERT INTO app_themes (theme_id, theme_name, theme_name_kh, theme_category, theme_type, is_active, display_order, primary_color, secondary_color, accent_color, background_color, card_color, text_primary_color, text_secondary_color, festival_date_start, festival_date_end, auto_activate, description) VALUES 
+                ('khmer_new_year', 'Khmer New Year', 'បុណ្យចូលឆ្នាំខ្មែរ', 'festival', 'festival', 0, 2, '#F59E0B', '#DC2626', '#16A34A', '#1a1a1a', '#2d2d2d', '#FFFFFF', '#FFE4B5', '2026-04-14', '2026-04-16', 1, 'Khmer New Year festival theme with traditional colors')");
+            
+            // Pchum Ben Theme
+            $mysqli->query("INSERT INTO app_themes (theme_id, theme_name, theme_name_kh, theme_category, theme_type, is_active, display_order, primary_color, secondary_color, accent_color, background_color, card_color, text_primary_color, text_secondary_color, festival_date_start, festival_date_end, auto_activate, description) VALUES 
+                ('pchum_ben', 'Pchum Ben', 'បុណ្យភ្ជុំបិណ្ឌ', 'festival', 'festival', 0, 3, '#F59E0B', '#DC2626', '#1F2937', '#0a0a0a', '#1a1a1a', '#FFD700', '#DAA520', '2026-09-28', '2026-10-12', 1, 'Pchum Ben festival theme with traditional religious colors')");
+            
+            // Water Festival Theme
+            $mysqli->query("INSERT INTO app_themes (theme_id, theme_name, theme_name_kh, theme_category, theme_type, is_active, display_order, primary_color, secondary_color, accent_color, background_color, card_color, text_primary_color, text_secondary_color, festival_date_start, festival_date_end, auto_activate, description) VALUES 
+                ('water_festival', 'Water Festival', 'បុណ្យអុំទូក', 'festival', 'festival', 0, 4, '#0EA5E9', '#06B6D4', '#F59E0B', '#0c1929', '#1e3a5f', '#FFFFFF', '#E0F2FE', '2026-11-10', '2026-11-12', 1, 'Water festival theme with blue water colors')");
+            
+            // Christmas Theme
+            $mysqli->query("INSERT INTO app_themes (theme_id, theme_name, theme_name_kh, theme_category, theme_type, is_active, display_order, primary_color, secondary_color, accent_color, background_color, card_color, text_primary_color, text_secondary_color, festival_date_start, festival_date_end, auto_activate, description) VALUES 
+                ('christmas', 'Christmas', 'បុណ្យណូអែល', 'festival', 'festival', 0, 5, '#DC2626', '#16A34A', '#F59E0B', '#1a1a2e', '#2d2d3d', '#FFFFFF', '#E8F5E9', '2026-12-24', '2026-12-26', 1, 'Christmas festival theme with red and green colors')");
+            
+            // Valentine Theme
+            $mysqli->query("INSERT INTO app_themes (theme_id, theme_name, theme_name_kh, theme_category, theme_type, is_active, display_order, primary_color, secondary_color, accent_color, background_color, card_color, text_primary_color, text_secondary_color, festival_date_start, festival_date_end, auto_activate, description) VALUES 
+                ('valentine', 'Valentine', 'បុណ្យស្នេហ៍', 'festival', 'festival', 0, 6, '#EC4899', '#F43F5E', '#F59E0B', '#2d1f3d', '#3d2a5c', '#FFFFFF', '#FCE7F3', '2026-02-14', '2026-02-14', 1, 'Valentine theme with pink and rose colors')");
+            
+            // Smart Glass Theme
+            $mysqli->query("INSERT INTO app_themes (theme_id, theme_name, theme_name_kh, theme_category, theme_type, is_active, display_order, primary_color, secondary_color, accent_color, background_color, card_color, text_primary_color, text_secondary_color, description) VALUES 
+                ('smart_glass', 'Smart Glass', 'កញ្ចក់ឆ្លាតវៃ', 'modern', 'modern', 0, 7, '#6366F1', '#8B5CF6', '#EC4899', '#0f172a', 'rgba(255,255,255,0.1)', '#FFFFFF', '#E2E8F0', 'Modern glassmorphism theme with transparent effects')");
+            
+            // Lunar Theme
+            $mysqli->query("INSERT INTO app_themes (theme_id, theme_name, theme_name_kh, theme_category, theme_type, is_active, display_order, primary_color, secondary_color, accent_color, background_color, card_color, text_primary_color, text_secondary_color, description) VALUES 
+                ('lunar', 'Lunar', 'ពន្លឺព្រះចន្ទ', 'modern', 'modern', 0, 8, '#1E293B', '#334155', '#94A3B8', '#0B1120', '#1E293B', '#F1F5F9', '#CBD5E1', 'Dark lunar theme with moon-inspired colors')");
+        }
+    }
+}
+
+/**
  * Ensure sub-accounts table exists.
  */
 if (!function_exists('ensure_user_subaccounts_table')) {
@@ -462,6 +543,7 @@ if ($mysqli_conn && $mysqli_conn instanceof mysqli) {
     ensure_employment_columns_and_logs($mysqli);
     ensure_noted_column($mysqli);
     ensure_user_groups_table($mysqli);
+    ensure_app_themes_table($mysqli);
     ensure_user_subaccounts_table($mysqli);
     ensure_column_visibility_table($mysqli);
     ensure_push_subscriptions_table($mysqli);

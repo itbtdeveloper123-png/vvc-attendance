@@ -5480,6 +5480,46 @@ switch ($action) {
         ]);
         break;
 
+    // Theme Management API Cases
+    case 'get_themes':
+        api_get_themes($mysqli);
+        break;
+
+    case 'get_active_theme':
+        api_get_active_theme($mysqli);
+        break;
+
+    case 'get_auto_theme':
+        api_get_auto_theme($mysqli);
+        break;
+
+    case 'set_active_theme':
+        if (!$user) apiResponse(['success' => false, 'message' => 'Unauthorized']);
+        $sysRole = $user['system_role'] ?? 'Employee';
+        if ($sysRole !== 'Admin' && $sysRole !== 'HRM') {
+            apiResponse(['success' => false, 'message' => 'Permission denied']);
+        }
+        api_set_active_theme($mysqli);
+        break;
+
+    case 'save_theme':
+        if (!$user) apiResponse(['success' => false, 'message' => 'Unauthorized']);
+        $sysRole = $user['system_role'] ?? 'Employee';
+        if ($sysRole !== 'Admin' && $sysRole !== 'HRM') {
+            apiResponse(['success' => false, 'message' => 'Permission denied']);
+        }
+        api_save_theme($mysqli);
+        break;
+
+    case 'delete_theme':
+        if (!$user) apiResponse(['success' => false, 'message' => 'Unauthorized']);
+        $sysRole = $user['system_role'] ?? 'Employee';
+        if ($sysRole !== 'Admin' && $sysRole !== 'HRM') {
+            apiResponse(['success' => false, 'message' => 'Permission denied']);
+        }
+        api_delete_theme($mysqli);
+        break;
+
     case 'submit_daily_report':
         if (!$user) apiResponse(['status' => 'error', 'message' => 'Unauthorized']);
         $content = $_POST['content'] ?? '';
@@ -7634,4 +7674,232 @@ function ai_verify_face_match($mysqli, $eid, $photo_b64) {
     }
 
     return ['match' => false, 'message' => 'ការផ្ទៀងផ្ទាត់ផ្ទៃមុខមានបញ្ហា៖ ' . $lastError];
+}
+
+/**
+ * Theme Management API Functions
+ */
+
+/**
+ * Get all available themes
+ */
+function api_get_themes($mysqli) {
+    $query = "SELECT * FROM app_themes ORDER BY display_order ASC, theme_name ASC";
+    $result = $mysqli->query($query);
+    
+    if (!$result) {
+        apiResponse(['success' => false, 'message' => 'Failed to fetch themes']);
+    }
+    
+    $themes = [];
+    while ($row = $result->fetch_assoc()) {
+        $themes[] = $row;
+    }
+    
+    apiResponse(['success' => true, 'themes' => $themes]);
+}
+
+/**
+ * Get currently active theme
+ */
+function api_get_active_theme($mysqli) {
+    $query = "SELECT * FROM app_themes WHERE is_active = 1 LIMIT 1";
+    $result = $mysqli->query($query);
+    
+    if (!$result) {
+        apiResponse(['success' => false, 'message' => 'Failed to fetch active theme']);
+    }
+    
+    $theme = $result->fetch_assoc();
+    
+    if (!$theme) {
+        // Return default theme if no active theme
+        $query = "SELECT * FROM app_themes WHERE theme_id = 'default' LIMIT 1";
+        $result = $mysqli->query($query);
+        $theme = $result ? $result->fetch_assoc() : null;
+    }
+    
+    apiResponse(['success' => true, 'theme' => $theme]);
+}
+
+/**
+ * Set active theme
+ */
+function api_set_active_theme($mysqli) {
+    $theme_id = $_POST['theme_id'] ?? '';
+    
+    if (empty($theme_id)) {
+        apiResponse(['success' => false, 'message' => 'Theme ID is required']);
+    }
+    
+    // Check if theme exists
+    $check = $mysqli->prepare("SELECT id FROM app_themes WHERE theme_id = ?");
+    $check->bind_param("s", $theme_id);
+    $check->execute();
+    $result = $check->get_result();
+    
+    if ($result->num_rows === 0) {
+        apiResponse(['success' => false, 'message' => 'Theme not found']);
+    }
+    $check->close();
+    
+    // Deactivate all themes
+    $mysqli->query("UPDATE app_themes SET is_active = 0");
+    
+    // Activate selected theme
+    $stmt = $mysqli->prepare("UPDATE app_themes SET is_active = 1 WHERE theme_id = ?");
+    $stmt->bind_param("s", $theme_id);
+    
+    if ($stmt->execute()) {
+        apiResponse(['success' => true, 'message' => 'Theme activated successfully']);
+    } else {
+        apiResponse(['success' => false, 'message' => 'Failed to activate theme']);
+    }
+    $stmt->close();
+}
+
+/**
+ * Create or update theme
+ */
+function api_save_theme($mysqli) {
+    $theme_id = $_POST['theme_id'] ?? '';
+    $theme_name = $_POST['theme_name'] ?? '';
+    $theme_name_kh = $_POST['theme_name_kh'] ?? '';
+    $theme_category = $_POST['theme_category'] ?? 'modern';
+    $theme_type = $_POST['theme_type'] ?? 'modern';
+    $primary_color = $_POST['primary_color'] ?? '#0E7490';
+    $secondary_color = $_POST['secondary_color'] ?? '#2563EB';
+    $accent_color = $_POST['accent_color'] ?? '#F59E0B';
+    $background_color = $_POST['background_color'] ?? '#111827';
+    $card_color = $_POST['card_color'] ?? '#1F2937';
+    $text_primary_color = $_POST['text_primary_color'] ?? '#FFFFFF';
+    $text_secondary_color = $_POST['text_secondary_color'] ?? '#CBD5E1';
+    $background_image = $_POST['background_image'] ?? '';
+    $app_icon = $_POST['app_icon'] ?? '';
+    $splash_image = $_POST['splash_image'] ?? '';
+    $festival_date_start = $_POST['festival_date_start'] ?? null;
+    $festival_date_end = $_POST['festival_date_end'] ?? null;
+    $auto_activate = isset($_POST['auto_activate']) ? (int)$_POST['auto_activate'] : 0;
+    $description = $_POST['description'] ?? '';
+    $display_order = isset($_POST['display_order']) ? (int)$_POST['display_order'] : 0;
+    
+    if (empty($theme_id) || empty($theme_name)) {
+        apiResponse(['success' => false, 'message' => 'Theme ID and name are required']);
+    }
+    
+    // Check if theme exists
+    $check = $mysqli->prepare("SELECT id FROM app_themes WHERE theme_id = ?");
+    $check->bind_param("s", $theme_id);
+    $check->execute();
+    $result = $check->get_result();
+    $exists = $result->num_rows > 0;
+    $check->close();
+    
+    if ($exists) {
+        // Update existing theme
+        $stmt = $mysqli->prepare("UPDATE app_themes SET 
+            theme_name = ?, theme_name_kh = ?, theme_category = ?, theme_type = ?,
+            primary_color = ?, secondary_color = ?, accent_color = ?,
+            background_color = ?, card_color = ?, text_primary_color = ?, text_secondary_color = ?,
+            background_image = ?, app_icon = ?, splash_image = ?,
+            festival_date_start = ?, festival_date_end = ?, auto_activate = ?,
+            description = ?, display_order = ?
+            WHERE theme_id = ?");
+        
+        $stmt->bind_param("ssssssssssssssisss", 
+            $theme_name, $theme_name_kh, $theme_category, $theme_type,
+            $primary_color, $secondary_color, $accent_color,
+            $background_color, $card_color, $text_primary_color, $text_secondary_color,
+            $background_image, $app_icon, $splash_image,
+            $festival_date_start, $festival_date_end, $auto_activate,
+            $description, $display_order, $theme_id);
+    } else {
+        // Insert new theme
+        $stmt = $mysqli->prepare("INSERT INTO app_themes (
+            theme_id, theme_name, theme_name_kh, theme_category, theme_type,
+            primary_color, secondary_color, accent_color,
+            background_color, card_color, text_primary_color, text_secondary_color,
+            background_image, app_icon, splash_image,
+            festival_date_start, festival_date_end, auto_activate,
+            description, display_order
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        
+        $stmt->bind_param("sssssssssssssssisss", 
+            $theme_id, $theme_name, $theme_name_kh, $theme_category, $theme_type,
+            $primary_color, $secondary_color, $accent_color,
+            $background_color, $card_color, $text_primary_color, $text_secondary_color,
+            $background_image, $app_icon, $splash_image,
+            $festival_date_start, $festival_date_end, $auto_activate,
+            $description, $display_order);
+    }
+    
+    if ($stmt->execute()) {
+        apiResponse(['success' => true, 'message' => $exists ? 'Theme updated successfully' : 'Theme created successfully']);
+    } else {
+        apiResponse(['success' => false, 'message' => 'Failed to save theme']);
+    }
+    $stmt->close();
+}
+
+/**
+ * Delete theme
+ */
+function api_delete_theme($mysqli) {
+    $theme_id = $_POST['theme_id'] ?? '';
+    
+    if (empty($theme_id)) {
+        apiResponse(['success' => false, 'message' => 'Theme ID is required']);
+    }
+    
+    // Don't allow deleting default theme
+    if ($theme_id === 'default') {
+        apiResponse(['success' => false, 'message' => 'Cannot delete default theme']);
+    }
+    
+    $stmt = $mysqli->prepare("DELETE FROM app_themes WHERE theme_id = ?");
+    $stmt->bind_param("s", $theme_id);
+    
+    if ($stmt->execute()) {
+        // If deleted theme was active, set default as active
+        $check = $mysqli->query("SELECT COUNT(*) as count FROM app_themes WHERE is_active = 1");
+        if ($check && $check->fetch_assoc()['count'] == 0) {
+            $mysqli->query("UPDATE app_themes SET is_active = 1 WHERE theme_id = 'default'");
+        }
+        
+        apiResponse(['success' => true, 'message' => 'Theme deleted successfully']);
+    } else {
+        apiResponse(['success' => false, 'message' => 'Failed to delete theme']);
+    }
+    $stmt->close();
+}
+
+/**
+ * Get auto-active theme based on current date
+ */
+function api_get_auto_theme($mysqli) {
+    $current_date = date('Y-m-d');
+    
+    $query = "SELECT * FROM app_themes 
+              WHERE auto_activate = 1 
+              AND festival_date_start <= ? 
+              AND festival_date_end >= ?
+              ORDER BY display_order ASC 
+              LIMIT 1";
+    
+    $stmt = $mysqli->prepare($query);
+    $stmt->bind_param("ss", $current_date, $current_date);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $theme = $result->fetch_assoc();
+    $stmt->close();
+    
+    if ($theme) {
+        apiResponse(['success' => true, 'theme' => $theme, 'auto_active' => true]);
+    } else {
+        // Return default theme
+        $query = "SELECT * FROM app_themes WHERE theme_id = 'default' LIMIT 1";
+        $result = $mysqli->query($query);
+        $theme = $result ? $result->fetch_assoc() : null;
+        apiResponse(['success' => true, 'theme' => $theme, 'auto_active' => false]);
+    }
 }

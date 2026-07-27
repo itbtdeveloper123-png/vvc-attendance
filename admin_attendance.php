@@ -362,6 +362,7 @@ $admin_pages_list = [
         'manage_user_fields' => 'គ្រប់គ្រង Fields អ្នកប្រើប្រាស់',
         'manage_request_fields' => 'គ្រប់គ្រង Fields សំណើរ',
         'manage_app_scan' => 'ការកំណត់កម្មវិធី',
+        'theme_management' => 'គ្រប់គ្រង Theme កម្មវិធី',
     ],
     'gps_tracking' => [
         'manage_customers' => 'គ្រប់គ្រងអតិថិជន (Manage Customers)',
@@ -4631,6 +4632,62 @@ if (isset($_POST['ajax_action']) || isset($_GET['ajax_action'])) {
                     $response = ['status' => 'success', 'message' => 'ការបង្ហាញម៉ឺនុយត្រូវបានផ្លាស់ប្តូរ!'];
                     break;
 
+                // Theme Management Actions
+                case 'get_themes':
+                    if (!hasPageAccess($mysqli, 'settings', 'theme_management', $current_admin_id)) {
+                        echo json_encode(['success' => false, 'message' => 'Permission denied.']);
+                        exit;
+                    }
+                    // Include the theme functions from api.php
+                    require_once __DIR__ . '/api.php';
+                    api_get_themes($mysqli);
+                    break;
+
+                case 'get_active_theme':
+                    if (!hasPageAccess($mysqli, 'settings', 'theme_management', $current_admin_id)) {
+                        echo json_encode(['success' => false, 'message' => 'Permission denied.']);
+                        exit;
+                    }
+                    require_once __DIR__ . '/api.php';
+                    api_get_active_theme($mysqli);
+                    break;
+
+                case 'get_auto_theme':
+                    if (!hasPageAccess($mysqli, 'settings', 'theme_management', $current_admin_id)) {
+                        echo json_encode(['success' => false, 'message' => 'Permission denied.']);
+                        exit;
+                    }
+                    require_once __DIR__ . '/api.php';
+                    api_get_auto_theme($mysqli);
+                    break;
+
+                case 'set_active_theme':
+                    if (!hasPageAccess($mysqli, 'settings', 'theme_management', $current_admin_id)) {
+                        echo json_encode(['success' => false, 'message' => 'Permission denied.']);
+                        exit;
+                    }
+                    require_once __DIR__ . '/api.php';
+                    api_set_active_theme($mysqli);
+                    break;
+
+                case 'save_theme':
+                    if (!hasPageAccess($mysqli, 'settings', 'theme_management', $current_admin_id)) {
+                        echo json_encode(['success' => false, 'message' => 'Permission denied.']);
+                        exit;
+                    }
+                    require_once __DIR__ . '/api.php';
+                    api_save_theme($mysqli);
+                    break;
+
+                case 'delete_theme':
+                    if (!hasPageAccess($mysqli, 'settings', 'theme_management', $current_admin_id)) {
+                        echo json_encode(['success' => false, 'message' => 'Permission denied.']);
+                        exit;
+                    }
+                    require_once __DIR__ . '/api.php';
+                    api_delete_theme($mysqli);
+                    break;
+
                 case 'save_workspace_order':
                     $ordered_pages = $_POST['ordered_pages'] ?? [];
                     if (!is_array($ordered_pages)) {
@@ -7047,7 +7104,7 @@ ob_end_flush();
             $sidebar_default_meetings_action = resolveFirstAccessibleAdminAction($mysqli, 'meetings', $admin_id_check, ['list_meetings', 'post_meeting'], $current_admin_id);
             $sidebar_default_gps_action = resolveFirstAccessibleAdminAction($mysqli, 'gps_tracking', $admin_id_check, ['manage_customers', 'trip_dashboard', 'trip_history'], $current_admin_id);
             $sidebar_default_training_action = resolveFirstAccessibleAdminAction($mysqli, 'training', $admin_id_check, ['quiz_questions'], $current_admin_id);
-            $sidebar_default_settings_action = resolveFirstAccessibleAdminAction($mysqli, 'settings', $admin_id_check, ['panel_settings', 'menu_settings', 'login_page_settings', 'manage_user_fields', 'manage_request_fields', 'manage_app_scan'], $current_admin_id);
+            $sidebar_default_settings_action = resolveFirstAccessibleAdminAction($mysqli, 'settings', $admin_id_check, ['panel_settings', 'menu_settings', 'login_page_settings', 'manage_user_fields', 'manage_request_fields', 'manage_app_scan', 'theme_management'], $current_admin_id);
             $sidebar_default_stock_action = resolveFirstAccessibleAdminAction($mysqli, 'stock', $admin_id_check, ['stock_control', 'stock_purchase', 'stock_reports', 'stock_counting', 'stock_requests', 'direct_transfer'], $current_admin_id);
 
             $can_see_users = ($sidebar_default_users_action !== '');
@@ -7472,6 +7529,11 @@ ob_end_flush();
                                         <?php if (hasPageAccess($mysqli, 'settings', 'manage_request_fields', $admin_id_check) && !isSidebarHidden($mysqli, $current_admin_id, 'settings', 'manage_request_fields')): ?>
                                             <li><a href="?page=settings&action=manage_request_fields"
                                                     class="<?php echo ($is_settings_page && $settings_action == 'manage_request_fields') ? 'sub-active' : ''; ?>"><?php echo htmlspecialchars($submenu_texts['settings']['manage_request_fields'] ?? 'គ្រប់គ្រង Fields សំណើរ'); ?></a>
+                                            </li>
+                                        <?php endif; ?>
+                                        <?php if (hasPageAccess($mysqli, 'settings', 'theme_management', $admin_id_check) && !isSidebarHidden($mysqli, $current_admin_id, 'settings', 'theme_management')): ?>
+                                            <li><a href="?page=settings&action=theme_management"
+                                                    class="<?php echo ($is_settings_page && $settings_action == 'theme_management') ? 'sub-active' : ''; ?>"><?php echo htmlspecialchars($submenu_texts['settings']['theme_management'] ?? 'គ្រប់គ្រង Theme'); ?></a>
                                             </li>
                                         <?php endif; ?>
                                         <?php if (hasPageAccess($mysqli, 'settings', 'manage_app_scan', $admin_id_check) && !isSidebarHidden($mysqli, $current_admin_id, 'settings', 'manage_app_scan')): ?>
@@ -9430,6 +9492,7 @@ ob_end_flush();
                         $push_submenu_link(hasPageAccess($mysqli, 'settings', 'login_page_settings', $admin_id_check) && !isSidebarHidden($mysqli, $current_admin_id, 'settings', 'login_page_settings'), '?page=settings&action=login_page_settings', htmlspecialchars($submenu_texts['settings']['login_page_settings'] ?? 'Login Page Settings'), ($current_page == 'settings' && $current_action == 'login_page_settings'), 'fa-solid fa-right-to-bracket');
                         $push_submenu_link(hasPageAccess($mysqli, 'settings', 'manage_user_fields', $admin_id_check) && !isSidebarHidden($mysqli, $current_admin_id, 'settings', 'manage_user_fields'), '?page=settings&action=manage_user_fields', htmlspecialchars($submenu_texts['settings']['manage_user_fields'] ?? 'User Fields'), ($current_page == 'settings' && $current_action == 'manage_user_fields'), 'fa-solid fa-id-card');
                         $push_submenu_link(hasPageAccess($mysqli, 'settings', 'manage_request_fields', $admin_id_check) && !isSidebarHidden($mysqli, $current_admin_id, 'settings', 'manage_request_fields'), '?page=settings&action=manage_request_fields', htmlspecialchars($submenu_texts['settings']['manage_request_fields'] ?? 'Request Fields'), ($current_page == 'settings' && $current_action == 'manage_request_fields'), 'fa-solid fa-file-lines');
+                        $push_submenu_link(hasPageAccess($mysqli, 'settings', 'theme_management', $admin_id_check) && !isSidebarHidden($mysqli, $current_admin_id, 'settings', 'theme_management'), '?page=settings&action=theme_management', htmlspecialchars($submenu_texts['settings']['theme_management'] ?? 'Theme Management'), ($current_page == 'settings' && $current_action == 'theme_management'), 'fa-solid fa-palette');
                         $push_submenu_link(hasPageAccess($mysqli, 'settings', 'manage_app_scan', $admin_id_check) && !isSidebarHidden($mysqli, $current_admin_id, 'settings', 'manage_app_scan'), '?page=settings&action=manage_app_scan', htmlspecialchars($submenu_texts['settings']['manage_app_scan'] ?? 'App Settings'), ($current_page == 'settings' && $current_action == 'manage_app_scan'), 'fa-solid fa-mobile-screen-button');
                         break;
 
@@ -20329,6 +20392,7 @@ ob_end_flush();
                             'manage_user_fields' => ['icon' => 'fa-solid fa-user-plus', 'label' => 'User Fields (កែទម្រង់ User)'],
                             'manage_request_fields' => ['icon' => 'fa-solid fa-file-lines', 'label' => 'Request Fields (សំណើរ)'],
                             'manage_app_scan' => ['icon' => 'fa-solid fa-mobile-screen-button', 'label' => 'App Settings (កម្មវិធី)'],
+                            'theme_management' => ['icon' => 'fa-solid fa-swatchbook', 'label' => 'Theme Management (គ្រប់គ្រង Theme)'],
                         ];
                         ?>
                         <div class="settings-nav" role="tablist" aria-label="Settings Pages">
@@ -23093,6 +23157,429 @@ ob_end_flush();
 
 
                 <!-- END: បន្ថែមកូដថ្មី -->
+
+            <?php elseif ($settings_action === 'theme_management' && hasPageAccess($mysqli, 'settings', 'theme_management', $admin_id_check)): ?>
+                <div class="hrm-card">
+                    <div class="hrm-card-header">
+                        <h3><i class="fa-solid fa-palette"></i> គ្រប់គ្រង Theme កម្មវិធី (App Theme Management)</h3>
+                    </div>
+                    <div class="hrm-card-body">
+                        <div class="alert alert-info" style="margin-bottom: 20px;">
+                            <i class="fa-solid fa-info-circle"></i>
+                            គ្រប់គ្រង Theme កម្មវិធីតាមរដូវកាលបុណ្យ និងសទ្វីង។ Theme នឹងត្រូវប្តូរដោយស្វ័យប្រវត្តិនៅពេលដែលពេលវេលាបុណ្យមកដល់។
+                        </div>
+
+                        <div id="theme-management-container">
+                            <div class="theme-controls" style="margin-bottom: 20px;">
+                                <button type="button" class="btn btn-primary" onclick="openThemeEditor()">
+                                    <i class="fa-solid fa-plus"></i> បង្កើត Theme ថ្មី
+                                </button>
+                                <button type="button" class="btn btn-secondary" onclick="refreshThemes()">
+                                    <i class="fa-solid fa-sync"></i> ធ្វើបច្ចុប្បន្នភាព
+                                </button>
+                            </div>
+
+                            <div id="themes-list" class="themes-grid">
+                                <!-- Themes will be loaded here via AJAX -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Theme Editor Modal -->
+                <div id="theme-editor-modal" class="modal" style="display: none;">
+                    <div class="modal-content" style="max-width: 800px; max-height: 90vh; overflow-y: auto;">
+                        <div class="modal-header">
+                            <h3 id="theme-editor-title">បង្កើត Theme ថ្មី</h3>
+                            <button type="button" class="close-modal" onclick="closeThemeEditor()">&times;</button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="theme-editor-form" class="ajax-form">
+                                <input type="hidden" name="ajax_action" value="save_theme">
+                                <input type="hidden" name="theme_id" id="theme_id_hidden" value="">
+
+                                <div class="form-group">
+                                    <label>Theme ID (Unique)</label>
+                                    <input type="text" name="theme_id" id="theme_id_input" class="form-control" required pattern="[a-z0-9_]+" placeholder="e.g., khmer_new_year">
+                                </div>
+
+                                <div class="form-group">
+                                    <label>Theme Name (English)</label>
+                                    <input type="text" name="theme_name" id="theme_name" class="form-control" required placeholder="e.g., Khmer New Year">
+                                </div>
+
+                                <div class="form-group">
+                                    <label>Theme Name (Khmer)</label>
+                                    <input type="text" name="theme_name_kh" id="theme_name_kh" class="form-control" placeholder="e.g., បុណ្យចូលឆ្នាំខ្មែរ">
+                                </div>
+
+                                <div class="form-group">
+                                    <label>Theme Category</label>
+                                    <select name="theme_category" id="theme_category" class="form-control">
+                                        <option value="festival">Festival (បុណ្យ)</option>
+                                        <option value="modern">Modern (ទំនើប)</option>
+                                        <option value="seasonal">Seasonal (រដូវកាល)</option>
+                                        <option value="custom">Custom (ផ្ទាល់ខ្លួន)</option>
+                                    </select>
+                                </div>
+
+                                <div class="form-group">
+                                    <label>Theme Type</label>
+                                    <select name="theme_type" id="theme_type" class="form-control">
+                                        <option value="festival">Festival</option>
+                                        <option value="modern">Modern</option>
+                                        <option value="seasonal">Seasonal</option>
+                                        <option value="custom">Custom</option>
+                                    </select>
+                                </div>
+
+                                <div class="form-group">
+                                    <label>Display Order</label>
+                                    <input type="number" name="display_order" id="display_order" class="form-control" value="0" min="0">
+                                </div>
+
+                                <h4>Color Scheme</h4>
+                                <div class="color-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin: 15px 0;">
+                                    <div class="form-group">
+                                        <label>Primary Color</label>
+                                        <input type="color" name="primary_color" id="primary_color" class="form-control" value="#0E7490">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Secondary Color</label>
+                                        <input type="color" name="secondary_color" id="secondary_color" class="form-control" value="#2563EB">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Accent Color</label>
+                                        <input type="color" name="accent_color" id="accent_color" class="form-control" value="#F59E0B">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Background Color</label>
+                                        <input type="color" name="background_color" id="background_color" class="form-control" value="#111827">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Card Color</label>
+                                        <input type="color" name="card_color" id="card_color" class="form-control" value="#1F2937">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Text Primary Color</label>
+                                        <input type="color" name="text_primary_color" id="text_primary_color" class="form-control" value="#FFFFFF">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Text Secondary Color</label>
+                                        <input type="color" name="text_secondary_color" id="text_secondary_color" class="form-control" value="#CBD5E1">
+                                    </div>
+                                </div>
+
+                                <h4>Festival Settings (Optional)</h4>
+                                <div class="form-group">
+                                    <label>Auto-activate on Festival Dates</label>
+                                    <input type="checkbox" name="auto_activate" id="auto_activate" value="1">
+                                </div>
+                                <div class="form-group">
+                                    <label>Festival Start Date</label>
+                                    <input type="date" name="festival_date_start" id="festival_date_start" class="form-control">
+                                </div>
+                                <div class="form-group">
+                                    <label>Festival End Date</label>
+                                    <input type="date" name="festival_date_end" id="festival_date_end" class="form-control">
+                                </div>
+
+                                <div class="form-group">
+                                    <label>Description</label>
+                                    <textarea name="description" id="description" class="form-control" rows="3"></textarea>
+                                </div>
+
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" onclick="closeThemeEditor()">បោះបង់</button>
+                                    <button type="submit" class="btn btn-primary">រក្សាទុក Theme</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <script>
+                    // Theme Management JavaScript
+                    function loadThemes() {
+                        fetch('api.php?action=get_themes', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded',
+                            },
+                            body: 'action=get_themes'
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                renderThemes(data.themes);
+                            } else {
+                                alert('Failed to load themes: ' + (data.message || 'Unknown error'));
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error loading themes:', error);
+                            alert('Error loading themes');
+                        });
+                    }
+
+                    function renderThemes(themes) {
+                        const container = document.getElementById('themes-list');
+                        if (!container) return;
+
+                        container.innerHTML = themes.map(theme => `
+                            <div class="theme-card ${theme.is_active ? 'active' : ''}" style="border: 1px solid #ddd; padding: 15px; margin-bottom: 15px; border-radius: 8px; ${theme.is_active ? 'border-color: #0E7490; background: #f0f9ff;' : ''}">
+                                <div style="display: flex; justify-content: space-between; align-items: start;">
+                                    <div>
+                                        <h4 style="margin: 0 0 5px 0;">${theme.theme_name} ${theme.theme_name_kh ? `(${theme.theme_name_kh})` : ''}</h4>
+                                        <p style="margin: 0; color: #666; font-size: 12px;">${theme.theme_category} - ${theme.theme_type}</p>
+                                        ${theme.is_active ? '<span class="badge badge-success">Active</span>' : ''}
+                                        ${theme.auto_activate ? '<span class="badge badge-info">Auto</span>' : ''}
+                                    </div>
+                                    <div style="display: flex; gap: 5px;">
+                                        ${!theme.is_active ? `<button type="button" class="btn btn-sm btn-success" onclick="activateTheme('${theme.theme_id}')">Activate</button>` : ''}
+                                        <button type="button" class="btn btn-sm btn-primary" onclick="editTheme('${theme.theme_id}')">Edit</button>
+                                        ${theme.theme_id !== 'default' ? `<button type="button" class="btn btn-sm btn-danger" onclick="deleteTheme('${theme.theme_id}')">Delete</button>` : ''}
+                                    </div>
+                                </div>
+                                <div style="margin-top: 10px; display: flex; gap: 10px;">
+                                    <div style="width: 30px; height: 30px; background: ${theme.primary_color}; border-radius: 4px;" title="Primary"></div>
+                                    <div style="width: 30px; height: 30px; background: ${theme.secondary_color}; border-radius: 4px;" title="Secondary"></div>
+                                    <div style="width: 30px; height: 30px; background: ${theme.accent_color}; border-radius: 4px;" title="Accent"></div>
+                                    <div style="width: 30px; height: 30px; background: ${theme.background_color}; border-radius: 4px;" title="Background"></div>
+                                </div>
+                                ${theme.festival_date_start ? `<p style="margin: 5px 0 0 0; font-size: 11px; color: #666;">Festival: ${theme.festival_date_start} to ${theme.festival_date_end}</p>` : ''}
+                            </div>
+                        `).join('');
+                    }
+
+                    function openThemeEditor(themeId = null) {
+                        const modal = document.getElementById('theme-editor-modal');
+                        const form = document.getElementById('theme-editor-form');
+                        const title = document.getElementById('theme-editor-title');
+                        
+                        if (themeId) {
+                            title.textContent = 'កែប្រែ Theme';
+                            // Load theme data and populate form
+                            fetch('api.php?action=get_themes', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                                body: 'action=get_themes'
+                            })
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.success) {
+                                    const theme = data.themes.find(t => t.theme_id === themeId);
+                                    if (theme) {
+                                        document.getElementById('theme_id_input').value = theme.theme_id;
+                                        document.getElementById('theme_id_hidden').value = theme.theme_id;
+                                        document.getElementById('theme_id_input').disabled = true;
+                                        document.getElementById('theme_name').value = theme.theme_name;
+                                        document.getElementById('theme_name_kh').value = theme.theme_name_kh || '';
+                                        document.getElementById('theme_category').value = theme.theme_category;
+                                        document.getElementById('theme_type').value = theme.theme_type;
+                                        document.getElementById('display_order').value = theme.display_order;
+                                        document.getElementById('primary_color').value = theme.primary_color;
+                                        document.getElementById('secondary_color').value = theme.secondary_color;
+                                        document.getElementById('accent_color').value = theme.accent_color;
+                                        document.getElementById('background_color').value = theme.background_color;
+                                        document.getElementById('card_color').value = theme.card_color;
+                                        document.getElementById('text_primary_color').value = theme.text_primary_color;
+                                        document.getElementById('text_secondary_color').value = theme.text_secondary_color;
+                                        document.getElementById('auto_activate').checked = theme.auto_activate == 1;
+                                        document.getElementById('festival_date_start').value = theme.festival_date_start || '';
+                                        document.getElementById('festival_date_end').value = theme.festival_date_end || '';
+                                        document.getElementById('description').value = theme.description || '';
+                                    }
+                                }
+                            });
+                        } else {
+                            title.textContent = 'បង្កើត Theme ថ្មី';
+                            form.reset();
+                            document.getElementById('theme_id_input').disabled = false;
+                            document.getElementById('theme_id_hidden').value = '';
+                        }
+                        
+                        modal.style.display = 'block';
+                    }
+
+                    function closeThemeEditor() {
+                        document.getElementById('theme-editor-modal').style.display = 'none';
+                    }
+
+                    function editTheme(themeId) {
+                        openThemeEditor(themeId);
+                    }
+
+                    function activateTheme(themeId) {
+                        if (!confirm('តើអ្នកចង់ធ្វើឱ្យ Theme នេះសកម្មភាពមែនទេ?')) return;
+                        
+                        const formData = new FormData();
+                        formData.append('action', 'set_active_theme');
+                        formData.append('theme_id', themeId);
+                        
+                        fetch('api.php', {
+                            method: 'POST',
+                            body: formData
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                alert('Theme ត្រូវបានធ្វើឱ្យសកម្មភាពដោយជោគជ័យ!');
+                                loadThemes();
+                            } else {
+                                alert('Failed to activate theme: ' + (data.message || 'Unknown error'));
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error activating theme:', error);
+                            alert('Error activating theme');
+                        });
+                    }
+
+                    function deleteTheme(themeId) {
+                        if (!confirm('តើអ្នកប្រាកដជាចង់លុប Theme នេះមែនទេ?')) return;
+                        
+                        const formData = new FormData();
+                        formData.append('action', 'delete_theme');
+                        formData.append('theme_id', themeId);
+                        
+                        fetch('api.php', {
+                            method: 'POST',
+                            body: formData
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                alert('Theme ត្រូវបានលុបដោយជោគជ័យ!');
+                                loadThemes();
+                            } else {
+                                alert('Failed to delete theme: ' + (data.message || 'Unknown error'));
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error deleting theme:', error);
+                            alert('Error deleting theme');
+                        });
+                    }
+
+                    function refreshThemes() {
+                        loadThemes();
+                    }
+
+                    // Initialize on page load
+                    document.addEventListener('DOMContentLoaded', function() {
+                        if (document.getElementById('themes-list')) {
+                            loadThemes();
+                        }
+                    });
+
+                    // Handle form submission
+                    document.getElementById('theme-editor-form').addEventListener('submit', function(e) {
+                        e.preventDefault();
+                        
+                        const formData = new FormData(this);
+                        // Use the theme_id from the input field
+                        const themeId = document.getElementById('theme_id_input').value;
+                        formData.set('theme_id', themeId);
+                        formData.append('action', 'save_theme');
+                        
+                        fetch('api.php', {
+                            method: 'POST',
+                            body: formData
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                alert('Theme ត្រូវបានរក្សាទុកដោយជោគជ័យ!');
+                                closeThemeEditor();
+                                loadThemes();
+                            } else {
+                                alert('Failed to save theme: ' + (data.message || 'Unknown error'));
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error saving theme:', error);
+                            alert('Error saving theme');
+                        });
+                    });
+                </script>
+
+                <style>
+                    .theme-card {
+                        transition: all 0.3s ease;
+                    }
+                    .theme-card:hover {
+                        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+                    }
+                    .theme-card.active {
+                        border-color: #0E7490 !important;
+                        background: #f0f9ff !important;
+                    }
+                    .badge {
+                        padding: 2px 8px;
+                        border-radius: 12px;
+                        font-size: 11px;
+                        font-weight: bold;
+                    }
+                    .badge-success {
+                        background: #16A34A;
+                        color: white;
+                    }
+                    .badge-info {
+                        background: #3B82F6;
+                        color: white;
+                    }
+                    .modal {
+                        position: fixed;
+                        top: 0;
+                        left: 0;
+                        width: 100%;
+                        height: 100%;
+                        background: rgba(0,0,0,0.5);
+                        display: flex;
+                        justify-content: center;
+                        align-items: center;
+                        z-index: 1000;
+                    }
+                    .modal-content {
+                        background: white;
+                        border-radius: 8px;
+                        width: 90%;
+                        max-width: 800px;
+                        max-height: 90vh;
+                        overflow-y: auto;
+                    }
+                    .modal-header {
+                        padding: 15px 20px;
+                        border-bottom: 1px solid #ddd;
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                    }
+                    .modal-body {
+                        padding: 20px;
+                    }
+                    .modal-footer {
+                        padding: 15px 20px;
+                        border-top: 1px solid #ddd;
+                        display: flex;
+                        justify-content: flex-end;
+                        gap: 10px;
+                    }
+                    .close-modal {
+                        background: none;
+                        border: none;
+                        font-size: 24px;
+                        cursor: pointer;
+                    }
+                    .color-grid input[type="color"] {
+                        width: 100%;
+                        height: 40px;
+                        padding: 2px;
+                        border: 1px solid #ddd;
+                        border-radius: 4px;
+                    }
+                </style>
 
             <?php elseif ($settings_action === 'login_page_settings' && hasPageAccess($mysqli, 'settings', 'login_page_settings', $admin_id_check)):
                             $current_login_title = get_setting($mysqli, 'SYSTEM_WIDE', 'login_page_title', 'Admin Panel Login');

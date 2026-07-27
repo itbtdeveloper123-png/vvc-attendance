@@ -933,6 +933,8 @@ class ApiService {
     String? materials,
     String? dateKhmerPart1,
     String? dateKhmerPart2,
+    String? startLunarDate,
+    String? endLunarDate,
     List<Map<String, String>>? personnel,
   }) async {
     final headers = await _authHeaders();
@@ -947,6 +949,8 @@ class ApiService {
       'materials': materials ?? '',
       'date_khmer_part1': dateKhmerPart1 ?? '',
       'date_khmer_part2': dateKhmerPart2 ?? '',
+      'start_lunar_date': startLunarDate ?? '',
+      'end_lunar_date': endLunarDate ?? '',
     };
     if (personnel != null) {
       for (var i = 0; i < personnel.length && i < 10; i++) {
@@ -1418,5 +1422,55 @@ class ApiService {
       debugPrint('OSRM route error: $e');
       return null;
     }
+  }
+
+  // Theme Management API Methods
+
+  /// Get all available themes
+  Future<Map<String, dynamic>> getThemes() async {
+    final headers = await _authHeaders();
+    return _processRequest('get_themes', headers: headers);
+  }
+
+  /// Get currently active theme
+  Future<Map<String, dynamic>> getActiveTheme() async {
+    final headers = await _authHeaders();
+    return _processRequest('get_active_theme', headers: headers);
+  }
+
+  /// Get auto-active theme based on current date
+  Future<Map<String, dynamic>> getAutoTheme() async {
+    final headers = await _authHeaders();
+    return _processRequest('get_auto_theme', headers: headers);
+  }
+
+  /// Set active theme (Admin only)
+  Future<Map<String, dynamic>> setActiveTheme(String themeId) async {
+    final headers = await _authHeaders();
+    return _processRequest(
+      'set_active_theme',
+      headers: headers,
+      body: {'theme_id': themeId},
+    );
+  }
+
+  /// Save theme (Admin only)
+  Future<Map<String, dynamic>> saveTheme(Map<String, dynamic> themeData) async {
+    final headers = await _authHeaders();
+    return _processRequest(
+      'save_theme',
+      headers: headers,
+      body: themeData,
+    );
+  }
+
+  /// Delete theme (Admin only)
+  Future<Map<String, dynamic>> deleteTheme(String themeId) async {
+    final headers = await _authHeaders();
+    return _processRequest(
+      'delete_theme',
+      headers: headers,
+      body: {'theme_id': themeId},
+    );
   }
 }
