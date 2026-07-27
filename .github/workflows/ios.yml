@@ -10,7 +10,7 @@ on:
 jobs:
   build:
     name: Build iOS App
-    runs-on: macos-latest
+    runs-on: macos-14  # Use macOS 14 (Intel) for better compatibility with Google ML Kit
 
     steps:
       - name: Checkout repository
@@ -21,6 +21,7 @@ jobs:
         with:
           channel: 'stable'
           cache: true
+          architecture: x64  # Use x64 architecture for better compatibility
 
       - name: Print Flutter & Dart version
         run: flutter --version
@@ -65,6 +66,7 @@ jobs:
         env:
           FLUTTER_NO_CODESIGN: 'true'
           CI: 'true'
+          EXCLUDED_ARCHS: 'arm64 i386'
         run: |
           set -euo pipefail
           
