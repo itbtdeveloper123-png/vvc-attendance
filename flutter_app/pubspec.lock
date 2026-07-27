@@ -149,10 +149,10 @@ packages:
     dependency: "direct main"
     description:
       name: camera
-      sha256: dfa8fc5a1adaeb95e7a54d86a5bd56f4bb0e035515354c8ac6d262e35cec2ec8
+      sha256: "9499cbc2e51d8eb0beadc158b288380037618ce4e30c9acbc4fae1ac3ecb5797"
       url: "https://pub.dev"
     source: hosted
-    version: "0.10.6"
+    version: "0.10.5+9"
   camera_android:
     dependency: transitive
     description:
@@ -1505,10 +1505,10 @@ packages:
     dependency: "direct main"
     description:
       name: signature
-      sha256: f3d14bd6dae46d3b4802c6a091d6d39c9c6080d999e8c5380581d3725c30e360
+      sha256: d95143b8e310b395ea0be59a46bb69fa24106cb6ec79815fc56fd320268e24e6
       url: "https://pub.dev"
     source: hosted
-    version: "6.3.0"
+    version: "5.4.0"
   sky_engine:
     dependency: transitive
     description: flutter
