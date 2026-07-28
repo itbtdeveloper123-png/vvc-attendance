@@ -81,7 +81,16 @@ jobs:
           FLUTTER_NO_CODESIGN: 'true'
           CI: 'true'
         run: |
-          pod install --repo-update || pod install
+          pod deintegrate || true
+          pod install --repo-update
+
+      - name: Clean Flutter build
+        working-directory: flutter_app
+        run: flutter clean
+
+      - name: Reinstall Flutter dependencies
+        working-directory: flutter_app
+        run: flutter pub get
 
       - name: Build Unsigned iOS App & IPA
         working-directory: flutter_app
