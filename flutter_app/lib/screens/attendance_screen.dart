@@ -1066,7 +1066,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                 ElevatedButton(
                   onPressed: () {
                     Navigator.pop(context); // close dialog
-                    if (!isError && result != null) {
+                    if (!isError && result != null && Navigator.canPop(context)) {
                       // Return result to caller (Feature #1, #2, #5)
                       Navigator.pop(context, result);
                     } else {

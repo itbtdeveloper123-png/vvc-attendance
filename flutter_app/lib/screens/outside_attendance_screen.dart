@@ -326,8 +326,10 @@ class _OutsideAttendanceScreenState extends State<OutsideAttendanceScreen> {
                 const SizedBox(height: 24),
                 ElevatedButton(
                   onPressed: () {
-                    Navigator.pop(context);
-                    if (isSuccess) Navigator.pop(context);
+                    Navigator.pop(context); // Close dialog
+                    if (isSuccess && Navigator.canPop(context)) {
+                      Navigator.pop(context); // Close screen if successful and can pop
+                    }
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: color.withValues(alpha: 0.2),
