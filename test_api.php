@@ -84,6 +84,28 @@ try {
         }
     }
     
+    // Test the direct_test.php file to check if .htaccess is interfering
+    $directTestUrl = 'https://app.vvc.asia/flutter/direct_test.php';
+    
+    if (function_exists('curl_init')) {
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $directTestUrl);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        
+        $directOutput = curl_exec($ch);
+        $directHttpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $directError = curl_error($ch);
+        curl_close($ch);
+        
+        if ($directError) {
+            echo "✗ Direct test failed: $directError\n";
+        } else {
+            echo "Direct Test (HTTP $directHttpCode): $directOutput\n";
+        }
+    }
+    
     // Now test the actual API endpoint with GET request first
     $testUrl = 'https://app.vvc.asia/flutter/api.php?action=test';
     
