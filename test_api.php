@@ -84,8 +84,41 @@ try {
         }
     }
     
-    // Now test the actual API endpoint
-    $testUrl = 'https://app.vvc.asia/flutter/api.php';
+    // Now test the actual API endpoint with GET request first
+    $testUrl = 'https://app.vvc.asia/flutter/api.php?action=test';
+    
+    if (function_exists('curl_init')) {
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $testUrl);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+        
+        $output = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $error = curl_error($ch);
+        curl_close($ch);
+        
+        if ($error) {
+            echo "✗ GET Curl error: $error\n";
+        } else {
+            echo "API GET Test (HTTP $httpCode): " . substr($output, 0, 500) . "...\n";
+            
+            if ($httpCode === 200) {
+                if (strpos($output, 'success') !== false) {
+                    echo "✓ API GET endpoint responded correctly\n";
+                } else {
+                    echo "✗ API GET endpoint did not return expected JSON\n";
+                }
+            } else {
+                echo "✗ API GET returned HTTP $httpCode instead of 200\n";
+            }
+        }
+    }
+    
+    // Also test with POST
+    $testUrlPost = 'https://app.vvc.asia/flutter/api.php';
     
     if (function_exists('curl_init')) {
         $data = [
@@ -94,13 +127,13 @@ try {
         ];
         
         $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $testUrl);
+        curl_setopt($ch, CURLOPT_URL, $testUrlPost);
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($data));
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 10); // 10 second timeout
+        curl_setopt($ch, CURLOPT_TIMEOUT, 10);
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5); // 5 second connection timeout
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
         
         $output = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -108,18 +141,18 @@ try {
         curl_close($ch);
         
         if ($error) {
-            echo "✗ Curl error: $error\n";
+            echo "✗ POST Curl error: $error\n";
         } else {
-            echo "API Test (HTTP $httpCode): " . substr($output, 0, 500) . "...\n";
+            echo "API POST Test (HTTP $httpCode): " . substr($output, 0, 500) . "...\n";
             
             if ($httpCode === 200) {
                 if (strpos($output, 'success') !== false) {
-                    echo "✓ API endpoint responded correctly\n";
+                    echo "✓ API POST endpoint responded correctly\n";
                 } else {
-                    echo "✗ API endpoint did not return expected JSON\n";
+                    echo "✗ API POST endpoint did not return expected JSON\n";
                 }
             } else {
-                echo "✗ API returned HTTP $httpCode instead of 200\n";
+                echo "✗ API POST returned HTTP $httpCode instead of 200\n";
             }
         }
     } else {

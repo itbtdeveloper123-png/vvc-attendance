@@ -5,13 +5,14 @@
  * Unified landing point for all Mobile and Frontend requests.
  */
 
-// First check if this is a test request - respond immediately
+// First check if this is a test request - respond immediately with minimal code
 $actionSource = $_POST['action'] ?? $_GET['action'] ?? $_POST['ajax_action'] ?? $_GET['ajax_action'] ?? '';
 $action = strtolower(trim($actionSource));
 
 if ($action === 'test' || $action === 'health') {
+    http_response_code(200);
     header('Content-Type: application/json; charset=UTF-8');
-    echo json_encode([
+    $response = [
         'success' => true, 
         'status' => 'success', 
         'message' => 'API is working', 
@@ -21,7 +22,8 @@ if ($action === 'test' || $action === 'health') {
             'server_time' => date('Y-m-d H:i:s'),
             'request_method' => $_SERVER['REQUEST_METHOD'] ?? 'unknown'
         ]
-    ]);
+    ];
+    echo json_encode($response);
     exit;
 }
 
