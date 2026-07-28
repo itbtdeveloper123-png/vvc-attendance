@@ -77,13 +77,31 @@ register_shutdown_function(function() {
     }
 });
 
-require_once __DIR__ . '/webpush_functions.php';
-require_once __DIR__ . '/notification_functions.php';
-require_once __DIR__ . '/enterprise_helpers.php';
-require_once __DIR__ . '/ai_tools.php';
-require_once __DIR__ . '/ai_provider_openai.php';
-require_once __DIR__ . '/ai_chat_service.php';
-require_once __DIR__ . '/ai_image_service.php';
+// Load helper files — use @include so a broken vendor lib won't crash the whole API
+$_helper_files = [
+    'webpush_functions.php',
+    'notification_functions.php',
+    'enterprise_helpers.php',
+    'ai_tools.php',
+    'ai_provider_openai.php',
+    'ai_chat_service.php',
+    'ai_image_service.php',
+];
+foreach ($_helper_files as $_hf) {
+    $_hf_path = __DIR__ . '/' . $_hf;
+    if (file_exists($_hf_path)) {
+        @include_once $_hf_path;
+    }
+}
+unset($_helper_files, $_hf, $_hf_path);
+
+// Stub fallback: if webpush/notification library not loaded, silently skip
+if (!function_exists('sendWebPushNotification')) {
+    function sendWebPushNotification($m, $eid, $title, $body, $img = null) { return false; }
+}
+if (!function_exists('sendAppNotificationToUser')) {
+    function sendAppNotificationToUser($m, $eid, $title, $msg, $aid='SYSTEM', $exp=null, $img=null) { return false; }
+}
 
 /**
  * Get connection to HRM settings database
