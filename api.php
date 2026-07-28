@@ -7888,9 +7888,6 @@ try {
         
         apiResponse(['success' => true, 'data' => $poll]);
         break;
-            ]
-        ]);
-        break;
 
     case 'update_customer_location':
         // Auto-save customer lat/lng when trip ends (only if not already set)
