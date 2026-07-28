@@ -247,7 +247,10 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
             ini_set('session.save_path', $fallback);
         }
     }
-    session_start();
+    // Only start session if headers not yet sent (prevents "headers already sent" warning in API context)
+    if (!headers_sent()) {
+        @session_start();
+    }
 }
 
 ?>

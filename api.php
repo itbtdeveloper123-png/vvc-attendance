@@ -24,7 +24,7 @@ if ($action === 'test' || $action === 'health') {
     exit;
 }
 
-ob_start();
+// Output buffering removed — apiResponse() handles clean output directly
 
 // 1. Headers & Environment
 error_reporting(E_ALL);
@@ -62,6 +62,9 @@ set_error_handler(function($errno, $errstr, $errfile, $errline) {
 // Global exception handler
 set_exception_handler(function($exception) {
     error_log("Uncaught Exception: " . $exception->getMessage() . " in " . $exception->getFile() . " on line " . $exception->getLine());
+    // Clean output buffer to avoid empty/corrupt response
+    while (ob_get_level() > 0) { ob_end_clean(); }
+    header('Content-Type: application/json; charset=UTF-8');
     http_response_code(500);
     echo json_encode(['success' => false, 'status' => 'error', 'message' => 'Server Error']);
     exit;
@@ -72,8 +75,11 @@ register_shutdown_function(function() {
     $error = error_get_last();
     if ($error !== null && in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR])) {
         error_log("Fatal Error: " . $error['message'] . " in " . $error['file'] . " on line " . $error['line']);
+        // Clean output buffer to avoid empty/corrupt response body
+        while (ob_get_level() > 0) { ob_end_clean(); }
+        header('Content-Type: application/json; charset=UTF-8');
         http_response_code(500);
-        echo json_encode(['success' => false, 'status' => 'error', 'message' => 'Fatal Server Error']);
+        echo json_encode(['success' => false, 'status' => 'error', 'message' => 'Fatal Server Error: ' . $error['message']]);
     }
 });
 
@@ -485,57 +491,10 @@ function check_api_rate_limit($mysqli) {
     }
 }
 
-// 2. Database Connection
-try {
-    $mysqli = new mysqli(DB_SERVER, DB_USERNAME, DB_PASSWORD, DB_NAME);
-    if ($mysqli->connect_error) {
-        error_log("DB Connection Failed: " . $mysqli->connect_error);
-        echo json_encode(['success' => false, 'status' => 'error', 'message' => 'DB Connection Failed']);
-        exit;
-    }
-    $mysqli->set_charset("utf8mb4");
-    $mysqli->query("SET time_zone = '+07:00'");
-} catch (Exception $e) {
-    error_log("DB Connection Exception: " . $e->getMessage());
-    echo json_encode(['success' => false, 'status' => 'error', 'message' => 'DB Connection Exception']);
-    exit;
-}
+// NOTE: Database connection & routing are handled in the main try block below (line ~3217).
+// Early auto-heal and rate limiting moved to post-connection block.
+// This prevents duplicate $mysqli connections and ob_start buffer leaks.
 
-// Perform API Rate Limiting Check
-try {
-    check_api_rate_limit($mysqli);
-} catch (Exception $e) {
-    error_log("Rate limiting check failed: " . $e->getMessage());
-    // Continue even if rate limiting fails
-}
-
-// Auto-heal DB schema if core columns in users table are missing
-$required_columns = [
-    'global_max_tokens' => "INT DEFAULT 1",
-    'system_role_label' => "VARCHAR(100) DEFAULT NULL",
-    'email' => "VARCHAR(255) DEFAULT NULL",
-    'avatar' => "VARCHAR(255) DEFAULT NULL",
-    'username' => "VARCHAR(100) DEFAULT NULL",
-    'joined_at' => "TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP"
-];
-foreach ($required_columns as $col => $definition) {
-    $col_check = $mysqli->query("SHOW COLUMNS FROM users LIKE '$col'");
-    if (!$col_check || $col_check->num_rows === 0) {
-        @$mysqli->query("ALTER TABLE users ADD COLUMN $col $definition");
-    }
-}
-
-try {
-    ensure_enterprise_support_tables($mysqli);
-} catch (Exception $e) {
-    error_log("Enterprise support tables error: " . $e->getMessage());
-}
-
-try {
-    process_due_notification_schedules($mysqli);
-} catch (Exception $e) {
-    error_log("Notification schedules error: " . $e->getMessage());
-}
 
 // 3. API Helpers
 // Ensure notification tables for in-app alerts
@@ -618,6 +577,95 @@ function ensure_app_scan_settings_table($mysqli) {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
     } catch (Exception $e) {
         error_log("App scan settings table error: " . $e->getMessage());
+    }
+}
+
+/**
+ * Auto-create and auto-patch the requests table with all required columns.
+ * Prevents "Unknown column" fatal SQL errors when the DB schema is outdated.
+ */
+function ensure_requests_table_schema($mysqli) {
+    try {
+        // 1. Create table if not exists (base schema)
+        $mysqli->query("CREATE TABLE IF NOT EXISTS requests (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL DEFAULT 0,
+            request_type VARCHAR(100) DEFAULT NULL,
+            requester_name VARCHAR(255) DEFAULT NULL,
+            number_of_days DECIMAL(5,1) DEFAULT NULL,
+            remaining_days DECIMAL(5,1) DEFAULT NULL,
+            department VARCHAR(150) DEFAULT NULL,
+            position VARCHAR(150) DEFAULT NULL,
+            branch VARCHAR(150) DEFAULT NULL,
+            department_head_name VARCHAR(255) DEFAULT NULL,
+            department_head_signature LONGTEXT DEFAULT NULL,
+            department_head_signature_date DATE DEFAULT NULL,
+            request_date DATE DEFAULT NULL,
+            return_date DATE DEFAULT NULL,
+            late_hours VARCHAR(20) DEFAULT NULL,
+            forgot_scan_in VARCHAR(10) DEFAULT NULL,
+            forgot_scan_out VARCHAR(10) DEFAULT NULL,
+            time_in VARCHAR(10) DEFAULT NULL,
+            time_out VARCHAR(10) DEFAULT NULL,
+            total_hours VARCHAR(20) DEFAULT NULL,
+            repay_time_in VARCHAR(10) DEFAULT NULL,
+            repay_time_out VARCHAR(10) DEFAULT NULL,
+            repay_total_hours VARCHAR(20) DEFAULT NULL,
+            reason TEXT DEFAULT NULL,
+            assigned_to VARCHAR(255) DEFAULT NULL,
+            location VARCHAR(255) DEFAULT NULL,
+            contact_number VARCHAR(50) DEFAULT NULL,
+            signature LONGTEXT DEFAULT NULL,
+            signature_date DATE DEFAULT NULL,
+            admin_comment TEXT DEFAULT NULL,
+            approved_by VARCHAR(191) DEFAULT NULL,
+            approved_at DATETIME DEFAULT NULL,
+            status VARCHAR(30) DEFAULT 'pending',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            KEY idx_user_id (user_id),
+            KEY idx_status (status),
+            KEY idx_request_date (request_date)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+        // 2. Auto-patch: add any missing columns to existing table
+        $existing_cols = [];
+        $res = $mysqli->query("SHOW COLUMNS FROM requests");
+        if ($res) {
+            while ($row = $res->fetch_assoc()) {
+                $existing_cols[$row['Field']] = true;
+            }
+            $res->free();
+        }
+
+        $required_cols = [
+            'branch'                          => "VARCHAR(150) DEFAULT NULL",
+            'department_head_name'            => "VARCHAR(255) DEFAULT NULL",
+            'department_head_signature'       => "LONGTEXT DEFAULT NULL",
+            'department_head_signature_date'  => "DATE DEFAULT NULL",
+            'late_hours'                      => "VARCHAR(20) DEFAULT NULL",
+            'forgot_scan_in'                  => "VARCHAR(10) DEFAULT NULL",
+            'forgot_scan_out'                 => "VARCHAR(10) DEFAULT NULL",
+            'total_hours'                     => "VARCHAR(20) DEFAULT NULL",
+            'repay_time_in'                   => "VARCHAR(10) DEFAULT NULL",
+            'repay_time_out'                  => "VARCHAR(10) DEFAULT NULL",
+            'repay_total_hours'               => "VARCHAR(20) DEFAULT NULL",
+            'assigned_to'                     => "VARCHAR(255) DEFAULT NULL",
+            'location'                        => "VARCHAR(255) DEFAULT NULL",
+            'contact_number'                  => "VARCHAR(50) DEFAULT NULL",
+            'admin_comment'                   => "TEXT DEFAULT NULL",
+            'approved_by'                     => "VARCHAR(191) DEFAULT NULL",
+            'approved_at'                     => "DATETIME DEFAULT NULL",
+            'remaining_days'                  => "DECIMAL(5,1) DEFAULT NULL",
+            'position'                        => "VARCHAR(150) DEFAULT NULL",
+        ];
+
+        foreach ($required_cols as $col => $definition) {
+            if (!isset($existing_cols[$col])) {
+                @$mysqli->query("ALTER TABLE requests ADD COLUMN `$col` $definition");
+            }
+        }
+    } catch (Exception $e) {
+        error_log("ensure_requests_table_schema error: " . $e->getMessage());
     }
 }
 
@@ -3071,21 +3119,33 @@ function sendRequestTelegram($mysqli, $eid, $data = []) {
 
 function apiResponse($data) {
     try {
-        if (ob_get_length()) ob_clean();
-        // Ensure 'success' key is always present for consistency
+        // ── Clean all output buffers to prevent garbage before JSON ──
+        while (ob_get_level() > 0) {
+            ob_end_clean();
+        }
+
+        // ── Ensure proper HTTP headers ───────────────────────────────
+        if (!headers_sent()) {
+            http_response_code(200);
+            header('Content-Type: application/json; charset=UTF-8');
+        }
+
+        // ── Ensure 'success' key is always present ───────────────────
         if (!isset($data['success'])) {
             $data['success'] = (isset($data['status']) && $data['status'] === 'success');
         }
-        $json = json_encode($data, JSON_UNESCAPED_UNICODE);
+
+        $json = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         if ($json === false) {
             error_log("JSON encode error: " . json_last_error_msg());
-            $json = json_encode(['success' => false, 'message' => 'JSON encode error']);
+            $json = json_encode(['success' => false, 'message' => 'JSON encode error: ' . json_last_error_msg()]);
         }
         echo $json;
         exit;
     } catch (Exception $e) {
         error_log("apiResponse Exception: " . $e->getMessage());
-        echo json_encode(['success' => false, 'message' => 'Response Error']);
+        while (ob_get_level() > 0) { ob_end_clean(); }
+        echo json_encode(['success' => false, 'message' => 'Response Error: ' . $e->getMessage()]);
         exit;
     }
 }
@@ -3125,6 +3185,36 @@ if ($mysqli->connect_error) {
 $mysqli->set_charset('utf8mb4');
 $mysqli->query("SET time_zone = '+07:00'");
 mysqli_report(MYSQLI_REPORT_OFF); // handle errors manually
+
+// ── Post-connection setup (rate limiting, schema auto-heal) ────────────────
+// Perform API Rate Limiting Check
+try {
+    check_api_rate_limit($mysqli);
+} catch (Exception $e) {
+    error_log("Rate limiting check failed: " . $e->getMessage());
+}
+
+// Auto-heal DB schema if core columns in users table are missing
+$_required_columns = [
+    'global_max_tokens' => "INT DEFAULT 1",
+    'system_role_label' => "VARCHAR(100) DEFAULT NULL",
+    'email'             => "VARCHAR(255) DEFAULT NULL",
+    'avatar'            => "VARCHAR(255) DEFAULT NULL",
+    'username'          => "VARCHAR(100) DEFAULT NULL",
+    'joined_at'         => "TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP",
+];
+foreach ($_required_columns as $_col => $_def) {
+    $_col_check = $mysqli->query("SHOW COLUMNS FROM users LIKE '$_col'");
+    if (!$_col_check || $_col_check->num_rows === 0) {
+        @$mysqli->query("ALTER TABLE users ADD COLUMN $_col $_def");
+    }
+}
+unset($_required_columns, $_col, $_def, $_col_check);
+
+try { ensure_enterprise_support_tables($mysqli); } catch (Exception $e) { error_log("Enterprise tables: " . $e->getMessage()); }
+try { ensure_requests_table_schema($mysqli);      } catch (Exception $e) { error_log("Requests schema: "  . $e->getMessage()); }
+try { process_due_notification_schedules($mysqli);} catch (Exception $e) { error_log("Notif schedules: " . $e->getMessage()); }
+// ─────────────────────────────────────────────────────────────────────────────
 
 $token = getBearerToken();
 
