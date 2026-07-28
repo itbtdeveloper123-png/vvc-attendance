@@ -3120,6 +3120,12 @@ try {
         exit;
     }
 
+    // Test endpoint for debugging
+    if ($action === 'test') {
+        echo json_encode(['success' => true, 'status' => 'success', 'message' => 'API is working']);
+        exit;
+    }
+
     switch ($action) {
     case 'view_face_log':
         $logPath = __DIR__ . '/uploads/face_match_debug.log';

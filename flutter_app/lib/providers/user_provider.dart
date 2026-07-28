@@ -487,6 +487,11 @@ class UserProvider with ChangeNotifier {
   }
 
   Future<Map<String, dynamic>> login(String employeeId, String userType) async {
+    // First test API connectivity
+    debugPrint('Testing API connectivity...');
+    final testResult = await _apiService.testApi();
+    debugPrint('API Test Result: $testResult');
+    
     final result = await _apiService.login(employeeId, userType);
 
     if (result['success'] == true) {

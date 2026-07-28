@@ -207,7 +207,11 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> _handleResponse(http.Response response) async {
+    debugPrint('API Response Status: ${response.statusCode}');
+    debugPrint('API Response Body Length: ${response.body.length}');
+    
     if (response.body.isEmpty) {
+      debugPrint('Error: Empty response from server');
       return {
         'success': false,
         'status': 'error',
@@ -215,15 +219,23 @@ class ApiService {
             'Server returns empty response (Status: ${response.statusCode})',
       };
     }
+    
+    debugPrint('API Response Preview: ${response.body.substring(0, 100)}...');
+    
     try {
       final decoded = await compute(_parseJsonPayload, response.body);
-      if (decoded is Map<String, dynamic>) return decoded;
+      if (decoded is Map<String, dynamic>) {
+        debugPrint('API Response Success: ${decoded['success']}');
+        return decoded;
+      }
+      debugPrint('Error: Invalid JSON format - not a Map');
       return {
         'success': false,
         'status': 'error',
         'message': 'Invalid JSON format from server',
       };
     } catch (e) {
+      debugPrint('JSON Parse Error: $e');
       String preview = response.body.length > 100
           ? '${response.body.substring(0, 100)}...'
           : response.body;
@@ -240,6 +252,11 @@ class ApiService {
       'api_login',
       body: {'employee_id': employeeId, 'scan_user_type': userType},
     );
+  }
+
+  // Test method to check API connectivity
+  Future<Map<String, dynamic>> testApi() async {
+    return _processRequest('test');
   }
 
   // Generic GET method for compatibility
