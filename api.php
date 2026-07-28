@@ -19,7 +19,8 @@ if ($action === 'test' || $action === 'health') {
         'action_source' => $actionSource,
         'post_vars' => $_POST,
         'get_vars' => $_GET,
-        'server_method' => $_SERVER['REQUEST_METHOD'] ?? 'unknown'
+        'server_method' => $_SERVER['REQUEST_METHOD'] ?? 'unknown',
+        'debug_info' => 'Test endpoint reached successfully'
     ]);
     exit;
 }
