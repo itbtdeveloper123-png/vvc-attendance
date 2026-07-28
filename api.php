@@ -491,9 +491,19 @@ function check_api_rate_limit($mysqli) {
     }
 }
 
-// NOTE: Database connection & routing are handled in the main try block below (line ~3217).
-// Early auto-heal and rate limiting moved to post-connection block.
-// This prevents duplicate $mysqli connections and ob_start buffer leaks.
+// ── Early DB connection (required by global schema-setup code below) ──────────
+// A lightweight connection used ONLY for global DDL statements (face tables, etc.)
+// The main authenticated connection is re-established at line ~3183 for routing.
+mysqli_report(MYSQLI_REPORT_OFF);
+$mysqli = @new mysqli(DB_SERVER, DB_USERNAME, DB_PASSWORD, DB_NAME);
+if ($mysqli && !$mysqli->connect_error) {
+    $mysqli->set_charset('utf8mb4');
+    $mysqli->query("SET time_zone = '+07:00'");
+} else {
+    // If early connection fails, create a stub so global code below won't fatal-error.
+    // The main connection at ~line 3183 will properly report the failure to the client.
+    $mysqli = null;
+}
 
 
 // 3. API Helpers
@@ -2785,52 +2795,56 @@ function ensure_trip_tables($mysqli) {
     $mysqli->query("ALTER TABLE tracking_customers CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
 }
 
-// Ensure checkin_logs has photo_path
-$check_photo = $mysqli->query("SHOW COLUMNS FROM checkin_logs LIKE 'photo_path'");
-if ($check_photo && $check_photo->num_rows === 0) {
-    $mysqli->query("ALTER TABLE checkin_logs ADD COLUMN photo_path VARCHAR(255) DEFAULT NULL");
-}
+// Ensure checkin_logs has required columns (null-safe guard)
+if ($mysqli) {
+    $check_photo = $mysqli->query("SHOW COLUMNS FROM checkin_logs LIKE 'photo_path'");
+    if ($check_photo && $check_photo->num_rows === 0) {
+        $mysqli->query("ALTER TABLE checkin_logs ADD COLUMN photo_path VARCHAR(255) DEFAULT NULL");
+    }
 
-// Ensure checkin_logs has employee_name so report can show name even when users join fails
-$check_emp_name = $mysqli->query("SHOW COLUMNS FROM checkin_logs LIKE 'employee_name'");
-if ($check_emp_name && $check_emp_name->num_rows === 0) {
-    $mysqli->query("ALTER TABLE checkin_logs ADD COLUMN employee_name VARCHAR(255) DEFAULT NULL AFTER employee_id");
-}
+    // Ensure checkin_logs has employee_name so report can show name even when users join fails
+    $check_emp_name = $mysqli->query("SHOW COLUMNS FROM checkin_logs LIKE 'employee_name'");
+    if ($check_emp_name && $check_emp_name->num_rows === 0) {
+        $mysqli->query("ALTER TABLE checkin_logs ADD COLUMN employee_name VARCHAR(255) DEFAULT NULL AFTER employee_id");
+    }
 
-// Ensure checkin_logs has geo-coordinates
-$check_geo = $mysqli->query("SHOW COLUMNS FROM checkin_logs LIKE 'latitude'");
-if ($check_geo && $check_geo->num_rows === 0) {
-    $mysqli->query("ALTER TABLE checkin_logs ADD COLUMN latitude DOUBLE DEFAULT NULL, ADD COLUMN longitude DOUBLE DEFAULT NULL");
-}
+    // Ensure checkin_logs has geo-coordinates
+    $check_geo = $mysqli->query("SHOW COLUMNS FROM checkin_logs LIKE 'latitude'");
+    if ($check_geo && $check_geo->num_rows === 0) {
+        $mysqli->query("ALTER TABLE checkin_logs ADD COLUMN latitude DOUBLE DEFAULT NULL, ADD COLUMN longitude DOUBLE DEFAULT NULL");
+    }
 
-// Ensure checkin_logs has qr_location_id (0 = outside scan)
-$check_qr = $mysqli->query("SHOW COLUMNS FROM checkin_logs LIKE 'qr_location_id'");
-if ($check_qr && $check_qr->num_rows === 0) {
-    $mysqli->query("ALTER TABLE checkin_logs ADD COLUMN qr_location_id INT DEFAULT 0");
+    // Ensure checkin_logs has qr_location_id (0 = outside scan)
+    $check_qr = $mysqli->query("SHOW COLUMNS FROM checkin_logs LIKE 'qr_location_id'");
+    if ($check_qr && $check_qr->num_rows === 0) {
+        $mysqli->query("ALTER TABLE checkin_logs ADD COLUMN qr_location_id INT DEFAULT 0");
+    }
 }
 
 // Ensure checkin_logs has geo_address
-$check_addr = $mysqli->query("SHOW COLUMNS FROM checkin_logs LIKE 'geo_address'");
-if ($check_addr && $check_addr->num_rows === 0) {
-    $mysqli->query("ALTER TABLE checkin_logs ADD COLUMN geo_address TEXT DEFAULT NULL");
-}
+if ($mysqli) {
+    $check_addr = $mysqli->query("SHOW COLUMNS FROM checkin_logs LIKE 'geo_address'");
+    if ($check_addr && $check_addr->num_rows === 0) {
+        $mysqli->query("ALTER TABLE checkin_logs ADD COLUMN geo_address TEXT DEFAULT NULL");
+    }
 
-// ===== FACE REGISTRATION TABLE =====
-// បង្កើតតារាងដើម្បីរក្សាទុករូបថតចុះឈ្មោះ Face ID
-$mysqli->query("CREATE TABLE IF NOT EXISTS employee_face_data (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    employee_id VARCHAR(64) NOT NULL,
-    photo_path VARCHAR(512) NOT NULL,
-    photo_index TINYINT DEFAULT 0 COMMENT '0=straight,1=left,2=right',
-    registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    registered_by VARCHAR(64) DEFAULT NULL COMMENT 'admin who registered on behalf',
-    INDEX idx_face_employee (employee_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    // ===== FACE REGISTRATION TABLE =====
+    // បង្កើតតារាងដើម្បីរក្សាទុករូបថតចុះឈ្មោះ Face ID
+    $mysqli->query("CREATE TABLE IF NOT EXISTS employee_face_data (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        employee_id VARCHAR(64) NOT NULL,
+        photo_path VARCHAR(512) NOT NULL,
+        photo_index TINYINT DEFAULT 0 COMMENT '0=straight,1=left,2=right',
+        registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        registered_by VARCHAR(64) DEFAULT NULL COMMENT 'admin who registered on behalf',
+        INDEX idx_face_employee (employee_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
-// បន្ថែម face_registered column ក្នុង users table
-$check_face_reg = $mysqli->query("SHOW COLUMNS FROM users LIKE 'face_registered'");
-if ($check_face_reg && $check_face_reg->num_rows === 0) {
-    $mysqli->query("ALTER TABLE users ADD COLUMN face_registered TINYINT(1) DEFAULT 0");
+    // បន្ថែម face_registered column ក្នុង users table
+    $check_face_reg = $mysqli->query("SHOW COLUMNS FROM users LIKE 'face_registered'");
+    if ($check_face_reg && $check_face_reg->num_rows === 0) {
+        $mysqli->query("ALTER TABLE users ADD COLUMN face_registered TINYINT(1) DEFAULT 0");
+    }
 }
 
 function get_address_from_gps($lat, $lon) {
