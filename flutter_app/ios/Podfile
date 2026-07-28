@@ -1,11 +1,12 @@
 # Uncomment this line to define a global platform for your project
-platform :ios, '15.5'
+platform :ios, '16.0'
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
 
-# Workaround for Xcode 26.5 arm64 issues
-ENV['EXCLUDED_ARCHS'] = 'arm64 i386'
+# ❌ REMOVED: ENV['EXCLUDED_ARCHS'] = 'arm64 i386'
+# Reason: This excluded arm64 from ALL builds including iphoneos device builds.
+# arm64 is only excluded from iphonesimulator via Generated.xcconfig and post_install below.
 
 project 'Runner', {
   'Debug' => :debug,
@@ -43,9 +44,7 @@ post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
     target.build_configurations.each do |config|
-      # Required by permission_handler package for iOS —
-      # Without these macros, Permission.camera / location / etc. always returns
-      # denied on iOS regardless of what the user has granted in Settings.
+      # Required by permission_handler package for iOS
       config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= [
         '$(inherited)',
         'PERMISSION_CAMERA=1',
@@ -66,7 +65,7 @@ post_install do |installer|
         config.build_settings['PROVISIONING_PROFILE_SPECIFIER'] = ''
       end
 
-      # Fix for Google ML Kit arm64 compatibility
+      # Fix for Google ML Kit — ONLY exclude arm64 from SIMULATOR (not device builds!)
       if target.name.start_with?('GoogleMLKit') || target.name.start_with?('MLKit') || target.name.start_with?('MLImage')
         config.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = 'arm64'
         config.build_settings['ONLY_ACTIVE_ARCH'] = 'YES'
@@ -78,8 +77,8 @@ post_install do |installer|
         config.build_settings['SWIFT_COMPILATION_MODE'] = 'wholemodule'
       end
 
-      # Fix for Swift Package Manager issues
-      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.5'
+      # Unified deployment target — matches platform declaration above
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '16.0'
     end
   end
 end

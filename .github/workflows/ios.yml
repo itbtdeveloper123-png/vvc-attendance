@@ -10,7 +10,7 @@ on:
 jobs:
   build:
     name: Build iOS App
-    runs-on: macos-14  # Use macOS 14 (Intel) for better compatibility with Google ML Kit
+    runs-on: macos-14  # macOS 14 with Xcode 15 — good for Flutter stable
 
     steps:
       - name: Checkout repository
@@ -21,7 +21,7 @@ jobs:
         with:
           channel: 'stable'
           cache: true
-          architecture: x64  # Use x64 architecture for better compatibility
+          architecture: x64
 
       - name: Print Flutter & Dart version
         run: flutter --version
@@ -44,6 +44,28 @@ jobs:
       - name: Install Flutter dependencies
         working-directory: flutter_app
         run: flutter pub get
+        # IMPORTANT: flutter pub get regenerates Generated.xcconfig with correct macOS CI paths.
+        # This is why Generated.xcconfig must NOT be committed to Git (add to .gitignore).
+
+      - name: Verify Generated.xcconfig has correct paths
+        working-directory: flutter_app/ios/Flutter
+        run: |
+          echo "=== Generated.xcconfig content ==="
+          cat Generated.xcconfig
+          echo ""
+          if grep -q "E:\\\\" Generated.xcconfig; then
+            echo "ERROR: Generated.xcconfig contains Windows paths! This file should not be committed."
+            exit 1
+          fi
+          echo "✅ Generated.xcconfig paths look correct for macOS CI"
+
+      - name: Cache CocoaPods Pods directory
+        uses: actions/cache@v5
+        with:
+          path: flutter_app/ios/Pods
+          key: ios-pods-${{ runner.os }}-${{ hashFiles('flutter_app/ios/Podfile.lock') }}
+          restore-keys: |
+            ios-pods-${{ runner.os }}-
 
       - name: Cache Xcode DerivedData
         uses: actions/cache@v5
@@ -66,12 +88,14 @@ jobs:
         env:
           FLUTTER_NO_CODESIGN: 'true'
           CI: 'true'
-          EXCLUDED_ARCHS: 'arm64 i386'
+          # ❌ REMOVED: EXCLUDED_ARCHS: 'arm64 i386'
+          # Reason: This excluded arm64 from iphoneos builds, breaking device compilation.
+          # arm64 exclusion for simulator is handled per-target in Podfile post_install.
         run: |
           set -euo pipefail
           
           echo "1) Building iOS Release App..."
-          flutter build ios --release 2>&1 | tee build_flutter.log || {
+          flutter build ios --release --no-codesign 2>&1 | tee build_flutter.log || {
             echo "Flutter build failed, trying xcodebuild directly..."
             cd ios
             xcodebuild -workspace Runner.xcworkspace \
@@ -128,12 +152,9 @@ jobs:
           path: flutter_app/build_flutter.log
           if-no-files-found: ignore
 
-
-
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
           name: vvc-hrm-ios-unsigned
           path: flutter_app/build/ios/iphoneos/Runner-unsigned.ipa
           if-no-files-found: error
-
