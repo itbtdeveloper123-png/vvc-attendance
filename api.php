@@ -5,25 +5,22 @@
  * Unified landing point for all Mobile and Frontend requests.
  */
 
-// First check if this is a test request - respond immediately with minimal code
+// First check if this is a test request - use exactly the same code as api_minimal.php
 $actionSource = $_POST['action'] ?? $_GET['action'] ?? $_POST['ajax_action'] ?? $_GET['ajax_action'] ?? '';
 $action = strtolower(trim($actionSource));
 
 if ($action === 'test' || $action === 'health') {
     http_response_code(200);
     header('Content-Type: application/json; charset=UTF-8');
-    $response = [
+    echo json_encode([
         'success' => true, 
-        'status' => 'success', 
-        'message' => 'API is working', 
-        'timestamp' => date('Y-m-d H:i:s'),
-        'server_info' => [
-            'php_version' => phpversion(),
-            'server_time' => date('Y-m-d H:i:s'),
-            'request_method' => $_SERVER['REQUEST_METHOD'] ?? 'unknown'
-        ]
-    ];
-    echo json_encode($response);
+        'message' => 'API is working',
+        'action_received' => $action,
+        'action_source' => $actionSource,
+        'post_vars' => $_POST,
+        'get_vars' => $_GET,
+        'server_method' => $_SERVER['REQUEST_METHOD'] ?? 'unknown'
+    ]);
     exit;
 }
 
