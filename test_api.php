@@ -80,22 +80,38 @@ try {
         curl_setopt($ch, CURLOPT_TIMEOUT, 10); // 10 second timeout
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5); // 5 second connection timeout
+        curl_setopt($ch, CURLOPT_VERBOSE, true); // Enable verbose output for debugging
+        
+        $verboseLog = fopen('php://temp', 'w+');
+        curl_setopt($ch, CURLOPT_STDERR, $verboseLog);
         
         $output = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $error = curl_error($ch);
+        
+        // Get verbose log
+        rewind($verboseLog);
+        $verboseOutput = stream_get_contents($verboseLog);
+        fclose($verboseLog);
+        
         curl_close($ch);
         
         if ($error) {
             echo "✗ Curl error: $error\n";
+            echo "Verbose log: $verboseOutput\n";
         } else {
             echo "HTTP Status: $httpCode\n";
-            echo "API Response: " . substr($output, 0, 300) . "...\n";
+            echo "API Response: " . substr($output, 0, 500) . "...\n";
             
-            if (strpos($output, 'success') !== false || strpos($output, 'error') !== false) {
-                echo "✓ API endpoint responded\n";
+            if ($httpCode === 200) {
+                if (strpos($output, 'success') !== false || strpos($output, 'error') !== false) {
+                    echo "✓ API endpoint responded correctly\n";
+                } else {
+                    echo "✗ API endpoint did not return expected JSON\n";
+                }
             } else {
-                echo "✗ API endpoint did not return expected JSON\n";
+                echo "✗ API returned HTTP $httpCode instead of 200\n";
+                echo "Full response: $output\n";
             }
         }
     } else {

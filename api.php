@@ -28,6 +28,25 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'OPTIONS
     exit;
 }
 
+// Early test endpoint - before any database or complex operations
+$actionSource = $_POST['action'] ?? $_GET['action'] ?? $_POST['ajax_action'] ?? $_GET['ajax_action'] ?? '';
+$action = strtolower(trim($actionSource));
+
+if ($action === 'test' || $action === 'health') {
+    echo json_encode([
+        'success' => true, 
+        'status' => 'success', 
+        'message' => 'API is working', 
+        'timestamp' => date('Y-m-d H:i:s'),
+        'server_info' => [
+            'php_version' => phpversion(),
+            'server_time' => date('Y-m-d H:i:s'),
+            'request_method' => $_SERVER['REQUEST_METHOD'] ?? 'unknown'
+        ]
+    ]);
+    exit;
+}
+
 require_once __DIR__ . '/config.php';
 if (file_exists(__DIR__ . '/vendor/autoload.php')) {
     require_once __DIR__ . '/vendor/autoload.php';
@@ -3117,22 +3136,6 @@ try {
     if (empty($action)) {
         error_log("API: No action provided");
         echo json_encode(['success' => false, 'status' => 'error', 'message' => 'No action specified']);
-        exit;
-    }
-
-    // Test endpoint for debugging - no authentication required, no database
-    if ($action === 'test' || $action === 'health') {
-        echo json_encode([
-            'success' => true, 
-            'status' => 'success', 
-            'message' => 'API is working', 
-            'timestamp' => date('Y-m-d H:i:s'),
-            'server_info' => [
-                'php_version' => phpversion(),
-                'server_time' => date('Y-m-d H:i:s'),
-                'request_method' => $_SERVER['REQUEST_METHOD'] ?? 'unknown'
-            ]
-        ]);
         exit;
     }
 
