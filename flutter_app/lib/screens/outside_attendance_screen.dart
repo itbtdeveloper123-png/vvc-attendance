@@ -375,21 +375,44 @@ class _OutsideAttendanceScreenState extends State<OutsideAttendanceScreen> {
       );
     }
 
-    return GoogleMap(
-      initialCameraPosition: CameraPosition(
-        target: _currentPosition != null
-            ? LatLng(_currentPosition!.latitude, _currentPosition!.longitude)
-            : const LatLng(11.5564, 104.9282),
-        zoom: 16,
-      ),
-      onMapCreated: (controller) => _mapController = controller,
-      markers: _markers,
-      myLocationEnabled: true,
-      myLocationButtonEnabled: true,
-      zoomControlsEnabled: false,
-      mapToolbarEnabled: false,
-      mapType: _isMapSatellite ? MapType.satellite : MapType.normal,
-    );
+    try {
+      return GoogleMap(
+        initialCameraPosition: CameraPosition(
+          target: _currentPosition != null
+              ? LatLng(_currentPosition!.latitude, _currentPosition!.longitude)
+              : const LatLng(11.5564, 104.9282),
+          zoom: 16,
+        ),
+        onMapCreated: (controller) => _mapController = controller,
+        markers: _markers,
+        myLocationEnabled: true,
+        myLocationButtonEnabled: true,
+        zoomControlsEnabled: false,
+        mapToolbarEnabled: false,
+        mapType: _isMapSatellite ? MapType.satellite : MapType.normal,
+      );
+    } catch (e) {
+      debugPrint('Google Map initialization error: $e');
+      return Container(
+        color: AppTheme.bgCard,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.map_outlined, size: 64, color: AppTheme.textMuted),
+            const SizedBox(height: 16),
+            Text(
+              'មានបញ្ហាក្នុងការផ្ទុកផែនទី',
+              style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.w600, color: AppTheme.textSecondary),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'សូមព្យាយាមម្តងទៀត',
+              style: GoogleFonts.kantumruyPro(color: AppTheme.textMuted),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   Widget _buildMapTypeToggle() {
