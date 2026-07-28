@@ -1371,7 +1371,7 @@ class AppUserListTile extends StatelessWidget {
                     const SizedBox(width: 8),
                     AppUserBadges(badges: user['badges'] as List<dynamic>?),
                   ],
-                  if (trailingAction != null) trailingAction,
+                  if (trailingAction != null) ...[trailingAction],
                 ],
               ),
             ),
