@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide FormField;
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:signature/signature.dart';
@@ -74,7 +74,7 @@ class _DynamicFormRendererState extends State<DynamicFormRenderer> {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [AppTheme.primary, AppTheme.primary.withOpacity(0.8)],
+          colors: [AppTheme.primary, AppTheme.primary.withValues(alpha: 0.8)],
         ),
         borderRadius: BorderRadius.circular(12),
       ),
@@ -95,7 +95,7 @@ class _DynamicFormRendererState extends State<DynamicFormRenderer> {
               widget.template.description,
               style: GoogleFonts.battambang(
                 fontSize: 14,
-                color: Colors.white.withOpacity(0.9),
+                color: Colors.white.withValues(alpha: 0.9),
               ),
             ),
           ],
@@ -176,7 +176,7 @@ class _DynamicFormRendererState extends State<DynamicFormRenderer> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: AppTheme.primary.withOpacity(0.5)),
+              borderSide: BorderSide(color: AppTheme.primary.withValues(alpha: 0.5)),
             ),
           ),
           style: GoogleFonts.battambang(
@@ -276,7 +276,7 @@ class _DynamicFormRendererState extends State<DynamicFormRenderer> {
         ),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
-          value: _formData[field.fieldName]?.toString(),
+          initialValue: _formData[field.fieldName]?.toString(),
           decoration: InputDecoration(
             filled: true,
             fillColor: AppTheme.fieldFill,
@@ -290,7 +290,7 @@ class _DynamicFormRendererState extends State<DynamicFormRenderer> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: AppTheme.primary.withOpacity(0.5)),
+              borderSide: BorderSide(color: AppTheme.primary.withValues(alpha: 0.5)),
             ),
           ),
           style: GoogleFonts.battambang(
@@ -353,7 +353,7 @@ class _DynamicFormRendererState extends State<DynamicFormRenderer> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: AppTheme.primary.withOpacity(0.5)),
+              borderSide: BorderSide(color: AppTheme.primary.withValues(alpha: 0.5)),
             ),
           ),
           style: GoogleFonts.battambang(
@@ -470,7 +470,6 @@ class _DynamicFormRendererState extends State<DynamicFormRenderer> {
       _signatureControllers[field.fieldName] = SignatureController(
         penStrokeWidth: 2,
         penColor: Colors.black,
-        onDraw: () => setState(() {}),
       );
     }
 

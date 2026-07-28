@@ -553,8 +553,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       if (canCheckBiometrics || isDeviceSupported) {
         deviceAuthenticated = await localAuth.authenticate(
           localizedReason: "សូមស្កេន Face ID/Fingerprint ដើម្បីបញ្ជាក់អត្តសញ្ញាណស្កេនវត្តមាន",
-          biometricOnly: false,
-          persistAcrossBackgrounding: true,
+          options: const AuthenticationOptions(
+            biometricOnly: false,
+            stickyAuth: true,
+          ),
         );
 
         if (!deviceAuthenticated) {
@@ -776,10 +778,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
     try {
       return await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          timeLimit: Duration(seconds: 10),
-        ),
+        desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 10),
       );
     } catch (e) {
       Position? lastPosition = await Geolocator.getLastKnownPosition();

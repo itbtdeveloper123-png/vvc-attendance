@@ -64,7 +64,7 @@ class NotificationService {
         );
 
     await flutterLocalNotificationsPlugin.initialize(
-      settings: initializationSettings,
+      initializationSettings,
       onDidReceiveNotificationResponse: (NotificationResponse response) async {
         debugPrint('Notification clicked with payload: ${response.payload}');
       },
@@ -126,10 +126,10 @@ class NotificationService {
     );
 
     await flutterLocalNotificationsPlugin.show(
-      id: id,
-      title: title,
-      body: body,
-      notificationDetails: notificationDetails,
+      id,
+      title,
+      body,
+      notificationDetails,
       payload: payload,
     );
   }
@@ -184,12 +184,12 @@ class NotificationService {
 
     Future<void> doSchedule(AndroidScheduleMode mode) {
       return flutterLocalNotificationsPlugin.zonedSchedule(
-        id: id,
-        title: title,
-        body: body,
-        scheduledDate: tz.TZDateTime.from(scheduledDate, tz.local),
-        notificationDetails: NotificationDetails(
-          android: const AndroidNotificationDetails(
+        id,
+        title,
+        body,
+        tz.TZDateTime.from(scheduledDate, tz.local),
+        const NotificationDetails(
+          android: AndroidNotificationDetails(
             'vvc_khmer_calendar',
             'ការជូនដំណឹងប្រតិទិនខ្មែរ',
             importance: Importance.max,
@@ -197,7 +197,7 @@ class NotificationService {
             icon: '@mipmap/ic_launcher',
             playSound: true,
           ),
-          iOS: const DarwinNotificationDetails(
+          iOS: DarwinNotificationDetails(
             presentAlert: true,
             presentBadge: true,
             presentSound: true,
@@ -205,6 +205,7 @@ class NotificationService {
         ),
         androidScheduleMode: mode,
         payload: payload,
+        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
       );
     }
 
@@ -226,11 +227,11 @@ class NotificationService {
     String? payload,
   }) {
     return flutterLocalNotificationsPlugin.zonedSchedule(
-      id: id,
-      title: title,
-      body: body,
-      scheduledDate: tz.TZDateTime.from(scheduledDate, tz.local),
-      notificationDetails: const NotificationDetails(
+      id,
+      title,
+      body,
+      tz.TZDateTime.from(scheduledDate, tz.local),
+      const NotificationDetails(
         android: AndroidNotificationDetails(
           'vvc_hrm_checklist',
           'Checklist Reminders',
@@ -247,11 +248,12 @@ class NotificationService {
       ),
       androidScheduleMode: androidScheduleMode,
       payload: payload,
+      uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
     );
   }
 
   Future<void> cancelNotification(int id) async {
-    await flutterLocalNotificationsPlugin.cancel(id: id);
+    await flutterLocalNotificationsPlugin.cancel(id);
   }
 }
 

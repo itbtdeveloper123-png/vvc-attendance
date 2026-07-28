@@ -168,10 +168,8 @@ class _OutsideAttendanceScreenState extends State<OutsideAttendanceScreen> {
       }
 
       Position position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          timeLimit: Duration(seconds: 15),
-        ),
+        desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 15),
       );
 
       setState(() {
@@ -248,8 +246,10 @@ class _OutsideAttendanceScreenState extends State<OutsideAttendanceScreen> {
       if (canCheckBiometrics || isDeviceSupported) {
         deviceAuthenticated = await localAuth.authenticate(
           localizedReason: "សូមស្កេន Face ID/Fingerprint ដើម្បីបញ្ជាក់អត្តសញ្ញាណស្កេនវត្តមាន",
-          biometricOnly: false,
-          persistAcrossBackgrounding: true,
+          options: const AuthenticationOptions(
+            biometricOnly: false,
+            stickyAuth: true,
+          ),
         );
 
         if (!deviceAuthenticated) {

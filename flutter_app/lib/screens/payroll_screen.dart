@@ -84,8 +84,10 @@ class _PayrollScreenState extends State<PayrollScreen> {
 
       final didAuthenticate = await _localAuth.authenticate(
         localizedReason: "សូមផ្ទៀងផ្ទាត់អត្តសញ្ញាណ ដើម្បីមើលប្រាក់ខែរបស់អ្នក",
-        biometricOnly: false,
-        persistAcrossBackgrounding: true,
+        options: const AuthenticationOptions(
+          biometricOnly: false,
+          stickyAuth: true,
+        ),
       );
 
       if (!mounted) return;

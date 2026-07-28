@@ -77,10 +77,10 @@ class _TripScreenState extends State<TripScreen>
     )..repeat(reverse: true);
 
     // Monitor connectivity changes
-    _connectivitySub = Connectivity().onConnectivityChanged.listen((results) {
-      final online =
-          results.contains(ConnectivityResult.mobile) ||
-          results.contains(ConnectivityResult.wifi);
+    _connectivitySub = Connectivity().onConnectivityChanged.listen((result) {
+      final online = result == ConnectivityResult.mobile ||
+                     result == ConnectivityResult.wifi ||
+                     result == ConnectivityResult.ethernet;
       if (mounted) setState(() => _isOnline = online);
       if (online) {
         // Flush any queued offline GPS points
@@ -324,7 +324,8 @@ class _TripScreenState extends State<TripScreen>
   Future<Position?> _getBestCurrentPosition() async {
     try {
       return await Geolocator.getCurrentPosition(
-        locationSettings: _buildLocationSettings(),
+        desiredAccuracy: LocationAccuracy.bestForNavigation,
+        timeLimit: const Duration(seconds: 15),
       );
     } catch (e) {
       debugPrint('Current GPS lookup failed: $e');
@@ -531,9 +532,26 @@ class _TripScreenState extends State<TripScreen>
 
   void _startLocationTracking() {
     _positionSubscription?.cancel();
+    LocationSettings locationSettings;
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      locationSettings = AndroidSettings(
+        accuracy: LocationAccuracy.bestForNavigation,
+        distanceFilter: 5,
+        intervalDuration: const Duration(seconds: 10),
+        forceLocationManager: false,
+      );
+    } else {
+      locationSettings = AppleSettings(
+        accuracy: LocationAccuracy.bestForNavigation,
+        activityType: ActivityType.automotiveNavigation,
+        distanceFilter: 5,
+        pauseLocationUpdatesAutomatically: true,
+        showBackgroundLocationIndicator: true,
+      );
+    }
     _positionSubscription =
         Geolocator.getPositionStream(
-          locationSettings: _buildLocationSettings(),
+          locationSettings: locationSettings,
         ).listen(
           (Position position) async {
             if (!_isTripActive || _activeTripId == null) return;

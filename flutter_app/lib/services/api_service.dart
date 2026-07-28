@@ -843,18 +843,29 @@ class ApiService {
     String category = 'General',
   }) async {
     final headers = await _authHeaders();
+    final Map<String, String> requestBody = {
+      'task': task,
+      'category': category,
+    };
+    if (startDate != null) {
+      requestBody['start_date'] = startDate;
+    }
+    if (startTime != null) {
+      requestBody['start_time'] = startTime;
+    }
+    if (endDate != null) {
+      requestBody['end_date'] = endDate;
+    }
+    if (endTime != null) {
+      requestBody['end_time'] = endTime;
+    }
+    if (imageBase64 != null) {
+      requestBody['image_base64'] = imageBase64;
+    }
     return _processRequest(
       'add_checklist_item',
       headers: headers,
-      body: {
-        'task': task,
-        'category': category,
-        'start_date': ?startDate,
-        'start_time': ?startTime,
-        'end_date': ?endDate,
-        'end_time': ?endTime,
-        'image_base64': ?imageBase64,
-      },
+      body: requestBody,
     );
   }
 
@@ -890,19 +901,30 @@ class ApiService {
     String? imageBase64,
   }) async {
     final headers = await _authHeaders();
+    final Map<String, String> requestBody = {
+      'task_id': taskId.toString(),
+      'task': task,
+      'category': category,
+    };
+    if (startDate != null) {
+      requestBody['start_date'] = startDate;
+    }
+    if (startTime != null) {
+      requestBody['start_time'] = startTime;
+    }
+    if (endDate != null) {
+      requestBody['end_date'] = endDate;
+    }
+    if (endTime != null) {
+      requestBody['end_time'] = endTime;
+    }
+    if (imageBase64 != null) {
+      requestBody['image_base64'] = imageBase64;
+    }
     return _processRequest(
       'edit_checklist_item',
       headers: headers,
-      body: {
-        'task_id': taskId.toString(),
-        'task': task,
-        'category': category,
-        'start_date': ?startDate,
-        'start_time': ?startTime,
-        'end_date': ?endDate,
-        'end_time': ?endTime,
-        'image_base64': ?imageBase64,
-      },
+      body: requestBody,
     );
   }
 
