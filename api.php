@@ -4,6 +4,27 @@
  * VVC-HRM Centralized API Gateway (v2.0)
  * Unified landing point for all Mobile and Frontend requests.
  */
+
+// First check if this is a test request - respond immediately
+$actionSource = $_POST['action'] ?? $_GET['action'] ?? $_POST['ajax_action'] ?? $_GET['ajax_action'] ?? '';
+$action = strtolower(trim($actionSource));
+
+if ($action === 'test' || $action === 'health') {
+    header('Content-Type: application/json; charset=UTF-8');
+    echo json_encode([
+        'success' => true, 
+        'status' => 'success', 
+        'message' => 'API is working', 
+        'timestamp' => date('Y-m-d H:i:s'),
+        'server_info' => [
+            'php_version' => phpversion(),
+            'server_time' => date('Y-m-d H:i:s'),
+            'request_method' => $_SERVER['REQUEST_METHOD'] ?? 'unknown'
+        ]
+    ]);
+    exit;
+}
+
 ob_start();
 
 // 1. Headers & Environment
@@ -25,25 +46,6 @@ header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-W
 
 if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(204);
-    exit;
-}
-
-// Early test endpoint - before any database or complex operations
-$actionSource = $_POST['action'] ?? $_GET['action'] ?? $_POST['ajax_action'] ?? $_GET['ajax_action'] ?? '';
-$action = strtolower(trim($actionSource));
-
-if ($action === 'test' || $action === 'health') {
-    echo json_encode([
-        'success' => true, 
-        'status' => 'success', 
-        'message' => 'API is working', 
-        'timestamp' => date('Y-m-d H:i:s'),
-        'server_info' => [
-            'php_version' => phpversion(),
-            'server_time' => date('Y-m-d H:i:s'),
-            'request_method' => $_SERVER['REQUEST_METHOD'] ?? 'unknown'
-        ]
-    ]);
     exit;
 }
 

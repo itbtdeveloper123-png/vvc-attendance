@@ -62,10 +62,31 @@ if (is_writable(__DIR__ . '/uploads')) {
 // Test 6: Test actual API endpoint with a simple request
 echo "\nTesting API endpoint...\n";
 try {
-    // Use a simpler approach - just check if the test endpoint works
+    // First test the simple PHP file
+    $simpleTestUrl = 'https://app.vvc.asia/flutter/simple_test.php';
+    
+    if (function_exists('curl_init')) {
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $simpleTestUrl);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        
+        $simpleOutput = curl_exec($ch);
+        $simpleHttpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $simpleError = curl_error($ch);
+        curl_close($ch);
+        
+        if ($simpleError) {
+            echo "✗ Simple PHP test failed: $simpleError\n";
+        } else {
+            echo "Simple PHP Test (HTTP $simpleHttpCode): $simpleOutput\n";
+        }
+    }
+    
+    // Now test the actual API endpoint
     $testUrl = 'https://app.vvc.asia/flutter/api.php';
     
-    // Test with curl if available
     if (function_exists('curl_init')) {
         $data = [
             'action' => 'test',
@@ -80,38 +101,25 @@ try {
         curl_setopt($ch, CURLOPT_TIMEOUT, 10); // 10 second timeout
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5); // 5 second connection timeout
-        curl_setopt($ch, CURLOPT_VERBOSE, true); // Enable verbose output for debugging
-        
-        $verboseLog = fopen('php://temp', 'w+');
-        curl_setopt($ch, CURLOPT_STDERR, $verboseLog);
         
         $output = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $error = curl_error($ch);
-        
-        // Get verbose log
-        rewind($verboseLog);
-        $verboseOutput = stream_get_contents($verboseLog);
-        fclose($verboseLog);
-        
         curl_close($ch);
         
         if ($error) {
             echo "✗ Curl error: $error\n";
-            echo "Verbose log: $verboseOutput\n";
         } else {
-            echo "HTTP Status: $httpCode\n";
-            echo "API Response: " . substr($output, 0, 500) . "...\n";
+            echo "API Test (HTTP $httpCode): " . substr($output, 0, 500) . "...\n";
             
             if ($httpCode === 200) {
-                if (strpos($output, 'success') !== false || strpos($output, 'error') !== false) {
+                if (strpos($output, 'success') !== false) {
                     echo "✓ API endpoint responded correctly\n";
                 } else {
                     echo "✗ API endpoint did not return expected JSON\n";
                 }
             } else {
                 echo "✗ API returned HTTP $httpCode instead of 200\n";
-                echo "Full response: $output\n";
             }
         }
     } else {
