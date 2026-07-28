@@ -22,7 +22,7 @@ jobs:
           channel: 'stable'
           cache: true
           architecture: x64  # Use x64 architecture for better compatibility
-          flutter-version: '3.29.0'  # Use specific version for consistency
+          flutter-version: 'stable'  # Use latest stable version for production-ready builds
 
       - name: Print Flutter & Dart version
         run: flutter --version

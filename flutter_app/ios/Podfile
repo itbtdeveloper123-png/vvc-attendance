@@ -1,8 +1,5 @@
-# Firebase SDK version override to resolve GoogleDataTransport conflict
-$FirebaseSDKVersion = '10.24.0'
-
 # Uncomment this line to define a global platform for your project
-platform :ios, '16.0'
+platform :ios, '13.0'
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
@@ -82,7 +79,7 @@ post_install do |installer|
       end
 
       # Fix for Swift Package Manager issues
-      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '16.0'
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
     end
   end
 end
