@@ -35,7 +35,7 @@ dependencies:
   flutter_svg: 2.0.10
   pdf: ^3.10.0
   printing: ^5.10.0
-  image: ^4.8.0
+  image: ^4.5.4
   flutter_local_notifications: ^17.2.4
   package_info_plus: ^8.0.0
   flutter_inappwebview: ^6.1.5
@@ -76,6 +76,7 @@ dependency_overrides:
   path_provider: 2.1.2
   google_maps_flutter: 2.9.0
   cloud_firestore: 5.4.4
+  image: 4.5.4
 
 dev_dependencies:
   flutter_test:
