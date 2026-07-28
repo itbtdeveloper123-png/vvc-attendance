@@ -1,8 +1,5 @@
 <?php
 
-error_reporting(0);
-ini_set('display_errors', 0);
-
 /**
  * VVC-HRM Centralized API Gateway (v2.0)
  * Unified landing point for all Mobile and Frontend requests.
@@ -11,7 +8,7 @@ ob_start();
 
 // 1. Headers & Environment
 error_reporting(E_ALL);
-ini_set('display_errors', 1);
+ini_set('display_errors', 0); // Don't display errors to client, log them instead
 date_default_timezone_set('Asia/Phnom_Penh');
 
 header('Content-Type: application/json; charset=UTF-8');
@@ -35,6 +32,31 @@ require_once __DIR__ . '/config.php';
 if (file_exists(__DIR__ . '/vendor/autoload.php')) {
     require_once __DIR__ . '/vendor/autoload.php';
 }
+
+// Global error handler to catch fatal errors
+set_error_handler(function($errno, $errstr, $errfile, $errline) {
+    error_log("PHP Error [$errno]: $errstr in $errfile on line $errline");
+    return false;
+});
+
+// Global exception handler
+set_exception_handler(function($exception) {
+    error_log("Uncaught Exception: " . $exception->getMessage() . " in " . $exception->getFile() . " on line " . $exception->getLine());
+    http_response_code(500);
+    echo json_encode(['success' => false, 'status' => 'error', 'message' => 'Server Error']);
+    exit;
+});
+
+// Register shutdown function to catch fatal errors
+register_shutdown_function(function() {
+    $error = error_get_last();
+    if ($error !== null && in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR])) {
+        error_log("Fatal Error: " . $error['message'] . " in " . $error['file'] . " on line " . $error['line']);
+        http_response_code(500);
+        echo json_encode(['success' => false, 'status' => 'error', 'message' => 'Fatal Server Error']);
+    }
+});
+
 require_once __DIR__ . '/webpush_functions.php';
 require_once __DIR__ . '/notification_functions.php';
 require_once __DIR__ . '/enterprise_helpers.php';
@@ -426,16 +448,28 @@ function check_api_rate_limit($mysqli) {
 }
 
 // 2. Database Connection
-$mysqli = new mysqli(DB_SERVER, DB_USERNAME, DB_PASSWORD, DB_NAME);
-if ($mysqli->connect_error) {
-    echo json_encode(['success' => false, 'status' => 'error', 'message' => 'DB Connection Failed']);
+try {
+    $mysqli = new mysqli(DB_SERVER, DB_USERNAME, DB_PASSWORD, DB_NAME);
+    if ($mysqli->connect_error) {
+        error_log("DB Connection Failed: " . $mysqli->connect_error);
+        echo json_encode(['success' => false, 'status' => 'error', 'message' => 'DB Connection Failed']);
+        exit;
+    }
+    $mysqli->set_charset("utf8mb4");
+    $mysqli->query("SET time_zone = '+07:00'");
+} catch (Exception $e) {
+    error_log("DB Connection Exception: " . $e->getMessage());
+    echo json_encode(['success' => false, 'status' => 'error', 'message' => 'DB Connection Exception']);
     exit;
 }
-$mysqli->set_charset("utf8mb4");
-$mysqli->query("SET time_zone = '+07:00'");
 
 // Perform API Rate Limiting Check
-check_api_rate_limit($mysqli);
+try {
+    check_api_rate_limit($mysqli);
+} catch (Exception $e) {
+    error_log("Rate limiting check failed: " . $e->getMessage());
+    // Continue even if rate limiting fails
+}
 
 // Auto-heal DB schema if core columns in users table are missing
 $required_columns = [
@@ -453,24 +487,34 @@ foreach ($required_columns as $col => $definition) {
     }
 }
 
-ensure_enterprise_support_tables($mysqli);
-process_due_notification_schedules($mysqli);
+try {
+    ensure_enterprise_support_tables($mysqli);
+} catch (Exception $e) {
+    error_log("Enterprise support tables error: " . $e->getMessage());
+}
+
+try {
+    process_due_notification_schedules($mysqli);
+} catch (Exception $e) {
+    error_log("Notification schedules error: " . $e->getMessage());
+}
 
 // 3. API Helpers
 // Ensure notification tables for in-app alerts
 function ensure_api_notification_tables($mysqli) {
-    // Basic structural check and creation
-    $mysqli->query("CREATE TABLE IF NOT EXISTS notifications (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        admin_id VARCHAR(64) NOT NULL,
-        title VARCHAR(255) NOT NULL,
-        message TEXT NOT NULL,
-        recipient_type ENUM('all', 'department', 'specific', 'role') DEFAULT 'all',
-        recipient_info VARCHAR(255) DEFAULT NULL,
-        expiry_date DATE DEFAULT NULL,
-        image_url VARCHAR(255) DEFAULT NULL,
-        sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    try {
+        // Basic structural check and creation
+        $mysqli->query("CREATE TABLE IF NOT EXISTS notifications (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            admin_id VARCHAR(64) NOT NULL,
+            title VARCHAR(255) NOT NULL,
+            message TEXT NOT NULL,
+            recipient_type ENUM('all', 'department', 'specific', 'role') DEFAULT 'all',
+            recipient_info VARCHAR(255) DEFAULT NULL,
+            expiry_date DATE DEFAULT NULL,
+            image_url VARCHAR(255) DEFAULT NULL,
+            sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
     $notif_cols = [];
     $notif_res = $mysqli->query("SHOW COLUMNS FROM notifications");
@@ -520,136 +564,160 @@ function ensure_api_notification_tables($mysqli) {
         $mysqli->query("ALTER TABLE users ADD COLUMN fcm_token VARCHAR(255) DEFAULT NULL");
     }
     if ($user_fcm_col) $user_fcm_col->close();
+    } catch (Exception $e) {
+        error_log("API notification tables error: " . $e->getMessage());
+    }
 }
 
 function ensure_app_scan_settings_table($mysqli) {
-    $mysqli->query("CREATE TABLE IF NOT EXISTS app_scan_settings (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        admin_id VARCHAR(64) NOT NULL DEFAULT 'SYSTEM_WIDE',
-        setting_key VARCHAR(100) NOT NULL,
-        setting_value LONGTEXT,
-        UNIQUE KEY uniq_scan (admin_id, setting_key)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    try {
+        $mysqli->query("CREATE TABLE IF NOT EXISTS app_scan_settings (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            admin_id VARCHAR(64) NOT NULL DEFAULT 'SYSTEM_WIDE',
+            setting_key VARCHAR(100) NOT NULL,
+            setting_value LONGTEXT,
+            UNIQUE KEY uniq_scan (admin_id, setting_key)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    } catch (Exception $e) {
+        error_log("App scan settings table error: " . $e->getMessage());
+    }
 }
 
 function ensure_payroll_biometric_records_table($mysqli) {
-    $mysqli->query("CREATE TABLE IF NOT EXISTS payroll_biometric_records (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        employee_id VARCHAR(64) NOT NULL,
-        employee_name VARCHAR(255) DEFAULT NULL,
-        purpose VARCHAR(50) NOT NULL DEFAULT 'payroll',
-        verification_count INT NOT NULL DEFAULT 1,
-        first_verified_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        last_verified_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        last_platform VARCHAR(80) DEFAULT NULL,
-        last_auth_method VARCHAR(80) DEFAULT NULL,
-        last_ip_address VARCHAR(45) DEFAULT NULL,
-        last_user_agent VARCHAR(255) DEFAULT NULL,
-        UNIQUE KEY uniq_emp_purpose (employee_id, purpose),
-        KEY idx_last_verified (last_verified_at)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    try {
+        $mysqli->query("CREATE TABLE IF NOT EXISTS payroll_biometric_records (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            employee_id VARCHAR(64) NOT NULL,
+            employee_name VARCHAR(255) DEFAULT NULL,
+            purpose VARCHAR(50) NOT NULL DEFAULT 'payroll',
+            verification_count INT NOT NULL DEFAULT 1,
+            first_verified_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            last_verified_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            last_platform VARCHAR(80) DEFAULT NULL,
+            last_auth_method VARCHAR(80) DEFAULT NULL,
+            last_ip_address VARCHAR(45) DEFAULT NULL,
+            last_user_agent VARCHAR(255) DEFAULT NULL,
+            UNIQUE KEY uniq_emp_purpose (employee_id, purpose),
+            KEY idx_last_verified (last_verified_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    } catch (Exception $e) {
+        error_log("Payroll biometric records table error: " . $e->getMessage());
+    }
 }
 
 function ensure_daily_report_telegram_table($mysqli) {
-    $mysqli->query("CREATE TABLE IF NOT EXISTS daily_report_telegram_settings (
-        id INT PRIMARY KEY DEFAULT 1,
-        enabled TINYINT DEFAULT 0,
-        bot_token VARCHAR(255) DEFAULT NULL,
-        group_id VARCHAR(50) DEFAULT NULL,
-        thread_id VARCHAR(50) DEFAULT NULL,
-        message_template TEXT DEFAULT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    try {
+        $mysqli->query("CREATE TABLE IF NOT EXISTS daily_report_telegram_settings (
+            id INT PRIMARY KEY DEFAULT 1,
+            enabled TINYINT DEFAULT 0,
+            bot_token VARCHAR(255) DEFAULT NULL,
+            group_id VARCHAR(50) DEFAULT NULL,
+            thread_id VARCHAR(50) DEFAULT NULL,
+            message_template TEXT DEFAULT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
-    // Auto-patch bot_token if missing
-    $col_check = $mysqli->query("SHOW COLUMNS FROM daily_report_telegram_settings LIKE 'bot_token'");
-    if ($col_check && $col_check->num_rows === 0) {
-        $mysqli->query("ALTER TABLE daily_report_telegram_settings ADD COLUMN bot_token VARCHAR(255) DEFAULT NULL AFTER enabled");
+        // Auto-patch bot_token if missing
+        $col_check = $mysqli->query("SHOW COLUMNS FROM daily_report_telegram_settings LIKE 'bot_token'");
+        if ($col_check && $col_check->num_rows === 0) {
+            $mysqli->query("ALTER TABLE daily_report_telegram_settings ADD COLUMN bot_token VARCHAR(255) DEFAULT NULL AFTER enabled");
+        }
+    } catch (Exception $e) {
+        error_log("Daily report telegram table error: " . $e->getMessage());
     }
 }
 
 function ensure_daily_reports_table($mysqli) {
-    $mysqli->query("CREATE TABLE IF NOT EXISTS daily_reports (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        user_id VARCHAR(64) NOT NULL,
-        position VARCHAR(100) DEFAULT NULL,
-        report_date DATE NOT NULL,
-        content LONGTEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        KEY idx_user (user_id),
-        KEY idx_date (report_date)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    try {
+        $mysqli->query("CREATE TABLE IF NOT EXISTS daily_reports (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id VARCHAR(64) NOT NULL,
+            position VARCHAR(100) DEFAULT NULL,
+            report_date DATE NOT NULL,
+            content LONGTEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            KEY idx_user (user_id),
+            KEY idx_date (report_date)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    } catch (Exception $e) {
+        error_log("Daily reports table error: " . $e->getMessage());
+    }
 }
 function ensure_mission_letters_table($mysqli) {
-    $mysqli->query("CREATE TABLE IF NOT EXISTS mission_letters (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        employee_id VARCHAR(64) NOT NULL,
-        location VARCHAR(255) DEFAULT NULL,
-        purpose VARCHAR(255) DEFAULT NULL,
-        start_date DATE DEFAULT NULL,
-        start_time VARCHAR(10) DEFAULT NULL,
-        end_date DATE DEFAULT NULL,
-        end_time VARCHAR(10) DEFAULT NULL,
-        transport VARCHAR(255) DEFAULT NULL,
-        materials VARCHAR(255) DEFAULT NULL,
-        date_khmer TEXT DEFAULT NULL,
-        status VARCHAR(20) DEFAULT 'Pending',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        KEY idx_eid (employee_id)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    try {
+        $mysqli->query("CREATE TABLE IF NOT EXISTS mission_letters (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            employee_id VARCHAR(64) NOT NULL,
+            location VARCHAR(255) DEFAULT NULL,
+            purpose VARCHAR(255) DEFAULT NULL,
+            start_date DATE DEFAULT NULL,
+            start_time VARCHAR(10) DEFAULT NULL,
+            end_date DATE DEFAULT NULL,
+            end_time VARCHAR(10) DEFAULT NULL,
+            transport VARCHAR(255) DEFAULT NULL,
+            materials VARCHAR(255) DEFAULT NULL,
+            date_khmer TEXT DEFAULT NULL,
+            status VARCHAR(20) DEFAULT 'Pending',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            KEY idx_eid (employee_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
-    // Patch columns if they don't exist
-    $check = $mysqli->query("SHOW COLUMNS FROM mission_letters LIKE 'person1'");
-    if ($check && $check->num_rows === 0) {
-        $mysqli->query("ALTER TABLE mission_letters
-            ADD COLUMN IF NOT EXISTS location VARCHAR(255) AFTER employee_id,
-            ADD COLUMN IF NOT EXISTS purpose VARCHAR(255) AFTER location,
-            ADD COLUMN IF NOT EXISTS start_time VARCHAR(10) AFTER start_date,
-            ADD COLUMN IF NOT EXISTS end_time VARCHAR(10) AFTER end_date,
-            ADD COLUMN IF NOT EXISTS transport VARCHAR(255) AFTER end_time,
-            ADD COLUMN IF NOT EXISTS materials VARCHAR(255) AFTER transport,
-            ADD COLUMN IF NOT EXISTS date_khmer TEXT AFTER materials,
-            ADD COLUMN IF NOT EXISTS person1 VARCHAR(255), ADD COLUMN IF NOT EXISTS role1 VARCHAR(255),
-            ADD COLUMN IF NOT EXISTS person2 VARCHAR(255), ADD COLUMN IF NOT EXISTS role2 VARCHAR(255),
-            ADD COLUMN IF NOT EXISTS person3 VARCHAR(255), ADD COLUMN IF NOT EXISTS role3 VARCHAR(255),
-            ADD COLUMN IF NOT EXISTS person4 VARCHAR(255), ADD COLUMN IF NOT EXISTS role4 VARCHAR(255),
-            ADD COLUMN IF NOT EXISTS person5 VARCHAR(255), ADD COLUMN IF NOT EXISTS role5 VARCHAR(255),
-            ADD COLUMN IF NOT EXISTS person6 VARCHAR(255), ADD COLUMN IF NOT EXISTS role6 VARCHAR(255),
-            ADD COLUMN IF NOT EXISTS person7 VARCHAR(255), ADD COLUMN IF NOT EXISTS role7 VARCHAR(255),
-            ADD COLUMN IF NOT EXISTS person8 VARCHAR(255), ADD COLUMN IF NOT EXISTS role8 VARCHAR(255),
-            ADD COLUMN IF NOT EXISTS person9 VARCHAR(255), ADD COLUMN IF NOT EXISTS role9 VARCHAR(255),
-            ADD COLUMN IF NOT EXISTS person10 VARCHAR(255), ADD COLUMN IF NOT EXISTS role10 VARCHAR(255)
-        ");
+        // Patch columns if they don't exist
+        $check = $mysqli->query("SHOW COLUMNS FROM mission_letters LIKE 'person1'");
+        if ($check && $check->num_rows === 0) {
+            $mysqli->query("ALTER TABLE mission_letters
+                ADD COLUMN IF NOT EXISTS location VARCHAR(255) AFTER employee_id,
+                ADD COLUMN IF NOT EXISTS purpose VARCHAR(255) AFTER location,
+                ADD COLUMN IF NOT EXISTS start_time VARCHAR(10) AFTER start_date,
+                ADD COLUMN IF NOT EXISTS end_time VARCHAR(10) AFTER end_date,
+                ADD COLUMN IF NOT EXISTS transport VARCHAR(255) AFTER end_time,
+                ADD COLUMN IF NOT EXISTS materials VARCHAR(255) AFTER transport,
+                ADD COLUMN IF NOT EXISTS date_khmer TEXT AFTER materials,
+                ADD COLUMN IF NOT EXISTS person1 VARCHAR(255), ADD COLUMN IF NOT EXISTS role1 VARCHAR(255),
+                ADD COLUMN IF NOT EXISTS person2 VARCHAR(255), ADD COLUMN IF NOT EXISTS role2 VARCHAR(255),
+                ADD COLUMN IF NOT EXISTS person3 VARCHAR(255), ADD COLUMN IF NOT EXISTS role3 VARCHAR(255),
+                ADD COLUMN IF NOT EXISTS person4 VARCHAR(255), ADD COLUMN IF NOT EXISTS role4 VARCHAR(255),
+                ADD COLUMN IF NOT EXISTS person5 VARCHAR(255), ADD COLUMN IF NOT EXISTS role5 VARCHAR(255),
+                ADD COLUMN IF NOT EXISTS person6 VARCHAR(255), ADD COLUMN IF NOT EXISTS role6 VARCHAR(255),
+                ADD COLUMN IF NOT EXISTS person7 VARCHAR(255), ADD COLUMN IF NOT EXISTS role7 VARCHAR(255),
+                ADD COLUMN IF NOT EXISTS person8 VARCHAR(255), ADD COLUMN IF NOT EXISTS role8 VARCHAR(255),
+                ADD COLUMN IF NOT EXISTS person9 VARCHAR(255), ADD COLUMN IF NOT EXISTS role9 VARCHAR(255),
+                ADD COLUMN IF NOT EXISTS person10 VARCHAR(255), ADD COLUMN IF NOT EXISTS role10 VARCHAR(255)
+            ");
+        }
+    } catch (Exception $e) {
+        error_log("Mission letters table error: " . $e->getMessage());
     }
 }
 
 function ensure_meetings_table($mysqli) {
-    $mysqli->query("CREATE TABLE IF NOT EXISTS meetings (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        topic VARCHAR(255) NOT NULL,
-        department VARCHAR(100) DEFAULT NULL,
-        meeting_date DATE DEFAULT NULL,
-        description TEXT DEFAULT NULL,
-        audio_path TEXT DEFAULT NULL,
-        audio_file_path VARCHAR(255) DEFAULT NULL,
-        audio_original_name VARCHAR(255) DEFAULT NULL,
-        external_url TEXT DEFAULT NULL,
-        photos LONGTEXT DEFAULT NULL,
-        related_photos LONGTEXT DEFAULT NULL,
-        transcript_text LONGTEXT DEFAULT NULL,
-        created_by VARCHAR(64) DEFAULT NULL,
-        summary LONGTEXT DEFAULT NULL,
-        summary_json LONGTEXT DEFAULT NULL,
-        summary_generated_at DATETIME DEFAULT NULL,
-        transcript_provider VARCHAR(50) DEFAULT NULL,
-        transcript_model VARCHAR(100) DEFAULT NULL,
-        summary_provider VARCHAR(50) DEFAULT NULL,
-        summary_model VARCHAR(100) DEFAULT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        KEY idx_dept (department),
-        KEY idx_date (meeting_date)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    try {
+        $mysqli->query("CREATE TABLE IF NOT EXISTS meetings (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            topic VARCHAR(255) NOT NULL,
+            department VARCHAR(100) DEFAULT NULL,
+            meeting_date DATE DEFAULT NULL,
+            description TEXT DEFAULT NULL,
+            audio_path TEXT DEFAULT NULL,
+            audio_file_path VARCHAR(255) DEFAULT NULL,
+            audio_original_name VARCHAR(255) DEFAULT NULL,
+            external_url TEXT DEFAULT NULL,
+            photos LONGTEXT DEFAULT NULL,
+            related_photos LONGTEXT DEFAULT NULL,
+            transcript_text LONGTEXT DEFAULT NULL,
+            created_by VARCHAR(64) DEFAULT NULL,
+            summary LONGTEXT DEFAULT NULL,
+            summary_json LONGTEXT DEFAULT NULL,
+            summary_generated_at DATETIME DEFAULT NULL,
+            transcript_provider VARCHAR(50) DEFAULT NULL,
+            transcript_model VARCHAR(100) DEFAULT NULL,
+            summary_provider VARCHAR(50) DEFAULT NULL,
+            summary_model VARCHAR(100) DEFAULT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            KEY idx_dept (department),
+            KEY idx_date (meeting_date)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
     // Manual check because ADD COLUMN IF NOT EXISTS requires modern MariaDB/MySQL
     $cols = []; $res = $mysqli->query("SHOW COLUMNS FROM meetings");
@@ -689,6 +757,9 @@ function ensure_meetings_table($mysqli) {
         if(!in_array($col, $cols)) {
             $mysqli->query("ALTER TABLE meetings ADD COLUMN $col $type");
         }
+    }
+    } catch (Exception $e) {
+        error_log("Meetings table error: " . $e->getMessage());
     }
 
 }
@@ -2484,15 +2555,58 @@ function meeting_ai_generate_summary_payload(array $meeting, $transcriptText) {
 }
 
 // Initialize tables
-ensure_api_notification_tables($mysqli);
-ensure_app_scan_settings_table($mysqli);
-ensure_daily_report_telegram_table($mysqli);
-ensure_daily_reports_table($mysqli);
-ensure_mission_letters_table($mysqli);
-ensure_meetings_table($mysqli);
-ensure_ai_chat_tables($mysqli);
-ensure_trip_tables($mysqli);
-ensure_work_checklist_table($mysqli);
+try {
+    ensure_api_notification_tables($mysqli);
+} catch (Exception $e) {
+    error_log("API notification tables error: " . $e->getMessage());
+}
+
+try {
+    ensure_app_scan_settings_table($mysqli);
+} catch (Exception $e) {
+    error_log("App scan settings table error: " . $e->getMessage());
+}
+
+try {
+    ensure_daily_report_telegram_table($mysqli);
+} catch (Exception $e) {
+    error_log("Daily report telegram table error: " . $e->getMessage());
+}
+
+try {
+    ensure_daily_reports_table($mysqli);
+} catch (Exception $e) {
+    error_log("Daily reports table error: " . $e->getMessage());
+}
+
+try {
+    ensure_mission_letters_table($mysqli);
+} catch (Exception $e) {
+    error_log("Mission letters table error: " . $e->getMessage());
+}
+
+try {
+    ensure_meetings_table($mysqli);
+} catch (Exception $e) {
+    error_log("Meetings table error: " . $e->getMessage());
+}
+try {
+    ensure_ai_chat_tables($mysqli);
+} catch (Exception $e) {
+    error_log("AI chat tables error: " . $e->getMessage());
+}
+
+try {
+    ensure_trip_tables($mysqli);
+} catch (Exception $e) {
+    error_log("Trip tables error: " . $e->getMessage());
+}
+
+try {
+    ensure_work_checklist_table($mysqli);
+} catch (Exception $e) {
+    error_log("Work checklist table error: " . $e->getMessage());
+}
 
 function ensure_work_checklist_table($mysqli) {
     $mysqli->query("CREATE TABLE IF NOT EXISTS work_checklist (
@@ -2918,17 +3032,24 @@ function sendRequestTelegram($mysqli, $eid, $data = []) {
 
 
 function apiResponse($data) {
-    if (ob_get_length()) ob_clean();
-    // Ensure 'success' key is always present for consistency
-    if (!isset($data['success'])) {
-        $data['success'] = (isset($data['status']) && $data['status'] === 'success');
+    try {
+        if (ob_get_length()) ob_clean();
+        // Ensure 'success' key is always present for consistency
+        if (!isset($data['success'])) {
+            $data['success'] = (isset($data['status']) && $data['status'] === 'success');
+        }
+        $json = json_encode($data, JSON_UNESCAPED_UNICODE);
+        if ($json === false) {
+            error_log("JSON encode error: " . json_last_error_msg());
+            $json = json_encode(['success' => false, 'message' => 'JSON encode error']);
+        }
+        echo $json;
+        exit;
+    } catch (Exception $e) {
+        error_log("apiResponse Exception: " . $e->getMessage());
+        echo json_encode(['success' => false, 'message' => 'Response Error']);
+        exit;
     }
-    $json = json_encode($data, JSON_UNESCAPED_UNICODE);
-    if ($json === false) {
-        $json = json_encode(['success' => false, 'message' => 'JSON encode error: ' . json_last_error_msg()]);
-    }
-    echo $json;
-    exit;
 }
 
 function getBearerToken() {
@@ -2987,12 +3108,19 @@ if ($token) {
 }
 
 // 4. Action Routing
-$actionSource = $_POST['action'] ?? $_GET['action'] ?? $_POST['ajax_action'] ?? $_GET['ajax_action'] ?? '';
-$action = strtolower(trim($actionSource));
+try {
+    $actionSource = $_POST['action'] ?? $_GET['action'] ?? $_POST['ajax_action'] ?? $_GET['ajax_action'] ?? '';
+    $action = strtolower(trim($actionSource));
 
-error_log("API: Action received: '$action' (source: '$actionSource')");
+    error_log("API: Action received: '$action' (source: '$actionSource')");
 
-switch ($action) {
+    if (empty($action)) {
+        error_log("API: No action provided");
+        echo json_encode(['success' => false, 'status' => 'error', 'message' => 'No action specified']);
+        exit;
+    }
+
+    switch ($action) {
     case 'view_face_log':
         $logPath = __DIR__ . '/uploads/face_match_debug.log';
         if (file_exists($logPath)) {
@@ -3669,10 +3797,11 @@ switch ($action) {
         break;
 
     case 'api_login':
-        // Scan-based login
-        $eid = trim($_POST['employee_id'] ?? '');
-        $req_password = trim($_POST['password'] ?? '');
-        if (empty($eid)) apiResponse(['success' => false, 'message' => 'Employee ID required']);
+        try {
+            // Scan-based login
+            $eid = trim($_POST['employee_id'] ?? '');
+            $req_password = trim($_POST['password'] ?? '');
+            if (empty($eid)) apiResponse(['success' => false, 'message' => 'Employee ID required']);
 
         $sql = "SELECT employee_id, name, user_role, avatar,
                        COALESCE(system_role, 'Employee') AS system_role,
@@ -3777,6 +3906,10 @@ switch ($action) {
             ]);
         } else {
             apiResponse(['success' => false, 'message' => 'User not found']);
+        }
+        } catch (Exception $e) {
+            error_log("Login Exception: " . $e->getMessage());
+            apiResponse(['success' => false, 'message' => 'Login processing error']);
         }
         break;
 
@@ -4961,16 +5094,21 @@ switch ($action) {
     case 'Check-Out':
     case 'check-in':
     case 'check-out':
-        if (!$user) apiResponse(['success' => false, 'message' => 'Unauthorized']);
+        try {
+            if (!$user) apiResponse(['success' => false, 'message' => 'Unauthorized']);
 
-        $eid = $user['employee_id'];
-        $uname = $user['name'];
-        $action_type = $_POST['action'] ?? $action; // Check-In or Check-Out
+            $eid = $user['employee_id'];
+            $uname = $user['name'];
+            $action_type = $_POST['action'] ?? $action; // Check-In or Check-Out
 
         // Debug: Log attendance submission parameters
         $hasPhoto = !empty($_POST['photo_base64']) ? 'YES' : 'NO';
         $wpLog = $_POST['workplace'] ?? 'N/A';
-        @file_put_contents(__DIR__ . '/uploads/face_match_debug.log', date('[Y-m-d H:i:s] ') . "Submit Request: EID={$eid} | Name={$uname} | ActionType={$action_type} | Workplace={$wpLog} | HasPhoto={$hasPhoto}\n", FILE_APPEND);
+        try {
+            @file_put_contents(__DIR__ . '/uploads/face_match_debug.log', date('[Y-m-d H:i:s] ') . "Submit Request: EID={$eid} | Name={$uname} | ActionType={$action_type} | Workplace={$wpLog} | HasPhoto={$hasPhoto}\n", FILE_APPEND);
+        } catch (Exception $e) {
+            error_log("Failed to write debug log: " . $e->getMessage());
+        }
         $loc_id = (int)($_POST['qr_location_id'] ?? 0);
         $qr_secret = trim($_POST['qr_secret'] ?? '');
         $user_loc_raw = trim($_POST['user_location_raw'] ?? '');
@@ -5168,6 +5306,10 @@ switch ($action) {
                 apiResponse(['success' => false, 'message' => 'Database error: ' . $mysqli->error]);
             }
             $ins->close();
+        }
+        } catch (Exception $e) {
+            error_log("Attendance Exception: " . $e->getMessage());
+            apiResponse(['success' => false, 'message' => 'Attendance processing error']);
         }
         break;
 
@@ -7725,8 +7867,9 @@ switch ($action) {
         break;
 
     case 'record_payroll_biometric_verification':
-        if (!$user) apiResponse(['success' => false, 'message' => 'Unauthorized']);
-        ensure_payroll_biometric_records_table($mysqli);
+        try {
+            if (!$user) apiResponse(['success' => false, 'message' => 'Unauthorized']);
+            ensure_payroll_biometric_records_table($mysqli);
 
         $eid = (string)($user['employee_id'] ?? '');
         $employee_name = (string)($user['name'] ?? '');
@@ -7760,6 +7903,10 @@ switch ($action) {
         $stmt->close();
 
         apiResponse(['success' => $ok, 'message' => $ok ? 'Recorded' : 'Failed to record biometric verification']);
+        } catch (Exception $e) {
+            error_log("Payroll biometric verification error: " . $e->getMessage());
+            apiResponse(['success' => false, 'message' => 'Biometric verification error']);
+        }
         break;
 
     case 'get_all_payroll':
@@ -7789,6 +7936,10 @@ switch ($action) {
         $hex = bin2hex($action);
         apiResponse(['success' => false, 'message' => "Action '$action' (len:$len, hex:$hex) not implemented in Central API"]);
         break;
+}
+} catch (Exception $e) {
+    error_log("API Exception: " . $e->getMessage() . " in " . $e->getFile() . " on line " . $e->getLine());
+    echo json_encode(['success' => false, 'status' => 'error', 'message' => 'Server Error: ' . $e->getMessage()]);
 }
 
 function product_ai_build_multimodal_content($userPrompt, $imageBase64 = '', $mimeType = 'image/jpeg') {
