@@ -77,16 +77,19 @@ class _TripScreenState extends State<TripScreen>
     )..repeat(reverse: true);
 
     // Monitor connectivity changes
-    _connectivitySub = Connectivity().onConnectivityChanged.listen((result) {
-      final online = result == ConnectivityResult.mobile ||
-                     result == ConnectivityResult.wifi ||
-                     result == ConnectivityResult.ethernet;
+    // NOTE: onConnectivityChanged emits List<ConnectivityResult> (connectivity_plus 6.x+)
+    _connectivitySub = Connectivity().onConnectivityChanged.listen((List<ConnectivityResult> results) {
+      final online = results.any((r) =>
+          r == ConnectivityResult.mobile ||
+          r == ConnectivityResult.wifi ||
+          r == ConnectivityResult.ethernet);
       if (mounted) setState(() => _isOnline = online);
       if (online) {
         // Flush any queued offline GPS points
         _flushOfflineTripPoints();
       }
     });
+
 
     _loadData().then((_) {
       _startTimers();

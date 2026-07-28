@@ -53,7 +53,12 @@ dependencies:
   firebase_core: ^3.6.0
   firebase_messaging: ^15.0.0
   sqflite: ^2.3.0
-  connectivity_plus: ^7.3.1
+  connectivity_plus: ^6.1.1
+  # PINNED to 6.x — connectivity_plus 7.x uses NWPath.isUltraConstrained (iOS 26 API)
+  # without @available guard → compile failure on Xcode 15.4 + 16.4 (iOS 18 SDK max).
+  # Bug: https://github.com/fluttercommunity/plus_plugins/issues/connectivity_plus-ios26
+  # Safe 6.x API: NWPath.isConstrained (iOS 13+) — fully supported.
+
   socket_io_client: ^3.0.0
   cloud_firestore: ^5.4.4
   flutter_background_service: ^5.1.0
