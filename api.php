@@ -3089,7 +3089,27 @@ function getBearerToken() {
     return null;
 }
 
+
+// ================================================================
+//  DATABASE CONNECTION — MUST be before getBearerToken / action routing
+// ================================================================
+$mysqli = @new mysqli(DB_SERVER, DB_USERNAME, DB_PASSWORD, DB_NAME);
+if ($mysqli->connect_error) {
+    error_log("API DB connect failed: " . $mysqli->connect_error);
+    http_response_code(500);
+    echo json_encode([
+        'success' => false,
+        'message' => 'Database connection failed',
+        'error'   => $mysqli->connect_error
+    ]);
+    exit;
+}
+$mysqli->set_charset('utf8mb4');
+$mysqli->query("SET time_zone = '+07:00'");
+mysqli_report(MYSQLI_REPORT_OFF); // handle errors manually
+
 $token = getBearerToken();
+
 $user = null;
 if ($token) {
     try {
