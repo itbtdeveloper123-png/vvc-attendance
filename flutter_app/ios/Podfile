@@ -1,3 +1,6 @@
+# Firebase SDK version override to resolve GoogleDataTransport conflict
+$FirebaseSDKVersion = '10.24.0'
+
 # Uncomment this line to define a global platform for your project
 platform :ios, '16.0'
 
