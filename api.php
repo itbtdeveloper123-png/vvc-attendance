@@ -3120,9 +3120,19 @@ try {
         exit;
     }
 
-    // Test endpoint for debugging
-    if ($action === 'test') {
-        echo json_encode(['success' => true, 'status' => 'success', 'message' => 'API is working']);
+    // Test endpoint for debugging - no authentication required, no database
+    if ($action === 'test' || $action === 'health') {
+        echo json_encode([
+            'success' => true, 
+            'status' => 'success', 
+            'message' => 'API is working', 
+            'timestamp' => date('Y-m-d H:i:s'),
+            'server_info' => [
+                'php_version' => phpversion(),
+                'server_time' => date('Y-m-d H:i:s'),
+                'request_method' => $_SERVER['REQUEST_METHOD'] ?? 'unknown'
+            ]
+        ]);
         exit;
     }
 

@@ -62,21 +62,44 @@ if (is_writable(__DIR__ . '/uploads')) {
 // Test 6: Test actual API endpoint with a simple request
 echo "\nTesting API endpoint...\n";
 try {
-    // Simulate a simple API request
-    $_POST['action'] = 'test';
-    $_POST['employee_id'] = 'test123';
+    // Use a simpler approach - just check if the test endpoint works
+    $testUrl = 'https://app.vvc.asia/flutter/api.php';
     
-    // Capture the output
-    ob_start();
-    include __DIR__ . '/api.php';
-    $output = ob_get_clean();
-    
-    echo "API Response: " . substr($output, 0, 200) . "...\n";
-    
-    if (strpos($output, 'success') !== false || strpos($output, 'error') !== false) {
-        echo "✓ API endpoint responded\n";
+    // Test with curl if available
+    if (function_exists('curl_init')) {
+        $data = [
+            'action' => 'test',
+            'employee_id' => 'test123'
+        ];
+        
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $testUrl);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($data));
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 10); // 10 second timeout
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5); // 5 second connection timeout
+        
+        $output = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $error = curl_error($ch);
+        curl_close($ch);
+        
+        if ($error) {
+            echo "✗ Curl error: $error\n";
+        } else {
+            echo "HTTP Status: $httpCode\n";
+            echo "API Response: " . substr($output, 0, 300) . "...\n";
+            
+            if (strpos($output, 'success') !== false || strpos($output, 'error') !== false) {
+                echo "✓ API endpoint responded\n";
+            } else {
+                echo "✗ API endpoint did not return expected JSON\n";
+            }
+        }
     } else {
-        echo "✗ API endpoint did not return expected JSON\n";
+        echo "✗ Curl not available, skipping endpoint test\n";
     }
 } catch (Exception $e) {
     echo "✗ API endpoint test failed: " . $e->getMessage() . "\n";
