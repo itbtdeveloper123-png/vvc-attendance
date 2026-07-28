@@ -106,6 +106,28 @@ try {
         }
     }
     
+    // Test the api_minimal.php to check if the issue is with api.php specifically
+    $minimalTestUrl = 'https://app.vvc.asia/flutter/api_minimal.php?action=test';
+    
+    if (function_exists('curl_init')) {
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $minimalTestUrl);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        
+        $minimalOutput = curl_exec($ch);
+        $minimalHttpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $minimalError = curl_error($ch);
+        curl_close($ch);
+        
+        if ($minimalError) {
+            echo "✗ Minimal API test failed: $minimalError\n";
+        } else {
+            echo "Minimal API Test (HTTP $minimalHttpCode): $minimalOutput\n";
+        }
+    }
+    
     // Now test the actual API endpoint with GET request first
     $testUrl = 'https://app.vvc.asia/flutter/api.php?action=test';
     
