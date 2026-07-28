@@ -3,8 +3,9 @@ if (file_exists(__DIR__ . '/vendor/autoload.php')) {
     require_once __DIR__ . '/vendor/autoload.php';
 }
 
-use Minishlink\WebPush\WebPush;
-use Minishlink\WebPush\Subscription;
+// Note: 'use' statements removed from top-level to prevent Fatal Error
+// when Minishlink\WebPush library is missing on server.
+// class_exists() check inside function handles missing library gracefully.
 
 function sendWebPushNotification($mysqli, $target_employee_id, $title, $body, $image_url = null) {
     if (!class_exists('Minishlink\WebPush\WebPush')) {
@@ -22,7 +23,7 @@ function sendWebPushNotification($mysqli, $target_employee_id, $title, $body, $i
         $res = $stmt->get_result();
         $subscriptions = [];
         while ($row = $res->fetch_assoc()) {
-            $subscriptions[] = Subscription::create([
+            $subscriptions[] = \Minishlink\WebPush\Subscription::create([
                 'endpoint' => $row['endpoint'],
                 'keys' => [
                     'p256dh' => $row['p256dh'],
@@ -48,7 +49,7 @@ function sendWebPushNotification($mysqli, $target_employee_id, $title, $body, $i
         ];
 
         try {
-            $webPush = new WebPush($auth);
+            $webPush = new \Minishlink\WebPush\WebPush($auth);
 
             $notif_payload = [
                 'title' => $title,

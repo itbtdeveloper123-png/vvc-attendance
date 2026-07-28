@@ -1,21 +1,48 @@
 <?php
 /**
- * VVC-HRM API Gateway — flutter/ folder redirect
- *
- * flutter/api.php is a LEGACY location kept for backward-compatibility.
- * The canonical, up-to-date API is located at the project root: ../api.php
- *
- * This file simply forwards every request to the root api.php so that:
- *   - Mobile app calls to https://app.vvc.asia/flutter/api.php keep working
- *   - All bug-fixes & new features need only be maintained in one place (root api.php)
- *   - No more "copy gets out of sync" maintenance nightmare
- *
- * HOW IT WORKS:
- *   PHP include() shares the same request context ($_GET, $_POST, $_SERVER, headers)
- *   so the root api.php receives the full original request transparently.
+ * VVC-HRM API Gateway — flutter/api.php
+ * Self-contained entry point that loads all dependencies from the parent directory.
+ * Mobile app calls this URL: https://app.vvc.asia/flutter/api.php
  */
 
-// Point all require_once / __DIR__ references inside root api.php
-// to the project root, not the flutter/ sub-directory.
-chdir(__DIR__ . '/..');          // Change working dir to project root
-require_once __DIR__ . '/../api.php';   // Execute root api.php in-place
+// Resolve the root directory (one level up from flutter/)
+$ROOT = dirname(__DIR__);
+
+// ── Quick test/health handler (no DB or requires needed) ──────────────────────
+$actionSource = $_POST['action'] ?? $_GET['action'] ?? $_POST['ajax_action'] ?? $_GET['ajax_action'] ?? '';
+$action = strtolower(trim($actionSource));
+
+if ($action === 'test' || $action === 'health') {
+    http_response_code(200);
+    header('Content-Type: application/json; charset=UTF-8');
+    echo json_encode([
+        'success'        => true,
+        'message'        => 'API is working (flutter)',
+        'action_received'=> $action,
+        'post_vars'      => $_POST,
+        'get_vars'       => $_GET,
+        'server_method'  => $_SERVER['REQUEST_METHOD'] ?? 'unknown',
+        'root_path'      => $ROOT,
+        'root_api_exists'=> file_exists($ROOT . '/api.php'),
+    ]);
+    exit;
+}
+
+// ── For all other actions: delegate to root api.php ──────────────────────────
+$rootApi = $ROOT . '/api.php';
+
+if (!file_exists($rootApi)) {
+    http_response_code(500);
+    header('Content-Type: application/json; charset=UTF-8');
+    echo json_encode([
+        'success' => false,
+        'message' => 'Root api.php not found at: ' . $rootApi,
+    ]);
+    exit;
+}
+
+// Change to root dir so all __DIR__ references inside api.php resolve correctly
+chdir($ROOT);
+
+// Include root api.php — shares same request context ($_GET, $_POST, headers)
+require $rootApi;
