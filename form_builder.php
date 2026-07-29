@@ -7,8 +7,14 @@ if (!headers_sent()) {
 }
 ini_set('default_charset', 'UTF-8');
 mb_internal_encoding('UTF-8');
-mb_http_output('UTF-8');
-mb_http_input('UTF-8');
+
+// Only use mb_http functions if available
+if (function_exists('mb_http_output')) {
+    mb_http_output('UTF-8');
+}
+if (function_exists('mb_http_input')) {
+    mb_http_input('UTF-8');
+}
 
 session_start();
 error_reporting(E_ALL);
