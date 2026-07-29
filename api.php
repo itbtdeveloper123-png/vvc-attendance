@@ -7504,6 +7504,13 @@ try {
             break;
         }
 
+        // Check if allowed_employee_ids column exists
+        $column_check = $mysqli->query("SHOW COLUMNS FROM poll_events LIKE 'allowed_employee_ids'");
+        if (!$column_check || $column_check->num_rows == 0) {
+            apiResponse(['success' => false, 'message' => 'Database column allowed_employee_ids does not exist. Please run database setup to add this column.']);
+            break;
+        }
+
         if ($poll_id > 0) {
             // Update existing poll
             $stmt = $mysqli->prepare("UPDATE poll_events SET title=?, quarter=?, location=?, start_date=?, end_date=?, access_code=?, allowed_employee_ids=?, excluded_employee_ids=?, is_active=? WHERE id=?");
