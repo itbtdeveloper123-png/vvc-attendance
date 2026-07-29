@@ -15998,6 +15998,10 @@ ob_end_flush();
                                 echo '<div class="alert alert-danger">PDO Connection Failed. Check database settings.</div>';
                             } else {
                                 switch ($current_page):
+                                    case 'polls':
+                                        // Include poll management UI
+                                        include 'poll_management_ui.php';
+                                        break;
                                     case 'stock_control':
                                         $search_query = $_GET['search'] ?? '';
                                         $items = [];

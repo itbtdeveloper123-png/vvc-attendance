@@ -223,107 +223,213 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
   Widget _buildPollCard(Map<String, dynamic> poll) {
     final hasVoted = poll['has_voted'] == true;
     final candidates = poll['candidates'] as List<dynamic>? ?? [];
+    
+    // State for dropdown selection
+    int? selectedCandidateId;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.bgCard,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: hasVoted 
-              ? Colors.green.withValues(alpha: 0.3)
-              : AppTheme.primary.withValues(alpha: 0.2),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    return StatefulBuilder(
+      builder: (context, setState) {
+        return Container(
+          margin: const EdgeInsets.only(bottom: 16),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppTheme.bgCard,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: hasVoted 
+                  ? Colors.green.withValues(alpha: 0.3)
+                  : AppTheme.primary.withValues(alpha: 0.2),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      poll['title'] ?? 'ការបោះឆ្នោត',
-                      style: GoogleFonts.kantumruyPro(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                        color: AppTheme.textPrimary,
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          poll['title'] ?? 'ការបោះឆ្នោត',
+                          style: GoogleFonts.kantumruyPro(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                            color: AppTheme.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        if (poll['quarter'] != null && poll['quarter'].toString().isNotEmpty)
+                          _buildInfoChip('ត្រីមាស', poll['quarter'].toString()),
+                        if (poll['location'] != null && poll['location'].toString().isNotEmpty)
+                          _buildInfoChip('ទីតាំង', poll['location'].toString()),
+                      ],
+                    ),
+                  ),
+                  if (hasVoted)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.green,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        'បានបោះឆ្នោត',
+                        style: GoogleFonts.kantumruyPro(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    )
+                  else
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primary,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        'សកម្ម',
+                        style: GoogleFonts.kantumruyPro(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    if (poll['quarter'] != null && poll['quarter'].toString().isNotEmpty)
-                      _buildInfoChip('ត្រីមាស', poll['quarter'].toString()),
-                    if (poll['location'] != null && poll['location'].toString().isNotEmpty)
-                      _buildInfoChip('ទីតាំង', poll['location'].toString()),
-                  ],
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'កាលបរិច្ឆេទ: ${poll['start_date'] ?? '-'} ដល់ ${poll['end_date'] ?? '-'}',
+                style: GoogleFonts.kantumruyPro(
+                  color: AppTheme.helperTextColor,
+                  fontSize: 12,
                 ),
               ),
-              if (hasVoted)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.green,
-                    borderRadius: BorderRadius.circular(20),
+              const SizedBox(height: 16),
+              if (candidates.isNotEmpty) ...[
+                Text(
+                  'ជ្រើសរើសបេក្ខជនដើម្បីបោះឆ្នោត:',
+                  style: GoogleFonts.kantumruyPro(
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.textPrimary,
                   ),
-                  child: Text(
-                    'បានបោះឆ្នោត',
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: AppTheme.bgDark,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppTheme.borderDark),
+                  ),
+                  child: DropdownButton<int>(
+                    value: selectedCandidateId,
+                    hint: Text(
+                      'ជ្រើសរើសបេក្ខជន',
+                      style: GoogleFonts.kantumruyPro(
+                        color: AppTheme.helperTextColor,
+                      ),
+                    ),
+                    isExpanded: true,
+                    dropdownColor: AppTheme.bgCard,
                     style: GoogleFonts.kantumruyPro(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
+                      color: AppTheme.textPrimary,
+                    ),
+                    items: candidates.map((candidate) {
+                      final candidateId = candidate['id'] as int?;
+                      final name = candidate['name']?.toString() ?? candidate['employee_id']?.toString() ?? '';
+                      final category = candidate['category']?.toString() ?? '';
+                      return DropdownMenuItem<int>(
+                        value: candidateId,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              name,
+                              style: GoogleFonts.kantumruyPro(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            if (category.isNotEmpty)
+                              Text(
+                                category,
+                                style: GoogleFonts.kantumruyPro(
+                                  fontSize: 12,
+                                  color: AppTheme.helperTextColor,
+                                ),
+                              ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: hasVoted ? null : (value) {
+                      setState(() {
+                        selectedCandidateId = value;
+                      });
+                    },
+                  ),
+                ),
+                const SizedBox(height: 12),
+                if (!hasVoted && selectedCandidateId != null)
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () => _castVote(poll['id'] as int? ?? 0, selectedCandidateId!),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primary,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      child: Text(
+                        'បោះឆ្នោត',
+                        style: GoogleFonts.kantumruyPro(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  )
+                else if (hasVoted)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.green),
+                    ),
+                    child: Center(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.check_circle, color: Colors.green),
+                          const SizedBox(width: 8),
+                          Text(
+                            'អ្នកបានបោះឆ្នោតរួចហើយ',
+                            style: GoogleFonts.kantumruyPro(
+                              color: Colors.green,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                )
-              else
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: AppTheme.primary,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    'សកម្ម',
-                    style: GoogleFonts.kantumruyPro(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
+              ] else
+                Text(
+                  'មិនទាន់មានបេក្ខជនទេ',
+                  style: GoogleFonts.kantumruyPro(
+                    color: AppTheme.helperTextColor,
+                    fontSize: 14,
                   ),
                 ),
             ],
           ),
-          const SizedBox(height: 12),
-          Text(
-            'កាលបរិច្ឆេទ: ${poll['start_date'] ?? '-'} ដល់ ${poll['end_date'] ?? '-'}',
-            style: GoogleFonts.kantumruyPro(
-              color: AppTheme.helperTextColor,
-              fontSize: 12,
-            ),
-          ),
-          const SizedBox(height: 16),
-          if (candidates.isNotEmpty) ...[
-            Text(
-              'បេក្ខជន:',
-              style: GoogleFonts.kantumruyPro(
-                fontWeight: FontWeight.bold,
-                color: AppTheme.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 8),
-            ...candidates.map((candidate) => _buildCandidateItem(poll, candidate)),
-          ] else
-            Text(
-              'មិនទាន់មានបេក្ខជនទេ',
-              style: GoogleFonts.kantumruyPro(
-                color: AppTheme.helperTextColor,
-                fontSize: 14,
-              ),
-            ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -343,66 +449,6 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
             fontSize: 12,
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildCandidateItem(Map<String, dynamic> poll, Map<String, dynamic> candidate) {
-    final hasVoted = poll['has_voted'] == true;
-    final candidateId = candidate['id'] as int?;
-    final employeeId = candidate['employee_id']?.toString() ?? '';
-    final name = candidate['name']?.toString() ?? employeeId;
-    final category = candidate['category']?.toString() ?? '';
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppTheme.bgDark,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: AppTheme.borderDark,
-        ),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  style: GoogleFonts.kantumruyPro(
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.textPrimary,
-                  ),
-                ),
-                if (category.isNotEmpty)
-                  Text(
-                    category,
-                    style: GoogleFonts.kantumruyPro(
-                      color: AppTheme.helperTextColor,
-                      fontSize: 12,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          if (!hasVoted && candidateId != null)
-            ElevatedButton(
-              onPressed: () => _castVote(poll['id'] as int? ?? 0, candidateId),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.primary,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              ),
-              child: const Text('បោះឆ្នោត'),
-            )
-          else if (hasVoted)
-            Icon(
-              Icons.check_circle,
-              color: Colors.green,
-            ),
-        ],
       ),
     );
   }

@@ -1,0 +1,548 @@
+/* Form Print Styles - A5 Paper Size and Mobile Responsive */
+/* Form Print Styles - A5 Paper Size and Mobile Responsive */
+
+:root {
+    --primary: #667eea;
+    --primary-dark: #5568d3;
+    --secondary: #764ba2;
+    --success: #16a34a;
+    --warning: #d97706;
+    --danger: #dc2626;
+    --text: #333;
+    --text-light: #666;
+    --border: #e9ecef;
+    --bg-light: #f8f9fa;
+}
+
+/* A5 Paper Size @media print */
+@media print {
+    @page {
+        size: A5;
+        margin: 10mm;
+    }
+    
+    body {
+        width: 148mm;
+        height: 210mm;
+        margin: 0;
+        padding: 0;
+        font-family: 'Battambang', 'Kantumruy Pro', sans-serif;
+        font-size: 11pt;
+        color: var(--text);
+        background: white;
+    }
+    
+    .form-container {
+        width: 100%;
+        height: 100%;
+        padding: 5mm;
+        box-sizing: border-box;
+    }
+    
+    .form-header {
+        text-align: center;
+        margin-bottom: 5mm;
+        border-bottom: 2px solid var(--primary);
+        padding-bottom: 3mm;
+    }
+    
+    .form-header h1 {
+        font-family: 'Koulen', cursive;
+        font-size: 16pt;
+        color: var(--primary);
+        margin: 0 0 2mm 0;
+    }
+    
+    .form-header h2 {
+        font-size: 12pt;
+        color: var(--text-light);
+        margin: 0;
+    }
+    
+    .form-section {
+        margin-bottom: 4mm;
+    }
+    
+    .form-section-title {
+        font-family: 'Koulen', cursive;
+        font-size: 11pt;
+        color: var(--primary);
+        margin-bottom: 2mm;
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 1mm;
+    }
+    
+    .form-row {
+        display: flex;
+        margin-bottom: 2mm;
+        gap: 2mm;
+    }
+    
+    .form-field {
+        flex: 1;
+    }
+    
+    .form-field.half {
+        flex: 0.5;
+    }
+    
+    .form-field.third {
+        flex: 0.33;
+    }
+    
+    .form-label {
+        display: block;
+        font-size: 9pt;
+        font-weight: bold;
+        margin-bottom: 1mm;
+        color: var(--text);
+    }
+    
+    .form-value {
+        display: block;
+        font-size: 10pt;
+        padding: 1mm;
+        background: var(--bg-light);
+        border: 1px solid var(--border);
+        border-radius: 2px;
+        min-height: 4mm;
+    }
+    
+    .checkbox-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 3mm;
+        margin-bottom: 2mm;
+    }
+    
+    .checkbox-item {
+        display: flex;
+        align-items: center;
+        gap: 1mm;
+        font-size: 9pt;
+    }
+    
+    .checkbox-item input[type="checkbox"] {
+        width: 3mm;
+        height: 3mm;
+    }
+    
+    .checkbox-item.checked {
+        color: var(--primary);
+        font-weight: bold;
+    }
+    
+    .request-type-checkboxes {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 2mm;
+        margin-bottom: 3mm;
+        padding: 2mm;
+        background: var(--bg-light);
+        border: 1px solid var(--border);
+        border-radius: 3px;
+    }
+    
+    .request-type-checkbox {
+        display: flex;
+        align-items: center;
+        gap: 1mm;
+        font-size: 9pt;
+        padding: 1mm;
+    }
+    
+    .request-type-checkbox input[type="checkbox"] {
+        width: 3mm;
+        height: 3mm;
+        accent-color: var(--primary);
+    }
+    
+    .request-type-checkbox.checked {
+        background: white;
+        border: 1px solid var(--primary);
+        border-radius: 2px;
+        padding: 1mm;
+    }
+    
+    .form-footer {
+        margin-top: 5mm;
+        padding-top: 3mm;
+        border-top: 1px solid var(--border);
+        display: flex;
+        justify-content: space-between;
+        gap: 5mm;
+    }
+    
+    .signature-box {
+        flex: 1;
+        text-align: center;
+    }
+    
+    .signature-box .signature-line {
+        width: 100%;
+        height: 10mm;
+        border-bottom: 1px solid var(--text);
+        margin-top: 2mm;
+    }
+    
+    .signature-box .signature-label {
+        font-size: 8pt;
+        color: var(--text-light);
+        margin-top: 1mm;
+    }
+    
+    /* Hide non-print elements */
+    .no-print {
+        display: none !important;
+    }
+    
+    /* Status badges for print */
+    .status-badge {
+        display: inline-block;
+        padding: 1mm 2mm;
+        border-radius: 2px;
+        font-size: 8pt;
+        font-weight: bold;
+    }
+    
+    .status-pending {
+        background: #fef08a;
+        color: #854d0e;
+    }
+    
+    .status-approved {
+        background: #bbf7d0;
+        color: #166534;
+    }
+    
+    .status-rejected {
+        background: #fecaca;
+        color: #991b1b;
+    }
+}
+
+/* Mobile Responsive Design */
+@media screen and (max-width: 768px) {
+    .form-container {
+        width: 100%;
+        max-width: 100%;
+        padding: 15px;
+        box-sizing: border-box;
+    }
+    
+    .form-header {
+        text-align: center;
+        margin-bottom: 20px;
+        padding-bottom: 15px;
+        border-bottom: 2px solid var(--primary);
+    }
+    
+    .form-header h1 {
+        font-family: 'Koulen', cursive;
+        font-size: 24px;
+        color: var(--primary);
+        margin: 0 0 8px 0;
+    }
+    
+    .form-header h2 {
+        font-size: 16px;
+        color: var(--text-light);
+        margin: 0;
+    }
+    
+    .form-section {
+        margin-bottom: 20px;
+    }
+    
+    .form-section-title {
+        font-family: 'Koulen', cursive;
+        font-size: 18px;
+        color: var(--primary);
+        margin-bottom: 12px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid var(--border);
+    }
+    
+    .form-row {
+        display: flex;
+        flex-direction: column;
+        margin-bottom: 15px;
+        gap: 12px;
+    }
+    
+    .form-field {
+        width: 100%;
+    }
+    
+    .form-field.half,
+    .form-field.third {
+        flex: 1;
+    }
+    
+    .form-label {
+        display: block;
+        font-size: 14px;
+        font-weight: bold;
+        margin-bottom: 6px;
+        color: var(--text);
+    }
+    
+    .form-value {
+        display: block;
+        font-size: 14px;
+        padding: 10px;
+        background: var(--bg-light);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        min-height: 40px;
+    }
+    
+    .checkbox-group {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        margin-bottom: 15px;
+    }
+    
+    .checkbox-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 14px;
+        padding: 10px;
+        background: white;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+    }
+    
+    .checkbox-item input[type="checkbox"] {
+        width: 20px;
+        height: 20px;
+        accent-color: var(--primary);
+    }
+    
+    .checkbox-item.checked {
+        background: var(--bg-light);
+        border-color: var(--primary);
+    }
+    
+    .request-type-checkboxes {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 10px;
+        margin-bottom: 20px;
+        padding: 15px;
+        background: var(--bg-light);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+    }
+    
+    .request-type-checkbox {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 14px;
+        padding: 12px;
+        background: white;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+    }
+    
+    .request-type-checkbox input[type="checkbox"] {
+        width: 20px;
+        height: 20px;
+        accent-color: var(--primary);
+    }
+    
+    .request-type-checkbox.checked {
+        background: var(--primary);
+        color: white;
+        border-color: var(--primary);
+    }
+    
+    .form-footer {
+        margin-top: 25px;
+        padding-top: 20px;
+        border-top: 1px solid var(--border);
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+    
+    .signature-box {
+        text-align: center;
+    }
+    
+    .signature-box .signature-line {
+        width: 100%;
+        height: 40px;
+        border-bottom: 1px solid var(--text);
+        margin-top: 10px;
+    }
+    
+    .signature-box .signature-label {
+        font-size: 12px;
+        color: var(--text-light);
+        margin-top: 5px;
+    }
+    
+    /* Mobile status badges */
+    .status-badge {
+        display: inline-block;
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: bold;
+    }
+    
+    .status-pending {
+        background: #fef08a;
+        color: #854d0e;
+    }
+    
+    .status-approved {
+        background: #bbf7d0;
+        color: #166534;
+    }
+    
+    .status-rejected {
+        background: #fecaca;
+        color: #991b1b;
+    }
+}
+
+/* Tablet Responsive Design */
+@media screen and (min-width: 769px) and (max-width: 1024px) {
+    .form-container {
+        width: 100%;
+        max-width: 700px;
+        margin: 0 auto;
+        padding: 20px;
+        box-sizing: border-box;
+    }
+    
+    .form-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 15px;
+    }
+    
+    .form-field.half {
+        flex: 0 0 calc(50% - 7.5px);
+    }
+    
+    .form-field.third {
+        flex: 0 0 calc(33.333% - 10px);
+    }
+    
+    .request-type-checkboxes {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+/* Desktop Responsive Design */
+@media screen and (min-width: 1025px) {
+    .form-container {
+        width: 100%;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 30px;
+        box-sizing: border-box;
+    }
+    
+    .form-row {
+        display: flex;
+        gap: 20px;
+    }
+    
+    .form-field.half {
+        flex: 0 0 calc(50% - 10px);
+    }
+    
+    .form-field.third {
+        flex: 0 0 calc(33.333% - 13.33px);
+    }
+    
+    .request-type-checkboxes {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+/* Request Type Icons */
+.request-type-icon {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    text-align: center;
+    margin-right: 8px;
+}
+
+.request-type-leave .request-type-icon::before {
+    content: '📅';
+}
+
+.request-type-late .request-type-icon::before {
+    content: '⏰';
+}
+
+.request-type-forgotten .request-type-icon::before {
+    content: '👆';
+}
+
+.request-type-deo .request-type-icon::before {
+    content: '🚪';
+}
+
+/* Form Action Buttons */
+.form-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+    flex-wrap: wrap;
+}
+
+.form-actions button {
+    flex: 1;
+    min-width: 120px;
+    padding: 12px 20px;
+    border: none;
+    border-radius: 8px;
+    font-family: 'Battambang', sans-serif;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.form-actions button.primary {
+    background: var(--primary);
+    color: white;
+}
+
+.form-actions button.primary:hover {
+    background: var(--primary-dark);
+}
+
+.form-actions button.secondary {
+    background: var(--secondary);
+    color: white;
+}
+
+.form-actions button.secondary:hover {
+    background: #5b3a7a;
+}
+
+.form-actions button.print {
+    background: var(--success);
+    color: white;
+}
+
+.form-actions button.print:hover {
+    background: #15803d;
+}
+
+@media print {
+    .form-actions {
+        display: none;
+    }
+}

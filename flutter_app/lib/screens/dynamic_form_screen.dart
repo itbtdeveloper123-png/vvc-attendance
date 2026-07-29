@@ -5,6 +5,7 @@ import '../models/form_template.dart';
 import '../services/form_builder_service.dart';
 import '../services/api_service.dart';
 import '../widgets/dynamic_form_renderer.dart';
+import '../widgets/a5_paper_form.dart';
 import '../utils/app_theme.dart';
 import '../providers/user_provider.dart';
 import '../widgets/app_widgets.dart';
@@ -185,10 +186,15 @@ class _DynamicFormScreenState extends State<DynamicFormScreen> {
     return AppBackgroundShell(
       child: SingleChildScrollView(
         padding: EdgeInsets.all(AppResponsive.horizontalPadding(context)),
-        child: DynamicFormRenderer(
-          template: _template!,
-          initialData: widget.initialData,
-          onSubmit: _isSubmitting ? (_) {} : _handleSubmit,
+        child: A5PaperForm(
+          title: _template!.name,
+          subtitle: _template!.description.isNotEmpty ? _template!.description : null,
+          onBack: () => Navigator.pop(context),
+          child: DynamicFormRenderer(
+            template: _template!,
+            initialData: widget.initialData,
+            onSubmit: _isSubmitting ? (_) {} : _handleSubmit,
+          ),
         ),
       ),
     );

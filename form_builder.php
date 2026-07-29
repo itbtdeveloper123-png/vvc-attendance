@@ -36,6 +36,7 @@ $page_title = 'Form Builder - កម្មវិធីបង្កើតសំ�
     <title><?php echo htmlspecialchars($page_title); ?></title>
     <link href="https://fonts.googleapis.com/css2?family=Koulen&family=Battambang:wght@100;300;400;700;900&family=Kantumruy+Pro:ital,wght@0,100..700;1,100..700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="assets/css/form_print.css">
     <style>
         * {
             margin: 0;
@@ -119,7 +120,7 @@ $page_title = 'Form Builder - កម្មវិធីបង្កើតសំ�
             padding: 15px;
             text-align: center;
             cursor: grab;
-            transition: all 0.3s;
+            transition: all 0.3;
         }
         
         .field-type:hover {
@@ -138,6 +139,51 @@ $page_title = 'Form Builder - កម្មវិធីបង្កើតសំ�
             display: block;
             font-size: 12px;
             color: #666;
+        }
+        
+        /* Request Type Checkbox Group Styles */
+        .request-type-checkbox-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 15px;
+            padding: 15px;
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+        }
+        
+        .request-type-checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px;
+            background: white;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .request-type-checkbox-item:hover {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+        
+        .request-type-checkbox-item input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: #667eea;
+        }
+        
+        .request-type-checkbox-item.checked {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+        
+        .request-type-checkbox-item.checked span {
+            color: white;
         }
         
         .templates-list {
@@ -533,6 +579,10 @@ $page_title = 'Form Builder - កម្មវិធីបង្កើតសំ�
                     <i class="fas fa-user-tie"></i>
                     <span>Position</span>
                 </div>
+                <div class="field-type" draggable="true" data-type="request_type">
+                    <i class="fas fa-list-check"></i>
+                    <span>Request Type</span>
+                </div>
             </div>
             
             <div class="templates-list">
@@ -726,7 +776,8 @@ $page_title = 'Form Builder - កម្មវិធីបង្កើតសំ�
                 signature: 'Signature',
                 branch: 'Branch',
                 department: 'Department',
-                position: 'Position'
+                position: 'Position',
+                request_type: 'Request Type Checkboxes'
             };
             
             const icons = {
@@ -742,7 +793,8 @@ $page_title = 'Form Builder - កម្មវិធីបង្កើតសំ�
                 signature: 'fa-signature',
                 branch: 'fa-building',
                 department: 'fa-sitemap',
-                position: 'fa-user-tie'
+                position: 'fa-user-tie',
+                request_type: 'fa-list-check'
             };
             
             return `
@@ -813,6 +865,23 @@ $page_title = 'Form Builder - កម្មវិធីបង្កើតសំ�
                 case 'department':
                 case 'position':
                     return `<select disabled><option>Select ${fieldType}...</option></select>`;
+                case 'request_type':
+                    return `
+                        <div class="request-type-checkbox-group">
+                            <label class="request-type-checkbox-item">
+                                <input type="checkbox" disabled> ច្បាប់ (Leave)
+                            </label>
+                            <label class="request-type-checkbox-item">
+                                <input type="checkbox" disabled> មកយឺត (Late)
+                            </label>
+                            <label class="request-type-checkbox-item">
+                                <input type="checkbox" disabled> ភ្លេចស្កេន (Forgotten Scan)
+                            </label>
+                            <label class="request-type-checkbox-item">
+                                <input type="checkbox" disabled> ដេអូស (DEO)
+                            </label>
+                        </div>
+                    `;
                 default:
                     return `<input type="text" placeholder="${placeholder}" disabled>`;
             }

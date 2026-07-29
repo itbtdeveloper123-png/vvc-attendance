@@ -8,6 +8,7 @@ import '../providers/user_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
+import 'a5_paper_form.dart';
 
 class DynamicFormRenderer extends StatefulWidget {
   final FormTemplate template;
@@ -135,6 +136,8 @@ class _DynamicFormRendererState extends State<DynamicFormRenderer> {
         return _buildDepartmentField(field);
       case 'position':
         return _buildPositionField(field);
+      case 'request_type':
+        return _buildRequestTypeField(field);
       default:
         return _buildTextField(field);
     }
@@ -547,6 +550,26 @@ class _DynamicFormRendererState extends State<DynamicFormRenderer> {
       field.fieldLabel,
       user.position ?? 'មិនទាន់កំណត់',
       field.required,
+    );
+  }
+
+  Widget _buildRequestTypeField(FormField field) {
+    String selectedValue = _formData[field.fieldName]?.toString() ?? '';
+
+    return A5FormSection(
+      title: field.fieldLabel,
+      icon: Icons.list_check,
+      isRequired: field.required,
+      children: [
+        A5RequestTypeCheckboxGroup(
+          selectedValue: selectedValue,
+          onChanged: (value) {
+            setState(() {
+              _formData[field.fieldName] = value;
+            });
+          },
+        ),
+      ],
     );
   }
 
