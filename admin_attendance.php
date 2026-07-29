@@ -15350,19 +15350,31 @@ ob_end_flush();
 
                                                     // Set selected employees after loading
                                                     setTimeout(() => {
-                                                        if (poll.allowed_employee_ids) {
-                                                            const allowedIds = JSON.parse(poll.allowed_employee_ids);
-                                                            allowedIds.forEach(id => {
-                                                                const cb = document.querySelector(`input[name="allowed_employees[]"][value="${id}"]`);
-                                                                if (cb) cb.checked = true;
-                                                            });
+                                                        try {
+                                                            if (poll.allowed_employee_ids) {
+                                                                const allowedIds = JSON.parse(poll.allowed_employee_ids);
+                                                                if (Array.isArray(allowedIds)) {
+                                                                    allowedIds.forEach(id => {
+                                                                        const cb = document.querySelector(`input[name="allowed_employees[]"][value="${id}"]`);
+                                                                        if (cb) cb.checked = true;
+                                                                    });
+                                                                }
+                                                            }
+                                                        } catch (e) {
+                                                            console.error('Error parsing allowed_employee_ids:', e);
                                                         }
-                                                        if (poll.excluded_employee_ids) {
-                                                            const excludedIds = JSON.parse(poll.excluded_employee_ids);
-                                                            excludedIds.forEach(id => {
-                                                                const cb = document.querySelector(`input[name="excluded_employees[]"][value="${id}"]`);
-                                                                if (cb) cb.checked = true;
-                                                            });
+                                                        try {
+                                                            if (poll.excluded_employee_ids) {
+                                                                const excludedIds = JSON.parse(poll.excluded_employee_ids);
+                                                                if (Array.isArray(excludedIds)) {
+                                                                    excludedIds.forEach(id => {
+                                                                        const cb = document.querySelector(`input[name="excluded_employees[]"][value="${id}"]`);
+                                                                        if (cb) cb.checked = true;
+                                                                    });
+                                                                }
+                                                            }
+                                                        } catch (e) {
+                                                            console.error('Error parsing excluded_employee_ids:', e);
                                                         }
                                                     }, 500);
                                                 } else {

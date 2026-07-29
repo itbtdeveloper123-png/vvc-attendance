@@ -7517,13 +7517,54 @@ try {
             if ($poll_id > 0) {
                 // Update existing poll
                 error_log("SAVE_POLL: Updating existing poll with ID: $poll_id");
-                $stmt = $mysqli->prepare("UPDATE poll_events SET title=?, quarter=?, location=?, start_date=?, end_date=?, access_code=?, allowed_employee_ids=?, excluded_employee_ids=?, is_active=? WHERE id=?");
+                
+                // Check which columns exist in the table
+                $column_check = $mysqli->query("SHOW COLUMNS FROM poll_events");
+                $existing_columns = [];
+                if ($column_check) {
+                    while ($row = $column_check->fetch_assoc()) {
+                        $existing_columns[] = $row['Field'];
+                    }
+                }
+                
+                // Build dynamic UPDATE statement based on existing columns
+                $update_fields = ['title=?', 'quarter=?', 'location=?', 'start_date=?', 'end_date=?', 'is_active=?'];
+                $bind_params = [$title, $quarter, $location, $start_date, $end_date, $is_active];
+                $bind_types = 'sssssi';
+                
+                if (in_array('access_code', $existing_columns)) {
+                    $update_fields[] = 'access_code=?';
+                    $bind_params[] = $access_code;
+                    $bind_types .= 's';
+                }
+                
+                if (in_array('allowed_employee_ids', $existing_columns)) {
+                    $update_fields[] = 'allowed_employee_ids=?';
+                    $bind_params[] = $allowed_employee_ids;
+                    $bind_types .= 's';
+                }
+                
+                if (in_array('excluded_employee_ids', $existing_columns)) {
+                    $update_fields[] = 'excluded_employee_ids=?';
+                    $bind_params[] = $excluded_employee_ids;
+                    $bind_types .= 's';
+                }
+                
+                $update_fields[] = 'WHERE id=?';
+                $bind_params[] = $poll_id;
+                $bind_types .= 'i';
+                
+                $sql = "UPDATE poll_events SET " . implode(', ', $update_fields);
+                error_log("SAVE_POLL: Dynamic UPDATE SQL: " . $sql);
+                
+                $stmt = $mysqli->prepare($sql);
                 if (!$stmt) {
                     error_log("SAVE_POLL: Prepare failed for UPDATE: " . $mysqli->error);
                     apiResponse(['success' => false, 'message' => 'Database error: ' . $mysqli->error]);
                     break;
                 }
-                $stmt->bind_param('sssssssis', $title, $quarter, $location, $start_date, $end_date, $access_code, $allowed_employee_ids, $excluded_employee_ids, $is_active, $poll_id);
+                
+                $stmt->bind_param($bind_types, ...$bind_params);
             } else {
                 // Create new poll
                 error_log("SAVE_POLL: Creating new poll");
