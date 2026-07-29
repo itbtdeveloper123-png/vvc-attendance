@@ -220,7 +220,7 @@ class ApiService {
       };
     }
     
-    debugPrint('API Response Preview: ${response.body.substring(0, 100)}...');
+    debugPrint('API Response Preview: ${response.body.length > 100 ? response.body.substring(0, 100) : response.body}...');
     
     try {
       final decoded = await compute(_parseJsonPayload, response.body);
