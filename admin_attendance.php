@@ -15329,8 +15329,12 @@ ob_end_flush();
                                         setTimeout(() => {
                                             notification.style.animation = 'slideOut 0.3s ease-in';
                                             setTimeout(() => {
-                                                document.body.removeChild(notification);
-                                                document.head.removeChild(style);
+                                                if (notification && notification.parentNode) {
+                                                    notification.parentNode.removeChild(notification);
+                                                }
+                                                if (style && style.parentNode) {
+                                                    style.parentNode.removeChild(style);
+                                                }
                                             }, 300);
                                         }, 3000);
                                     };
