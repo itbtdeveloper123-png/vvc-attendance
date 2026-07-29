@@ -489,10 +489,9 @@ if (!function_exists('ensure_staff_poll_tables')) {
             'location' => "ALTER TABLE poll_events ADD COLUMN location VARCHAR(255) DEFAULT NULL AFTER quarter",
             'target_group_id' => "ALTER TABLE poll_events ADD COLUMN target_group_id INT DEFAULT NULL AFTER location",
             'target_employee_ids' => "ALTER TABLE poll_events ADD COLUMN target_employee_ids TEXT DEFAULT NULL AFTER target_group_id",
-            'allow_multiple_votes' => "ALTER TABLE poll_events ADD COLUMN allow_multiple_votes TINYINT(1) DEFAULT 0 AFTER target_employee_ids",
+            'allowed_employee_ids' => "ALTER TABLE poll_events ADD COLUMN allowed_employee_ids TEXT DEFAULT NULL AFTER target_employee_ids",
+            'allow_multiple_votes' => "ALTER TABLE poll_events ADD COLUMN allow_multiple_votes TINYINT(1) DEFAULT 0 AFTER allowed_employee_ids",
             'is_active' => "ALTER TABLE poll_events ADD COLUMN is_active TINYINT(1) DEFAULT 1 AFTER allow_multiple_votes",
-            'access_code' => "ALTER TABLE poll_events ADD COLUMN access_code VARCHAR(50) DEFAULT NULL AFTER is_active",
-            'excluded_employee_ids' => "ALTER TABLE poll_events ADD COLUMN excluded_employee_ids TEXT DEFAULT NULL AFTER access_code",
             'access_code' => "ALTER TABLE poll_events ADD COLUMN access_code VARCHAR(50) DEFAULT NULL AFTER is_active",
             'excluded_employee_ids' => "ALTER TABLE poll_events ADD COLUMN excluded_employee_ids TEXT DEFAULT NULL AFTER access_code"
         ];
