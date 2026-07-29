@@ -6,6 +6,8 @@ header('Content-Type: text/html; charset=UTF-8');
 ini_set('display_errors', 1);
 error_reporting(E_ALL);
 
+session_start();
+
 echo "<h2>Form Builder API Test</h2>";
 echo "<style>
     body { font-family: Arial, sans-serif; margin: 20px; }
@@ -72,7 +74,8 @@ echo "</div>";
 echo "<div class='section'>";
 echo "<h3>Test 3: API Endpoint Test</h3>";
 
-$api_url = 'http://' . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']) . '/form_builder_api.php';
+$protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https://' : 'http://';
+$api_url = $protocol . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']) . '/form_builder_api.php';
 echo "<div>API URL: <code>$api_url</code></div>";
 
 // Test get_templates
@@ -83,6 +86,8 @@ $ch = curl_init($test_url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 curl_setopt($ch, CURLOPT_TIMEOUT, 10);
 curl_setopt($ch, CURLOPT_HEADER, true);
+curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); // Skip SSL verification for testing
+curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
 
 $response = curl_exec($ch);
 $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -180,7 +185,6 @@ echo "</div>";
 echo "<div class='section'>";
 echo "<h3>Test 5: Session Check</h3>";
 
-session_start();
 if (isset($_SESSION['admin_id'])) {
     echo "<div class='success'>✅ Admin session exists</div>";
     echo "<div>Admin ID: <code>" . htmlspecialchars($_SESSION['admin_id']) . "</code></div>";
