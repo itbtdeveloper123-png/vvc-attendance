@@ -15288,6 +15288,53 @@ ob_end_flush();
                                         }
                                     };
 
+                                    window.showNotification = function(message, type = 'success') {
+                                        const notification = document.createElement('div');
+                                        notification.style.cssText = `
+                                            position: fixed;
+                                            top: 20px;
+                                            right: 20px;
+                                            padding: 20px 30px;
+                                            border-radius: 12px;
+                                            background: ${type === 'success' ? 'linear-gradient(135deg, #10b981, #059669)' : 'linear-gradient(135deg, #ef4444, #dc2626)'};
+                                            color: white;
+                                            font-weight: 600;
+                                            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+                                            z-index: 10000;
+                                            animation: slideIn 0.3s ease-out;
+                                            max-width: 400px;
+                                        `;
+                                        notification.innerHTML = `
+                                            <div style="display: flex; align-items: center; gap: 12px;">
+                                                <i class="fa-solid ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}" style="font-size: 24px;"></i>
+                                                <span>${message}</span>
+                                            </div>
+                                        `;
+                                        
+                                        const style = document.createElement('style');
+                                        style.textContent = `
+                                            @keyframes slideIn {
+                                                from { transform: translateX(100%); opacity: 0; }
+                                                to { transform: translateX(0); opacity: 1; }
+                                            }
+                                            @keyframes slideOut {
+                                                from { transform: translateX(0); opacity: 1; }
+                                                to { transform: translateX(100%); opacity: 0; }
+                                            }
+                                        `;
+                                        document.head.appendChild(style);
+                                        
+                                        document.body.appendChild(notification);
+                                        
+                                        setTimeout(() => {
+                                            notification.style.animation = 'slideOut 0.3s ease-in';
+                                            setTimeout(() => {
+                                                document.body.removeChild(notification);
+                                                document.head.removeChild(style);
+                                            }, 300);
+                                        }, 3000);
+                                    };
+
                                     window.savePoll = function(e) {
                                         e.preventDefault();
                                         const form = document.getElementById('pollForm');
@@ -15313,16 +15360,16 @@ ob_end_flush();
                                         .then(res => res.json())
                                         .then(res => {
                                             if (res.success) {
-                                                alert('រក្សាទុកការបោះឆ្នោតបានជោគជ័យ!');
+                                                window.showNotification('រក្សាទុកការបោះឆ្នោតបានជោគជ័យ!', 'success');
                                                 window.closePollModal();
                                                 window.loadPolls();
                                             } else {
-                                                alert('កំហុស: ' + (res.message || 'មិនអាចរក្សាទុកបានទេ'));
+                                                window.showNotification('កំហុស: ' + (res.message || 'មិនអាចរក្សាទុកបានទេ'), 'error');
                                             }
                                         })
                                         .catch(err => {
                                             console.error('Save poll error:', err);
-                                            alert('កំហុសបច្ចេកទេស។ សូមព្យាយាមម្តងទៀត។');
+                                            window.showNotification('កំហុសបច្ចេកទេស។ សូមព្យាយាមម្តងទៀត។', 'error');
                                         });
                                     };
 
@@ -15381,12 +15428,12 @@ ob_end_flush();
                                                         }
                                                     }, 500);
                                                 } else {
-                                                    alert('កំហុស: ' + (res.message || 'មិនអាចទាញយកទិន្នន័យបានទេ'));
+                                                    window.showNotification('កំហុស: ' + (res.message || 'មិនអាចទាញយកទិន្នន័យបានទេ'), 'error');
                                                 }
                                             })
                                             .catch(err => {
                                                 console.error('Load poll error:', err);
-                                                alert('កំហុសបច្ចេកទេស។ សូមព្យាយាមម្តងទៀត។');
+                                                window.showNotification('កំហុសបច្ចេកទេស។ សូមព្យាយាមម្តងទៀត។', 'error');
                                             });
                                     };
 
@@ -15398,15 +15445,15 @@ ob_end_flush();
                                             .then(res => res.json())
                                             .then(res => {
                                                 if (res.success) {
-                                                    alert('លុបការបោះឆ្នោតបានជោគជ័យ!');
+                                                    window.showNotification('លុបការបោះឆ្នោតបានជោគជ័យ!', 'success');
                                                     window.loadPolls();
                                                 } else {
-                                                    alert('កំហុស: ' + (res.message || 'មិនអាចលុបបានទេ'));
+                                                    window.showNotification('កំហុស: ' + (res.message || 'មិនអាចលុបបានទេ'), 'error');
                                                 }
                                             })
                                             .catch(err => {
                                                 console.error('Delete poll error:', err);
-                                                alert('កំហុសបច្ចេកទេស។ សូមព្យាយាមម្តងទៀត។');
+                                                window.showNotification('កំហុសបច្ចេកទេស។ សូមព្យាយាមម្តងទៀត។', 'error');
                                             });
                                         }
                                     };
