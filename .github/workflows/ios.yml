@@ -95,9 +95,6 @@ jobs:
           echo "" >> ios/Flutter/Release.xcconfig
           echo "CODE_SIGNING_ALLOWED=NO" >> ios/Flutter/Release.xcconfig
           echo "CODE_SIGNING_REQUIRED=NO" >> ios/Flutter/Release.xcconfig
-          echo "CODE_SIGN_IDENTITY=" >> ios/Flutter/Release.xcconfig
-          echo "DEVELOPMENT_TEAM=" >> ios/Flutter/Release.xcconfig
-          echo "PROVISIONING_PROFILE_SPECIFIER=" >> ios/Flutter/Release.xcconfig
 
       - name: Build Unsigned iOS App & IPA
         working-directory: flutter_app
@@ -137,11 +134,11 @@ jobs:
           APP_PATH=""
           if [ -d "build/ios/iphoneos/Runner.app" ]; then
             APP_PATH="build/ios/iphoneos/Runner.app"
-          elif [ -d "build/DerivedData/Build/Products/Release-iphoneos/Runner.app" ]; then
-            APP_PATH="build/DerivedData/Build/Products/Release-iphoneos/Runner.app"
+          elif [ -d "ios/build/DerivedData/Build/Products/Release-iphoneos/Runner.app" ]; then
+            APP_PATH="ios/build/DerivedData/Build/Products/Release-iphoneos/Runner.app"
           else
             echo "ERROR: Runner.app not found!"
-            find build -type d -name "Runner.app" 2>/dev/null || true
+            find . -type d -name "Runner.app" 2>/dev/null || true
             exit 1
           fi
 
