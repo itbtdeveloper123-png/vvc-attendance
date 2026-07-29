@@ -111,10 +111,13 @@ jobs:
               -scheme Runner \
               -configuration Release \
               -derivedDataPath build/DerivedData \
+              -sdk iphoneos \
               CODE_SIGN_IDENTITY="" \
               CODE_SIGNING_REQUIRED=NO \
               CODE_SIGNING_ALLOWED=NO \
               DEVELOPMENT_TEAM="" \
+              PROVISIONING_PROFILE_SPECIFIER="" \
+              OTHER_CODE_SIGN_FLAGS="--keychain /dev/null" \
               2>&1 | tee ../build_flutter.log || true
             cd ..
           }
