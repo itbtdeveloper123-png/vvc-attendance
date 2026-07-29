@@ -15282,7 +15282,10 @@ ob_end_flush();
                                     };
 
                                     window.closePollModal = function() {
-                                        document.getElementById('pollModal').style.display = 'none';
+                                        const modal = document.getElementById('pollModal');
+                                        if (modal) {
+                                            modal.style.display = 'none';
+                                        }
                                     };
 
                                     window.savePoll = function(e) {
