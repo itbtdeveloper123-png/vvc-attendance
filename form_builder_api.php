@@ -58,6 +58,9 @@ function sendResponse($success, $message, $data = null) {
 $method = $_SERVER['REQUEST_METHOD'];
 $action = $_GET['action'] ?? '';
 
+// Log for debugging
+error_log("Form Builder API - Method: $method, Action: $action");
+
 try {
     switch ($action) {
         case 'get_templates':
@@ -100,7 +103,8 @@ try {
             handleUpdateSubmissionStatus($mysqli);
             break;
         default:
-            sendResponse(false, 'Invalid action');
+            error_log("Form Builder API - Invalid action: $action");
+            sendResponse(false, 'Invalid action: ' . $action);
     }
 } catch (Exception $e) {
     sendResponse(false, 'Server error: ' . $e->getMessage());

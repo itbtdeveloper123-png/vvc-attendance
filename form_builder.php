@@ -7,6 +7,8 @@ if (!headers_sent()) {
 }
 ini_set('default_charset', 'UTF-8');
 mb_internal_encoding('UTF-8');
+mb_http_output('UTF-8');
+mb_http_input('UTF-8');
 
 session_start();
 error_reporting(E_ALL);
@@ -1034,6 +1036,8 @@ $page_title = 'Form Builder - កម្មវិធីបង្កើតសំ�
             const description = document.getElementById('template-description').value;
             const category = document.getElementById('template-category').value;
             
+            console.log('Creating template:', { name, description, category });
+            
             if (!name) {
                 alert('សូមបញ្ចូលឈ្មោះ Template');
                 return;
@@ -1049,6 +1053,7 @@ $page_title = 'Form Builder - កម្មវិធីបង្កើតសំ�
                     category: category
                 },
                 success: function(response) {
+                    console.log('Create template response:', response);
                     if (response.success) {
                         currentTemplate = {
                             id: response.data.id,
