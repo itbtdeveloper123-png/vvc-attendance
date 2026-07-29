@@ -29,7 +29,7 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
     });
 
     try {
-      final response = await _api.get('get_active_polls');
+      final response = await _api.fetchActivePolls();
       if (response['success'] == true && response['data'] != null) {
         setState(() {
           _polls = response['data'] as List<dynamic>;
@@ -85,10 +85,7 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
     );
 
     try {
-      final response = await _api.post('cast_vote', {
-        'poll_id': pollId.toString(),
-        'candidate_id': candidateId.toString(),
-      });
+      final response = await _api.castVote(pollId, candidateId);
 
       // Hide loading indicator
       if (!mounted) return;

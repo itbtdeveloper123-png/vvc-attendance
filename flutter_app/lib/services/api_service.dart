@@ -435,6 +435,23 @@ class ApiService {
     return _processRequest('get_training_questions', headers: headers);
   }
 
+  Future<Map<String, dynamic>> fetchActivePolls() async {
+    final headers = await _authHeaders();
+    return _processRequest('get_active_polls', headers: headers);
+  }
+
+  Future<Map<String, dynamic>> castVote(int pollId, int candidateId) async {
+    final headers = await _authHeaders();
+    return _processRequest(
+      'cast_vote',
+      headers: headers,
+      body: {
+        'poll_id': pollId.toString(),
+        'candidate_id': candidateId.toString(),
+      },
+    );
+  }
+
   // ========== ATTENDANCE & SYNC ==========
   Future<Map<String, dynamic>> submitAttendance({
     required String action,
