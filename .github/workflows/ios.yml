@@ -14,6 +14,9 @@ jobs:
                        # NWPath.isUltraConstrained exists only in iOS 18 SDK (Xcode 16+)
                        # macos-14 had Xcode 15.4 (iOS 17 SDK only) → compile error
     timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: flutter_app
 
     steps:
       - name: Checkout repository
@@ -35,7 +38,6 @@ jobs:
         run: flutter config --no-enable-swift-package-manager
 
       - name: Create local config files from examples
-        working-directory: flutter_app
         env:
           GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
         run: |
@@ -47,7 +49,6 @@ jobs:
           cp web/config.example.js web/config.js 2>/dev/null || echo "No config.example.js found, skipping"
 
       - name: Install Flutter dependencies
-        working-directory: flutter_app
         run: flutter pub get
         # IMPORTANT: flutter pub get regenerates Generated.xcconfig with correct macOS CI paths.
         # Generated.xcconfig must NOT be committed to Git (already in .gitignore).
@@ -91,14 +92,12 @@ jobs:
           pod install --repo-update
 
       - name: Disable Code Signing in Release.xcconfig
-        working-directory: flutter_app
         run: |
           echo "" >> ios/Flutter/Release.xcconfig
           echo "CODE_SIGNING_ALLOWED=NO" >> ios/Flutter/Release.xcconfig
           echo "CODE_SIGNING_REQUIRED=NO" >> ios/Flutter/Release.xcconfig
 
       - name: Build Unsigned iOS App & IPA
-        working-directory: flutter_app
         env:
           FLUTTER_NO_CODESIGN: 'true'
           CI: 'true'
