@@ -7553,6 +7553,10 @@ try {
                 $bind_params[] = $poll_id;
                 $bind_types .= 'i';
                 
+                error_log("SAVE_POLL: Update fields: " . print_r($update_fields, true));
+                error_log("SAVE_POLL: Bind params: " . print_r($bind_params, true));
+                error_log("SAVE_POLL: Bind types: " . $bind_types);
+                
                 $sql = "UPDATE poll_events SET " . implode(', ', $update_fields) . " WHERE id=?";
                 error_log("SAVE_POLL: Dynamic UPDATE SQL: " . $sql);
                 
