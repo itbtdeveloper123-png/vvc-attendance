@@ -89,6 +89,16 @@ jobs:
           # Once Podfile.lock is committed, this resolves deterministically
           pod install --repo-update
 
+      - name: Disable Code Signing in Release.xcconfig
+        working-directory: flutter_app
+        run: |
+          echo "" >> ios/Flutter/Release.xcconfig
+          echo "CODE_SIGNING_ALLOWED=NO" >> ios/Flutter/Release.xcconfig
+          echo "CODE_SIGNING_REQUIRED=NO" >> ios/Flutter/Release.xcconfig
+          echo "CODE_SIGN_IDENTITY=" >> ios/Flutter/Release.xcconfig
+          echo "DEVELOPMENT_TEAM=" >> ios/Flutter/Release.xcconfig
+          echo "PROVISIONING_PROFILE_SPECIFIER=" >> ios/Flutter/Release.xcconfig
+
       - name: Build Unsigned iOS App & IPA
         working-directory: flutter_app
         env:
@@ -112,6 +122,7 @@ jobs:
               -configuration Release \
               -derivedDataPath build/DerivedData \
               -sdk iphoneos \
+              -destination 'generic/platform=iOS' \
               CODE_SIGN_IDENTITY="" \
               CODE_SIGNING_REQUIRED=NO \
               CODE_SIGNING_ALLOWED=NO \
