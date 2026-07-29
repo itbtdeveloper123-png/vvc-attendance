@@ -12,15 +12,15 @@ mb_internal_encoding('UTF-8');
 
 error_log("Form Builder: Charset set - Line 2");
 
-// Only use mb_http functions if available
-if (function_exists('mb_http_output')) {
-    mb_http_output('UTF-8');
-}
-if (function_exists('mb_http_input')) {
-    mb_http_input('UTF-8');
-}
+// REMOVED mb_http functions as they cause HTTP 500 error
+// if (function_exists('mb_http_output')) {
+//     mb_http_output('UTF-8');
+// }
+// if (function_exists('mb_http_input')) {
+//     mb_http_input('UTF-8');
+// }
 
-error_log("Form Builder: MB functions checked - Line 3");
+error_log("Form Builder: MB functions skipped - Line 3");
 
 session_start();
 error_log("Form Builder: Session started - Line 4");
