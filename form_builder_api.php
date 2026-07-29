@@ -193,7 +193,14 @@ function handleGetTemplate($mysqli) {
 
 // Handle POST /api/form_builder?action=create_template
 function handleCreateTemplate($mysqli) {
-    $data = json_decode(file_get_contents('php://input'), true);
+    // Try to get data from JSON first, then fall back to POST data
+    $jsonData = file_get_contents('php://input');
+    $data = json_decode($jsonData, true);
+    
+    // If JSON parsing failed, use POST data
+    if (!$data) {
+        $data = $_POST;
+    }
     
     $name = $data['name'] ?? null;
     $description = $data['description'] ?? '';
@@ -218,7 +225,14 @@ function handleCreateTemplate($mysqli) {
 
 // Handle PUT /api/form_builder?action=update_template
 function handleUpdateTemplate($mysqli) {
-    $data = json_decode(file_get_contents('php://input'), true);
+    // Try to get data from JSON first, then fall back to POST data
+    $jsonData = file_get_contents('php://input');
+    $data = json_decode($jsonData, true);
+    
+    // If JSON parsing failed, use POST data
+    if (!$data) {
+        $data = $_POST;
+    }
     
     $id = $data['id'] ?? null;
     $name = $data['name'] ?? null;
@@ -318,7 +332,14 @@ function handleGetFields($mysqli) {
 
 // Handle POST /api/form_builder?action=create_field
 function handleCreateField($mysqli) {
-    $data = json_decode(file_get_contents('php://input'), true);
+    // Try to get data from JSON first, then fall back to POST data
+    $jsonData = file_get_contents('php://input');
+    $data = json_decode($jsonData, true);
+    
+    // If JSON parsing failed, use POST data
+    if (!$data) {
+        $data = $_POST;
+    }
     
     $template_id = $data['template_id'] ?? null;
     $field_type = $data['field_type'] ?? null;
@@ -356,7 +377,14 @@ function handleCreateField($mysqli) {
 
 // Handle PUT /api/form_builder?action=update_field
 function handleUpdateField($mysqli) {
-    $data = json_decode(file_get_contents('php://input'), true);
+    // Try to get data from JSON first, then fall back to POST data
+    $jsonData = file_get_contents('php://input');
+    $data = json_decode($jsonData, true);
+    
+    // If JSON parsing failed, use POST data
+    if (!$data) {
+        $data = $_POST;
+    }
     
     $id = $data['id'] ?? null;
     $field_type = $data['field_type'] ?? null;
