@@ -148,23 +148,27 @@ class _OutsideAttendanceScreenState extends State<OutsideAttendanceScreen> {
   }
 
   Future<void> _determinePosition() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
     try {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-        throw 'សេវាទីតាំង (GPS) ត្រូវបានបិទ។ សូមបើកវាសិន។';
+        if (mounted) _showError('សេវាទីតាំង (GPS) ត្រូវបានបិទ។ សូមបើកវាសិន។');
+        return;
       }
 
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
         if (permission == LocationPermission.denied) {
-          throw 'ការអនុញ្ញាតចូលប្រើទីតាំងត្រូវបានបដិសេធ';
+          if (mounted) _showError('ការអនុញ្ញាតចូលប្រើទីតាំងត្រូវបានបដិសេធ');
+          return;
         }
       }
 
       if (permission == LocationPermission.deniedForever) {
-        throw 'ការអនុញ្ញាតទីតាំងត្រូវបានបដិសេធជាអចិន្ត្រៃយ៍។';
+        if (mounted) _showError('ការអនុញ្ញាតទីតាំងត្រូវបានបដិសេធជាអចិន្ត្រៃយ៍។');
+        return;
       }
 
       Position position = await Geolocator.getCurrentPosition(
@@ -172,6 +176,7 @@ class _OutsideAttendanceScreenState extends State<OutsideAttendanceScreen> {
         timeLimit: const Duration(seconds: 15),
       );
 
+      if (!mounted) return;
       setState(() {
         _currentPosition = position;
         _markers.add(
@@ -184,19 +189,25 @@ class _OutsideAttendanceScreenState extends State<OutsideAttendanceScreen> {
         );
       });
 
-      if (_mapController != null) {
-        _mapController!.animateCamera(
-          CameraUpdate.newLatLngZoom(
-            LatLng(position.latitude, position.longitude),
-            16.0,
-          ),
-        );
+      if (_mapController != null && mounted) {
+        try {
+          _mapController!.animateCamera(
+            CameraUpdate.newLatLngZoom(
+              LatLng(position.latitude, position.longitude),
+              16.0,
+            ),
+          );
+        } catch (e) {
+          debugPrint('Map camera animation error: $e');
+        }
       }
 
-      _loadProfileMarkerBitmap();
+      if (mounted) {
+        _loadProfileMarkerBitmap();
+      }
 
       _apiService.reverseGeocode(position.latitude, position.longitude).then((res) {
-        if (res['success'] == true && res['address'] != null) {
+        if (mounted && res['success'] == true && res['address'] != null) {
           if (_locationController.text.trim().isEmpty) {
             setState(() {
               _locationController.text = res['address'];
@@ -207,9 +218,9 @@ class _OutsideAttendanceScreenState extends State<OutsideAttendanceScreen> {
         // Fail silently to prevent interrupting GPS flow
       });
     } catch (e) {
-      _showError(e.toString());
+      if (mounted) _showError(e.toString());
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -290,14 +301,19 @@ class _OutsideAttendanceScreenState extends State<OutsideAttendanceScreen> {
   }
 
   void _showError(String message) {
-    _showResultPopup(message, Icons.error_outline_rounded, Colors.redAccent);
+    if (mounted) {
+      _showResultPopup(message, Icons.error_outline_rounded, Colors.redAccent);
+    }
   }
 
   void _showSuccess(String message) {
-    _showResultPopup(message, Icons.check_circle_outline_rounded, Colors.cyanAccent, isSuccess: true);
+    if (mounted) {
+      _showResultPopup(message, Icons.check_circle_outline_rounded, Colors.cyanAccent, isSuccess: true);
+    }
   }
 
   void _showResultPopup(String message, IconData icon, Color color, {bool isSuccess = false}) {
+    if (!mounted) return;
     showDialog(
       context: context,
       barrierDismissible: false,
