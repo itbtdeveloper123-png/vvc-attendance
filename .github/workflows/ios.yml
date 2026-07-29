@@ -1,4 +1,4 @@
-name: Build iOS IPA
+name: Build iOS Simulator App
 
 on:
   push:
@@ -89,42 +89,25 @@ jobs:
           # Once Podfile.lock is committed, this resolves deterministically
           pod install --repo-update
 
-      - name: Build Unsigned iOS App & IPA
+      - name: Build iOS App for Simulator
         working-directory: flutter_app
         env:
           FLUTTER_NO_CODESIGN: 'true'
           CI: 'true'
-          # NOTE: EXCLUDED_ARCHS is NOT set here.
-          # arm64 exclusion for simulator is handled per-target in Podfile post_install.
-          # Setting it globally here would break iphoneos (device) arm64 compilation.
         run: |
           set -euo pipefail
 
-          echo "1) Building iOS Release App..."
-          flutter build ios --release --no-codesign 2>&1 | tee build_flutter.log || {
+          echo "1) Building iOS Release App for Simulator..."
+          flutter build ios --release --no-codesign --simulator 2>&1 | tee build_flutter.log || {
             echo "Flutter build failed. Checking log..."
             cat build_flutter.log || true
-            echo "Trying xcodebuild directly..."
-            cd ios
-            xcodebuild \
-              -workspace Runner.xcworkspace \
-              -scheme Runner \
-              -configuration Release \
-              -derivedDataPath build/DerivedData \
-              CODE_SIGN_IDENTITY="" \
-              CODE_SIGNING_REQUIRED=NO \
-              CODE_SIGNING_ALLOWED=NO \
-              DEVELOPMENT_TEAM="" \
-              2>&1 | tee ../build_flutter.log || true
-            cd ..
+            exit 1
           }
 
           echo "2) Locating built Runner.app..."
           APP_PATH=""
-          if [ -d "build/ios/iphoneos/Runner.app" ]; then
-            APP_PATH="build/ios/iphoneos/Runner.app"
-          elif [ -d "build/DerivedData/Build/Products/Release-iphoneos/Runner.app" ]; then
-            APP_PATH="build/DerivedData/Build/Products/Release-iphoneos/Runner.app"
+          if [ -d "build/ios/iphonesimulator/Runner.app" ]; then
+            APP_PATH="build/ios/iphonesimulator/Runner.app"
           else
             echo "ERROR: Runner.app not found!"
             find build -type d -name "Runner.app" 2>/dev/null || true
@@ -139,17 +122,7 @@ jobs:
 
           echo "Found Runner.app at: $APP_PATH (size: $(du -sh "$APP_PATH" | cut -f1))"
 
-          echo "3) Packaging into unsigned IPA..."
-          mkdir -p build/ios/iphoneos/Payload
-          cp -R "$APP_PATH" build/ios/iphoneos/Payload/Runner.app
-
-          cd build/ios/iphoneos
-          zip -r -q Runner-unsigned.ipa Payload
-          rm -rf Payload
-          cd ../../..
-
-          echo "=== IPA Created Successfully ==="
-          ls -lh build/ios/iphoneos/Runner-unsigned.ipa
+          echo "=== iOS Simulator Build Successful ==="
 
       - name: Upload Build Log
         if: always()
@@ -159,9 +132,9 @@ jobs:
           path: flutter_app/build_flutter.log
           if-no-files-found: ignore
 
-      - name: Upload IPA Artifact
+      - name: Upload iOS Simulator App
         uses: actions/upload-artifact@v4
         with:
-          name: vvc-hrm-ios-unsigned
-          path: flutter_app/build/ios/iphoneos/Runner-unsigned.ipa
+          name: vvc-hrm-ios-simulator
+          path: flutter_app/build/ios/iphonesimulator/Runner.app
           if-no-files-found: error
