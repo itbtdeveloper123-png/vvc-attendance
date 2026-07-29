@@ -7550,11 +7550,10 @@ try {
                     $bind_types .= 's';
                 }
                 
-                $update_fields[] = 'WHERE id=?';
                 $bind_params[] = $poll_id;
                 $bind_types .= 'i';
                 
-                $sql = "UPDATE poll_events SET " . implode(', ', $update_fields);
+                $sql = "UPDATE poll_events SET " . implode(', ', $update_fields) . " WHERE id=?";
                 error_log("SAVE_POLL: Dynamic UPDATE SQL: " . $sql);
                 
                 $stmt = $mysqli->prepare($sql);
