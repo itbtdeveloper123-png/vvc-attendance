@@ -20,14 +20,24 @@ session_start();
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 ini_set('error_log', __DIR__ . '/php_debug.log');
-require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/vendor/autoload.php';
+
+try {
+    require_once __DIR__ . '/config.php';
+    // Skip vendor/autoload.php if it causes issues
+    // require_once __DIR__ . '/vendor/autoload.php';
+} catch (Exception $e) {
+    error_log("Form Builder: Error loading config: " . $e->getMessage());
+    die('Error loading required files. Please check system configuration.');
+}
 
 // Check authentication
 if (!isset($_SESSION['admin_id'])) {
+    error_log("Form Builder: No admin_id in session");
     header('Location: admin_attendance.php');
     exit;
 }
+
+error_log("Form Builder: Admin authenticated - admin_id: " . $_SESSION['admin_id']);
 
 // Get current admin info
 $current_admin_id = $_SESSION['admin_id'] ?? ($_SESSION['sub_user_parent_id'] ?? ($_SESSION['sub_user_id'] ?? 'SYSTEM_WIDE'));
@@ -35,6 +45,8 @@ $is_super_admin = !empty($_SESSION['is_super_admin']);
 
 // Page title
 $page_title = 'Form Builder - កម្មវិធីបង្កើតសំណើ';
+
+error_log("Form Builder: Starting page load for admin_id: " . $current_admin_id);
 ?>
 <!DOCTYPE html>
 <html lang="km">
