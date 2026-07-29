@@ -7482,59 +7482,72 @@ try {
         break;
 
     case 'save_poll':
-        $poll_id = (int)($_POST['id'] ?? 0);
-        $title = trim($_POST['title'] ?? '');
-        $quarter = trim($_POST['quarter'] ?? '');
-        $location = trim($_POST['location'] ?? '');
-        $start_date = trim($_POST['start_date'] ?? '');
-        $end_date = trim($_POST['end_date'] ?? '');
-        $access_code = trim($_POST['access_code'] ?? '');
-        $allowed_employee_ids = $_POST['allowed_employee_ids'] ?? '[]';
-        $excluded_employee_ids = $_POST['excluded_employee_ids'] ?? '[]';
-        $is_active = (int)($_POST['is_active'] ?? 1);
+        try {
+            $poll_id = (int)($_POST['id'] ?? 0);
+            $title = trim($_POST['title'] ?? '');
+            $quarter = trim($_POST['quarter'] ?? '');
+            $location = trim($_POST['location'] ?? '');
+            $start_date = trim($_POST['start_date'] ?? '');
+            $end_date = trim($_POST['end_date'] ?? '');
+            $access_code = trim($_POST['access_code'] ?? '');
+            $allowed_employee_ids = $_POST['allowed_employee_ids'] ?? '[]';
+            $excluded_employee_ids = $_POST['excluded_employee_ids'] ?? '[]';
+            $is_active = (int)($_POST['is_active'] ?? 1);
 
-        if (empty($title)) {
-            apiResponse(['success' => false, 'message' => 'ចំណងជើងត្រូវបានទាមទារ']);
-            break;
-        }
+            error_log("SAVE_POLL: Starting poll save with ID: $poll_id, Title: $title");
 
-        $table_check = $mysqli->query("SHOW TABLES LIKE 'poll_events'");
-        if (!$table_check || $table_check->num_rows == 0) {
-            apiResponse(['success' => false, 'message' => 'Poll table does not exist. Please run database setup.']);
-            break;
-        }
-
-        // Check if allowed_employee_ids column exists
-        $column_check = $mysqli->query("SHOW COLUMNS FROM poll_events LIKE 'allowed_employee_ids'");
-        if (!$column_check || $column_check->num_rows == 0) {
-            apiResponse(['success' => false, 'message' => 'Database column allowed_employee_ids does not exist. Please run database setup to add this column.']);
-            break;
-        }
-
-        if ($poll_id > 0) {
-            // Update existing poll
-            $stmt = $mysqli->prepare("UPDATE poll_events SET title=?, quarter=?, location=?, start_date=?, end_date=?, access_code=?, allowed_employee_ids=?, excluded_employee_ids=?, is_active=? WHERE id=?");
-            if (!$stmt) {
-                apiResponse(['success' => false, 'message' => 'Database error: ' . $mysqli->error]);
+            if (empty($title)) {
+                apiResponse(['success' => false, 'message' => 'ចំណងជើងត្រូវបានទាមទារ']);
                 break;
             }
-            $stmt->bind_param('sssssssis', $title, $quarter, $location, $start_date, $end_date, $access_code, $allowed_employee_ids, $excluded_employee_ids, $is_active, $poll_id);
-        } else {
-            // Create new poll
-            $stmt = $mysqli->prepare("INSERT INTO poll_events (title, quarter, location, start_date, end_date, access_code, allowed_employee_ids, excluded_employee_ids, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            if (!$stmt) {
-                apiResponse(['success' => false, 'message' => 'Database error: ' . $mysqli->error]);
+
+            $table_check = $mysqli->query("SHOW TABLES LIKE 'poll_events'");
+            if (!$table_check || $table_check->num_rows == 0) {
+                apiResponse(['success' => false, 'message' => 'Poll table does not exist. Please run database setup.']);
                 break;
             }
-            $stmt->bind_param('sssssssis', $title, $quarter, $location, $start_date, $end_date, $access_code, $allowed_employee_ids, $excluded_employee_ids, $is_active);
-        }
 
-        if ($stmt->execute()) {
-            apiResponse(['success' => true, 'message' => 'រក្សាទុកការបោះឆ្នោតបានជោគជ័យ']);
-        } else {
-            apiResponse(['success' => false, 'message' => 'មិនអាចរក្សាទុកបានទេ: ' . $mysqli->error]);
+            // Check if allowed_employee_ids column exists
+            $column_check = $mysqli->query("SHOW COLUMNS FROM poll_events LIKE 'allowed_employee_ids'");
+            if (!$column_check || $column_check->num_rows == 0) {
+                apiResponse(['success' => false, 'message' => 'Database column allowed_employee_ids does not exist. Please run database setup to add this column.']);
+                break;
+            }
+
+            if ($poll_id > 0) {
+                // Update existing poll
+                error_log("SAVE_POLL: Updating existing poll with ID: $poll_id");
+                $stmt = $mysqli->prepare("UPDATE poll_events SET title=?, quarter=?, location=?, start_date=?, end_date=?, access_code=?, allowed_employee_ids=?, excluded_employee_ids=?, is_active=? WHERE id=?");
+                if (!$stmt) {
+                    error_log("SAVE_POLL: Prepare failed for UPDATE: " . $mysqli->error);
+                    apiResponse(['success' => false, 'message' => 'Database error: ' . $mysqli->error]);
+                    break;
+                }
+                $stmt->bind_param('sssssssis', $title, $quarter, $location, $start_date, $end_date, $access_code, $allowed_employee_ids, $excluded_employee_ids, $is_active, $poll_id);
+            } else {
+                // Create new poll
+                error_log("SAVE_POLL: Creating new poll");
+                $stmt = $mysqli->prepare("INSERT INTO poll_events (title, quarter, location, start_date, end_date, access_code, allowed_employee_ids, excluded_employee_ids, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                if (!$stmt) {
+                    error_log("SAVE_POLL: Prepare failed for INSERT: " . $mysqli->error);
+                    apiResponse(['success' => false, 'message' => 'Database error: ' . $mysqli->error]);
+                    break;
+                }
+                $stmt->bind_param('sssssssis', $title, $quarter, $location, $start_date, $end_date, $access_code, $allowed_employee_ids, $excluded_employee_ids, $is_active);
+            }
+
+            if ($stmt->execute()) {
+                error_log("SAVE_POLL: Successfully saved poll");
+                apiResponse(['success' => true, 'message' => 'រក្សាទុកការបោះឆ្នោតបានជោគជ័យ']);
+            } else {
+                error_log("SAVE_POLL: Execute failed: " . $stmt->error);
+                apiResponse(['success' => false, 'message' => 'មិនអាចរក្សាទុកបានទេ: ' . $stmt->error]);
+            }
+            $stmt->close();
+        } catch (Exception $e) {
+            error_log("SAVE_POLL: Exception occurred: " . $e->getMessage());
+            apiResponse(['success' => false, 'message' => 'Server error: ' . $e->getMessage()]);
         }
-        $stmt->close();
         break;
 
     case 'delete_poll':
