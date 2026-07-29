@@ -25,7 +25,7 @@ require_once __DIR__ . '/vendor/autoload.php';
 
 // Check authentication
 if (!isset($_SESSION['admin_id'])) {
-    header('Location: admin_attendance.php?page=login');
+    header('Location: admin_attendance.php');
     exit;
 }
 
