@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+    
+    <domain-config>
+        <domain includeSubdomains="true">app.vvc.asia</domain>
+        <domain includeSubdomains="true">vvc.asia</domain>
+        <domain includeSubdomains="true">104.21.2.219</domain>
+        <domain includeSubdomains="true">172.67.129.187</domain>
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+        <pin-set>
+            <pin digest="SHA-256">d4e9b4e0c6b5e8f3a2b1c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5</pin>
+        </pin-set>
+    </domain-config>
+</network-security-config>

@@ -35,21 +35,71 @@ class ApiService {
   static http.Client _buildHttpClient({bool forceIPv4 = false}) {
     if (kIsWeb) return http.Client();
     final ioClient = HttpClient();
-    if (forceIPv4 || _preferIPv4) {
-      ioClient.connectionTimeout = const Duration(seconds: 12);
-    }
+    
+    // Enable modern TLS protocols
     ioClient.badCertificateCallback =
         (X509Certificate cert, String host, int port) {
-      if (forceIPv4 || _preferIPv4) {
-        return host == '104.21.2.219' ||
-            host == '172.67.129.187' ||
-            cert.subject.contains('vvc.asia') ||
-            cert.issuer.contains('Cloudflare') ||
-            cert.issuer.contains('Let\'s Encrypt');
+      // Allow certificates for specific domains
+      if (host == '104.21.2.219' ||
+          host == '172.67.129.187' ||
+          host == 'app.vvc.asia' ||
+          host == 'vvc.asia') {
+        // Check if certificate is from trusted issuer
+        if (cert.issuer.contains('Cloudflare') || 
+            cert.issuer.contains('Let\'s Encrypt') ||
+            cert.subject.contains('vvc.asia')) {
+          return true;
+        }
       }
       return false;
     };
+    
+    // Set connection timeout
+    if (forceIPv4 || _preferIPv4) {
+      ioClient.connectionTimeout = const Duration(seconds: 12);
+    } else {
+      ioClient.connectionTimeout = const Duration(seconds: 15);
+    }
+    
     return IOClient(ioClient);
+  }
+  
+  static dio.Dio _buildDioClient({bool forceIPv4 = false}) {
+    if (kIsWeb) {
+      return dio.Dio();
+    }
+    
+    final dioClient = dio.Dio();
+    
+    // Configure timeout
+    dioClient.options.connectTimeout = const Duration(seconds: 15);
+    dioClient.options.receiveTimeout = const Duration(seconds: 30);
+    dioClient.options.sendTimeout = const Duration(seconds: 15);
+    
+    // Create HTTP adapter with SSL configuration
+    if (!kIsWeb) {
+      final httpClient = HttpClient();
+      httpClient.badCertificateCallback =
+          (X509Certificate cert, String host, int port) {
+        if (host == '104.21.2.219' ||
+            host == '172.67.129.187' ||
+            host == 'app.vvc.asia' ||
+            host == 'vvc.asia') {
+          if (cert.issuer.contains('Cloudflare') || 
+              cert.issuer.contains('Let\'s Encrypt') ||
+              cert.subject.contains('vvc.asia')) {
+            return true;
+          }
+        }
+        return false;
+      };
+      
+      dioClient.httpClientAdapter = IOHttpClientAdapter(
+        httpClient: httpClient,
+      );
+    }
+    
+    return dioClient;
   }
 
   static bool _isSocketBindError(Object e) {
@@ -75,6 +125,9 @@ class ApiService {
     if (s.contains('Connection timed out') || s.contains('TimeoutException')) {
       return 'Server ឆ្លើយតបយឺតពេក។ សូមព្យាយាមម្តងទៀត';
     }
+    if (s.contains('SSLV3_ALERT_HANDSHAKE_FAILURE') || s.contains('HANDSHAKE_FAILURE')) {
+      return 'កំហុស SSL Handshake៖ កំពុងព្យាយាមភ្ជាប់ឡើងវិញ...';
+    }
     if (s.contains('certificate') || s.contains('CERTIFICATE_VERIFY_FAILED')) {
       return 'កំហុស SSL Certificate៖ កាលបរិច្ឆេទទូរស័ព្ទមិនត្រឹមត្រូវ';
     }
@@ -93,13 +146,23 @@ class ApiService {
       } catch (e) {
         lastError = e;
         final bindFail = _isSocketBindError(e);
+        final sslFail = e.toString().contains('SSLV3_ALERT_HANDSHAKE_FAILURE') || 
+                       e.toString().contains('HANDSHAKE_FAILURE');
+        
         if (bindFail) {
           _preferIPv4 = true;
           debugPrint(
               'Detected IPv6 bind failure — switched to IPv4 mode. Attempt $attempt/$maxAttempts');
         }
+        
+        if (sslFail) {
+          debugPrint('SSL Handshake failure — retrying with different configuration. Attempt $attempt/$maxAttempts');
+          // Force IPv4 on SSL failures as well
+          _preferIPv4 = true;
+        }
+        
         if (attempt < maxAttempts) {
-          final delayMs = bindFail ? 200 : 400 * attempt;
+          final delayMs = (bindFail || sslFail) ? 500 : 400 * attempt;
           await Future<void>.delayed(Duration(milliseconds: delayMs));
           continue;
         }
