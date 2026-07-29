@@ -37,11 +37,10 @@ class _MissionScreenState extends State<MissionScreen> {
 
   // Khmer date
   DateTime _khmerDate = DateTime.now();
-  final _dateKhmerPart1Controller = TextEditingController();
+  String _khmerLunarDate = ''; // For displaying full lunar date
   final _dateKhmerPart2Controller = TextEditingController(
     text: 'រាជធានីភ្នំពេញ, ថ្ងៃទី  ខែ  ឆ្នាំ២០២៦',
   );
-  bool _showKhmerCalendar = false;
 
   // Personnel list: each item = {name, role}
   final List<Map<String, TextEditingController>> _personnel = [];
@@ -107,7 +106,6 @@ class _MissionScreenState extends State<MissionScreen> {
     _purposeController.dispose();
     _transportController.dispose();
     _materialsController.dispose();
-    _dateKhmerPart1Controller.dispose();
     _dateKhmerPart2Controller.dispose();
     for (final row in _personnel) {
       row['name']!.dispose();
@@ -161,11 +159,19 @@ class _MissionScreenState extends State<MissionScreen> {
     setState(() {
       _khmerDate = selectedDate;
       
-      // Update Khmer Line 1 with day name
-      int weekdayIndex = selectedDate.weekday % 7; // 0=Sunday, 1=Monday, etc.
-      _dateKhmerPart1Controller.text = _khmerDays[weekdayIndex];
+      // Get full Khmer lunar date using Chhankitek
+      final lunar = Chhankitek.fromDate(selectedDate);
+      final dayOfWeek = lunar.format("ថ្ងៃW");
+      final lunarDay = lunar.lunarDay.toString();
+      final lunarMonth = "ខែ${lunar.format("m")}";
+      final lunarYear = "ឆ្នាំ${lunar.format("a")}";
+      final era = lunar.format("e");
+      final buddhistEra = "ពុទ្ធសករាជ ${lunar.format("b")}";
       
-      // Update Khmer Line 2 with full date
+      // Update Khmer lunar date for display
+      _khmerLunarDate = "$dayOfWeek $lunarDay $lunarMonth $lunarYear $era $buddhistEra";
+      
+      // Update Khmer Line 2 with Gregorian date
       String day = _toKhmerNumber(selectedDate.day.toString());
       String month = _khmerMonths[selectedDate.month];
       String year = _toKhmerNumber(selectedDate.year.toString());
@@ -200,7 +206,7 @@ class _MissionScreenState extends State<MissionScreen> {
         endTime: _formatTime(_endTime),
         transport: _transportController.text.trim(),
         materials: _materialsController.text.trim(),
-        dateKhmerPart1: _dateKhmerPart1Controller.text.trim(),
+        dateKhmerPart1: _khmerLunarDate,
         dateKhmerPart2: _dateKhmerPart2Controller.text.trim(),
         personnel: personnelData,
       );
@@ -979,14 +985,6 @@ class _MissionScreenState extends State<MissionScreen> {
           icon: Icons.inventory,
         ),
         const SizedBox(height: 12),
-        _buildTextField(
-          controller: _dateKhmerPart1Controller,
-          hint: "ឧ. ថ្ងៃសីល...",
-          label: "ខ្មែរ បន្ទាត់១",
-          icon: Icons.edit,
-          enabled: false, // Auto-filled from date picker
-        ),
-        const SizedBox(height: 12),
         _buildKhmerDateField(),
       ],
     );
@@ -996,6 +994,38 @@ class _MissionScreenState extends State<MissionScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Text(
+          "ខ្មែរ បន្ទាត់១",
+          style: GoogleFonts.kantumruyPro(
+            fontSize: 12,
+            color: AppTheme.textSecondary,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: AppTheme.cardDark,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppTheme.borderDark),
+          ),
+          child: Text(
+            _khmerLunarDate,
+            style: GoogleFonts.kantumruyPro(
+              fontSize: 14,
+              color: AppTheme.textPrimary,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        KhmerLunarCalendarCard(
+          initialDate: _khmerDate,
+          isModal: false,
+          onDateSelected: (selectedDate) {
+            _updateKhmerDateFields(selectedDate);
+          },
+        ),
+        const SizedBox(height: 12),
         Text(
           "ខ្មែរ បន្ទាត់២",
           style: GoogleFonts.kantumruyPro(
@@ -1051,56 +1081,6 @@ class _MissionScreenState extends State<MissionScreen> {
             ),
           ),
         ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  setState(() {
-                    _showKhmerCalendar = !_showKhmerCalendar;
-                  });
-                },
-                icon: Icon(
-                  _showKhmerCalendar ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                  size: 20,
-                ),
-                label: Text(
-                  _showKhmerCalendar ? 'លាក់ប្រតិទិនខ្មែរ' : 'បើកប្រតិទិនខ្មែរ',
-                  style: GoogleFonts.kantumruyPro(fontSize: 12),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primary.withValues(alpha: 0.1),
-                  foregroundColor: AppTheme.primary,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-        if (_showKhmerCalendar)
-          Container(
-            margin: const EdgeInsets.only(top: 12),
-            decoration: BoxDecoration(
-              color: AppTheme.cardDark,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppTheme.borderDark),
-            ),
-            child: Column(
-              children: [
-                KhmerLunarCalendarCard(
-                  initialDate: _khmerDate,
-                  isModal: false,
-                  onDateSelected: (selectedDate) {
-                    _updateKhmerDateFields(selectedDate);
-                  },
-                ),
-              ],
-            ),
-          ),
       ],
     );
   }
