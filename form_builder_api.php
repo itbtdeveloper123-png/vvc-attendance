@@ -7,6 +7,10 @@ error_reporting(E_ALL);
 ini_set('display_errors', 1);
 ini_set('error_log', __DIR__ . '/php_debug.log');
 
+// Ensure UTF-8 encoding for API responses
+mb_internal_encoding('UTF-8');
+ini_set('default_charset', 'UTF-8');
+
 require_once __DIR__ . '/config.php';
 
 // Set CORS headers
@@ -29,6 +33,7 @@ if ($mysqli->connect_error) {
 }
 
 $mysqli->set_charset("utf8mb4");
+error_log('Form Builder API: Database charset set to utf8mb4');
 
 // Check if required tables exist
 $required_tables = ['form_templates', 'form_fields', 'form_submissions'];
@@ -50,7 +55,8 @@ function sendResponse($success, $message, $data = null) {
     if ($data !== null) {
         $response['data'] = $data;
     }
-    echo json_encode($response);
+    // Ensure proper UTF-8 encoding for Khmer text
+    echo json_encode($response, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
 }
 
