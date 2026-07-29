@@ -691,13 +691,20 @@ $page_title = 'Form Builder - កម្មវិធីបង្កើតសំ�
         
         // Initialize drag and drop
         document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM Content Loaded - Initializing Form Builder');
             initDragAndDrop();
+            console.log('Loading templates...');
             loadTemplates();
         });
         
         function initDragAndDrop() {
+            console.log('Initializing drag and drop...');
+            
             // Field types drag start
-            document.querySelectorAll('.field-type').forEach(field => {
+            const fieldTypes = document.querySelectorAll('.field-type');
+            console.log('Found field types:', fieldTypes.length);
+            
+            fieldTypes.forEach(field => {
                 field.addEventListener('dragstart', function(e) {
                     e.dataTransfer.setData('fieldType', this.dataset.type);
                 });
@@ -705,6 +712,13 @@ $page_title = 'Form Builder - កម្មវិធីបង្កើតសំ�
             
             // Form canvas drag events
             const canvas = document.getElementById('form-canvas');
+            
+            if (!canvas) {
+                console.error('Form canvas not found!');
+                return;
+            }
+            
+            console.log('Form canvas found, setting up drag events');
             
             canvas.addEventListener('dragover', function(e) {
                 e.preventDefault();
@@ -726,14 +740,19 @@ $page_title = 'Form Builder - កម្មវិធីបង្កើតសំ�
             });
             
             // Initialize sortable for form fields
-            new Sortable(canvas, {
-                animation: 150,
-                handle: '.field-header',
-                ghostClass: 'dragging',
-                onEnd: function(evt) {
-                    updateFieldOrder();
-                }
-            });
+            try {
+                new Sortable(canvas, {
+                    animation: 150,
+                    handle: '.field-header',
+                    ghostClass: 'dragging',
+                    onEnd: function(evt) {
+                        updateFieldOrder();
+                    }
+                });
+                console.log('Sortable initialized successfully');
+            } catch (e) {
+                console.error('Failed to initialize Sortable:', e);
+            }
         }
         
         function addField(type) {
@@ -1060,10 +1079,16 @@ $page_title = 'Form Builder - កម្មវិធីបង្កើតសំ�
                 success: function(response) {
                     if (response.success) {
                         renderTemplates(response.data);
+                    } else {
+                        console.error('API Error:', response.message);
+                        alert('កំហុស: ' + (response.message || 'Failed to load templates'));
                     }
                 },
-                error: function() {
-                    console.error('Failed to load templates');
+                error: function(xhr, status, error) {
+                    console.error('Failed to load templates:', error);
+                    console.error('Status:', status);
+                    console.error('Response:', xhr.responseText);
+                    alert('កំហុសក្នុងការភ្ជាប់ Server: ' + error);
                 }
             });
         }

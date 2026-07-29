@@ -556,20 +556,23 @@ class _DynamicFormRendererState extends State<DynamicFormRenderer> {
   Widget _buildRequestTypeField(FormField field) {
     String selectedValue = _formData[field.fieldName]?.toString() ?? '';
 
-    return A5FormSection(
-      title: field.fieldLabel,
-      icon: Icons.list_check,
-      isRequired: field.required,
-      children: [
-        A5RequestTypeCheckboxGroup(
-          selectedValue: selectedValue,
-          onChanged: (value) {
-            setState(() {
-              _formData[field.fieldName] = value;
-            });
-          },
-        ),
-      ],
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: A5FormSection(
+        title: field.fieldLabel,
+        icon: Icons.list_check,
+        isRequired: field.required,
+        children: [
+          A5RequestTypeCheckboxGroup(
+            selectedValue: selectedValue,
+            onChanged: (value) {
+              setState(() {
+                _formData[field.fieldName] = value;
+              });
+            },
+          ),
+        ],
+      ),
     );
   }
 

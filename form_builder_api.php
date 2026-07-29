@@ -24,7 +24,19 @@ $mysqli = get_db_connection();
 
 if (!$mysqli) {
     echo json_encode(['success' => false, 'message' => 'Database connection failed']);
+    error_log('Form Builder API: Database connection failed');
     exit;
+}
+
+// Check if required tables exist
+$required_tables = ['form_templates', 'form_fields', 'form_submissions'];
+foreach ($required_tables as $table) {
+    $result = $mysqli->query("SHOW TABLES LIKE '$table'");
+    if (!$result || $result->num_rows == 0) {
+        echo json_encode(['success' => false, 'message' => "Required table '$table' does not exist"]);
+        error_log("Form Builder API: Missing table '$table'");
+        exit;
+    }
 }
 
 // Helper function to send JSON response
@@ -94,38 +106,47 @@ try {
 
 // Handle GET /api/form_builder?action=get_templates
 function handleGetTemplates($mysqli) {
-    $category = $_GET['category'] ?? null;
-    $status = $_GET['status'] ?? 'active';
-    
-    $sql = "SELECT id, name, description, category, status, created_by, created_at, updated_at 
-            FROM form_templates 
-            WHERE status = ?";
-    $params = [$status];
-    $types = 's';
-    
-    if ($category) {
-        $sql .= " AND category = ?";
-        $params[] = $category;
-        $types .= 's';
+    try {
+        $category = $_GET['category'] ?? null;
+        $status = $_GET['status'] ?? 'active';
+        
+        $sql = "SELECT id, name, description, category, status, created_by, created_at, updated_at 
+                FROM form_templates 
+                WHERE status = ?";
+        $params = [$status];
+        $types = 's';
+        
+        if ($category) {
+            $sql .= " AND category = ?";
+            $params[] = $category;
+            $types .= 's';
+        }
+        
+        $sql .= " ORDER BY created_at DESC";
+        
+        $stmt = $mysqli->prepare($sql);
+        if (!$stmt) {
+            throw new Exception("Failed to prepare statement: " . $mysqli->error);
+        }
+        
+        $stmt->bind_param($types, ...$params);
+        if (!$stmt->execute()) {
+            throw new Exception("Failed to execute statement: " . $stmt->error);
+        }
+        
+        $result = $stmt->get_result();
+        
+        $templates = [];
+        while ($row = $result->fetch_assoc()) {
+            $templates[] = $row;
+        }
+        
+        $stmt->close();
+        sendResponse(true, 'Templates retrieved successfully', $templates);
+    } catch (Exception $e) {
+        error_log('Form Builder API: Error in handleGetTemplates - ' . $e->getMessage());
+        sendResponse(false, 'Error retrieving templates: ' . $e->getMessage());
     }
-    
-    $sql .= " ORDER BY created_at DESC";
-    
-    $stmt = $mysqli->prepare($sql);
-    if (!$stmt) {
-        throw new Exception("Failed to prepare statement: " . $mysqli->error);
-    }
-    
-    $stmt->bind_param($types, ...$params);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    
-    $templates = [];
-    while ($row = $result->fetch_assoc()) {
-        $templates[] = $row;
-    }
-    
-    sendResponse(true, 'Templates retrieved successfully', $templates);
 }
 
 // Handle GET /api/form_builder?action=get_template&id=X
