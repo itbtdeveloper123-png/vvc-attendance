@@ -399,7 +399,11 @@ class _OutsideAttendanceScreenState extends State<OutsideAttendanceScreen> {
               : const LatLng(11.5564, 104.9282),
           zoom: 16,
         ),
-        onMapCreated: (controller) => _mapController = controller,
+        onMapCreated: (controller) {
+          if (mounted) {
+            _mapController = controller;
+          }
+        },
         markers: _markers,
         myLocationEnabled: true,
         myLocationButtonEnabled: true,
