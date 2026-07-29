@@ -20,13 +20,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 // Get database connection
-$mysqli = get_db_connection();
+$mysqli = new mysqli(DB_SERVER, DB_USERNAME, DB_PASSWORD, DB_NAME);
 
-if (!$mysqli) {
-    echo json_encode(['success' => false, 'message' => 'Database connection failed']);
-    error_log('Form Builder API: Database connection failed');
+if ($mysqli->connect_error) {
+    echo json_encode(['success' => false, 'message' => 'Database connection failed: ' . $mysqli->connect_error]);
+    error_log('Form Builder API: Database connection failed - ' . $mysqli->connect_error);
     exit;
 }
+
+$mysqli->set_charset("utf8mb4");
 
 // Check if required tables exist
 $required_tables = ['form_templates', 'form_fields', 'form_submissions'];

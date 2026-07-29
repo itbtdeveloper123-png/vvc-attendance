@@ -25,13 +25,17 @@ echo "<div class='section'>";
 echo "<h3>Test 1: Database Connection</h3>";
 
 try {
-    $mysqli = get_db_connection();
-    if ($mysqli) {
-        echo "<div class='success'>✅ Database connection successful</div>";
+    $mysqli = new mysqli(DB_SERVER, DB_USERNAME, DB_PASSWORD, DB_NAME);
+    
+    if ($mysqli->connect_error) {
+        echo "<div class='error'>❌ Database connection failed: " . htmlspecialchars($mysqli->connect_error) . "</div>";
         echo "<div>Server: <code>" . htmlspecialchars(DB_SERVER) . "</code></div>";
         echo "<div>Database: <code>" . htmlspecialchars(DB_NAME) . "</code></div>";
     } else {
-        echo "<div class='error'>❌ Database connection failed</div>";
+        echo "<div class='success'>✅ Database connection successful</div>";
+        echo "<div>Server: <code>" . htmlspecialchars(DB_SERVER) . "</code></div>";
+        echo "<div>Database: <code>" . htmlspecialchars(DB_NAME) . "</code></div>";
+        $mysqli->set_charset("utf8mb4");
     }
 } catch (Exception $e) {
     echo "<div class='error'>❌ Database connection error: " . htmlspecialchars($e->getMessage()) . "</div>";
@@ -42,7 +46,7 @@ echo "</div>";
 echo "<div class='section'>";
 echo "<h3>Test 2: Required Tables</h3>";
 
-if (isset($mysqli) && $mysqli) {
+if (isset($mysqli) && $mysqli && !$mysqli->connect_error) {
     $required_tables = ['form_templates', 'form_fields', 'form_submissions'];
     $all_exist = true;
     
@@ -117,7 +121,7 @@ echo "</div>";
 echo "<div class='section'>";
 echo "<h3>Test 4: Sample Template Creation</h3>";
 
-if (isset($mysqli) && $mysqli) {
+if (isset($mysqli) && $mysqli && !$mysqli->connect_error) {
     // Check if we have any templates
     $result = $mysqli->query("SELECT COUNT(*) as count FROM form_templates");
     if ($result) {
@@ -194,7 +198,7 @@ echo "</div>";
 echo "<div class='section'>";
 echo "<h3>📋 Summary & Next Steps</h3>";
 
-if (isset($mysqli) && $mysqli) {
+if (isset($mysqli) && $mysqli && !$mysqli->connect_error) {
     echo "<div class='success'>✅ Database connection is working</div>";
     
     // Check tables again for summary
@@ -222,7 +226,7 @@ if (isset($mysqli) && $mysqli) {
 
 echo "</div>";
 
-if (isset($mysqli) && $mysqli) {
+if (isset($mysqli) && $mysqli && !$mysqli->connect_error) {
     $mysqli->close();
 }
 ?>
