@@ -1274,8 +1274,251 @@ error_log("Form Builder: Starting page load for admin_id: " . $current_admin_id)
                 return;
             }
             
-            // Simple preview - in production, this would open a modal with the actual form
-            alert('មុខងារ Preview នឹងបន្ថែមក្នុង version ដើម');
+            // Create preview modal
+            const modal = document.createElement('div');
+            modal.className = 'preview-modal';
+            modal.innerHTML = `
+                <div class="preview-content">
+                    <div class="preview-header">
+                        <h3>មើលជាមុន - Form Preview</h3>
+                        <button class="close-btn" onclick="closePreviewModal()">&times;</button>
+                    </div>
+                    <div class="preview-body">
+                        <div class="a5-paper">
+                            <div class="form-header">
+                                <h2>${currentTemplate.name || 'Template Name'}</h2>
+                                <p>${currentTemplate.description || 'Template Description'}</p>
+                            </div>
+                            <form class="preview-form">
+                                ${formFields.map(field => createPreviewField(field)).join('')}
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+            
+            // Add styles for preview modal
+            if (!document.getElementById('preview-modal-styles')) {
+                const style = document.createElement('style');
+                style.id = 'preview-modal-styles';
+                style.textContent = `
+                    .preview-modal {
+                        position: fixed;
+                        top: 0;
+                        left: 0;
+                        width: 100%;
+                        height: 100%;
+                        background: rgba(0,0,0,0.5);
+                        display: flex;
+                        justify-content: center;
+                        align-items: center;
+                        z-index: 10000;
+                    }
+                    .preview-content {
+                        background: white;
+                        border-radius: 12px;
+                        max-width: 90%;
+                        max-height: 90%;
+                        overflow: auto;
+                        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+                    }
+                    .preview-header {
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        padding: 20px;
+                        border-bottom: 1px solid #e9ecef;
+                        background: #f8f9fa;
+                    }
+                    .preview-header h3 {
+                        margin: 0;
+                        font-family: 'Koulen', cursive;
+                        color: #667eea;
+                    }
+                    .close-btn {
+                        background: none;
+                        border: none;
+                        font-size: 24px;
+                        cursor: pointer;
+                        color: #666;
+                    }
+                    .preview-body {
+                        padding: 20px;
+                        background: #e9ecef;
+                    }
+                    .a5-paper {
+                        background: white;
+                        width: 210mm;
+                        min-height: 148mm;
+                        padding: 15mm;
+                        margin: 0 auto;
+                        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                    }
+                    .form-header {
+                        text-align: center;
+                        margin-bottom: 20px;
+                        border-bottom: 2px solid #667eea;
+                        padding-bottom: 15px;
+                    }
+                    .form-header h2 {
+                        font-family: 'Koulen', cursive;
+                        color: #667eea;
+                        margin: 0 0 10px 0;
+                    }
+                    .form-header p {
+                        color: #666;
+                        margin: 0;
+                    }
+                    .preview-form {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 15px;
+                    }
+                    .preview-field {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 5px;
+                    }
+                    .preview-field label {
+                        font-family: 'Battambang', sans-serif;
+                        font-weight: 600;
+                        color: #333;
+                    }
+                    .preview-field input,
+                    .preview-field select,
+                    .preview-field textarea {
+                        padding: 8px;
+                        border: 1px solid #e9ecef;
+                        border-radius: 4px;
+                        font-family: 'Battambang', sans-serif;
+                    }
+                    .preview-field textarea {
+                        min-height: 60px;
+                        resize: vertical;
+                    }
+                    .preview-field .required {
+                        color: red;
+                    }
+                    .preview-field .checkbox-group {
+                        display: flex;
+                        gap: 15px;
+                        flex-wrap: wrap;
+                    }
+                    .preview-field .checkbox-item {
+                        display: flex;
+                        align-items: center;
+                        gap: 5px;
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+        }
+
+        function createPreviewField(field) {
+            const fieldType = field.type || 'text';
+            const label = field.label || 'Field Label';
+            const placeholder = field.placeholder || '';
+            const required = field.required ? '<span class="required">*</span>' : '';
+            
+            let fieldHTML = '';
+            
+            switch(fieldType) {
+                case 'text':
+                    fieldHTML = `
+                        <div class="preview-field">
+                            <label>${label} ${required}</label>
+                            <input type="text" placeholder="${placeholder}" disabled>
+                        </div>
+                    `;
+                    break;
+                case 'number':
+                    fieldHTML = `
+                        <div class="preview-field">
+                            <label>${label} ${required}</label>
+                            <input type="number" placeholder="${placeholder}" disabled>
+                        </div>
+                    `;
+                    break;
+                case 'email':
+                    fieldHTML = `
+                        <div class="preview-field">
+                            <label>${label} ${required}</label>
+                            <input type="email" placeholder="${placeholder}" disabled>
+                        </div>
+                    `;
+                    break;
+                case 'date':
+                    fieldHTML = `
+                        <div class="preview-field">
+                            <label>${label} ${required}</label>
+                            <input type="date" disabled>
+                        </div>
+                    `;
+                    break;
+                case 'time':
+                    fieldHTML = `
+                        <div class="preview-field">
+                            <label>${label} ${required}</label>
+                            <input type="time" disabled>
+                        </div>
+                    `;
+                    break;
+                case 'select':
+                    const options = field.options || [];
+                    fieldHTML = `
+                        <div class="preview-field">
+                            <label>${label} ${required}</label>
+                            <select disabled>
+                                <option value="">${placeholder || 'Select option'}</option>
+                                ${options.map(opt => `<option value="${opt}">${opt}</option>`).join('')}
+                            </select>
+                        </div>
+                    `;
+                    break;
+                case 'textarea':
+                    fieldHTML = `
+                        <div class="preview-field">
+                            <label>${label} ${required}</label>
+                            <textarea placeholder="${placeholder}" disabled></textarea>
+                        </div>
+                    `;
+                    break;
+                case 'checkbox':
+                    fieldHTML = `
+                        <div class="preview-field">
+                            <label>${label} ${required}</label>
+                            <div class="checkbox-group">
+                                <div class="checkbox-item">
+                                    <input type="checkbox" disabled>
+                                    <span>Option 1</span>
+                                </div>
+                                <div class="checkbox-item">
+                                    <input type="checkbox" disabled>
+                                    <span>Option 2</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    break;
+                default:
+                    fieldHTML = `
+                        <div class="preview-field">
+                            <label>${label} ${required}</label>
+                            <input type="text" placeholder="${placeholder}" disabled>
+                        </div>
+                    `;
+            }
+            
+            return fieldHTML;
+        }
+
+        function closePreviewModal() {
+            const modal = document.querySelector('.preview-modal');
+            if (modal) {
+                modal.remove();
+            }
         }
     </script>
 </body>
