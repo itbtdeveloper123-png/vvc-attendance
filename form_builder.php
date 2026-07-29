@@ -2,11 +2,15 @@
 // Form Builder UI - Drag & Drop Form Builder
 // This page provides a visual interface for creating and managing form templates
 
+error_log("Form Builder: Starting to load page - Line 1");
+
 if (!headers_sent()) {
     header('Content-Type: text/html; charset=UTF-8');
 }
 ini_set('default_charset', 'UTF-8');
 mb_internal_encoding('UTF-8');
+
+error_log("Form Builder: Charset set - Line 2");
 
 // Only use mb_http functions if available
 if (function_exists('mb_http_output')) {
@@ -16,10 +20,16 @@ if (function_exists('mb_http_input')) {
     mb_http_input('UTF-8');
 }
 
+error_log("Form Builder: MB functions checked - Line 3");
+
 session_start();
+error_log("Form Builder: Session started - Line 4");
+
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 ini_set('error_log', __DIR__ . '/php_debug.log');
+
+error_log("Form Builder: Error reporting setup complete - Line 5");
 
 try {
     require_once __DIR__ . '/config.php';
