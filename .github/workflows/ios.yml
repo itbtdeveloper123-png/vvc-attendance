@@ -13,6 +13,7 @@ jobs:
     runs-on: macos-15  # macOS 15 = Xcode 16 + iOS 18 SDK (required by connectivity_plus 7.3.1)
                        # NWPath.isUltraConstrained exists only in iOS 18 SDK (Xcode 16+)
                        # macos-14 had Xcode 15.4 (iOS 17 SDK only) → compile error
+    timeout-minutes: 60
 
     steps:
       - name: Checkout repository
