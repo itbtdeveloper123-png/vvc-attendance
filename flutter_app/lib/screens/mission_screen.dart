@@ -8,6 +8,7 @@ import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import '../services/api_service.dart';
 import '../utils/app_theme.dart';
 import '../widgets/app_widgets.dart';
+import '../widgets/khmer_lunar_calendar_card.dart';
 import 'mission_detail_screen.dart';
 
 class MissionScreen extends StatefulWidget {
@@ -40,6 +41,7 @@ class _MissionScreenState extends State<MissionScreen> {
   final _dateKhmerPart2Controller = TextEditingController(
     text: 'រាជធានីភ្នំពេញ, ថ្ងៃទី  ខែ  ឆ្នាំ២០២៦',
   );
+  bool _showKhmerCalendar = false;
 
   // Personnel list: each item = {name, role}
   final List<Map<String, TextEditingController>> _personnel = [];
@@ -1049,6 +1051,56 @@ class _MissionScreenState extends State<MissionScreen> {
             ),
           ),
         ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _showKhmerCalendar = !_showKhmerCalendar;
+                  });
+                },
+                icon: Icon(
+                  _showKhmerCalendar ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                  size: 20,
+                ),
+                label: Text(
+                  _showKhmerCalendar ? 'លាក់ប្រតិទិនខ្មែរ' : 'បើកប្រតិទិនខ្មែរ',
+                  style: GoogleFonts.kantumruyPro(fontSize: 12),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primary.withValues(alpha: 0.1),
+                  foregroundColor: AppTheme.primary,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        if (_showKhmerCalendar)
+          Container(
+            margin: const EdgeInsets.only(top: 12),
+            decoration: BoxDecoration(
+              color: AppTheme.cardDark,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppTheme.borderDark),
+            ),
+            child: Column(
+              children: [
+                KhmerLunarCalendarCard(
+                  initialDate: _khmerDate,
+                  isModal: false,
+                  onDateSelected: (selectedDate) {
+                    _updateKhmerDateFields(selectedDate);
+                  },
+                ),
+              ],
+            ),
+          ),
       ],
     );
   }

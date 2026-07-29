@@ -7,7 +7,8 @@ import '../utils/app_theme.dart';
 class KhmerLunarCalendarCard extends StatefulWidget {
   final DateTime? initialDate;
   final bool isModal;
-  const KhmerLunarCalendarCard({super.key, this.initialDate, this.isModal = false});
+  final Function(DateTime)? onDateSelected;
+  const KhmerLunarCalendarCard({super.key, this.initialDate, this.isModal = false, this.onDateSelected});
 
   @override
   State<KhmerLunarCalendarCard> createState() => _KhmerLunarCalendarCardState();
@@ -359,7 +360,12 @@ class _KhmerLunarCalendarCardState extends State<KhmerLunarCalendarCard> {
               final holidayColor = holiday != null ? (holiday.isMajor ? Colors.redAccent : Colors.blueAccent) : null;
               
               return InkWell(
-                onTap: () => _showDayDetails(date),
+                onTap: () {
+                  if (widget.onDateSelected != null) {
+                    widget.onDateSelected!(date);
+                  }
+                  _showDayDetails(date);
+                },
                 child: Container(
                   decoration: BoxDecoration(
                     color: isToday ? AppTheme.primary.withValues(alpha: 0.1) : Colors.transparent,
