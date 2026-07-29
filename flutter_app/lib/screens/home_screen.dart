@@ -2176,7 +2176,7 @@ class _HomeContentState extends State<HomeContent> {
     final orderStr = user.getConfig(
       'home_card_order$suffix',
       defaultValue:
-          'stats_slider,attendance,outside_attendance,product_analyzer,training_quiz,announcements,meetings,checklist,daily_report,mission,trip,user_management,request_form,reports,material_request,notification,payroll',
+          'stats_slider,attendance,outside_attendance,product_analyzer,training_quiz,poll_voting,announcements,meetings,checklist,daily_report,mission,trip,user_management,request_form,reports,material_request,notification,payroll',
     );
 
     final keys = orderStr
