@@ -1692,14 +1692,32 @@ class _RequestListScreenState extends State<RequestListScreen> {
           final screenWidth = constraints.maxWidth;
           final maxHeight = constraints.maxHeight;
           
+          // Validate values to prevent Infinity or NaN
+          if (!screenWidth.isFinite || screenWidth <= 0) {
+            return const SizedBox.shrink();
+          }
+          if (!maxHeight.isFinite || maxHeight <= 0) {
+            return const SizedBox.shrink();
+          }
+          
           // Calculate appropriate width for A5 form
           double formWidth = screenWidth;
-          double formHeight = formWidth / 0.704; // A5 aspect ratio
+          double formHeight = screenWidth / 0.704; // A5 aspect ratio
+          
+          // Validate calculated values
+          if (!formHeight.isFinite || formHeight <= 0 || formHeight.isInfinite) {
+            formHeight = maxHeight * 0.7; // Fallback to screen height
+          }
           
           // If height exceeds screen height, adjust width
           if (formHeight > maxHeight) {
             formHeight = maxHeight * 0.9; // Leave some margin
             formWidth = formHeight * 0.704;
+          }
+          
+          // Ensure calculated values are valid
+          if (!formWidth.isFinite || formWidth <= 0 || formWidth.isInfinite) {
+            formWidth = screenWidth;
           }
           
           // Ensure minimum width for readability
