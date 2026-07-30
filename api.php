@@ -7729,7 +7729,8 @@ try {
             apiResponse(['success' => false, 'message' => 'Database error: ' . $mysqli->error]);
             break;
         }
-        $stmt->bind_param('ssss', $current_date, $current_date, $eid, $eid);
+        $json_eid = json_encode((string)$eid);
+        $stmt->bind_param('ssss', $current_date, $current_date, $json_eid, $json_eid);
         $stmt->execute();
         $result = $stmt->get_result();
         $polls = [];
