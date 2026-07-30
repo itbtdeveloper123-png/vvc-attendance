@@ -26,10 +26,8 @@ class DynamicFormScreen extends StatefulWidget {
 
 class _DynamicFormScreenState extends State<DynamicFormScreen> {
   final FormBuilderService _formBuilderService = FormBuilderService(
-    baseUrl: ApiService().baseUrl,
+    baseUrl: ApiService.baseUrl.replaceAll('/api.php', ''),
   );
-  
-  final UserProvider _userProvider = UserProvider();
 
   FormTemplate? _template;
   bool _isLoading = true;
@@ -75,7 +73,7 @@ class _DynamicFormScreenState extends State<DynamicFormScreen> {
     try {
       // Add user information to form data
       final user = Provider.of<UserProvider>(context, listen: false);
-      formData['user_id'] = user.userId;
+      formData['user_id'] = int.tryParse(user.employeeId ?? '') ?? 0;
       formData['requester_name'] = user.name;
       formData['department'] = user.department;
       formData['position'] = user.position;
@@ -84,7 +82,7 @@ class _DynamicFormScreenState extends State<DynamicFormScreen> {
       // Create submission
       await _formBuilderService.createSubmission(
         templateId: widget.templateId,
-        userId: user.userId,
+        userId: int.tryParse(user.employeeId ?? ''),
         submissionData: formData,
       );
 
@@ -135,7 +133,7 @@ class _DynamicFormScreenState extends State<DynamicFormScreen> {
 
   Widget _buildBody() {
     if (_isLoading) {
-      return const Center(
+      return Center(
         child: CircularProgressIndicator(color: AppTheme.primary),
       );
     }
@@ -145,7 +143,7 @@ class _DynamicFormScreenState extends State<DynamicFormScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.error_outline, size: 64, color: Colors.red),
+            const Icon(Icons.error_outline, size: 64, color: Colors.red),
             const SizedBox(height: 16),
             Text(
               'កំហុសក្នុងការផ្ទុកសំណើ',
