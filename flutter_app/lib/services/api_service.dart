@@ -465,14 +465,14 @@ class ApiService {
     return _processRequest('get_active_polls', headers: headers);
   }
 
-  Future<Map<String, dynamic>> castVote(int pollId, int candidateId) async {
+  Future<Map<String, dynamic>> castVote(int pollId, String candidateEmployeeId) async {
     final headers = await _authHeaders();
     return _processRequest(
       'cast_vote',
       headers: headers,
       body: {
         'poll_id': pollId.toString(),
-        'candidate_id': candidateId.toString(),
+        'candidate_employee_id': candidateEmployeeId,
       },
     );
   }

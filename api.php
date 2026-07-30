@@ -7746,29 +7746,29 @@ try {
                 $vote_check->close();
             }
             
-            // Get candidates
-            $candidate_stmt = $mysqli->prepare("
-                SELECT c.*, u.name 
-                FROM poll_candidates c
-                LEFT JOIN users u ON c.employee_id = u.employee_id
-                WHERE c.poll_id = ?
-            ");
-            if ($candidate_stmt) {
-                $candidate_stmt->bind_param('i', $poll_id);
-                $candidate_stmt->execute();
-                $candidate_result = $candidate_stmt->get_result();
-                $candidates = [];
-                while ($candidate_row = $candidate_result->fetch_assoc()) {
+            // Build candidates from allowed_employee_ids (checked voters = candidates)
+            $allowed_ids_json = $row['allowed_employee_ids'] ?? '[]';
+            $allowed_ids_arr = json_decode($allowed_ids_json, true);
+            $candidates = [];
+            if (is_array($allowed_ids_arr) && count($allowed_ids_arr) > 0) {
+                foreach ($allowed_ids_arr as $idx => $emp_id) {
+                    $emp_id = (string)$emp_id;
+                    $name_stmt = $mysqli->prepare("SELECT name FROM users WHERE employee_id = ? LIMIT 1");
+                    if ($name_stmt) {
+                        $name_stmt->bind_param('s', $emp_id);
+                        $name_stmt->execute();
+                        $name_row = $name_stmt->get_result()->fetch_assoc();
+                        $name_stmt->close();
+                    }
                     $candidates[] = [
-                        'id' => $candidate_row['id'],
-                        'employee_id' => $candidate_row['employee_id'],
-                        'name' => $candidate_row['name'] ?? $candidate_row['employee_id'],
-                        'category' => $candidate_row['category']
+                        'id'          => $idx + 1, // virtual id for dropdown
+                        'employee_id' => $emp_id,
+                        'name'        => $name_row['name'] ?? $emp_id,
+                        'category'    => '',
                     ];
                 }
-                $candidate_stmt->close();
-                $row['candidates'] = $candidates;
             }
+            $row['candidates'] = $candidates;
             $polls[] = $row;
         }
         $stmt->close();
@@ -7784,12 +7784,13 @@ try {
             break;
         }
         
-        $poll_id = (int)($_POST['poll_id'] ?? 0);
-        $candidate_id = (int)($_POST['candidate_id'] ?? 0);
+        $poll_id            = (int)($_POST['poll_id'] ?? 0);
+        // candidate_employee_id is the employee_id string of the person being voted for
+        $candidate_employee_id = trim($_POST['candidate_employee_id'] ?? '');
         $eid = $user['employee_id'];
         
-        if ($poll_id <= 0 || $candidate_id <= 0) {
-            apiResponse(['success' => false, 'message' => 'Poll ID and Candidate ID required']);
+        if ($poll_id <= 0 || $candidate_employee_id === '') {
+            apiResponse(['success' => false, 'message' => 'Poll ID and Candidate Employee ID required']);
             break;
         }
         
@@ -7809,19 +7810,23 @@ try {
             break;
         }
         
-        // Check if user is allowed to vote
-        if (!empty($poll['allowed_employee_ids'])) {
-            $allowed_ids = json_decode($poll['allowed_employee_ids'], true);
-            if (!in_array($eid, $allowed_ids)) {
-                apiResponse(['success' => false, 'message' => 'អ្នកមិនមានសិទ្ធិបោះឆ្នោតសម្រាប់ការបោះឆ្នោតនេះទេ']);
-                break;
-            }
+        // Validate that candidate is in the allowed list
+        $allowed_ids_arr = json_decode($poll['allowed_employee_ids'] ?? '[]', true);
+        if (!is_array($allowed_ids_arr) || !in_array($candidate_employee_id, array_map('strval', $allowed_ids_arr))) {
+            apiResponse(['success' => false, 'message' => 'បេក្ខជននេះមិនស្ថិតក្នុងបញ្ជីការបោះឆ្នោតទេ']);
+            break;
+        }
+        
+        // Check if user is allowed to vote (must be in allowed list)
+        if (!in_array($eid, array_map('strval', $allowed_ids_arr))) {
+            apiResponse(['success' => false, 'message' => 'អ្នកមិនមានសិទ្ធិបោះឆ្នោតសម្រាប់ការបោះឆ្នោតនេះទេ']);
+            break;
         }
         
         // Check if user is excluded
         if (!empty($poll['excluded_employee_ids'])) {
             $excluded_ids = json_decode($poll['excluded_employee_ids'], true);
-            if (in_array($eid, $excluded_ids)) {
+            if (is_array($excluded_ids) && in_array($eid, array_map('strval', $excluded_ids))) {
                 apiResponse(['success' => false, 'message' => 'អ្នកមិនមានសិទ្ធិបោះឆ្នោតសម្រាប់ការបោះឆ្នោតនេះទេ']);
                 break;
             }
@@ -7841,32 +7846,21 @@ try {
             }
         }
         
-        // Check if candidate exists and belongs to this poll
-        $candidate_check = $mysqli->prepare("SELECT * FROM poll_candidates WHERE id = ? AND poll_id = ?");
-        if (!$candidate_check) {
-            apiResponse(['success' => false, 'message' => 'Database error: ' . $mysqli->error]);
-            break;
+        // Store vote — use candidate_id=0 (virtual) since we track by employee_id
+        $vote_stmt = $mysqli->prepare("INSERT INTO poll_votes (poll_id, voter_employee_id, candidate_id) VALUES (?, ?, 0)");
+        if (!$vote_stmt) {
+            // Try without candidate_id if schema doesn't support 0
+            $vote_stmt = $mysqli->prepare("INSERT INTO poll_votes (poll_id, voter_employee_id, candidate_employee_id) VALUES (?, ?, ?)");
         }
-        $candidate_check->bind_param('ii', $candidate_id, $poll_id);
-        $candidate_check->execute();
-        $candidate = $candidate_check->get_result()->fetch_assoc();
-        $candidate_check->close();
-        
-        if (!$candidate) {
-            apiResponse(['success' => false, 'message' => 'បេក្ខជនមិនមានក្នុងការបោះឆ្នោតនេះទេ']);
-            break;
-        }
-        
-        // Cast the vote
-        $vote_stmt = $mysqli->prepare("INSERT INTO poll_votes (poll_id, voter_employee_id, candidate_id) VALUES (?, ?, ?)");
         if (!$vote_stmt) {
             apiResponse(['success' => false, 'message' => 'Database error: ' . $mysqli->error]);
             break;
         }
-        $vote_stmt->bind_param('isi', $poll_id, $eid, $candidate_id);
+        $vote_stmt->bind_param('is', $poll_id, $eid);
         
         if ($vote_stmt->execute()) {
-            apiResponse(['success' => true, 'message' => 'បោះឆ្នោតបានជោគជ័យ!']);
+            // Update vote count on candidate (stored in allowed list, not poll_candidates)
+            apiResponse(['success' => true, 'message' => 'បោះឆ្នោតបានជោគជ័យ! អ្នកបានជ្រើសរើស ' . $candidate_employee_id]);
         } else {
             apiResponse(['success' => false, 'message' => 'មិនអាចបោះឆ្នោតបានទេ: ' . $mysqli->error]);
         }

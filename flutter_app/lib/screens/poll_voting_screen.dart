@@ -49,7 +49,7 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
     }
   }
 
-  Future<void> _castVote(int pollId, int candidateId) async {
+  Future<void> _castVote(int pollId, String candidateEmployeeId) async {
     // Show confirmation dialog
     final confirmed = await showDialog<bool>(
       context: context,
@@ -85,7 +85,7 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
     );
 
     try {
-      final response = await _api.castVote(pollId, candidateId);
+      final response = await _api.castVote(pollId, candidateEmployeeId);
 
       // Hide loading indicator
       if (!mounted) return;
@@ -225,7 +225,7 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
     final candidates = poll['candidates'] as List<dynamic>? ?? [];
     
     // State for dropdown selection
-    int? selectedCandidateId;
+    String? selectedCandidateEmployeeId;
 
     return StatefulBuilder(
       builder: (context, setState) {
@@ -311,10 +311,11 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
               const SizedBox(height: 16),
               if (candidates.isNotEmpty) ...[
                 Text(
-                  'ជ្រើសរើសបេក្ខជនដើម្បីបោះឆ្នោត:',
+                  'ជ្រើសរើសបេក្ខជន:',
                   style: GoogleFonts.kantumruyPro(
-                    fontWeight: FontWeight.bold,
                     color: AppTheme.textPrimary,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -323,10 +324,10 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
                   decoration: BoxDecoration(
                     color: AppTheme.bgDark,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppTheme.borderDark),
+                    border: Border.all(color: AppTheme.primary.withValues(alpha: 0.3)),
                   ),
-                  child: DropdownButton<int>(
-                    value: selectedCandidateId,
+                  child: DropdownButton<String>(
+                    value: selectedCandidateEmployeeId,
                     hint: Text(
                       'ជ្រើសរើសបេក្ខជន',
                       style: GoogleFonts.kantumruyPro(
@@ -339,46 +340,31 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
                       color: AppTheme.textPrimary,
                     ),
                     items: candidates.map((candidate) {
-                      final candidateId = candidate['id'] as int?;
-                      final name = candidate['name']?.toString() ?? candidate['employee_id']?.toString() ?? '';
-                      final category = candidate['category']?.toString() ?? '';
-                      return DropdownMenuItem<int>(
-                        value: candidateId,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              name,
-                              style: GoogleFonts.kantumruyPro(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            if (category.isNotEmpty)
-                              Text(
-                                category,
-                                style: GoogleFonts.kantumruyPro(
-                                  fontSize: 12,
-                                  color: AppTheme.helperTextColor,
-                                ),
-                              ),
-                          ],
+                      final empId = candidate['employee_id']?.toString() ?? '';
+                      final name = candidate['name']?.toString() ?? empId;
+                      return DropdownMenuItem<String>(
+                        value: empId,
+                        child: Text(
+                          name,
+                          style: GoogleFonts.kantumruyPro(
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       );
                     }).toList(),
                     onChanged: hasVoted ? null : (value) {
                       setState(() {
-                        selectedCandidateId = value;
+                        selectedCandidateEmployeeId = value;
                       });
                     },
                   ),
                 ),
                 const SizedBox(height: 12),
-                if (!hasVoted && selectedCandidateId != null)
+                if (!hasVoted && selectedCandidateEmployeeId != null && selectedCandidateEmployeeId!.isNotEmpty)
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: () => _castVote(poll['id'] as int? ?? 0, selectedCandidateId!),
+                      onPressed: () => _castVote(poll['id'] as int? ?? 0, selectedCandidateEmployeeId!),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppTheme.primary,
                         padding: const EdgeInsets.symmetric(vertical: 12),
