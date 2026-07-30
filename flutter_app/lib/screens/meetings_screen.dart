@@ -2740,38 +2740,50 @@ class _MeetingsScreenState extends State<MeetingsScreen>
           _isPlaying = !_isPlaying;
         });
         
-        if (_isPlaying) {
-          await _audioPlayerService.resume();
-        } else {
-          await _audioPlayerService.pause();
-        }
-        
-        // Sync with actual state
+        // Use unawaited to avoid blocking UI
+        unawaited(
+          (() async {
+            if (_isPlaying) {
+              await _audioPlayerService.resume();
+            } else {
+              await _audioPlayerService.pause();
+            }
+
+            // Sync with actual state after operation
+            if (mounted) {
+              setState(() {
+                _isPlaying = _audioPlayerService.isPlaying;
+              });
+            }
+          })()
+        );
+      } else {
+        // Immediate UI feedback for new audio - update state synchronously
         if (mounted) {
           setState(() {
-            _isPlaying = _audioPlayerService.isPlaying;
+            _isPlayerLoading = true;
+            _currentlyPlayingPath = path;
+            _position = Duration.zero;
+            _duration = Duration.zero;
+            _isPlaying = true; // Assume it will play
           });
         }
-      } else {
-        // Immediate UI feedback for new audio
-        setState(() {
-          _isPlayerLoading = true;
-          _currentlyPlayingPath = path;
-          _position = Duration.zero;
-          _duration = Duration.zero;
-          _isPlaying = true; // Assume it will play
-        });
         
-        await _audioPlayerService.playPath(
-          fullUrl,
-          title: title,
-          forceRemote: true,
-          displayPath: path,
+        // Play audio asynchronously without blocking UI
+        unawaited(
+          (() async {
+            await _audioPlayerService.playPath(
+              fullUrl,
+              title: title,
+              forceRemote: true,
+              displayPath: path,
+            );
+
+            if (mounted) {
+              setState(() => _isPlayerLoading = false);
+            }
+          })()
         );
-        
-        if (mounted) {
-          setState(() => _isPlayerLoading = false);
-        }
       }
     } catch (e) {
       if (mounted) {

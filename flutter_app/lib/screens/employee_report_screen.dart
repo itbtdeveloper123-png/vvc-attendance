@@ -747,11 +747,49 @@ class _EmployeeReportScreenState extends State<EmployeeReportScreen> {
               Expanded(
                 child: LayoutBuilder(
                   builder: (context, constraints) {
-                    // Responsive width: use screen width but capped at 600 for mobile, 800 for desktop
-                    final double containerWidth = constraints.maxWidth < 600 
-                        ? constraints.maxWidth - 40 
-                        : 800;
-                    final bool isMobile = constraints.maxWidth < 600;
+                    // A4 aspect ratio is approximately 0.707 (210mm x 297mm)
+                    // Calculate responsive width based on screen size
+                    final screenWidth = constraints.maxWidth;
+                    final screenHeight = constraints.maxHeight;
+                    
+                    // Validate screen dimensions
+                    if (!screenWidth.isFinite || screenWidth <= 0) {
+                      return const SizedBox.shrink();
+                    }
+                    
+                    // Calculate appropriate width for A4 form (landscape mode)
+                    double containerWidth = screenWidth;
+                    bool isMobile = screenWidth < 600;
+                    
+                    // For mobile, use screen width with some margin
+                    if (isMobile) {
+                      containerWidth = screenWidth - 32; // 16px margin on each side
+                    } else {
+                      // For desktop, cap at A4 width equivalent (around 800px for good viewing)
+                      final desktopWidth = screenWidth - 64;
+                      containerWidth = desktopWidth > 800 ? 800.0 : desktopWidth;
+                    }
+                    
+                    // Ensure minimum width for readability
+                    if (containerWidth < 320) containerWidth = 320;
+                    
+                    // Calculate height based on A4 aspect ratio
+                    double containerHeight = containerWidth / 0.707;
+                    
+                    // If height exceeds screen height, adjust width
+                    if (containerHeight > screenHeight) {
+                      containerHeight = screenHeight * 0.9;
+                      containerWidth = containerHeight * 0.707;
+                    }
+                    
+                    // Validate calculated values to prevent Infinity/NaN
+                    if (!containerWidth.isFinite || containerWidth <= 0 || containerWidth.isInfinite) {
+                      containerWidth = screenWidth > 600 ? 600.0 : screenWidth;
+                    }
+                    
+                    if (!containerHeight.isFinite || containerHeight <= 0 || containerHeight.isInfinite) {
+                      containerHeight = screenHeight * 0.7;
+                    }
                     
                     return InteractiveViewer(
                       constrained: false,
@@ -759,7 +797,7 @@ class _EmployeeReportScreenState extends State<EmployeeReportScreen> {
                         key: _previewKey,
                         child: Container(
                           color: Colors.white,
-                          padding: EdgeInsets.all(isMobile ? 16 : 24),
+                          padding: EdgeInsets.all(isMobile ? 12 : 20),
                           width: containerWidth,
                           child: _buildPrintableContent(isMobile: isMobile),
                         ),
@@ -840,33 +878,33 @@ class _EmployeeReportScreenState extends State<EmployeeReportScreen> {
   }
 
   Widget _buildPrintableContent({bool isMobile = false}) {
-    // Responsive font sizes based on screen width
+    // Responsive font sizes based on screen width - optimized for A4 landscape
     final titleStyle = GoogleFonts.kantumruyPro(
       color: const Color(0xFF1E3A8A),
-      fontSize: isMobile ? 16 : 20,
+      fontSize: isMobile ? 14 : 18,
       fontWeight: FontWeight.bold,
     );
     final dateStyle = GoogleFonts.kantumruyPro(
       color: const Color(0xFF1E3A8A),
-      fontSize: isMobile ? 12 : 14,
+      fontSize: isMobile ? 10 : 12,
     );
     final headingStyle = GoogleFonts.kantumruyPro(
       color: const Color(0xFF1E3A8A),
-      fontSize: isMobile ? 14 : 16,
+      fontSize: isMobile ? 12 : 14,
       fontWeight: FontWeight.bold,
     );
     final thStyle = GoogleFonts.kantumruyPro(
       color: Colors.white,
-      fontSize: isMobile ? 11 : 13,
+      fontSize: isMobile ? 9 : 11,
       fontWeight: FontWeight.bold,
     );
     final tdStyle = GoogleFonts.kantumruyPro(
       color: Colors.black87,
-      fontSize: isMobile ? 11 : 13,
+      fontSize: isMobile ? 9 : 11,
     );
     final tdBoldStyle = GoogleFonts.kantumruyPro(
       color: Colors.black,
-      fontSize: isMobile ? 11 : 13,
+      fontSize: isMobile ? 9 : 11,
       fontWeight: FontWeight.bold,
     );
 
