@@ -224,7 +224,7 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
     final hasVoted = poll['has_voted'] == true;
     final candidates = poll['candidates'] as List<dynamic>? ?? [];
     
-    // State for dropdown selection
+    // State for checkbox selection
     String? selectedCandidateEmployeeId;
 
     return StatefulBuilder(
@@ -319,46 +319,44 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  decoration: BoxDecoration(
-                    color: AppTheme.bgDark,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppTheme.primary.withValues(alpha: 0.3)),
-                  ),
-                  child: DropdownButton<String>(
-                    value: selectedCandidateEmployeeId,
-                    hint: Text(
-                      'ជ្រើសរើសបេក្ខជន',
-                      style: GoogleFonts.kantumruyPro(
-                        color: AppTheme.helperTextColor,
+                ...candidates.map((candidate) {
+                  final empId = candidate['employee_id']?.toString() ?? '';
+                  final name = candidate['name']?.toString() ?? empId;
+                  final isSelected = selectedCandidateEmployeeId == empId;
+                  
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    decoration: BoxDecoration(
+                      color: isSelected 
+                          ? AppTheme.primary.withValues(alpha: 0.1)
+                          : AppTheme.bgDark,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: isSelected 
+                            ? AppTheme.primary
+                            : AppTheme.borderDark,
                       ),
                     ),
-                    isExpanded: true,
-                    dropdownColor: AppTheme.bgCard,
-                    style: GoogleFonts.kantumruyPro(
-                      color: AppTheme.textPrimary,
-                    ),
-                    items: candidates.map((candidate) {
-                      final empId = candidate['employee_id']?.toString() ?? '';
-                      final name = candidate['name']?.toString() ?? empId;
-                      return DropdownMenuItem<String>(
-                        value: empId,
-                        child: Text(
-                          name,
-                          style: GoogleFonts.kantumruyPro(
-                            fontWeight: FontWeight.bold,
-                          ),
+                    child: CheckboxListTile(
+                      value: isSelected,
+                      onChanged: hasVoted ? null : (value) {
+                        setState(() {
+                          selectedCandidateEmployeeId = value == true ? empId : null;
+                        });
+                      },
+                      title: Text(
+                        name,
+                        style: GoogleFonts.kantumruyPro(
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.textPrimary,
                         ),
-                      );
-                    }).toList(),
-                    onChanged: hasVoted ? null : (value) {
-                      setState(() {
-                        selectedCandidateEmployeeId = value;
-                      });
-                    },
-                  ),
-                ),
+                      ),
+                      controlAffinity: ListTileControlAffinity.leading,
+                      activeColor: AppTheme.primary,
+                      checkColor: Colors.white,
+                    ),
+                  );
+                }).toList(),
                 const SizedBox(height: 12),
                 if (!hasVoted && selectedCandidateEmployeeId != null && selectedCandidateEmployeeId!.isNotEmpty)
                   SizedBox(
