@@ -91,10 +91,36 @@ post_install do |installer|
       # Unified deployment target — 17.0 required by google_mlkit_commons 0.12.0
       # (MLKitCommon 10.x requires iOS 17.0 minimum as of 2025-2026)
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '17.0'
-      
-      # Suppress compiler warnings for pods to speed up CI
+
+      # Suppress compiler warnings globally for pods to speed up CI
       config.build_settings['GCC_WARN_INHIBIT_ALL_WARNINGS'] = 'YES'
       config.build_settings['SWIFT_SUPPRESS_WARNINGS'] = 'YES'
+
+      # Fix BoringSSL-GRPC / gRPC-Core compile errors on Xcode 16.
+      # These pods use -Werror which turns deprecation/unreachable-code warnings
+      # into fatal errors. We strip -Werror and problematic warning flags from
+      # OTHER_CFLAGS so the build can proceed without modifying pod sources.
+      if target.name == 'BoringSSL-GRPC' || target.name == 'gRPC-Core'
+        target.source_build_phase.files.each do |file|
+          if file.settings && file.settings['COMPILER_FLAGS']
+            flags = file.settings['COMPILER_FLAGS'].split
+            flags.reject! { |f| f == '-Werror' }
+            flags.reject! { |f| f == '-Wall' }
+            file.settings['COMPILER_FLAGS'] = flags.join(' ')
+          end
+        end
+
+        config.build_settings['GCC_WARN_INHIBIT_ALL_WARNINGS'] = 'YES'
+        config.build_settings['CLANG_WARN_DOCUMENTATION_COMMENTS'] = 'NO'
+
+        # Remove -Werror from OTHER_CFLAGS if present
+        cflags = config.build_settings['OTHER_CFLAGS'] || '$(inherited)'
+        cflags = [cflags].flatten
+        cflags = cflags.reject { |f| f == '-Werror' }
+        cflags = cflags.reject { |f| f =~ /^-Wno-/ && f != '-Wno-everything' }
+        cflags << '-Wno-everything'
+        config.build_settings['OTHER_CFLAGS'] = cflags
+      end
     end
   end
 end
