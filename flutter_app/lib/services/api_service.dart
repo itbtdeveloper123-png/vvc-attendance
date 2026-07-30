@@ -95,7 +95,9 @@ class ApiService {
       };
       
       dioClient.httpClientAdapter = IOHttpClientAdapter(
-        httpClient: httpClient,
+        createHttpClient: () {
+          return httpClient;
+        },
       );
     }
     

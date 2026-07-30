@@ -268,15 +268,15 @@ class A5FormRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       crossAxisAlignment: crossAxisAlignment,
-      children: children
-          .map((child) => Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.only(right: 12),
-                  child: child,
-                ),
-              ))
-          .toList()
-        ..last.padding = EdgeInsets.zero,
+      children: List.generate(children.length, (index) {
+        final isLast = index == children.length - 1;
+        return Expanded(
+          child: Padding(
+            padding: EdgeInsets.only(right: isLast ? 0 : 12),
+            child: children[index],
+          ),
+        );
+      }),
     );
   }
 }

@@ -161,7 +161,7 @@ class _A5RequestFormScreenState extends State<A5RequestFormScreen> {
                     // Request Type Section
                     A5FormSection(
                       title: 'ប្រភេទសំណើ (Request Type)',
-                      icon: Icons.list_check,
+                      icon: Icons.checklist,
                       isRequired: true,
                       children: [
                         A5RequestTypeCheckboxGroup(
@@ -410,7 +410,7 @@ class _A5RequestFormScreenState extends State<A5RequestFormScreen> {
               Expanded(
                 child: ElevatedButton.icon(
                   onPressed: _fillSampleData,
-                  icon: const Icon(Icons.fill_drip, size: 20),
+                  icon: const Icon(Icons.edit, size: 20),
                   label: Text(
                     'បំពេញទិន្នន័យឧទាហរណ៍',
                     style: GoogleFonts.battambang(fontSize: 12),

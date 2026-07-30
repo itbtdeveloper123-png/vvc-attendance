@@ -1,0 +1,13 @@
+﻿2026-07-30T01:27:57.2266400Z ##[group]Run cp ios/Flutter/MapsApiKey.example.xcconfig ios/Flutter/MapsApiKey.xcconfig 2>/dev/null || echo "No MapsApiKey.example.xcconfig found, skipping"
+2026-07-30T01:27:57.2267980Z [36;1mcp ios/Flutter/MapsApiKey.example.xcconfig ios/Flutter/MapsApiKey.xcconfig 2>/dev/null || echo "No MapsApiKey.example.xcconfig found, skipping"[0m
+2026-07-30T01:27:57.2268690Z [36;1mif [ ! -z "$GOOGLE_MAPS_API_KEY" ]; then[0m
+2026-07-30T01:27:57.2280560Z [36;1m  echo "Injecting Google Maps API Key from Secrets"[0m
+2026-07-30T01:27:57.2281000Z [36;1m  echo "GOOGLE_MAPS_API_KEY=$GOOGLE_MAPS_API_KEY" > ios/Flutter/MapsApiKey.xcconfig[0m
+2026-07-30T01:27:57.2281420Z [36;1mfi[0m
+2026-07-30T01:27:57.2281800Z [36;1mcp web/config.example.js web/config.js 2>/dev/null || echo "No config.example.js found, skipping"[0m
+2026-07-30T01:27:57.2318890Z shell: /bin/bash -e {0}
+2026-07-30T01:27:57.2319120Z env:
+2026-07-30T01:27:57.2319860Z   FLUTTER_ROOT: /Users/runner/hostedtoolcache/flutter/stable-3.44.8-arm64/flutter
+2026-07-30T01:27:57.2320290Z   PUB_CACHE: /Users/runner/.pub-cache
+2026-07-30T01:27:57.2320520Z   GOOGLE_MAPS_API_KEY: 
+2026-07-30T01:27:57.2320730Z ##[endgroup]

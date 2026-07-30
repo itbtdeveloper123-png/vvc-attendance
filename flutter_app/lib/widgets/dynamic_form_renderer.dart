@@ -560,7 +560,7 @@ class _DynamicFormRendererState extends State<DynamicFormRenderer> {
       padding: const EdgeInsets.only(bottom: 16),
       child: A5FormSection(
         title: field.fieldLabel,
-        icon: Icons.list_check,
+        icon: Icons.checklist,
         isRequired: field.required,
         children: [
           A5RequestTypeCheckboxGroup(

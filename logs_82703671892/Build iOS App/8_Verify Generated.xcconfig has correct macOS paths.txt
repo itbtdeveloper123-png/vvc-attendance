@@ -1,0 +1,32 @@
+﻿2026-07-30T01:27:59.3999690Z ##[group]Run echo "=== Generated.xcconfig content ==="
+2026-07-30T01:27:59.4000110Z [36;1mecho "=== Generated.xcconfig content ==="[0m
+2026-07-30T01:27:59.4000380Z [36;1mcat Generated.xcconfig[0m
+2026-07-30T01:27:59.4000580Z [36;1mecho ""[0m
+2026-07-30T01:27:59.4000790Z [36;1mif grep -q "E:\\\\" Generated.xcconfig; then[0m
+2026-07-30T01:27:59.4001190Z [36;1m  echo "ERROR: Generated.xcconfig contains Windows paths! Remove it from Git."[0m
+2026-07-30T01:27:59.4001590Z [36;1m  exit 1[0m
+2026-07-30T01:27:59.4001730Z [36;1mfi[0m
+2026-07-30T01:27:59.4002020Z [36;1mecho "✅ Generated.xcconfig paths correct for macOS CI"[0m
+2026-07-30T01:27:59.4045430Z shell: /bin/bash -e {0}
+2026-07-30T01:27:59.4045660Z env:
+2026-07-30T01:27:59.4046360Z   FLUTTER_ROOT: /Users/runner/hostedtoolcache/flutter/stable-3.44.8-arm64/flutter
+2026-07-30T01:27:59.4047940Z   PUB_CACHE: /Users/runner/.pub-cache
+2026-07-30T01:27:59.4048160Z ##[endgroup]
+2026-07-30T01:27:59.4386570Z === Generated.xcconfig content ===
+2026-07-30T01:27:59.4427800Z // This is a generated file; do not edit or check into version control.
+2026-07-30T01:27:59.4428920Z FLUTTER_ROOT=/Users/runner/hostedtoolcache/flutter/stable-3.44.8-arm64/flutter
+2026-07-30T01:27:59.4429490Z FLUTTER_APPLICATION_PATH=/Users/runner/work/vvc-attendance/vvc-attendance/flutter_app
+2026-07-30T01:27:59.4430190Z FLUTTER_FRAMEWORK_SWIFT_PACKAGE_PATH=/Users/runner/work/vvc-attendance/vvc-attendance/flutter_app/ios/Flutter/ephemeral/Packages/.packages/FlutterFramework
+2026-07-30T01:27:59.4430810Z COCOAPODS_PARALLEL_CODE_SIGN=true
+2026-07-30T01:27:59.4431290Z FLUTTER_TARGET=lib/main.dart
+2026-07-30T01:27:59.4431530Z FLUTTER_BUILD_DIR=build
+2026-07-30T01:27:59.4431760Z FLUTTER_BUILD_NAME=1.1.10
+2026-07-30T01:27:59.4432000Z FLUTTER_BUILD_NUMBER=2604304
+2026-07-30T01:27:59.4432500Z EXCLUDED_ARCHS[sdk=iphonesimulator*]=i386
+2026-07-30T01:27:59.4432800Z EXCLUDED_ARCHS[sdk=iphoneos*]=armv7
+2026-07-30T01:27:59.4433010Z DART_OBFUSCATION=false
+2026-07-30T01:27:59.4433210Z TRACK_WIDGET_CREATION=true
+2026-07-30T01:27:59.4433420Z TREE_SHAKE_ICONS=false
+2026-07-30T01:27:59.4433630Z PACKAGE_CONFIG=.dart_tool/package_config.json
+2026-07-30T01:27:59.4433820Z 
+2026-07-30T01:27:59.4488360Z ✅ Generated.xcconfig paths correct for macOS CI
