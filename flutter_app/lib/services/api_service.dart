@@ -63,46 +63,6 @@ class ApiService {
     
     return IOClient(ioClient);
   }
-  
-  static dio.Dio _buildDioClient({bool forceIPv4 = false}) {
-    if (kIsWeb) {
-      return dio.Dio();
-    }
-    
-    final dioClient = dio.Dio();
-    
-    // Configure timeout
-    dioClient.options.connectTimeout = const Duration(seconds: 15);
-    dioClient.options.receiveTimeout = const Duration(seconds: 30);
-    dioClient.options.sendTimeout = const Duration(seconds: 15);
-    
-    // Create HTTP adapter with SSL configuration
-    if (!kIsWeb) {
-      final httpClient = HttpClient();
-      httpClient.badCertificateCallback =
-          (X509Certificate cert, String host, int port) {
-        if (host == '104.21.2.219' ||
-            host == '172.67.129.187' ||
-            host == 'app.vvc.asia' ||
-            host == 'vvc.asia') {
-          if (cert.issuer.contains('Cloudflare') || 
-              cert.issuer.contains('Let\'s Encrypt') ||
-              cert.subject.contains('vvc.asia')) {
-            return true;
-          }
-        }
-        return false;
-      };
-      
-      dioClient.httpClientAdapter = IOHttpClientAdapter(
-        createHttpClient: () {
-          return httpClient;
-        },
-      );
-    }
-    
-    return dioClient;
-  }
 
   static bool _isSocketBindError(Object e) {
     final s = e.toString();

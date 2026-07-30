@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:io';
 
 /// Service for managing dynamic app icons based on themes
 /// Similar to Acleda Bank's seasonal icon system

@@ -248,30 +248,6 @@ class _TripScreenState extends State<TripScreen>
     }
   }
 
-  LocationSettings _buildLocationSettings({
-    LocationAccuracy accuracy = LocationAccuracy.bestForNavigation,
-    int distanceFilter = 5,
-  }) {
-    if (defaultTargetPlatform == TargetPlatform.android) {
-      return AndroidSettings(
-        accuracy: accuracy,
-        distanceFilter: distanceFilter,
-        intervalDuration: const Duration(seconds: 10),
-        forceLocationManager: false,
-      );
-    }
-    if (defaultTargetPlatform == TargetPlatform.iOS) {
-      return AppleSettings(
-        accuracy: accuracy,
-        activityType: ActivityType.automotiveNavigation,
-        distanceFilter: distanceFilter,
-        pauseLocationUpdatesAutomatically: false,
-        showBackgroundLocationIndicator: true,
-      );
-    }
-    return LocationSettings(accuracy: accuracy, distanceFilter: distanceFilter);
-  }
-
   Future<bool> _ensureTripLocationPermissions() async {
     final serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
