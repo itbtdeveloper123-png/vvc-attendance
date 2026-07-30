@@ -9,7 +9,6 @@ import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import '../services/api_service.dart';
 import '../utils/app_theme.dart';
 import '../widgets/app_widgets.dart';
-import '../widgets/khmer_lunar_calendar_card.dart';
 import 'mission_detail_screen.dart';
 
 class MissionScreen extends StatefulWidget {
@@ -1017,14 +1016,6 @@ class _MissionScreenState extends State<MissionScreen> {
               color: AppTheme.textPrimary,
             ),
           ),
-        ),
-        const SizedBox(height: 12),
-        KhmerLunarCalendarCard(
-          initialDate: _khmerDate,
-          isModal: false,
-          onDateSelected: (selectedDate) {
-            _updateKhmerDateFields(selectedDate);
-          },
         ),
         const SizedBox(height: 12),
         Text(
