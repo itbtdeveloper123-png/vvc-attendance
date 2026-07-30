@@ -69,7 +69,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: flutter_app/ios/Pods
-          key: ios-pods-${{ runner.os }}-${{ hashFiles('flutter_app/ios/Podfile.lock') }}
+          key: ios-pods-${{ runner.os }}-${{ hashFiles('flutter_app/ios/Podfile.lock', 'flutter_app/ios/Podfile') }}
           restore-keys: |
             ios-pods-${{ runner.os }}-
 
@@ -77,7 +77,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ~/Library/Developer/Xcode/DerivedData
-          key: ios-deriveddata-${{ runner.os }}-${{ hashFiles('flutter_app/ios/Podfile.lock') }}
+          key: ios-deriveddata-${{ runner.os }}-${{ hashFiles('flutter_app/ios/Podfile.lock', 'flutter_app/ios/Podfile') }}
           restore-keys: |
             ios-deriveddata-${{ runner.os }}-
 
