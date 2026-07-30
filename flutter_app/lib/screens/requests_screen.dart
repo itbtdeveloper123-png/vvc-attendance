@@ -10,7 +10,6 @@ import 'forget_scan_screen.dart';
 import 'late_request_screen.dart';
 import 'change_day_off_screen.dart';
 import 'request_list_screen.dart';
-import 'a5_request_form_screen.dart';
 
 class RequestsScreen extends StatelessWidget {
   const RequestsScreen({super.key});
@@ -142,13 +141,6 @@ class RequestsScreen extends StatelessWidget {
         icon: Icons.swap_horiz_rounded,
         color: Colors.tealAccent,
         screen: const ChangeDayOffScreen(),
-      ),
-      _RequestItem(
-        title: "A5 Request Form Test",
-        subtitle: "សាកល្បងសំណើទម្រង់ A5 ជាមួយ Checkbox",
-        icon: Icons.description_rounded,
-        color: Colors.blueAccent,
-        screen: const A5RequestFormScreen(),
       ),
     ];
 

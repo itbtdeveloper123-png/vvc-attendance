@@ -1685,18 +1685,38 @@ class _RequestListScreenState extends State<RequestListScreen> {
 
     return Material(
       color: AppTheme.textPrimary,
-      child: Container(
-        width: 450, // Adjusted for A5
-        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 10),
-        child: Container(
-          // Outer document frame
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.black, width: 1.5),
-            borderRadius: BorderRadius.circular(2),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // A5 aspect ratio is approximately 0.704 (148mm x 210mm)
+          // Calculate width based on screen size while maintaining aspect ratio
+          final screenWidth = constraints.maxWidth;
+          final maxHeight = constraints.maxHeight;
+          
+          // Calculate appropriate width for A5 form
+          double formWidth = screenWidth;
+          double formHeight = formWidth / 0.704; // A5 aspect ratio
+          
+          // If height exceeds screen height, adjust width
+          if (formHeight > maxHeight) {
+            formHeight = maxHeight * 0.9; // Leave some margin
+            formWidth = formHeight * 0.704;
+          }
+          
+          // Ensure minimum width for readability
+          if (formWidth < 320) formWidth = 320;
+          
+          return Container(
+            width: formWidth,
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 10),
+            child: Container(
+              // Outer document frame
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.black, width: 1.5),
+                borderRadius: BorderRadius.circular(2),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Header
               Column(
@@ -1794,116 +1814,124 @@ class _RequestListScreenState extends State<RequestListScreen> {
               const SizedBox(height: 12),
 
               // Main Table (Enlarged and Full Width)
-              Table(
-                border: TableBorder.all(color: Colors.black, width: 1.0),
-                columnWidths: const {
-                  0: FlexColumnWidth(1.2),
-                  1: FlexColumnWidth(1.4),
-                  2: FlexColumnWidth(1.2),
-                  3: FlexColumnWidth(1.0),
-                  4: FlexColumnWidth(0.6),
-                },
-                children: [
-                  _buildTablePremiumRow([
-                    "ឈ្មោះអ្នកស្នើសុំ៖",
-                    item['requester_name'] ?? 'N/A',
-                    "ចំនួនថ្ងៃ/ច្បាប់នៅសល់៖",
-                    "${item['number_of_days'] ?? '0'} ថ្ងៃ",
-                    "N/A ថ្ងៃ",
-                  ]),
-                  _buildTablePremiumRow([
-                    "ផ្នែក/មុខតំណែង/សាខា៖",
-                    item['department'] ?? 'N/A',
-                    item['position'] ?? 'N/A',
-                    item['branch'] ?? 'N/A',
-                    "",
-                  ]),
-                  _buildTablePremiumRow([
-                    "ថ្ងៃខែឆ្នាំសុំឈប់៖",
-                    formatD(item['request_date']),
-                    "ចំនួនម៉ោងយឺត/ចេញមុន៖",
-                    item['late_hours']?.toString() ?? 'N/A',
-                    "",
-                  ]),
-                  _buildTablePremiumRow([
-                    "ថ្ងៃចូលធ្វើការវិញ៖",
-                    formatD(item['return_date']),
-                    "ភ្លេចស្កេនមេដៃ៖",
-                    item['forgot_scan_in']?.toString() ?? 'N/A',
-                    item['forgot_scan_out']?.toString() ?? 'N/A',
-                  ]),
-                  _buildTablePremiumRow([
-                    "ម៉ោងចេញចូល៖",
-                    "ចូល៖ ${formatT(item['time_in'])}",
-                    "ចេញ៖ ${formatT(item['time_out'])}",
-                    "សរុប៖ ${item['total_hours'] ?? 'N/A'}",
-                    "",
-                  ]),
-                  _buildTablePremiumRow([
-                    "ម៉ោងធ្វើការសងវិញ៖",
-                    "ចូលសង៖ ${formatT(item['repay_time_in'])}",
-                    "ចេញសង៖ ${formatT(item['repay_time_out'])}",
-                    "សរុប៖ ${item['repay_total_hours'] ?? 'N/A'}",
-                    "",
-                  ]),
-                  _buildTablePremiumRow(
-                    ["មូលហេតុ៖", item['reason'] ?? 'N/A', "", "", ""],
-                    colSpans: [1, 4],
-                  ),
-                  _buildTablePremiumRow(
-                    [
-                      "ទីកន្លែងអំឡុងពេលឈប់៖",
-                      item['location'] ?? 'N/A',
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Table(
+                  border: TableBorder.all(color: Colors.black, width: 1.0),
+                  columnWidths: {
+                    0: const FlexColumnWidth(1.2),
+                    1: const FlexColumnWidth(1.4),
+                    2: const FlexColumnWidth(1.2),
+                    3: const FlexColumnWidth(1.0),
+                    4: const FlexColumnWidth(0.6),
+                  },
+                  children: [
+                    _buildTablePremiumRow([
+                      "ឈ្មោះអ្នកស្នើសុំ៖",
+                      item['requester_name'] ?? 'N/A',
+                      "ចំនួនថ្ងៃ/ច្បាប់នៅសល់៖",
+                      "${item['number_of_days'] ?? '0'} ថ្ងៃ",
+                      "N/A ថ្ងៃ",
+                    ]),
+                      _buildTablePremiumRow([
+                      "ផ្នែក/មុខតំណែង/សាខា៖",
+                      item['department'] ?? 'N/A',
+                      item['position'] ?? 'N/A',
+                      item['branch'] ?? 'N/A',
                       "",
+                    ]),
+                      _buildTablePremiumRow([
+                      "ថ្ងៃខែឆ្នាំសុំឈប់៖",
+                      formatD(item['request_date']),
+                      "ចំនួនម៉ោងយឺត/ចេញមុន៖",
+                      item['late_hours']?.toString() ?? 'N/A',
                       "",
+                    ]),
+                      _buildTablePremiumRow([
+                      "ថ្ងៃចូលធ្វើការវិញ៖",
+                      formatD(item['return_date']),
+                      "ភ្លេចស្កេនមេដៃ៖",
+                      item['forgot_scan_in']?.toString() ?? 'N/A',
+                      item['forgot_scan_out']?.toString() ?? 'N/A',
+                    ]),
+                      _buildTablePremiumRow([
+                      "ម៉ោងចេញចូល៖",
+                      "ចូល៖ ${formatT(item['time_in'])}",
+                      "ចេញ៖ ${formatT(item['time_out'])}",
+                      "សរុប៖ ${item['total_hours'] ?? 'N/A'}",
                       "",
-                    ],
-                    colSpans: [1, 4],
-                  ),
-                  _buildTablePremiumRow([
-                    "ទំនាក់ទំនងបន្ទាន់៖",
-                    formatP(item['contact_number']),
-                    "ប្រគល់ការងារឱ្យ៖",
-                    item['assigned_to'] ?? 'N/A',
-                    "",
-                  ]),
-                ],
-              ),
+                    ]),
+                      _buildTablePremiumRow([
+                      "ម៉ោងធ្វើការសងវិញ៖",
+                      "ចូលសង៖ ${formatT(item['repay_time_in'])}",
+                      "ចេញសង៖ ${formatT(item['repay_time_out'])}",
+                      "សរុប៖ ${item['repay_total_hours'] ?? 'N/A'}",
+                      "",
+                    ]),
+                    _buildTablePremiumRow(
+                      ["មូលហេតុ៖", item['reason'] ?? 'N/A', "", "", ""],
+                      colSpans: [1, 4],
+                    ),
+                    _buildTablePremiumRow(
+                      [
+                        "ទីកន្លែងអំឡុងពេលឈប់៖",
+                        item['location'] ?? 'N/A',
+                        "",
+                        "",
+                        "",
+                      ],
+                      colSpans: [1, 4],
+                    ),
+                    _buildTablePremiumRow([
+                      "ទំនាក់ទំនងបន្ទាន់៖",
+                      formatP(item['contact_number']),
+                      "ប្រគល់ការងារឱ្យ៖",
+                      item['assigned_to'] ?? 'N/A',
+                      "",
+                    ]),
+                  ],
+                ),
+                ),
 
               const SizedBox(height: 20),
 
               // Signatures Table Footer (High Contrast)
-              Table(
-                border: TableBorder.all(color: Colors.black, width: 1.2),
-                children: [
-                  TableRow(
-                    children: [
-                      _headerCell("បញ្ជាក់/អនុម័តដោយ"),
-                      _headerCell("ឈ្មោះ (Name)"),
-                      _headerCell("ហត្ថលេខា (Signature)"),
-                      _headerCell("ថ្ងៃខែឆ្នាំ (Date)"),
-                    ],
-                  ),
-                  _signatureRowWidget(
-                    "អ្នកស្នើសុំ",
-                    item['requester_name'] ?? 'N/A',
-                    reqSigBytes,
-                    formatD(item['signature_date'] ?? item['request_date']),
-                  ),
-                  _signatureRowWidget(
-                    "ប្រធានផ្នែក",
-                    item['department_head_name'] ?? '',
-                    deptSigBytes,
-                    formatD(item['department_head_signature_date']),
-                  ),
-                  _signatureRowWidget("ប្រធានធនធានមនុស្ស", "", null, ""),
-                  _signatureRowWidget("ប្រធានគ្រប់គ្រងទូទៅ", "", null, ""),
-                  _signatureRowWidget("អគ្គនាយិកា", "", null, ""),
-                ],
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Table(
+                  border: TableBorder.all(color: Colors.black, width: 1.2),
+                  children: [
+                    TableRow(
+                      children: [
+                        _headerCell("បញ្ជាក់/អនុម័តដោយ"),
+                        _headerCell("ឈ្មោះ (Name)"),
+                        _headerCell("ហត្ថលេខា (Signature)"),
+                        _headerCell("ថ្ងៃខែឆ្នាំ (Date)"),
+                      ],
+                    ),
+                    _signatureRowWidget(
+                      "អ្នកស្នើសុំ",
+                      item['requester_name'] ?? 'N/A',
+                      reqSigBytes,
+                      formatD(item['signature_date'] ?? item['request_date']),
+                    ),
+                    _signatureRowWidget(
+                      "ប្រធានផ្នែក",
+                      item['department_head_name'] ?? '',
+                      deptSigBytes,
+                      formatD(item['department_head_signature_date']),
+                    ),
+                    _signatureRowWidget("ប្រធានធនធានមនុស្ស", "", null, ""),
+                    _signatureRowWidget("ប្រធានគ្រប់គ្រងទូទៅ", "", null, ""),
+                    _signatureRowWidget("អគ្គនាយិកា", "", null, ""),
+                  ],
+                ),
               ),
-            ],
+              ],
+            ),
           ),
-        ),
+          );
+        },
       ),
     );
   }
