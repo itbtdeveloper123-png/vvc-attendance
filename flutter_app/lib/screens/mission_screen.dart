@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:flutter_khmer_chankitec/flutter_khmer_chankitec.dart';
@@ -69,16 +68,6 @@ class _MissionScreenState extends State<MissionScreen> {
     'តុលា',
     'វិច្ឆិកា',
     'ធ្នូ',
-  ];
-
-  static const _khmerDays = [
-    'អាទិត្យ',
-    'ចន្ទ',
-    'អង្គារ',
-    'ពុធ',
-    'ព្រហស្បតិ៍',
-    'សុក្រ',
-    'សៅរ៍',
   ];
 
   @override
