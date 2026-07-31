@@ -56,6 +56,7 @@ class DocumentScannerCard extends StatelessWidget {
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
                         "ស្កេនឯកសារ",
@@ -64,6 +65,8 @@ class DocumentScannerCard extends StatelessWidget {
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                       Text(
                         "ស្កេនឯកសារអាជីព",
@@ -71,6 +74,8 @@ class DocumentScannerCard extends StatelessWidget {
                           color: AppTheme.primaryLight,
                           fontSize: 13,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
@@ -106,6 +111,8 @@ class DocumentScannerCard extends StatelessWidget {
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ],
                       ),
@@ -136,6 +143,8 @@ class DocumentScannerCard extends StatelessWidget {
                         color: AppTheme.textSecondary,
                         fontSize: 13,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   Icon(

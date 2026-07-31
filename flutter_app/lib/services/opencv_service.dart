@@ -74,7 +74,8 @@ class OpenCVService {
         gray.dispose();
         blurred.dispose();
         edges.dispose();
-        throw Exception('Could not find document corners');
+        // Return empty list to indicate edge detection failed
+        return [];
       }
 
       // Extract the 4 corner points
@@ -92,7 +93,8 @@ class OpenCVService {
 
       return corners;
     } catch (e) {
-      throw Exception('Edge detection failed: $e');
+      // Return empty list on failure instead of throwing exception
+      return [];
     }
   }
 
@@ -103,7 +105,12 @@ class OpenCVService {
   /// 2. Within each side, sort by y-coordinate to get top and bottom
   static List<cv.Point> orderCornerPoints(List<cv.Point> corners) {
     if (corners.length != 4) {
-      throw Exception('Exactly 4 corner points required');
+      // If we don't have exactly 4 corners, try to handle gracefully
+      if (corners.length == 0) {
+        return [];
+      }
+      // If we have some corners but not 4, return as-is for fallback
+      return corners;
     }
 
     // Sort by x-coordinate

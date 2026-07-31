@@ -139,6 +139,25 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
       // Detect document edges using OpenCV
       final corners = await OpenCVService.detectDocumentEdges(_originalImagePath!);
       
+      // If edge detection failed (empty corners), use original image
+      if (corners.isEmpty) {
+        // Skip edge detection and use original image
+        final resizedPath = await _getTempFilePath('jpg');
+        await OpenCVService.resizeImage(
+          _originalImagePath!,
+          resizedPath,
+          maxWidth: 2000,
+        );
+
+        setState(() {
+          _croppedImagePath = resizedPath;
+          _filteredImagePath = resizedPath;
+          _currentStep = ScannerStep.filterSelection;
+          _isProcessing = false;
+        });
+        return;
+      }
+      
       // Apply perspective transform to crop and straighten
       final croppedPath = await _getTempFilePath('jpg');
       await OpenCVService.perspectiveTransform(
