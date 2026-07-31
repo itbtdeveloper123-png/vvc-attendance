@@ -104,11 +104,12 @@ class OpenCVService {
   /// 1. Sort points by x-coordinate to separate left and right sides
   /// 2. Within each side, sort by y-coordinate to get top and bottom
   static List<cv.Point> orderCornerPoints(List<cv.Point> corners) {
+    if (corners.isEmpty) {
+      return [];
+    }
+    
     if (corners.length != 4) {
       // If we don't have exactly 4 corners, try to handle gracefully
-      if (corners.length == 0) {
-        return [];
-      }
       // If we have some corners but not 4, return as-is for fallback
       return corners;
     }
@@ -155,6 +156,11 @@ class OpenCVService {
       // Order the corner points
       final orderedCorners = orderCornerPoints(corners);
 
+      // Validate that we have exactly 4 corners for perspective transform
+      if (orderedCorners.length != 4) {
+        throw Exception('Perspective transform requires exactly 4 corner points, got ${orderedCorners.length}');
+      }
+
       // Calculate width and height of the destination image
       // Width is the maximum distance between top corners and bottom corners
       final widthTop = _distance(orderedCorners[0], orderedCorners[1]);
@@ -165,6 +171,11 @@ class OpenCVService {
       final heightLeft = _distance(orderedCorners[0], orderedCorners[3]);
       final heightRight = _distance(orderedCorners[1], orderedCorners[2]);
       final maxHeight = [heightLeft, heightRight].reduce((a, b) => a > b ? a : b);
+
+      // Validate calculated dimensions
+      if (maxWidth <= 0 || maxHeight <= 0 || !maxWidth.isFinite || !maxHeight.isFinite) {
+        throw Exception('Invalid calculated dimensions: width=$maxWidth, height=$maxHeight');
+      }
 
       // Destination points (rectangle)
       final dstPoints = [
@@ -181,6 +192,11 @@ class OpenCVService {
       final dstPointsVec = cv.VecPoint.fromList(
         dstPoints.map((p) => cv.Point(p.x.toInt(), p.y.toInt())).toList(),
       );
+
+      // Validate point vectors
+      if (srcPoints.length != 4 || dstPointsVec.length != 4) {
+        throw Exception('Invalid point vectors: src=${srcPoints.length}, dst=${dstPointsVec.length}');
+      }
 
       // Get perspective transform matrix
       final matrix = cv.getPerspectiveTransform(srcPoints, dstPointsVec);
@@ -202,6 +218,7 @@ class OpenCVService {
 
       return outputPath;
     } catch (e) {
+      // Re-throw with more context
       throw Exception('Perspective transform failed: $e');
     }
   }

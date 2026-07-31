@@ -159,33 +159,69 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
       }
       
       // Apply perspective transform to crop and straighten
-      final croppedPath = await _getTempFilePath('jpg');
-      await OpenCVService.perspectiveTransform(
-        _originalImagePath!,
-        corners,
-        croppedPath,
-      );
+      try {
+        final croppedPath = await _getTempFilePath('jpg');
+        await OpenCVService.perspectiveTransform(
+          _originalImagePath!,
+          corners,
+          croppedPath,
+        );
 
-      // Resize to reasonable dimensions
-      final resizedPath = await _getTempFilePath('jpg');
-      await OpenCVService.resizeImage(
-        croppedPath,
-        resizedPath,
-        maxWidth: 2000,
-      );
+        // Resize to reasonable dimensions
+        final resizedPath = await _getTempFilePath('jpg');
+        await OpenCVService.resizeImage(
+          croppedPath,
+          resizedPath,
+          maxWidth: 2000,
+        );
 
-      setState(() {
-        _croppedImagePath = resizedPath;
-        _filteredImagePath = resizedPath; // Initially same as cropped
-        _currentStep = ScannerStep.filterSelection;
-        _isProcessing = false;
-      });
+        setState(() {
+          _croppedImagePath = resizedPath;
+          _filteredImagePath = resizedPath; // Initially same as cropped
+          _currentStep = ScannerStep.filterSelection;
+          _isProcessing = false;
+        });
+      } catch (e) {
+        // If perspective transform fails, fall back to original image
+        final resizedPath = await _getTempFilePath('jpg');
+        await OpenCVService.resizeImage(
+          _originalImagePath!,
+          resizedPath,
+          maxWidth: 2000,
+        );
+
+        setState(() {
+          _croppedImagePath = resizedPath;
+          _filteredImagePath = resizedPath;
+          _currentStep = ScannerStep.filterSelection;
+          _isProcessing = false;
+          _errorMessage = 'Auto-crop failed, using original image';
+        });
+      }
     } catch (e) {
-      setState(() {
-        _isProcessing = false;
-        _errorMessage = 'Edge detection failed: $e';
-        _currentStep = ScannerStep.selectImage; // Go back to allow retry
-      });
+      // If any error occurs, fall back to original image
+      try {
+        final resizedPath = await _getTempFilePath('jpg');
+        await OpenCVService.resizeImage(
+          _originalImagePath!,
+          resizedPath,
+          maxWidth: 2000,
+        );
+
+        setState(() {
+          _croppedImagePath = resizedPath;
+          _filteredImagePath = resizedPath;
+          _currentStep = ScannerStep.filterSelection;
+          _isProcessing = false;
+          _errorMessage = 'Processing failed, using original image';
+        });
+      } catch (fallbackError) {
+        setState(() {
+          _isProcessing = false;
+          _errorMessage = 'Failed to process image: $e';
+          _currentStep = ScannerStep.selectImage; // Go back to allow retry
+        });
+      }
     }
   }
 

@@ -1398,13 +1398,21 @@ class _RequestListScreenState extends State<RequestListScreen> {
       // 2. Wait for the widget to be rendered in the current frame
       await Future.delayed(const Duration(milliseconds: 100));
 
-      // 3. Capture the hidden widget as an image
+      // 3. Capture the hidden widget as an image with proper null safety
       final boundary =
           _reportKey.currentContext?.findRenderObject()
               as RenderRepaintBoundary?;
       if (boundary == null) throw "Could not find report boundary";
 
+      // Check if boundary has valid dimensions
+      final size = boundary.size;
+      if (size.width <= 0 || size.height <= 0 || !size.width.isFinite || !size.height.isFinite) {
+        throw "Invalid widget dimensions: ${size.width}x${size.height}";
+      }
+
+      // Capture with null safety
       final ui.Image capturedImage = await boundary.toImage(pixelRatio: 3.0);
+      
       final ByteData? byteData = await capturedImage.toByteData(
         format: ui.ImageByteFormat.png,
       );
