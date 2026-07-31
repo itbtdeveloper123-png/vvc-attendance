@@ -143,25 +143,21 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
       // Detect document edges using OpenCV
       final corners = await OpenCVService.detectDocumentEdges(_originalImagePath!);
       
-      // If edge detection failed (empty corners), offer manual crop
+      // If edge detection failed (empty corners), skip auto-crop and use original image
       if (corners.isEmpty) {
-        // Get image dimensions for corner initialization
-        final image = cv.imread(_originalImagePath!);
-        final width = image.cols;
-        final height = image.rows;
-        image.dispose();
-        
+        // Skip auto-crop entirely and use original image
+        final resizedPath = await _getTempFilePath('jpg');
+        await OpenCVService.resizeImage(
+          _originalImagePath!,
+          resizedPath,
+          maxWidth: 2000,
+        );
+
         setState(() {
+          _croppedImagePath = resizedPath;
+          _filteredImagePath = resizedPath;
+          _currentStep = ScannerStep.filterSelection;
           _isProcessing = false;
-          _currentStep = ScannerStep.manualCrop;
-          _errorMessage = 'Auto-crop failed. Please adjust the corners manually.';
-          // Initialize corners to image bounds
-          _manualCropCorners = [
-            const Offset(50.0, 50.0), // top-left
-            Offset(width.toDouble() - 50.0, 50.0), // top-right
-            Offset(width.toDouble() - 50.0, height.toDouble() - 50.0), // bottom-right
-            Offset(50.0, height.toDouble() - 50.0), // bottom-left
-          ];
         });
         return;
       }
@@ -190,46 +186,43 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
           _isProcessing = false;
         });
       } catch (e) {
-        // If perspective transform fails, offer manual crop
-        // Get image dimensions for corner initialization
-        final image = cv.imread(_originalImagePath!);
-        final width = image.cols;
-        final height = image.rows;
-        image.dispose();
-        
+        // If perspective transform fails, skip auto-crop and use original image
+        final resizedPath = await _getTempFilePath('jpg');
+        await OpenCVService.resizeImage(
+          _originalImagePath!,
+          resizedPath,
+          maxWidth: 2000,
+        );
+
         setState(() {
+          _croppedImagePath = resizedPath;
+          _filteredImagePath = resizedPath;
+          _currentStep = ScannerStep.filterSelection;
           _isProcessing = false;
-          _currentStep = ScannerStep.manualCrop;
-          _errorMessage = 'Auto-crop failed. Please adjust the corners manually.';
-          // Initialize corners to image bounds
-          _manualCropCorners = [
-            const Offset(50.0, 50.0), // top-left
-            Offset(width.toDouble() - 50.0, 50.0), // top-right
-            Offset(width.toDouble() - 50.0, height.toDouble() - 50.0), // bottom-right
-            Offset(50.0, height.toDouble() - 50.0), // bottom-left
-          ];
         });
       }
     } catch (e) {
-      // If any error occurs, offer manual crop
-      // Get image dimensions for corner initialization
-      final image = cv.imread(_originalImagePath!);
-      final width = image.cols;
-      final height = image.rows;
-      image.dispose();
-      
-      setState(() {
-        _isProcessing = false;
-        _currentStep = ScannerStep.manualCrop;
-        _errorMessage = 'Processing failed. Please adjust the corners manually.';
-        // Initialize corners to image bounds
-        _manualCropCorners = [
-          const Offset(50.0, 50.0), // top-left
-          Offset(width.toDouble() - 50.0, 50.0), // top-right
-          Offset(width.toDouble() - 50.0, height.toDouble() - 50.0), // bottom-right
-          Offset(50.0, height.toDouble() - 50.0), // bottom-left
-        ];
-      });
+      // If any error occurs, skip auto-crop and use original image
+      try {
+        final resizedPath = await _getTempFilePath('jpg');
+        await OpenCVService.resizeImage(
+          _originalImagePath!,
+          resizedPath,
+          maxWidth: 2000,
+        );
+
+        setState(() {
+          _croppedImagePath = resizedPath;
+          _filteredImagePath = resizedPath;
+          _currentStep = ScannerStep.filterSelection;
+          _isProcessing = false;
+        });
+      } catch (fallbackError) {
+        setState(() {
+          _isProcessing = false;
+          _errorMessage = 'Failed to process image: $e';
+        });
+      }
     }
   }
 
@@ -449,12 +442,12 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
         return _buildSelectImageStep();
       case ScannerStep.edgeDetection:
         return _buildEdgeDetectionStep();
-      case ScannerStep.manualCrop:
-        return _buildManualCropStep();
       case ScannerStep.filterSelection:
         return _buildFilterSelectionStep();
       case ScannerStep.result:
         return _buildResultStep();
+      case ScannerStep.manualCrop:
+        return _buildManualCropStep(); // Keep for backward compatibility but won't be used
     }
   }
 
