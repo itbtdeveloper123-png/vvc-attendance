@@ -6,13 +6,14 @@ class OpenCVService {
   
   /// Detect document edges and return the 4 corner points
   /// 
-  /// Algorithm:
+  /// Improved Algorithm:
   /// 1. Convert image to grayscale
-  /// 2. Apply Gaussian blur to reduce noise
-  /// 3. Use Canny edge detection to find edges
-  /// 4. Find contours from the edge map
-  /// 5. Filter contours to find the largest quadrilateral
-  /// 6. Approximate the contour to 4 corner points
+  /// 2. Apply adaptive thresholding for better edge detection in varied lighting
+  /// 3. Use morphological operations to clean up noise
+  /// 4. Try multiple edge detection strategies
+  /// 5. Filter contours based on area, aspect ratio, and solidity
+  /// 6. Approximate the contour to 4 corner points with adaptive precision
+  /// 7. Handle background interference by using color-based segmentation
   static Future<List<cv.Point>> detectDocumentEdges(String imagePath) async {
     try {
       // Read the image
@@ -21,60 +22,128 @@ class OpenCVService {
         throw Exception('Failed to load image');
       }
 
-      // Step 1: Convert to grayscale
-      final gray = cv.cvtColor(image, cv.COLOR_BGR2GRAY);
+      // Try multiple detection strategies
+      final corners = await _tryMultipleDetectionStrategies(image);
+      
+      // Clean up
+      image.dispose();
 
-      // Step 2: Apply Gaussian blur to reduce noise
-      // Kernel size (5,5) helps smooth the image while preserving edges
-      final blurred = cv.gaussianBlur(gray, (5, 5), 0);
+      return corners;
+    } catch (e) {
+      // Return empty list on failure instead of throwing exception
+      return [];
+    }
+  }
 
-      // Step 3: Canny edge detection
-      // Threshold values (50, 150) work well for document edges
-      // Lower threshold: minimum edge intensity
-      // Upper threshold: maximum edge intensity
-      final edges = cv.canny(blurred, 50, 150);
+  /// Try multiple detection strategies to improve robustness
+  static Future<List<cv.Point>> _tryMultipleDetectionStrategies(cv.Mat image) async {
+    // Strategy 1: Adaptive thresholding with morphological operations
+    final corners1 = await _detectWithAdaptiveThreshold(image);
+    if (corners1.isNotEmpty) {
+      return corners1;
+    }
 
-      // Step 4: Find contours
-      // RETR_EXTERNAL retrieves only the outer contours
-      // CHAIN_APPROX_SIMPLE compresses horizontal, vertical, and diagonal segments
-      final contours = cv.findContours(
-        edges,
+    // Strategy 2: Canny edge detection with adjusted thresholds
+    final corners2 = await _detectWithCanny(image, cannyLow: 30.0, cannyHigh: 200.0);
+    if (corners2.isNotEmpty) {
+      return corners2;
+    }
+
+    // Strategy 3: Canny edge detection with conservative thresholds
+    final corners3 = await _detectWithCanny(image, cannyLow: 70.0, cannyHigh: 250.0);
+    if (corners3.isNotEmpty) {
+      return corners3;
+    }
+
+    // Strategy 4: Canny edge detection with aggressive thresholds for low contrast
+    final corners4 = await _detectWithCanny(image, cannyLow: 20.0, cannyHigh: 100.0);
+    if (corners4.isNotEmpty) {
+      return corners4;
+    }
+
+    // Strategy 5: Color-based segmentation for background interference
+    final corners5 = await _detectWithColorSegmentation(image);
+    if (corners5.isNotEmpty) {
+      return corners5;
+    }
+
+    // If all strategies fail, return empty list
+    return [];
+  }
+
+  /// Detection strategy using color-based segmentation
+  /// This helps when there's background interference or clutter
+  static Future<List<cv.Point>> _detectWithColorSegmentation(cv.Mat image) async {
+    try {
+      // Convert to HSV color space for better color segmentation
+      final hsv = cv.cvtColor(image, cv.COLOR_BGR2HSV);
+
+      // Create mask for white/light areas (typical document color)
+      final lowerWhite = cv.Scalar(0, 0, 180);
+      final upperWhite = cv.Scalar(180, 30, 255);
+      final whiteMask = cv.inRangebyScalar(hsv, lowerWhite, upperWhite);
+
+      // Create mask for light gray areas
+      final lowerGray = cv.Scalar(0, 0, 100);
+      final upperGray = cv.Scalar(180, 30, 220);
+      final grayMask = cv.inRangebyScalar(hsv, lowerGray, upperGray);
+
+      // Combine masks
+      final combinedMask = cv.bitwiseOR(whiteMask, grayMask);
+
+      // Apply morphological operations to clean up
+      final kernel = cv.getStructuringElement(cv.MORPH_RECT, (5, 5));
+      final opened = cv.morphologyEx(combinedMask, cv.MORPH_OPEN, kernel);
+      final closed = cv.morphologyEx(opened, cv.MORPH_CLOSE, kernel);
+
+      // Find contours
+      final (contours, _) = cv.findContours(
+        closed,
         cv.RETR_EXTERNAL,
         cv.CHAIN_APPROX_SIMPLE,
       );
 
-      if (contours.$1.isEmpty) {
-        image.dispose();
-        gray.dispose();
-        blurred.dispose();
-        edges.dispose();
-        throw Exception('No contours found in image');
+      if (contours.isEmpty) {
+        hsv.dispose();
+        whiteMask.dispose();
+        grayMask.dispose();
+        combinedMask.dispose();
+        opened.dispose();
+        closed.dispose();
+        kernel.dispose();
+        return [];
       }
 
-      // Step 5: Find the largest contour (should be the document)
-      cv.VecPoint largestContour = contours.$1[0];
-      double maxArea = cv.contourArea(contours.$1[0]);
+      // Filter contours based on area and aspect ratio
+      final filteredContours = _filterContoursByProperties(contours, image);
 
-      for (final contour in contours.$1) {
-        final area = cv.contourArea(contour);
-        if (area > maxArea) {
-          maxArea = area;
-          largestContour = contour;
-        }
+      if (filteredContours.isEmpty) {
+        hsv.dispose();
+        whiteMask.dispose();
+        grayMask.dispose();
+        combinedMask.dispose();
+        opened.dispose();
+        closed.dispose();
+        kernel.dispose();
+        return [];
       }
 
-      // Step 6: Approximate contour to a polygon
-      // Epsilon determines the approximation accuracy (2% of perimeter)
-      final perimeter = cv.arcLength(largestContour, true);
-      final approx = cv.approxPolyDP(largestContour, 0.02 * perimeter, true);
+      // Find the best contour based on combined score
+      final bestContour = _findBestContour(filteredContours, image);
+
+      // Approximate contour to a polygon with adaptive precision
+      final perimeter = cv.arcLength(bestContour, true);
+      final approx = cv.approxPolyDP(bestContour, 0.04 * perimeter, true);
 
       // Check if we have 4 corners (quadrilateral)
       if (approx.length < 4) {
-        image.dispose();
-        gray.dispose();
-        blurred.dispose();
-        edges.dispose();
-        // Return empty list to indicate edge detection failed
+        hsv.dispose();
+        whiteMask.dispose();
+        grayMask.dispose();
+        combinedMask.dispose();
+        opened.dispose();
+        closed.dispose();
+        kernel.dispose();
         return [];
       }
 
@@ -86,16 +155,278 @@ class OpenCVService {
       }
 
       // Clean up
-      image.dispose();
-      gray.dispose();
-      blurred.dispose();
-      edges.dispose();
+      hsv.dispose();
+      whiteMask.dispose();
+      grayMask.dispose();
+      combinedMask.dispose();
+      opened.dispose();
+      closed.dispose();
+      kernel.dispose();
 
       return corners;
     } catch (e) {
-      // Return empty list on failure instead of throwing exception
       return [];
     }
+  }
+
+  /// Detection strategy using adaptive thresholding
+  static Future<List<cv.Point>> _detectWithAdaptiveThreshold(cv.Mat image) async {
+    try {
+      // Convert to grayscale
+      final gray = cv.cvtColor(image, cv.COLOR_BGR2GRAY);
+
+      // Apply Gaussian blur to reduce noise
+      final blurred = cv.gaussianBlur(gray, (5, 5), 0);
+
+      // Apply adaptive thresholding for better edge detection in varied lighting
+      // ADAPTIVE_THRESH_GAUSSIAN_C works well for document edges
+      final threshold = cv.adaptiveThreshold(
+        blurred,
+        255,
+        cv.ADAPTIVE_THRESH_GAUSSIAN_C,
+        cv.THRESH_BINARY,
+        11,
+        2,
+      );
+
+      // Morphological operations to clean up noise
+      final kernel = cv.getStructuringElement(cv.MORPH_RECT, (3, 3));
+      final opened = cv.morphologyEx(threshold, cv.MORPH_OPEN, kernel);
+      final closed = cv.morphologyEx(opened, cv.MORPH_CLOSE, kernel);
+
+      // Find contours
+      final (contours, _) = cv.findContours(
+        closed,
+        cv.RETR_EXTERNAL,
+        cv.CHAIN_APPROX_SIMPLE,
+      );
+
+      if (contours.isEmpty) {
+        gray.dispose();
+        blurred.dispose();
+        threshold.dispose();
+        opened.dispose();
+        closed.dispose();
+        kernel.dispose();
+        return [];
+      }
+
+      // Filter contours based on area and aspect ratio
+      final filteredContours = _filterContoursByProperties(contours, gray);
+
+      if (filteredContours.isEmpty) {
+        gray.dispose();
+        blurred.dispose();
+        threshold.dispose();
+        opened.dispose();
+        closed.dispose();
+        kernel.dispose();
+        return [];
+      }
+
+      // Find the best contour based on combined score
+      final bestContour = _findBestContour(filteredContours, gray);
+
+      // Approximate contour to a polygon with adaptive precision
+      final perimeter = cv.arcLength(bestContour, true);
+      final approx = cv.approxPolyDP(bestContour, 0.03 * perimeter, true);
+
+      // Check if we have 4 corners (quadrilateral)
+      if (approx.length < 4) {
+        gray.dispose();
+        blurred.dispose();
+        threshold.dispose();
+        opened.dispose();
+        closed.dispose();
+        kernel.dispose();
+        return [];
+      }
+
+      // Extract the 4 corner points
+      final corners = <cv.Point>[];
+      for (int i = 0; i < approx.length; i++) {
+        final point = approx[i];
+        corners.add(cv.Point(point.x.toInt(), point.y.toInt()));
+      }
+
+      // Clean up
+      gray.dispose();
+      blurred.dispose();
+      threshold.dispose();
+      opened.dispose();
+      closed.dispose();
+      kernel.dispose();
+
+      return corners;
+    } catch (e) {
+      return [];
+    }
+  }
+
+  /// Detection strategy using Canny edge detection
+  static Future<List<cv.Point>> _detectWithCanny(cv.Mat image, {double cannyLow = 50.0, double cannyHigh = 150.0}) async {
+    try {
+      // Convert to grayscale
+      final gray = cv.cvtColor(image, cv.COLOR_BGR2GRAY);
+
+      // Apply Gaussian blur to reduce noise
+      final blurred = cv.gaussianBlur(gray, (5, 5), 0);
+
+      // Canny edge detection with custom thresholds
+      final edges = cv.canny(blurred, cannyLow.toDouble(), cannyHigh.toDouble());
+
+      // Morphological operations to strengthen edges
+      final kernel = cv.getStructuringElement(cv.MORPH_RECT, (3, 3));
+      final dilated = cv.dilate(edges, kernel);
+
+      // Find contours
+      final (contours, _) = cv.findContours(
+        dilated,
+        cv.RETR_EXTERNAL,
+        cv.CHAIN_APPROX_SIMPLE,
+      );
+
+      if (contours.isEmpty) {
+        gray.dispose();
+        blurred.dispose();
+        edges.dispose();
+        dilated.dispose();
+        kernel.dispose();
+        return [];
+      }
+
+      // Filter contours based on area and aspect ratio
+      final filteredContours = _filterContoursByProperties(contours, gray);
+
+      if (filteredContours.isEmpty) {
+        gray.dispose();
+        blurred.dispose();
+        edges.dispose();
+        dilated.dispose();
+        kernel.dispose();
+        return [];
+      }
+
+      // Find the best contour based on combined score
+      final bestContour = _findBestContour(filteredContours, gray);
+
+      // Approximate contour to a polygon with adaptive precision
+      final perimeter = cv.arcLength(bestContour, true);
+      final approx = cv.approxPolyDP(bestContour, 0.02 * perimeter, true);
+
+      // Check if we have 4 corners (quadrilateral)
+      if (approx.length < 4) {
+        gray.dispose();
+        blurred.dispose();
+        edges.dispose();
+        dilated.dispose();
+        kernel.dispose();
+        return [];
+      }
+
+      // Extract the 4 corner points
+      final corners = <cv.Point>[];
+      for (int i = 0; i < approx.length; i++) {
+        final point = approx[i];
+        corners.add(cv.Point(point.x.toInt(), point.y.toInt()));
+      }
+
+      // Clean up
+      gray.dispose();
+      blurred.dispose();
+      edges.dispose();
+      dilated.dispose();
+      kernel.dispose();
+
+      return corners;
+    } catch (e) {
+      return [];
+    }
+  }
+
+  /// Filter contours based on geometric properties
+  static cv.Contours _filterContoursByProperties(cv.Contours contours, cv.Mat image) {
+    final gray = cv.cvtColor(image, cv.COLOR_BGR2GRAY);
+    final imageArea = gray.rows * gray.cols;
+    final filteredContours = cv.VecVecPoint();
+
+    for (final contour in contours) {
+      final area = cv.contourArea(contour);
+      
+      // Filter by area - document should be at least 10% of image
+      if (area < imageArea * 0.1 || area > imageArea * 0.95) {
+        continue;
+      }
+
+      // Calculate bounding rectangle
+      final rect = cv.boundingRect(contour);
+      final width = rect.width;
+      final height = rect.height;
+      final aspectRatio = width / height;
+
+      // Filter by aspect ratio - documents typically have aspect ratio between 0.5 and 2.0
+      if (aspectRatio < 0.5 || aspectRatio > 2.0) {
+        continue;
+      }
+
+      // Calculate solidity (area / convex hull area)
+      final hullMat = cv.convexHull(contour);
+      final hull = cv.VecPoint.fromMat(hullMat);
+      final hullArea = cv.contourArea(hull);
+      final solidity = area / hullArea;
+
+      // Filter by solidity - documents should have high solidity (> 0.8)
+      if (solidity < 0.8) {
+        hullMat.dispose();
+        hull.dispose();
+        continue;
+      }
+
+      hullMat.dispose();
+      hull.dispose();
+      filteredContours.add(contour);
+    }
+
+    gray.dispose();
+    return filteredContours;
+  }
+
+  /// Find the best contour based on combined scoring
+  static cv.VecPoint _findBestContour(cv.Contours contours, cv.Mat image) {
+    final gray = cv.cvtColor(image, cv.COLOR_BGR2GRAY);
+    cv.VecPoint bestContour = contours[0];
+    double bestScore = 0.0;
+
+    for (final contour in contours) {
+      final area = cv.contourArea(contour);
+      
+      // Calculate convex hull
+      final hullMat = cv.convexHull(contour);
+      final hull = cv.VecPoint.fromMat(hullMat);
+      final hullArea = cv.contourArea(hull);
+      final solidity = area / hullArea;
+
+      // Calculate bounding rectangle
+      final rect = cv.boundingRect(contour);
+      final rectArea = rect.width.toDouble() * rect.height.toDouble();
+      final extent = area / rectArea;
+
+      // Combined score: prefers larger area, higher solidity, and better extent
+      final score = (area / (gray.rows * gray.cols)) * 0.5 + 
+                     solidity * 0.3 + 
+                     extent * 0.2;
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestContour = contour;
+      }
+
+      hullMat.dispose();
+      hull.dispose();
+    }
+
+    gray.dispose();
+    return bestContour;
   }
 
   /// Order corner points in consistent order: top-left, top-right, bottom-right, bottom-left
@@ -248,10 +579,10 @@ class OpenCVService {
       final gray = cv.cvtColor(image, cv.COLOR_BGR2GRAY);
 
       // Apply simple thresholding
-      final threshold = cv.threshold(gray, 127, 255, cv.THRESH_BINARY);
+      final (_, threshold) = cv.threshold(gray, 127, 255, cv.THRESH_BINARY);
 
       // Convert back to BGR for consistency
-      final result = cv.cvtColor(threshold.$2, cv.COLOR_GRAY2BGR);
+      final result = cv.cvtColor(threshold, cv.COLOR_GRAY2BGR);
 
       // Save the result
       cv.imwrite(outputPath, result);
@@ -259,7 +590,7 @@ class OpenCVService {
       // Clean up
       image.dispose();
       gray.dispose();
-      threshold.$2.dispose();
+      threshold.dispose();
       result.dispose();
 
       return outputPath;

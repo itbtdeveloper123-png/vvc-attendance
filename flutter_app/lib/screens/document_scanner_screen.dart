@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'package:opencv_dart/opencv_dart.dart' as cv;
 import '../services/opencv_service.dart';
 import '../services/ocr_service.dart' as ocr;
 
@@ -31,6 +32,9 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
   String? _originalImagePath;
   String? _croppedImagePath;
   String? _filteredImagePath;
+  
+  // Manual crop corners
+  List<Offset>? _manualCropCorners;
   
   // Processing state
   bool _isProcessing = false;
@@ -139,21 +143,25 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
       // Detect document edges using OpenCV
       final corners = await OpenCVService.detectDocumentEdges(_originalImagePath!);
       
-      // If edge detection failed (empty corners), use original image
+      // If edge detection failed (empty corners), offer manual crop
       if (corners.isEmpty) {
-        // Skip edge detection and use original image
-        final resizedPath = await _getTempFilePath('jpg');
-        await OpenCVService.resizeImage(
-          _originalImagePath!,
-          resizedPath,
-          maxWidth: 2000,
-        );
-
+        // Get image dimensions for corner initialization
+        final image = cv.imread(_originalImagePath!);
+        final width = image.cols;
+        final height = image.rows;
+        image.dispose();
+        
         setState(() {
-          _croppedImagePath = resizedPath;
-          _filteredImagePath = resizedPath;
-          _currentStep = ScannerStep.filterSelection;
           _isProcessing = false;
+          _currentStep = ScannerStep.manualCrop;
+          _errorMessage = 'Auto-crop failed. Please adjust the corners manually.';
+          // Initialize corners to image bounds
+          _manualCropCorners = [
+            const Offset(50.0, 50.0), // top-left
+            Offset(width.toDouble() - 50.0, 50.0), // top-right
+            Offset(width.toDouble() - 50.0, height.toDouble() - 50.0), // bottom-right
+            Offset(50.0, height.toDouble() - 50.0), // bottom-left
+          ];
         });
         return;
       }
@@ -182,46 +190,46 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
           _isProcessing = false;
         });
       } catch (e) {
-        // If perspective transform fails, fall back to original image
-        final resizedPath = await _getTempFilePath('jpg');
-        await OpenCVService.resizeImage(
-          _originalImagePath!,
-          resizedPath,
-          maxWidth: 2000,
-        );
-
+        // If perspective transform fails, offer manual crop
+        // Get image dimensions for corner initialization
+        final image = cv.imread(_originalImagePath!);
+        final width = image.cols;
+        final height = image.rows;
+        image.dispose();
+        
         setState(() {
-          _croppedImagePath = resizedPath;
-          _filteredImagePath = resizedPath;
-          _currentStep = ScannerStep.filterSelection;
           _isProcessing = false;
-          _errorMessage = 'Auto-crop failed, using original image';
+          _currentStep = ScannerStep.manualCrop;
+          _errorMessage = 'Auto-crop failed. Please adjust the corners manually.';
+          // Initialize corners to image bounds
+          _manualCropCorners = [
+            const Offset(50.0, 50.0), // top-left
+            Offset(width.toDouble() - 50.0, 50.0), // top-right
+            Offset(width.toDouble() - 50.0, height.toDouble() - 50.0), // bottom-right
+            Offset(50.0, height.toDouble() - 50.0), // bottom-left
+          ];
         });
       }
     } catch (e) {
-      // If any error occurs, fall back to original image
-      try {
-        final resizedPath = await _getTempFilePath('jpg');
-        await OpenCVService.resizeImage(
-          _originalImagePath!,
-          resizedPath,
-          maxWidth: 2000,
-        );
-
-        setState(() {
-          _croppedImagePath = resizedPath;
-          _filteredImagePath = resizedPath;
-          _currentStep = ScannerStep.filterSelection;
-          _isProcessing = false;
-          _errorMessage = 'Processing failed, using original image';
-        });
-      } catch (fallbackError) {
-        setState(() {
-          _isProcessing = false;
-          _errorMessage = 'Failed to process image: $e';
-          _currentStep = ScannerStep.selectImage; // Go back to allow retry
-        });
-      }
+      // If any error occurs, offer manual crop
+      // Get image dimensions for corner initialization
+      final image = cv.imread(_originalImagePath!);
+      final width = image.cols;
+      final height = image.rows;
+      image.dispose();
+      
+      setState(() {
+        _isProcessing = false;
+        _currentStep = ScannerStep.manualCrop;
+        _errorMessage = 'Processing failed. Please adjust the corners manually.';
+        // Initialize corners to image bounds
+        _manualCropCorners = [
+          const Offset(50.0, 50.0), // top-left
+          Offset(width.toDouble() - 50.0, 50.0), // top-right
+          Offset(width.toDouble() - 50.0, height.toDouble() - 50.0), // bottom-right
+          Offset(50.0, height.toDouble() - 50.0), // bottom-left
+        ];
+      });
     }
   }
 
@@ -441,6 +449,8 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
         return _buildSelectImageStep();
       case ScannerStep.edgeDetection:
         return _buildEdgeDetectionStep();
+      case ScannerStep.manualCrop:
+        return _buildManualCropStep();
       case ScannerStep.filterSelection:
         return _buildFilterSelectionStep();
       case ScannerStep.result:
@@ -500,6 +510,200 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
         ],
       ),
     );
+  }
+
+  /// Step 2.5: Manual Crop UI
+  Widget _buildManualCropStep() {
+    return Column(
+      children: [
+        // Image preview with manual crop controls
+        Expanded(
+          child: _originalImagePath != null
+              ? _buildManualCropWidget()
+              : const Center(child: Text('No image')),
+        ),
+        // Manual crop controls
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.1),
+                blurRadius: 10,
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Manual Crop',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Drag the corners to adjust the document area',
+                style: TextStyle(color: Colors.grey, fontSize: 12),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _skipManualCrop,
+                      icon: const Icon(Icons.skip_next),
+                      label: const Text('Skip Crop'),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _applyManualCrop,
+                      icon: const Icon(Icons.crop),
+                      label: const Text('Apply Crop'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Manual crop widget with draggable corners
+  Widget _buildManualCropWidget() {
+    return Stack(
+      children: [
+        // Image display
+        Positioned.fill(
+          child: Image.file(
+            File(_originalImagePath!),
+            fit: BoxFit.contain,
+          ),
+        ),
+        // Crop overlay
+        if (_manualCropCorners != null && _manualCropCorners!.length == 4)
+          Positioned.fill(
+            child: CustomPaint(
+              painter: _CropOverlayPainter(_manualCropCorners!),
+            ),
+          ),
+        // Corner handles
+        if (_manualCropCorners != null && _manualCropCorners!.length == 4)
+          ..._manualCropCorners!.asMap().entries.map((entry) {
+            final index = entry.key;
+            final corner = entry.value;
+            return Positioned(
+              left: corner.dx - 20,
+              top: corner.dy - 20,
+              child: GestureDetector(
+                onPanUpdate: (details) {
+                  _updateCorner(index, details);
+                },
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: Colors.orange,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2),
+                  ),
+                  child: const Icon(Icons.circle, color: Colors.white, size: 12),
+                ),
+              ),
+            );
+          }),
+      ],
+    );
+  }
+
+  /// Update corner position during drag
+  void _updateCorner(int index, DragUpdateDetails details) {
+    if (_manualCropCorners == null || _manualCropCorners!.length != 4) return;
+    
+    setState(() {
+      _manualCropCorners![index] = details.localPosition;
+    });
+  }
+
+  /// Apply manual crop
+  Future<void> _applyManualCrop() async {
+    if (_manualCropCorners == null || _manualCropCorners!.length != 4) return;
+
+    setState(() {
+      _isProcessing = true;
+      _errorMessage = null;
+    });
+
+    try {
+      // Convert Offset corners to OpenCV points
+      final corners = _manualCropCorners!.map((offset) {
+        return cv.Point(offset.dx.toInt(), offset.dy.toInt());
+      }).toList();
+
+      // Apply perspective transform
+      final croppedPath = await _getTempFilePath('jpg');
+      await OpenCVService.perspectiveTransform(
+        _originalImagePath!,
+        corners,
+        croppedPath,
+      );
+
+      // Resize to reasonable dimensions
+      final resizedPath = await _getTempFilePath('jpg');
+      await OpenCVService.resizeImage(
+        croppedPath,
+        resizedPath,
+        maxWidth: 2000,
+      );
+
+      setState(() {
+        _croppedImagePath = resizedPath;
+        _filteredImagePath = resizedPath;
+        _currentStep = ScannerStep.filterSelection;
+        _isProcessing = false;
+        _manualCropCorners = null;
+      });
+    } catch (e) {
+      setState(() {
+        _isProcessing = false;
+        _errorMessage = 'Manual crop failed: $e';
+      });
+    }
+  }
+
+  /// Skip manual crop and use original image
+  Future<void> _skipManualCrop() async {
+    setState(() {
+      _isProcessing = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final resizedPath = await _getTempFilePath('jpg');
+      await OpenCVService.resizeImage(
+        _originalImagePath!,
+        resizedPath,
+        maxWidth: 2000,
+      );
+
+      setState(() {
+        _croppedImagePath = resizedPath;
+        _filteredImagePath = resizedPath;
+        _currentStep = ScannerStep.filterSelection;
+        _isProcessing = false;
+        _manualCropCorners = null;
+      });
+    } catch (e) {
+      setState(() {
+        _isProcessing = false;
+        _errorMessage = 'Failed to process image: $e';
+      });
+    }
   }
 
   /// Step 3: Filter Selection UI
@@ -701,10 +905,52 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
   }
 }
 
+/// Custom painter for crop overlay
+class _CropOverlayPainter extends CustomPainter {
+  final List<Offset> corners;
+
+  _CropOverlayPainter(this.corners);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (corners.length != 4) return;
+
+    final paint = Paint()
+      ..color = Colors.orange.withValues(alpha: 0.3)
+      ..style = PaintingStyle.fill;
+
+    final borderPaint = Paint()
+      ..color = Colors.orange
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3;
+
+    final path = Path()
+      ..moveTo(corners[0].dx, corners[0].dy)
+      ..lineTo(corners[1].dx, corners[1].dy)
+      ..lineTo(corners[2].dx, corners[2].dy)
+      ..lineTo(corners[3].dx, corners[3].dy)
+      ..close();
+
+    canvas.drawPath(path, paint);
+    canvas.drawPath(path, borderPaint);
+
+    // Draw corner handles
+    for (final corner in corners) {
+      canvas.drawCircle(corner, 10, borderPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_CropOverlayPainter oldDelegate) {
+    return oldDelegate.corners != corners;
+  }
+}
+
 /// Scanner workflow steps
 enum ScannerStep {
   selectImage,
   edgeDetection,
+  manualCrop,
   filterSelection,
   result,
 }
