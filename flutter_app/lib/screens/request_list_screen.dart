@@ -1451,9 +1451,7 @@ class _RequestListScreenState extends State<RequestListScreen> {
         format: ui.ImageByteFormat.png,
       );
       if (byteData == null) throw "Failed to convert image to bytes";
-      final buffer = byteData.buffer;
-      if (buffer == null) throw "Image buffer is null";
-      return buffer.asUint8List();
+      return byteData.buffer.asUint8List();
     } catch (e) {
       throw "Image capture failed: $e";
     }
