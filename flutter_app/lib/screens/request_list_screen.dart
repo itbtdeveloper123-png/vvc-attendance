@@ -1664,7 +1664,7 @@ class _RequestListScreenState extends State<RequestListScreen> {
       return Container(color: AppTheme.textPrimary, width: 450, height: 640);
     }
 
-    final item = _currentReportItem;
+    final item = _currentReportItem!;
     final requestType = (item['request_type'] ?? '').toString();
     final types = [
       'សម្រាកប្រចាំឆ្នាំ (Annual Leave)',
@@ -1720,14 +1720,14 @@ class _RequestListScreenState extends State<RequestListScreen> {
     // Process signatures
     Uint8List? reqSigBytes;
     if (item['signature'] != null &&
-        item['signature'].toString().startsWith('data:image')) {
-      reqSigBytes = base64.decode(item['signature'].split(',').last);
+        item['signature']!.toString().startsWith('data:image')) {
+      reqSigBytes = base64.decode(item['signature']!.split(',').last);
     }
     Uint8List? deptSigBytes;
     if (item['department_head_signature'] != null &&
-        item['department_head_signature'].toString().startsWith('data:image')) {
+        item['department_head_signature']!.toString().startsWith('data:image')) {
       deptSigBytes = base64.decode(
-        item['department_head_signature'].split(',').last,
+        item['department_head_signature']!.split(',').last,
       );
     }
 
@@ -1894,14 +1894,14 @@ class _RequestListScreenState extends State<RequestListScreen> {
                   children: [
                     _buildTablePremiumRow([
                       "ឈ្មោះអ្នកស្នើសុំ៖",
-                      item['requester_name'] ?? 'N/A',
+                      item['requester_name']! ?? 'N/A',
                       "ចំនួនថ្ងៃ/ច្បាប់នៅសល់៖",
-                      "${item['number_of_days'] ?? '0'} ថ្ងៃ",
+                      "${item['number_of_days']! ?? '0'} ថ្ងៃ",
                       "N/A ថ្ងៃ",
                     ]),
                       _buildTablePremiumRow([
                       "ផ្នែក/មុខតំណែង/សាខា៖",
-                      item['department'] ?? 'N/A',
+                      item['department']! ?? 'N/A',
                       item['position'] ?? 'N/A',
                       item['branch'] ?? 'N/A',
                       "",
