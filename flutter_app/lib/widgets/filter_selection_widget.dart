@@ -16,13 +16,13 @@ class FilterSelectionWidget extends StatelessWidget {
   final bool isLoading;
 
   const FilterSelectionWidget({
-    Key? key,
+    super.key,
     required this.baseImagePath,
     required this.selectedFilter,
     required this.filters,
     required this.onFilterSelected,
     this.isLoading = false,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -64,12 +64,11 @@ class _FilterChip extends StatelessWidget {
   final VoidCallback onTap;
 
   const _FilterChip({
-    Key? key,
     required this.filter,
     required this.isSelected,
     required this.baseImagePath,
     required this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -89,7 +88,7 @@ class _FilterChip extends StatelessWidget {
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: Theme.of(context).primaryColor.withOpacity(0.3),
+                    color: Theme.of(context).primaryColor.withValues(alpha: 0.3),
                     blurRadius: 8,
                     spreadRadius: 2,
                   ),
@@ -210,11 +209,11 @@ class FilterSelectionDialog extends StatelessWidget {
   final Function(String) onFilterSelected;
 
   const FilterSelectionDialog({
-    Key? key,
+    super.key,
     required this.selectedFilter,
     required this.filters,
     required this.onFilterSelected,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -264,13 +263,14 @@ class FilterSelectionDialog extends StatelessWidget {
     BuildContext context, {
     required String selectedFilter,
     List<FilterOption>? filters,
+    required Function(String) onFilterSelected,
   }) {
     return showDialog<String>(
       context: context,
       builder: (context) => FilterSelectionDialog(
         selectedFilter: selectedFilter,
         filters: filters ?? FilterOption.documentFilters,
-        onFilterSelected: (filter) => filter,
+        onFilterSelected: onFilterSelected,
       ),
     );
   }
