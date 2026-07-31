@@ -38,6 +38,7 @@ class _RequestListScreenState extends State<RequestListScreen> {
   String _debugInfo = '';
   String _errorMessage = '';
   Timer? _pollingTimer;
+  bool _isViewingTrash = false; // Track if viewing trash
 
   static const Color _brandOrange = Color(0xFFF2994A);
   static const double _lblSize = 11.5;
@@ -109,7 +110,7 @@ class _RequestListScreenState extends State<RequestListScreen> {
       _errorMessage = '';
     });
     try {
-      final res = await _api.fetchRequests(limit: 100);
+      final res = await _api.fetchRequests(limit: 100, trash: _isViewingTrash);
       if (!mounted) return;
 
       // Handle Unauthorized (token expired)
@@ -146,6 +147,14 @@ class _RequestListScreenState extends State<RequestListScreen> {
         _isLoading = false;
       });
     }
+  }
+
+  // Toggle between viewing active requests and trash
+  void _viewTrash() {
+    _safeSetState(() {
+      _isViewingTrash = !_isViewingTrash;
+    });
+    _loadData();
   }
 
   // ========= Status helpers =========
@@ -286,12 +295,17 @@ class _RequestListScreenState extends State<RequestListScreen> {
   @override
   Widget build(BuildContext context) {
     return DynamicAppBarWrapper(
-      title: "បញ្ជីសំណើ",
+      title: _isViewingTrash ? "ប៊ូតុងស្តារ" : "បញ្ជីសំណើ",
       actions: [
         IconButton(
           icon: const Icon(Icons.refresh_rounded),
           onPressed: _loadData,
           tooltip: 'ផ្ទុកឡើងវិញ',
+        ),
+        IconButton(
+          icon: Icon(_isViewingTrash ? Icons.list_alt : Icons.restore_from_trash_outlined),
+          onPressed: () => _viewTrash(),
+          tooltip: _isViewingTrash ? 'បញ្ជីសំណើ' : 'ប៊ូតុងស្តារ',
         ),
       ],
       // Stack to add a hidden PDF report generator
@@ -1198,6 +1212,60 @@ class _RequestListScreenState extends State<RequestListScreen> {
                               minimumSize: const Size(double.infinity, 50),
                             ),
                           )
+                        else if (_isViewingTrash)
+                          // Show restore and permanent delete buttons for trash items
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: () => _restoreRequest(item['id']),
+                                  icon: const Icon(
+                                    Icons.restore_from_trash_rounded,
+                                    color: Colors.green,
+                                  ),
+                                  label: Text(
+                                    "ស្តារ",
+                                    style: GoogleFonts.kantumruyPro(
+                                      color: Colors.green,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  style: OutlinedButton.styleFrom(
+                                    side: const BorderSide(color: Colors.green),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                    minimumSize: const Size(double.infinity, 50),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: () =>
+                                      _confirmPermanentDelete(context, item['id']),
+                                  icon: const Icon(
+                                    Icons.delete_forever_rounded,
+                                    color: Colors.redAccent,
+                                  ),
+                                  label: Text(
+                                    "លុបជាប់",
+                                    style: GoogleFonts.kantumruyPro(
+                                      color: Colors.redAccent,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  style: OutlinedButton.styleFrom(
+                                    side: const BorderSide(color: Colors.redAccent),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                    minimumSize: const Size(double.infinity, 50),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          )
                         else
                           OutlinedButton.icon(
                             onPressed: () =>
@@ -2045,6 +2113,122 @@ class _RequestListScreenState extends State<RequestListScreen> {
 
   Future<void> _performDelete(dynamic id) async {
     final res = await _api.deleteRequest(int.parse(id.toString()));
+    if (!mounted) return;
+    
+    // Show confirmation message with undo option
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          res['success'] == true
+              ? (res['message'] ?? 'លុបបានជោគជ័យ')
+              : (res['message'] ?? 'បរាជ័យ'),
+          style: GoogleFonts.kantumruyPro(),
+        ),
+        backgroundColor: res['success'] == true
+            ? const Color(0xFF10b981)
+            : Colors.redAccent,
+        behavior: SnackBarBehavior.floating,
+        action: res['success'] == true ? SnackBarAction(
+          label: "ស្តារ",
+          textColor: Colors.white,
+          onPressed: () {
+            // Restore the deleted request
+            _restoreRequest(id);
+          },
+        ) : null,
+        duration: const Duration(seconds: 4),
+      ),
+    );
+    if (res['success'] == true) _loadData();
+  }
+
+  // Restore a deleted request from trash
+  Future<void> _restoreRequest(dynamic id) async {
+    try {
+      final res = await _api.restoreRequest(int.parse(id.toString()));
+      if (!mounted) return;
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            res['success'] == true ? 'ស្តារបានជោគជ័យ' : 'បរាជ័យក្នុងការស្តារ',
+            style: GoogleFonts.kantumruyPro(),
+          ),
+          backgroundColor: res['success'] == true
+              ? const Color(0xFF10b981)
+              : Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      
+      if (res['success'] == true) _loadData();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'កំហុសក្នុងការស្តារ: $e',
+            style: GoogleFonts.kantumruyPro(),
+          ),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  // Confirm permanent delete from trash
+  void _confirmPermanentDelete(BuildContext sheetContext, dynamic id) {
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: AppTheme.bgCard,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          "បញ្ជាក់ការលុបជាប់",
+          style: GoogleFonts.kantumruyPro(
+            color: AppTheme.textPrimary,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Text(
+          "តើអ្នកពិតជាចង់លុបសំណើ #$id ជាប់ទេ? សំណើនេះនឹងមិនអាចស្តារវិញបានទេ។",
+          style: GoogleFonts.kantumruyPro(
+            color: AppTheme.textPrimary.withValues(alpha: 0.70),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: Text(
+              "បោះបង់",
+              style: GoogleFonts.kantumruyPro(
+                color: AppTheme.textPrimary.withValues(alpha: 0.38),
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dialogCtx);
+              Navigator.pop(sheetContext);
+              _permanentDelete(id);
+            },
+            child: Text(
+              "លុបជាប់",
+              style: GoogleFonts.kantumruyPro(
+                color: Colors.redAccent,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Permanently delete a request from trash
+  Future<void> _permanentDelete(dynamic id) async {
+    final res = await _api.permanentDeleteRequest(int.parse(id.toString()));
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(

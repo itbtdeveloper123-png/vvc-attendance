@@ -731,12 +731,12 @@ class ApiService {
     );
   }
 
-  Future<Map<String, dynamic>> fetchRequests({int limit = 100}) async {
+  Future<Map<String, dynamic>> fetchRequests({int limit = 100, bool trash = false}) async {
     final headers = await _authHeaders();
     return _processRequest(
       'fetch_requests',
       headers: headers,
-      body: {'limit': limit.toString()},
+      body: {'limit': limit.toString(), 'trash': trash.toString()},
     );
   }
 
@@ -753,6 +753,24 @@ class ApiService {
     final headers = await _authHeaders();
     return _processRequest(
       'delete_request',
+      headers: headers,
+      body: {'request_id': requestId.toString()},
+    );
+  }
+
+  Future<Map<String, dynamic>> restoreRequest(int requestId) async {
+    final headers = await _authHeaders();
+    return _processRequest(
+      'restore_request',
+      headers: headers,
+      body: {'request_id': requestId.toString()},
+    );
+  }
+
+  Future<Map<String, dynamic>> permanentDeleteRequest(int requestId) async {
+    final headers = await _authHeaders();
+    return _processRequest(
+      'permanent_delete_request',
       headers: headers,
       body: {'request_id': requestId.toString()},
     );
