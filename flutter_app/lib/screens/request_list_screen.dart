@@ -1451,7 +1451,9 @@ class _RequestListScreenState extends State<RequestListScreen> {
         format: ui.ImageByteFormat.png,
       );
       if (byteData == null) throw "Failed to convert image to bytes";
-      return byteData.buffer.asUint8List();
+      final buffer = byteData.buffer;
+      if (buffer == null) throw "Image buffer is null";
+      return buffer.asUint8List();
     } catch (e) {
       throw "Image capture failed: $e";
     }
@@ -1664,7 +1666,7 @@ class _RequestListScreenState extends State<RequestListScreen> {
       return Container(color: AppTheme.textPrimary, width: 450, height: 640);
     }
 
-    final item = _currentReportItem!;
+    final item = _currentReportItem;
     final requestType = (item['request_type'] ?? '').toString();
     final types = [
       'សម្រាកប្រចាំឆ្នាំ (Annual Leave)',
@@ -2121,9 +2123,10 @@ class _RequestListScreenState extends State<RequestListScreen> {
     }
 
     if (screen != null) {
+      final finalScreen = screen;
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => screen!),
+        MaterialPageRoute(builder: (_) => finalScreen),
       ).then((_) => _loadData());
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
