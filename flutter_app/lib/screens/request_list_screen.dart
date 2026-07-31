@@ -11,14 +11,8 @@ import 'package:pasteboard/pasteboard.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-import 'package:provider/provider.dart';
 import '../services/api_service.dart';
 import '../utils/app_theme.dart';
-import '../providers/user_provider.dart';
-import '../widgets/app_widgets.dart';
-import 'leave_request_screen.dart';
-import 'ot_request_screen.dart';
-import 'late_request_screen.dart';
 
 class RequestListScreen extends StatefulWidget {
   const RequestListScreen({super.key});
@@ -36,13 +30,10 @@ class _RequestListScreenState extends State<RequestListScreen> {
   final GlobalKey _reportKey = GlobalKey(); // Key for PDF capture
   Map<String, dynamic>? _currentReportItem; // Item being processed for PDF
 
-  String _debugInfo = '';
   String _errorMessage = '';
   Timer? _pollingTimer;
 
   static const Color _brandOrange = Color(0xFFF2994A);
-  static const double _lblSize = 9.5;
-  static const double _valSize = 9.5;
 
   @override
   void initState() {
@@ -119,30 +110,18 @@ class _RequestListScreenState extends State<RequestListScreen> {
         _safeSetState(() {
           _isLoading = false;
           _errorMessage = msg;
-          _debugInfo = 'API Error: $msg';
         });
         return;
       }
 
-      final debug = res['debug'];
-      final debugStr = debug != null
-          ? 'user_id: ${debug['my_user_id']} | emp: ${debug['my_employee_id']}\n'
-                'name: ${debug['my_name']}\n'
-                'matched: ${debug['matched_count']} / total: ${debug['total_in_db']}\n'
-                'sample_ids: ${debug['sample_user_ids_in_db']}\n'
-                'sample_names: ${debug['sample_names_in_db']}'
-          : 'No debug info';
-
       _safeSetState(() {
         _requests = res['requests'] ?? [];
         _filtered = List.from(_requests);
-        _debugInfo = debugStr;
         _isLoading = false;
       });
     } catch (e) {
       if (!mounted) return;
       _safeSetState(() {
-        _debugInfo = 'Connection Error: $e';
         _errorMessage = 'មិនអាចភ្ជាប់ Server បាន';
         _isLoading = false;
       });
@@ -245,15 +224,6 @@ class _RequestListScreenState extends State<RequestListScreen> {
     }
   }
 
-  String _formatTime(String? dt) {
-    if (dt == null || dt.isEmpty) return '';
-    try {
-      return DateFormat('hh:mm a').format(DateTime.parse(dt));
-    } catch (_) {
-      return dt;
-    }
-  }
-
   String _formatClockTime(String? t) {
     if (t == null || t.isEmpty || t == 'N/A') return 'N/A';
     try {
@@ -262,39 +232,62 @@ class _RequestListScreenState extends State<RequestListScreen> {
         dt = DateTime.parse(t);
       } else if (t.contains(':')) {
         final parts = t.split(':');
-        dt = DateTime(2000, 1, 1, int.parse(parts[0]), int.parse(parts[1]));
+        if (parts.length >= 2) {
+          final hour = int.tryParse(parts[0]) ?? 0;
+          final minute = int.tryParse(parts[1]) ?? 0;
+          dt = DateTime(2024, 1, 1, hour, minute);
+        }
       }
       if (dt != null) {
         return DateFormat('hh:mm a').format(dt);
       }
-      return t;
-    } catch (_) {
-      return t;
-    }
+    } catch (_) {}
+    return t;
   }
 
-  String _formatPhone(String? p) {
-    if (p == null || p.isEmpty || p == 'N/A') return 'N/A';
-    String cleaned = p.replaceAll(RegExp(r'\D'), '');
-    if (cleaned.length == 9) {
-      return '${cleaned.substring(0, 3)} ${cleaned.substring(3, 6)} ${cleaned.substring(6)}';
-    } else if (cleaned.length == 10) {
-      return '${cleaned.substring(0, 3)} ${cleaned.substring(3, 7)} ${cleaned.substring(7)}';
-    }
-    return p;
+  String _formatDuration(String? duration) {
+    if (duration == null || duration.isEmpty) return 'N/A';
+    try {
+      final parts = duration.split(':');
+      if (parts.length >= 2) {
+        final hours = int.tryParse(parts[0]) ?? 0;
+        final minutes = int.tryParse(parts[1]) ?? 0;
+        if (hours > 0) {
+          return '$hoursម៉ោង $minutesនាទី';
+        }
+        return '$minutesនាទី';
+      }
+    } catch (_) {}
+    return duration;
   }
 
   @override
   Widget build(BuildContext context) {
-    return DynamicAppBarWrapper(
-      title: "បញ្ជីសំណើ",
-      actions: [
-        IconButton(
-          icon: const Icon(Icons.refresh_rounded),
-          onPressed: _loadData,
-          tooltip: 'ផ្ទុកឡើងវិញ',
+    return Scaffold(
+      backgroundColor: AppTheme.bgSurface,
+      appBar: AppBar(
+        backgroundColor: AppTheme.bgCard,
+        elevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back_ios_new, color: AppTheme.textPrimary),
+          onPressed: () => Navigator.pop(context),
         ),
-      ],
+        title: Text(
+          "បញ្ជីសំណើ",
+          style: GoogleFonts.kantumruyPro(
+            color: AppTheme.textPrimary,
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+          ),
+        ),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.refresh, color: AppTheme.textPrimary),
+            onPressed: _loadData,
+            tooltip: 'ផ្ទុកឡើងវិញ',
+          ),
+        ],
+      ),
       // Stack to add a hidden PDF report generator
       body: Stack(
         children: [
@@ -303,86 +296,44 @@ class _RequestListScreenState extends State<RequestListScreen> {
             offstage: true,
             child: RepaintBoundary(
               key: _reportKey,
-              child: SizedBox(
-                width: 450,
-                height: 640,
-                child: _buildHiddenReport(context),
-              ),
+              child: _hiddenReportWidget(item: _currentReportItem),
             ),
           ),
-          AppBackgroundShell(
-            child: Column(
-              children: [
-                SizedBox(height: MediaQuery.of(context).padding.top + 70),
-                // Search Bar
-                Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    AppResponsive.horizontalPadding(context),
-                    0,
-                    AppResponsive.horizontalPadding(context),
-                    12,
-                  ),
-                  child: AppSearchField(
-                    controller: _searchController,
-                    hintText: 'ស្វែងរក ID, ឈ្មោះ, ប្រភេទ, ឬផ្នែក...',
-                  ),
-                ),
+          
+          // Main content
+          _isLoading
+              ? const Center(child: CircularProgressIndicator(color: Colors.orangeAccent))
+              : _errorMessage.isNotEmpty
+                  ? _buildErrorState()
+                  : _buildContent(),
+        ],
+      ),
+    );
+  }
 
-                // Summary statistics
-                if (!_isLoading && _requests.isNotEmpty) _buildSummaryRow(),
-
-                // Main list
-                Expanded(
-                  child: _isLoading
-                      ? Center(
-                          child: CircularProgressIndicator(
-                            color: AppTheme.primary,
-                          ),
-                        )
-                      : RefreshIndicator(
-                          onRefresh: _loadData,
-                          color: AppTheme.primary,
-                          child: _filtered.isEmpty
-                              ? _buildEmptyState()
-                              : AnimationLimiter(
-                                  child: ListView.builder(
-                                    padding: EdgeInsets.fromLTRB(
-                                      AppResponsive.horizontalPadding(context),
-                                      0,
-                                      AppResponsive.horizontalPadding(context),
-                                      AppResponsive.bottomPadding(
-                                        context,
-                                        hasBottomNav:
-                                            ModalRoute.of(context)?.isFirst ??
-                                            false,
-                                      ),
-                                    ),
-                                    physics: const BouncingScrollPhysics(),
-                                    itemCount: _filtered.length,
-                                    itemBuilder: (context, index) =>
-                                        AnimationConfiguration.staggeredList(
-                                          position: index,
-                                          duration: const Duration(
-                                            milliseconds: 400,
-                                          ),
-                                          child: SlideAnimation(
-                                            verticalOffset: 50.0,
-                                            child: FadeInAnimation(
-                                              child: AppResponsive.maxWidth(
-                                                context: context,
-                                                child: _buildRequestCard(
-                                                  _filtered[index],
-                                                  index,
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                  ),
-                                ),
-                        ),
-                ),
-              ],
+  Widget _buildErrorState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.error_outline, size: 64, color: Colors.red.shade300),
+          const SizedBox(height: 16),
+          Text(
+            _errorMessage,
+            style: GoogleFonts.kantumruyPro(
+              color: AppTheme.textSecondary,
+              fontSize: 16,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(
+            onPressed: _loadData,
+            icon: const Icon(Icons.refresh),
+            label: Text("ព្យាយាមម្ដងទៀត", style: GoogleFonts.kantumruyPro()),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _brandOrange,
+              foregroundColor: Colors.white,
             ),
           ),
         ],
@@ -390,272 +341,151 @@ class _RequestListScreenState extends State<RequestListScreen> {
     );
   }
 
-  Widget _buildSummaryRow() {
-    int pending = _requests
-        .where((r) => (r['status'] ?? '') == 'pending')
-        .length;
-    int approved = _requests
-        .where((r) => (r['status'] ?? '') == 'approved')
-        .length;
-    int rejected = _requests
-        .where((r) => (r['status'] ?? '') == 'rejected')
-        .length;
-
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        AppResponsive.horizontalPadding(context),
-        0,
-        AppResponsive.horizontalPadding(context),
-        12,
-      ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        child: Row(
+  Widget _buildContent() {
+    if (_filtered.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            _buildStatChip(
-              'សរុប ${_requests.length}',
-              Colors.blueAccent,
-              Icons.list_alt_rounded,
-            ),
-            const SizedBox(width: 8),
-            _buildStatChip(
-              'រង់ចាំ $pending',
-              const Color(0xFFf59e0b),
-              Icons.pending_outlined,
-            ),
-            const SizedBox(width: 8),
-            _buildStatChip(
-              'បានអនុម័ត $approved',
-              const Color(0xFF10b981),
-              Icons.check_circle_outline_rounded,
-            ),
-            const SizedBox(width: 8),
-            _buildStatChip(
-              'បដិសេធ $rejected',
-              const Color(0xFFe11d48),
-              Icons.cancel_outlined,
+            Icon(Icons.inbox_outlined, size: 64, color: Colors.grey.shade300),
+            const SizedBox(height: 16),
+            Text(
+              "មិនមានសំណើទេ",
+              style: GoogleFonts.kantumruyPro(
+                color: AppTheme.textSecondary,
+                fontSize: 16,
+              ),
             ),
           ],
         ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _loadData,
+      color: _brandOrange,
+      child: AnimationLimiter(
+        child: ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: _filtered.length,
+          itemBuilder: (context, index) {
+            return AnimationConfiguration.staggeredList(
+              position: index,
+              duration: const Duration(milliseconds: 375),
+              child: SlideAnimation(
+                verticalOffset: 50.0,
+                child: FadeInAnimation(
+                  child: _buildRequestCard(_filtered[index]),
+                ),
+              ),
+            );
+          },
+        ),
       ),
     );
   }
 
-  Widget _buildStatChip(String label, Color color, IconData icon) {
+  Widget _buildRequestCard(Map<String, dynamic> item) {
+    final status = item['status']?.toString() ?? 'pending';
+    final type = item['request_type']?.toString() ?? '';
+    final name = item['requester_name']?.toString() ?? 'Unknown';
+    final department = item['department']?.toString() ?? '';
+    final reason = item['reason']?.toString() ?? '';
+    final requestDate = item['request_date']?.toString() ?? '';
+    final createdDate = item['created_at']?.toString() ?? '';
+
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+      margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: 14, color: color),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: GoogleFonts.kantumruyPro(
-              color: color,
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-            ),
+        color: AppTheme.bgCard,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.borderColor),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildEmptyState() {
-    return SingleChildScrollView(
-      physics: const AlwaysScrollableScrollPhysics(
-        parent: BouncingScrollPhysics(),
-      ),
-      padding: EdgeInsets.only(
-        bottom: AppResponsive.bottomPadding(
-          context,
-          hasBottomNav: ModalRoute.of(context)?.isFirst ?? false,
-        ),
-      ),
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const SizedBox(height: 60),
-              // Show error icon if there's an error
-              Icon(
-                _errorMessage.isNotEmpty
-                    ? Icons.wifi_off_rounded
-                    : Icons.folder_open_rounded,
-                size: 80,
-                color: _errorMessage.isNotEmpty
-                    ? Colors.redAccent.withValues(alpha: 0.4)
-                    : AppTheme.textPrimary.withValues(alpha: 0.15),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: _typeBadgeBg(type),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
               ),
-              const SizedBox(height: 16),
-              Text(
-                _errorMessage.isNotEmpty
-                    ? (_errorMessage.toLowerCase().contains('unauthorized')
-                          ? 'Session អស់សុពលភាព\nសូម Login ម្ដងទៀត'
-                          : _errorMessage)
-                    : (_searchController.text.isEmpty
-                          ? "មិនទាន់មានការស្នើសុំណាមួយ"
-                          : "រកមិនឃើញ \"${_searchController.text}\""),
-                textAlign: TextAlign.center,
-                style: GoogleFonts.kantumruyPro(
-                  color: _errorMessage.isNotEmpty
-                      ? Colors.redAccent.withValues(alpha: 0.8)
-                      : AppTheme.textPrimary.withValues(alpha: 0.38),
-                  fontSize: 16,
-                ),
-              ),
-              if (_errorMessage.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                ElevatedButton.icon(
-                  onPressed: _loadData,
-                  icon: const Icon(Icons.refresh_rounded, size: 18),
-                  label: Text(
-                    'ព្យាយាមម្ដងទៀត',
-                    style: GoogleFonts.kantumruyPro(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF4f46e5),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 12,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-              ],
-              if (_debugInfo.isNotEmpty) ...[
-                const SizedBox(height: 24),
+            ),
+            child: Row(
+              children: [
+                // Avatar
                 Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
+                  width: 48,
+                  height: 48,
                   decoration: BoxDecoration(
-                    color: Colors.orange.withValues(alpha: 0.1),
+                    color: _typeBadgeColor(type),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: Colors.orange.withValues(alpha: 0.3),
+                      color: AppTheme.primary.withValues(alpha: 0.3),
                     ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '🔍 DEBUG INFO',
-                        style: GoogleFonts.inter(
-                          color: Colors.orange,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 11,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        _debugInfo,
-                        style: GoogleFonts.inter(
-                          color: AppTheme.textPrimary.withValues(alpha: 0.60),
-                          fontSize: 11,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRequestCard(Map<String, dynamic> item, int index) {
-    final type = item['request_type'] ?? 'សំណើ';
-    final name = item['requester_name'] ?? 'N/A';
-    final dept = item['department'] ?? '';
-    final branch = item['branch'] ?? '';
-    final reqDate = _formatDate(item['request_date']);
-    final createdTime = _formatTime(item['created_at']);
-    final reason = item['reason'] ?? '';
-    final status = (item['status'] ?? 'pending');
-    final statusColor = _statusColor(status);
-    final badgeBg = _typeBadgeBg(type);
-    final badgeColor = _typeBadgeColor(type);
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      decoration: BoxDecoration(
-        color: AppTheme.bgCard,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppTheme.textPrimary.withValues(alpha: 0.05)),
-        boxShadow: AppTheme.cardShadow,
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(18),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: () => _showDetails(item),
-            child: Column(
-              children: [
-                // Colored top accent based on status
-                Container(
-                  height: 3,
-                  decoration: BoxDecoration(
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(18),
-                    ),
-                    color: statusColor.withValues(alpha: 0.7),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Row 1: Type badge + Status
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          // Type badge
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 5,
-                            ),
-                            decoration: BoxDecoration(
-                              color: badgeBg,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: badgeColor.withValues(alpha: 0.3),
+                    image: (item['user_avatar'] != null &&
+                        item['user_avatar'].toString().isNotEmpty)
+                        ? DecorationImage(
+                            image: NetworkImage(
+                              ApiService.getFullImageUrl(
+                                item['user_avatar'].toString(),
                               ),
                             ),
-                            child: Text(
-                              type,
-                              style: GoogleFonts.kantumruyPro(
-                                color: badgeColor,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 11,
-                              ),
+                            fit: BoxFit.cover,
+                          )
+                        : null,
+                  ),
+                  child: (item['user_avatar'] == null ||
+                          item['user_avatar'].toString().isEmpty)
+                      ? Center(
+                          child: Text(
+                            _initials(name),
+                            style: GoogleFonts.kantumruyPro(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
                             ),
                           ),
-                          // Status chip
+                        )
+                      : null,
+                ),
+                const SizedBox(width: 12),
+                // Info
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              name,
+                              style: GoogleFonts.kantumruyPro(
+                                color: AppTheme.textPrimary,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
                           Container(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 5,
+                              horizontal: 8,
+                              vertical: 4,
                             ),
                             decoration: BoxDecoration(
-                              color: statusColor.withValues(alpha: 0.12),
+                              color: _statusColor(status).withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Row(
@@ -663,16 +493,16 @@ class _RequestListScreenState extends State<RequestListScreen> {
                               children: [
                                 Icon(
                                   _statusIcon(status),
-                                  color: statusColor,
                                   size: 14,
+                                  color: _statusColor(status),
                                 ),
                                 const SizedBox(width: 4),
                                 Text(
                                   _statusLabel(status),
                                   style: GoogleFonts.kantumruyPro(
-                                    color: statusColor,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 11,
+                                    color: _statusColor(status),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
                               ],
@@ -680,678 +510,199 @@ class _RequestListScreenState extends State<RequestListScreen> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 12),
-
-                      // Requester Info
+                      const SizedBox(height: 4),
                       Row(
                         children: [
-                          // Avatar circle
-                          Container(
-                            width: 36,
-                            height: 36,
-                            decoration: BoxDecoration(
-                              color: AppTheme.primary.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(
-                                color: AppTheme.primary.withValues(alpha: 0.3),
-                              ),
-                              image:
-                                  (item['user_avatar'] != null &&
-                                      item['user_avatar'].toString().isNotEmpty)
-                                  ? DecorationImage(
-                                      image: NetworkImage(
-                                        ApiService.getFullImageUrl(
-                                          item['user_avatar'].toString(),
-                                        ),
-                                      ),
-                                      fit: BoxFit.cover,
-                                    )
-                                  : null,
-                            ),
-                            alignment: Alignment.center,
-                            child:
-                                (item['user_avatar'] == null ||
-                                    item['user_avatar'].toString().isEmpty)
-                                ? Text(
-                                    _initials(name),
-                                    style: GoogleFonts.inter(
-                                      color: AppTheme.primaryLight,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 12,
-                                    ),
-                                  )
-                                : null,
-                          ),
-                          const SizedBox(width: 10),
+                          Icon(Icons.badge_outlined, size: 14, color: AppTheme.textSecondary),
+                          const SizedBox(width: 4),
                           Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  name,
-                                  style: GoogleFonts.kantumruyPro(
-                                    color: AppTheme.textPrimary,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                                if (dept.isNotEmpty || branch.isNotEmpty)
-                                  Text(
-                                    [
-                                      dept,
-                                      branch,
-                                    ].where((s) => s.isNotEmpty).join(' · '),
-                                    style: GoogleFonts.kantumruyPro(
-                                      color: AppTheme.textPrimary.withValues(
-                                        alpha: 0.54,
-                                      ),
-                                      fontSize: 11,
-                                    ),
-                                  ),
-                              ],
+                            child: Text(
+                              type,
+                              style: GoogleFonts.kantumruyPro(
+                                color: AppTheme.textSecondary,
+                                fontSize: 13,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         ],
                       ),
-
-                      if (reason.isNotEmpty) ...[
-                        const SizedBox(height: 10),
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: AppTheme.textPrimary.withValues(alpha: 0.04),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Text(
-                            reason,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.kantumruyPro(
-                              color: AppTheme.textPrimary.withValues(
-                                alpha: 0.70,
+                      if (department.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
+                            Icon(Icons.business_outlined, size: 14, color: AppTheme.textSecondary),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                department,
+                                style: GoogleFonts.kantumruyPro(
+                                  color: AppTheme.textSecondary,
+                                  fontSize: 12,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                              fontSize: 12,
                             ),
-                          ),
+                          ],
                         ),
                       ],
-
-                      const SizedBox(height: 10),
-                      Divider(
-                        color: AppTheme.textPrimary.withValues(alpha: 0.10),
-                        height: 1,
-                      ),
-                      const SizedBox(height: 10),
-
-                      // Footer: date + time
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.calendar_today_rounded,
-                                color: AppTheme.textPrimary.withValues(
-                                  alpha: 0.38,
-                                ),
-                                size: 13,
-                              ),
-                              const SizedBox(width: 5),
-                              Text(
-                                reqDate,
-                                style: GoogleFonts.inter(
-                                  color: AppTheme.textPrimary.withValues(
-                                    alpha: 0.54,
-                                  ),
-                                  fontSize: 11,
-                                ),
-                              ),
-                            ],
-                          ),
-                          if (createdTime.isNotEmpty)
-                            Text(
-                              createdTime,
-                              style: GoogleFonts.inter(
-                                color: AppTheme.textPrimary.withValues(
-                                  alpha: 0.30,
-                                ),
-                                fontSize: 10,
-                              ),
-                            ),
-                          // Request ID badge
-                          if (item['id'] != null)
-                            Text(
-                              '#${item['id']}',
-                              style: GoogleFonts.inter(
-                                color: AppTheme.textPrimary.withValues(
-                                  alpha: 0.24,
-                                ),
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                        ],
-                      ),
                     ],
                   ),
                 ),
               ],
             ),
           ),
-        ),
+          // Content
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (reason.isNotEmpty) ...[
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.description_outlined, size: 16, color: AppTheme.textSecondary),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          reason,
+                          style: GoogleFonts.kantumruyPro(
+                            color: AppTheme.textPrimary,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                // Details
+                Row(
+                  children: [
+                    Expanded(
+                      child: _detailItem(
+                        Icons.calendar_today_outlined,
+                        "កាលបរិច្ឆេទស្នើ",
+                        _formatDate(requestDate),
+                      ),
+                    ),
+                    Expanded(
+                      child: _detailItem(
+                        Icons.access_time,
+                        "បានបង្កើត",
+                        _formatDate(createdDate),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                // Actions
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _viewRequestDetails(item),
+                        icon: const Icon(Icons.visibility_outlined, size: 18),
+                        label: Text(
+                          "មើលលម្អិត",
+                          style: GoogleFonts.kantumruyPro(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppTheme.primary,
+                          side: BorderSide(color: AppTheme.primary),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () => _generatePDF(item),
+                        icon: const Icon(Icons.picture_as_pdf_rounded, size: 18),
+                        label: Text(
+                          "PDF",
+                          style: GoogleFonts.kantumruyPro(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _brandOrange,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  void _showDetails(Map<String, dynamic> item) {
-    final status = (item['status'] ?? 'pending').toString();
-    final statusColor = _statusColor(status);
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) {
-        final user = Provider.of<UserProvider>(context, listen: false);
-        return DraggableScrollableSheet(
-          initialChildSize: 0.85,
-          maxChildSize: 0.95,
-          minChildSize: 0.5,
-          builder: (_, scrollController) => Container(
-            decoration: BoxDecoration(
-              color: AppTheme.bgCard,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-            ),
-            child: Column(
-              children: [
-                // Handle bar
-                Container(
-                  margin: const EdgeInsets.only(top: 12, bottom: 4),
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AppTheme.textPrimary.withValues(alpha: 0.24),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
+  Widget _detailItem(IconData icon, String label, String value) {
+    return Row(
+      children: [
+        Icon(icon, size: 14, color: AppTheme.textSecondary),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: GoogleFonts.kantumruyPro(
+                  color: AppTheme.textSecondary,
+                  fontSize: 11,
                 ),
-
-                // Header
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          "ព័ត៌មានលម្អិតនៃសំណើ",
-                          style: GoogleFonts.kantumruyPro(
-                            color: AppTheme.textPrimary,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      // Status badge
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: statusColor.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: statusColor.withValues(alpha: 0.3),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              _statusIcon(status),
-                              color: statusColor,
-                              size: 14,
-                            ),
-                            const SizedBox(width: 5),
-                            Text(
-                              _statusLabel(status),
-                              style: GoogleFonts.kantumruyPro(
-                                color: statusColor,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
+              ),
+              Text(
+                value,
+                style: GoogleFonts.kantumruyPro(
+                  color: AppTheme.textPrimary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
                 ),
-
-                Divider(
-                  color: AppTheme.textPrimary.withValues(alpha: 0.10),
-                  height: 20,
-                ),
-
-                // Scrollable content
-                Expanded(
-                  child: ListView(
-                    controller: scrollController,
-                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
-                    children: [
-                      // =========== Section 1: ព័ត៌មានបុគ្គល ===========
-                      _buildSection("ព័ត៌មានបុគ្គល", Icons.person_rounded, [
-                        _detailRow("ID", '#${item['id'] ?? '-'}'),
-                        _detailRow("ឈ្មោះ", item['requester_name'] ?? '-'),
-                        _detailRow("ប្រភេទ", item['request_type'] ?? '-'),
-                      ]),
-
-                      // =========== Section 2: ទីតាំងការងារ ===========
-                      _buildSection("ទីតាំងការងារ", Icons.business_rounded, [
-                        _detailRow("ផ្នែក", item['department'] ?? '-'),
-                        _detailRow("តួនាទី", item['position'] ?? '-'),
-                        _detailRow("សាខា", item['branch'] ?? '-'),
-                        if ((item['department_head_name'] ?? '')
-                            .toString()
-                            .isNotEmpty)
-                          _detailRow(
-                            "ប្រធានផ្នែក",
-                            item['department_head_name'] ?? '-',
-                          ),
-                      ]),
-
-                      // =========== Section 3: ព័ត៌មានសំណើ ===========
-                      _buildSection("ព័ត៌មានសំណើ", Icons.assignment_rounded, [
-                        _detailRow(
-                          "កាលបរិច្ឆេទស្នើ",
-                          _formatDate(item['request_date']),
-                        ),
-                        if ((item['return_date'] ?? '').toString().isNotEmpty)
-                          _detailRow(
-                            "កាលបរិច្ឆេទត្រឡប់",
-                            _formatDate(item['return_date']),
-                          ),
-                        if ((item['number_of_days'] ?? '')
-                                .toString()
-                                .isNotEmpty &&
-                            item['number_of_days'].toString() != '0')
-                          _detailRow(
-                            "ចំនួនថ្ងៃ",
-                            item['number_of_days'].toString(),
-                          ),
-                        if ((item['time_in'] ?? '').toString().isNotEmpty)
-                          _detailRow(
-                            "ម៉ោងចូល",
-                            _formatClockTime(item['time_in'].toString()),
-                          ),
-                        if ((item['time_out'] ?? '').toString().isNotEmpty)
-                          _detailRow(
-                            "ម៉ោងចេញ",
-                            _formatClockTime(item['time_out'].toString()),
-                          ),
-                        if ((item['late_hours'] ?? '').toString().isNotEmpty)
-                          _detailRow("ម៉ោងយឺត", item['late_hours'].toString()),
-                        if ((item['total_hours'] ?? '').toString().isNotEmpty)
-                          _detailRow(
-                            "សរុបម៉ោង",
-                            item['total_hours'].toString(),
-                          ),
-                        if ((item['repay_time_in'] ?? '').toString().isNotEmpty)
-                          _detailRow(
-                            "ម៉ោងសងចូល",
-                            _formatClockTime(item['repay_time_in'].toString()),
-                          ),
-                        if ((item['repay_time_out'] ?? '')
-                            .toString()
-                            .isNotEmpty)
-                          _detailRow(
-                            "ម៉ោងសងចេញ",
-                            _formatClockTime(item['repay_time_out'].toString()),
-                          ),
-                        if ((item['forgot_scan_in'] ?? '')
-                            .toString()
-                            .isNotEmpty)
-                          _detailRow(
-                            "ភ្លេចស្កេនចូល",
-                            _formatClockTime(item['forgot_scan_in'].toString()),
-                          ),
-                        if ((item['forgot_scan_out'] ?? '')
-                            .toString()
-                            .isNotEmpty)
-                          _detailRow(
-                            "ភ្លេចស្កេនចេញ",
-                            _formatClockTime(
-                              item['forgot_scan_out'].toString(),
-                            ),
-                          ),
-                      ]),
-
-                      // =========== Section 4: ព័ត៌មានផ្សេង ===========
-                      _buildSection(
-                        "ព័ត៌មានផ្សេង",
-                        Icons.info_outline_rounded,
-                        [
-                          if ((item['reason'] ?? '').toString().isNotEmpty)
-                            _detailRow("មូលហេតុ", item['reason'].toString()),
-                          if ((item['contact_number'] ?? '')
-                              .toString()
-                              .isNotEmpty)
-                            _detailRow(
-                              "លេខទូរស័ព្ទ",
-                              _formatPhone(item['contact_number'].toString()),
-                            ),
-                          if ((item['assigned_to'] ?? '').toString().isNotEmpty)
-                            _detailRow(
-                              "ទទួលជំទាវវិញ",
-                              item['assigned_to'].toString(),
-                            ),
-                          if ((item['location'] ?? '').toString().isNotEmpty)
-                            _detailRow("ទីតាំង", item['location'].toString()),
-                          _detailRow("ស្ថានភាព", _statusLabel(status)),
-                          if ((item['approved_by'] ?? '').toString().isNotEmpty)
-                            _detailRow("អ្នកអនុម័ត", item['approved_by']),
-                          if ((item['admin_comment'] ?? '')
-                              .toString()
-                              .isNotEmpty)
-                            _detailRow("មតិ Admin", item['admin_comment']),
-                          if (item['created_at'] != null)
-                            _detailRow(
-                              "ម៉ោងបញ្ជូន",
-                              _formatTime(item['created_at']),
-                            ),
-                        ],
-                      ),
-
-                      // =========== Section 5: ហត្ថលេខា ===========
-                      if ((item['signature'] ?? '').toString().startsWith(
-                            'data:image',
-                          ) ||
-                          (item['department_head_signature'] ?? '')
-                              .toString()
-                              .startsWith('data:image'))
-                        _buildSection("ហត្ថលេខា", Icons.draw_rounded, [
-                          if ((item['signature'] ?? '').toString().startsWith(
-                            'data:image',
-                          ))
-                            _signatureRow("ហត្ថលេខាបុគ្គល", item['signature']),
-                          if ((item['department_head_signature'] ?? '')
-                              .toString()
-                              .startsWith('data:image'))
-                            _signatureRow(
-                              "ហត្ថលេខាប្រធានផ្នែក",
-                              item['department_head_signature'],
-                            ),
-                          if ((item['admin_signature'] ?? '')
-                              .toString()
-                              .startsWith('data:image'))
-                            _signatureRow(
-                              "ហត្ថលេខា Admin",
-                              item['admin_signature'],
-                            ),
-                        ]),
-
-                      const SizedBox(height: 24),
-
-                      // View as Image button
-                      OutlinedButton.icon(
-                        onPressed: () => _viewAsImage(item),
-                        icon: Icon(
-                          Icons.image_outlined,
-                          color: AppTheme.primary,
-                        ),
-                        label: Text(
-                          "មើលសំណើជារូបភាព",
-                          style: GoogleFonts.kantumruyPro(
-                            color: AppTheme.primary,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          side: BorderSide(color: AppTheme.primary),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          minimumSize: const Size(double.infinity, 50),
-                        ),
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      // Actions Row
-                      Row(
-                        children: [
-                          // PDF Button
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              onPressed: () => _generatePDF(item),
-                              icon: const Icon(
-                                Icons.picture_as_pdf_rounded,
-                                size: 20,
-                              ),
-                              label: Text(
-                                "ទាញយក PDF",
-                                style: GoogleFonts.kantumruyPro(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.orangeAccent,
-                                foregroundColor: AppTheme.textPrimary,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
-                                minimumSize: const Size(0, 50),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          // Edit/Approve logic
-                          if (status == 'pending') ...[
-                            if (user.systemRole == SystemRole.admin ||
-                                user.systemRole == SystemRole.hrm)
-                              Expanded(
-                                child: ElevatedButton.icon(
-                                  onPressed: () => _handleStatusUpdate(
-                                    item['id'],
-                                    'approved',
-                                  ),
-                                  icon: const Icon(
-                                    Icons.check_circle_rounded,
-                                    size: 20,
-                                  ),
-                                  label: Text(
-                                    "អនុម័ត",
-                                    style: GoogleFonts.kantumruyPro(
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF10b981),
-                                    foregroundColor: AppTheme.textPrimary,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(14),
-                                    ),
-                                    minimumSize: const Size(0, 50),
-                                  ),
-                                ),
-                              )
-                            else
-                              Expanded(
-                                child: ElevatedButton.icon(
-                                  onPressed: () => _handleEdit(item),
-                                  icon: const Icon(
-                                    Icons.edit_rounded,
-                                    size: 20,
-                                  ),
-                                  label: Text(
-                                    "កែសម្រួល",
-                                    style: GoogleFonts.kantumruyPro(
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppTheme.primary,
-                                    foregroundColor: AppTheme.textPrimary,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(14),
-                                    ),
-                                    minimumSize: const Size(0, 50),
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ],
-                      ),
-
-                      if (status == 'pending') ...[
-                        const SizedBox(height: 12),
-                        if (user.systemRole == SystemRole.admin ||
-                            user.systemRole == SystemRole.hrm)
-                          OutlinedButton.icon(
-                            onPressed: () =>
-                                _handleStatusUpdate(item['id'], 'rejected'),
-                            icon: const Icon(
-                              Icons.cancel_rounded,
-                              color: Colors.redAccent,
-                            ),
-                            label: Text(
-                              "បដិសេធសំណើ",
-                              style: GoogleFonts.kantumruyPro(
-                                color: Colors.redAccent,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            style: OutlinedButton.styleFrom(
-                              side: const BorderSide(color: Colors.redAccent),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              minimumSize: const Size(double.infinity, 50),
-                            ),
-                          )
-                        else
-                          OutlinedButton.icon(
-                            onPressed: () =>
-                                _confirmDelete(context, item['id']),
-                            icon: const Icon(
-                              Icons.delete_outline_rounded,
-                              color: Colors.redAccent,
-                            ),
-                            label: Text(
-                              "លុបសំណើនេះ",
-                              style: GoogleFonts.kantumruyPro(
-                                color: Colors.redAccent,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            style: OutlinedButton.styleFrom(
-                              side: const BorderSide(color: Colors.redAccent),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              minimumSize: const Size(double.infinity, 50),
-                            ),
-                          ),
-                      ],
-
-                      const SizedBox(height: 12),
-
-                      ElevatedButton(
-                        onPressed: () => Navigator.pop(context),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.textPrimary.withValues(
-                            alpha: 0.10,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          minimumSize: const Size(double.infinity, 50),
-                        ),
-                        child: Text(
-                          "បិទ",
-                          style: GoogleFonts.kantumruyPro(
-                            color: AppTheme.textPrimary,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-        );
-      },
+        ),
+      ],
     );
   }
 
-  // Handle Approve/Reject
-  Future<void> _handleStatusUpdate(int id, String status) async {
-    final commentController = TextEditingController();
-    final bool? confirmed = await showDialog<bool>(
+  Future<void> _viewRequestDetails(Map<String, dynamic> item) async {
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppTheme.bgCard,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(
-          status == 'approved' ? "អនុម័តសំណើ" : "បដិសេធសំណើ",
-          style: GoogleFonts.kantumruyPro(
-            color: AppTheme.textPrimary,
-            fontWeight: FontWeight.bold,
-          ),
+          "មើលលម្អិតសំណើ",
+          style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold),
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              "តើអ្នកពិតជាចង់ ${status == 'approved' ? 'អនុម័ត' : 'បដិសេធ'} សំណើនេះមែនទេ?",
-              style: GoogleFonts.kantumruyPro(
-                color: AppTheme.textPrimary.withValues(alpha: 0.70),
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: commentController,
-              style: TextStyle(color: AppTheme.textPrimary),
-              decoration: InputDecoration(
-                hintText: "មតិយោបល់ (Admin Comment)...",
-                hintStyle: TextStyle(
-                  color: AppTheme.textPrimary.withValues(alpha: 0.30),
-                ),
-                filled: true,
-                fillColor: AppTheme.textPrimary.withValues(alpha: 0.05),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-            ),
-          ],
+        content: Text(
+          "តើអ្នកចង់មើលលម្អិតសំណើនេះជារូបភាពទេ?",
+          style: GoogleFonts.kantumruyPro(),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text(
-              "បោះបង់",
-              style: GoogleFonts.kantumruyPro(
-                color: AppTheme.textPrimary.withValues(alpha: 0.38),
-              ),
-            ),
+            child: Text("បោះបង់", style: GoogleFonts.kantumruyPro()),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: status == 'approved'
-                  ? const Color(0xFF10b981)
-                  : Colors.redAccent,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            child: Text(
-              status == 'approved' ? "យល់ព្រម" : "បដិសេធ",
-              style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold),
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: _brandOrange),
+            child: Text("មើលរូបភាព", style: GoogleFonts.kantumruyPro(color: Colors.white)),
           ),
         ],
       ),
@@ -1361,38 +712,16 @@ class _RequestListScreenState extends State<RequestListScreen> {
       if (!mounted) return;
       showDialog(
         context: context,
-        barrierDismissible: false,
-        builder: (ctx) => const Center(child: CircularProgressIndicator()),
-      );
-
-      final res = await _api.approveRequest(
-        requestId: id,
-        status: status,
-        adminComment: commentController.text,
+        builder: (ctx) => const Center(
+          child: CircularProgressIndicator(color: Colors.orangeAccent),
+        ),
       );
 
       if (!mounted) return;
       Navigator.pop(context); // Close loader
-      if (res['success'] == true) {
-        Navigator.pop(context); // Close details sheet
-        _loadData(); // Refresh list
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              status == 'approved' ? "បានអនុម័តជោគជ័យ" : "បានបដិសេធជោគជ័យ",
-              style: GoogleFonts.kantumruyPro(),
-            ),
-            backgroundColor: status == 'approved' ? Colors.green : Colors.red,
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(res['message'] ?? "មានបញ្ហាក្នុងការរក្សាទុក"),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      
+      // Navigate to detailed view
+      await _viewAsImage(item);
     }
   }
 
@@ -1425,33 +754,39 @@ class _RequestListScreenState extends State<RequestListScreen> {
     await Future.delayed(const Duration(milliseconds: 300));
 
     // 3. Capture the hidden widget as an image
-    final boundary =
-        _reportKey.currentContext?.findRenderObject()
-            as RenderRepaintBoundary?;
-    if (boundary == null) throw "Could not find report boundary";
-
-    // Check if boundary has valid dimensions
-    final size = boundary.size;
-    debugPrint("Boundary size: ${size.width}x${size.height}");
-    
-    if (size.width <= 0 || size.height <= 0 || !size.width.isFinite || !size.height.isFinite) {
-      // Try one more time with longer delay
-      await Future.delayed(const Duration(milliseconds: 500));
-      final size2 = boundary.size;
-      debugPrint("Retry boundary size: ${size2.width}x${size2.height}");
-      
-      if (size2.width <= 0 || size2.height <= 0 || !size2.width.isFinite || !size2.height.isFinite) {
-        throw "Invalid widget dimensions after retry: ${size2.width}x${size2.height}";
-      }
-    }
-
     try {
-      final ui.Image capturedImage = await boundary.toImage(pixelRatio: 3.0);
-      final ByteData? byteData = await capturedImage.toByteData(
-        format: ui.ImageByteFormat.png,
-      );
-      if (byteData == null) throw "Failed to convert image to bytes";
-      return byteData.buffer.asUint8List();
+      final boundary =
+          _reportKey.currentContext?.findRenderObject()
+              as RenderRepaintBoundary?;
+      if (boundary == null) throw "Could not find report boundary";
+
+      // Check if boundary has valid dimensions
+      final size = boundary.size;
+      debugPrint("Boundary size: ${size.width}x${size.height}");
+      
+      if (size.width <= 0 || size.height <= 0 || !size.width.isFinite || !size.height.isFinite) {
+        // Try one more time with longer delay
+        await Future.delayed(const Duration(milliseconds: 500));
+        final size2 = boundary.size;
+        debugPrint("Retry boundary size: ${size2.width}x${size2.height}");
+        
+        if (size2.width <= 0 || size2.height <= 0 || !size2.width.isFinite || !size2.height.isFinite) {
+          throw "Invalid widget dimensions after retry: ${size2.width}x${size2.height}";
+        }
+      }
+
+      // Capture with proper null safety
+      try {
+        final ui.Image capturedImage = await boundary.toImage(pixelRatio: 3.0);
+        
+        final ByteData? byteData = await capturedImage.toByteData(
+          format: ui.ImageByteFormat.png,
+        );
+        if (byteData == null) throw "Failed to convert image to bytes";
+        return byteData.buffer.asUint8List();
+      } catch (e) {
+        throw "Image capture failed during toImage conversion: $e";
+      }
     } catch (e) {
       throw "Image capture failed: $e";
     }
@@ -1459,6 +794,8 @@ class _RequestListScreenState extends State<RequestListScreen> {
 
   // ========= View Request as Image (with Copy Image support) =========
   Future<void> _viewAsImage(Map<String, dynamic> item) async {
+    if (!mounted) return;
+    
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -1508,18 +845,20 @@ class _RequestListScreenState extends State<RequestListScreen> {
                   ],
                 ),
               ),
-              Flexible(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Container(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(dialogCtx).size.height * 0.7,
                   ),
-                  child: ClipRRect(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
                     borderRadius: BorderRadius.circular(12),
-                    child: InteractiveViewer(
-                      maxScale: 5,
-                      child: Image.memory(pngBytes, fit: BoxFit.contain),
-                    ),
+                  ),
+                  child: InteractiveViewer(
+                    maxScale: 5,
+                    child: Image.memory(pngBytes, fit: BoxFit.contain),
                   ),
                 ),
               ),
@@ -1535,12 +874,9 @@ class _RequestListScreenState extends State<RequestListScreen> {
                     ),
                   ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primary,
-                    foregroundColor: AppTheme.textPrimary,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    minimumSize: const Size(double.infinity, 50),
+                    backgroundColor: _brandOrange,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(double.infinity, 48),
                   ),
                 ),
               ),
@@ -1552,14 +888,17 @@ class _RequestListScreenState extends State<RequestListScreen> {
       if (mounted) Navigator.pop(context);
       debugPrint("IMAGE ERROR: $e");
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            "កំហុសក្នុងការបង្កើតរូបភាព: $e",
-            style: GoogleFonts.kantumruyPro(),
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              "កំហុសក្នុងការបង្កើតរូបភាព: $e",
+              style: GoogleFonts.kantumruyPro(),
+            ),
+            backgroundColor: Colors.redAccent,
           ),
-        ),
-      );
+        );
+      }
     }
   }
 
@@ -1567,24 +906,29 @@ class _RequestListScreenState extends State<RequestListScreen> {
     BuildContext dialogCtx,
     Uint8List pngBytes,
   ) async {
+    // Store context references before async operations
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    
     try {
       await Pasteboard.writeImage(pngBytes);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      Navigator.pop(dialogCtx);
+      if (!mounted) return;
+      scaffoldMessenger.showSnackBar(
         SnackBar(
           content: Text(
-            'បាន Copy រូបភាពរួចរាល់! អ្នកអាច Paste ទៅកន្លែងផ្សេងបាន។',
-            style: GoogleFonts.kantumruyPro(color: Colors.white),
+            "រូបភាពត្រូវបានចម្លងទៅក្នុង clipboard",
+            style: GoogleFonts.kantumruyPro(),
           ),
-          backgroundColor: Colors.green.shade700,
+          backgroundColor: Colors.green,
         ),
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      scaffoldMessenger.showSnackBar(
         SnackBar(
           content: Text(
-            'មិនអាច Copy រូបភាពបានទេ: $e',
+            "កំហុសក្នុងការចម្លង: $e",
             style: GoogleFonts.kantumruyPro(),
           ),
           backgroundColor: Colors.redAccent,
@@ -1595,6 +939,8 @@ class _RequestListScreenState extends State<RequestListScreen> {
 
   // ========= Improved PDF Generation using Widget Rendering (Fixes Khmer Shaping) =========
   Future<void> _generatePDF(Map<String, dynamic> item) async {
+    if (!mounted) return;
+    
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -1653,552 +999,202 @@ class _RequestListScreenState extends State<RequestListScreen> {
             "កំហុសក្នុងការបង្កើត PDF: $e",
             style: GoogleFonts.kantumruyPro(),
           ),
+          backgroundColor: Colors.redAccent,
         ),
       );
     }
   }
 
-  // Hidden Report Widget that renders in the background for capture
-  Widget _buildHiddenReport(BuildContext context) {
-    if (_currentReportItem == null) {
-      return Container(color: AppTheme.textPrimary, width: 450, height: 640);
+  // ========= Hidden Report Widget (for capture) =========
+  Widget _hiddenReportWidget({required Map<String, dynamic>? item}) {
+    if (item == null) return const SizedBox.shrink();
+
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final maxHeight = screenHeight * 0.85;
+
+    // Validate values to prevent Infinity or NaN
+    if (!screenWidth.isFinite || screenWidth <= 0) {
+      return const SizedBox.shrink();
+    }
+    if (!maxHeight.isFinite || maxHeight <= 0) {
+      return const SizedBox.shrink();
     }
 
-    final item = _currentReportItem!;
-    final requestType = (item['request_type'] ?? '').toString();
-    final types = [
-      'សម្រាកប្រចាំឆ្នាំ (Annual Leave)',
-      'សម្រាកដោយជំងឺ (Sick Leave)',
-      'ភ្លេចស្កេនមេដៃ (Forgot FP)',
-      'សម្រាកលំហែមាតុភាព (Maternity Leave)',
-      'ថែមម៉ោង (OT)',
-      'ចេញមុនម៉ោង (Early)',
-      'ប្តូរថ្ងៃសម្រាក (Changing day off)',
-      'សម្រាកពិសេស (Special Leave)',
-      'មកយឺត (Late)',
-    ];
+    // Calculate form dimensions
+    double formWidth = screenWidth * 0.95;
+    double formHeight = maxHeight * 0.95;
 
-    String formatD(String? d) {
-      if (d == null || d.isEmpty || d == 'N/A') return 'N/A';
-      try {
-        return DateFormat('dd/MM/yyyy').format(DateTime.parse(d));
-      } catch (_) {
-        return d;
-      }
+    // Validate calculated values
+    if (!formHeight.isFinite || formHeight <= 0 || formHeight.isInfinite) {
+      formHeight = maxHeight * 0.7; // Fallback to screen height
     }
 
-    String formatT(String? t) {
-      if (t == null || t.isEmpty || t == 'N/A') return 'N/A';
-      try {
-        DateTime? dt;
-        if (t.contains('T') || t.contains('-')) {
-          dt = DateTime.parse(t);
-        } else if (t.contains(':')) {
-          final parts = t.split(':');
-          dt = DateTime(2000, 1, 1, int.parse(parts[0]), int.parse(parts[1]));
-        }
-        if (dt != null) {
-          return DateFormat('hh:mm a').format(dt);
-        }
-        return t;
-      } catch (_) {
-        return t;
-      }
+    // Calculate content width with padding
+    double contentWidth = formWidth - 32; // 16px padding on each side
+    if (!contentWidth.isFinite || contentWidth <= 0) {
+      contentWidth = screenWidth - 32;
     }
 
-    String formatP(String? p) {
-      if (p == null || p.isEmpty || p == 'N/A') return 'N/A';
-      String cleaned = p.replaceAll(RegExp(r'\D'), '');
-      if (cleaned.length == 9) {
-        return '${cleaned.substring(0, 3)} ${cleaned.substring(3, 6)} ${cleaned.substring(6)}';
-      } else if (cleaned.length == 10) {
-        return '${cleaned.substring(0, 3)} ${cleaned.substring(3, 7)} ${cleaned.substring(7)}';
-      }
-      return p;
+    // Ensure calculated values are valid
+    if (!formWidth.isFinite || formWidth <= 0 || formWidth.isInfinite) {
+      formWidth = screenWidth;
     }
 
-    // Process signatures
-    Uint8List? reqSigBytes;
-    if (item['signature'] != null &&
-        item['signature']!.toString().startsWith('data:image')) {
-      reqSigBytes = base64.decode(item['signature']!.split(',').last);
-    }
-    Uint8List? deptSigBytes;
-    if (item['department_head_signature'] != null &&
-        item['department_head_signature']!.toString().startsWith('data:image')) {
-      deptSigBytes = base64.decode(
-        item['department_head_signature']!.split(',').last,
-      );
-    }
-
-    return Material(
-      color: AppTheme.textPrimary,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          // A5 aspect ratio is approximately 0.704 (148mm x 210mm)
-          // Calculate width based on screen size while maintaining aspect ratio
-          final screenWidth = constraints.maxWidth;
-          final maxHeight = constraints.maxHeight;
-          
-          // Validate values to prevent Infinity or NaN
-          if (!screenWidth.isFinite || screenWidth <= 0) {
-            return const SizedBox.shrink();
-          }
-          if (!maxHeight.isFinite || maxHeight <= 0) {
-            return const SizedBox.shrink();
-          }
-          
-          // Calculate appropriate width for A5 form
-          double formWidth = screenWidth;
-          double formHeight = screenWidth / 0.704; // A5 aspect ratio
-          
-          // Validate calculated values
-          if (!formHeight.isFinite || formHeight <= 0 || formHeight.isInfinite) {
-            formHeight = maxHeight * 0.7; // Fallback to screen height
-          }
-          
-          // If height exceeds screen height, adjust width
-          if (formHeight > maxHeight) {
-            formHeight = maxHeight * 0.9; // Leave some margin
-            formWidth = formHeight * 0.704;
-          }
-          
-          // Ensure calculated values are valid
-          if (!formWidth.isFinite || formWidth <= 0 || formWidth.isInfinite) {
-            formWidth = screenWidth;
-          }
-          
-          // Ensure minimum width for readability
-          if (formWidth < 320) formWidth = 320;
-          
-          return Container(
-            width: formWidth,
-            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 10),
-            child: Container(
-              // Outer document frame
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.black, width: 1.5),
-                borderRadius: BorderRadius.circular(2),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Header
-              Column(
-                children: [
-                  // Logo only
-                  Image.network(
-                    'https://i.ibb.co/r2JWnd2x/Logo-Van-Van-1.png',
-                    width: 120,
-                    height: 120,
-                    errorBuilder: (_, _, _) =>
-                        const SizedBox(width: 120, height: 100),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    "សំណើសុំច្បាប់ឈប់សម្រាក ប្តូរវេន ចូលមុនម៉ោង មកយឺត និងភ្លេចស្កេនមេដៃផ្សេងៗ",
-                    style: GoogleFonts.koulen(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 15),
-
-              // Request Selection Area (Refined Chips Grid)
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey.shade400, width: 0.8),
-                  borderRadius: BorderRadius.circular(10),
-                  color: Colors.grey.shade50.withValues(alpha: 0.5),
-                ),
-                child: Wrap(
-                  spacing: 10,
-                  runSpacing: 6,
-                  alignment: WrapAlignment.center,
-                  children: types.map((t) {
-                    final isSelected =
-                        requestType.contains(t) || t.contains(requestType);
-                    return Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 16,
-                          height: 16,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.rectangle,
-                            border: Border.all(
-                              color: isSelected
-                                  ? _brandOrange
-                                  : Colors.grey.shade600,
-                              width: 1.5,
-                            ),
-                            color: isSelected
-                                ? _brandOrange
-                                : Colors.white,
-                            borderRadius: BorderRadius.circular(3),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.1),
-                                blurRadius: 2,
-                                offset: const Offset(0, 1),
-                              ),
-                            ],
-                          ),
-                          child: isSelected
-                              ? Icon(
-                                  Icons.check,
-                                  size: 11,
-                                  color: Colors.white,
-                                )
-                              : null,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          t,
-                          style: GoogleFonts.battambang(
-                            fontSize: 8,
-                            color: isSelected ? Colors.black87 : Colors.black54,
-                            fontWeight: isSelected
-                                ? FontWeight.w600
-                                : FontWeight.normal,
-                          ),
-                        ),
-                      ],
-                    );
-                  }).toList(),
-                ),
-              ),
-              const SizedBox(height: 12),
-
-              // Main Table (Enlarged and Full Width)
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Table(
-                  border: TableBorder.all(color: Colors.black, width: 1.0),
-                  columnWidths: {
-                    0: const FlexColumnWidth(1.2),
-                    1: const FlexColumnWidth(1.4),
-                    2: const FlexColumnWidth(1.2),
-                    3: const FlexColumnWidth(1.0),
-                    4: const FlexColumnWidth(0.6),
-                  },
-                  children: [
-                    _buildTablePremiumRow([
-                      "ឈ្មោះអ្នកស្នើសុំ៖",
-                      item['requester_name']! ?? 'N/A',
-                      "ចំនួនថ្ងៃ/ច្បាប់នៅសល់៖",
-                      "${item['number_of_days']! ?? '0'} ថ្ងៃ",
-                      "N/A ថ្ងៃ",
-                    ]),
-                      _buildTablePremiumRow([
-                      "ផ្នែក/មុខតំណែង/សាខា៖",
-                      item['department']! ?? 'N/A',
-                      item['position'] ?? 'N/A',
-                      item['branch'] ?? 'N/A',
-                      "",
-                    ]),
-                      _buildTablePremiumRow([
-                      "ថ្ងៃខែឆ្នាំសុំឈប់៖",
-                      formatD(item['request_date']),
-                      "ចំនួនម៉ោងយឺត/ចេញមុន៖",
-                      item['late_hours']?.toString() ?? 'N/A',
-                      "",
-                    ]),
-                      _buildTablePremiumRow([
-                      "ថ្ងៃចូលធ្វើការវិញ៖",
-                      formatD(item['return_date']),
-                      "ភ្លេចស្កេនមេដៃ៖",
-                      item['forgot_scan_in']?.toString() ?? 'N/A',
-                      item['forgot_scan_out']?.toString() ?? 'N/A',
-                    ]),
-                      _buildTablePremiumRow([
-                      "ម៉ោងចេញចូល៖",
-                      "ចូល៖ ${formatT(item['time_in'])}",
-                      "ចេញ៖ ${formatT(item['time_out'])}",
-                      "សរុប៖ ${item['total_hours'] ?? 'N/A'}",
-                      "",
-                    ]),
-                      _buildTablePremiumRow([
-                      "ម៉ោងធ្វើការសងវិញ៖",
-                      "ចូលសង៖ ${formatT(item['repay_time_in'])}",
-                      "ចេញសង៖ ${formatT(item['repay_time_out'])}",
-                      "សរុប៖ ${item['repay_total_hours'] ?? 'N/A'}",
-                      "",
-                    ]),
-                    _buildTablePremiumRow(
-                      ["មូលហេតុ៖", item['reason'] ?? 'N/A', "", "", ""],
-                      colSpans: [1, 4],
-                    ),
-                    _buildTablePremiumRow(
-                      [
-                        "ទីកន្លែងអំឡុងពេលឈប់៖",
-                        item['location'] ?? 'N/A',
-                        "",
-                        "",
-                        "",
-                      ],
-                      colSpans: [1, 4],
-                    ),
-                    _buildTablePremiumRow([
-                      "ទំនាក់ទំនងបន្ទាន់៖",
-                      formatP(item['contact_number']),
-                      "ប្រគល់ការងារឱ្យ៖",
-                      item['assigned_to'] ?? 'N/A',
-                      "",
-                    ]),
-                  ],
-                ),
-                ),
-
-              const SizedBox(height: 20),
-
-              // Signatures Table Footer (High Contrast)
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Table(
-                  border: TableBorder.all(color: Colors.black, width: 1.2),
-                  children: [
-                    TableRow(
-                      children: [
-                        _headerCell("បញ្ជាក់/អនុម័តដោយ"),
-                        _headerCell("ឈ្មោះ (Name)"),
-                        _headerCell("ហត្ថលេខា (Signature)"),
-                        _headerCell("ថ្ងៃខែឆ្នាំ (Date)"),
-                      ],
-                    ),
-                    _signatureRowWidget(
-                      "អ្នកស្នើសុំ",
-                      item['requester_name'] ?? 'N/A',
-                      reqSigBytes,
-                      formatD(item['signature_date'] ?? item['request_date']),
-                    ),
-                    _signatureRowWidget(
-                      "ប្រធានផ្នែក",
-                      item['department_head_name'] ?? '',
-                      deptSigBytes,
-                      formatD(item['department_head_signature_date']),
-                    ),
-                    _signatureRowWidget("ប្រធានធនធានមនុស្ស", "", null, ""),
-                    _signatureRowWidget("ប្រធានគ្រប់គ្រងទូទៅ", "", null, ""),
-                    _signatureRowWidget("អគ្គនាយិកា", "", null, ""),
-                  ],
-                ),
-              ),
-              ],
-            ),
-          ),
-          );
-        },
-      ),
-    );
-  }
-
-  // Helper for Table Content in Widget Report - PREMIUM DESIGN
-  TableRow _buildTablePremiumRow(List<String> values, {List<int>? colSpans}) {
-    // Labels are columns 0 and 2
-    return TableRow(
-      children: values.asMap().entries.map((entry) {
-        int idx = entry.key;
-        String v = entry.value;
-
-        // Skip if colSpanned away (basic logic)
-        final isLabel = (idx == 0 || idx == 2);
-
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-          child: Text(
-            v,
-            style: GoogleFonts.battambang(
-              fontSize: isLabel ? _lblSize : _valSize,
-              fontWeight: isLabel ? FontWeight.w600 : FontWeight.normal,
-              color: isLabel ? Colors.black87 : Colors.black,
-            ),
-            maxLines: 4,
-            overflow: TextOverflow.visible,
-          ),
-        );
-      }).toList(),
-    );
-  }
-
-  Widget _headerCell(String text) {
     return Container(
-      padding: const EdgeInsets.all(10),
-      color: Colors.grey.shade50,
-      child: Center(
-        child: Text(
-          text,
-          style: GoogleFonts.battambang(
-            fontSize: _lblSize,
-            fontWeight: FontWeight.bold,
-            color: Colors.black,
-          ),
+      width: formWidth,
+      constraints: BoxConstraints(maxHeight: maxHeight),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            _buildHeader(item),
+            const SizedBox(height: 16),
+            
+            // Request Details
+            _buildRequestDetails(item),
+            const SizedBox(height: 16),
+            
+            // Signature Section
+            if ((item['signature'] ?? '').toString().startsWith('data:image') ||
+                (item['department_head_signature'] ?? '').toString().startsWith('data:image'))
+              _buildSignatureSection(item),
+            
+            const SizedBox(height: 16),
+            
+            // Footer
+            _buildFooter(item),
+          ],
         ),
       ),
     );
   }
 
-  TableRow _signatureRowWidget(
-    String label,
-    String name,
-    Uint8List? sig,
-    String date,
-  ) {
-    return TableRow(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(12),
-          child: Text(
-            label,
-            style: GoogleFonts.battambang(
-              fontSize: _lblSize,
-              fontWeight: FontWeight.bold,
-              color: Colors.black,
-            ),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.all(12),
-          child: Center(
-            child: Text(
-              name,
-              style: GoogleFonts.battambang(
-                fontSize: _valSize,
-                color: Colors.black,
-              ),
-            ),
-          ),
-        ),
-        Container(
-          height: 60,
-          padding: const EdgeInsets.all(6),
-          child: sig != null
-              ? Image.memory(sig, fit: BoxFit.contain)
-              : Center(
-                  child: Container(
-                    width: 50,
-                    height: 1.0,
-                    color: Colors.black45,
-                  ),
-                ),
-        ),
-        Padding(
-          padding: const EdgeInsets.all(12),
-          child: Center(
-            child: Text(
-              date,
-              style: GoogleFonts.battambang(
-                fontSize: _valSize,
-                color: Colors.black,
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  void _handleEdit(Map<String, dynamic> item) {
-    Navigator.pop(context); // close modal
-
-    final type = (item['request_type'] ?? '').toString().toLowerCase();
-    Widget? screen;
-    if (type == 'leave') {
-      screen = LeaveRequestScreen(initialData: item);
-    } else if (type == 'overtime' || type == 'ot') {
-      screen = OtRequestScreen(initialData: item);
-    } else if (type == 'late') {
-      screen = LateRequestScreen(initialData: item);
-    }
-
-    if (screen != null) {
-      final finalScreen = screen;
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => finalScreen),
-      ).then((_) => _loadData());
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("មុខងារកែសម្រួលសម្រាប់ប្រភេទនេះនឹងមកដល់ឆាប់ៗ"),
-        ),
-      );
-    }
-  }
-
-  Widget _buildSection(String title, IconData icon, List<Widget> children) {
-    if (children.isEmpty) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+  Widget _buildHeader(Map<String, dynamic> item) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.orange.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(icon, size: 16, color: AppTheme.primaryLight),
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: GoogleFonts.kantumruyPro(
-                  color: AppTheme.primaryLight,
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
+          Text(
+            "សំណើសុំច្បាប់",
+            style: GoogleFonts.kantumruyPro(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.orange.shade800,
+            ),
           ),
           const SizedBox(height: 8),
-          Container(
-            decoration: BoxDecoration(
-              color: AppTheme.textPrimary.withValues(alpha: 0.03),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: AppTheme.textPrimary.withValues(alpha: 0.07),
-              ),
+          Text(
+            "ប័ណ្ណសម្រាប់: ${item['request_type'] ?? 'N/A'}",
+            style: GoogleFonts.kantumruyPro(
+              fontSize: 14,
+              color: Colors.grey.shade700,
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Column(children: children),
           ),
         ],
       ),
     );
   }
 
-  Widget _detailRow(String label, String value) {
+  Widget _buildRequestDetails(Map<String, dynamic> item) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _detailRow("ឈ្មោះ", item['requester_name'] ?? 'N/A'),
+          _detailRow("នាយក", item['department'] ?? 'N/A'),
+          _detailRow("ប្រភេទសំណើ", item['request_type'] ?? 'N/A'),
+          _detailRow("កាលបរិច្ឆេទស្នើ", _formatDate(item['request_date']?.toString())),
+          _detailRow("កាលបរិច្ឆេទបង្កើត", _formatDate(item['created_at']?.toString())),
+          if (item['reason'] != null && item['reason'].toString().isNotEmpty)
+            _detailRow("មូលហេតុ", item['reason']),
+          if (item['start_time'] != null && item['start_time'].toString().isNotEmpty)
+            _detailRow("ពេលវេលាចាប់ផ្តើម", _formatClockTime(item['start_time']?.toString())),
+          if (item['end_time'] != null && item['end_time'].toString().isNotEmpty)
+            _detailRow("ពេលវេលាបញ្ចប់", _formatClockTime(item['end_time']?.toString())),
+          if (item['duration'] != null && item['duration'].toString().isNotEmpty)
+            _detailRow("រយៈពេល", _formatDuration(item['duration']?.toString())),
+          _detailRow("ស្ថានភាព", _statusLabel(item['status']?.toString() ?? 'pending')),
+        ],
+      ),
+    );
+  }
+
+  Widget _detailRow(String label, String? value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 7),
+      padding: const EdgeInsets.only(bottom: 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 110,
+            width: 120,
             child: Text(
               label,
               style: GoogleFonts.kantumruyPro(
-                color: AppTheme.textPrimary.withValues(alpha: 0.38),
                 fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey.shade700,
               ),
             ),
           ),
           Expanded(
             child: Text(
-              value.isEmpty ? '-' : value,
+              value ?? 'N/A',
               style: GoogleFonts.kantumruyPro(
-                color: AppTheme.textPrimary,
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
+                fontSize: 12,
+                color: Colors.grey.shade900,
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSignatureSection(Map<String, dynamic> item) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "ហត្ថលេខា",
+            style: GoogleFonts.kantumruyPro(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey.shade800,
+            ),
+          ),
+          const SizedBox(height: 12),
+          if ((item['signature'] ?? '').toString().startsWith('data:image'))
+            _signatureRow("ហត្ថលេខាបុគ្គល", item['signature']),
+          if ((item['department_head_signature'] ?? '').toString().startsWith('data:image'))
+            _signatureRow("ហត្ថលេខាប្រធានផ្នែក", item['department_head_signature']),
+          if ((item['admin_signature'] ?? '').toString().startsWith('data:image'))
+            _signatureRow("ហត្ថលេខា Admin", item['admin_signature']),
         ],
       ),
     );
@@ -2208,109 +1204,74 @@ class _RequestListScreenState extends State<RequestListScreen> {
     if (base64Image == null || !base64Image.startsWith('data:image')) {
       return const SizedBox.shrink();
     }
-    final base64Data = base64Image.split(',').last;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+
+    try {
+      final base64String = base64Image.split(',').last;
+      final imageBytes = base64Decode(base64String);
+
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: GoogleFonts.kantumruyPro(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey.shade600,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Image.memory(
+              imageBytes,
+              height: 60,
+              fit: BoxFit.contain,
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      debugPrint("Error loading signature: $e");
+      return const SizedBox.shrink();
+    }
+  }
+
+  Widget _buildFooter(Map<String, dynamic> item) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(8),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            label,
+            "ព័ត៌មានបន្ថែម",
             style: GoogleFonts.kantumruyPro(
-              color: AppTheme.textPrimary.withValues(alpha: 0.38),
               fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey.shade700,
             ),
           ),
           const SizedBox(height: 8),
-          Container(
-            height: 80,
-            width: double.infinity,
-            decoration: BoxDecoration(
-              color: AppTheme.textPrimary.withValues(alpha: 0.06),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: AppTheme.textPrimary.withValues(alpha: 0.12),
-              ),
+          Text(
+            "លេខសំណើ: #${item['id'] ?? 'N/A'}",
+            style: GoogleFonts.kantumruyPro(
+              fontSize: 10,
+              color: Colors.grey.shade600,
             ),
-            child: Image.memory(
-              base64.decode(base64Data),
-              fit: BoxFit.contain,
-              errorBuilder: (_, _, _) => Icon(
-                Icons.broken_image_rounded,
-                color: AppTheme.textPrimary.withValues(alpha: 0.24),
-              ),
+          ),
+          Text(
+            "បានបង្កើតនៅ: ${_formatDate(item['created_at']?.toString())}",
+            style: GoogleFonts.kantumruyPro(
+              fontSize: 10,
+              color: Colors.grey.shade600,
             ),
           ),
         ],
       ),
     );
-  }
-
-  void _confirmDelete(BuildContext sheetContext, dynamic id) {
-    showDialog(
-      context: context,
-      builder: (dialogCtx) => AlertDialog(
-        backgroundColor: AppTheme.bgCard,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(
-          "បញ្ជាក់ការលុប",
-          style: GoogleFonts.kantumruyPro(
-            color: AppTheme.textPrimary,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        content: Text(
-          "តើអ្នកពិតជាចង់លុបសំណើ #$id មែនទេ?",
-          style: GoogleFonts.kantumruyPro(
-            color: AppTheme.textPrimary.withValues(alpha: 0.70),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx),
-            child: Text(
-              "បោះបង់",
-              style: GoogleFonts.kantumruyPro(
-                color: AppTheme.textPrimary.withValues(alpha: 0.38),
-              ),
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(dialogCtx);
-              Navigator.pop(sheetContext);
-              _performDelete(id);
-            },
-            child: Text(
-              "លុប",
-              style: GoogleFonts.kantumruyPro(
-                color: Colors.redAccent,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _performDelete(dynamic id) async {
-    final res = await _api.deleteRequest(int.parse(id.toString()));
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          res['success'] == true
-              ? (res['message'] ?? 'លុបបានជោគជ័យ')
-              : (res['message'] ?? 'បរាជ័យ'),
-          style: GoogleFonts.kantumruyPro(),
-        ),
-        backgroundColor: res['success'] == true
-            ? const Color(0xFF10b981)
-            : Colors.redAccent,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-    if (res['success'] == true) _loadData();
   }
 }
