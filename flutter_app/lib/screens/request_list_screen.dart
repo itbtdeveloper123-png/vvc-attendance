@@ -1411,7 +1411,7 @@ class _RequestListScreenState extends State<RequestListScreen> {
     });
 
     // 2. Wait for the widget to be rendered in the current frame
-    await Future.delayed(const Duration(milliseconds: 100));
+    await Future.delayed(const Duration(milliseconds: 200));
 
     // 3. Capture the hidden widget as an image
     final boundary =
@@ -1419,11 +1419,22 @@ class _RequestListScreenState extends State<RequestListScreen> {
             as RenderRepaintBoundary?;
     if (boundary == null) throw "Could not find report boundary";
 
-    final ui.Image capturedImage = await boundary.toImage(pixelRatio: 3.0);
-    final ByteData? byteData = await capturedImage.toByteData(
-      format: ui.ImageByteFormat.png,
-    );
-    return byteData!.buffer.asUint8List();
+    // Check if boundary has valid dimensions
+    final size = boundary.size;
+    if (size.width <= 0 || size.height <= 0 || !size.width.isFinite || !size.height.isFinite) {
+      throw "Invalid widget dimensions: ${size.width}x${size.height}";
+    }
+
+    try {
+      final ui.Image capturedImage = await boundary.toImage(pixelRatio: 3.0);
+      final ByteData? byteData = await capturedImage.toByteData(
+        format: ui.ImageByteFormat.png,
+      );
+      if (byteData == null) throw "Failed to convert image to bytes";
+      return byteData.buffer.asUint8List();
+    } catch (e) {
+      throw "Image capture failed: $e";
+    }
   }
 
   // ========= View Request as Image (with Copy Image support) =========
@@ -1575,20 +1586,37 @@ class _RequestListScreenState extends State<RequestListScreen> {
     try {
       final Uint8List pngBytes = await _captureReportPng(item);
 
+      // Validate PNG bytes
+      if (pngBytes.isEmpty) {
+        throw "Captured image is empty";
+      }
+
       // 4. Generate the final PDF document
       final doc = pw.Document();
       final image = pw.MemoryImage(pngBytes);
-      doc.addPage(
-        pw.Page(
-          pageFormat: PdfPageFormat.a5,
-          margin: pw.EdgeInsets.zero,
-          build: (pw.Context context) {
-            return pw.Center(child: pw.Image(image));
-          },
-        ),
-      );
+
+      // Validate image dimensions for PDF
+      try {
+        doc.addPage(
+          pw.Page(
+            pageFormat: PdfPageFormat.a5,
+            margin: pw.EdgeInsets.zero,
+            build: (pw.Context context) {
+              return pw.Center(child: pw.Image(image));
+            },
+          ),
+        );
+      } catch (e) {
+        throw "Failed to add PDF page: $e";
+      }
 
       final pdfBytes = await doc.save();
+
+      // Validate PDF bytes
+      if (pdfBytes.isEmpty) {
+        throw "Generated PDF is empty";
+      }
+
       final fileName = 'Request_${item['id']}_${item['requester_name']}.pdf';
 
       // 5. Use direct download for web, and default sharing for others
