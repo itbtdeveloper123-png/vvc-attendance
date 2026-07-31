@@ -314,6 +314,17 @@ class UserProvider with ChangeNotifier {
     return _settings[key]?.toString() ?? defaultValue;
   }
 
+  /// Update settings from admin panel
+  void updateSettings(Map<String, dynamic> newSettings) {
+    _settings = Map<String, dynamic>.from(newSettings);
+    notifyListeners();
+    
+    // Persist to local storage
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.setString('user_settings', json.encode(_settings));
+    });
+  }
+
   /// New: Check if the user is explicitly assigned to see employee reports via ID lists
   bool canViewEmployeeReport() {
     final String myId = (employeeId ?? '').trim();

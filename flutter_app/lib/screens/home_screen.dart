@@ -45,6 +45,9 @@ import 'ai_chat_screen.dart';
 import '../services/voice_command_service.dart';
 import 'product_analyzer_screen.dart';
 import 'poll_voting_screen.dart';
+import 'document_scanner_screen.dart';
+import 'app_settings_screen.dart';
+import '../widgets/document_scanner_card.dart';
 
 // ========== SLIDE PAGE ROUTE (Feature #9) ==========
 PageRouteBuilder _slideRoute(Widget page) {
@@ -2176,7 +2179,7 @@ class _HomeContentState extends State<HomeContent> {
     final orderStr = user.getConfig(
       'home_card_order$suffix',
       defaultValue:
-          'stats_slider,attendance,outside_attendance,product_analyzer,training_quiz,poll_voting,announcements,meetings,checklist,daily_report,mission,trip,user_management,request_form,reports,material_request,notification,payroll',
+          'stats_slider,attendance,outside_attendance,product_analyzer,training_quiz,poll_voting,announcements,meetings,checklist,daily_report,mission,trip,user_management,request_form,reports,material_request,notification,payroll,document_scanner,app_settings',
     );
 
     final keys = orderStr
@@ -2483,6 +2486,39 @@ class _HomeContentState extends State<HomeContent> {
         },
       ),
 
+      'document_scanner': (isList) =>
+          _canShowRoleAction(user, 'show_document_scanner_card$suffix', suffix)
+          ? Padding(
+              padding: EdgeInsets.only(bottom: isList ? 10 : 0),
+              child: DocumentScannerCard(
+                onTap: () {
+                  _hapticLight();
+                  Navigator.push(
+                    context,
+                    _slideRoute(const DocumentScannerScreen()),
+                  );
+                },
+              ),
+            )
+          : const SizedBox.shrink(),
+
+      'app_settings': (isList) => _buildActionItem(
+        isList: isList,
+        key: 'show_app_settings$suffix',
+        user: user,
+        label: "ការកំណត់កម្មវិធី",
+        subtitle: "គ្រប់គ្រងការបង្ហាញមុខងារ",
+        icon: Icons.settings_rounded,
+        color: Colors.grey.shade700,
+        onTap: () {
+          _hapticLight();
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const AppSettingsScreen()),
+          );
+        },
+      ),
+
       'stats_slider': (isList) =>
           _canShowRoleAction(user, 'show_stats_slider$suffix', suffix)
           ? Padding(
@@ -2541,6 +2577,14 @@ class _HomeContentState extends State<HomeContent> {
   bool _defaultRoleActionVisibility(String configKey, String suffix) {
     if (suffix == '__worker') {
       return configKey == 'show_attendance_card__worker';
+    }
+    // Document scanner is disabled by default for workers
+    if (configKey.contains('document_scanner') && suffix == '__worker') {
+      return false;
+    }
+    // App settings only for HRM and Admin
+    if (configKey.contains('app_settings') && suffix != '__hrm' && suffix != '__admin') {
+      return false;
     }
     return true;
   }

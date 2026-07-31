@@ -2289,6 +2289,8 @@ if (isset($_POST['ajax_action']) || isset($_GET['ajax_action'])) {
                 'data' => [
                     'settings' => [
                         'payroll_biometric_required' => get_app_scan_setting($mysqli, $current_admin_id, 'payroll_biometric_required', '1'),
+                        'show_document_scanner_card' => get_app_scan_setting($mysqli, $current_admin_id, 'show_document_scanner_card', '1'),
+                        'show_app_settings' => get_app_scan_setting($mysqli, $current_admin_id, 'show_app_settings', '1'),
                     ],
                 ],
             ];
@@ -2306,7 +2308,12 @@ if (isset($_POST['ajax_action']) || isset($_GET['ajax_action'])) {
             }
 
             $payroll_biometric_required = (($_POST['payroll_biometric_required'] ?? '0') === '1') ? '1' : '0';
-            if (update_app_scan_setting($mysqli, $current_admin_id, 'payroll_biometric_required', $payroll_biometric_required)) {
+            $show_document_scanner_card = (($_POST['show_document_scanner_card'] ?? '1') === '1') ? '1' : '0';
+            $show_app_settings = (($_POST['show_app_settings'] ?? '1') === '1') ? '1' : '0';
+            
+            if (update_app_scan_setting($mysqli, $current_admin_id, 'payroll_biometric_required', $payroll_biometric_required) &&
+                update_app_scan_setting($mysqli, $current_admin_id, 'show_document_scanner_card', $show_document_scanner_card) &&
+                update_app_scan_setting($mysqli, $current_admin_id, 'show_app_settings', $show_app_settings)) {
                 $response = [
                     'status' => 'success',
                     'message' => 'Security settings saved.',
@@ -21560,7 +21567,7 @@ ob_end_flush();
 
                 <!-- START: បន្ថែមកូដថ្មី -->
             <?php elseif ($settings_action === 'manage_app_scan' && hasPageAccess($mysqli, 'settings', 'manage_app_scan', $current_admin_id)):
-                            $all_keys = ['stats_slider', 'attendance', 'outside_attendance', 'product_analyzer', 'training_quiz', 'poll_voting', 'announcements', 'meetings', 'checklist', 'daily_report', 'mission', 'trip', 'user_management', 'request_form', 'reports', 'material_request', 'notification', 'notification_history', 'employee_report', 'payroll', 'profile_footer', 'home_footer'];
+                            $all_keys = ['stats_slider', 'attendance', 'outside_attendance', 'product_analyzer', 'training_quiz', 'poll_voting', 'announcements', 'meetings', 'checklist', 'daily_report', 'mission', 'trip', 'user_management', 'request_form', 'reports', 'material_request', 'notification', 'notification_history', 'employee_report', 'payroll', 'document_scanner', 'app_settings', 'profile_footer', 'home_footer'];
                             $labels = [
                                 'attendance' => 'ស្កេនវត្តមាន (Attendance)',
                                 'announcements' => 'ការជូនដំណឹង (News)',
@@ -21582,6 +21589,8 @@ ob_end_flush();
                                 'product_analyzer' => 'វិភាគផលិតផល (Product Analyzer)',
                                 'training_quiz' => 'វគ្គបណ្តុះបណ្តាល (Training Quiz)',
                                 'poll_voting' => 'បោះឆ្នោតបុគ្គលិក (Poll Voting)',
+                                'document_scanner' => 'ស្កេនឯកសារ (Document Scanner)',
+                                'app_settings' => 'ការកំណត់កម្មវិធី (App Settings)',
                                 'profile_footer' => 'Profile Footer',
                                 'home_footer' => 'Home Footer'
                             ];
