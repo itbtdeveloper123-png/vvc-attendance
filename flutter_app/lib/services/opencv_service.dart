@@ -67,6 +67,18 @@ class OpenCVService {
       return corners5;
     }
 
+    // Strategy 6: Very lenient Canny detection as last resort
+    final corners6 = await _detectWithCanny(image, cannyLow: 10.0, cannyHigh: 50.0);
+    if (corners6.isNotEmpty) {
+      return corners6;
+    }
+
+    // Strategy 7: Fallback to image bounds if all else fails
+    final corners7 = _getImageBoundsFallback(image);
+    if (corners7.isNotEmpty) {
+      return corners7;
+    }
+
     // If all strategies fail, return empty list
     return [];
   }
@@ -180,13 +192,14 @@ class OpenCVService {
 
       // Apply adaptive thresholding for better edge detection in varied lighting
       // ADAPTIVE_THRESH_GAUSSIAN_C works well for document edges
+      // More lenient parameters for better detection
       final threshold = cv.adaptiveThreshold(
         blurred,
         255,
         cv.ADAPTIVE_THRESH_GAUSSIAN_C,
         cv.THRESH_BINARY,
-        11,
-        2,
+        15, // Larger block size for better tolerance
+        5, // Higher C value for more lenient thresholding
       );
 
       // Morphological operations to clean up noise
@@ -353,8 +366,8 @@ class OpenCVService {
     for (final contour in contours) {
       final area = cv.contourArea(contour);
       
-      // Filter by area - document should be at least 10% of image
-      if (area < imageArea * 0.1 || area > imageArea * 0.95) {
+      // Filter by area - more lenient: document should be at least 5% of image
+      if (area < imageArea * 0.05 || area > imageArea * 0.98) {
         continue;
       }
 
@@ -364,8 +377,8 @@ class OpenCVService {
       final height = rect.height;
       final aspectRatio = width / height;
 
-      // Filter by aspect ratio - documents typically have aspect ratio between 0.5 and 2.0
-      if (aspectRatio < 0.5 || aspectRatio > 2.0) {
+      // Filter by aspect ratio - more lenient: between 0.3 and 3.0
+      if (aspectRatio < 0.3 || aspectRatio > 3.0) {
         continue;
       }
 
@@ -375,8 +388,8 @@ class OpenCVService {
       final hullArea = cv.contourArea(hull);
       final solidity = area / hullArea;
 
-      // Filter by solidity - documents should have high solidity (> 0.8)
-      if (solidity < 0.8) {
+      // Filter by solidity - more lenient: documents should have solidity (> 0.6)
+      if (solidity < 0.6) {
         hullMat.dispose();
         hull.dispose();
         continue;
@@ -427,6 +440,24 @@ class OpenCVService {
 
     gray.dispose();
     return bestContour;
+  }
+
+  /// Fallback strategy: return image bounds when all detection fails
+  static List<cv.Point> _getImageBoundsFallback(cv.Mat image) {
+    try {
+      final width = image.cols;
+      final height = image.rows;
+      const padding = 10; // Small padding from edges
+      
+      return [
+        cv.Point(padding, padding), // top-left
+        cv.Point(width - padding, padding), // top-right
+        cv.Point(width - padding, height - padding), // bottom-right
+        cv.Point(padding, height - padding), // bottom-left
+      ];
+    } catch (e) {
+      return [];
+    }
   }
 
   /// Order corner points in consistent order: top-left, top-right, bottom-right, bottom-left
