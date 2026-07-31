@@ -299,11 +299,15 @@ class _RequestListScreenState extends State<RequestListScreen> {
       body: Stack(
         children: [
           // Hidden Report Generator (for capture)
-          Positioned(
-            left: -5000, // Off screen
+          Offstage(
+            offstage: true,
             child: RepaintBoundary(
               key: _reportKey,
-              child: _buildHiddenReport(context),
+              child: SizedBox(
+                width: 450,
+                height: 640,
+                child: _buildHiddenReport(context),
+              ),
             ),
           ),
           AppBackgroundShell(
@@ -1410,8 +1414,15 @@ class _RequestListScreenState extends State<RequestListScreen> {
       _currentReportItem = item;
     });
 
-    // 2. Wait for the widget to be rendered in the current frame
-    await Future.delayed(const Duration(milliseconds: 200));
+    // 2. Wait for the widget to be rendered - multiple frames to ensure proper rendering
+    await Future.delayed(const Duration(milliseconds: 100));
+    
+    // Force a layout pass
+    if (mounted) {
+      setState(() {});
+    }
+    
+    await Future.delayed(const Duration(milliseconds: 300));
 
     // 3. Capture the hidden widget as an image
     final boundary =
@@ -1421,8 +1432,17 @@ class _RequestListScreenState extends State<RequestListScreen> {
 
     // Check if boundary has valid dimensions
     final size = boundary.size;
+    debugPrint("Boundary size: ${size.width}x${size.height}");
+    
     if (size.width <= 0 || size.height <= 0 || !size.width.isFinite || !size.height.isFinite) {
-      throw "Invalid widget dimensions: ${size.width}x${size.height}";
+      // Try one more time with longer delay
+      await Future.delayed(const Duration(milliseconds: 500));
+      final size2 = boundary.size;
+      debugPrint("Retry boundary size: ${size2.width}x${size2.height}");
+      
+      if (size2.width <= 0 || size2.height <= 0 || !size2.width.isFinite || !size2.height.isFinite) {
+        throw "Invalid widget dimensions after retry: ${size2.width}x${size2.height}";
+      }
     }
 
     try {
