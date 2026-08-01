@@ -720,6 +720,143 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
     }
   }
 
+  /// Show all documents in a bottom sheet (grid view)
+  void _showAllDocumentsSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.75,
+        minChildSize: 0.4,
+        maxChildSize: 0.95,
+        builder: (_, scrollController) => Container(
+          decoration: const BoxDecoration(
+            color: Color(0xFF1A1A2E),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            children: [
+              // Handle bar
+              Container(
+                margin: const EdgeInsets.only(top: 10, bottom: 12),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              // Title
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                child: Row(
+                  children: [
+                    Text(
+                      'ឯកសារទាំងអស់ (${_recentDocuments.length})',
+                      style: GoogleFonts.kantumruyPro(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded, color: Colors.white54, size: 20),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(color: Colors.white12, height: 1),
+              // Documents grid
+              Expanded(
+                child: _recentDocuments.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.folder_open_rounded,
+                                size: 56, color: Colors.white24),
+                            const SizedBox(height: 12),
+                            Text(
+                              'មិនទាន់មានឯកសារទេ',
+                              style: GoogleFonts.kantumruyPro(
+                                  color: Colors.white38, fontSize: 14),
+                            ),
+                          ],
+                        ),
+                      )
+                    : GridView.builder(
+                        controller: scrollController,
+                        padding: const EdgeInsets.all(16),
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 3,
+                          mainAxisSpacing: 12,
+                          crossAxisSpacing: 12,
+                          childAspectRatio: 0.72,
+                        ),
+                        itemCount: _recentDocuments.length,
+                        itemBuilder: (context, index) {
+                          final doc = _recentDocuments[index];
+                          final String title = doc['custom_name'] ?? 'គ្មានឈ្មោះ';
+                          final String thumbnailPath = doc['thumbnail_path'] ?? '';
+                          final thumbnailFile = File(thumbnailPath);
+                          final bool fileExists = thumbnailFile.existsSync();
+                          return GestureDetector(
+                            onTap: () {
+                              Navigator.pop(ctx);
+                              _openDocument(doc);
+                            },
+                            child: Column(
+                              children: [
+                                Expanded(
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withValues(alpha: 0.04),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
+                                          color: Colors.white.withValues(alpha: 0.08)),
+                                    ),
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(9),
+                                      child: fileExists
+                                          ? Image.file(thumbnailFile, fit: BoxFit.cover)
+                                          : Container(
+                                              color: Colors.teal.withValues(alpha: 0.1),
+                                              child: const Icon(
+                                                Icons.description_rounded,
+                                                color: Colors.tealAccent,
+                                                size: 36,
+                                              ),
+                                            ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  title,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.center,
+                                  style: GoogleFonts.kantumruyPro(
+                                    color: Colors.white70,
+                                    fontSize: 10,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1088,12 +1225,12 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
               icon: Icons.picture_as_pdf_rounded,
               label: 'ឧបករណ៍ PDF',
               color: Colors.redAccent,
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('មុខងារឧបករណ៍ PDF នឹងមកដល់ឆាប់ៗនេះ', style: GoogleFonts.kantumruyPro()),
-                  ),
-                );
+              onTap: () async {
+                // Import image from gallery then export PDF directly
+                await _importFromGallery();
+                if (_scannedImagePaths.isNotEmpty && mounted) {
+                  await _exportToPDF();
+                }
               },
             ),
             _buildQuickActionItem(
@@ -1106,13 +1243,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
               icon: Icons.folder_copy_rounded,
               label: 'នាំចូលឯកសារ',
               color: Colors.purpleAccent,
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('មុខងារនាំចូលឯកសារនឹងមកដល់ឆាប់ៗនេះ', style: GoogleFonts.kantumruyPro()),
-                  ),
-                );
-              },
+              onTap: _importFromGallery, // Fallback: gallery is most compatible cross-platform
             ),
           ],
         ),
@@ -1141,25 +1272,19 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
               icon: Icons.portrait_rounded,
               label: 'បង្កើនសម្រស់',
               color: Colors.pinkAccent,
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('មុខងារបង្កើនសម្រស់នឹងមកដល់ឆាប់ៗនេះ', style: GoogleFonts.kantumruyPro()),
-                  ),
-                );
+              onTap: () async {
+                // Import image then jump straight to enhanced filter
+                await _importFromGallery();
+                if (_scannedImagePaths.isNotEmpty && mounted) {
+                  await _applyFilter(ImageFilter.enhanced);
+                }
               },
             ),
             _buildQuickActionItem(
               icon: Icons.grid_view_rounded,
               label: 'ទាំងអស់',
               color: Colors.grey,
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('មុខងារទាំងអស់នឹងមកដល់ឆាប់ៗនេះ', style: GoogleFonts.kantumruyPro()),
-                  ),
-                );
-              },
+              onTap: () => _showAllDocumentsSheet(),
             ),
           ],
         ),
@@ -1611,7 +1736,16 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
 
         // ── 4. Bottom action toolbar ───────────────────────────────────
         Container(
-          color: const Color(0xFF0F172A),
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Color(0xFF141428), // blends seamlessly with filter strip above
+                Color(0xFF0B0B1A),
+              ],
+            ),
+          ),
           padding: EdgeInsets.only(
             left: 8,
             right: 8,
