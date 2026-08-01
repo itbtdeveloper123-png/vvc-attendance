@@ -912,18 +912,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
                     ),
                   ),
                 ),
-              // Corner handles overlay (showing it was cropped)
-              if (_filteredImagePath != null)
-                Positioned.fill(
-                  child: IgnorePointer(
-                    child: CustomPaint(
-                      painter: _CornerOverlayPainter(
-                        _isAnimatingCrop,
-                        _cropAnimation,
-                      ),
-                    ),
-                  ),
-                ),
+              // (Corner overlay removed for cleaner UI)
             ],
           ),
         ),
@@ -1067,11 +1056,11 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
                             child: Text(
                               _getFilterLabel(filter),
                               textAlign: TextAlign.center,
-                              style: TextStyle(
+                              style: GoogleFonts.kantumruyPro(
                                 color: isSelected
                                     ? Colors.white
                                     : Colors.white.withValues(alpha: 0.7),
-                                fontSize: 11,
+                                fontSize: 12,
                                 fontWeight: isSelected
                                     ? FontWeight.w600
                                     : FontWeight.w400,
@@ -1084,27 +1073,31 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
                   ),
                 ),
                 const SizedBox(height: 20),
-                // Action buttons with gradient
+                // Action buttons
                 Row(
                   children: [
                     Expanded(
                       child: _buildGradientButton(
-                        icon: Icons.text_fields,
-                        label: 'Extract Text',
+                        icon: Icons.text_fields_rounded,
+                        label: 'ស្រង់អក្សរ',
                         onTap: _extractText,
                         gradient: const LinearGradient(
-                          colors: [Color(0xFFFF6B35), Color(0xFFFFB74D)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [Color(0xFF6C63FF), Color(0xFF48CAE4)],
                         ),
                       ),
                     ),
-                    const SizedBox(width: 20),
+                    const SizedBox(width: 16),
                     Expanded(
                       child: _buildGradientButton(
-                        icon: Icons.picture_as_pdf,
-                        label: 'Export PDF',
+                        icon: Icons.picture_as_pdf_rounded,
+                        label: 'នាំចេញ PDF',
                         onTap: _exportToPDF,
                         gradient: const LinearGradient(
-                          colors: [Color(0xFFFF6B35), Color(0xFFFFB74D)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [Color(0xFF6C63FF), Color(0xFF48CAE4)],
                         ),
                       ),
                     ),
@@ -1146,11 +1139,10 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
             const SizedBox(width: 8),
             Text(
               label,
-              style: const TextStyle(
+              style: GoogleFonts.kantumruyPro(
                 color: Colors.white,
-                fontSize: 14,
+                fontSize: 13,
                 fontWeight: FontWeight.w600,
-                letterSpacing: 0.5,
               ),
             ),
           ],
@@ -1206,11 +1198,13 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
               bottom: MediaQuery.of(context).padding.bottom + 20,
             ),
             child: _buildGradientButton(
-              icon: Icons.picture_as_pdf,
-              label: 'Export PDF',
+              icon: Icons.picture_as_pdf_rounded,
+              label: 'នាំចេញ PDF',
               onTap: _exportToPDF,
               gradient: const LinearGradient(
-                colors: [Color(0xFFFF6B35), Color(0xFFFFB74D)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF6C63FF), Color(0xFF48CAE4)],
               ),
             ),
           ),
@@ -1222,13 +1216,13 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
   String _getFilterLabel(ImageFilter filter) {
     switch (filter) {
       case ImageFilter.original:
-        return 'Orig';
+        return 'ដើម';
       case ImageFilter.magicColor:
-        return 'Magic';
+        return 'ពណ៌ Magic';
       case ImageFilter.blackAndWhite:
-        return 'B&W';
+        return 'ខ្មៅ-ស';
       case ImageFilter.enhanced:
-        return 'Enh';
+        return 'ច្បាស់ឡើង';
     }
   }
 }
