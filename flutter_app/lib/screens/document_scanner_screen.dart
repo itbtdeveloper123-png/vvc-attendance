@@ -601,17 +601,17 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
           ),
           child: Padding(
             padding: EdgeInsets.only(
-              left: 16,
-              right: 16,
+              left: 20,
+              right: 20,
               top: 20,
-              bottom: MediaQuery.of(context).padding.bottom + 16,
+              bottom: MediaQuery.of(context).padding.bottom + 20,
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 // Filter selection
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
@@ -621,7 +621,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
                     ),
                   ),
                   child: Row(
-                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: ImageFilter.values.map((filter) {
                       final isSelected = _selectedFilter == filter;
                       return Expanded(
@@ -629,6 +629,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
                           onTap: () => _applyFilter(filter),
                           child: AnimatedContainer(
                             duration: const Duration(milliseconds: 200),
+                            margin: const EdgeInsets.symmetric(horizontal: 4),
                             padding: const EdgeInsets.symmetric(
                               horizontal: 8,
                               vertical: 10,
@@ -672,7 +673,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
                         ),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 20),
                     Expanded(
                       child: _buildGradientButton(
                         icon: Icons.picture_as_pdf,
@@ -776,9 +777,9 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
           ),
           Container(
             padding: EdgeInsets.only(
-              left: 16,
-              right: 16,
-              bottom: MediaQuery.of(context).padding.bottom + 16,
+              left: 20,
+              right: 20,
+              bottom: MediaQuery.of(context).padding.bottom + 20,
             ),
             child: _buildGradientButton(
               icon: Icons.picture_as_pdf,
