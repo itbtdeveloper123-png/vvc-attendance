@@ -2537,8 +2537,7 @@ class _HomeContentState extends State<HomeContent> {
 
       // Pre-check visibility: skip hidden items (SizedBox.shrink has null width)
       final bool isFullWidth = key == 'attendance' ||
-          key == 'stats_slider' ||
-          key == 'document_scanner';
+          key == 'stats_slider';
 
       // Check visibility before building the actual widget
       final bool isVisible = actionBuilders.containsKey(key) &&
