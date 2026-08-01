@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cunning_document_scanner/cunning_document_scanner.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:path_provider/path_provider.dart';
@@ -152,21 +153,66 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
           _isProcessing = false;
         });
         
-        // Jump to the newly added page
-        _pageController.jumpToPage(_currentPageIndex);
+        // Jump to the newly added page safely after layout rebuild
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_pageController.hasClients) {
+            _pageController.jumpToPage(_currentPageIndex);
+          }
+        });
         
         // Start corner animation to show successful scan
         _startCornerAnimation();
       } else {
         setState(() {
           _isProcessing = false;
-          _errorMessage = 'No images were scanned';
+          _errorMessage = 'គ្មានរូបភាពត្រូវបានស្កេនទេ';
         });
       }
     } catch (e) {
       setState(() {
         _isProcessing = false;
-        _errorMessage = 'Failed to open scanner: $e';
+        _errorMessage = 'មិនអាចបើកកាមេរ៉ាស្កេនបានទេ៖ $e';
+      });
+    }
+  }
+
+  /// Import images from Gallery (Fallback when native scanner is unavailable)
+  Future<void> _importFromGallery() async {
+    setState(() {
+      _isProcessing = true;
+      _errorMessage = null;
+    });
+
+    final ImagePicker picker = ImagePicker();
+    try {
+      final List<XFile> images = await picker.pickMultiImage();
+      if (images.isNotEmpty) {
+        setState(() {
+          _scannedImagePaths = images.map((e) => e.path).toList();
+          _scannedImagePath = _scannedImagePaths.first;
+          _filteredImagePath = _scannedImagePaths.first;
+          _currentStep = ScannerStep.filterSelection;
+          _isMultiPageMode = _scannedImagePaths.length > 1;
+          _currentPageIndex = 0;
+          _isProcessing = false;
+        });
+        
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_pageController.hasClients) {
+            _pageController.jumpToPage(0);
+          }
+        });
+        
+        _startCornerAnimation();
+      } else {
+        setState(() {
+          _isProcessing = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _isProcessing = false;
+        _errorMessage = 'ការនាំចូលរូបភាពបានបរាជ័យ៖ $e';
       });
     }
   }
@@ -551,7 +597,9 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
       _selectedFilter = ImageFilter.original;
       _errorMessage = null;
     });
-    _pageController.jumpToPage(0);
+    if (_pageController.hasClients) {
+      _pageController.jumpToPage(0);
+    }
   }
 
   /// Start corner pulsing animation
@@ -569,34 +617,36 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A1A),
+      backgroundColor: const Color(0xFF0F172A), // Luxury Dark Slate
       extendBodyBehindAppBar: false,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1A1A1A),
+        backgroundColor: const Color(0xFF0F172A),
         elevation: 0,
-        title: const Text(
+        centerTitle: true,
+        title: Text(
           'Document Scanner',
-          style: TextStyle(
+          style: GoogleFonts.kantumruyPro(
             fontSize: 18,
-            fontWeight: FontWeight.w500,
+            fontWeight: FontWeight.bold,
             letterSpacing: 0.5,
+            color: Colors.white,
           ),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, size: 20),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
           onPressed: () => Navigator.pop(context),
           color: Colors.white,
         ),
         actions: [
           if (_currentStep != ScannerStep.selectImage)
             Container(
-              margin: const EdgeInsets.only(right: 16),
+              margin: const EdgeInsets.only(right: 16, top: 8, bottom: 8),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.1),
+                color: Colors.white.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: IconButton(
-                icon: const Icon(Icons.refresh, size: 20),
+                icon: const Icon(Icons.refresh_rounded, size: 20),
                 onPressed: _resetScanner,
                 tooltip: 'Start Over',
                 color: Colors.white,
@@ -612,17 +662,17 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
 
   Widget _buildBody() {
     if (_isProcessing) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircularProgressIndicator(
+            const CircularProgressIndicator(
               valueColor: AlwaysStoppedAnimation<Color>(Colors.orange),
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 20),
             Text(
               'កំពុងអានអក្សរខ្មែរ...',
-              style: TextStyle(color: Colors.white),
+              style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 15),
             ),
           ],
         ),
@@ -632,21 +682,81 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
     if (_errorMessage != null) {
       return Center(
         child: Padding(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.symmetric(horizontal: 24.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.error_outline, size: 48, color: Colors.red),
-              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.red.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.error_outline_rounded, size: 50, color: Colors.redAccent),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'មានបញ្ហាក្នុងការបើកកាមេរ៉ាស្កេន',
+                style: GoogleFonts.kantumruyPro(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 10),
               Text(
                 _errorMessage!,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.white),
+                style: GoogleFonts.kantumruyPro(
+                  color: Colors.grey[400],
+                  fontSize: 13,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 32),
+              _buildGradientButton(
+                icon: Icons.refresh_rounded,
+                label: 'ព្យាយាមម្តងទៀត',
+                onTap: _openNativeScanner,
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFFF6B35), Color(0xFFFFB74D)],
+                ),
               ),
               const SizedBox(height: 16),
-              ElevatedButton(
+              GestureDetector(
+                onTap: _importFromGallery,
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.photo_library_rounded, size: 18, color: Colors.orangeAccent),
+                      const SizedBox(width: 8),
+                      Text(
+                        'ជ្រើសរើសរូបភាពពីវិចិត្រសាល',
+                        style: GoogleFonts.kantumruyPro(
+                          color: Colors.orangeAccent,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              TextButton(
                 onPressed: _resetScanner,
-                child: const Text('Try Again'),
+                child: Text(
+                  'ត្រឡប់ក្រោយ',
+                  style: GoogleFonts.kantumruyPro(color: Colors.grey),
+                ),
               ),
             ],
           ),
@@ -667,44 +777,86 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
     }
   }
 
-  /// Step 1: Select Image UI
+  /// Step 1: Select Image UI - Beautiful Design with Fallbacks
   Widget _buildSelectImageStep() {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(
-            Icons.document_scanner_outlined,
-            size: 100,
-            color: Colors.orange,
-          ),
-          const SizedBox(height: 24),
-          const Text(
-            'Scan a Document',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFFFFFFFF),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(28),
+              decoration: BoxDecoration(
+                color: Colors.orange.withValues(alpha: 0.08),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.orange.withValues(alpha: 0.15), width: 1.5),
+              ),
+              child: const Icon(
+                Icons.document_scanner_rounded,
+                size: 70,
+                color: Colors.orange,
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Use the native scanner for best results',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey,
+            const SizedBox(height: 32),
+            Text(
+              'ស្កេនឯកសារអាជីព',
+              style: GoogleFonts.kantumruyPro(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+                letterSpacing: 0.5,
+              ),
             ),
-          ),
-          const SizedBox(height: 32),
-          _buildGradientButton(
-            icon: Icons.camera_alt,
-            label: 'Open Scanner',
-            onTap: _openNativeScanner,
-            gradient: const LinearGradient(
-              colors: [Color(0xFFFF6B35), Color(0xFFFFB74D)],
+            const SizedBox(height: 8),
+            Text(
+              'ស្កេន កែសម្រួល ស្រង់អក្សរ និងនាំចេញជា PDF',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.kantumruyPro(
+                fontSize: 13.5,
+                color: Colors.grey[400],
+                height: 1.5,
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: 48),
+            _buildGradientButton(
+              icon: Icons.camera_alt_rounded,
+              label: 'បើកកាមេរ៉ាស្កេន',
+              onTap: _openNativeScanner,
+              gradient: const LinearGradient(
+                colors: [Color(0xFFFF6B35), Color(0xFFFFB74D)],
+              ),
+            ),
+            const SizedBox(height: 16),
+            GestureDetector(
+              onTap: _importFromGallery,
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.photo_library_rounded, size: 18, color: Colors.white),
+                    const SizedBox(width: 8),
+                    Text(
+                      'ជ្រើសរើសរូបភាពពីវិចិត្រសាល',
+                      style: GoogleFonts.kantumruyPro(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
