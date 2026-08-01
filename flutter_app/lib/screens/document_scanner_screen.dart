@@ -2,7 +2,6 @@ import 'dart:io';
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:flutter/math.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
@@ -41,7 +40,6 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
   
   // Auto-crop animation
   bool _isAnimatingCrop = false;
-  double _cropAnimationProgress = 0.0;
   late AnimationController _cropAnimationController;
   late Animation<double> _cropAnimation;
   
@@ -438,7 +436,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
             Container(
               margin: const EdgeInsets.only(right: 16),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
+                color: Colors.white.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: IconButton(
@@ -448,7 +446,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
                 color: Colors.white,
               ),
             ),
-        ),
+        ],
       ),
       body: Stack(
         children: [
@@ -488,7 +486,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
+                    color: Colors.white.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: const Row(
@@ -1144,7 +1142,7 @@ class _CornerOverlayPainter extends CustomPainter {
     
     // Draw corner handles at document edges
     final corners = [
-      Offset(20, 20), // top-left
+      const Offset(20, 20), // top-left
       Offset(size.width - 20, 20), // top-right
       Offset(size.width - 20, size.height - 20), // bottom-right
       Offset(20, size.height - 20), // bottom-left
@@ -1222,4 +1220,21 @@ class _CropOverlayPainter extends CustomPainter {
   bool shouldRepaint(_CropOverlayPainter oldDelegate) {
     return oldDelegate.corners != corners;
   }
+}
+
+/// Scanner workflow steps
+enum ScannerStep {
+  selectImage,
+  edgeDetection,
+  manualCrop,
+  filterSelection,
+  result,
+}
+
+/// Available image filters
+enum ImageFilter {
+  original,
+  magicColor,
+  blackAndWhite,
+  enhanced,
 }
