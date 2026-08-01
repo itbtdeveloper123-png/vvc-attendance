@@ -47,6 +47,8 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
   // Multi-page scanning
   List<String> _scannedImagePaths = [];
   bool _isMultiPageMode = false;
+  int _currentPageIndex = 0;
+  late PageController _pageController;
   
   // Auto-crop animation
   bool _isAnimatingCrop = false;
@@ -76,6 +78,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
       parent: _cropAnimationController,
       curve: Curves.easeInOut,
     );
+    _pageController = PageController();
 
     // Load existing images if editing
     if (widget.existingImagePaths != null && widget.existingImagePaths!.isNotEmpty) {
@@ -92,6 +95,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
   void dispose() {
     _ocrService.dispose();
     _cropAnimationController.dispose();
+    _pageController.dispose();
     _cleanupTempFiles();
     super.dispose();
   }
@@ -138,13 +142,18 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
 
       if (scannedImages != null && scannedImages.isNotEmpty) {
         setState(() {
-          _scannedImagePaths = scannedImages;
+          // Append new pages to existing ones
+          _scannedImagePaths.addAll(scannedImages);
           _scannedImagePath = _scannedImagePaths.first;
           _filteredImagePath = _scannedImagePaths.first;
           _currentStep = ScannerStep.filterSelection;
           _isMultiPageMode = _scannedImagePaths.length > 1;
+          _currentPageIndex = _scannedImagePaths.length - 1; // Jump to last page
           _isProcessing = false;
         });
+        
+        // Jump to the newly added page
+        _pageController.jumpToPage(_currentPageIndex);
         
         // Start corner animation to show successful scan
         _startCornerAnimation();
@@ -164,7 +173,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
 
   /// Apply image filter (simplified - mostly for visual feedback)
   Future<void> _applyFilter(ImageFilter filter) async {
-    if (_scannedImagePath == null) return;
+    if (_scannedImagePaths.isEmpty) return;
 
     setState(() {
       _selectedFilter = filter;
@@ -176,7 +185,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
       // The native scanner already provides color enhancement
       // Future: Add more sophisticated filter processing if needed
       setState(() {
-        _filteredImagePath = _scannedImagePath;
+        _filteredImagePath = _scannedImagePaths[_currentPageIndex];
         _isProcessing = false;
       });
     } catch (e) {
@@ -190,7 +199,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
   /// Extract text from scanned document using OCR
   /// Uses Khmer OCR backend for better accuracy with Khmer text
   Future<void> _extractText() async {
-    if (_filteredImagePath == null) return;
+    if (_scannedImagePaths.isEmpty) return;
 
     // Capture ScaffoldMessenger before async gap
     final scaffoldMessenger = ScaffoldMessenger.of(context);
@@ -201,8 +210,10 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
     });
 
     try {
+      // Use the current page for OCR
+      final currentImagePath = _scannedImagePaths[_currentPageIndex];
       // Use Khmer OCR backend for better accuracy
-      final result = await _ocrService.extractTextKhmer(_filteredImagePath!);
+      final result = await _ocrService.extractTextKhmer(currentImagePath);
       
       setState(() {
         _ocrResult = result;
@@ -535,10 +546,12 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
       _filteredImagePath = null;
       _scannedImagePaths = [];
       _isMultiPageMode = false;
+      _currentPageIndex = 0;
       _ocrResult = null;
       _selectedFilter = ImageFilter.original;
       _errorMessage = null;
     });
+    _pageController.jumpToPage(0);
   }
 
   /// Start corner pulsing animation
@@ -704,15 +717,49 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
         Expanded(
           child: Stack(
             children: [
-              // Document image
-              _filteredImagePath != null
-                  ? Positioned.fill(
-                      child: Image.file(
-                        File(_filteredImagePath!),
-                        fit: BoxFit.contain,
-                      ),
+              // Document image with PageView for multi-page
+              _scannedImagePaths.isNotEmpty
+                  ? PageView.builder(
+                      controller: _pageController,
+                      onPageChanged: (index) {
+                        setState(() {
+                          _currentPageIndex = index;
+                          _filteredImagePath = _scannedImagePaths[index];
+                        });
+                      },
+                      itemCount: _scannedImagePaths.length,
+                      itemBuilder: (context, index) {
+                        return Image.file(
+                          File(_scannedImagePaths[index]),
+                          fit: BoxFit.contain,
+                        );
+                      },
                     )
                   : const Center(child: Text('No image')),
+              // Page indicator overlay
+              if (_scannedImagePaths.length > 1)
+                Positioned(
+                  top: 20,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.6),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        '${_currentPageIndex + 1} / ${_scannedImagePaths.length}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               // Corner handles overlay (showing it was cropped)
               if (_filteredImagePath != null)
                 Positioned.fill(
@@ -741,83 +788,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
               ],
             ),
           ),
-          child: Stack(
-            children: [
-              // Thumbnails preview
-              if (_isMultiPageMode && _scannedImagePaths.isNotEmpty)
-                Positioned(
-                  left: 20,
-                  bottom: 140,
-                  child: Container(
-                    height: 60,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.5),
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                    child: ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: _scannedImagePaths.length,
-                      itemBuilder: (context, index) {
-                        return Container(
-                          width: 50,
-                          height: 50,
-                          margin: const EdgeInsets.only(right: 8),
-                          decoration: BoxDecoration(
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.3),
-                              width: 2,
-                            ),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(6),
-                            child: Image.file(
-                              File(_scannedImagePaths[index]),
-                              fit: BoxFit.cover,
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ),
-              // Page count badge
-              if (_isMultiPageMode)
-                Positioned(
-                  right: 20,
-                  bottom: 140,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.orange,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.orange.withValues(alpha: 0.5),
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.check_circle, color: Colors.white, size: 18),
-                        const SizedBox(width: 6),
-                        Text(
-                          'Save (${_scannedImagePaths.length})',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              Padding(
+          child: Padding(
             padding: EdgeInsets.only(
               left: 20,
               right: 20,
@@ -827,6 +798,89 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                // Thumbnail history bar
+                if (_scannedImagePaths.isNotEmpty)
+                  Container(
+                    height: 80,
+                    margin: const EdgeInsets.only(bottom: 20),
+                    child: Row(
+                      children: [
+                        // Add page button
+                        GestureDetector(
+                          onTap: _openNativeScanner,
+                          child: Container(
+                            width: 60,
+                            height: 60,
+                            decoration: BoxDecoration(
+                              color: Colors.orange.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: Colors.orange,
+                                width: 2,
+                              ),
+                            ),
+                            child: const Icon(
+                              Icons.add,
+                              color: Colors.orange,
+                              size: 32,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        // Thumbnails
+                        Expanded(
+                          child: ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: _scannedImagePaths.length,
+                            itemBuilder: (context, index) {
+                              final isSelected = index == _currentPageIndex;
+                              return GestureDetector(
+                                onTap: () {
+                                  _pageController.animateToPage(
+                                    index,
+                                    duration: const Duration(milliseconds: 300),
+                                    curve: Curves.easeInOut,
+                                  );
+                                },
+                                child: Container(
+                                  width: 60,
+                                  height: 60,
+                                  margin: const EdgeInsets.only(right: 12),
+                                  decoration: BoxDecoration(
+                                    border: Border.all(
+                                      color: isSelected
+                                          ? Colors.orange
+                                          : Colors.white.withValues(alpha: 0.3),
+                                      width: isSelected ? 3 : 2,
+                                    ),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: Stack(
+                                      children: [
+                                        Image.file(
+                                          File(_scannedImagePaths[index]),
+                                          fit: BoxFit.cover,
+                                        ),
+                                        if (isSelected)
+                                          Container(
+                                            decoration: BoxDecoration(
+                                              color: Colors.orange.withValues(alpha: 0.3),
+                                              borderRadius: BorderRadius.circular(10),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 // Filter selection
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -906,8 +960,6 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
                 ),
               ],
             ),
-          ),
-            ],
           ),
         ),
       ],
