@@ -868,9 +868,9 @@ class _RequestListScreenState extends State<RequestListScreen> {
           maxChildSize: 0.95,
           minChildSize: 0.5,
           builder: (_, scrollController) => Container(
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               color: AppTheme.bgCard,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
             ),
             child: Column(
               children: [
