@@ -1,8 +1,10 @@
 import 'dart:convert';
 import 'dart:async';
+import 'dart:io' as io;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:animate_do/animate_do.dart';
@@ -14,7 +16,6 @@ import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:intl/intl.dart';
 import 'package:path/path.dart' as p;
-import 'dart:io' as io; // Use alias to avoid web crash where possible
 import '../services/api_service.dart';
 import '../services/meeting_audio_draft_service.dart';
 import '../services/meeting_audio_player_service.dart';
@@ -198,11 +199,49 @@ class _MeetingsScreenState extends State<MeetingsScreen>
   }) async {
     try {
       final int meetingId = int.parse(meeting['id'].toString());
+      final audioPath = (meeting['audio_path'] ?? meeting['audio_file_path'] ?? '')
+          .toString();
+      
       modalSetState(() {
         _isSummarizing = true;
         _currentSummaryError = null;
         _currentSummaryStatusMessage = "កំពុងចាប់ផ្តើមការសង្ខេបដោយ AI...";
       });
+      
+      // Try the new PHP endpoint first if audio file exists
+      if (audioPath.isNotEmpty && !force) {
+        try {
+          final fullAudioPath = ApiService.getFullImageUrl(audioPath);
+          final tempFile = await _downloadAudioFile(fullAudioPath);
+          
+          modalSetState(() {
+            _currentSummaryStatusMessage = "កំពុងបម្លែងសំឡេង...";
+          });
+          
+          final resp = await _api.processMeetingAudio(
+            audioPath: tempFile.path,
+            meetingId: meetingId.toString(),
+            meetingTitle: meeting['topic']?.toString(),
+            department: meeting['department']?.toString(),
+          );
+          
+          if (resp['status'] == 'success') {
+            modalSetState(() {
+              _currentAISummary = resp['summary'];
+              _currentTranscript = resp['transcript']?.toString();
+              _currentSummaryError = null;
+              _currentSummaryStatusMessage = null;
+              _isSummarizing = false;
+            });
+            return;
+          }
+        } catch (e) {
+          // Fall back to old method if new endpoint fails
+          if (kDebugMode) print('New endpoint failed, falling back: $e');
+        }
+      }
+      
+      // Fallback to old method
       Map<String, dynamic> resp = await _api.summarizeMeeting(
         meetingId,
         force: force,
@@ -245,6 +284,16 @@ class _MeetingsScreenState extends State<MeetingsScreen>
         ).showSnackBar(SnackBar(content: Text(friendly)));
       }
     }
+  }
+
+  /// Download audio file from URL to local temp file
+  Future<io.File> _downloadAudioFile(String url) async {
+    final response = await http.get(Uri.parse(url));
+    final tempDir = await getTemporaryDirectory();
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final tempFile = io.File('${tempDir.path}/audio_$timestamp.m4a');
+    await tempFile.writeAsBytes(response.bodyBytes);
+    return tempFile;
   }
 
   Future<Map<String, dynamic>> _waitForAISummaryResult(
@@ -341,53 +390,6 @@ class _MeetingsScreenState extends State<MeetingsScreen>
         .map((item) => item.toString().trim())
         .where((item) => item.isNotEmpty)
         .toList();
-  }
-
-  String _buildInsightCopyText() {
-    final analysis = _currentAIAnalysis ?? const <String, dynamic>{};
-    final buffer = StringBuffer();
-
-    final headline = (analysis['headline'] ?? '').toString().trim();
-    final overview = (analysis['overview'] ?? '').toString().trim();
-
-    if (headline.isNotEmpty) {
-      buffer.writeln(headline);
-      buffer.writeln();
-    }
-    if (overview.isNotEmpty) {
-      buffer.writeln('សេចក្តីសង្ខេប');
-      buffer.writeln(overview);
-      buffer.writeln();
-    }
-
-    const labels = <String, String>{
-      'key_points': 'ចំណុចសំខាន់ៗ',
-      'decisions': 'សេចក្តីសម្រេច',
-      'action_items': 'ការងារត្រូវអនុវត្ត',
-      'next_steps': 'ជំហានបន្ទាប់',
-      'keywords': 'ពាក្យគន្លឹះ',
-    };
-
-    for (final entry in labels.entries) {
-      final items = _analysisList(analysis[entry.key]);
-      if (items.isEmpty) {
-        continue;
-      }
-      buffer.writeln(entry.value);
-      for (final item in items) {
-        buffer.writeln('- $item');
-      }
-      buffer.writeln();
-    }
-
-    final transcript = (_currentTranscript ?? '').trim();
-    if (transcript.isNotEmpty) {
-      buffer.writeln('Transcript');
-      buffer.writeln(transcript);
-    }
-
-    final text = buffer.toString().trim();
-    return text.isNotEmpty ? text : (_currentAISummary ?? '');
   }
 
   Future<void> _pickAudioFile() async {
@@ -1787,7 +1789,7 @@ class _MeetingsScreenState extends State<MeetingsScreen>
             ),
             TextButton.icon(
               onPressed: _pickPhotos,
-              icon: Icon(Icons.add_a_photo_rounded, size: 18),
+              icon: const Icon(Icons.add_a_photo_rounded, size: 18),
               label: Text("បន្ថែម", style: GoogleFonts.kantumruyPro()),
             ),
           ],
@@ -1821,7 +1823,7 @@ class _MeetingsScreenState extends State<MeetingsScreen>
                       child: GestureDetector(
                         onTap: () =>
                             setState(() => _selectedPhotos.removeAt(index)),
-                        child: CircleAvatar(
+                        child: const CircleAvatar(
                           radius: 10,
                           backgroundColor: Colors.red,
                           child: Icon(
@@ -2168,18 +2170,35 @@ class _MeetingsScreenState extends State<MeetingsScreen>
                                         ),
                                       ],
                                     ),
-                                    if (_currentAISummary != null)
-                                      IconButton(
-                                        icon: const Icon(
-                                          Icons.copy_rounded,
-                                          color: Colors.amber,
-                                          size: 20,
+                                    Row(
+                                      children: [
+                                        if (_currentAISummary != null)
+                                          IconButton(
+                                            icon: const Icon(
+                                              Icons.copy_rounded,
+                                              color: Colors.amber,
+                                              size: 20,
+                                            ),
+                                            onPressed: () => _copyToClipboard(
+                                              _currentAISummary!,
+                                            ),
+                                            tooltip: "ចម្លងអត្ថបទ",
+                                          ),
+                                        IconButton(
+                                          icon: const Icon(
+                                            Icons.refresh_rounded,
+                                            color: Colors.amber,
+                                            size: 20,
+                                          ),
+                                          onPressed: () => _generateAISummary(
+                                            m,
+                                            modalSetState,
+                                            force: true,
+                                          ),
+                                          tooltip: "សង្ខេបម្ដងទៀត",
                                         ),
-                                        onPressed: () => _copyToClipboard(
-                                          _buildInsightCopyText(),
-                                        ),
-                                        tooltip: "ចម្លងអត្ថបទ",
-                                      ),
+                                      ],
+                                    ),
                                   ],
                                 ),
                                 const SizedBox(height: 15),
@@ -2188,7 +2207,9 @@ class _MeetingsScreenState extends State<MeetingsScreen>
                                     padding: const EdgeInsets.all(20),
                                     child: Column(
                                       children: [
-                                        const CircularProgressIndicator(),
+                                        const CircularProgressIndicator(
+                                          valueColor: AlwaysStoppedAnimation<Color>(Colors.amber),
+                                        ),
                                         const SizedBox(height: 12),
                                         if ((_currentSummaryStatusMessage ?? '')
                                             .trim()
@@ -2205,7 +2226,7 @@ class _MeetingsScreenState extends State<MeetingsScreen>
                                           const SizedBox(height: 10),
                                         ],
                                         Text(
-                                          "កំពុងបម្លែងសំឡេង និងសង្ខេបដោយ AI...\nសូមរង់ចាំបន្តិច",
+                                          "កំពុងដំណើរការសង្ខេបដោយ AI...",
                                           textAlign: TextAlign.center,
                                           style: GoogleFonts.kantumruyPro(
                                             color: AppTheme.textSecondary,
@@ -2249,28 +2270,6 @@ class _MeetingsScreenState extends State<MeetingsScreen>
                                             height: 1.5,
                                           ),
                                         ),
-                                        const SizedBox(height: 10),
-                                        Align(
-                                          alignment: Alignment.centerRight,
-                                          child: TextButton.icon(
-                                            onPressed: () => _generateAISummary(
-                                              m,
-                                              modalSetState,
-                                              force: true,
-                                            ),
-                                            icon: const Icon(
-                                              Icons.refresh_rounded,
-                                              size: 16,
-                                              color: Colors.amber,
-                                            ),
-                                            label: Text(
-                                              "សាកម្ដងទៀត",
-                                              style: GoogleFonts.kantumruyPro(
-                                                color: Colors.amber,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
                                       ],
                                     ),
                                   )
@@ -2287,29 +2286,6 @@ class _MeetingsScreenState extends State<MeetingsScreen>
                                           ),
                                           fontSize: 13,
                                           height: 1.6,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 10),
-                                      Align(
-                                        alignment: Alignment.centerRight,
-                                        child: TextButton.icon(
-                                          onPressed: () => _generateAISummary(
-                                            m,
-                                            modalSetState,
-                                            force: true,
-                                          ),
-                                          icon: const Icon(
-                                            Icons.refresh_rounded,
-                                            size: 16,
-                                            color: Colors.amber,
-                                          ),
-                                          label: Text(
-                                            "សង្ខេបម្ដងទៀត",
-                                            style: GoogleFonts.kantumruyPro(
-                                              color: Colors.amber,
-                                              fontSize: 11,
-                                            ),
-                                          ),
                                         ),
                                       ),
                                     ],

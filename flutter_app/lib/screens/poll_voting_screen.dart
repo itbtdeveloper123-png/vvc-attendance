@@ -356,7 +356,7 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
                       checkColor: Colors.white,
                     ),
                   );
-                }).toList(),
+                }),
                 const SizedBox(height: 12),
                 if (!hasVoted && selectedCandidateEmployeeId != null && selectedCandidateEmployeeId!.isNotEmpty)
                   SizedBox(
@@ -389,7 +389,7 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.check_circle, color: Colors.green),
+                          const Icon(Icons.check_circle, color: Colors.green),
                           const SizedBox(width: 8),
                           Text(
                             'អ្នកបានបោះឆ្នោតរួចហើយ',

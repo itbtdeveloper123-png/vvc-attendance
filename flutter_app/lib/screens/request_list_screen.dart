@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -855,6 +856,7 @@ class _RequestListScreenState extends State<RequestListScreen> {
   void _showDetails(Map<String, dynamic> item) {
     final status = (item['status'] ?? 'pending').toString();
     final statusColor = _statusColor(status);
+    final GlobalKey reportKey = GlobalKey();
 
     showModalBottomSheet(
       context: context,
@@ -947,6 +949,121 @@ class _RequestListScreenState extends State<RequestListScreen> {
                     controller: scrollController,
                     padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
                     children: [
+                      // Hidden report widget for capture
+                      RepaintBoundary(
+                        key: reportKey,
+                        child: Container(
+                          color: Colors.white,
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Report header
+                              Center(
+                                child: Text(
+                                  "សំណើស្នើសុំ",
+                                  style: GoogleFonts.kantumruyPro(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.black,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              
+                              // Status badge
+                              Center(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: statusColor.withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: statusColor.withValues(alpha: 0.3),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        _statusIcon(status),
+                                        color: statusColor,
+                                        size: 14,
+                                      ),
+                                      const SizedBox(width: 5),
+                                      Text(
+                                        _statusLabel(status),
+                                        style: GoogleFonts.kantumruyPro(
+                                          color: statusColor,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+
+                              // Personal Info
+                              _buildReportSection("ព័ត៌មានបុគ្គល", [
+                                _reportDetailRow("ID", '#${item['id'] ?? '-'}'),
+                                _reportDetailRow("ឈ្មោះ", item['requester_name'] ?? '-'),
+                                _reportDetailRow("ប្រភេទ", item['request_type'] ?? '-'),
+                              ]),
+
+                              // Work Location
+                              _buildReportSection("ទីតាំងការងារ", [
+                                _reportDetailRow("ផ្នែក", item['department'] ?? '-'),
+                                _reportDetailRow("តួនាទី", item['position'] ?? '-'),
+                                _reportDetailRow("សាខា", item['branch'] ?? '-'),
+                                if ((item['department_head_name'] ?? '').toString().isNotEmpty)
+                                  _reportDetailRow("ប្រធានផ្នែក", item['department_head_name'] ?? '-'),
+                              ]),
+
+                              // Request Info
+                              _buildReportSection("ព័ត៌មានសំណើ", [
+                                _reportDetailRow("កាលបរិច្ឆេទស្នើ", _formatDate(item['request_date'])),
+                                if ((item['return_date'] ?? '').toString().isNotEmpty)
+                                  _reportDetailRow("កាលបរិច្ឆេទត្រឡប់", _formatDate(item['return_date'])),
+                                if ((item['number_of_days'] ?? '').toString().isNotEmpty && item['number_of_days'].toString() != '0')
+                                  _reportDetailRow("ចំនួនថ្ងៃ", item['number_of_days'].toString()),
+                                if ((item['time_in'] ?? '').toString().isNotEmpty)
+                                  _reportDetailRow("ម៉ោងចូល", _formatClockTime(item['time_in'].toString())),
+                                if ((item['time_out'] ?? '').toString().isNotEmpty)
+                                  _reportDetailRow("ម៉ោងចេញ", _formatClockTime(item['time_out'].toString())),
+                                if ((item['late_hours'] ?? '').toString().isNotEmpty)
+                                  _reportDetailRow("ម៉ោងយឺត", item['late_hours'].toString()),
+                                if ((item['total_hours'] ?? '').toString().isNotEmpty)
+                                  _reportDetailRow("សរុបម៉ោង", item['total_hours'].toString()),
+                              ]),
+
+                              // Additional Info
+                              _buildReportSection("ព័ត៌មានបន្ថែម", [
+                                if ((item['reason'] ?? '').toString().isNotEmpty)
+                                  _reportDetailRow("មូលហេតុ", item['reason'].toString()),
+                                if ((item['contact_number'] ?? '').toString().isNotEmpty)
+                                  _reportDetailRow("លេខទូរស័ព្ទ", _formatPhone(item['contact_number'].toString())),
+                                if ((item['location'] ?? '').toString().isNotEmpty)
+                                  _reportDetailRow("ទីតាំង", item['location'].toString()),
+                                _reportDetailRow("ស្ថានភាព", _statusLabel(status)),
+                                if ((item['approved_by'] ?? '').toString().isNotEmpty)
+                                  _reportDetailRow("អ្នកអនុម័ត", item['approved_by']),
+                                if ((item['admin_comment'] ?? '').toString().isNotEmpty)
+                                  _reportDetailRow("មតិ Admin", item['admin_comment']),
+                                if (item['created_at'] != null)
+                                  _reportDetailRow("ម៉ោងបញ្ជូន", _formatTime(item['created_at'])),
+                              ]),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 24),
+
                       // =========== Section 1: ព័ត៌មានបុគ្គល ===========
                       _buildSection("ព័ត៌មានបុគ្គល", Icons.person_rounded, [
                         _detailRow("ID", '#${item['id'] ?? '-'}'),
@@ -1103,6 +1220,31 @@ class _RequestListScreenState extends State<RequestListScreen> {
                       // Actions Row
                       Row(
                         children: [
+                          // Copy Image Button
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () => _captureAndCopyImage(reportKey, item),
+                              icon: const Icon(
+                                Icons.copy_rounded,
+                                size: 20,
+                              ),
+                              label: Text(
+                                "Copy រូបភាព",
+                                style: GoogleFonts.kantumruyPro(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppTheme.primary,
+                                foregroundColor: AppTheme.textPrimary,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                minimumSize: const Size(0, 50),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
                           // PDF Button
                           Expanded(
                             child: ElevatedButton.icon(
@@ -2245,5 +2387,97 @@ class _RequestListScreenState extends State<RequestListScreen> {
       ),
     );
     if (res['success'] == true) _loadData();
+  }
+
+  // Method to capture widget as image and copy to clipboard
+  Future<void> _captureAndCopyImage(GlobalKey key, Map<String, dynamic> item) async {
+    try {
+      RenderRepaintBoundary boundary = key.currentContext!.findRenderObject() as RenderRepaintBoundary;
+      ui.Image image = await boundary.toImage(pixelRatio: 3.0);
+      ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      
+      if (byteData != null) {
+        // Copy to clipboard using pasteboard
+        await Clipboard.setData(ClipboardData(text: 'data:image/png;base64,${base64Encode(byteData.buffer.asUint8List())}'));
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                "បាន Copy រូបភាពជោគជ័យ",
+                style: GoogleFonts.kantumruyPro(),
+              ),
+              backgroundColor: const Color(0xFF10b981),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              "បានបរាជ័យក្នុងការ Copy រូបភាព",
+              style: GoogleFonts.kantumruyPro(),
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
+  // Helper method to build report section for image capture
+  Widget _buildReportSection(String title, List<Widget> children) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: GoogleFonts.kantumruyPro(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+          ),
+        ),
+        const SizedBox(height: 8),
+        ...children,
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  // Helper method to build report detail row for image capture
+  Widget _reportDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(
+              label,
+              style: GoogleFonts.kantumruyPro(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: Colors.black54,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: GoogleFonts.kantumruyPro(
+                fontSize: 14,
+                color: Colors.black87,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

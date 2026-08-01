@@ -142,7 +142,7 @@ class _TripReportScreenState extends State<TripReportScreen>
             image.width.toDouble(),
             image.height.toDouble(),
           );
-          final dstRect = Rect.fromLTWH(
+          const dstRect = Rect.fromLTWH(
             borderWidth,
             borderWidth,
             size - borderWidth * 2,
@@ -284,7 +284,7 @@ class _TripReportScreenState extends State<TripReportScreen>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
+            const Icon(
               Icons.directions_car_outlined,
               size: 64,
               color: Colors.white24,
@@ -528,7 +528,7 @@ class _TripReportScreenState extends State<TripReportScreen>
             points: routePoints,
             color: routeColor,
             width: 4,
-            patterns: [],
+            patterns: const [],
           ),
         );
       }

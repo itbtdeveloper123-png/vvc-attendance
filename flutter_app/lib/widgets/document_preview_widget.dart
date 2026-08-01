@@ -16,13 +16,13 @@ class DocumentPreviewWidget extends StatelessWidget {
   final String? loadingMessage;
 
   const DocumentPreviewWidget({
-    Key? key,
+    super.key,
     this.imagePath,
     this.isLoading = false,
     this.errorMessage,
     this.onRetry,
     this.loadingMessage,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -140,12 +140,12 @@ class DocumentComparisonWidget extends StatelessWidget {
   final String afterLabel;
 
   const DocumentComparisonWidget({
-    Key? key,
+    super.key,
     this.beforePath,
     this.afterPath,
     this.beforeLabel = 'Original',
     this.afterLabel = 'Processed',
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

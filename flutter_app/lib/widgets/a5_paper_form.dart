@@ -142,20 +142,20 @@ class A5PaperForm extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          Row(
+          const Row(
             children: [
               Expanded(
                 child: _SignatureBox(
                   label: 'បុគ្គលិក (Employee)',
                 ),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12),
               Expanded(
                 child: _SignatureBox(
                   label: 'អ្នកគ្រប់គ្រង (Manager)',
                 ),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12),
               Expanded(
                 child: _SignatureBox(
                   label: 'ធនាគារ (HR)',

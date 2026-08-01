@@ -1065,7 +1065,7 @@ class _TripScreenState extends State<TripScreen>
         image.width.toDouble(),
         image.height.toDouble(),
       );
-      final dstRect = Rect.fromLTWH(
+      const dstRect = Rect.fromLTWH(
         borderWidth,
         borderWidth,
         size - borderWidth * 2,
@@ -1428,11 +1428,11 @@ class _TripScreenState extends State<TripScreen>
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 2),
-                Row(
+                const Row(
                   children: [
-                    const Icon(Icons.circle, color: Color(0xFF10b981), size: 7),
-                    const SizedBox(width: 4),
-                    const Text(
+                    Icon(Icons.circle, color: Color(0xFF10b981), size: 7),
+                    SizedBox(width: 4),
+                    Text(
                       'កំពុងធ្វើដំណើរ',
                       style: TextStyle(
                         color: Color(0xFF10b981),

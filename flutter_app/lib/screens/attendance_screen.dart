@@ -821,7 +821,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                     color: AppTheme.textPrimary.withValues(alpha: 0.70),
                   ),
                 ),
-                SizedBox(height: 10),
+                const SizedBox(height: 10),
                 Text(
                   "សំណើបន្ទាប់៖ $suggested",
                   style: GoogleFonts.kantumruyPro(
@@ -872,12 +872,12 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
             title: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
+                const Icon(
                   Icons.access_time_rounded,
                   color: Colors.orangeAccent,
                   size: 48,
                 ),
-                SizedBox(height: 12),
+                const SizedBox(height: 12),
                 Text(
                   "ស្កេនចូលយឺត",
                   textAlign: TextAlign.center,
@@ -899,7 +899,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                     fontSize: 14,
                   ),
                 ),
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
                 TextField(
                   controller: reasonController,
                   maxLines: 3,
@@ -911,11 +911,11 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                     fillColor: Colors.black12,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.white24),
+                      borderSide: const BorderSide(color: Colors.white24),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.orangeAccent),
+                      borderSide: const BorderSide(color: Colors.orangeAccent),
                     ),
                   ),
                 ),
@@ -964,7 +964,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     return TextButton(
       onPressed: onTap,
       child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
         decoration: BoxDecoration(
           color: isSuggested
               ? color.withValues(alpha: 0.2)
@@ -989,7 +989,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           children: [
             if (isSuggested) ...[
               Icon(Icons.star_rounded, color: color, size: 16),
-              SizedBox(width: 4),
+              const SizedBox(width: 4),
             ],
             Text(
               label,
@@ -1053,7 +1053,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(icon, color: color, size: 64),
-                SizedBox(height: 20),
+                const SizedBox(height: 20),
                 Text(
                   message,
                   textAlign: TextAlign.center,
@@ -1062,7 +1062,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                     fontSize: 16,
                   ),
                 ),
-                SizedBox(height: 24),
+                const SizedBox(height: 24),
                 ElevatedButton(
                   onPressed: () {
                     Navigator.pop(context); // close dialog
@@ -1313,7 +1313,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.face_retouching_natural_rounded,
+                          const Icon(Icons.face_retouching_natural_rounded,
                               color: Colors.cyanAccent, size: 20),
                           const SizedBox(width: 8),
                           Text(
@@ -1571,7 +1571,7 @@ class _FadeInScaleState extends State<FadeInScale>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: Duration(milliseconds: 400),
+      duration: const Duration(milliseconds: 400),
     );
     _opacity = Tween<double>(
       begin: 0.0,

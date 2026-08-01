@@ -297,6 +297,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.2"
+  cunning_document_scanner:
+    dependency: "direct main"
+    description:
+      name: cunning_document_scanner
+      sha256: b80b60b4ac8e889f17ac6a12fb0730d5b4d174dd1a412ff45ba4f2676ab2de64
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.8.0"
   cupertino_icons:
     dependency: "direct main"
     description:
@@ -305,14 +313,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.9"
-  dartcv4:
-    dependency: transitive
-    description:
-      name: dartcv4
-      sha256: "0e2e3473cbbbcca47a7da4153ee11a93faec19598809d4564a8fb35910b7fbce"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.1.8"
   dbus:
     dependency: transitive
     description:
@@ -1173,14 +1173,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.1.0"
-  opencv_dart:
-    dependency: "direct main"
-    description:
-      name: opencv_dart
-      sha256: c6479bd5fa8afc63813e6ced540c81c009fc7db9d8e7e1c2e1463b3a9857f40f
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.4.5"
   package_config:
     dependency: transitive
     description:

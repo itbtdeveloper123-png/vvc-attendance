@@ -1,19 +1,26 @@
 import 'dart:ui' as ui;
+import 'package:flutter/foundation.dart';
+import 'package:dio/dio.dart' as dio;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
+import '../services/api_service.dart';
 
 /// OCR Service using Google ML Kit for text recognition
 /// Extracts text from scanned document images
+/// 
+/// Note: For Khmer text, use extractTextKhmer() which calls PHP backend
+/// with Gemini 1.5 Flash API for better accuracy
 class OCRService {
   late final TextRecognizer _textRecognizer;
 
   /// Initialize the OCR service
   OCRService() {
     // Initialize text recognizer with Latin script (default)
-    // For Khmer text support, you would need to use a different script
+    // For Khmer text support, use extractTextKhmer() instead
     _textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
   }
 
-  /// Extract text from an image file
+  /// Extract text from an image file using ML Kit (for Latin text)
   /// 
   /// Algorithm:
   /// 1. Create InputImage from the file path
@@ -79,6 +86,81 @@ class OCRService {
         success: false,
         error: 'OCR failed: $e',
       );
+    }
+  }
+
+  /// Extract Khmer text from an image file using PHP backend with Gemini 1.5 Flash
+  /// 
+  /// This method is optimized for Khmer text recognition and uses:
+  /// - PHP backend (/api/ocr-khmer.php)
+  /// - Google Gemini 1.5 Flash API for high-accuracy Khmer OCR
+  /// 
+  /// Algorithm:
+  /// 1. Upload image to PHP backend
+  /// 2. PHP converts image to Base64 and sends to Gemini API
+  /// 3. Gemini extracts Khmer text with proper formatting
+  /// 4. Return extracted text
+  Future<OCRResult> extractTextKhmer(String imagePath) async {
+    try {
+      // Upload image to PHP backend
+      final response = await _processImageWithBackend(imagePath);
+      
+      if (response['status'] == 'success') {
+        return OCRResult(
+          fullText: response['extracted_text'] ?? '',
+          textBlocks: [],
+          success: true,
+        );
+      } else {
+        return OCRResult(
+          fullText: '',
+          textBlocks: [],
+          success: false,
+          error: response['message'] ?? 'OCR failed',
+        );
+      }
+    } catch (e) {
+      return OCRResult(
+        fullText: '',
+        textBlocks: [],
+        success: false,
+        error: 'Khmer OCR failed: $e',
+      );
+    }
+  }
+
+  /// Process image with PHP backend
+  Future<Map<String, dynamic>> _processImageWithBackend(String imagePath) async {
+    final dioInstance = dio.Dio();
+    dioInstance.options.baseUrl = ApiService.effectiveBaseUrl;
+    
+    try {
+      // Get OCR API key from SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      final ocrApiKey = prefs.getString('ocr_api_key') ?? '';
+      
+      if (ocrApiKey.isEmpty) {
+        throw Exception('OCR API key not configured. Please set it in settings.');
+      }
+      
+      dioInstance.options.headers = {
+        'Authorization': 'Bearer $ocrApiKey',
+        'Content-Type': 'multipart/form-data',
+      };
+      
+      final formData = dio.FormData.fromMap({
+        'image_file': await dio.MultipartFile.fromFile(imagePath),
+      });
+      
+      final response = await dioInstance.post(
+        '/ocr-khmer.php',
+        data: formData,
+      );
+      
+      return response.data as Map<String, dynamic>;
+    } catch (e) {
+      if (kDebugMode) print('Error processing image with backend: $e');
+      throw Exception('Failed to process image with backend: $e');
     }
   }
 

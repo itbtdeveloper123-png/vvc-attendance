@@ -8,16 +8,25 @@ class DocumentScannerCard extends StatelessWidget {
   final VoidCallback? onTap;
   final bool showHistory;
   final VoidCallback? onHistoryTap;
+  final bool isGridMode;
 
   const DocumentScannerCard({
     super.key,
     this.onTap,
     this.showHistory = false,
     this.onHistoryTap,
+    this.isGridMode = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    if (isGridMode) {
+      return _buildGridCard();
+    }
+    return _buildFullWidthCard();
+  }
+
+  Widget _buildFullWidthCard() {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -154,6 +163,55 @@ class DocumentScannerCard extends StatelessWidget {
                   ),
                 ],
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGridCard() {
+    final color = Colors.orange;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppTheme.bgCard,
+          borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+          border: Border.all(color: color.withValues(alpha: 0.22), width: 1.2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.18),
+              blurRadius: 14,
+              offset: const Offset(0, 7),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(11),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.14),
+                shape: BoxShape.circle,
+                border: Border.all(color: color.withValues(alpha: 0.14)),
+              ),
+              child: Icon(Icons.document_scanner_outlined, color: color, size: 25),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              "ស្កេនឯកសារ",
+              style: GoogleFonts.kantumruyPro(
+                color: AppTheme.textPrimary,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                height: 1.2,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),

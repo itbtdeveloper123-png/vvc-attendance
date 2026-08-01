@@ -526,12 +526,12 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             ],
           ),
         ),
-        PopupMenuItem(
+        const PopupMenuItem(
           value: 'delete',
           child: Row(
             children: [
-              const Icon(Icons.delete, size: 18, color: Colors.redAccent),
-              const SizedBox(width: 8),
+              Icon(Icons.delete, size: 18, color: Colors.redAccent),
+              SizedBox(width: 8),
               Text('លុប', style: TextStyle(color: Colors.redAccent)),
             ],
           ),

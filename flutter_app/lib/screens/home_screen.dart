@@ -47,7 +47,6 @@ import 'product_analyzer_screen.dart';
 import 'poll_voting_screen.dart';
 import 'document_scanner_screen.dart';
 import 'app_settings_screen.dart';
-import '../widgets/document_scanner_card.dart';
 
 // ========== SLIDE PAGE ROUTE (Feature #9) ==========
 PageRouteBuilder _slideRoute(Widget page) {
@@ -1317,8 +1316,8 @@ class _HomeContentState extends State<HomeContent> {
         width: 38,
         height: 38,
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [const Color(0xFF7C3AED), const Color(0xFF4F46E5)],
+          gradient: const LinearGradient(
+            colors: [Color(0xFF7C3AED), Color(0xFF4F46E5)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -1994,7 +1993,7 @@ class _HomeContentState extends State<HomeContent> {
                   fit: BoxFit.cover,
                   errorBuilder: (context, error, stackTrace) => Container(
                     color: AppTheme.danger,
-                    child: Center(
+                    child: const Center(
                       child: Icon(
                         Icons.broken_image_rounded,
                         color: Colors.white,
@@ -2486,21 +2485,22 @@ class _HomeContentState extends State<HomeContent> {
         },
       ),
 
-      'document_scanner': (isList) =>
-          _canShowRoleAction(user, 'show_document_scanner_card$suffix', suffix)
-          ? Padding(
-              padding: EdgeInsets.only(bottom: isList ? 10 : 0),
-              child: DocumentScannerCard(
-                onTap: () {
-                  _hapticLight();
-                  Navigator.push(
-                    context,
-                    _slideRoute(const DocumentScannerScreen()),
-                  );
-                },
-              ),
-            )
-          : const SizedBox.shrink(),
+      'document_scanner': (isList) => _buildActionItem(
+        isList: isList,
+        key: 'show_document_scanner_card$suffix',
+        user: user,
+        label: "ស្កេនឯកសារ",
+        subtitle: "ស្កេនឯកសារអាជីព",
+        icon: Icons.document_scanner_outlined,
+        color: Colors.orange,
+        onTap: () {
+          _hapticLight();
+          Navigator.push(
+            context,
+            _slideRoute(const DocumentScannerScreen()),
+          );
+        },
+      ),
 
       'app_settings': (isList) => _buildActionItem(
         isList: isList,
@@ -2540,7 +2540,7 @@ class _HomeContentState extends State<HomeContent> {
         if (isListLayout) {
           finalWidgets.add(widget);
         } else {
-          if (key == 'attendance' || key == 'stats_slider') {
+          if (key == 'attendance' || key == 'stats_slider' || key == 'document_scanner') {
             if (gridBatch.isNotEmpty) {
               finalWidgets.add(_buildGridWrapper(gridBatch));
               gridBatch = [];

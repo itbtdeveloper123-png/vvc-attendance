@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:cunning_document_scanner/cunning_document_scanner.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -155,6 +156,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
   }
 
   /// Extract text from scanned document using OCR
+  /// Uses Khmer OCR backend for better accuracy with Khmer text
   Future<void> _extractText() async {
     if (_filteredImagePath == null) return;
 
@@ -167,7 +169,8 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
     });
 
     try {
-      final result = await _ocrService.extractText(_filteredImagePath!);
+      // Use Khmer OCR backend for better accuracy
+      final result = await _ocrService.extractTextKhmer(_filteredImagePath!);
       
       setState(() {
         _ocrResult = result;
@@ -263,17 +266,17 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
                 ],
               ),
             ),
-            // Text content
+            // Text content with Khmer font
             Container(
               constraints: const BoxConstraints(maxHeight: 400),
               padding: const EdgeInsets.all(16),
               child: SingleChildScrollView(
                 child: SelectableText(
                   result.fullText,
-                  style: const TextStyle(
+                  style: GoogleFonts.kantumruyPro(
                     color: Colors.white,
                     fontSize: 14,
-                    height: 1.5,
+                    height: 1.6,
                   ),
                 ),
               ),
@@ -412,9 +415,9 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF1A1A1A),
-      extendBodyBehindAppBar: true,
+      extendBodyBehindAppBar: false,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: const Color(0xFF1A1A1A),
         elevation: 0,
         title: const Text(
           'Document Scanner',
@@ -446,66 +449,8 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
             ),
         ],
       ),
-      body: Stack(
-        children: [
-          // Main content
-          _buildBody(),
-          // Status bar simulation
-          _buildStatusBar(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatusBar() {
-    return Positioned(
-      top: 0,
-      left: 0,
-      right: 0,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text(
-              '4:59',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            Row(
-              children: [
-                const Icon(Icons.signal_cellular_alt, size: 16, color: Colors.white),
-                const SizedBox(width: 8),
-                const Icon(Icons.wifi, size: 16, color: Colors.white),
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: const Row(
-                    children: [
-                      Icon(Icons.battery_full, size: 16, color: Colors.white),
-                      SizedBox(width: 4),
-                      Text(
-                        '26%',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
+      body: SafeArea(
+        child: _buildBody(),
       ),
     );
   }
@@ -521,7 +466,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
             ),
             SizedBox(height: 16),
             Text(
-              'Processing...',
+              'កំពុងអានអក្សរខ្មែរ...',
               style: TextStyle(color: Colors.white),
             ),
           ],
@@ -685,8 +630,8 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
                           child: AnimatedContainer(
                             duration: const Duration(milliseconds: 200),
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
+                              horizontal: 8,
+                              vertical: 10,
                             ),
                             decoration: BoxDecoration(
                               color: isSelected
@@ -696,11 +641,12 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
                             ),
                             child: Text(
                               _getFilterLabel(filter),
+                              textAlign: TextAlign.center,
                               style: TextStyle(
                                 color: isSelected
                                     ? Colors.white
                                     : Colors.white.withValues(alpha: 0.7),
-                                fontSize: 13,
+                                fontSize: 11,
                                 fontWeight: isSelected
                                     ? FontWeight.w600
                                     : FontWeight.w400,
@@ -851,13 +797,13 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
   String _getFilterLabel(ImageFilter filter) {
     switch (filter) {
       case ImageFilter.original:
-        return 'Original';
+        return 'Orig';
       case ImageFilter.magicColor:
-        return 'Magic Color';
+        return 'Magic';
       case ImageFilter.blackAndWhite:
         return 'B&W';
       case ImageFilter.enhanced:
-        return 'Enhanced';
+        return 'Enh';
     }
   }
 }

@@ -183,6 +183,11 @@ class ApiService {
     return {'Authorization': 'Bearer $token', 'Accept': 'application/json'};
   }
 
+  /// Public method to get auth headers (used by OCR service)
+  Future<Map<String, String>> getAuthHeaders() async {
+    return _authHeaders();
+  }
+
   Future<Map<String, dynamic>> _processRequest(
     String action, {
     Map<String, String>? body,
@@ -1401,6 +1406,57 @@ class ApiService {
       timeout: const Duration(seconds: 30),
       body: {'meeting_id': meetingId.toString()},
     );
+  }
+
+  /// Process meeting audio with AI (Whisper + Gemini/GPT)
+  /// This calls the new PHP endpoint for Khmer meeting summarization
+  Future<Map<String, dynamic>> processMeetingAudio({
+    required String audioPath,
+    String? meetingId,
+    String? meetingTitle,
+    String? department,
+  }) async {
+    final headers = await _authHeaders();
+    
+    // Add Authorization header with API key from SharedPreferences
+    final prefs = await SharedPreferences.getInstance();
+    final apiKey = prefs.getString('meeting_api_key') ?? '';
+    
+    if (apiKey.isEmpty) {
+      throw Exception('Meeting API key not configured. Please set it in settings.');
+    }
+    
+    headers['Authorization'] = 'Bearer $apiKey';
+    
+    // Use Dio for multipart file upload
+    final dioInstance = dio.Dio();
+    dioInstance.options.baseUrl = baseUrl;
+    dioInstance.options.headers.addAll(headers);
+    dioInstance.options.connectTimeout = const Duration(minutes: 5);
+    dioInstance.options.receiveTimeout = const Duration(minutes: 5);
+    
+    try {
+      final formData = dio.FormData.fromMap({
+        'audio_file': await dio.MultipartFile.fromFile(audioPath),
+        if (meetingId != null) 'meeting_id': meetingId,
+        if (meetingTitle != null) 'meeting_title': meetingTitle,
+        if (department != null) 'department': department,
+      });
+      
+      final response = await dioInstance.post(
+        '/process-meeting.php',
+        data: formData,
+      );
+      
+      if (response.statusCode == 200) {
+        return response.data as Map<String, dynamic>;
+      } else {
+        throw Exception('HTTP ${response.statusCode}: ${response.data}');
+      }
+    } catch (e) {
+      if (kDebugMode) print('Error processing meeting audio: $e');
+      throw Exception('Failed to process meeting audio: $e');
+    }
   }
 
   // ========== TRIP / TRACKING ==========

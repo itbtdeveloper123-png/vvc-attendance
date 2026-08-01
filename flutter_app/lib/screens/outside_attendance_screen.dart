@@ -78,7 +78,7 @@ class _OutsideAttendanceScreenState extends State<OutsideAttendanceScreen> {
         image.width.toDouble(),
         image.height.toDouble(),
       );
-      final dstRect = Rect.fromLTWH(
+      const dstRect = Rect.fromLTWH(
         borderWidth,
         borderWidth,
         size - borderWidth * 2,

@@ -191,7 +191,7 @@ class KhmerCalendarNotificationService {
 
       // Check Sila day
       if (lunar.isSilaDay) {
-        return _SpecialDayInfo(
+        return const _SpecialDayInfo(
           name: 'ថ្ងៃសីល',
           typeLabel: 'ថ្ងៃសីល',
           emoji: '🙏',
@@ -210,20 +210,20 @@ class KhmerCalendarNotificationService {
     final d = date.day;
 
     // Major public holidays
-    if (m == 1 && d == 7) return _SpecialDayInfo(name: 'ជ័យជម្នះ ៧មករា', typeLabel: 'ថ្ងៃបុណ្យជាតិ', emoji: '🎉', isMajor: true);
-    if (m == 4 && d >= 13 && d <= 16) return _SpecialDayInfo(name: 'ចូលឆ្នាំខ្មែរ', typeLabel: 'ថ្ងៃបុណ្យ', emoji: '🎊', isMajor: true);
-    if (m == 5 && d == 14) return _SpecialDayInfo(name: 'បុណ្យចម្រើនព្រះជន្ម', typeLabel: 'ថ្ងៃបុណ្យ', emoji: '👑', isMajor: true);
-    if (m == 9 && d == 24) return _SpecialDayInfo(name: 'ទិវាប្រកាសរដ្ឋធម្មនុញ្ញ', typeLabel: 'ថ្ងៃបុណ្យ', emoji: '📜', isMajor: true);
-    if (m == 11 && d == 9) return _SpecialDayInfo(name: 'បុណ្យឯករាជ្យជាតិ', typeLabel: 'ថ្ងៃបុណ្យជាតិ', emoji: '🇰🇭', isMajor: true);
+    if (m == 1 && d == 7) return const _SpecialDayInfo(name: 'ជ័យជម្នះ ៧មករា', typeLabel: 'ថ្ងៃបុណ្យជាតិ', emoji: '🎉', isMajor: true);
+    if (m == 4 && d >= 13 && d <= 16) return const _SpecialDayInfo(name: 'ចូលឆ្នាំខ្មែរ', typeLabel: 'ថ្ងៃបុណ្យ', emoji: '🎊', isMajor: true);
+    if (m == 5 && d == 14) return const _SpecialDayInfo(name: 'បុណ្យចម្រើនព្រះជន្ម', typeLabel: 'ថ្ងៃបុណ្យ', emoji: '👑', isMajor: true);
+    if (m == 9 && d == 24) return const _SpecialDayInfo(name: 'ទិវាប្រកាសរដ្ឋធម្មនុញ្ញ', typeLabel: 'ថ្ងៃបុណ្យ', emoji: '📜', isMajor: true);
+    if (m == 11 && d == 9) return const _SpecialDayInfo(name: 'បុណ្យឯករាជ្យជាតិ', typeLabel: 'ថ្ងៃបុណ្យជាតិ', emoji: '🇰🇭', isMajor: true);
 
     // Other notable days
-    if (m == 1 && d == 1) return _SpecialDayInfo(name: 'ចូលឆ្នាំសកល', typeLabel: 'ថ្ងៃបុណ្យ', emoji: '🎆', isMajor: false);
-    if (m == 3 && d == 8) return _SpecialDayInfo(name: 'ទិវានារី', typeLabel: 'ទិវា', emoji: '💐', isMajor: false);
-    if (m == 5 && d == 1) return _SpecialDayInfo(name: 'ទិវាពលកម្ម', typeLabel: 'ទិវា', emoji: '⚒️', isMajor: false);
-    if (m == 6 && d == 18) return _SpecialDayInfo(name: 'ចម្រើនព្រះជន្ម សម្ដេចម៉ែ', typeLabel: 'ថ្ងៃបុណ្យ', emoji: '👑', isMajor: false);
-    if (m == 10 && d == 15) return _SpecialDayInfo(name: 'ទិវាគោរពព្រះវិញ្ញាណក្ខន្ធ', typeLabel: 'ទិវា', emoji: '🕯️', isMajor: false);
-    if (m == 10 && d == 29) return _SpecialDayInfo(name: 'បុណ្យគ្រងរាជ្យ', typeLabel: 'ថ្ងៃបុណ្យ', emoji: '👑', isMajor: false);
-    if (m == 12 && d == 29) return _SpecialDayInfo(name: 'ទិវាសន្តិភាព', typeLabel: 'ទិវា', emoji: '🕊️', isMajor: false);
+    if (m == 1 && d == 1) return const _SpecialDayInfo(name: 'ចូលឆ្នាំសកល', typeLabel: 'ថ្ងៃបុណ្យ', emoji: '🎆', isMajor: false);
+    if (m == 3 && d == 8) return const _SpecialDayInfo(name: 'ទិវានារី', typeLabel: 'ទិវា', emoji: '💐', isMajor: false);
+    if (m == 5 && d == 1) return const _SpecialDayInfo(name: 'ទិវាពលកម្ម', typeLabel: 'ទិវា', emoji: '⚒️', isMajor: false);
+    if (m == 6 && d == 18) return const _SpecialDayInfo(name: 'ចម្រើនព្រះជន្ម សម្ដេចម៉ែ', typeLabel: 'ថ្ងៃបុណ្យ', emoji: '👑', isMajor: false);
+    if (m == 10 && d == 15) return const _SpecialDayInfo(name: 'ទិវាគោរពព្រះវិញ្ញាណក្ខន្ធ', typeLabel: 'ទិវា', emoji: '🕯️', isMajor: false);
+    if (m == 10 && d == 29) return const _SpecialDayInfo(name: 'បុណ្យគ្រងរាជ្យ', typeLabel: 'ថ្ងៃបុណ្យ', emoji: '👑', isMajor: false);
+    if (m == 12 && d == 29) return const _SpecialDayInfo(name: 'ទិវាសន្តិភាព', typeLabel: 'ទិវា', emoji: '🕊️', isMajor: false);
 
     return null;
   }
@@ -233,13 +233,13 @@ class KhmerCalendarNotificationService {
     final d = lunar.lunarDay.toString();
 
     if (m == 'ភទ្របទ' && d.contains('១៥ រោច')) {
-      return _SpecialDayInfo(name: 'ភ្ជុំបិណ្ឌ', typeLabel: 'ថ្ងៃបុណ្យ', emoji: '🙏', isMajor: true);
+      return const _SpecialDayInfo(name: 'ភ្ជុំបិណ្ឌ', typeLabel: 'ថ្ងៃបុណ្យ', emoji: '🙏', isMajor: true);
     }
     if (m == 'ភទ្របទ' && (d.contains('១៤ រោច') || d.contains('១៣ រោច'))) {
-      return _SpecialDayInfo(name: 'កាន់បិណ្ឌ', typeLabel: 'ថ្ងៃបុណ្យ', emoji: '🙏', isMajor: true);
+      return const _SpecialDayInfo(name: 'កាន់បិណ្ឌ', typeLabel: 'ថ្ងៃបុណ្យ', emoji: '🙏', isMajor: true);
     }
     if (m == 'កត្តិក' && (d.contains('១៤ កើត') || d.contains('១៥ កើត'))) {
-      return _SpecialDayInfo(name: 'បុណ្យអុំទូក', typeLabel: 'ថ្ងៃបុណ្យ', emoji: '🚣', isMajor: true);
+      return const _SpecialDayInfo(name: 'បុណ្យអុំទូក', typeLabel: 'ថ្ងៃបុណ្យ', emoji: '🚣', isMajor: true);
     }
     return null;
   }

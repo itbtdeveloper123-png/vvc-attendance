@@ -654,7 +654,7 @@ class _TeamChatScreenState extends State<TeamChatScreen>
             child: Container(
               width: 3,
               height: 3,
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 color: Colors.greenAccent,
                 shape: BoxShape.circle,
               ),
@@ -1711,7 +1711,7 @@ class _TeamChatScreenState extends State<TeamChatScreen>
               onTap: _stopRecording,
               child: Container(
                 padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   color: Colors.greenAccent,
                   shape: BoxShape.circle,
                 ),
@@ -2550,9 +2550,9 @@ class _AudioMessageBubbleState extends State<AudioMessageBubble> {
             SizedBox(
               width: 120,
               child: SliderTheme(
-                data: SliderThemeData(
+                data: const SliderThemeData(
                   trackHeight: 2,
-                  thumbShape: const RoundSliderThumbShape(
+                  thumbShape: RoundSliderThumbShape(
                     enabledThumbRadius: 6,
                   ),
                   activeTrackColor: Colors.white,
