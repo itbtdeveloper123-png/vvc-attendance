@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'dart:async';
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -37,7 +36,7 @@ class DocumentScannerScreen extends StatefulWidget {
   State<DocumentScannerScreen> createState() => _DocumentScannerScreenState();
 }
 
-class _DocumentScannerScreenState extends State<DocumentScannerScreen> with TickerProviderStateMixin {
+class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
   // Step tracking
   ScannerStep _currentStep = ScannerStep.selectImage;
   
@@ -51,10 +50,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
   int _currentPageIndex = 0;
   late PageController _pageController;
   
-  // Auto-crop animation
-  bool _isAnimatingCrop = false;
-  late AnimationController _cropAnimationController;
-  late Animation<double> _cropAnimation;
+  // Auto-crop animation (removed, no longer needed)
   
   // Processing state
   bool _isProcessing = false;
@@ -71,14 +67,6 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
   @override
   void initState() {
     super.initState();
-    _cropAnimationController = AnimationController(
-      duration: const Duration(milliseconds: 1500),
-      vsync: this,
-    );
-    _cropAnimation = CurvedAnimation(
-      parent: _cropAnimationController,
-      curve: Curves.easeInOut,
-    );
     _pageController = PageController();
 
     // Load existing images if editing
@@ -88,14 +76,12 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
       _filteredImagePath = _scannedImagePaths.first;
       _isMultiPageMode = _scannedImagePaths.length > 1;
       _currentStep = ScannerStep.filterSelection;
-      _startCornerAnimation();
     }
   }
 
   @override
   void dispose() {
     _ocrService.dispose();
-    _cropAnimationController.dispose();
     _pageController.dispose();
     _cleanupTempFiles();
     super.dispose();
@@ -159,9 +145,6 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
             _pageController.jumpToPage(_currentPageIndex);
           }
         });
-        
-        // Start corner animation to show successful scan
-        _startCornerAnimation();
       } else {
         setState(() {
           _isProcessing = false;
@@ -202,8 +185,6 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
             _pageController.jumpToPage(0);
           }
         });
-        
-        _startCornerAnimation();
       } else {
         setState(() {
           _isProcessing = false;
@@ -602,17 +583,6 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
     }
   }
 
-  /// Start corner pulsing animation
-  void _startCornerAnimation() {
-    setState(() {
-      _isAnimatingCrop = true;
-    });
-    _cropAnimationController.forward().then((_) {
-      setState(() {
-        _isAnimatingCrop = false;
-      });
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -1224,64 +1194,6 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
       case ImageFilter.enhanced:
         return 'ច្បាស់ឡើង';
     }
-  }
-}
-
-/// Modern corner overlay painter with pulsing animation
-class _CornerOverlayPainter extends CustomPainter {
-  final bool isAnimating;
-  final Animation<double> animation;
-
-  _CornerOverlayPainter(this.isAnimating, this.animation);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    // Calculate pulsing effect
-    final pulse = isAnimating 
-        ? math.sin(animation.value * math.pi * 2) * 0.3 + 0.7
-        : 1.0;
-    
-    final cornerSize = 16.0 * pulse;
-    final lineThickness = 2.0 * pulse;
-    
-    // Draw corner handles at document edges
-    final corners = [
-      const Offset(20, 20), // top-left
-      Offset(size.width - 20, 20), // top-right
-      Offset(size.width - 20, size.height - 20), // bottom-right
-      Offset(20, size.height - 20), // bottom-left
-    ];
-    
-    final paint = Paint()
-      ..color = Colors.orange.withValues(alpha: 0.8 * pulse)
-      ..style = PaintingStyle.fill;
-    
-    final borderPaint = Paint()
-      ..color = Colors.orange.withValues(alpha: pulse)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = lineThickness;
-    
-    // Draw corner handles
-    for (final corner in corners) {
-      canvas.drawCircle(corner, cornerSize, paint);
-      canvas.drawCircle(corner, cornerSize, borderPaint);
-    }
-    
-    // Draw connecting lines between corners
-    final path = Path()
-      ..moveTo(corners[0].dx, corners[0].dy)
-      ..lineTo(corners[1].dx, corners[1].dy)
-      ..lineTo(corners[2].dx, corners[2].dy)
-      ..lineTo(corners[3].dx, corners[3].dy)
-      ..close();
-    
-    canvas.drawPath(path, borderPaint);
-  }
-
-  @override
-  bool shouldRepaint(_CornerOverlayPainter oldDelegate) {
-    return oldDelegate.isAnimating != isAnimating || 
-           oldDelegate.animation != animation;
   }
 }
 
