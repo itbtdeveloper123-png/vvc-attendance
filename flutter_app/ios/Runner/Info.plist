@@ -73,7 +73,7 @@
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>This app uses speech recognition for Voice Control to navigate and perform actions by voice.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>This app needs camera access to scan QR codes for attendance and analyze product images.</string>
+	<string>This app needs camera access to scan QR codes for attendance, analyze product images, and scan documents for OCR processing.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>VVC HRM uses Face ID to protect your salary information.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
