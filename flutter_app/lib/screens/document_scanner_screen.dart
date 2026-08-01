@@ -132,7 +132,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
     try {
       // Open the native document scanner using multi-page support
       final scannedImages = await CunningDocumentScanner.getPictures(
-        noOfPages: 0, // Allow unlimited pages
+        noOfPages: 50, // Allow up to 50 pages (must be > 0)
         scannerSource: ScannerSource.camera,
       );
 
