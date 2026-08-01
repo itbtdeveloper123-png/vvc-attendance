@@ -1347,254 +1347,419 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
     );
   }
 
-  /// Step 2: Filter Selection UI - Modern Design
+  /// Step 2: CamScanner-style Filter Edit Screen
   Widget _buildFilterSelectionStep() {
     return Column(
       children: [
-        // Image preview with overlay
+        // ── 1. Large image preview ──────────────────────────────────────
         Expanded(
           child: Stack(
             children: [
-              // Document image with PageView for multi-page
-              _scannedImagePaths.isNotEmpty
-                  ? PageView.builder(
-                      controller: _pageController,
-                      onPageChanged: (index) {
-                        setState(() {
-                          _currentPageIndex = index;
-                          _filteredImagePath = _scannedImagePaths[index];
-                        });
-                      },
-                      itemCount: _scannedImagePaths.length,
-                      itemBuilder: (context, index) {
-                        return Image.file(
-                          File(_scannedImagePaths[index]),
-                          fit: BoxFit.contain,
-                        );
-                      },
-                    )
-                  : const Center(child: Text('No image')),
-              // Page indicator overlay
-              if (_scannedImagePaths.length > 1)
+              Container(
+                color: const Color(0xFF0A0A0A),
+                child: _scannedImagePaths.isNotEmpty
+                    ? PageView.builder(
+                        controller: _pageController,
+                        onPageChanged: (index) {
+                          setState(() {
+                            _currentPageIndex = index;
+                            _filteredImagePath = _scannedImagePaths[index];
+                          });
+                        },
+                        itemCount: _scannedImagePaths.length,
+                        itemBuilder: (context, index) {
+                          return InteractiveViewer(
+                            minScale: 0.5,
+                            maxScale: 4.0,
+                            child: Center(
+                              child: Container(
+                                margin: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(alpha: 0.5),
+                                      blurRadius: 20,
+                                      offset: const Offset(0, 6),
+                                    ),
+                                  ],
+                                ),
+                                child: Image.file(
+                                  File(_scannedImagePaths[index]),
+                                  fit: BoxFit.contain,
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      )
+                    : const Center(
+                        child: Icon(Icons.image_not_supported_rounded,
+                            size: 60, color: Colors.white24),
+                      ),
+              ),
+
+              // Delete current page button (top-left) - shown when multi-page
+              if (_scannedImagePaths.isNotEmpty)
                 Positioned(
-                  top: 20,
-                  left: 0,
-                  right: 0,
-                  child: Center(
+                  top: 12,
+                  left: 12,
+                  child: GestureDetector(
+                    onTap: () async {
+                      if (_scannedImagePaths.length == 1) {
+                        _resetScanner();
+                        return;
+                      }
+                      setState(() {
+                        _scannedImagePaths.removeAt(_currentPageIndex);
+                        if (_currentPageIndex >= _scannedImagePaths.length) {
+                          _currentPageIndex = _scannedImagePaths.length - 1;
+                        }
+                        _filteredImagePath = _scannedImagePaths[_currentPageIndex];
+                        _isMultiPageMode = _scannedImagePaths.length > 1;
+                      });
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (_pageController.hasClients) {
+                          _pageController.jumpToPage(_currentPageIndex);
+                        }
+                      });
+                    },
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.6),
-                        borderRadius: BorderRadius.circular(20),
+                        color: Colors.black.withValues(alpha: 0.5),
+                        shape: BoxShape.circle,
                       ),
-                      child: Text(
-                        '${_currentPageIndex + 1} / ${_scannedImagePaths.length}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
+                      child: const Icon(Icons.delete_outline_rounded,
+                          color: Colors.white, size: 22),
                     ),
                   ),
                 ),
-              // (Corner overlay removed for cleaner UI)
             ],
           ),
         ),
-        // Bottom control panel with blur effect
+
+        // ── 2. Page navigation bar ─────────────────────────────────────
         Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Colors.black.withValues(alpha: 0.0),
-                Colors.black.withValues(alpha: 0.3),
-                Colors.black.withValues(alpha: 0.8),
-              ],
-            ),
-          ),
-          child: Padding(
-            padding: EdgeInsets.only(
-              left: 20,
-              right: 20,
-              top: 20,
-              bottom: MediaQuery.of(context).padding.bottom + 20,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Thumbnail history bar
-                if (_scannedImagePaths.isNotEmpty)
-                  Container(
-                    height: 80,
-                    margin: const EdgeInsets.only(bottom: 20),
-                    child: Row(
-                      children: [
-                        // Add page button
-                        GestureDetector(
-                          onTap: _openNativeScanner,
-                          child: Container(
-                            width: 60,
-                            height: 60,
-                            decoration: BoxDecoration(
-                              color: Colors.orange.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: Colors.orange,
-                                width: 2,
-                              ),
-                            ),
-                            child: const Icon(
-                              Icons.add,
-                              color: Colors.orange,
-                              size: 32,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        // Thumbnails
-                        Expanded(
-                          child: ListView.builder(
-                            scrollDirection: Axis.horizontal,
-                            itemCount: _scannedImagePaths.length,
-                            itemBuilder: (context, index) {
-                              final isSelected = index == _currentPageIndex;
-                              return GestureDetector(
-                                onTap: () {
-                                  _pageController.animateToPage(
-                                    index,
-                                    duration: const Duration(milliseconds: 300),
-                                    curve: Curves.easeInOut,
-                                  );
-                                },
-                                child: Container(
-                                  width: 60,
-                                  height: 60,
-                                  margin: const EdgeInsets.only(right: 12),
-                                  decoration: BoxDecoration(
-                                    border: Border.all(
-                                      color: isSelected
-                                          ? Colors.orange
-                                          : Colors.white.withValues(alpha: 0.3),
-                                      width: isSelected ? 3 : 2,
-                                    ),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(10),
-                                    child: Stack(
-                                      children: [
-                                        Image.file(
-                                          File(_scannedImagePaths[index]),
-                                          fit: BoxFit.cover,
-                                        ),
-                                        if (isSelected)
-                                          Container(
-                                            decoration: BoxDecoration(
-                                              color: Colors.orange.withValues(alpha: 0.3),
-                                              borderRadius: BorderRadius.circular(10),
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
+          color: const Color(0xFF1A1A2E),
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Previous page button
+              IconButton(
+                icon: const Icon(Icons.chevron_left_rounded,
+                    color: Colors.white70, size: 28),
+                onPressed: _currentPageIndex > 0
+                    ? () {
+                        _pageController.previousPage(
+                          duration: const Duration(milliseconds: 250),
+                          curve: Curves.easeInOut,
+                        );
+                      }
+                    : null,
+              ),
+              // Page count indicator
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  _scannedImagePaths.isNotEmpty
+                      ? '${_currentPageIndex + 1}/${_scannedImagePaths.length}'
+                      : '0/0',
+                  style: GoogleFonts.kantumruyPro(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
                   ),
-                // Filter selection
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                ),
+              ),
+              // Next page button
+              IconButton(
+                icon: const Icon(Icons.chevron_right_rounded,
+                    color: Colors.white70, size: 28),
+                onPressed:
+                    _currentPageIndex < _scannedImagePaths.length - 1
+                        ? () {
+                            _pageController.nextPage(
+                              duration: const Duration(milliseconds: 250),
+                              curve: Curves.easeInOut,
+                            );
+                          }
+                        : null,
+              ),
+              const Spacer(),
+              // "Sort pages" / arrange button
+              GestureDetector(
+                onTap: _openNativeScanner,
+                child: Container(
+                  margin: const EdgeInsets.only(right: 16),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
+                    color: Colors.white.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(8),
                     border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.2),
-                      width: 1,
-                    ),
+                        color: Colors.white.withValues(alpha: 0.15)),
                   ),
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: ImageFilter.values.map((filter) {
-                      final isSelected = _selectedFilter == filter;
-                      return Expanded(
-                        child: GestureDetector(
-                          onTap: () => _applyFilter(filter),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 200),
-                            margin: const EdgeInsets.symmetric(horizontal: 4),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 10,
-                            ),
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? Colors.orange.withValues(alpha: 0.8)
-                                  : Colors.transparent,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              _getFilterLabel(filter),
-                              textAlign: TextAlign.center,
-                              style: GoogleFonts.kantumruyPro(
-                                color: isSelected
-                                    ? Colors.white
-                                    : Colors.white.withValues(alpha: 0.7),
-                                fontSize: 12,
-                                fontWeight: isSelected
-                                    ? FontWeight.w600
-                                    : FontWeight.w400,
+                    children: [
+                      const Icon(Icons.view_module_rounded,
+                          color: Colors.white60, size: 16),
+                      const SizedBox(width: 6),
+                      Text(
+                        'រៀបចំផ្ដូរ',
+                        style: GoogleFonts.kantumruyPro(
+                          color: Colors.white60,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // ── 3. Filter thumbnail strip (like CamScanner) ──────────────
+        Container(
+          color: const Color(0xFF141428),
+          height: 100,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            itemCount: ImageFilter.values.length,
+            itemBuilder: (context, index) {
+              final filter = ImageFilter.values[index];
+              final isSelected = _selectedFilter == filter;
+              return GestureDetector(
+                onTap: () => _applyFilter(filter),
+                child: Container(
+                  width: 70,
+                  margin: const EdgeInsets.only(right: 8),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: isSelected
+                          ? const Color(0xFF0D9488)
+                          : Colors.transparent,
+                      width: 2,
+                    ),
+                  ),
+                  child: Stack(
+                    children: [
+                      // Filter preview thumbnail
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: _scannedImagePaths.isNotEmpty
+                            ? ColorFiltered(
+                                colorFilter: _getColorFilter(filter),
+                                child: Image.file(
+                                  File(_scannedImagePaths[_currentPageIndex]),
+                                  width: 70,
+                                  height: 80,
+                                  fit: BoxFit.cover,
+                                ),
+                              )
+                            : Container(
+                                color: Colors.white.withValues(alpha: 0.05),
+                                width: 70,
+                                height: 80,
+                                child: const Icon(Icons.image_rounded,
+                                    color: Colors.white24),
                               ),
+                      ),
+                      // Filter name overlay at bottom
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 3),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? const Color(0xFF0D9488)
+                                : Colors.black.withValues(alpha: 0.65),
+                            borderRadius: const BorderRadius.vertical(
+                                bottom: Radius.circular(6)),
+                          ),
+                          child: Text(
+                            _getFilterLabel(filter),
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.kantumruyPro(
+                              color: Colors.white,
+                              fontSize: 9.5,
+                              fontWeight: isSelected
+                                  ? FontWeight.bold
+                                  : FontWeight.w400,
                             ),
                           ),
                         ),
-                      );
-                    }).toList(),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 20),
-                // Action buttons
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildGradientButton(
-                        icon: Icons.text_fields_rounded,
-                        label: 'ស្រង់អក្សរ',
-                        onTap: _extractText,
-                        gradient: const LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [Color(0xFF6C63FF), Color(0xFF48CAE4)],
-                        ),
-                      ),
+              );
+            },
+          ),
+        ),
+
+        // ── 4. Bottom action toolbar ───────────────────────────────────
+        Container(
+          color: const Color(0xFF0F172A),
+          padding: EdgeInsets.only(
+            left: 8,
+            right: 8,
+            top: 10,
+            bottom: MediaQuery.of(context).padding.bottom + 10,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // Add Page (camera)
+              _buildToolbarItem(
+                icon: Icons.add_photo_alternate_rounded,
+                label: 'បន្ថែមទំព័រ',
+                onTap: _openNativeScanner,
+              ),
+              // Crop
+              _buildToolbarItem(
+                icon: Icons.crop_rounded,
+                label: 'កាត់',
+                onTap: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('មុខងារកាត់នឹងមកឆាប់ៗ',
+                          style: GoogleFonts.kantumruyPro()),
+                      duration: const Duration(seconds: 1),
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: _buildGradientButton(
-                        icon: Icons.picture_as_pdf_rounded,
-                        label: 'នាំចេញ PDF',
-                        onTap: _exportToPDF,
-                        gradient: const LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [Color(0xFF6C63FF), Color(0xFF48CAE4)],
-                        ),
-                      ),
+                  );
+                },
+              ),
+              // Rotate
+              _buildToolbarItem(
+                icon: Icons.rotate_90_degrees_ccw_rounded,
+                label: 'បង្វិល',
+                onTap: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('មុខងារបង្វិលនឹងមកឆាប់ៗ',
+                          style: GoogleFonts.kantumruyPro()),
+                      duration: const Duration(seconds: 1),
                     ),
-                  ],
+                  );
+                },
+              ),
+              // OCR - Extract Text
+              _buildToolbarItem(
+                icon: Icons.text_fields_rounded,
+                label: 'ស្រង់អក្សរ',
+                onTap: _extractText,
+                color: Colors.orangeAccent,
+              ),
+              // Export PDF
+              _buildToolbarItem(
+                icon: Icons.picture_as_pdf_rounded,
+                label: 'PDF',
+                onTap: _exportToPDF,
+                color: Colors.redAccent,
+              ),
+              // Confirm / Done button (Teal like CamScanner)
+              GestureDetector(
+                onTap: _exportToPDF,
+                child: Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0D9488),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF0D9488).withValues(alpha: 0.4),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(Icons.check_rounded,
+                      color: Colors.white, size: 28),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ],
     );
+  }
+
+  /// Bottom toolbar icon item
+  Widget _buildToolbarItem({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    Color color = Colors.white70,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: SizedBox(
+        width: 56,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: color, size: 26),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.kantumruyPro(
+                color: color,
+                fontSize: 9.5,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Returns a ColorFilter based on the selected ImageFilter
+  ColorFilter _getColorFilter(ImageFilter filter) {
+    switch (filter) {
+      case ImageFilter.original:
+        return const ColorFilter.mode(Colors.transparent, BlendMode.dst);
+      case ImageFilter.magicColor:
+        // Enhanced contrast and color saturation
+        return const ColorFilter.matrix(<double>[
+          1.5,  0.0,  0.0, 0.0, -30,
+          0.0,  1.5,  0.0, 0.0, -30,
+          0.0,  0.0,  1.5, 0.0, -30,
+          0.0,  0.0,  0.0, 1.0,   0,
+        ]);
+      case ImageFilter.blackAndWhite:
+        // Grayscale
+        return const ColorFilter.matrix(<double>[
+          0.33, 0.59, 0.11, 0.0, 0.0,
+          0.33, 0.59, 0.11, 0.0, 0.0,
+          0.33, 0.59, 0.11, 0.0, 0.0,
+          0.00, 0.00, 0.00, 1.0, 0.0,
+        ]);
+      case ImageFilter.enhanced:
+        // High contrast sharpened
+        return const ColorFilter.matrix(<double>[
+          2.0, -0.5, -0.5, 0.0, -20,
+         -0.5,  2.0, -0.5, 0.0, -20,
+         -0.5, -0.5,  2.0, 0.0, -20,
+          0.0,  0.0,  0.0, 1.0,   0,
+        ]);
+    }
   }
 
   Widget _buildGradientButton({
