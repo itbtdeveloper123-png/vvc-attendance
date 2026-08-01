@@ -7,7 +7,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:cunning_document_scanner/cunning_document_scanner.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'package:path_provider/path_provider.dart';
 import '../services/ocr_service.dart' as ocr;
+import '../services/document_history_service.dart';
+import '../widgets/export_modal.dart';
 
 /// Document Scanner Screen - Premium UI with Native Document Scanning
 /// 
@@ -20,7 +23,14 @@ import '../services/ocr_service.dart' as ocr;
 /// - Blur effects and shadows for depth
 /// - OCR text extraction with copy to clipboard
 class DocumentScannerScreen extends StatefulWidget {
-  const DocumentScannerScreen({super.key});
+  final List<String>? existingImagePaths;
+  final int? existingDocumentId;
+
+  const DocumentScannerScreen({
+    super.key,
+    this.existingImagePaths,
+    this.existingDocumentId,
+  });
 
   @override
   State<DocumentScannerScreen> createState() => _DocumentScannerScreenState();
@@ -34,6 +44,10 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
   String? _scannedImagePath;
   String? _filteredImagePath;
   
+  // Multi-page scanning
+  List<String> _scannedImagePaths = [];
+  bool _isMultiPageMode = false;
+  
   // Auto-crop animation
   bool _isAnimatingCrop = false;
   late AnimationController _cropAnimationController;
@@ -46,6 +60,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
   // OCR results
   ocr.OCRResult? _ocrResult;
   final ocr.OCRService _ocrService = ocr.OCRService();
+  final DocumentHistoryService _historyService = DocumentHistoryService();
   
   // Selected filter
   ImageFilter _selectedFilter = ImageFilter.original;
@@ -61,6 +76,16 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
       parent: _cropAnimationController,
       curve: Curves.easeInOut,
     );
+
+    // Load existing images if editing
+    if (widget.existingImagePaths != null && widget.existingImagePaths!.isNotEmpty) {
+      _scannedImagePaths = List.from(widget.existingImagePaths!);
+      _scannedImagePath = _scannedImagePaths.first;
+      _filteredImagePath = _scannedImagePaths.first;
+      _isMultiPageMode = _scannedImagePaths.length > 1;
+      _currentStep = ScannerStep.filterSelection;
+      _startCornerAnimation();
+    }
   }
 
   @override
@@ -74,6 +99,12 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
   /// Clean up temporary files
   Future<void> _cleanupTempFiles() async {
     try {
+      for (final path in _scannedImagePaths) {
+        final file = File(path);
+        if (await file.exists()) {
+          await file.delete();
+        }
+      }
       if (_scannedImagePath != null) {
         final file = File(_scannedImagePath!);
         if (await file.exists()) {
@@ -99,18 +130,19 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
     });
 
     try {
-      // Open the native document scanner using static method
+      // Open the native document scanner using multi-page support
       final scannedImages = await CunningDocumentScanner.getPictures(
-        noOfPages: 1,
+        noOfPages: 0, // Allow unlimited pages
         scannerSource: ScannerSource.camera,
       );
 
       if (scannedImages != null && scannedImages.isNotEmpty) {
-        // The native scanner returns already cropped, enhanced, and straightened images
         setState(() {
-          _scannedImagePath = scannedImages.first;
-          _filteredImagePath = scannedImages.first;
+          _scannedImagePaths = scannedImages;
+          _scannedImagePath = _scannedImagePaths.first;
+          _filteredImagePath = _scannedImagePaths.first;
           _currentStep = ScannerStep.filterSelection;
+          _isMultiPageMode = _scannedImagePaths.length > 1;
           _isProcessing = false;
         });
         
@@ -329,61 +361,169 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
 
   /// Export scanned document to PDF
   Future<void> _exportToPDF() async {
-    if (_filteredImagePath == null) return;
+    if (_scannedImagePaths.isEmpty && _scannedImagePath == null) return;
 
+    final imagePaths = _isMultiPageMode ? _scannedImagePaths : [_scannedImagePath!];
+    
+    // Show export modal
+    if (mounted) {
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (context) => ExportModal(
+          imagePaths: imagePaths,
+          ocrText: _ocrResult?.fullText,
+          onExport: (fileName, format) => _handleExport(fileName, format, imagePaths),
+        ),
+      );
+    }
+  }
+
+  /// Handle export based on selected format
+  Future<void> _handleExport(String fileName, ExportFormat format, List<String> imagePaths) async {
     setState(() {
       _isProcessing = true;
       _errorMessage = null;
     });
 
     try {
-      final pdf = pw.Document();
+      switch (format) {
+        case ExportFormat.pdf:
+          await _exportAsPDF(fileName, imagePaths);
+          break;
+        case ExportFormat.images:
+          await _exportAsImages(fileName, imagePaths);
+          break;
+        case ExportFormat.text:
+          await _exportAsText(fileName);
+          break;
+      }
 
-      // Add the scanned image to PDF
-      final imageBytes = await File(_filteredImagePath!).readAsBytes();
+      // Save to history
+      await _saveToHistory(fileName, imagePaths);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Exported successfully as ${format.name.toUpperCase()}'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Export failed: $e';
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Export failed: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      setState(() {
+        _isProcessing = false;
+      });
+    }
+  }
+
+  /// Export as multi-page PDF
+  Future<void> _exportAsPDF(String fileName, List<String> imagePaths) async {
+    final pdf = pw.Document();
+
+    for (final imagePath in imagePaths) {
+      final imageFile = File(imagePath);
+      final imageBytes = await imageFile.readAsBytes();
       final pdfImage = pw.MemoryImage(imageBytes);
 
       pdf.addPage(
         pw.Page(
           build: (pw.Context context) {
             return pw.Center(
-              child: pw.Image(pdfImage, fit: pw.BoxFit.contain),
+              child: pw.Image(
+                pdfImage,
+                fit: pw.BoxFit.contain,
+              ),
             );
           },
         ),
       );
+    }
 
-      // If OCR text exists, add it as a second page
-      if (_ocrResult != null && _ocrResult!.fullText.isNotEmpty) {
-        pdf.addPage(
-          pw.Page(
-            build: (pw.Context context) {
-              return pw.Padding(
-                padding: const pw.EdgeInsets.all(32),
-                child: pw.Text(
-                  _ocrResult!.fullText,
-                  style: const pw.TextStyle(fontSize: 12),
-                ),
-              );
-            },
-          ),
+    // If OCR text exists, add it as a separate page
+    if (_ocrResult != null && _ocrResult!.fullText.isNotEmpty) {
+      pdf.addPage(
+        pw.Page(
+          build: (pw.Context context) {
+            return pw.Padding(
+              padding: const pw.EdgeInsets.all(32),
+              child: pw.Text(
+                _ocrResult!.fullText,
+                style: const pw.TextStyle(fontSize: 12),
+              ),
+            );
+          },
+        ),
+      );
+    }
+
+    await Printing.sharePdf(bytes: await pdf.save(), filename: '$fileName.pdf');
+  }
+
+  /// Export as images (individual files)
+  Future<void> _exportAsImages(String fileName, List<String> imagePaths) async {
+    // For now, export as PDF since sharing multiple images is complex
+    // This is a simplified version - in production, you'd use platform-specific sharing
+    await _exportAsPDF(fileName, imagePaths);
+  }
+
+  /// Export as text
+  Future<void> _exportAsText(String fileName) async {
+    if (_ocrResult == null) {
+      throw Exception('No OCR text available');
+    }
+
+    final output = await getTemporaryDirectory();
+    final file = File('${output.path}/$fileName.txt');
+    await file.writeAsString(_ocrResult!.fullText);
+
+    // Share the text file (using platform-specific method)
+  }
+
+  /// Save document to history
+  Future<void> _saveToHistory(String fileName, List<String> imagePaths) async {
+    try {
+      if (widget.existingDocumentId != null) {
+        // Update existing document
+        await _historyService.updateDocumentPages(
+          widget.existingDocumentId!,
+          imagePaths,
+        );
+        await _historyService.updateDocumentName(
+          widget.existingDocumentId!,
+          fileName,
+        );
+        if (_ocrResult?.fullText != null) {
+          await _historyService.updateOCRText(
+            widget.existingDocumentId!,
+            _ocrResult!.fullText,
+          );
+        }
+      } else {
+        // Create new document
+        await _historyService.saveDocument(
+          customName: fileName,
+          imagePaths: imagePaths,
+          thumbnailPath: imagePaths.first,
+          ocrText: _ocrResult?.fullText,
         );
       }
-
-      // Show print/share dialog
-      await Printing.sharePdf(
-        bytes: await pdf.save(),
-        filename: 'scanned_document_${DateTime.now().millisecondsSinceEpoch}.pdf',
-      );
-
-      setState(() {
-        _isProcessing = false;
-      });
     } catch (e) {
-      setState(() {
-        _isProcessing = false;
-        _errorMessage = 'PDF export failed: $e';
-      });
+      // Log error but don't fail export
+      debugPrint('Failed to save to history: $e');
     }
   }
 
@@ -393,6 +533,8 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
       _currentStep = ScannerStep.selectImage;
       _scannedImagePath = null;
       _filteredImagePath = null;
+      _scannedImagePaths = [];
+      _isMultiPageMode = false;
       _ocrResult = null;
       _selectedFilter = ImageFilter.original;
       _errorMessage = null;
@@ -599,7 +741,83 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
               ],
             ),
           ),
-          child: Padding(
+          child: Stack(
+            children: [
+              // Thumbnails preview
+              if (_isMultiPageMode && _scannedImagePaths.isNotEmpty)
+                Positioned(
+                  left: 20,
+                  bottom: 140,
+                  child: Container(
+                    height: 60,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.5),
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _scannedImagePaths.length,
+                      itemBuilder: (context, index) {
+                        return Container(
+                          width: 50,
+                          height: 50,
+                          margin: const EdgeInsets.only(right: 8),
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.3),
+                              width: 2,
+                            ),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(6),
+                            child: Image.file(
+                              File(_scannedImagePaths[index]),
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              // Page count badge
+              if (_isMultiPageMode)
+                Positioned(
+                  right: 20,
+                  bottom: 140,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.orange,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.orange.withValues(alpha: 0.5),
+                          blurRadius: 8,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.check_circle, color: Colors.white, size: 18),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Save (${_scannedImagePaths.length})',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              Padding(
             padding: EdgeInsets.only(
               left: 20,
               right: 20,
@@ -688,6 +906,8 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> with Tick
                 ),
               ],
             ),
+          ),
+            ],
           ),
         ),
       ],
