@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -869,7 +868,7 @@ class _RequestListScreenState extends State<RequestListScreen> {
           maxChildSize: 0.95,
           minChildSize: 0.5,
           builder: (_, scrollController) => Container(
-            decoration: BoxDecoration(
+            decoration: const BoxDecoration(
               color: AppTheme.bgCard,
               borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
             ),
@@ -2362,55 +2361,4 @@ class _RequestListScreenState extends State<RequestListScreen> {
     }
   }
 
-  // Helper method to build report section for image capture
-  Widget _buildReportSection(String title, List<Widget> children) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: GoogleFonts.kantumruyPro(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: Colors.black87,
-          ),
-        ),
-        const SizedBox(height: 8),
-        ...children,
-        const SizedBox(height: 16),
-      ],
-    );
-  }
-
-  // Helper method to build report detail row for image capture
-  Widget _reportDetailRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 100,
-            child: Text(
-              label,
-              style: GoogleFonts.kantumruyPro(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: Colors.black54,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: GoogleFonts.kantumruyPro(
-                fontSize: 14,
-                color: Colors.black87,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
