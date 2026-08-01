@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
@@ -82,7 +83,7 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
     
     try {
       final response = await _api.post('/app-settings', {
-        'settings': _settings,
+        'settings': json.encode(_settings),
       });
       
       if (response['success'] == true) {

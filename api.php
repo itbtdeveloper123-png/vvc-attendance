@@ -6435,6 +6435,87 @@ try {
         ]);
         break;
 
+    case '/app-settings':
+    case 'app-settings':
+        if (!$user) apiResponse(['success' => false, 'message' => 'Unauthorized']);
+        
+        // Only allow Admin or HRM
+        $role = $user['user_role'] ?? '';
+        if (strcasecmp($role, 'HRM') !== 0 && strcasecmp($role, 'Admin') !== 0) {
+            apiResponse(['success' => false, 'message' => 'Permission denied. Only HRM and Admin can manage app settings.']);
+        }
+        
+        $eid = $user['employee_id'];
+        
+        // Resolve admin_id hierarchy
+        $owner_id = 'SYSTEM_WIDE';
+        $stmt_admin = $mysqli->prepare("SELECT user_role, COALESCE(created_by_admin_id, '') AS created_by_admin_id FROM users WHERE employee_id = ? LIMIT 1");
+        if ($stmt_admin) {
+            $stmt_admin->bind_param("s", $eid);
+            $stmt_admin->execute();
+            $res_admin = $stmt_admin->get_result();
+            if ($row_admin = $res_admin->fetch_assoc()) {
+                $user_role = $row_admin['user_role'] ?? '';
+                $creator = $row_admin['created_by_admin_id'] ?? '';
+                
+                $check = $mysqli->prepare("SELECT 1 FROM app_scan_settings WHERE admin_id = ? LIMIT 1");
+                $check->bind_param("s", $eid);
+                $check->execute();
+                if ($check->get_result()->num_rows > 0) {
+                    $owner_id = $eid;
+                } elseif (!empty($creator)) {
+                    $owner_id = $creator;
+                } elseif (strcasecmp($user_role, 'Admin') === 0) {
+                    $owner_id = $eid;
+                }
+                $check->close();
+            }
+            $stmt_admin->close();
+        }
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $settings_raw = $_POST['settings'] ?? '';
+            $settings_arr = json_decode($settings_raw, true);
+            
+            if (is_array($settings_arr) && !empty($settings_arr)) {
+                $stmt_insert = $mysqli->prepare("INSERT INTO app_scan_settings (admin_id, setting_key, setting_value) VALUES (?, ?, ?)
+                                                ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
+                if ($stmt_insert) {
+                    foreach ($settings_arr as $key => $val) {
+                        $str_val = is_bool($val) ? ($val ? '1' : '0') : (string)$val;
+                        $stmt_insert->bind_param("sss", $owner_id, $key, $str_val);
+                        $stmt_insert->execute();
+                    }
+                    $stmt_insert->close();
+                }
+                apiResponse(['success' => true, 'message' => 'Settings saved successfully']);
+            } else {
+                apiResponse(['success' => false, 'message' => 'Invalid settings format or empty settings']);
+            }
+        } else {
+            $settings = [];
+            $sql = "(SELECT setting_key, setting_value, 0 as priority FROM app_scan_settings WHERE admin_id = 'SYSTEM_WIDE')
+                    UNION
+                    (SELECT setting_key, setting_value, 1 as priority FROM app_scan_settings WHERE admin_id = ?)
+                    ORDER BY priority ASC";
+            $stmt = $mysqli->prepare($sql);
+            if ($stmt) {
+                $stmt->bind_param("s", $owner_id);
+                $stmt->execute();
+                $result = $stmt->get_result();
+                while ($row = $result->fetch_assoc()) {
+                    $settings[$row['setting_key']] = $row['setting_value'];
+                }
+                $stmt->close();
+            }
+            apiResponse([
+                'success' => true,
+                'settings' => $settings,
+                'admin_id' => $owner_id
+            ]);
+        }
+        break;
+
     case 'get_app_config':
         if (!$user) apiResponse(['success' => false, 'message' => 'Unauthorized']);
         $eid = $user['employee_id'];
