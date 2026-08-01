@@ -12,6 +12,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
+import 'package:pasteboard/pasteboard.dart';
 import '../services/api_service.dart';
 import '../utils/app_theme.dart';
 import '../providers/user_provider.dart';
@@ -856,7 +857,6 @@ class _RequestListScreenState extends State<RequestListScreen> {
   void _showDetails(Map<String, dynamic> item) {
     final status = (item['status'] ?? 'pending').toString();
     final statusColor = _statusColor(status);
-    final GlobalKey reportKey = GlobalKey();
 
     showModalBottomSheet(
       context: context,
@@ -949,120 +949,7 @@ class _RequestListScreenState extends State<RequestListScreen> {
                     controller: scrollController,
                     padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
                     children: [
-                      // Hidden report widget for capture
-                      RepaintBoundary(
-                        key: reportKey,
-                        child: Container(
-                          color: Colors.white,
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Report header
-                              Center(
-                                child: Text(
-                                  "សំណើស្នើសុំ",
-                                  style: GoogleFonts.kantumruyPro(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.black,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              
-                              // Status badge
-                              Center(
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 6,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: statusColor.withValues(alpha: 0.15),
-                                    borderRadius: BorderRadius.circular(10),
-                                    border: Border.all(
-                                      color: statusColor.withValues(alpha: 0.3),
-                                    ),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        _statusIcon(status),
-                                        color: statusColor,
-                                        size: 14,
-                                      ),
-                                      const SizedBox(width: 5),
-                                      Text(
-                                        _statusLabel(status),
-                                        style: GoogleFonts.kantumruyPro(
-                                          color: statusColor,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-
-                              // Personal Info
-                              _buildReportSection("ព័ត៌មានបុគ្គល", [
-                                _reportDetailRow("ID", '#${item['id'] ?? '-'}'),
-                                _reportDetailRow("ឈ្មោះ", item['requester_name'] ?? '-'),
-                                _reportDetailRow("ប្រភេទ", item['request_type'] ?? '-'),
-                              ]),
-
-                              // Work Location
-                              _buildReportSection("ទីតាំងការងារ", [
-                                _reportDetailRow("ផ្នែក", item['department'] ?? '-'),
-                                _reportDetailRow("តួនាទី", item['position'] ?? '-'),
-                                _reportDetailRow("សាខា", item['branch'] ?? '-'),
-                                if ((item['department_head_name'] ?? '').toString().isNotEmpty)
-                                  _reportDetailRow("ប្រធានផ្នែក", item['department_head_name'] ?? '-'),
-                              ]),
-
-                              // Request Info
-                              _buildReportSection("ព័ត៌មានសំណើ", [
-                                _reportDetailRow("កាលបរិច្ឆេទស្នើ", _formatDate(item['request_date'])),
-                                if ((item['return_date'] ?? '').toString().isNotEmpty)
-                                  _reportDetailRow("កាលបរិច្ឆេទត្រឡប់", _formatDate(item['return_date'])),
-                                if ((item['number_of_days'] ?? '').toString().isNotEmpty && item['number_of_days'].toString() != '0')
-                                  _reportDetailRow("ចំនួនថ្ងៃ", item['number_of_days'].toString()),
-                                if ((item['time_in'] ?? '').toString().isNotEmpty)
-                                  _reportDetailRow("ម៉ោងចូល", _formatClockTime(item['time_in'].toString())),
-                                if ((item['time_out'] ?? '').toString().isNotEmpty)
-                                  _reportDetailRow("ម៉ោងចេញ", _formatClockTime(item['time_out'].toString())),
-                                if ((item['late_hours'] ?? '').toString().isNotEmpty)
-                                  _reportDetailRow("ម៉ោងយឺត", item['late_hours'].toString()),
-                                if ((item['total_hours'] ?? '').toString().isNotEmpty)
-                                  _reportDetailRow("សរុបម៉ោង", item['total_hours'].toString()),
-                              ]),
-
-                              // Additional Info
-                              _buildReportSection("ព័ត៌មានបន្ថែម", [
-                                if ((item['reason'] ?? '').toString().isNotEmpty)
-                                  _reportDetailRow("មូលហេតុ", item['reason'].toString()),
-                                if ((item['contact_number'] ?? '').toString().isNotEmpty)
-                                  _reportDetailRow("លេខទូរស័ព្ទ", _formatPhone(item['contact_number'].toString())),
-                                if ((item['location'] ?? '').toString().isNotEmpty)
-                                  _reportDetailRow("ទីតាំង", item['location'].toString()),
-                                _reportDetailRow("ស្ថានភាព", _statusLabel(status)),
-                                if ((item['approved_by'] ?? '').toString().isNotEmpty)
-                                  _reportDetailRow("អ្នកអនុម័ត", item['approved_by']),
-                                if ((item['admin_comment'] ?? '').toString().isNotEmpty)
-                                  _reportDetailRow("មតិ Admin", item['admin_comment']),
-                                if (item['created_at'] != null)
-                                  _reportDetailRow("ម៉ោងបញ្ជូន", _formatTime(item['created_at'])),
-                              ]),
-                            ],
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 12),
 
                       // =========== Section 1: ព័ត៌មានបុគ្គល ===========
                       _buildSection("ព័ត៌មានបុគ្គល", Icons.person_rounded, [
@@ -1223,7 +1110,7 @@ class _RequestListScreenState extends State<RequestListScreen> {
                           // Copy Image Button
                           Expanded(
                             child: ElevatedButton.icon(
-                              onPressed: () => _captureAndCopyImage(reportKey, item),
+                              onPressed: () => _captureAndCopyImage(item),
                               icon: const Icon(
                                 Icons.copy_rounded,
                                 size: 20,
@@ -2390,35 +2277,81 @@ class _RequestListScreenState extends State<RequestListScreen> {
   }
 
   // Method to capture widget as image and copy to clipboard
-  Future<void> _captureAndCopyImage(GlobalKey key, Map<String, dynamic> item) async {
+  Future<void> _captureAndCopyImage(Map<String, dynamic> item) async {
+    if (!mounted) return;
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const Center(
+        child: CircularProgressIndicator(color: Colors.orangeAccent),
+      ),
+    );
+
     try {
-      RenderRepaintBoundary boundary = key.currentContext!.findRenderObject() as RenderRepaintBoundary;
-      ui.Image image = await boundary.toImage(pixelRatio: 3.0);
-      ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-      
-      if (byteData != null) {
-        // Copy to clipboard using pasteboard
-        await Clipboard.setData(ClipboardData(text: 'data:image/png;base64,${base64Encode(byteData.buffer.asUint8List())}'));
-        
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                "បាន Copy រូបភាពជោគជ័យ",
-                style: GoogleFonts.kantumruyPro(),
-              ),
-              backgroundColor: const Color(0xFF10b981),
-              duration: const Duration(seconds: 2),
-            ),
-          );
+      // Ensure signatures are available for the image (they are excluded from list API for performance).
+      if (item['id'] != null &&
+          ((item['signature'] ?? '').toString().isEmpty ||
+              (item['department_head_signature'] ?? '').toString().isEmpty)) {
+        final sigRes = await _api.fetchRequestSignatures(item['id'] as int);
+        if (sigRes['success'] == true && sigRes['signatures'] is Map) {
+          final sigMap = Map<String, dynamic>.from(sigRes['signatures'] as Map);
+          item = {...item, ...sigMap};
         }
       }
-    } catch (e) {
+
+      // 1. Set the item and trigger a rebuild of the hidden widget
+      setState(() {
+        _currentReportItem = item;
+      });
+
+      // 2. Wait for the widget to be rendered in the current frame
+      await Future.delayed(const Duration(milliseconds: 100));
+
+      // 3. Capture the hidden widget as an image with proper null safety
+      final boundary =
+          _reportKey.currentContext?.findRenderObject()
+              as RenderRepaintBoundary?;
+      if (boundary == null) throw "Could not find report boundary";
+
+      // Check if boundary has valid dimensions
+      final size = boundary.size;
+      if (size.width <= 0 || size.height <= 0 || !size.width.isFinite || !size.height.isFinite) {
+        throw "Invalid widget dimensions: ${size.width}x${size.height}";
+      }
+
+      // Capture with null safety
+      final ui.Image capturedImage = await boundary.toImage(pixelRatio: 3.0);
+      
+      final ByteData? byteData = await capturedImage.toByteData(
+        format: ui.ImageByteFormat.png,
+      );
+      if (byteData == null) throw "Failed to convert image to bytes";
+      final Uint8List pngBytes = byteData.buffer.asUint8List();
+
+      // Copy PNG bytes directly to clipboard as image using pasteboard
+      await Pasteboard.writeImage(pngBytes);
+      
       if (mounted) {
+        Navigator.pop(context); // close loader
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              "បានបរាជ័យក្នុងការ Copy រូបភាព",
+              "បាន Copy រូបភាពសំណើជោគជ័យ",
+              style: GoogleFonts.kantumruyPro(),
+            ),
+            backgroundColor: const Color(0xFF10b981),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context); // close loader
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              "បានបរាជ័យក្នុងការ Copy រូបភាព៖ $e",
               style: GoogleFonts.kantumruyPro(),
             ),
             backgroundColor: Colors.red,
