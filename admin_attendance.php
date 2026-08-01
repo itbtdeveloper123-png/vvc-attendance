@@ -21244,22 +21244,22 @@ ob_end_flush();
                                             <i class="fa-solid fa-folder-open"></i> <?php echo htmlspecialchars($pKey); ?>
                                         </div>
                                         <div class="checkbox-item"
-                                            style="margin-bottom: 8px; background: #fee2e2; border-color: #fecaca; padding: 6px 12px;"
-                                            onclick="this.querySelector('input').click()">
-                                            <input type="checkbox" name="hide_page[]" value="<?php echo htmlspecialchars($pKey); ?>"
-                                                <?php echo in_array($pKey, $hidden_items, true) ? 'checked' : ''; ?>
-                                                onclick="event.stopPropagation()">
-                                            <label style="color: #991b1b; font-weight: 700;">Hide Entire Page</label>
+                                            style="margin-bottom: 8px; background: #fee2e2; border-color: #fecaca; padding: 6px 12px;">
+                                            <label style="color: #991b1b; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                                                <input type="checkbox" name="hide_page[]" value="<?php echo htmlspecialchars($pKey); ?>"
+                                                    <?php echo in_array($pKey, $hidden_items, true) ? 'checked' : ''; ?>>
+                                                Hide Entire Page
+                                            </label>
                                         </div>
                                         <?php foreach ($axArr as $aKey => $aLbl):
                                             if ($aKey === $pKey)
                                                 continue; ?>
-                                            <div class="checkbox-item" style="margin-bottom: 4px; padding: 6px 12px; font-size: 11px;"
-                                                onclick="this.querySelector('input').click()">
-                                                <input type="checkbox" name="hide_action[]"
-                                                    value="<?php echo htmlspecialchars($pKey . '::' . $aKey); ?>" <?php echo in_array($pKey . '::' . $aKey, $hidden_items, true) ? 'checked' : ''; ?>
-                                                    onclick="event.stopPropagation()">
-                                                <label>Hide: <?php echo htmlspecialchars($aKey); ?></label>
+                                            <div class="checkbox-item" style="margin-bottom: 4px; padding: 6px 12px; font-size: 11px;">
+                                                <label style="cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                                                    <input type="checkbox" name="hide_action[]"
+                                                        value="<?php echo htmlspecialchars($pKey . '::' . $aKey); ?>" <?php echo in_array($pKey . '::' . $aKey, $hidden_items, true) ? 'checked' : ''; ?>>
+                                                    Hide: <?php echo htmlspecialchars($aKey); ?>
+                                                </label>
                                             </div>
                                         <?php endforeach; ?>
                                     </div>
