@@ -425,10 +425,10 @@ class AppGridAction extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
         decoration: BoxDecoration(
           color: AppTheme.bgCard,
-          borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(color: color.withValues(alpha: 0.22), width: 1.2),
           boxShadow: [
             BoxShadow(
@@ -440,24 +440,25 @@ class AppGridAction extends StatelessWidget {
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Container(
-              padding: const EdgeInsets.all(11),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: color.withValues(alpha: 0.14),
                 shape: BoxShape.circle,
                 border: Border.all(color: color.withValues(alpha: 0.14)),
               ),
-              child: Icon(icon, color: color, size: 25),
+              child: Icon(icon, color: color, size: 24),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             Text(
               label,
               style: GoogleFonts.kantumruyPro(
                 color: AppTheme.textPrimary,
-                fontSize: 12.5,
+                fontSize: 12,
                 fontWeight: FontWeight.w600,
-                height: 1.2,
+                height: 1.3,
               ),
               textAlign: TextAlign.center,
               maxLines: 2,

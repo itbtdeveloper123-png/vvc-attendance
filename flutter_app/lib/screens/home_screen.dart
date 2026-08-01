@@ -2638,15 +2638,20 @@ class _HomeContentState extends State<HomeContent> {
   Widget _buildGridWrapper(List<Widget> items) {
     return Column(
       children: [
-        GridView.count(
-          crossAxisCount: 3,
+        GridView.builder(
           shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 2),
-          crossAxisSpacing: 14,
-          mainAxisSpacing: 14,
-          childAspectRatio: 0.98,
-          children: items,
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            crossAxisSpacing: 12.0,
+            mainAxisSpacing: 12.0,
+            childAspectRatio: 1.0,
+          ),
+          itemCount: items.length,
+          itemBuilder: (context, index) {
+            return items[index];
+          },
         ),
         const SizedBox(height: 12),
       ],
