@@ -301,33 +301,13 @@ class UserProvider with ChangeNotifier {
 
   /// Check if a specific feature should be shown based on server settings
   bool canShow(String key, {bool defaultValue = true}) {
-    // 1. If the exact key exists and is explicitly disabled, hide it
-    if (_settings.containsKey(key)) {
-      final val = _settings[key];
-      if (val != null && (val.toString() == '0' || val.toString().toLowerCase() == 'false')) {
-        return false;
-      }
-    }
-    
-    // 2. If it's a role-suffixed key (e.g. show_document_scanner_card__skill),
-    // check if the base global key (show_document_scanner_card) is explicitly disabled.
-    if (key.contains('__')) {
-      final baseKey = key.split('__')[0];
-      if (_settings.containsKey(baseKey)) {
-        final val = _settings[baseKey];
-        if (val != null && (val.toString() == '0' || val.toString().toLowerCase() == 'false')) {
-          return false;
-        }
-      }
-    }
-    
-    // 3. Otherwise, if the exact key exists and is explicitly enabled, show it
+    // 1. If the exact key exists, respect its value directly (1/true -> show, 0/false -> hide)
     if (_settings.containsKey(key)) {
       final val = _settings[key];
       return val?.toString() == '1' || val?.toString().toLowerCase() == 'true';
     }
     
-    // 4. Fallback: Check if the base key exists and is explicitly enabled
+    // 2. Fallback: If the exact key is role-suffixed and doesn't exist, check the base key
     if (key.contains('__')) {
       final baseKey = key.split('__')[0];
       if (_settings.containsKey(baseKey)) {
