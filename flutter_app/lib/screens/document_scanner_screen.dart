@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/math.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
@@ -10,13 +12,14 @@ import 'package:opencv_dart/opencv_dart.dart' as cv;
 import '../services/opencv_service.dart';
 import '../services/ocr_service.dart' as ocr;
 
-/// Document Scanner Screen - CamScanner Clone
+/// Document Scanner Screen - Premium UI with Modern Aesthetics
 /// 
-/// Workflow:
-/// 1. Capture/Select Image
-/// 2. OpenCV Edge Detection & Crop
-/// 3. OpenCV Image Enhancement Filters
-/// 4. ML Kit OCR / PDF Export
+/// Features:
+/// - Dark theme with subtle gradients
+/// - Intelligent auto-crop with pulsing animation
+/// - Refined filter selection
+/// - Modern action buttons with gradients
+/// - Blur effects and shadows for depth
 class DocumentScannerScreen extends StatefulWidget {
   const DocumentScannerScreen({super.key});
 
@@ -24,7 +27,7 @@ class DocumentScannerScreen extends StatefulWidget {
   State<DocumentScannerScreen> createState() => _DocumentScannerScreenState();
 }
 
-class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
+class _DocumentScannerScreenState extends State<DocumentScannerScreen> with TickerProviderStateMixin {
   // Step tracking
   ScannerStep _currentStep = ScannerStep.selectImage;
   
@@ -35,6 +38,12 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
   
   // Manual crop corners
   List<Offset>? _manualCropCorners;
+  
+  // Auto-crop animation
+  bool _isAnimatingCrop = false;
+  double _cropAnimationProgress = 0.0;
+  late AnimationController _cropAnimationController;
+  late Animation<double> _cropAnimation;
   
   // Processing state
   bool _isProcessing = false;
@@ -51,8 +60,22 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
   final ImagePicker _imagePicker = ImagePicker();
 
   @override
+  void initState() {
+    super.initState();
+    _cropAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 1500),
+      vsync: this,
+    );
+    _cropAnimation = CurvedAnimation(
+      parent: _cropAnimationController,
+      curve: Curves.easeInOut,
+    );
+  }
+
+  @override
   void dispose() {
     _ocrService.dispose();
+    _cropAnimationController.dispose();
     _cleanupTempFiles();
     super.dispose();
   }
@@ -185,6 +208,9 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
           _currentStep = ScannerStep.filterSelection;
           _isProcessing = false;
         });
+        
+        // Start corner animation to show successful crop
+        _startCornerAnimation();
       } catch (e) {
         // If perspective transform fails, skip auto-crop and use original image
         final resizedPath = await _getTempFilePath('jpg');
@@ -200,6 +226,9 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
           _currentStep = ScannerStep.filterSelection;
           _isProcessing = false;
         });
+        
+        // Start corner animation to show processing complete
+        _startCornerAnimation();
       }
     } catch (e) {
       // If any error occurs, skip auto-crop and use original image
@@ -217,6 +246,9 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
           _currentStep = ScannerStep.filterSelection;
           _isProcessing = false;
         });
+        
+        // Start corner animation to show processing complete
+        _startCornerAnimation();
       } catch (fallbackError) {
         setState(() {
           _isProcessing = false;
@@ -383,18 +415,102 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFF1A1A1A),
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text('Document Scanner'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        title: const Text(
+          'Document Scanner',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w500,
+            letterSpacing: 0.5,
+          ),
+        ),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios, size: 20),
+          onPressed: () => Navigator.pop(context),
+          color: Colors.white,
+        ),
         actions: [
           if (_currentStep != ScannerStep.selectImage)
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              onPressed: _resetScanner,
-              tooltip: 'Start Over',
+            Container(
+              margin: const EdgeInsets.only(right: 16),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: IconButton(
+                icon: const Icon(Icons.refresh, size: 20),
+                onPressed: _resetScanner,
+                tooltip: 'Start Over',
+                color: Colors.white,
+              ),
             ),
+        ),
+      ),
+      body: Stack(
+        children: [
+          // Main content
+          _buildBody(),
+          // Status bar simulation
+          _buildStatusBar(),
         ],
       ),
-      body: _buildBody(),
+    );
+  }
+
+  Widget _buildStatusBar() {
+    return Positioned(
+      top: 0,
+      left: 0,
+      right: 0,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              '4:59',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            Row(
+              children: [
+                const Icon(Icons.signal_cellular_alt, size: 16, color: Colors.white),
+                const SizedBox(width: 8),
+                const Icon(Icons.wifi, size: 16, color: Colors.white),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.battery_full, size: 16, color: Colors.white),
+                      SizedBox(width: 4),
+                      Text(
+                        '26%',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -699,83 +815,182 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
     }
   }
 
-  /// Step 3: Filter Selection UI
+  /// Step 3: Filter Selection UI - Modern Design
   Widget _buildFilterSelectionStep() {
     return Column(
       children: [
-        // Image preview
+        // Image preview with overlay
         Expanded(
-          child: _filteredImagePath != null
-              ? Image.file(
-                  File(_filteredImagePath!),
-                  fit: BoxFit.contain,
-                )
-              : const Center(child: Text('No image')),
-        ),
-        // Filter options
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.1),
-                blurRadius: 10,
-              ),
+          child: Stack(
+            children: [
+              // Document image
+              _filteredImagePath != null
+                  ? Positioned.fill(
+                      child: Image.file(
+                        File(_filteredImagePath!),
+                        fit: BoxFit.contain,
+                      ),
+                    )
+                  : const Center(child: Text('No image')),
+              // Corner handles overlay (showing it was cropped)
+              if (_filteredImagePath != null)
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: CustomPaint(
+                      painter: _CornerOverlayPainter(
+                        _isAnimatingCrop,
+                        _cropAnimation,
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Select Filter',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 16),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: ImageFilter.values.map((filter) {
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      child: FilterChip(
-                        label: Text(_getFilterLabel(filter)),
-                        selected: _selectedFilter == filter,
-                        onSelected: (selected) {
-                          if (selected) {
-                            _applyFilter(filter);
-                          }
-                        },
-                        selectedColor: Theme.of(context).primaryColor.withValues(alpha: 0.2),
-                      ),
-                    );
-                  }).toList(),
+        ),
+        // Bottom control panel with blur effect
+        Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.black.withValues(alpha: 0.0),
+                Colors.black.withValues(alpha: 0.3),
+                Colors.black.withValues(alpha: 0.8),
+              ],
+            ),
+          ),
+          child: Padding(
+            padding: EdgeInsets.only(
+              left: 16,
+              right: 16,
+              top: 20,
+              bottom: MediaQuery.of(context).padding.bottom + 16,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Filter selection
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: ImageFilter.values.map((filter) {
+                      final isSelected = _selectedFilter == filter;
+                      return Expanded(
+                        child: GestureDetector(
+                          onTap: () => _applyFilter(filter),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? Colors.orange.withValues(alpha: 0.8)
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              _getFilterLabel(filter),
+                              style: TextStyle(
+                                color: isSelected
+                                    ? Colors.white
+                                    : Colors.white.withValues(alpha: 0.7),
+                                fontSize: 13,
+                                fontWeight: isSelected
+                                    ? FontWeight.w600
+                                    : FontWeight.w400,
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: _extractText,
-                      icon: const Icon(Icons.text_fields),
-                      label: const Text('Extract Text'),
+                const SizedBox(height: 20),
+                // Action buttons with gradient
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildGradientButton(
+                        icon: Icons.text_fields,
+                        label: 'Extract Text',
+                        onTap: _extractText,
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFFF6B35), Color(0xFFFFB74D)],
+                        ),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: _exportToPDF,
-                      icon: const Icon(Icons.picture_as_pdf),
-                      label: const Text('Export PDF'),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _buildGradientButton(
+                        icon: Icons.picture_as_pdf,
+                        label: 'Export PDF',
+                        onTap: _exportToPDF,
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFFF6B35), Color(0xFFFFB74D)],
+                        ),
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ],
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildGradientButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    required LinearGradient gradient,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          gradient: gradient,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFFFF6B35).withValues(alpha: 0.3),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 20, color: Colors.white),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -896,6 +1111,76 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
         return 'Enhanced';
     }
   }
+
+  /// Start corner pulsing animation
+  void _startCornerAnimation() {
+    setState(() {
+      _isAnimatingCrop = true;
+    });
+    _cropAnimationController.forward().then((_) {
+      setState(() {
+        _isAnimatingCrop = false;
+      });
+    });
+  }
+}
+
+/// Modern corner overlay painter with pulsing animation
+class _CornerOverlayPainter extends CustomPainter {
+  final bool isAnimating;
+  final Animation<double> animation;
+
+  _CornerOverlayPainter(this.isAnimating, this.animation);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Calculate pulsing effect
+    final pulse = isAnimating 
+        ? math.sin(animation.value * math.pi * 2) * 0.3 + 0.7
+        : 1.0;
+    
+    final cornerSize = 16.0 * pulse;
+    final lineThickness = 2.0 * pulse;
+    
+    // Draw corner handles at document edges
+    final corners = [
+      Offset(20, 20), // top-left
+      Offset(size.width - 20, 20), // top-right
+      Offset(size.width - 20, size.height - 20), // bottom-right
+      Offset(20, size.height - 20), // bottom-left
+    ];
+    
+    final paint = Paint()
+      ..color = Colors.orange.withValues(alpha: 0.8 * pulse)
+      ..style = PaintingStyle.fill;
+    
+    final borderPaint = Paint()
+      ..color = Colors.orange.withValues(alpha: pulse)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = lineThickness;
+    
+    // Draw corner handles
+    for (final corner in corners) {
+      canvas.drawCircle(corner, cornerSize, paint);
+      canvas.drawCircle(corner, cornerSize, borderPaint);
+    }
+    
+    // Draw connecting lines between corners
+    final path = Path()
+      ..moveTo(corners[0].dx, corners[0].dy)
+      ..lineTo(corners[1].dx, corners[1].dy)
+      ..lineTo(corners[2].dx, corners[2].dy)
+      ..lineTo(corners[3].dx, corners[3].dy)
+      ..close();
+    
+    canvas.drawPath(path, borderPaint);
+  }
+
+  @override
+  bool shouldRepaint(_CornerOverlayPainter oldDelegate) {
+    return oldDelegate.isAnimating != isAnimating || 
+           oldDelegate.animation != animation;
+  }
 }
 
 /// Custom painter for crop overlay
@@ -937,21 +1222,4 @@ class _CropOverlayPainter extends CustomPainter {
   bool shouldRepaint(_CropOverlayPainter oldDelegate) {
     return oldDelegate.corners != corners;
   }
-}
-
-/// Scanner workflow steps
-enum ScannerStep {
-  selectImage,
-  edgeDetection,
-  manualCrop,
-  filterSelection,
-  result,
-}
-
-/// Available image filters
-enum ImageFilter {
-  original,
-  magicColor,
-  blackAndWhite,
-  enhanced,
 }
