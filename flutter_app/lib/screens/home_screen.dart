@@ -2533,31 +2533,42 @@ class _HomeContentState extends State<HomeContent> {
     List<Widget> finalWidgets = [];
 
     for (var key in keys) {
-      if (actionBuilders.containsKey(key)) {
-        final widget = actionBuilders[key]!(isListLayout);
-        if (widget is SizedBox && widget.width == 0) continue;
+      if (!actionBuilders.containsKey(key)) continue;
 
-        if (isListLayout) {
-          finalWidgets.add(widget);
-        } else {
-          if (key == 'attendance' || key == 'stats_slider' || key == 'document_scanner') {
-            if (gridBatch.isNotEmpty) {
-              finalWidgets.add(_buildGridWrapper(gridBatch));
-              gridBatch = [];
-            }
-            finalWidgets.add(widget);
-            finalWidgets.add(const SizedBox(height: 18));
-          } else {
-            gridBatch.add(widget);
-            if (gridBatch.length == 3) {
-              finalWidgets.add(_buildGridWrapper(gridBatch));
-              gridBatch = [];
-            }
+      // Pre-check visibility: skip hidden items (SizedBox.shrink has null width)
+      final bool isFullWidth = key == 'attendance' ||
+          key == 'stats_slider' ||
+          key == 'document_scanner';
+
+      // Check visibility before building the actual widget
+      final bool isVisible = actionBuilders.containsKey(key) &&
+          _canShowRoleAction(
+            user,
+            _visibilityKeyForAction(key, suffix),
+            suffix,
+          );
+      if (!isVisible) continue;
+
+      final widget = actionBuilders[key]!(isListLayout);
+
+      if (isListLayout) {
+        finalWidgets.add(widget);
+      } else {
+        if (isFullWidth) {
+          // Flush any pending grid items first
+          if (gridBatch.isNotEmpty) {
+            finalWidgets.add(_buildGridWrapper(gridBatch));
+            gridBatch = [];
           }
+          finalWidgets.add(widget);
+          finalWidgets.add(const SizedBox(height: 18));
+        } else {
+          gridBatch.add(widget);
         }
       }
     }
 
+    // Flush remaining grid items into a single GridView
     if (gridBatch.isNotEmpty) finalWidgets.add(_buildGridWrapper(gridBatch));
 
     if (finalWidgets.isEmpty) {
@@ -2565,6 +2576,58 @@ class _HomeContentState extends State<HomeContent> {
     }
 
     return Column(children: finalWidgets);
+  }
+
+  /// Returns the config visibility key for a given action key.
+  String _visibilityKeyForAction(String key, String suffix) {
+    switch (key) {
+      case 'attendance':
+        return 'show_attendance_card$suffix';
+      case 'stats_slider':
+        return 'show_stats_slider$suffix';
+      case 'outside_attendance':
+        return 'show_outside_attendance_card$suffix';
+      case 'training_quiz':
+        return 'show_training_quiz_card$suffix';
+      case 'product_analyzer':
+        return 'show_product_analyzer_card$suffix';
+      case 'poll_voting':
+        return 'show_poll_voting_card$suffix';
+      case 'announcements':
+        return 'show_announcements_card$suffix';
+      case 'meetings':
+        return 'show_meetings_card$suffix';
+      case 'checklist':
+        return 'show_checklist_card$suffix';
+      case 'daily_report':
+        return 'show_daily_report_card$suffix';
+      case 'mission':
+        return 'show_mission_card$suffix';
+      case 'user_management':
+        return 'show_user_management_card$suffix';
+      case 'request_form':
+        return 'show_request_form_card$suffix';
+      case 'reports':
+        return 'show_reports_card$suffix';
+      case 'material_request':
+        return 'show_material_request_card$suffix';
+      case 'notification':
+        return 'show_notification_card$suffix';
+      case 'notification_history':
+        return 'show_notification_history_card$suffix';
+      case 'employee_report':
+        return 'show_employee_report_card$suffix';
+      case 'trip':
+        return 'show_trip_card$suffix';
+      case 'payroll':
+        return 'show_payroll_card$suffix';
+      case 'document_scanner':
+        return 'show_document_scanner_card$suffix';
+      case 'app_settings':
+        return 'show_app_settings$suffix';
+      default:
+        return 'show_${key}_card$suffix';
+    }
   }
 
   bool _canShowRoleAction(UserProvider user, String configKey, String suffix) {
