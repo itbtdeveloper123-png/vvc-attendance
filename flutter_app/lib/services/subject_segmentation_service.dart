@@ -40,6 +40,7 @@ class SubjectSegmentationService {
     required String imagePath,
     required Color backgroundColor,
     String? customBgImagePath,
+    Uint8List? foregroundBytes,
     List<double>? confidenceMask,
     int? maskW,
     int? maskH,
@@ -76,11 +77,44 @@ class SubjectSegmentationService {
       _fillColor(bgCanvas, backgroundColor);
     }
 
-    if (confidenceMask != null && confidenceMask.isNotEmpty) {
+    bool fgRendered = false;
+
+    // 1. Direct ML Kit Foreground Bitmap Compositing
+    if (foregroundBytes != null && foregroundBytes.isNotEmpty) {
+      try {
+        img.Image? fgImg = img.decodeImage(foregroundBytes);
+        if (fgImg != null) {
+          if (flipHorizontal) {
+            fgImg = img.flipHorizontal(fgImg);
+          }
+          if (fgImg.width != imgW || fgImg.height != imgH) {
+            fgImg = img.copyResize(fgImg, width: imgW, height: imgH);
+          }
+          for (int y = 0; y < imgH; y++) {
+            for (int x = 0; x < imgW; x++) {
+              final px = fgImg.getPixel(x, y);
+              final alpha = (px.a / 255.0);
+              if (alpha > 0.05) {
+                final bgPx = bgCanvas.getPixel(x, y);
+                final r = (px.r * alpha + bgPx.r * (1.0 - alpha)).round().clamp(0, 255);
+                final g = (px.g * alpha + bgPx.g * (1.0 - alpha)).round().clamp(0, 255);
+                final b = (px.b * alpha + bgPx.b * (1.0 - alpha)).round().clamp(0, 255);
+                bgCanvas.setPixelRgb(x, y, r, g, b);
+              }
+            }
+          }
+          fgRendered = true;
+        }
+      } catch (e) {
+        debugPrint('Foreground bitmap rendering error: $e');
+      }
+    }
+
+    // 2. Confidence Mask Compositing if bitmap not rendered
+    if (!fgRendered && confidenceMask != null && confidenceMask.isNotEmpty) {
       int effectiveMaskW = maskW ?? 0;
       int effectiveMaskH = maskH ?? 0;
 
-      // Auto-detect mask dimensions if passed dimensions do not match mask array length
       if (effectiveMaskW <= 0 || effectiveMaskH <= 0 || (effectiveMaskW * effectiveMaskH != confidenceMask.length)) {
         double aspect = imgW / imgH;
         effectiveMaskH = (sqrt(confidenceMask.length / aspect)).round();
@@ -100,7 +134,6 @@ class SubjectSegmentationService {
             rawAlpha = confidenceMask[floatIndex].toDouble().clamp(0.0, 1.0);
           }
 
-          // Smooth alpha threshold with feathering for soft clean edges around hair and shoulders
           double alpha = 0.0;
           if (rawAlpha > 0.06) {
             alpha = ((rawAlpha - 0.06) / 0.65).clamp(0.0, 1.0);
@@ -118,8 +151,11 @@ class SubjectSegmentationService {
           }
         }
       }
-    } else {
-      // Enhanced multi-point background color sample keying fallback
+      fgRendered = true;
+    }
+
+    // 3. Smart Edge-Sample Background Keying Fallback
+    if (!fgRendered) {
       final pTL = original.getPixel(0, 0);
       final pTR = original.getPixel(imgW - 1, 0);
       final pTC = original.getPixel((imgW / 2).floor(), 0);
@@ -132,7 +168,7 @@ class SubjectSegmentationService {
           final dTC = (px.r - pTC.r).abs() + (px.g - pTC.g).abs() + (px.b - pTC.b).abs();
           final minDiff = [dTL, dTR, dTC].reduce((a, b) => a < b ? a : b);
 
-          if (minDiff > 35) {
+          if (minDiff > 45) {
             bgCanvas.setPixelRgb(x, y, px.r, px.g, px.b);
           }
         }

@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
@@ -53,6 +54,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
   double _suitScale = 1.0;
   double _suitOffsetY = 0.0;
   double _suitOffsetX = 0.0;
+  bool _hasAutoFittedSuit = false;
 
   final Map<String, SuitPresetInfo> _suitPresets = const {
     'suit_male_black': SuitPresetInfo(
@@ -133,6 +135,42 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
     super.dispose();
   }
 
+  Future<void> _detectFaceAndAutoFitSuit() async {
+    if (_imagePath == null) return;
+    try {
+      final inputImage = InputImage.fromFilePath(_imagePath!);
+      final options = FaceDetectorOptions(performanceMode: FaceDetectorMode.fast);
+      final faceDetector = FaceDetector(options: options);
+      final faces = await faceDetector.processImage(inputImage);
+      faceDetector.close();
+
+      if (faces.isNotEmpty) {
+        final face = faces.first;
+        final box = face.boundingBox;
+        
+        final imageBytes = await File(_imagePath!).readAsBytes();
+        final decoded = img.decodeImage(imageBytes);
+        if (decoded != null) {
+          final double faceRatio = box.width / decoded.width;
+          _suitScale = (faceRatio * 2.35).clamp(0.6, 1.8);
+
+          final double faceCenterX = box.left + (box.width / 2.0);
+          final double imageCenterX = decoded.width / 2.0;
+          _suitOffsetX = ((faceCenterX - imageCenterX) / (decoded.width * 0.025)).clamp(-10.0, 10.0);
+
+          final double chinY = box.bottom;
+          final double targetY = chinY - (decoded.height * 0.04);
+          final double defaultSuitTopY = decoded.height - (decoded.width * 0.92 * _suitScale * 1.1);
+          _suitOffsetY = ((targetY - defaultSuitTopY) / (decoded.height * 0.025)).clamp(-15.0, 15.0);
+          
+          _hasAutoFittedSuit = true;
+        }
+      }
+    } catch (e) {
+      debugPrint('Face detection auto-fit error: $e');
+    }
+  }
+
   Future<void> _pickImage(ImageSource source) async {
     try {
       final XFile? picked = await _picker.pickImage(source: source);
@@ -141,6 +179,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
           _imagePath = picked.path;
           _processedImagePath = null;
           _isFlipped = (source == ImageSource.camera); // Auto flip selfie camera photos
+          _hasAutoFittedSuit = false;
         });
         await _processSegmentation();
       }
@@ -164,6 +203,9 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
     try {
       final result = await _segmentationService.segmentSubject(_imagePath!);
       
+      Uint8List? fgBytes = result?.foregroundBitmap ??
+          ((result?.subjects.isNotEmpty ?? false) ? result!.subjects.first.bitmap : null);
+
       List<double>? mask;
       int? maskW;
       int? maskH;
@@ -177,6 +219,10 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
           maskW = s.width;
           maskH = s.height;
         }
+      }
+
+      if (_selectedSuitKey != null && !_hasAutoFittedSuit) {
+        await _detectFaceAndAutoFitSuit();
       }
 
       Uint8List? suitBytes;
@@ -197,6 +243,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
       final outFile = await _segmentationService.createPassportBackground(
         imagePath: _imagePath!,
         backgroundColor: _selectedBgColor,
+        foregroundBytes: fgBytes,
         confidenceMask: mask,
         maskW: maskW,
         maskH: maskH,
