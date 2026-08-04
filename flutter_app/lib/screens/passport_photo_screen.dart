@@ -28,6 +28,8 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
   bool _isProcessing = false;
   String? _statusText;
 
+  bool _isFlipped = false;
+
   // Passport presets: 4x6 cm, 3x4 cm, 2x3 cm, 5x5 cm
   PassportPreset _selectedPreset = PassportPreset.size4x6;
   Color _selectedBgColor = Colors.white;
@@ -63,6 +65,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
         setState(() {
           _imagePath = picked.path;
           _processedImagePath = null;
+          _isFlipped = (source == ImageSource.camera); // Auto flip selfie camera photos
         });
         await _processSegmentation();
       }
@@ -86,10 +89,20 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
     try {
       final result = await _segmentationService.segmentSubject(_imagePath!);
       
-      final mask = result?.foregroundConfidenceMask;
-      final subject = (result?.subjects.isNotEmpty ?? false) ? result!.subjects.first : null;
-      final maskW = subject?.width;
-      final maskH = subject?.height;
+      List<double>? mask;
+      int? maskW;
+      int? maskH;
+
+      if (result != null) {
+        if (result.foregroundConfidenceMask != null && result.foregroundConfidenceMask!.isNotEmpty) {
+          mask = result.foregroundConfidenceMask;
+        } else if (result.subjects.isNotEmpty && result.subjects.first.confidenceMask != null) {
+          final s = result.subjects.first;
+          mask = s.confidenceMask;
+          maskW = s.width;
+          maskH = s.height;
+        }
+      }
 
       setState(() {
         _statusText = 'កំពុងផ្លាស់ប្តូរ Background ទៅជាពណ៌ ${_getBgColorName(_selectedBgColor)}...';
@@ -101,6 +114,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
         confidenceMask: mask,
         maskW: maskW,
         maskH: maskH,
+        flipHorizontal: _isFlipped,
       );
 
       // Crop according to selected preset aspect ratio
@@ -237,6 +251,20 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
           style: GoogleFonts.kantumruyPro(fontSize: 17, fontWeight: FontWeight.bold, color: Colors.white),
         ),
         actions: [
+          if (_imagePath != null)
+            IconButton(
+              icon: Icon(
+                Icons.flip_rounded,
+                color: _isFlipped ? Colors.tealAccent : Colors.white70,
+              ),
+              tooltip: 'បង្វិលរូបភាពបញ្ជ្រាស',
+              onPressed: () {
+                setState(() {
+                  _isFlipped = !_isFlipped;
+                });
+                _processSegmentation();
+              },
+            ),
           if (_processedImagePath != null)
             IconButton(
               icon: const Icon(Icons.print_rounded, color: Colors.tealAccent),
@@ -401,6 +429,37 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
                           style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600),
                         ),
                         const Spacer(),
+                        InkWell(
+                          onTap: () {
+                            setState(() {
+                              _isFlipped = !_isFlipped;
+                            });
+                            _processSegmentation();
+                          },
+                          borderRadius: BorderRadius.circular(6),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.flip_rounded,
+                                  color: _isFlipped ? Colors.tealAccent : Colors.white60,
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  _isFlipped ? 'បញ្ជ្រាស (On)' : 'ត្រឡប់រូប',
+                                  style: GoogleFonts.kantumruyPro(
+                                    color: _isFlipped ? Colors.tealAccent : Colors.white60,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
                         IconButton(
                           icon: const Icon(Icons.refresh_rounded, color: Colors.white54, size: 18),
                           onPressed: () => _pickImage(ImageSource.gallery),
