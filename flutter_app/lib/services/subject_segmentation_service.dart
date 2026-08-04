@@ -10,6 +10,13 @@ import 'package:path_provider/path_provider.dart';
 class SubjectSegmentationService {
   late final SubjectSegmenter _segmenter;
 
+  // In-memory performance caches
+  String? _cachedImagePath;
+  bool? _cachedFlipHorizontal;
+  img.Image? _cachedOriginal;
+  img.Image? _cachedFgImg;
+  final Map<String, img.Image> _cachedSuits = {};
+
   SubjectSegmentationService() {
     _segmenter = SubjectSegmenter(
       options: SubjectSegmenterOptions(
@@ -21,6 +28,14 @@ class SubjectSegmentationService {
         ),
       ),
     );
+  }
+
+  void clearCache() {
+    _cachedImagePath = null;
+    _cachedFlipHorizontal = null;
+    _cachedOriginal = null;
+    _cachedFgImg = null;
+    _cachedSuits.clear();
   }
 
   /// Process input image and return SubjectSegmentationResult containing mask / foreground
@@ -45,19 +60,34 @@ class SubjectSegmentationService {
     int? maskW,
     int? maskH,
     bool flipHorizontal = false,
+    String? suitKey,
     Uint8List? suitBytes,
     double suitScale = 1.0,
     double suitOffsetY = 0.0,
     double suitOffsetX = 0.0,
   }) async {
-    final bytes = await File(imagePath).readAsBytes();
-    img.Image? original = img.decodeImage(bytes);
-    if (original == null) return File(imagePath);
+    // 1. Check or load pre-decoded downsampled original image
+    if (_cachedImagePath != imagePath || _cachedFlipHorizontal != flipHorizontal || _cachedOriginal == null) {
+      final bytes = await File(imagePath).readAsBytes();
+      img.Image? original = img.decodeImage(bytes);
+      if (original == null) return File(imagePath);
 
-    if (flipHorizontal) {
-      original = img.flipHorizontal(original);
+      if (flipHorizontal) {
+        original = img.flipHorizontal(original);
+      }
+
+      // Downsample to max 1080px for lightning-fast studio preview & editing
+      if (original.width > 1080) {
+        original = img.copyResize(original, width: 1080);
+      }
+
+      _cachedImagePath = imagePath;
+      _cachedFlipHorizontal = flipHorizontal;
+      _cachedOriginal = original;
+      _cachedFgImg = null;
     }
 
+    final img.Image original = _cachedOriginal!;
     final int imgW = original.width;
     final int imgH = original.height;
 
@@ -79,17 +109,24 @@ class SubjectSegmentationService {
 
     bool fgRendered = false;
 
-    // 1. Direct ML Kit Foreground Bitmap Compositing
+    // 2. Direct ML Kit Foreground Bitmap Compositing (cached)
     if (foregroundBytes != null && foregroundBytes.isNotEmpty) {
       try {
-        img.Image? fgImg = img.decodeImage(foregroundBytes);
-        if (fgImg != null) {
-          if (flipHorizontal) {
-            fgImg = img.flipHorizontal(fgImg);
+        if (_cachedFgImg == null) {
+          img.Image? fgImg = img.decodeImage(foregroundBytes);
+          if (fgImg != null) {
+            if (flipHorizontal) {
+              fgImg = img.flipHorizontal(fgImg);
+            }
+            if (fgImg.width != imgW || fgImg.height != imgH) {
+              fgImg = img.copyResize(fgImg, width: imgW, height: imgH);
+            }
+            _cachedFgImg = fgImg;
           }
-          if (fgImg.width != imgW || fgImg.height != imgH) {
-            fgImg = img.copyResize(fgImg, width: imgW, height: imgH);
-          }
+        }
+
+        if (_cachedFgImg != null) {
+          final fgImg = _cachedFgImg!;
           for (int y = 0; y < imgH; y++) {
             for (int x = 0; x < imgW; x++) {
               final px = fgImg.getPixel(x, y);
@@ -110,7 +147,7 @@ class SubjectSegmentationService {
       }
     }
 
-    // 2. Confidence Mask Compositing if bitmap not rendered
+    // 3. Confidence Mask Compositing if bitmap not rendered
     if (!fgRendered && confidenceMask != null && confidenceMask.isNotEmpty) {
       int effectiveMaskW = maskW ?? 0;
       int effectiveMaskH = maskH ?? 0;
@@ -154,7 +191,7 @@ class SubjectSegmentationService {
       fgRendered = true;
     }
 
-    // 3. Smart Edge-Sample Background Keying Fallback
+    // 4. Smart Edge-Sample Background Keying Fallback
     if (!fgRendered) {
       final pTL = original.getPixel(0, 0);
       final pTR = original.getPixel(imgW - 1, 0);
@@ -175,9 +212,17 @@ class SubjectSegmentationService {
       }
     }
 
-    // Composite Virtual Suit Overlay onto shoulders if selected
+    // 5. Composite Virtual Suit Overlay onto shoulders (cached suit)
     if (suitBytes != null && suitBytes.isNotEmpty) {
-      img.Image? suitImg = img.decodeImage(suitBytes);
+      final String sKey = suitKey ?? suitBytes.length.toString();
+      if (!_cachedSuits.containsKey(sKey)) {
+        img.Image? decodedSuit = img.decodeImage(suitBytes);
+        if (decodedSuit != null) {
+          _cachedSuits[sKey] = decodedSuit;
+        }
+      }
+
+      final suitImg = _cachedSuits[sKey];
       if (suitImg != null) {
         _compositeSuit(
           bgCanvas,

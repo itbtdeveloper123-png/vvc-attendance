@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -47,6 +48,14 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
   String? _statusText;
 
   bool _isFlipped = false;
+  Timer? _debounceTimer;
+
+  void _debouncedProcessSegmentation() {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 50), () {
+      _processSegmentation();
+    });
+  }
 
   // Virtual Suit Overlay State
   SuitCategory _selectedSuitCategory = SuitCategory.all;
@@ -131,6 +140,8 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
+    _segmentationService.clearCache();
     _segmentationService.dispose();
     super.dispose();
   }
@@ -175,6 +186,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
     try {
       final XFile? picked = await _picker.pickImage(source: source);
       if (picked != null) {
+        _segmentationService.clearCache();
         setState(() {
           _imagePath = picked.path;
           _processedImagePath = null;
@@ -248,6 +260,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
         maskW: maskW,
         maskH: maskH,
         flipHorizontal: _isFlipped,
+        suitKey: _selectedSuitKey,
         suitBytes: suitBytes,
         suitScale: _suitScale,
         suitOffsetX: _suitOffsetX,
@@ -773,7 +786,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
                               icon: const Icon(Icons.remove_circle_outline, color: Colors.tealAccent, size: 18),
                               onPressed: () {
                                 setState(() => _suitScale = (_suitScale - 0.05).clamp(0.5, 2.0));
-                                _processSegmentation();
+                                _debouncedProcessSegmentation();
                               },
                               tooltip: 'បង្រួមអាវ',
                             ),
@@ -786,7 +799,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
                               icon: const Icon(Icons.add_circle_outline, color: Colors.tealAccent, size: 18),
                               onPressed: () {
                                 setState(() => _suitScale = (_suitScale + 0.05).clamp(0.5, 2.0));
-                                _processSegmentation();
+                                _debouncedProcessSegmentation();
                               },
                               tooltip: 'ពង្រីកអាវ',
                             ),
@@ -796,7 +809,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
                               icon: const Icon(Icons.arrow_back_rounded, color: Colors.white70, size: 16),
                               onPressed: () {
                                 setState(() => _suitOffsetX -= 1.0);
-                                _processSegmentation();
+                                _debouncedProcessSegmentation();
                               },
                               tooltip: 'រំកិលទៅឆ្វេង',
                             ),
@@ -805,7 +818,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
                               icon: const Icon(Icons.arrow_forward_rounded, color: Colors.white70, size: 16),
                               onPressed: () {
                                 setState(() => _suitOffsetX += 1.0);
-                                _processSegmentation();
+                                _debouncedProcessSegmentation();
                               },
                               tooltip: 'រំកិលទៅស្តាំ',
                             ),
@@ -814,7 +827,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
                               icon: const Icon(Icons.arrow_upward_rounded, color: Colors.white70, size: 16),
                               onPressed: () {
                                 setState(() => _suitOffsetY -= 1.0);
-                                _processSegmentation();
+                                _debouncedProcessSegmentation();
                               },
                               tooltip: 'លើកអាវឡើងលើ',
                             ),
@@ -823,7 +836,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
                               icon: const Icon(Icons.arrow_downward_rounded, color: Colors.white70, size: 16),
                               onPressed: () {
                                 setState(() => _suitOffsetY += 1.0);
-                                _processSegmentation();
+                                _debouncedProcessSegmentation();
                               },
                               tooltip: 'ទម្លាក់អាវចុះក្រោម',
                             ),
@@ -836,7 +849,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
                                   _suitOffsetX = 0.0;
                                   _suitOffsetY = 0.0;
                                 });
-                                _processSegmentation();
+                                _debouncedProcessSegmentation();
                               },
                               tooltip: 'កំណត់ទីតាំងឡើងវិញ',
                             ),
