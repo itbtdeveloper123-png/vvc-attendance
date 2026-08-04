@@ -224,12 +224,16 @@ class SubjectSegmentationService {
 
       final suitImg = _cachedSuits[sKey];
       if (suitImg != null) {
+        final skinTone = _extractSkinTone(_cachedFgImg ?? original);
         _compositeSuit(
           bgCanvas,
           suitImg,
           suitScale: suitScale,
           suitOffsetX: suitOffsetX,
           suitOffsetY: suitOffsetY,
+          skinR: skinTone?[0],
+          skinG: skinTone?[1],
+          skinB: skinTone?[2],
         );
       }
     }
@@ -240,6 +244,35 @@ class SubjectSegmentationService {
     final outFile = File(outPath);
     await outFile.writeAsBytes(jpgData);
     return outFile;
+  }
+
+  List<int>? _extractSkinTone(img.Image fgImg) {
+    int sumR = 0, sumG = 0, sumB = 0, count = 0;
+    final int startY = (fgImg.height * 0.20).round();
+    final int endY = (fgImg.height * 0.45).round();
+    final int startX = (fgImg.width * 0.38).round();
+    final int endX = (fgImg.width * 0.62).round();
+
+    for (int y = startY; y < endY; y++) {
+      for (int x = startX; x < endX; x++) {
+        final px = fgImg.getPixel(x, y);
+        if (px.a > 150) {
+          final int r = px.r.toInt();
+          final int g = px.g.toInt();
+          final int b = px.b.toInt();
+          if (r > 130 && g > 90 && b > 70 && r > g) {
+            sumR += r;
+            sumG += g;
+            sumB += b;
+            count++;
+          }
+        }
+      }
+    }
+    if (count > 20) {
+      return [(sumR / count).round(), (sumG / count).round(), (sumB / count).round()];
+    }
+    return null;
   }
 
   void _fillColor(img.Image image, Color color) {
@@ -259,9 +292,17 @@ class SubjectSegmentationService {
     required double suitScale,
     required double suitOffsetX,
     required double suitOffsetY,
+    int? skinR,
+    int? skinG,
+    int? skinB,
   }) {
     final int imgW = bgCanvas.width;
     final int imgH = bgCanvas.height;
+
+    // Sampled or fallback natural warm skin tone
+    final int sR = (skinR ?? 228).toInt();
+    final int sG = (skinG ?? 188).toInt();
+    final int sB = (skinB ?? 162).toInt();
 
     final double targetW = (imgW * 0.92 * suitScale).clamp(40.0, imgW * 2.5);
     final double scaleFactor = targetW / suitImg.width;
@@ -274,6 +315,17 @@ class SubjectSegmentationService {
     final int posY = defaultY + (suitOffsetY * (imgH * 0.025)).round();
     final int posX = (((imgW - tw) / 2) + (suitOffsetX * (imgW * 0.025))).round();
 
+    // 1. Clean erase old clothes outside suit shoulders
+    for (int y = posY; y < imgH; y++) {
+      for (int x = 0; x < imgW; x++) {
+        if (x < posX || x >= posX + tw) {
+          final bgCol = bgCanvas.getPixel(0, 0);
+          bgCanvas.setPixelRgb(x, y, bgCol.r, bgCol.g, bgCol.b);
+        }
+      }
+    }
+
+    // 2. Composite suit and fill inner neck cavity with skin tone
     for (int sy = 0; sy < resizedSuit.height; sy++) {
       final int canvasY = posY + sy;
       if (canvasY < 0 || canvasY >= imgH) continue;
@@ -290,8 +342,17 @@ class SubjectSegmentationService {
           final r = (px.r * alpha + bgPx.r * (1.0 - alpha)).round().clamp(0, 255);
           final g = (px.g * alpha + bgPx.g * (1.0 - alpha)).round().clamp(0, 255);
           final b = (px.b * alpha + bgPx.b * (1.0 - alpha)).round().clamp(0, 255);
-
           bgCanvas.setPixelRgb(canvasX, canvasY, r, g, b);
+        } else {
+          // Fill inner neck hole (upper 38% height, middle 38% width of suit template)
+          if (sy < targetH * 0.38 && sx > tw * 0.31 && sx < tw * 0.69) {
+            final bgPx = bgCanvas.getPixel(canvasX, canvasY);
+            const double skinAlpha = 0.95;
+            final r = (sR * skinAlpha + bgPx.r * (1.0 - skinAlpha)).round().clamp(0, 255);
+            final g = (sG * skinAlpha + bgPx.g * (1.0 - skinAlpha)).round().clamp(0, 255);
+            final b = (sB * skinAlpha + bgPx.b * (1.0 - skinAlpha)).round().clamp(0, 255);
+            bgCanvas.setPixelRgb(canvasX, canvasY, r, g, b);
+          }
         }
       }
     }
