@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:math';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_subject_segmentation/google_mlkit_subject_segmentation.dart';
 import 'package:image/image.dart' as img;
@@ -43,6 +44,10 @@ class SubjectSegmentationService {
     int? maskW,
     int? maskH,
     bool flipHorizontal = false,
+    Uint8List? suitBytes,
+    double suitScale = 1.0,
+    double suitOffsetY = 0.0,
+    double suitOffsetX = 0.0,
   }) async {
     final bytes = await File(imagePath).readAsBytes();
     img.Image? original = img.decodeImage(bytes);
@@ -134,6 +139,20 @@ class SubjectSegmentationService {
       }
     }
 
+    // Composite Virtual Suit Overlay onto shoulders if selected
+    if (suitBytes != null && suitBytes.isNotEmpty) {
+      img.Image? suitImg = img.decodeImage(suitBytes);
+      if (suitImg != null) {
+        _compositeSuit(
+          bgCanvas,
+          suitImg,
+          suitScale: suitScale,
+          suitOffsetX: suitOffsetX,
+          suitOffsetY: suitOffsetY,
+        );
+      }
+    }
+
     final tempDir = await getTemporaryDirectory();
     final outPath = '${tempDir.path}/passport_${DateTime.now().millisecondsSinceEpoch}.jpg';
     final jpgData = img.encodeJpg(bgCanvas, quality: 95);
@@ -149,6 +168,46 @@ class SubjectSegmentationService {
     for (int y = 0; y < image.height; y++) {
       for (int x = 0; x < image.width; x++) {
         image.setPixelRgb(x, y, r, g, b);
+      }
+    }
+  }
+
+  void _compositeSuit(
+    img.Image bgCanvas,
+    img.Image suitImg, {
+    required double suitScale,
+    required double suitOffsetX,
+    required double suitOffsetY,
+  }) {
+    final int imgW = bgCanvas.width;
+    final int imgH = bgCanvas.height;
+
+    final double targetW = (imgW * 0.92 * suitScale).clamp(40.0, imgW * 2.5);
+    final double scaleFactor = targetW / suitImg.width;
+    final int targetH = (suitImg.height * scaleFactor).round();
+    final int tw = targetW.round();
+
+    final resizedSuit = img.copyResize(suitImg, width: tw, height: targetH);
+
+    final int defaultY = imgH - targetH + (imgH * 0.05).round();
+    final int posY = defaultY + (suitOffsetY * (imgH * 0.025)).round();
+    final int posX = (((imgW - tw) / 2) + (suitOffsetX * (imgW * 0.025))).round();
+
+    for (int sy = 0; sy < resizedSuit.height; sy++) {
+      final int canvasY = posY + sy;
+      if (canvasY < 0 || canvasY >= imgH) continue;
+
+      for (int sx = 0; sx < resizedSuit.width; sx++) {
+        final int canvasX = posX + sx;
+        if (canvasX < 0 || canvasX >= imgW) continue;
+
+        final px = resizedSuit.getPixel(sx, sy);
+        final isWhiteBg = px.r > 240 && px.g > 240 && px.b > 240;
+        final alpha = (px.a / 255.0);
+
+        if (!isWhiteBg && alpha > 0.1) {
+          bgCanvas.setPixelRgb(canvasX, canvasY, px.r.toInt(), px.g.toInt(), px.b.toInt());
+        }
       }
     }
   }

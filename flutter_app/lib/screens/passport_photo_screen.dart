@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:image/image.dart' as img;
@@ -9,7 +10,19 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../services/subject_segmentation_service.dart';
 
-/// Passport Photo Studio Screen (Subject Segmentation + 4x6 / 3x4 ID Sizing)
+class SuitPresetInfo {
+  final String label;
+  final String assetPath;
+  final IconData icon;
+
+  const SuitPresetInfo({
+    required this.label,
+    required this.assetPath,
+    required this.icon,
+  });
+}
+
+/// Passport Photo Studio Screen (Subject Segmentation + 4x6 / 3x4 ID Sizing + Virtual Suit)
 class PassportPhotoScreen extends StatefulWidget {
   final String? initialImagePath;
 
@@ -29,6 +42,35 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
   String? _statusText;
 
   bool _isFlipped = false;
+
+  // Virtual Suit Overlay State
+  String? _selectedSuitKey;
+  double _suitScale = 1.0;
+  double _suitOffsetY = 0.0;
+  double _suitOffsetX = 0.0;
+
+  final Map<String, SuitPresetInfo> _suitPresets = const {
+    'suit_male_black': SuitPresetInfo(
+      label: 'អាវធំបុរស',
+      assetPath: 'assets/suits/suit_male_black.png',
+      icon: Icons.business_center_rounded,
+    ),
+    'suit_female_black': SuitPresetInfo(
+      label: 'អាវធំនារី',
+      assetPath: 'assets/suits/suit_female_black.png',
+      icon: Icons.woman_rounded,
+    ),
+    'suit_shirt_tie': SuitPresetInfo(
+      label: 'អាវស ក្រវ៉ាត់ក',
+      assetPath: 'assets/suits/suit_shirt_tie.png',
+      icon: Icons.checkroom_rounded,
+    ),
+    'suit_student': SuitPresetInfo(
+      label: 'អាវសិស្ស',
+      assetPath: 'assets/suits/suit_student.png',
+      icon: Icons.school_rounded,
+    ),
+  };
 
   // Passport presets: 4x6 cm, 3x4 cm, 2x3 cm, 5x5 cm
   PassportPreset _selectedPreset = PassportPreset.size4x6;
@@ -83,7 +125,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
 
     setState(() {
       _isProcessing = true;
-      _statusText = 'កំពុងបំបែកមនុស្ស និងផ្ទៃខាងក្រោយ...';
+      _statusText = 'កំពុងបំបែកមនុស្ស និងរៀបចំអាវ...';
     });
 
     try {
@@ -104,8 +146,19 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
         }
       }
 
+      Uint8List? suitBytes;
+      if (_selectedSuitKey != null && _suitPresets.containsKey(_selectedSuitKey)) {
+        try {
+          final assetPath = _suitPresets[_selectedSuitKey]!.assetPath;
+          final ByteData data = await rootBundle.load(assetPath);
+          suitBytes = data.buffer.asUint8List();
+        } catch (e) {
+          debugPrint('Error loading suit asset: $e');
+        }
+      }
+
       setState(() {
-        _statusText = 'កំពុងផ្លាស់ប្តូរ Background ទៅជាពណ៌ ${_getBgColorName(_selectedBgColor)}...';
+        _statusText = 'កំពុងបំពាក់អាវ និងផ្លាស់ប្តូរ Background ទៅជាពណ៌ ${_getBgColorName(_selectedBgColor)}...';
       });
 
       final outFile = await _segmentationService.createPassportBackground(
@@ -115,6 +168,10 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
         maskW: maskW,
         maskH: maskH,
         flipHorizontal: _isFlipped,
+        suitBytes: suitBytes,
+        suitScale: _suitScale,
+        suitOffsetX: _suitOffsetX,
+        suitOffsetY: _suitOffsetY,
       );
 
       // Crop according to selected preset aspect ratio
@@ -498,6 +555,167 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
                         );
                       }).toList(),
                     ),
+
+                    const SizedBox(height: 14),
+
+                    // Virtual Suit Selection
+                    Row(
+                      children: [
+                        Text(
+                          'បំពាក់អាវផ្លូវការ (Virtual Suit)៖',
+                          style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600),
+                        ),
+                        const Spacer(),
+                        if (_selectedSuitKey != null)
+                          GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                _selectedSuitKey = null;
+                                _suitScale = 1.0;
+                                _suitOffsetX = 0.0;
+                                _suitOffsetY = 0.0;
+                              });
+                              _processSegmentation();
+                            },
+                            child: Text(
+                              'ដោះអាវចេញ',
+                              style: GoogleFonts.kantumruyPro(color: Colors.redAccent, fontSize: 11, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(),
+                      child: Row(
+                        children: [
+                          // None Option
+                          GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                _selectedSuitKey = null;
+                              });
+                              _processSegmentation();
+                            },
+                            child: Container(
+                              margin: const EdgeInsets.only(right: 6),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                              decoration: BoxDecoration(
+                                color: _selectedSuitKey == null ? const Color(0xFF0D9488) : Colors.white.withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: _selectedSuitKey == null ? const Color(0xFF0D9488) : Colors.white12,
+                                ),
+                              ),
+                              child: Text(
+                                'គ្មានអាវ',
+                                style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 11),
+                              ),
+                            ),
+                          ),
+                          ..._suitPresets.entries.map((entry) {
+                            final isSel = _selectedSuitKey == entry.key;
+                            return GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  _selectedSuitKey = entry.key;
+                                });
+                                _processSegmentation();
+                              },
+                              child: Container(
+                                margin: const EdgeInsets.only(right: 6),
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                                decoration: BoxDecoration(
+                                  color: isSel ? const Color(0xFF0D9488) : Colors.white.withValues(alpha: 0.08),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: isSel ? const Color(0xFF0D9488) : Colors.white12,
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(entry.value.icon, size: 14, color: isSel ? Colors.white : Colors.tealAccent),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      entry.value.label,
+                                      style: GoogleFonts.kantumruyPro(
+                                        color: Colors.white,
+                                        fontSize: 11,
+                                        fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }),
+                        ],
+                      ),
+                    ),
+
+                    // Suit Adjustments (Scale & Offset Y)
+                    if (_selectedSuitKey != null) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.04),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.white10),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'តម្រឹមអាវ៖',
+                              style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 11),
+                            ),
+                            // Size -
+                            IconButton(
+                              icon: const Icon(Icons.remove_circle_outline, color: Colors.tealAccent, size: 18),
+                              onPressed: () {
+                                setState(() => _suitScale = (_suitScale - 0.05).clamp(0.5, 2.0));
+                                _processSegmentation();
+                              },
+                              tooltip: 'បង្រួមអាវ',
+                            ),
+                            Text(
+                              '${(_suitScale * 100).round()}%',
+                              style: GoogleFonts.inter(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                            ),
+                            // Size +
+                            IconButton(
+                              icon: const Icon(Icons.add_circle_outline, color: Colors.tealAccent, size: 18),
+                              onPressed: () {
+                                setState(() => _suitScale = (_suitScale + 0.05).clamp(0.5, 2.0));
+                                _processSegmentation();
+                              },
+                              tooltip: 'ពង្រីកអាវ',
+                            ),
+                            const SizedBox(width: 6),
+                            // Move Up
+                            IconButton(
+                              icon: const Icon(Icons.arrow_upward_rounded, color: Colors.white70, size: 18),
+                              onPressed: () {
+                                setState(() => _suitOffsetY -= 1.0);
+                                _processSegmentation();
+                              },
+                              tooltip: 'លើកអាវឡើងលើ',
+                            ),
+                            // Move Down
+                            IconButton(
+                              icon: const Icon(Icons.arrow_downward_rounded, color: Colors.white70, size: 18),
+                              onPressed: () {
+                                setState(() => _suitOffsetY += 1.0);
+                                _processSegmentation();
+                              },
+                              tooltip: 'ទម្លាក់អាវចុះក្រោម',
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
 
                     const SizedBox(height: 16),
 

@@ -91,6 +91,7 @@ flutter:
     - assets/images/
     - assets/icons/
     - assets/fonts/
+    - assets/suits/
 
   fonts:
     - family: KhmerFont
