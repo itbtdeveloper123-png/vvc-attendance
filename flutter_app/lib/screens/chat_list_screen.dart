@@ -5,7 +5,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import 'chat_create_group_screen.dart';
+import 'new_message_screen.dart';
+import 'chat_detail_screen.dart';
 import '../services/api_service.dart';
 import '../providers/user_provider.dart';
 import 'team_chat_screen.dart';
@@ -293,7 +294,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => ChatCreateGroupScreen(
+                  builder: (_) => NewMessageScreen(
                     allUsers: usersList,
                     currentUserId: currentUserId,
                   ),
@@ -960,12 +961,18 @@ class _ChatListScreenState extends State<ChatListScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => TeamChatScreen(
-          targetUserId: id,
-          targetUserName: name,
-          targetUserPhoto: photo,
-          isGroup: isGroup,
-        ),
+        builder: (_) => isGroup
+            ? TeamChatScreen(
+                targetUserId: id,
+                targetUserName: name,
+                targetUserPhoto: photo,
+                isGroup: true,
+              )
+            : ChatDetailScreen(
+                targetUserId: id,
+                targetUserName: name,
+                targetUserPhoto: photo,
+              ),
       ),
     );
   }
