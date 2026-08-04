@@ -8,6 +8,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:record/record.dart' as record_pkg;
 import 'package:audioplayers/audioplayers.dart';
 import 'package:path_provider/path_provider.dart';
@@ -108,6 +111,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   bool _isRecording = false;
   int _recordingSeconds = 0;
   Timer? _recordingTimer;
+
+  // Plus Menu State (+)
+  bool _showPlusMenu = false;
 
   // Audio Playback state
   String? _currentlyPlayingAudio;
@@ -228,6 +234,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                 child: _buildMessageFeed(),
               ),
             ),
+            if (_showPlusMenu) _buildPlusMenuOverlay(),
             _buildInputToolbar(),
           ],
         ),
@@ -393,9 +400,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               _buildImageBubble(imageUrl: imageUrl, isMine: isMine, time: msgTime),
             if (audioUrl.isNotEmpty || rawType == 'audio' || rawType == 'voice')
               _buildVoiceBubble(audioUrl: audioUrl, durationSeconds: durationSeconds, isMine: isMine, time: msgTime),
+            if (rawType == 'file')
+              _buildFileBubble(fileName: (data['fileName'] ?? 'Document').toString(), fileSize: (data['fileSize'] ?? '').toString(), isMine: isMine, time: msgTime),
+            if (rawType == 'location')
+              _buildLocationBubble(text: rawText, lat: (data['latitude'] ?? 0.0) as double, lng: (data['longitude'] ?? 0.0) as double, isMine: isMine, time: msgTime),
             if (rawType == 'sticker' || rawText == '👍')
               _buildStickerBubble(text: rawText.isNotEmpty ? rawText : '👍', isMine: isMine),
-            if (rawType != 'callMissed' && rawType != 'callVideo' && !imageUrl.isNotEmpty && rawType != 'image' && !audioUrl.isNotEmpty && rawType != 'audio' && rawType != 'voice' && rawType != 'sticker' && rawText != '👍' && rawText.isNotEmpty)
+            if (rawType != 'callMissed' && rawType != 'callVideo' && !imageUrl.isNotEmpty && rawType != 'image' && !audioUrl.isNotEmpty && rawType != 'audio' && rawType != 'voice' && rawType != 'file' && rawType != 'location' && rawType != 'sticker' && rawText != '👍' && rawText.isNotEmpty)
               _buildTextBubble(text: rawText, isMine: isMine, time: msgTime),
           ],
         );
@@ -850,6 +861,282 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     }
   }
 
+  // File Bubble
+  Widget _buildFileBubble({
+    required String fileName,
+    required String fileSize,
+    required bool isMine,
+    required DateTime time,
+  }) {
+    return Align(
+      alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
+      child: Column(
+        crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        children: [
+          Container(
+            margin: const EdgeInsets.symmetric(vertical: 4.0),
+            padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
+            decoration: BoxDecoration(
+              color: isMine ? _MsgDark.sentBubble : const Color(0xFF2C2C2E),
+              borderRadius: BorderRadius.circular(16.0),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.insert_drive_file_rounded, color: Colors.white, size: 28.0),
+                const SizedBox(width: 10.0),
+                Flexible(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        fileName,
+                        style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14.0),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (fileSize.isNotEmpty)
+                        Text(
+                          fileSize,
+                          style: GoogleFonts.inter(color: Colors.white70, fontSize: 11.0),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(left: 4.0, right: 4.0, bottom: 4.0),
+            child: Text(
+              DateFormat('h:mm a').format(time),
+              style: GoogleFonts.inter(fontSize: 10.0, color: _MsgDark.textMuted),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Location Bubble
+  Widget _buildLocationBubble({
+    required String text,
+    required double lat,
+    required double lng,
+    required bool isMine,
+    required DateTime time,
+  }) {
+    return Align(
+      alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
+      child: Column(
+        crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        children: [
+          GestureDetector(
+            onTap: () async {
+              final uri = Uri.parse('https://maps.google.com/?q=$lat,$lng');
+              if (await canLaunchUrl(uri)) {
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
+              }
+            },
+            child: Container(
+              margin: const EdgeInsets.symmetric(vertical: 4.0),
+              padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
+              decoration: BoxDecoration(
+                color: isMine ? _MsgDark.sentBubble : const Color(0xFF2C2C2E),
+                borderRadius: BorderRadius.circular(16.0),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.near_me_rounded, color: Colors.white, size: 26.0),
+                  const SizedBox(width: 10.0),
+                  Flexible(
+                    child: Text(
+                      text,
+                      style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 13.5),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(left: 4.0, right: 4.0, bottom: 4.0),
+            child: Text(
+              DateFormat('h:mm a').format(time),
+              style: GoogleFonts.inter(fontSize: 10.0, color: _MsgDark.textMuted),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Plus Menu Actions (Share a file & Location)
+  Widget _buildPlusMenuOverlay() {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.only(left: 12.0, bottom: 8.0),
+        width: 210.0,
+        decoration: BoxDecoration(
+          color: const Color(0xFF2C2C2E),
+          borderRadius: BorderRadius.circular(16.0),
+          boxShadow: const [
+            BoxShadow(color: Colors.black54, blurRadius: 12, offset: Offset(0, 4)),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildPlusMenuItem(
+              title: 'Share a file',
+              icon: Icons.insert_drive_file_rounded,
+              onTap: _pickAndSendFile,
+            ),
+            const Divider(height: 1.0, color: Color(0xFF38383A)),
+            _buildPlusMenuItem(
+              title: 'Location',
+              icon: Icons.near_me_rounded,
+              onTap: _sendLocation,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPlusMenuItem({
+    required String title,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16.0),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              title,
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontSize: 15.0,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            Icon(icon, color: Colors.white70, size: 20.0),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickAndSendFile() async {
+    setState(() => _showPlusMenu = false);
+    try {
+      final result = await FilePicker.platform.pickFiles();
+      if (result == null || result.files.isEmpty || currentUserId.isEmpty) return;
+
+      final platformFile = result.files.first;
+      final fileName = platformFile.name;
+      final fileSize = '${(platformFile.size / 1024).toStringAsFixed(1)} KB';
+
+      String fileBase64 = '';
+      if (platformFile.bytes != null) {
+        fileBase64 = 'data:application/octet-stream;base64,${base64Encode(platformFile.bytes!)}';
+      } else if (platformFile.path != null) {
+        final file = File(platformFile.path!);
+        if (await file.exists()) {
+          final bytes = await file.readAsBytes();
+          fileBase64 = 'data:application/octet-stream;base64,${base64Encode(bytes)}';
+        }
+      }
+
+      if (!mounted) return;
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
+
+      final msgData = {
+        'text': '📄 ឯកសារ៖ $fileName ($fileSize)',
+        'fileName': fileName,
+        'fileSize': fileSize,
+        'base64File': fileBase64,
+        'type': 'file',
+        'senderId': currentUserId,
+        'senderName': userProvider.name ?? '',
+        'senderPhoto': userProvider.avatar ?? '',
+        'timestamp': FieldValue.serverTimestamp(),
+        'isRead': false,
+      };
+
+      final batch = _firestore.batch();
+      final msgRef = _firestore.collection('chats').doc(_roomId).collection('messages').doc();
+      batch.set(msgRef, msgData);
+      batch.set(_firestore.collection('chats').doc(_roomId), {
+        'participants': [currentUserId, widget.targetUserId],
+        'lastMessage': '📄 ឯកសារ៖ $fileName',
+        'lastTimestamp': FieldValue.serverTimestamp(),
+        'lastSenderId': currentUserId,
+      }, SetOptions(merge: true));
+      await batch.commit();
+    } catch (e) {
+      debugPrint('Pick file error: $e');
+    }
+  }
+
+  Future<void> _sendLocation() async {
+    setState(() => _showPlusMenu = false);
+    try {
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+
+      if (permission == LocationPermission.whileInUse || permission == LocationPermission.always) {
+        final pos = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+        );
+        final mapsUrl = 'https://maps.google.com/?q=${pos.latitude},${pos.longitude}';
+
+        if (!mounted) return;
+        final userProvider = Provider.of<UserProvider>(context, listen: false);
+
+        final msgData = {
+          'text': '📍 ទីតាំងបច្ចុប្បន្ន៖\n$mapsUrl',
+          'latitude': pos.latitude,
+          'longitude': pos.longitude,
+          'type': 'location',
+          'senderId': currentUserId,
+          'senderName': userProvider.name ?? '',
+          'senderPhoto': userProvider.avatar ?? '',
+          'timestamp': FieldValue.serverTimestamp(),
+          'isRead': false,
+        };
+
+        final batch = _firestore.batch();
+        final msgRef = _firestore.collection('chats').doc(_roomId).collection('messages').doc();
+        batch.set(msgRef, msgData);
+        batch.set(_firestore.collection('chats').doc(_roomId), {
+          'participants': [currentUserId, widget.targetUserId],
+          'lastMessage': '📍 បានផ្ញើទីតាំង (Location)',
+          'lastTimestamp': FieldValue.serverTimestamp(),
+          'lastSenderId': currentUserId,
+        }, SetOptions(merge: true));
+        await batch.commit();
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('សូមអនុញ្ញាតសិទ្ធិមើលទីតាំង (Location Permission)', style: GoogleFonts.kantumruyPro())),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('Location error: $e');
+    }
+  }
+
   // Call Dialog
   void _showCallDialog(bool isVideo) {
     showDialog(
@@ -1132,9 +1419,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           // Action icons left
-          _buildToolbarIcon(Icons.add_circle_rounded, onTap: () {
-            _pickAndSendImage(ImageSource.gallery);
-          }),
+          _buildToolbarIcon(
+            _showPlusMenu ? Icons.cancel_rounded : Icons.add_circle_rounded,
+            onTap: () {
+              setState(() => _showPlusMenu = !_showPlusMenu);
+            },
+          ),
           _buildToolbarIcon(Icons.camera_alt_rounded, onTap: () {
             _pickAndSendImage(ImageSource.camera);
           }),
