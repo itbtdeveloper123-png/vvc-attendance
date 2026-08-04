@@ -1110,11 +1110,7 @@ class _EmployeeReportScreenState extends State<EmployeeReportScreen> {
                     physics: const BouncingScrollPhysics(),
                     child: RepaintBoundary(
                       key: _previewKey,
-                      child: Container(
-                        color: Colors.white,
-                        padding: const EdgeInsets.all(16),
-                        child: _buildPrintableContent(isMobile: false),
-                      ),
+                      child: _buildPrintableContent(isMobile: false),
                     ),
                   ),
                 ),
@@ -1359,46 +1355,54 @@ class _EmployeeReportScreenState extends State<EmployeeReportScreen> {
       );
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Text(finalTitle, style: titleStyle),
-        const SizedBox(height: 8),
-        Text(
-          'ថ្ងៃទី ${DateFormat('dd').format(_selectedDate)} ខែ ${DateFormat('MM').format(_selectedDate)} ឆ្នាំ ${DateFormat('yyyy').format(_selectedDate)}',
-          style: dateStyle,
+    return SizedBox(
+      width: isMobile ? 680 : 850,
+      child: Container(
+        color: Colors.white,
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(finalTitle, style: titleStyle),
+            const SizedBox(height: 8),
+            Text(
+              'ថ្ងៃទី ${DateFormat('dd').format(_selectedDate)} ខែ ${DateFormat('MM').format(_selectedDate)} ឆ្នាំ ${DateFormat('yyyy').format(_selectedDate)}',
+              style: dateStyle,
+            ),
+            const SizedBox(height: 24),
+            Text('ចំនួនបុគ្គលិកតាមផ្នែក', style: headingStyle),
+            const SizedBox(height: 12),
+            Table(
+              border: TableBorder.all(color: Colors.grey.shade400, width: 1),
+              columnWidths: {
+                0: FlexColumnWidth(isMobile ? 1.5 : 2.0),
+                for (int i = 1; i < columnsCount - 1; i++)
+                  i: FlexColumnWidth(isMobile ? 0.9 : 1.1),
+                columnsCount - 1: FlexColumnWidth(isMobile ? 0.9 : 1.1),
+              },
+              children: rows,
+            ),
+            const SizedBox(height: 32),
+            Text(
+              'បុគ្គលិកសុំច្បាប់, ដេអូស, ប្តូរវេនអូស និងចូលថ្មី',
+              style: headingStyle,
+            ),
+            const SizedBox(height: 12),
+            Table(
+              border: TableBorder.all(color: Colors.grey.shade400, width: 1),
+              columnWidths: {
+                0: FlexColumnWidth(isMobile ? 0.4 : 0.5),
+                1: FlexColumnWidth(isMobile ? 1.5 : 2.0),
+                2: FlexColumnWidth(isMobile ? 1.5 : 2.0),
+                3: FlexColumnWidth(isMobile ? 2.5 : 3.5),
+                4: FlexColumnWidth(isMobile ? 1.2 : 1.5),
+              },
+              children: staffRows,
+            ),
+          ],
         ),
-        const SizedBox(height: 24),
-        Text('ចំនួនបុគ្គលិកតាមផ្នែក', style: headingStyle),
-        const SizedBox(height: 12),
-        Table(
-          border: TableBorder.all(color: Colors.grey.shade300, width: 1),
-          columnWidths: {
-            0: FlexColumnWidth(isMobile ? 1.0 : 1.2),
-            for (int i = 1; i < columnsCount - 1; i++)
-              i: FlexColumnWidth(isMobile ? 0.8 : 1),
-            columnsCount - 1: FlexColumnWidth(isMobile ? 0.6 : 0.8),
-          },
-          children: rows,
-        ),
-        const SizedBox(height: 32),
-        Text(
-          'បុគ្គលិកសុំច្បាប់, ដេអូស, ប្តូរវេនអូស និងចូលថ្មី',
-          style: headingStyle,
-        ),
-        const SizedBox(height: 12),
-        Table(
-          border: TableBorder.all(color: Colors.grey.shade300, width: 1),
-          columnWidths: {
-            0: FlexColumnWidth(isMobile ? 0.4 : 0.5),
-            1: FlexColumnWidth(isMobile ? 1.5 : 2),
-            2: FlexColumnWidth(isMobile ? 1.5 : 2),
-            3: FlexColumnWidth(isMobile ? 2.0 : 3),
-            4: FlexColumnWidth(isMobile ? 1.2 : 1.5),
-          },
-          children: staffRows,
-        ),
-      ],
+      ),
     );
   }
 
@@ -1444,21 +1448,19 @@ class _EmployeeReportScreenState extends State<EmployeeReportScreen> {
     cells.add(
       Container(
         color: bgColor,
+        padding: EdgeInsets.symmetric(vertical: isMobile ? 6 : 10, horizontal: isMobile ? 4 : 8),
         child: Row(
+          mainAxisAlignment: MainAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            if (grp.isNotEmpty)
-              Expanded(
-                flex: 1,
-                child: Padding(
-                  padding: EdgeInsets.only(left: isMobile ? 4 : 8),
-                  child: Text(
-                    grp,
-                    style: style.copyWith(fontWeight: FontWeight.bold),
-                  ),
-                ),
+            if (grp.isNotEmpty) ...[
+              Text(
+                grp,
+                style: style.copyWith(fontWeight: FontWeight.bold),
               ),
-            if (grp.isEmpty) const Expanded(flex: 1, child: SizedBox()),
-            Expanded(flex: 1, child: Text(sub, style: style)),
+              const SizedBox(width: 6),
+            ],
+            Text(sub, style: style),
           ],
         ),
       ),
