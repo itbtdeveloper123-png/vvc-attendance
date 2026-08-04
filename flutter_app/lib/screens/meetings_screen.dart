@@ -20,6 +20,7 @@ import '../services/api_service.dart';
 import '../services/meeting_audio_draft_service.dart';
 import '../services/meeting_audio_player_service.dart';
 import '../services/meeting_recording_service.dart';
+import '../services/gemini_meeting_service.dart';
 import '../utils/app_theme.dart';
 import '../providers/user_provider.dart';
 import '../widgets/app_widgets.dart';
@@ -90,12 +91,84 @@ class _MeetingsScreenState extends State<MeetingsScreen>
   VoidCallback? _playerServiceListener;
 
   // AI Summary State
+  final GeminiMeetingService _geminiMeetingService = GeminiMeetingService();
   bool _isSummarizing = false;
   String? _currentAISummary;
   String? _currentTranscript;
   Map<String, dynamic>? _currentAIAnalysis;
   String? _currentSummaryError;
   String? _currentSummaryStatusMessage;
+
+  Future<void> _showGeminiKeyDialog() async {
+    final currentKey = await GeminiMeetingService.getApiKey();
+    final keyController = TextEditingController(text: currentKey);
+
+    if (!mounted) return;
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.key_rounded, color: Colors.amber, size: 22),
+            const SizedBox(width: 8),
+            Text(
+              'កំណត់ Gemini API Key',
+              style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'បញ្ចូល Gemini API Key ដើម្បីប្រើប្រាស់ google_generative_ai វិភាគសំឡេងប្រជុំផ្ទាល់៖',
+              style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 12),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: keyController,
+              obscureText: true,
+              style: GoogleFonts.inter(color: Colors.white, fontSize: 13),
+              decoration: InputDecoration(
+                hintText: 'AIzaSy...',
+                hintStyle: GoogleFonts.inter(color: Colors.white24),
+                filled: true,
+                fillColor: Colors.white.withAlpha(15),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('បោះបង់', style: GoogleFonts.kantumruyPro(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final newKey = keyController.text.trim();
+              await GeminiMeetingService.saveApiKey(newKey);
+              if (ctx.mounted) Navigator.pop(ctx);
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('បានរក្សាទុក Gemini API Key រួចរាល់', style: GoogleFonts.kantumruyPro()),
+                    backgroundColor: Colors.teal,
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D9488)),
+            child: Text('រក្សាទុក', style: GoogleFonts.kantumruyPro(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -201,75 +274,127 @@ class _MeetingsScreenState extends State<MeetingsScreen>
       final int meetingId = int.parse(meeting['id'].toString());
       final audioPath = (meeting['audio_path'] ?? meeting['audio_file_path'] ?? '')
           .toString();
-      
+      final topic = meeting['topic']?.toString();
+      final department = meeting['department']?.toString();
+      final description = meeting['description']?.toString() ?? '';
+
       modalSetState(() {
         _isSummarizing = true;
         _currentSummaryError = null;
-        _currentSummaryStatusMessage = "កំពុងចាប់ផ្តើមការសង្ខេបដោយ AI...";
+        _currentSummaryStatusMessage = "កំពុងចាប់ផ្តើមការសង្ខេបដោយ Gemini AI...";
       });
-      
-      // Try the new PHP endpoint first if audio file exists
-      if (audioPath.isNotEmpty && !force) {
+
+      String? apiKey = await GeminiMeetingService.getApiKey();
+      if (apiKey.isEmpty) {
+        modalSetState(() {
+          _isSummarizing = false;
+        });
+        await _showGeminiKeyDialog();
+        apiKey = await GeminiMeetingService.getApiKey();
+        if (apiKey.isEmpty) {
+          throw Exception('មិនទាន់បានបញ្ចូល Gemini API Key ទេ។');
+        }
+        modalSetState(() {
+          _isSummarizing = true;
+        });
+      }
+
+      String? summaryResult;
+
+      // 1. Try Gemini File API via google_generative_ai if audio file is available
+      if (audioPath.isNotEmpty) {
         try {
-          final fullAudioPath = ApiService.getFullImageUrl(audioPath);
-          final tempFile = await _downloadAudioFile(fullAudioPath);
-          
           modalSetState(() {
-            _currentSummaryStatusMessage = "កំពុងបម្លែងសំឡេង...";
+            _currentSummaryStatusMessage = "កំពុងទាញយកសំឡេង និងវិភាគដោយ Gemini File API...";
           });
-          
-          final resp = await _api.processMeetingAudio(
-            audioPath: tempFile.path,
-            meetingId: meetingId.toString(),
-            meetingTitle: meeting['topic']?.toString(),
-            department: meeting['department']?.toString(),
+
+          final fullAudioUrl = ApiService.getFullImageUrl(audioPath);
+          final tempAudioFile = await _downloadAudioFile(fullAudioUrl);
+
+          summaryResult = await _geminiMeetingService.summarizeAudioFile(
+            audioFile: tempAudioFile,
+            apiKey: apiKey,
+            meetingTitle: topic,
+            department: department,
           );
-          
-          if (resp['status'] == 'success') {
-            modalSetState(() {
-              _currentAISummary = resp['summary'];
-              _currentTranscript = resp['transcript']?.toString();
-              _currentSummaryError = null;
-              _currentSummaryStatusMessage = null;
-              _isSummarizing = false;
-            });
-            return;
-          }
         } catch (e) {
-          // Fall back to old method if new endpoint fails
-          if (kDebugMode) print('New endpoint failed, falling back: $e');
+          if (kDebugMode) print('Gemini direct audio error: $e');
         }
       }
-      
-      // Fallback to old method
-      Map<String, dynamic> resp = await _api.summarizeMeeting(
-        meetingId,
-        force: force,
-      );
-      if ((resp['success'] == true) && (resp['processing'] == true)) {
-        modalSetState(() {
-          _currentSummaryStatusMessage =
-              resp['message']?.toString().trim().isNotEmpty == true
-              ? resp['message']!.toString()
-              : "កំពុងបម្លែងសំឡេង និងសង្ខេបដោយ AI...\nសូមរង់ចាំបន្តិច";
-        });
-        resp = await _waitForAISummaryResult(meetingId, modalSetState);
+
+      // 2. Try Gemini text summarization if description/text exists and audio failed/missing
+      if ((summaryResult == null || summaryResult.isEmpty) && description.trim().isNotEmpty) {
+        try {
+          modalSetState(() {
+            _currentSummaryStatusMessage = "កំពុងវិភាគអត្ថបទប្រជុំដោយ Gemini AI...";
+          });
+
+          summaryResult = await _geminiMeetingService.summarizeTranscript(
+            transcriptText: description,
+            apiKey: apiKey,
+            meetingTitle: topic,
+            department: department,
+          );
+        } catch (e) {
+          if (kDebugMode) print('Gemini direct text error: $e');
+        }
       }
-      if (resp['success']) {
+
+      // 3. Fallback to PHP backend endpoints if direct Gemini calls failed
+      if (summaryResult == null || summaryResult.isEmpty) {
+        if (audioPath.isNotEmpty) {
+          try {
+            modalSetState(() {
+              _currentSummaryStatusMessage = "កំពុងបម្លែងសំឡេងតាមប្រព័ន្ធកណ្តាល...";
+            });
+            final fullAudioUrl = ApiService.getFullImageUrl(audioPath);
+            final tempAudioFile = await _downloadAudioFile(fullAudioUrl);
+
+            final resp = await _api.processMeetingAudio(
+              audioPath: tempAudioFile.path,
+              meetingId: meetingId.toString(),
+              meetingTitle: topic,
+              department: department,
+            );
+
+            if (resp['status'] == 'success') {
+              summaryResult = resp['summary']?.toString();
+              _currentTranscript = resp['transcript']?.toString();
+            }
+          } catch (e) {
+            if (kDebugMode) print('PHP audio processing failed: $e');
+          }
+        }
+
+        if (summaryResult == null || summaryResult.isEmpty) {
+          Map<String, dynamic> resp = await _api.summarizeMeeting(meetingId, force: force);
+          if ((resp['success'] == true) && (resp['processing'] == true)) {
+            modalSetState(() {
+              _currentSummaryStatusMessage = "កំពុងបម្លែងសំឡេង និងសង្ខេបដោយ AI...\nសូមរង់ចាំបន្តិច";
+            });
+            resp = await _waitForAISummaryResult(meetingId, modalSetState);
+          }
+          if (resp['success'] == true) {
+            summaryResult = resp['summary']?.toString();
+            _currentTranscript = resp['transcript']?.toString();
+            _currentAIAnalysis = _parseAnalysisData(resp['analysis']);
+          } else {
+            throw resp['message'] ?? 'មិនអាចសង្ខេបបានទេ';
+          }
+        }
+      }
+
+      if (summaryResult != null && summaryResult.isNotEmpty) {
         modalSetState(() {
-          _currentAISummary = resp['summary'];
-          _currentTranscript = resp['transcript']?.toString();
-          _currentAIAnalysis = _parseAnalysisData(resp['analysis']);
-          meeting['summary'] = resp['summary'];
-          meeting['transcript_text'] = resp['transcript'];
-          meeting['summary_json'] = jsonEncode(_currentAIAnalysis ?? {});
-          meeting['summary_generated_at'] = resp['generated_at'];
+          _currentAISummary = summaryResult;
+          meeting['summary'] = summaryResult;
+          meeting['transcript_text'] = _currentTranscript;
           _currentSummaryError = null;
           _currentSummaryStatusMessage = null;
           _isSummarizing = false;
         });
       } else {
-        throw resp['message'] ?? 'Failed';
+        throw 'មិនអាចសង្ខេបខ្លឹមសារបានទេ';
       }
     } catch (e) {
       final friendly = _friendlySummaryError(e.toString());
@@ -279,9 +404,7 @@ class _MeetingsScreenState extends State<MeetingsScreen>
         _currentSummaryStatusMessage = null;
       });
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(friendly)));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendly)));
       }
     }
   }

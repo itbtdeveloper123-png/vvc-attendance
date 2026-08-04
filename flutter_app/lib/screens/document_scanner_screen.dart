@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -8,9 +9,13 @@ import 'package:image_picker/image_picker.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:image/image.dart' as img;
+import 'package:path/path.dart' as path;
 import '../services/ocr_service.dart' as ocr;
 import '../services/document_history_service.dart';
 import '../widgets/export_modal.dart';
+import 'passport_photo_screen.dart';
+import 'digital_ink_screen.dart';
 
 /// Document Scanner Screen - Premium UI with Native Document Scanning
 /// 
@@ -46,6 +51,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
   
   // Multi-page scanning
   List<String> _scannedImagePaths = [];
+  // ignore: unused_field
   bool _isMultiPageMode = false;
   int _currentPageIndex = 0;
   late PageController _pageController;
@@ -67,6 +73,80 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
   
   // Selected filter
   ImageFilter _selectedFilter = ImageFilter.original;
+
+  // Page rotations (index -> angle degrees: 0, 90, 180, 270)
+  final Map<int, int> _pageRotations = {};
+
+  /// Helper to prepare processed image paths (baking filters and rotation)
+  Future<List<String>> _prepareProcessedImagePaths() async {
+    final List<String> processedPaths = [];
+    for (int i = 0; i < _scannedImagePaths.length; i++) {
+      final path = _scannedImagePaths[i];
+      final rotation = _pageRotations[i] ?? 0;
+      if (_selectedFilter == ImageFilter.original && rotation == 0) {
+        processedPaths.add(path);
+      } else {
+        final processedFile = await _bakeImageEffects(path, rotation, _selectedFilter);
+        processedPaths.add(processedFile.path);
+      }
+    }
+    return processedPaths.isNotEmpty ? processedPaths : [_scannedImagePath ?? ''];
+  }
+
+  /// Bake rotation and filter effects into a temporary JPG file
+  Future<File> _bakeImageEffects(String imagePath, int rotationDegrees, ImageFilter filter) async {
+    try {
+      final bytes = await File(imagePath).readAsBytes();
+      img.Image? image = img.decodeImage(bytes);
+      if (image == null) return File(imagePath);
+
+      if (rotationDegrees != 0) {
+        image = img.copyRotate(image, angle: rotationDegrees);
+      }
+
+      if (filter == ImageFilter.blackAndWhite) {
+        image = img.grayscale(image);
+      } else if (filter == ImageFilter.magicColor) {
+        image = img.adjustColor(image, contrast: 1.25, saturation: 1.25);
+      } else if (filter == ImageFilter.enhanced) {
+        image = img.adjustColor(image, contrast: 1.4, amount: 1.1);
+      }
+
+      final tempDir = await getTemporaryDirectory();
+      final outPath = '${tempDir.path}/proc_${DateTime.now().millisecondsSinceEpoch}_${path.basename(imagePath)}';
+      final encodedJpg = img.encodeJpg(image, quality: 92);
+      final outFile = File(outPath);
+      await outFile.writeAsBytes(encodedJpg);
+      return outFile;
+    } catch (e) {
+      return File(imagePath);
+    }
+  }
+
+  /// Open crop dialog for current page
+  Future<void> _cropCurrentImage() async {
+    if (_scannedImagePaths.isEmpty) return;
+
+    final currentPath = _scannedImagePaths[_currentPageIndex];
+    final currentRotation = _pageRotations[_currentPageIndex] ?? 0;
+
+    final croppedPath = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => ImageCropperDialog(
+        imagePath: currentPath,
+        initialRotation: currentRotation,
+      ),
+    );
+
+    if (croppedPath != null && mounted) {
+      setState(() {
+        _scannedImagePaths[_currentPageIndex] = croppedPath;
+        _filteredImagePath = croppedPath;
+        _pageRotations[_currentPageIndex] = 0;
+      });
+    }
+  }
 
   @override
   void initState() {
@@ -205,29 +285,14 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
     }
   }
 
-  /// Apply image filter (simplified - mostly for visual feedback)
+  /// Apply image filter (updates color filter live on preview)
   Future<void> _applyFilter(ImageFilter filter) async {
     if (_scannedImagePaths.isEmpty) return;
 
     setState(() {
       _selectedFilter = filter;
-      _isProcessing = true;
+      _filteredImagePath = _scannedImagePaths[_currentPageIndex];
     });
-
-    try {
-      // For now, just use the scanned image as-is
-      // The native scanner already provides color enhancement
-      // Future: Add more sophisticated filter processing if needed
-      setState(() {
-        _filteredImagePath = _scannedImagePaths[_currentPageIndex];
-        _isProcessing = false;
-      });
-    } catch (e) {
-      setState(() {
-        _isProcessing = false;
-        _errorMessage = 'Filter application failed: $e';
-      });
-    }
   }
 
   /// Extract text from scanned document using OCR
@@ -408,7 +473,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
   Future<void> _exportToPDF() async {
     if (_scannedImagePaths.isEmpty && _scannedImagePath == null) return;
 
-    final imagePaths = _isMultiPageMode ? _scannedImagePaths : [_scannedImagePath!];
+    final imagePaths = await _prepareProcessedImagePaths();
     
     // Show export modal
     if (mounted) {
@@ -433,12 +498,14 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
     });
 
     try {
+      final processedPaths = await _prepareProcessedImagePaths();
+
       switch (format) {
         case ExportFormat.pdf:
-          await _exportAsPDF(fileName, imagePaths);
+          await _exportAsPDF(fileName, processedPaths);
           break;
         case ExportFormat.images:
-          await _exportAsImages(fileName, imagePaths);
+          await _exportAsImages(fileName, processedPaths);
           break;
         case ExportFormat.text:
           await _exportAsText(fileName);
@@ -446,7 +513,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
       }
 
       // Save to history
-      await _saveToHistory(fileName, imagePaths);
+      await _saveToHistory(fileName, processedPaths);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -706,6 +773,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
       _scannedImagePath = null;
       _filteredImagePath = null;
       _scannedImagePaths = [];
+      _pageRotations.clear();
       _isMultiPageMode = false;
       _currentPageIndex = 0;
       _ocrResult = null;
@@ -1252,31 +1320,41 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             _buildQuickActionItem(
-              icon: Icons.badge_rounded,
-              label: 'កាតសម្គាល់',
+              icon: Icons.portrait_rounded,
+              label: 'រូប 4x6 / 3x4',
               color: Colors.cyanAccent,
-              onTap: _openNativeScanner,
-            ),
-            _buildQuickActionItem(
-              icon: Icons.text_fields_rounded,
-              label: 'ទៅជាអក្សរ',
-              color: Colors.orangeAccent,
-              onTap: () async {
-                await _importFromGallery();
-                if (_scannedImagePaths.isNotEmpty) {
-                  await _extractText();
-                }
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => PassportPhotoScreen(
+                      initialImagePath: _scannedImagePaths.isNotEmpty ? _scannedImagePaths[_currentPageIndex] : null,
+                    ),
+                  ),
+                );
               },
             ),
             _buildQuickActionItem(
-              icon: Icons.portrait_rounded,
-              label: 'បង្កើនសម្រស់',
+              icon: Icons.draw_rounded,
+              label: 'សរសេរដៃ',
+              color: Colors.orangeAccent,
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const DigitalInkScreen()),
+                );
+              },
+            ),
+            _buildQuickActionItem(
+              icon: Icons.text_fields_rounded,
+              label: 'អត្ថបទ OCR',
               color: Colors.pinkAccent,
               onTap: () async {
-                // Import image then jump straight to enhanced filter
-                await _importFromGallery();
-                if (_scannedImagePaths.isNotEmpty && mounted) {
-                  await _applyFilter(ImageFilter.enhanced);
+                if (_scannedImagePaths.isEmpty) {
+                  await _importFromGallery();
+                }
+                if (_scannedImagePaths.isNotEmpty) {
+                  await _extractText();
                 }
               },
             ),
@@ -1493,6 +1571,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
                         },
                         itemCount: _scannedImagePaths.length,
                         itemBuilder: (context, index) {
+                          final rotation = _pageRotations[index] ?? 0;
                           return InteractiveViewer(
                             minScale: 0.5,
                             maxScale: 4.0,
@@ -1508,9 +1587,15 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
                                     ),
                                   ],
                                 ),
-                                child: Image.file(
-                                  File(_scannedImagePaths[index]),
-                                  fit: BoxFit.contain,
+                                child: Transform.rotate(
+                                  angle: rotation * (math.pi / 180),
+                                  child: ColorFiltered(
+                                    colorFilter: _getColorFilter(_selectedFilter),
+                                    child: Image.file(
+                                      File(_scannedImagePaths[index]),
+                                      fit: BoxFit.contain,
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
@@ -1662,6 +1747,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
             itemBuilder: (context, index) {
               final filter = ImageFilter.values[index];
               final isSelected = _selectedFilter == filter;
+              final currentRotation = _pageRotations[_currentPageIndex] ?? 0;
               return GestureDetector(
                 onTap: () => _applyFilter(filter),
                 child: Container(
@@ -1684,11 +1770,14 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
                         child: _scannedImagePaths.isNotEmpty
                             ? ColorFiltered(
                                 colorFilter: _getColorFilter(filter),
-                                child: Image.file(
-                                  File(_scannedImagePaths[_currentPageIndex]),
-                                  width: 70,
-                                  height: 80,
-                                  fit: BoxFit.cover,
+                                child: Transform.rotate(
+                                  angle: currentRotation * (math.pi / 180),
+                                  child: Image.file(
+                                    File(_scannedImagePaths[_currentPageIndex]),
+                                    width: 70,
+                                    height: 80,
+                                    fit: BoxFit.cover,
+                                  ),
                                 ),
                               )
                             : Container(
@@ -1765,28 +1854,17 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
               _buildToolbarItem(
                 icon: Icons.crop_rounded,
                 label: 'កាត់',
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('មុខងារកាត់នឹងមកឆាប់ៗ',
-                          style: GoogleFonts.kantumruyPro()),
-                      duration: const Duration(seconds: 1),
-                    ),
-                  );
-                },
+                onTap: _cropCurrentImage,
               ),
               // Rotate
               _buildToolbarItem(
                 icon: Icons.rotate_90_degrees_ccw_rounded,
                 label: 'បង្វិល',
                 onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('មុខងារបង្វិលនឹងមកឆាប់ៗ',
-                          style: GoogleFonts.kantumruyPro()),
-                      duration: const Duration(seconds: 1),
-                    ),
-                  );
+                  setState(() {
+                    final currentRot = _pageRotations[_currentPageIndex] ?? 0;
+                    _pageRotations[_currentPageIndex] = (currentRot + 90) % 360;
+                  });
                 },
               ),
               // OCR - Extract Text
@@ -2027,4 +2105,464 @@ enum ImageFilter {
   magicColor,
   blackAndWhite,
   enhanced,
+}
+
+/// Interactive Image Cropper Dialog with 4-Corner Perspective Unwarping (CamScanner Style)
+class ImageCropperDialog extends StatefulWidget {
+  final String imagePath;
+  final int initialRotation;
+
+  const ImageCropperDialog({
+    super.key,
+    required this.imagePath,
+    this.initialRotation = 0,
+  });
+
+  @override
+  State<ImageCropperDialog> createState() => _ImageCropperDialogState();
+}
+
+class _ImageCropperDialogState extends State<ImageCropperDialog> {
+  // 4 corners normalized (0.0 to 1.0): Top-Left, Top-Right, Bottom-Right, Bottom-Left
+  Offset _tl = const Offset(0.06, 0.06);
+  Offset _tr = const Offset(0.94, 0.06);
+  Offset _br = const Offset(0.94, 0.94);
+  Offset _bl = const Offset(0.06, 0.94);
+  bool _isProcessing = false;
+
+  void _resetCrop() {
+    setState(() {
+      _tl = const Offset(0.0, 0.0);
+      _tr = const Offset(1.0, 0.0);
+      _br = const Offset(1.0, 1.0);
+      _bl = const Offset(0.0, 1.0);
+    });
+  }
+
+  void _applyDefaultAutoQuad() {
+    setState(() {
+      _tl = const Offset(0.06, 0.06);
+      _tr = const Offset(0.94, 0.06);
+      _br = const Offset(0.94, 0.94);
+      _bl = const Offset(0.06, 0.94);
+    });
+  }
+
+  void _applyAspectRatio(double? ratio) {
+    if (ratio == null) {
+      _resetCrop();
+      return;
+    }
+    setState(() {
+      double w = 0.88;
+      double h = w / ratio;
+      if (h > 0.88) {
+        h = 0.88;
+        w = h * ratio;
+      }
+      double left = 0.5 - w / 2;
+      double right = 0.5 + w / 2;
+      double top = 0.5 - h / 2;
+      double bottom = 0.5 + h / 2;
+
+      _tl = Offset(left, top);
+      _tr = Offset(right, top);
+      _br = Offset(right, bottom);
+      _bl = Offset(left, bottom);
+    });
+  }
+
+  Future<void> _confirmCrop() async {
+    setState(() {
+      _isProcessing = true;
+    });
+
+    try {
+      final bytes = await File(widget.imagePath).readAsBytes();
+      img.Image? decoded = img.decodeImage(bytes);
+      if (decoded == null) {
+        if (mounted) Navigator.pop(context, null);
+        return;
+      }
+
+      if (widget.initialRotation != 0) {
+        decoded = img.copyRotate(decoded, angle: widget.initialRotation);
+      }
+
+      final double imgW = decoded.width.toDouble();
+      final double imgH = decoded.height.toDouble();
+
+      final pTL = Offset((_tl.dx * imgW).clamp(0.0, imgW - 1), (_tl.dy * imgH).clamp(0.0, imgH - 1));
+      final pTR = Offset((_tr.dx * imgW).clamp(0.0, imgW - 1), (_tr.dy * imgH).clamp(0.0, imgH - 1));
+      final pBR = Offset((_br.dx * imgW).clamp(0.0, imgW - 1), (_br.dy * imgH).clamp(0.0, imgH - 1));
+      final pBL = Offset((_bl.dx * imgW).clamp(0.0, imgW - 1), (_bl.dy * imgH).clamp(0.0, imgH - 1));
+
+      final unwarped = _warpPerspective(decoded, pTL, pTR, pBR, pBL);
+
+      final tempDir = await getTemporaryDirectory();
+      final outPath = '${tempDir.path}/unwarped_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final croppedJpg = img.encodeJpg(unwarped, quality: 92);
+      final outFile = File(outPath);
+      await outFile.writeAsBytes(croppedJpg);
+
+      if (mounted) {
+        Navigator.pop(context, outPath);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('តម្រង់រូបភាពមិនបានជោគជ័យ៖ $e', style: GoogleFonts.kantumruyPro())),
+        );
+        Navigator.pop(context, null);
+      }
+    }
+  }
+
+  /// 4-Point Homography Perspective Transform Algorithm
+  img.Image _warpPerspective(img.Image src, Offset pTL, Offset pTR, Offset pBR, Offset pBL) {
+    final double x0 = pTL.dx, y0 = pTL.dy;
+    final double x1 = pTR.dx, y1 = pTR.dy;
+    final double x2 = pBR.dx, y2 = pBR.dy;
+    final double x3 = pBL.dx, y3 = pBL.dy;
+
+    final double w1 = math.sqrt((x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0));
+    final double w2 = math.sqrt((x2 - x3) * (x2 - x3) + (y2 - y3) * (y2 - y3));
+    final int dstW = math.max(10, math.max(w1, w2).round());
+
+    final double h1 = math.sqrt((x3 - x0) * (x3 - x0) + (y3 - y0) * (y3 - y0));
+    final double h2 = math.sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1));
+    final int dstH = math.max(10, math.max(h1, h2).round());
+
+    final double dx = x0 - x1 + x2 - x3;
+    final double dy = y0 - y1 + y2 - y3;
+
+    final double a = dstW * (x2 - x1);
+    final double b = dstH * (x2 - x3);
+    final double c = dstW * (y2 - y1);
+    final double d = dstH * (y2 - y3);
+
+    final double det = a * d - b * c;
+
+    double h20 = 0.0;
+    double h21 = 0.0;
+    if (det.abs() > 1e-7) {
+      h20 = (dx * d - b * dy) / det;
+      h21 = (a * dy - dx * c) / det;
+    }
+
+    final double h00 = (x1 - x0 + dstW * x1 * h20) / dstW;
+    final double h10 = (y1 - y0 + dstW * y1 * h20) / dstW;
+    final double h01 = (x3 - x0 + dstH * x3 * h21) / dstH;
+    final double h11 = (y3 - y0 + dstH * y3 * h21) / dstH;
+    final double h02 = x0;
+    final double h12 = y0;
+
+    final img.Image dst = img.Image(width: dstW, height: dstH);
+    final int srcW = src.width;
+    final int srcH = src.height;
+
+    for (int v = 0; v < dstH; v++) {
+      for (int u = 0; u < dstW; u++) {
+        final double den = u * h20 + v * h21 + 1.0;
+        final double srcX = (u * h00 + v * h01 + h02) / den;
+        final double srcY = (u * h10 + v * h11 + h12) / den;
+
+        if (srcX >= 0 && srcX < srcW && srcY >= 0 && srcY < srcH) {
+          final int xFloor = srcX.floor();
+          final int yFloor = srcY.floor();
+          final int xCeil = math.min(xFloor + 1, srcW - 1);
+          final int yCeil = math.min(yFloor + 1, srcH - 1);
+
+          final double fx = srcX - xFloor;
+          final double fy = srcY - yFloor;
+
+          final p1 = src.getPixel(xFloor, yFloor);
+          final p2 = src.getPixel(xCeil, yFloor);
+          final p3 = src.getPixel(xFloor, yCeil);
+          final p4 = src.getPixel(xCeil, yCeil);
+
+          final r = ((1 - fx) * (1 - fy) * p1.r + fx * (1 - fy) * p2.r + (1 - fx) * fy * p3.r + fx * fy * p4.r).round().clamp(0, 255);
+          final g = ((1 - fx) * (1 - fy) * p1.g + fx * (1 - fy) * p2.g + (1 - fx) * fy * p3.g + fx * fy * p4.g).round().clamp(0, 255);
+          final b = ((1 - fx) * (1 - fy) * p1.b + fx * (1 - fy) * p2.b + (1 - fx) * fy * p3.b + fx * fy * p4.b).round().clamp(0, 255);
+          final aVal = ((1 - fx) * (1 - fy) * p1.a + fx * (1 - fy) * p2.a + (1 - fx) * fy * p3.a + fx * fy * p4.a).round().clamp(0, 255);
+
+          dst.setPixelRgba(u, v, r, g, b, aVal);
+        }
+      }
+    }
+
+    return dst;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0A0A0A),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF141428),
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.close, color: Colors.white),
+          onPressed: () => Navigator.pop(context, null),
+        ),
+        title: Text(
+          'តម្រង់ និងកាត់ក្រដាស (4-Corner Warp)',
+          style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+        ),
+        actions: [
+          TextButton(
+            onPressed: _resetCrop,
+            child: Text(
+              'រូបពេញ',
+              style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 13),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.check_rounded, color: Color(0xFF0D9488), size: 28),
+            onPressed: _isProcessing ? null : _confirmCrop,
+          ),
+        ],
+      ),
+      body: _isProcessing
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const CircularProgressIndicator(color: Color(0xFF0D9488)),
+                  const SizedBox(height: 16),
+                  Text('កំពុងតម្រង់ក្រដាសរលូនស្អាត...', style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 14)),
+                ],
+              ),
+            )
+          : Column(
+              children: [
+                Expanded(
+                  child: Container(
+                    margin: const EdgeInsets.all(16),
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final maxWidth = constraints.maxWidth;
+                        final maxHeight = constraints.maxHeight;
+
+                        return Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            // Base Image
+                            Positioned.fill(
+                              child: Transform.rotate(
+                                angle: widget.initialRotation * (math.pi / 180),
+                                child: Image.file(
+                                  File(widget.imagePath),
+                                  fit: BoxFit.contain,
+                                ),
+                              ),
+                            ),
+
+                            // Overlay Polygon Dimming
+                            Positioned.fill(
+                              child: CustomPaint(
+                                painter: PolygonCropOverlayPainter(
+                                  tl: _tl,
+                                  tr: _tr,
+                                  br: _br,
+                                  bl: _bl,
+                                ),
+                              ),
+                            ),
+
+                            // Corner Handle: Top-Left
+                            _buildCornerWidget(
+                              pos: _tl,
+                              maxWidth: maxWidth,
+                              maxHeight: maxHeight,
+                              onDrag: (newPos) {
+                                setState(() {
+                                  _tl = newPos;
+                                });
+                              },
+                            ),
+
+                            // Corner Handle: Top-Right
+                            _buildCornerWidget(
+                              pos: _tr,
+                              maxWidth: maxWidth,
+                              maxHeight: maxHeight,
+                              onDrag: (newPos) {
+                                setState(() {
+                                  _tr = newPos;
+                                });
+                              },
+                            ),
+
+                            // Corner Handle: Bottom-Right
+                            _buildCornerWidget(
+                              pos: _br,
+                              maxWidth: maxWidth,
+                              maxHeight: maxHeight,
+                              onDrag: (newPos) {
+                                setState(() {
+                                  _br = newPos;
+                                });
+                              },
+                            ),
+
+                            // Corner Handle: Bottom-Left
+                            _buildCornerWidget(
+                              pos: _bl,
+                              maxWidth: maxWidth,
+                              maxHeight: maxHeight,
+                              onDrag: (newPos) {
+                                setState(() {
+                                  _bl = newPos;
+                                });
+                              },
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                ),
+
+                // Preset Controls Bar
+                Container(
+                  color: const Color(0xFF141428),
+                  padding: EdgeInsets.only(
+                    top: 12,
+                    bottom: MediaQuery.of(context).padding.bottom + 12,
+                    left: 16,
+                    right: 16,
+                  ),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        _buildRatioItem('តម្រង់ស្វ័យប្រវត្តិ', _applyDefaultAutoQuad, isPrimary: true),
+                        const SizedBox(width: 10),
+                        _buildRatioItem('រូបពេញ', () => _applyAspectRatio(null)),
+                        const SizedBox(width: 10),
+                        _buildRatioItem('1:1', () => _applyAspectRatio(1.0)),
+                        const SizedBox(width: 10),
+                        _buildRatioItem('3:4', () => _applyAspectRatio(3 / 4)),
+                        const SizedBox(width: 10),
+                        _buildRatioItem('4:3', () => _applyAspectRatio(4 / 3)),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+    );
+  }
+
+  Widget _buildCornerWidget({
+    required Offset pos,
+    required double maxWidth,
+    required double maxHeight,
+    required ValueChanged<Offset> onDrag,
+  }) {
+    return Positioned(
+      left: (pos.dx * maxWidth) - 22,
+      top: (pos.dy * maxHeight) - 22,
+      child: GestureDetector(
+        onPanUpdate: (details) {
+          final newDx = (pos.dx * maxWidth + details.delta.dx) / maxWidth;
+          final newDy = (pos.dy * maxHeight + details.delta.dy) / maxHeight;
+          onDrag(Offset(newDx.clamp(0.0, 1.0), newDy.clamp(0.0, 1.0)));
+        },
+        child: Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: const Color(0xFF0D9488).withValues(alpha: 0.85),
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: 2.5),
+            boxShadow: const [
+              BoxShadow(color: Colors.black54, blurRadius: 6, spreadRadius: 1),
+            ],
+          ),
+          child: Center(
+            child: Container(
+              width: 8,
+              height: 8,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRatioItem(String label, VoidCallback onTap, {bool isPrimary = false}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: isPrimary ? const Color(0xFF0D9488) : Colors.white.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: isPrimary ? const Color(0xFF0D9488) : Colors.white.withValues(alpha: 0.15)),
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.kantumruyPro(
+            color: Colors.white,
+            fontSize: 12,
+            fontWeight: isPrimary ? FontWeight.bold : FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class PolygonCropOverlayPainter extends CustomPainter {
+  final Offset tl;
+  final Offset tr;
+  final Offset br;
+  final Offset bl;
+
+  PolygonCropOverlayPainter({
+    required this.tl,
+    required this.tr,
+    required this.br,
+    required this.bl,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final pTL = Offset(tl.dx * size.width, tl.dy * size.height);
+    final pTR = Offset(tr.dx * size.width, tr.dy * size.height);
+    final pBR = Offset(br.dx * size.width, br.dy * size.height);
+    final pBL = Offset(bl.dx * size.width, bl.dy * size.height);
+
+    final bgPath = Path()..addRect(Rect.fromLTWH(0, 0, size.width, size.height));
+
+    final polyPath = Path()
+      ..moveTo(pTL.dx, pTL.dy)
+      ..lineTo(pTR.dx, pTR.dy)
+      ..lineTo(pBR.dx, pBR.dy)
+      ..lineTo(pBL.dx, pBL.dy)
+      ..close();
+
+    final darkPath = Path.combine(PathOperation.difference, bgPath, polyPath);
+    final maskPaint = Paint()..color = Colors.black.withValues(alpha: 0.65);
+    canvas.drawPath(darkPath, maskPaint);
+
+    final borderPaint = Paint()
+      ..color = const Color(0xFF0D9488)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.5
+      ..strokeCap = StrokeCap.round;
+    canvas.drawPath(polyPath, borderPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant PolygonCropOverlayPainter oldDelegate) {
+    return oldDelegate.tl != tl || oldDelegate.tr != tr || oldDelegate.br != br || oldDelegate.bl != bl;
+  }
 }
