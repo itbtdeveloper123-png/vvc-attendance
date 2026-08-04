@@ -524,8 +524,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
   // CONVERSATIONS LIST
   // ==========================================
   Widget _buildChatListSection() {
-    const int adIndex = 3; // Inject Sponsored Ad at index 3
-    final int listLength = 1 + customGroups.length + filteredUsers.length + 1; // +1 group template +1 Ad
+    final int listLength = 1 + customGroups.length + filteredUsers.length;
 
     return ListView.builder(
       shrinkWrap: true,
@@ -542,13 +541,8 @@ class _ChatListScreenState extends State<ChatListScreen> {
           return _buildCustomGroupTile(customGroups[index - 1]);
         }
 
-        // 3. Sponsored Porsche Ad (Ad Index)
-        if (index == adIndex) {
-          return _buildPorscheAdTile();
-        }
-
-        // 4. Team Members private chats (Index offset adjustments for Ad and Groups)
-        final int userIdx = index - 1 - customGroups.length - (index > adIndex ? 1 : 0);
+        // 3. Team Members private chats
+        final int userIdx = index - 1 - customGroups.length;
         if (userIdx >= 0 && userIdx < filteredUsers.length) {
           final user = filteredUsers[userIdx];
           return _buildUserConversationTile(user);
@@ -701,81 +695,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
     );
   }
 
-  // Sponsored Porsche Ad
-  Widget _buildPorscheAdTile() {
-    return InkWell(
-      onTap: () {},
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-        child: Row(
-          children: [
-            CircleAvatar(
-              radius: 30.0,
-              backgroundColor: const Color(0xFFF9FAFB),
-              child: ClipOval(
-                child: Image.network(
-                  'https://images.unsplash.com/photo-1614162692292-7ac56d7f7f1e?w=120&auto=format&fit=crop',
-                  width: 60.0,
-                  height: 60.0,
-                  fit: BoxFit.cover,
-                ),
-              ),
-            ),
-            const SizedBox(width: 14.0),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Text(
-                        'Porsche',
-                        style: GoogleFonts.inter(fontSize: 15.5, fontWeight: FontWeight.bold, color: MessengerTheme.textPrimary),
-                      ),
-                      const SizedBox(width: 6.0),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 5.0, vertical: 1.5),
-                        decoration: BoxDecoration(
-                          color: MessengerTheme.adBadgeBg,
-                          borderRadius: BorderRadius.circular(4.0),
-                        ),
-                        child: Text(
-                          'Ad',
-                          style: GoogleFonts.inter(fontSize: 9.0, fontWeight: FontWeight.w700, color: MessengerTheme.textSecondary),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4.0),
-                  Text(
-                    'The new Macan',
-                    style: GoogleFonts.kantumruyPro(fontSize: 13.5, color: MessengerTheme.textSecondary),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 2.0),
-                  Text(
-                    'មើលបន្ថែម',
-                    style: GoogleFonts.kantumruyPro(fontSize: 13.5, fontWeight: FontWeight.bold, color: MessengerTheme.activeBlue),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8.0),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8.0),
-              child: Image.network(
-                'https://images.unsplash.com/photo-1614162692292-7ac56d7f7f1e?w=150&auto=format&fit=crop',
-                width: 50.0,
-                height: 50.0,
-                fit: BoxFit.cover,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+
 
   // Real-time Employee Chat Tile (Firestore Stream-based)
   Widget _buildUserConversationTile(dynamic user) {
