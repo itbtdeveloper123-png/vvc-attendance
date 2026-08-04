@@ -103,6 +103,7 @@ class _TeamChatScreenState extends State<TeamChatScreen>
   String _searchQuery = '';
   List<String> _pinnedMessageIds = [];
   StreamSubscription? _typingSubscription;
+  Timer? _typingDebounceTimer;
 
   @override
   void initState() {
@@ -180,6 +181,13 @@ class _TeamChatScreenState extends State<TeamChatScreen>
     } catch (e) {
       debugPrint('Error updating typing status: $e');
     }
+  }
+
+  void _onTextChanged(String text) {
+    if (_typingDebounceTimer?.isActive ?? false) _typingDebounceTimer!.cancel();
+    _typingDebounceTimer = Timer(const Duration(milliseconds: 600), () {
+      _updateTypingStatus(text.isNotEmpty);
+    });
   }
 
   Future<void> _loadPinnedMessages() async {
@@ -678,17 +686,14 @@ class _TeamChatScreenState extends State<TeamChatScreen>
                     vertical: 8,
                   ),
                   child: Container(
-                    height: 48,
+                    height: 44,
                     decoration: BoxDecoration(
-                      color: AppTheme.bgCard.withValues(alpha: 0.7),
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.25),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
+                      color: const Color(0xFF1E293B).withValues(alpha: 0.9),
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.1),
+                        width: 0.8,
+                      ),
                     ),
                     child: TextField(
                       controller: _searchController,
@@ -1151,8 +1156,8 @@ class _TeamChatScreenState extends State<TeamChatScreen>
             // Reactions display
             if ((msg['reactions'] as Map?)?.isNotEmpty == true)
               Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: _buildReactionsDisplay(msg['reactions'] ?? {}),
+                padding: const EdgeInsets.only(top: 6),
+                child: _buildReactionsDisplay(docId, msg['reactions'] ?? {}),
               ),
           ],
         ),
@@ -1197,51 +1202,56 @@ class _TeamChatScreenState extends State<TeamChatScreen>
     );
   }
 
-  Widget _buildReactionsDisplay(Map<dynamic, dynamic> reactions) {
-    if (reactions.isEmpty) return const SizedBox();
+  Widget _buildReactionsDisplay(String docId, Map<dynamic, dynamic> reactions) {
+    if (reactions.isEmpty) return const SizedBox.shrink();
 
-    final reactionMap = Map<String, List<String>>.from(
-      reactions.map(
-        (k, v) => MapEntry(k.toString(), List<String>.from(v as List)),
-      ),
-    );
+    final validReactions = <String, List<String>>{};
+    reactions.forEach((k, v) {
+      if (v is List && v.isNotEmpty) {
+        validReactions[k.toString()] = List<String>.from(v);
+      }
+    });
+
+    if (validReactions.isEmpty) return const SizedBox.shrink();
 
     return Wrap(
-      spacing: 6,
-      children: reactionMap.entries.map((entry) {
+      spacing: 5,
+      runSpacing: 4,
+      children: validReactions.entries.map((entry) {
         final reacted = entry.value.contains(currentUserId);
         return GestureDetector(
           onTap: () {
             HapticFeedback.selectionClick();
-            _toggleReaction(entry.key);
+            _addReaction(docId, entry.key);
           },
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 220),
-            transitionBuilder: (child, anim) =>
-                ScaleTransition(scale: anim, child: child),
-            child: Container(
-              key: ValueKey('${entry.key}-${entry.value.length}-$reacted'),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: reacted
+                  ? const Color(0xFF6366F1).withValues(alpha: 0.28)
+                  : const Color(0xFF1E2942).withValues(alpha: 0.85),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
                 color: reacted
-                    ? AppTheme.primary.withValues(alpha: 0.14)
-                    : Colors.white.withValues(alpha: 0.04),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: reacted ? AppTheme.primaryLight : Colors.transparent,
-                ),
+                    ? const Color(0xFF818CF8)
+                    : Colors.white.withValues(alpha: 0.08),
+                width: 0.8,
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(entry.key, style: const TextStyle(fontSize: 14)),
-                  const SizedBox(width: 6),
-                  Text(
-                    '${entry.value.length}',
-                    style: const TextStyle(fontSize: 12),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(entry.key, style: const TextStyle(fontSize: 13)),
+                const SizedBox(width: 4),
+                Text(
+                  '${entry.value.length}',
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    color: reacted ? Colors.white : Colors.white70,
+                    fontWeight: FontWeight.bold,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         );
@@ -1249,19 +1259,17 @@ class _TeamChatScreenState extends State<TeamChatScreen>
     );
   }
 
-  Future<void> _toggleReaction(String emoji) async {
-    // This would need the message ID to update properly
-    debugPrint('Toggle reaction: $emoji');
-  }
-
   Widget _buildInputArea() {
     return Container(
-      constraints: const BoxConstraints(minHeight: 70),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      constraints: const BoxConstraints(minHeight: 65),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: AppTheme.bgDark.withValues(alpha: 0.9),
+        color: const Color(0xFF0F172A).withValues(alpha: 0.96),
         border: Border(
-          top: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+          top: BorderSide(
+            color: Colors.white.withValues(alpha: 0.08),
+            width: 0.5,
+          ),
         ),
       ),
       child: SafeArea(
@@ -1406,7 +1414,6 @@ class _TeamChatScreenState extends State<TeamChatScreen>
                             size: 18,
                           ),
                           onPressed: () {
-                            // Cancel the ongoing upload task if present
                             _cancelUpload(e.key);
                           },
                         ),
@@ -1461,183 +1468,101 @@ class _TeamChatScreenState extends State<TeamChatScreen>
                   ],
                 ),
               ),
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 200),
-              child: _isRecording
-                  ? _buildRecordingUI()
-                  : Row(
-                      key: const ValueKey('input_row'),
-                      children: [
-                        IconButton(
-                          icon: Icon(
-                            Icons.add_photo_alternate_rounded,
-                            color: AppTheme.primaryLight,
-                            size: 28,
-                          ),
-                          onPressed: _pickImage,
+
+            _isRecording
+                ? _buildRecordingUI()
+                : Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(
+                          Icons.add_photo_alternate_rounded,
+                          color: Color(0xFF818CF8),
+                          size: 26,
                         ),
-                        Expanded(
-                          child: Container(
-                            constraints: const BoxConstraints(
-                              minHeight: 48,
-                              maxHeight: 120,
+                        onPressed: _pickImage,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(
+                          minWidth: 40,
+                          minHeight: 40,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Container(
+                          constraints: const BoxConstraints(
+                            minHeight: 44,
+                            maxHeight: 120,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1E293B),
+                            borderRadius: BorderRadius.circular(22),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.1),
+                              width: 0.8,
                             ),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 2,
+                          ),
+                          child: TextField(
+                            controller: _msgController,
+                            style: GoogleFonts.kantumruyPro(
+                              color: Colors.white,
+                              fontSize: 14.5,
                             ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF1A2540).withValues(alpha: 0.85),
-                              borderRadius: BorderRadius.circular(26),
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.09),
-                                width: 0.8,
+                            maxLines: 5,
+                            minLines: 1,
+                            onChanged: _onTextChanged,
+                            decoration: InputDecoration(
+                              hintText: "សរសេរសារ...",
+                              border: InputBorder.none,
+                              hintStyle: GoogleFonts.kantumruyPro(
+                                color: Colors.white38,
+                                fontSize: 14,
                               ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.15),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: TextField(
-                                    controller: _msgController,
-                                    style: GoogleFonts.kantumruyPro(
-                                      color: Colors.white,
-                                      fontSize: 15,
-                                    ),
-                                    maxLines: 5,
-                                    minLines: 1,
-                                    onChanged: (v) {
-                                      setState(() {});
-                                      _updateTypingStatus(v.isNotEmpty);
-                                    },
-                                    decoration: InputDecoration(
-                                      hintText: "សរសេរសារ...",
-                                      border: InputBorder.none,
-                                      hintStyle: TextStyle(
-                                        color: Colors.white.withValues(alpha: 0.28),
-                                        fontSize: 14,
-                                      ),
-                                      isDense: true,
-                                      contentPadding: const EdgeInsets.symmetric(
-                                        vertical: 13,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
+                              isDense: true,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 11,
+                              ),
                             ),
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        _msgController.text.trim().isEmpty
-                            ? Material(
-                                color: Colors.transparent,
-                                child: Ink(
-                                  width: 48,
-                                  height: 48,
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      colors: [
-                                        AppTheme.primary.withValues(alpha: 1.0),
-                                        AppTheme.primaryLight.withValues(
-                                          alpha: 1.0,
-                                        ),
-                                      ],
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                    ),
-                                    shape: BoxShape.circle,
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withValues(
-                                          alpha: 0.35,
-                                        ),
-                                        blurRadius: 10,
-                                        offset: const Offset(0, 4),
-                                      ),
-                                    ],
-                                  ),
-                                  child: InkWell(
-                                    onTap: _isRecording
-                                        ? null
-                                        : _startRecording,
-                                    customBorder: const CircleBorder(),
-                                    splashColor: Colors.white24,
-                                    child: Center(
-                                      child: AnimatedSwitcher(
-                                        duration: const Duration(
-                                          milliseconds: 180,
-                                        ),
-                                        transitionBuilder: (child, anim) =>
-                                            ScaleTransition(
-                                              scale: anim,
-                                              child: child,
-                                            ),
-                                        child: Icon(
-                                          _isRecording
-                                              ? Icons.mic_rounded
-                                              : Icons.mic_none_rounded,
-                                          key: ValueKey<bool>(_isRecording),
-                                          color: Colors.white,
-                                          size: 22,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              )
-                            : Material(
-                                color: Colors.transparent,
-                                child: Ink(
-                                  width: 48,
-                                  height: 48,
-                                  decoration: BoxDecoration(
-                                    color: AppTheme.primary,
-                                    shape: BoxShape.circle,
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withValues(
-                                          alpha: 0.25,
-                                        ),
-                                        blurRadius: 8,
-                                        offset: const Offset(0, 3),
-                                      ),
-                                    ],
-                                  ),
-                                  child: InkWell(
-                                    onTap: () => _sendMessage(),
-                                    customBorder: const CircleBorder(),
-                                    splashColor: Colors.white24,
-                                    child: Center(
-                                      child: AnimatedSwitcher(
-                                        duration: const Duration(
-                                          milliseconds: 180,
-                                        ),
-                                        transitionBuilder: (child, anim) =>
-                                            ScaleTransition(
-                                              scale: anim,
-                                              child: child,
-                                            ),
-                                        child: const Icon(
-                                          Icons.send_rounded,
-                                          key: ValueKey<String>('send_icon'),
-                                          color: Colors.white,
-                                          size: 22,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
+                      ),
+                      const SizedBox(width: 8),
+                      ValueListenableBuilder<TextEditingValue>(
+                        valueListenable: _msgController,
+                        builder: (context, value, child) {
+                          final hasText = value.text.trim().isNotEmpty;
+                          return GestureDetector(
+                            onTap: () {
+                              if (hasText) {
+                                _sendMessage();
+                              } else {
+                                if (!_isRecording) _startRecording();
+                              }
+                            },
+                            child: Container(
+                              width: 44,
+                              height: 44,
+                              decoration: BoxDecoration(
+                                color: hasText
+                                    ? const Color(0xFF6366F1)
+                                    : const Color(0xFF334155),
+                                shape: BoxShape.circle,
                               ),
-                      ],
-                    ),
-            ),
+                              child: Icon(
+                                hasText
+                                    ? Icons.send_rounded
+                                    : Icons.mic_rounded,
+                                color: hasText
+                                    ? Colors.white
+                                    : const Color(0xFF38BDF8),
+                                size: 21,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
           ],
         ),
       ),
