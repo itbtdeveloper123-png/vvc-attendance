@@ -1112,50 +1112,62 @@ class _RequestListScreenState extends State<RequestListScreen> {
                               onPressed: () => _captureAndCopyImage(item),
                               icon: const Icon(
                                 Icons.copy_rounded,
-                                size: 20,
+                                size: 16,
                               ),
-                              label: Text(
-                                "Copy រូបភាព",
-                                style: GoogleFonts.kantumruyPro(
-                                  fontWeight: FontWeight.bold,
+                              label: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  "Copy រូបភាព",
+                                  style: GoogleFonts.kantumruyPro(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 11.5,
+                                  ),
+                                  maxLines: 1,
                                 ),
                               ),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppTheme.primary,
                                 foregroundColor: AppTheme.textPrimary,
+                                padding: const EdgeInsets.symmetric(horizontal: 4),
                                 shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14),
+                                  borderRadius: BorderRadius.circular(12),
                                 ),
-                                minimumSize: const Size(0, 50),
+                                minimumSize: const Size(0, 46),
                               ),
                             ),
                           ),
-                          const SizedBox(width: 12),
+                          const SizedBox(width: 8),
                           // PDF Button
                           Expanded(
                             child: ElevatedButton.icon(
                               onPressed: () => _generatePDF(item),
                               icon: const Icon(
                                 Icons.picture_as_pdf_rounded,
-                                size: 20,
+                                size: 16,
                               ),
-                              label: Text(
-                                "ទាញយក PDF",
-                                style: GoogleFonts.kantumruyPro(
-                                  fontWeight: FontWeight.bold,
+                              label: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  "ទាញយក PDF",
+                                  style: GoogleFonts.kantumruyPro(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 11.5,
+                                  ),
+                                  maxLines: 1,
                                 ),
                               ),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.orangeAccent,
                                 foregroundColor: AppTheme.textPrimary,
+                                padding: const EdgeInsets.symmetric(horizontal: 4),
                                 shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14),
+                                  borderRadius: BorderRadius.circular(12),
                                 ),
-                                minimumSize: const Size(0, 50),
+                                minimumSize: const Size(0, 46),
                               ),
                             ),
                           ),
-                          const SizedBox(width: 12),
+                          const SizedBox(width: 8),
                           // Edit/Approve logic
                           if (status == 'pending') ...[
                             if (user.systemRole == SystemRole.admin ||
@@ -1168,21 +1180,27 @@ class _RequestListScreenState extends State<RequestListScreen> {
                                   ),
                                   icon: const Icon(
                                     Icons.check_circle_rounded,
-                                    size: 20,
+                                    size: 16,
                                   ),
-                                  label: Text(
-                                    "អនុម័ត",
-                                    style: GoogleFonts.kantumruyPro(
-                                      fontWeight: FontWeight.bold,
+                                  label: FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: Text(
+                                      "អនុម័ត",
+                                      style: GoogleFonts.kantumruyPro(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 11.5,
+                                      ),
+                                      maxLines: 1,
                                     ),
                                   ),
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: const Color(0xFF10b981),
                                     foregroundColor: AppTheme.textPrimary,
+                                    padding: const EdgeInsets.symmetric(horizontal: 4),
                                     shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(14),
+                                      borderRadius: BorderRadius.circular(12),
                                     ),
-                                    minimumSize: const Size(0, 50),
+                                    minimumSize: const Size(0, 46),
                                   ),
                                 ),
                               )
@@ -1192,21 +1210,27 @@ class _RequestListScreenState extends State<RequestListScreen> {
                                   onPressed: () => _handleEdit(item),
                                   icon: const Icon(
                                     Icons.edit_rounded,
-                                    size: 20,
+                                    size: 16,
                                   ),
-                                  label: Text(
-                                    "កែសម្រួល",
-                                    style: GoogleFonts.kantumruyPro(
-                                      fontWeight: FontWeight.bold,
+                                  label: FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: Text(
+                                      "កែសម្រួល",
+                                      style: GoogleFonts.kantumruyPro(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 11.5,
+                                      ),
+                                      maxLines: 1,
                                     ),
                                   ),
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: AppTheme.primary,
                                     foregroundColor: AppTheme.textPrimary,
+                                    padding: const EdgeInsets.symmetric(horizontal: 4),
                                     shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(14),
+                                      borderRadius: BorderRadius.circular(12),
                                     ),
-                                    minimumSize: const Size(0, 50),
+                                    minimumSize: const Size(0, 46),
                                   ),
                                 ),
                               ),

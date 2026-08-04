@@ -12,6 +12,7 @@ import 'package:provider/provider.dart';
 import 'dart:ui' as ui;
 import 'package:flutter/rendering.dart';
 import 'package:pasteboard/pasteboard.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class EmployeeReportScreen extends StatefulWidget {
   const EmployeeReportScreen({super.key});
@@ -28,11 +29,61 @@ class _EmployeeReportScreenState extends State<EmployeeReportScreen> {
   // Data State
   Map<String, dynamic> _attendanceData = {};
   List<dynamic> _staffList = [];
+  Map<String, String> _customDepts = {};
+  String _customReportTitle = '';
 
   @override
   void initState() {
     super.initState();
     Future.microtask(() => _initializeData());
+  }
+
+  Future<void> _loadCustomTemplate() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final deptJson = prefs.getString('custom_departments_$_store');
+      final titleStr = prefs.getString('custom_report_title_$_store');
+
+      if (deptJson != null && deptJson.isNotEmpty) {
+        final decoded = json.decode(deptJson) as Map<String, dynamic>;
+        _customDepts = decoded.map((k, v) => MapEntry(k, v.toString()));
+      } else {
+        _customDepts = {};
+      }
+      if (titleStr != null && titleStr.isNotEmpty) {
+        _customReportTitle = titleStr;
+      } else {
+        _customReportTitle = '';
+      }
+      if (mounted) setState(() {});
+    } catch (e) {
+      debugPrint('Error loading custom template: $e');
+    }
+  }
+
+  Future<void> _saveCustomTemplate() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('custom_departments_$_store', json.encode(_customDepts));
+      await prefs.setString('custom_report_title_$_store', _customReportTitle);
+      if (mounted) setState(() {});
+    } catch (e) {
+      debugPrint('Error saving custom template: $e');
+    }
+  }
+
+  Future<void> _resetCustomTemplate() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('custom_departments_$_store');
+      await prefs.remove('custom_report_title_$_store');
+      setState(() {
+        _customDepts = {};
+        _customReportTitle = '';
+      });
+    } catch (e) {
+      debugPrint('Error resetting custom template: $e');
+    }
   }
 
   void _initializeData() {
@@ -61,6 +112,7 @@ class _EmployeeReportScreenState extends State<EmployeeReportScreen> {
     setState(() {
       _store = detectedStore;
     });
+    _loadCustomTemplate();
     _fetchReportData();
   }
 
@@ -105,6 +157,11 @@ class _EmployeeReportScreenState extends State<EmployeeReportScreen> {
     return DynamicAppBarWrapper(
       title: 'របាយការណ៍វត្តមាន ($_store)',
       actions: [
+        IconButton(
+          icon: const Icon(Icons.tune_rounded),
+          onPressed: _showFormTemplateEditor,
+          tooltip: 'កែប្រែទម្រង់ Form',
+        ),
         IconButton(
           icon: const Icon(Icons.refresh),
           onPressed: _fetchReportData,
@@ -192,12 +249,29 @@ class _EmployeeReportScreenState extends State<EmployeeReportScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'ចំនួនបុគ្គលិកតាមផ្នែក',
-          style: GoogleFonts.kantumruyPro(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'ចំនួនបុគ្គលិកតាមផ្នែក',
+              style: GoogleFonts.kantumruyPro(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            TextButton.icon(
+              onPressed: _showFormTemplateEditor,
+              icon: const Icon(Icons.tune_rounded, size: 18, color: Color(0xFF38BDF8)),
+              label: Text(
+                'កែទម្រង់ Form',
+                style: GoogleFonts.kantumruyPro(
+                  color: const Color(0xFF38BDF8),
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 10),
         ...departments.entries.map(
@@ -208,6 +282,9 @@ class _EmployeeReportScreenState extends State<EmployeeReportScreen> {
   }
 
   Map<String, String> _getDepartmentsForStore() {
+    if (_customDepts.isNotEmpty) {
+      return _customDepts;
+    }
     if (_store == 'ks2') {
       return {
         'cosmetic': 'ហាងគ្រឿងក្រអូប',
@@ -233,6 +310,268 @@ class _EmployeeReportScreenState extends State<EmployeeReportScreen> {
         'cashier': 'ផ្នែកគិតលុយ',
       };
     }
+  }
+
+  void _showFormTemplateEditor() {
+    final currentDepts = Map<String, String>.from(_getDepartmentsForStore());
+    final titleCtrl = TextEditingController(text: _customReportTitle);
+    final controllers = <String, TextEditingController>{};
+    currentDepts.forEach((key, val) {
+      controllers[key] = TextEditingController(text: val);
+    });
+
+    final newDeptKeyCtrl = TextEditingController();
+    final newDeptLabelCtrl = TextEditingController();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF0F172A),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (modalCtx, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(modalCtx).viewInsets.bottom + 16,
+                top: 16,
+                left: 20,
+                right: 20,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.white24,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'កែប្រែទម្រង់ Form ($_store)',
+                          style: GoogleFonts.kantumruyPro(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        TextButton.icon(
+                          onPressed: () async {
+                            await _resetCustomTemplate();
+                            if (ctx.mounted) Navigator.pop(ctx);
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('បានកំណត់ Form ដើមវិញ')),
+                              );
+                            }
+                          },
+                          icon: const Icon(Icons.restore, color: Colors.orangeAccent, size: 18),
+                          label: Text(
+                            'កំណត់ដើម',
+                            style: GoogleFonts.kantumruyPro(color: Colors.orangeAccent),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Divider(color: Colors.white12),
+                    const SizedBox(height: 10),
+                    Text(
+                      'ចំណងជើងរបាយការណ៍:',
+                      style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 13),
+                    ),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: titleCtrl,
+                      style: GoogleFonts.kantumruyPro(color: Colors.white),
+                      decoration: InputDecoration(
+                        hintText: 'ឧ. របាយការណ៍វត្តមានបុគ្គលិក',
+                        hintStyle: const TextStyle(color: Colors.white38),
+                        filled: true,
+                        fillColor: const Color(0xFF1E293B),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'ឈ្មោះផ្នែក / Table Columns:',
+                      style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 13),
+                    ),
+                    const SizedBox(height: 8),
+                    ...controllers.entries.map((e) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8.0),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: e.value,
+                                style: GoogleFonts.kantumruyPro(color: Colors.white),
+                                decoration: InputDecoration(
+                                  labelText: 'ផ្នែក (${e.key})',
+                                  labelStyle: const TextStyle(color: Colors.white54, fontSize: 12),
+                                  filled: true,
+                                  fillColor: const Color(0xFF1E293B),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.remove_circle_outline, color: Colors.redAccent),
+                              onPressed: () {
+                                setModalState(() {
+                                  controllers.remove(e.key);
+                                });
+                              },
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.white12),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '+ បន្ថែមផ្នែក/Table ថ្មី:',
+                            style: GoogleFonts.kantumruyPro(
+                              color: const Color(0xFF38BDF8),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(
+                                flex: 2,
+                                child: TextField(
+                                  controller: newDeptKeyCtrl,
+                                  style: GoogleFonts.inter(color: Colors.white, fontSize: 12),
+                                  decoration: InputDecoration(
+                                    hintText: 'Key (ឧ. security)',
+                                    hintStyle: const TextStyle(color: Colors.white38, fontSize: 12),
+                                    filled: true,
+                                    fillColor: const Color(0xFF1E293B),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: BorderSide.none,
+                                    ),
+                                    contentPadding: const EdgeInsets.all(10),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                flex: 3,
+                                child: TextField(
+                                  controller: newDeptLabelCtrl,
+                                  style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 12),
+                                  decoration: InputDecoration(
+                                    hintText: 'ឈ្មោះផ្នែក (ឧ. ផ្នែកសន្តិសុខ)',
+                                    hintStyle: const TextStyle(color: Colors.white38, fontSize: 12),
+                                    filled: true,
+                                    fillColor: const Color(0xFF1E293B),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: BorderSide.none,
+                                    ),
+                                    contentPadding: const EdgeInsets.all(10),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              IconButton(
+                                icon: const Icon(Icons.add_circle, color: Color(0xFF38BDF8)),
+                                onPressed: () {
+                                  final k = newDeptKeyCtrl.text.trim().toLowerCase();
+                                  final l = newDeptLabelCtrl.text.trim();
+                                  if (k.isNotEmpty && l.isNotEmpty) {
+                                    setModalState(() {
+                                      controllers[k] = TextEditingController(text: l);
+                                      newDeptKeyCtrl.clear();
+                                      newDeptLabelCtrl.clear();
+                                    });
+                                  }
+                                },
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
+                          final updatedMap = <String, String>{};
+                          controllers.forEach((k, v) {
+                            if (v.text.trim().isNotEmpty) {
+                              updatedMap[k] = v.text.trim();
+                            }
+                          });
+                          _customDepts = updatedMap;
+                          _customReportTitle = titleCtrl.text.trim();
+                          await _saveCustomTemplate();
+                          if (ctx.mounted) Navigator.pop(ctx);
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('បានរក្សាទុកទម្រង់ Form រួចរាល់!')),
+                            );
+                          }
+                        },
+                        icon: const Icon(Icons.save_rounded, color: Colors.white),
+                        label: Text(
+                          'រក្សាទុកទម្រង់ Form',
+                          style: GoogleFonts.kantumruyPro(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF6366F1),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   Widget _buildDeptCard(String key, String label) {
@@ -736,77 +1075,51 @@ class _EmployeeReportScreenState extends State<EmployeeReportScreen> {
     showDialog(
       context: context,
       builder: (ctx) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        insetPadding: const EdgeInsets.all(20),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 16),
+        backgroundColor: const Color(0xFF0F172A),
         child: Container(
           width: double.maxFinite,
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(12),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'រូបភាពតារាងរបាយការណ៍',
+                    style: GoogleFonts.kantumruyPro(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white70),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+              const Divider(color: Colors.white12),
               Expanded(
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    // A4 aspect ratio is approximately 0.707 (210mm x 297mm)
-                    // Calculate responsive width based on screen size
-                    final screenWidth = constraints.maxWidth;
-                    final screenHeight = constraints.maxHeight;
-                    
-                    // Validate screen dimensions
-                    if (!screenWidth.isFinite || screenWidth <= 0) {
-                      return const SizedBox.shrink();
-                    }
-                    
-                    // Calculate appropriate width for A4 form (landscape mode)
-                    double containerWidth = screenWidth;
-                    bool isMobile = screenWidth < 600;
-                    
-                    // For mobile, use screen width with some margin
-                    if (isMobile) {
-                      containerWidth = screenWidth - 32; // 16px margin on each side
-                    } else {
-                      // For desktop, cap at A4 width equivalent (around 800px for good viewing)
-                      final desktopWidth = screenWidth - 64;
-                      containerWidth = desktopWidth > 800 ? 800.0 : desktopWidth;
-                    }
-                    
-                    // Ensure minimum width for readability
-                    if (containerWidth < 320) containerWidth = 320;
-                    
-                    // Calculate height based on A4 aspect ratio
-                    double containerHeight = containerWidth / 0.707;
-                    
-                    // If height exceeds screen height, adjust width
-                    if (containerHeight > screenHeight) {
-                      containerHeight = screenHeight * 0.9;
-                      containerWidth = containerHeight * 0.707;
-                    }
-                    
-                    // Validate calculated values to prevent Infinity/NaN
-                    if (!containerWidth.isFinite || containerWidth <= 0 || containerWidth.isInfinite) {
-                      containerWidth = screenWidth > 600 ? 600.0 : screenWidth;
-                    }
-                    
-                    if (!containerHeight.isFinite || containerHeight <= 0 || containerHeight.isInfinite) {
-                      containerHeight = screenHeight * 0.7;
-                    }
-                    
-                    return InteractiveViewer(
-                      constrained: false,
-                      child: RepaintBoundary(
-                        key: _previewKey,
-                        child: Container(
-                          color: Colors.white,
-                          padding: EdgeInsets.all(isMobile ? 12 : 20),
-                          width: containerWidth,
-                          child: _buildPrintableContent(isMobile: isMobile),
-                        ),
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    physics: const BouncingScrollPhysics(),
+                    child: RepaintBoundary(
+                      key: _previewKey,
+                      child: Container(
+                        color: Colors.white,
+                        padding: const EdgeInsets.all(16),
+                        child: _buildPrintableContent(isMobile: false),
                       ),
-                    );
-                  },
+                    ),
+                  ),
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
@@ -821,8 +1134,12 @@ class _EmployeeReportScreenState extends State<EmployeeReportScreen> {
                   ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.blueAccent,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 12,
+                      ),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(10),
                       ),
                     ),
                     onPressed: () async {
@@ -862,10 +1179,13 @@ class _EmployeeReportScreenState extends State<EmployeeReportScreen> {
                         }
                       }
                     },
-                    icon: const Icon(Icons.copy, color: Colors.white),
-                    label: const Text(
+                    icon: const Icon(Icons.copy_rounded, color: Colors.white, size: 18),
+                    label: Text(
                       'ចម្លងរូបភាព',
-                      style: TextStyle(color: Colors.white),
+                      style: GoogleFonts.kantumruyPro(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ],
@@ -914,6 +1234,10 @@ class _EmployeeReportScreenState extends State<EmployeeReportScreen> {
     String storeName = _store;
     if (_store == 'ks2') storeName = 'ហាងគ្រឿងក្រអូប (KS2)';
     if (_store == 'nr3') storeName = 'NR3';
+
+    final finalTitle = _customReportTitle.isNotEmpty
+        ? '$_customReportTitle - $storeName'
+        : 'របាយការណ៍វត្តមានបុគ្គលិក - $storeName';
 
     // Main Table
     final tableHeader = TableRow(
@@ -1038,7 +1362,7 @@ class _EmployeeReportScreenState extends State<EmployeeReportScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Text('របាយការណ៍វត្តមានបុគ្គលិក - $storeName', style: titleStyle),
+        Text(finalTitle, style: titleStyle),
         const SizedBox(height: 8),
         Text(
           'ថ្ងៃទី ${DateFormat('dd').format(_selectedDate)} ខែ ${DateFormat('MM').format(_selectedDate)} ឆ្នាំ ${DateFormat('yyyy').format(_selectedDate)}',
