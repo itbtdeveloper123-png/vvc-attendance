@@ -10,15 +10,19 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../services/subject_segmentation_service.dart';
 
+enum SuitCategory { all, male, female, student }
+
 class SuitPresetInfo {
   final String label;
   final String assetPath;
   final IconData icon;
+  final SuitCategory category;
 
   const SuitPresetInfo({
     required this.label,
     required this.assetPath,
     required this.icon,
+    required this.category,
   });
 }
 
@@ -44,6 +48,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
   bool _isFlipped = false;
 
   // Virtual Suit Overlay State
+  SuitCategory _selectedSuitCategory = SuitCategory.all;
   String? _selectedSuitKey;
   double _suitScale = 1.0;
   double _suitOffsetY = 0.0;
@@ -51,24 +56,52 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
 
   final Map<String, SuitPresetInfo> _suitPresets = const {
     'suit_male_black': SuitPresetInfo(
-      label: 'អាវធំបុរស',
+      label: 'អាវធំខ្មៅបុរស',
       assetPath: 'assets/suits/suit_male_black.png',
       icon: Icons.business_center_rounded,
+      category: SuitCategory.male,
     ),
-    'suit_female_black': SuitPresetInfo(
-      label: 'អាវធំនារី',
-      assetPath: 'assets/suits/suit_female_black.png',
-      icon: Icons.woman_rounded,
+    'suit_male_navy': SuitPresetInfo(
+      label: 'អាវធំខៀវបុរស',
+      assetPath: 'assets/suits/suit_male_navy.png',
+      icon: Icons.business_center_rounded,
+      category: SuitCategory.male,
     ),
     'suit_shirt_tie': SuitPresetInfo(
       label: 'អាវស ក្រវ៉ាត់ក',
       assetPath: 'assets/suits/suit_shirt_tie.png',
       icon: Icons.checkroom_rounded,
+      category: SuitCategory.male,
+    ),
+    'suit_female_black': SuitPresetInfo(
+      label: 'អាវធំខ្មៅនារី',
+      assetPath: 'assets/suits/suit_female_black.png',
+      icon: Icons.woman_rounded,
+      category: SuitCategory.female,
+    ),
+    'suit_female_blue': SuitPresetInfo(
+      label: 'អាវធំខៀវនារី',
+      assetPath: 'assets/suits/suit_female_blue.png',
+      icon: Icons.woman_rounded,
+      category: SuitCategory.female,
+    ),
+    'suit_female_white': SuitPresetInfo(
+      label: 'អាវសនារី',
+      assetPath: 'assets/suits/suit_female_white.png',
+      icon: Icons.female_rounded,
+      category: SuitCategory.female,
     ),
     'suit_student': SuitPresetInfo(
-      label: 'អាវសិស្ស',
+      label: 'អាវសិស្សប្រុស',
       assetPath: 'assets/suits/suit_student.png',
       icon: Icons.school_rounded,
+      category: SuitCategory.student,
+    ),
+    'suit_student_female': SuitPresetInfo(
+      label: 'អាវសិស្សស្រី',
+      assetPath: 'assets/suits/suit_student_female.png',
+      icon: Icons.face_4_rounded,
+      category: SuitCategory.student,
     ),
   };
 
@@ -558,7 +591,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
 
                     const SizedBox(height: 14),
 
-                    // Virtual Suit Selection
+                    // Virtual Suit Selection Header & Clear
                     Row(
                       children: [
                         Text(
@@ -584,7 +617,24 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
                           ),
                       ],
                     ),
+                    const SizedBox(height: 6),
+
+                    // Suit Category Tabs (Cutout.pro style)
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(),
+                      child: Row(
+                        children: [
+                          _buildCategoryTab(SuitCategory.all, 'ទាំងអស់'),
+                          _buildCategoryTab(SuitCategory.male, 'អាវបុរស'),
+                          _buildCategoryTab(SuitCategory.female, 'អាវនារី'),
+                          _buildCategoryTab(SuitCategory.student, 'អាវសិស្ស'),
+                        ],
+                      ),
+                    ),
                     const SizedBox(height: 8),
+
+                    // Filtered Suit Options Chips
                     SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
                       physics: const BouncingScrollPhysics(),
@@ -614,7 +664,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
                               ),
                             ),
                           ),
-                          ..._suitPresets.entries.map((entry) {
+                          ..._getFilteredSuitEntries().map((entry) {
                             final isSel = _selectedSuitKey == entry.key;
                             return GestureDetector(
                               onTap: () {
@@ -654,11 +704,11 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
                       ),
                     ),
 
-                    // Suit Adjustments (Scale & Offset Y)
+                    // Suit Adjustments (Scale, Move X, Move Y, Reset)
                     if (_selectedSuitKey != null) ...[
                       const SizedBox(height: 10),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
                           color: Colors.white.withValues(alpha: 0.04),
                           borderRadius: BorderRadius.circular(10),
@@ -668,7 +718,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              'តម្រឹមអាវ៖',
+                              'តម្រឹម៖',
                               style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 11),
                             ),
                             // Size -
@@ -693,10 +743,28 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
                               },
                               tooltip: 'ពង្រីកអាវ',
                             ),
-                            const SizedBox(width: 6),
+                            const SizedBox(width: 2),
+                            // Move Left
+                            IconButton(
+                              icon: const Icon(Icons.arrow_back_rounded, color: Colors.white70, size: 16),
+                              onPressed: () {
+                                setState(() => _suitOffsetX -= 1.0);
+                                _processSegmentation();
+                              },
+                              tooltip: 'រំកិលទៅឆ្វេង',
+                            ),
+                            // Move Right
+                            IconButton(
+                              icon: const Icon(Icons.arrow_forward_rounded, color: Colors.white70, size: 16),
+                              onPressed: () {
+                                setState(() => _suitOffsetX += 1.0);
+                                _processSegmentation();
+                              },
+                              tooltip: 'រំកិលទៅស្តាំ',
+                            ),
                             // Move Up
                             IconButton(
-                              icon: const Icon(Icons.arrow_upward_rounded, color: Colors.white70, size: 18),
+                              icon: const Icon(Icons.arrow_upward_rounded, color: Colors.white70, size: 16),
                               onPressed: () {
                                 setState(() => _suitOffsetY -= 1.0);
                                 _processSegmentation();
@@ -705,12 +773,25 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
                             ),
                             // Move Down
                             IconButton(
-                              icon: const Icon(Icons.arrow_downward_rounded, color: Colors.white70, size: 18),
+                              icon: const Icon(Icons.arrow_downward_rounded, color: Colors.white70, size: 16),
                               onPressed: () {
                                 setState(() => _suitOffsetY += 1.0);
                                 _processSegmentation();
                               },
                               tooltip: 'ទម្លាក់អាវចុះក្រោម',
+                            ),
+                            // Reset Position
+                            IconButton(
+                              icon: const Icon(Icons.restart_alt_rounded, color: Colors.orangeAccent, size: 18),
+                              onPressed: () {
+                                setState(() {
+                                  _suitScale = 1.0;
+                                  _suitOffsetX = 0.0;
+                                  _suitOffsetY = 0.0;
+                                });
+                                _processSegmentation();
+                              },
+                              tooltip: 'កំណត់ទីតាំងឡើងវិញ',
                             ),
                           ],
                         ),
@@ -744,6 +825,44 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
         ),
       ),
     );
+  }
+
+  Widget _buildCategoryTab(SuitCategory cat, String label) {
+    final isSelected = _selectedSuitCategory == cat;
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _selectedSuitCategory = cat;
+        });
+      },
+      child: Container(
+        margin: const EdgeInsets.only(right: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.teal.shade700 : Colors.white10,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected ? Colors.tealAccent : Colors.transparent,
+            width: 1,
+          ),
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.kantumruyPro(
+            color: isSelected ? Colors.white : Colors.white60,
+            fontSize: 11,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
+      ),
+    );
+  }
+
+  List<MapEntry<String, SuitPresetInfo>> _getFilteredSuitEntries() {
+    if (_selectedSuitCategory == SuitCategory.all) {
+      return _suitPresets.entries.toList();
+    }
+    return _suitPresets.entries.where((e) => e.value.category == _selectedSuitCategory).toList();
   }
 }
 
