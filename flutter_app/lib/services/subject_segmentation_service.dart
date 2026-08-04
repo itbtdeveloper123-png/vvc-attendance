@@ -202,11 +202,15 @@ class SubjectSegmentationService {
         if (canvasX < 0 || canvasX >= imgW) continue;
 
         final px = resizedSuit.getPixel(sx, sy);
-        final isWhiteBg = px.r > 240 && px.g > 240 && px.b > 240;
         final alpha = (px.a / 255.0);
 
-        if (!isWhiteBg && alpha > 0.1) {
-          bgCanvas.setPixelRgb(canvasX, canvasY, px.r.toInt(), px.g.toInt(), px.b.toInt());
+        if (alpha > 0.05) {
+          final bgPx = bgCanvas.getPixel(canvasX, canvasY);
+          final r = (px.r * alpha + bgPx.r * (1.0 - alpha)).round().clamp(0, 255);
+          final g = (px.g * alpha + bgPx.g * (1.0 - alpha)).round().clamp(0, 255);
+          final b = (px.b * alpha + bgPx.b * (1.0 - alpha)).round().clamp(0, 255);
+
+          bgCanvas.setPixelRgb(canvasX, canvasY, r, g, b);
         }
       }
     }
