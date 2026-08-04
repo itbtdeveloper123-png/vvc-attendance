@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../providers/user_provider.dart';
 import '../services/api_service.dart';
+import '../widgets/chat_wallpaper_picker.dart';
 
 // ==========================================
 // MESSENGER DARK THEME TOKENS
@@ -75,6 +76,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
   String currentUserId = '';
   String currentUserPhoto = '';
+  String _currentWallpaper = '';
   List<DocumentSnapshot> _messageDocs = [];
   StreamSubscription<QuerySnapshot>? _messageSubscription;
   bool _isLoadingHistory = true;
@@ -94,6 +96,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     final prefs = await SharedPreferences.getInstance();
     currentUserId = prefs.getString('employee_id') ?? '';
     currentUserPhoto = prefs.getString('avatar') ?? '';
+    final wp = await ChatWallpaperManager.getWallpaper(widget.targetUserId);
+    if (mounted) {
+      setState(() => _currentWallpaper = wp);
+    }
     _listenMessages();
   }
 
@@ -170,7 +176,23 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         child: Column(
           children: [
             _buildHeader(),
-            Expanded(child: _buildMessageFeed()),
+            Expanded(
+              child: Container(
+                decoration: _currentWallpaper.isNotEmpty
+                    ? BoxDecoration(
+                        image: DecorationImage(
+                          image: AssetImage(_currentWallpaper),
+                          fit: BoxFit.cover,
+                          colorFilter: ColorFilter.mode(
+                            Colors.black.withValues(alpha: 0.45),
+                            BlendMode.darken,
+                          ),
+                        ),
+                      )
+                    : null,
+                child: _buildMessageFeed(),
+              ),
+            ),
             _buildInputToolbar(),
           ],
         ),
@@ -261,6 +283,16 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           ),
 
           // Audio call button
+          _buildHeaderIconBtn(Icons.palette_rounded, onTap: () {
+            showChatWallpaperPicker(
+              context,
+              targetId: widget.targetUserId,
+              targetName: widget.targetUserName,
+              onWallpaperSelected: (path) {
+                setState(() => _currentWallpaper = path);
+              },
+            );
+          }),
           _buildHeaderIconBtn(Icons.call_rounded, onTap: () {}),
           _buildHeaderIconBtn(Icons.videocam_rounded, onTap: () {}),
         ],

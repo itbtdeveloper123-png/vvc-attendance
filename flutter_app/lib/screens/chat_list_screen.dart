@@ -9,6 +9,7 @@ import 'new_message_screen.dart';
 import 'chat_detail_screen.dart';
 import '../services/api_service.dart';
 import '../providers/user_provider.dart';
+import '../widgets/chat_wallpaper_picker.dart';
 import 'team_chat_screen.dart';
 
 // ==========================================
@@ -564,6 +565,12 @@ class _ChatListScreenState extends State<ChatListScreen> {
 
         return InkWell(
           onTap: () => _navigateToChat('ALL', 'Team Chat Group (ក្រុមរួម)', '', isGroup: true),
+          onLongPress: () => showChatWallpaperPicker(
+            context,
+            targetId: 'ALL',
+            targetName: 'Team Chat Group',
+            onWallpaperSelected: (_) {},
+          ),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
             child: Row(
@@ -624,6 +631,12 @@ class _ChatListScreenState extends State<ChatListScreen> {
 
     return InkWell(
       onTap: () => _navigateToChat(groupId, name, '', isGroup: true),
+      onLongPress: () => showChatWallpaperPicker(
+        context,
+        targetId: groupId,
+        targetName: name,
+        onWallpaperSelected: (_) {},
+      ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
         child: Row(
@@ -828,6 +841,12 @@ class _ChatListScreenState extends State<ChatListScreen> {
 
                 return InkWell(
                   onTap: () => _navigateToChat(targetId, title, avatar),
+                  onLongPress: () => showChatWallpaperPicker(
+                    context,
+                    targetId: targetId,
+                    targetName: title,
+                    onWallpaperSelected: (_) {},
+                  ),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
                     child: Row(
