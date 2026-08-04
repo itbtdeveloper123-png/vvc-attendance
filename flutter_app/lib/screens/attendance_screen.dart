@@ -1411,23 +1411,22 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: FadeInDown(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.4),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.1),
+                  child: IconButton(
+                    style: IconButton.styleFrom(
+                      backgroundColor: Colors.black.withValues(alpha: 0.4),
+                      shape: CircleBorder(
+                        side: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.1),
+                        ),
                       ),
                     ),
-                    child: IconButton(
-                      icon: const Icon(
-                        Icons.arrow_back_ios_new_rounded,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                      onPressed: () => Navigator.pop(context),
-                      tooltip: "ត្រឡប់ក្រោយ",
+                    icon: const Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      color: Colors.white,
+                      size: 20,
                     ),
+                    onPressed: () => Navigator.pop(context),
+                    tooltip: "ត្រឡប់ក្រោយ",
                   ),
                 ),
               ),

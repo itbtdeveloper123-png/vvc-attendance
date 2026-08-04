@@ -199,21 +199,22 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: AppTheme.textPrimary.withValues(alpha: 0.05),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: IconButton(
-                      icon: Icon(
-                        _isListView
-                            ? Icons.grid_view_rounded
-                            : Icons.view_list_rounded,
-                        color: AppTheme.primaryLight,
+                  IconButton(
+                    style: IconButton.styleFrom(
+                      backgroundColor:
+                          AppTheme.textPrimary.withValues(alpha: 0.05),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      onPressed: () =>
-                          setState(() => _isListView = !_isListView),
                     ),
+                    icon: Icon(
+                      _isListView
+                          ? Icons.grid_view_rounded
+                          : Icons.view_list_rounded,
+                      color: AppTheme.primaryLight,
+                    ),
+                    onPressed: () =>
+                        setState(() => _isListView = !_isListView),
                   ),
                 ],
               ),

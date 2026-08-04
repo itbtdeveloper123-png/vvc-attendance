@@ -961,13 +961,15 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
         ),
         actions: [
           if (_currentStep != ScannerStep.selectImage)
-            Container(
-              margin: const EdgeInsets.only(right: 16, top: 8, bottom: 8),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(12),
-              ),
+            Padding(
+              padding: const EdgeInsets.only(right: 16, top: 8, bottom: 8),
               child: IconButton(
+                style: IconButton.styleFrom(
+                  backgroundColor: Colors.white.withValues(alpha: 0.08),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
                 icon: const Icon(Icons.refresh_rounded, size: 20),
                 onPressed: _resetScanner,
                 tooltip: 'Start Over',

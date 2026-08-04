@@ -220,6 +220,10 @@ class _AppSearchFieldState extends State<AppSearchField> {
               visualDensity: VisualDensity.compact,
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints.tightFor(width: 34, height: 34),
+              style: IconButton.styleFrom(
+                shape: const CircleBorder(),
+                padding: EdgeInsets.zero,
+              ),
               icon: Icon(Icons.clear_rounded, color: iconColor, size: 18),
               onPressed: _clear,
             ),

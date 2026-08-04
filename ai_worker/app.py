@@ -4,6 +4,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -40,7 +41,6 @@ if not OLLAMA_VISION_MODEL:
         OLLAMA_VISION_MODEL = OLLAMA_MODEL
     else:
         OLLAMA_VISION_MODEL = "llava:7b"
-FFMPEG_BINARY = os.getenv("FFMPEG_BINARY", "ffmpeg").strip() or "ffmpeg"
 WORKER_REQUEST_TIMEOUT = int(os.getenv("WORKER_REQUEST_TIMEOUT", "600") or "600")
 MAX_DOWNLOAD_MB = int(os.getenv("MAX_DOWNLOAD_MB", "512") or "512")
 PRELOAD_WHISPER = os.getenv("PRELOAD_WHISPER", "0").strip() in {"1", "true", "True", "yes", "on"}
@@ -50,9 +50,148 @@ AUDIO_CHUNK_THRESHOLD_MB = int(os.getenv("AUDIO_CHUNK_THRESHOLD_MB", "48") or "4
 SUMMARY_BATCH_MAX_CHARS = int(os.getenv("SUMMARY_BATCH_MAX_CHARS", "12000") or "12000")
 SUMMARY_RECURSION_LIMIT = int(os.getenv("SUMMARY_RECURSION_LIMIT", "4") or "4")
 
+IS_WINDOWS = sys.platform.startswith("win") or os.name == "nt"
+
+
+def _default_ffmpeg_install_steps() -> Dict[str, Any]:
+    if IS_WINDOWS:
+        return {
+            "title": "ដំឡើង FFmpeg លើ Windows",
+            "steps": [
+                "វិធីទី ១ (លឿនបំផុត)៖ បើក PowerShell រង្វាស់ Administrator រួចរត់៖ winget install --id Gyan.FFmpeg -e --accept-source-agreements --accept-package-agreements",
+                "វិធីទី ២៖ បើកម៉ឺនុយ Chocolatey៖ choco install ffmpeg -y",
+                "វិធីទី ៣៖ បើកម៉ឺនុយ Scoop៖ scoop install ffmpeg",
+                "វិធីទី ៤ (ដោយដៃ)៖ ទៅ https://www.gyan.dev/ffmpeg/builds/ → ទាញយក ffmpeg-release-essentials.zip → ដកហូតដាក់ C:\\ffmpeg បន្ទាប់មកបន្ថែម C:\\ffmpeg\\bin ទៅក្នុង System PATH របស់ Windows។",
+                "បន្ទាប់ពីដំឡើង រួចរត់៖ ffmpeg -version ដើម្បីផ្ទៀងផ្ទាត់។ បើមិនដំណើរទេ សូម set FFMPEG_BINARY=C:\\ffmpeg\\bin\\ffmpeg.exe ក្នុង file .env របស់គម្រោង។",
+            ],
+        }
+    if sys.platform == "darwin":
+        return {
+            "title": "Install FFmpeg (macOS)",
+            "steps": [
+                "Homebrew: brew install ffmpeg",
+                "MacPorts: sudo port install ffmpeg",
+                "Set FFMPEG_BINARY=/opt/homebrew/bin/ffmpeg ក្នុង .env ប្រសិនបើ Apple Silicon",
+            ],
+        }
+    return {
+        "title": "Install FFmpeg (Linux)",
+        "steps": [
+            "Debian/Ubuntu: sudo apt update && sudo apt install -y ffmpeg",
+            "RHEL/CentOS/Rocky: sudo dnf install -y ffmpeg",
+            "Fedora: sudo dnf install -y ffmpeg",
+            "Arch: sudo pacman -S --noconfirm ffmpeg",
+            "Snap: sudo snap install ffmpeg",
+            "Set FFMPEG_BINARY=/usr/bin/ffmpeg ក្នុង .env ប្រសិនបើ PATH មិនមែនជាអថេរ។",
+        ],
+    }
+
+
+def _common_ffmpeg_candidates() -> List[str]:
+    configured = os.getenv("FFMPEG_BINARY", "").strip()
+    cands: List[str] = []
+    if configured:
+        cands.append(configured)
+        if os.path.isdir(configured):
+            base = configured.rstrip(os.sep)
+            cands.append(os.path.join(base, "ffmpeg.exe" if IS_WINDOWS else "ffmpeg"))
+            cands.append(os.path.join(base, "bin", "ffmpeg.exe" if IS_WINDOWS else "ffmpeg"))
+    cands.append("ffmpeg.exe" if IS_WINDOWS else "ffmpeg")
+    if IS_WINDOWS:
+        pf = os.getenv("ProgramFiles", r"C:\Program Files")
+        pfx86 = os.getenv("ProgramFiles(x86)", r"C:\Program Files (x86)")
+        pd = os.getenv("ProgramData", r"C:\ProgramData")
+        up = os.getenv("USERPROFILE", r"C:\Users\Public")
+        sd = os.getenv("SystemDrive", "C:")
+        extra = [
+            os.path.join(pf, "FFmpeg", "bin", "ffmpeg.exe"),
+            os.path.join(pf, "ffmpeg", "bin", "ffmpeg.exe"),
+            os.path.join(pf, "FFmpeg", "ffmpeg.exe"),
+            os.path.join(pfx86, "FFmpeg", "bin", "ffmpeg.exe"),
+            os.path.join(pfx86, "ffmpeg", "bin", "ffmpeg.exe"),
+            os.path.join(pd, "chocolatey", "bin", "ffmpeg.exe"),
+            os.path.join(sd, os.sep, "ffmpeg", "bin", "ffmpeg.exe"),
+            os.path.join(sd, os.sep, "ffmpeg", "ffmpeg.exe"),
+            os.path.join(up, "scoop", "shims", "ffmpeg.exe"),
+            os.path.join(up, "scoop", "apps", "ffmpeg", "current", "bin", "ffmpeg.exe"),
+            os.path.join(sd, os.sep, "xampp", "apache", "bin", "ffmpeg.exe"),
+            os.path.join(sd, os.sep, "xampp", "php", "ffmpeg.exe"),
+            os.path.join(sd, os.sep, "xampp", "mysql", "bin", "ffmpeg.exe"),
+            os.path.join(pf, "Gyan", "FFmpeg", "bin", "ffmpeg.exe"),
+            os.path.join(pf, "BuildTools", "ffmpeg", "bin", "ffmpeg.exe"),
+            os.path.join(up, "AppData", "Local", "Microsoft", "WinGet", "Packages", "Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe", "ffmpeg", "bin", "ffmpeg.exe"),
+            os.path.join(up, "AppData", "Local", "Microsoft", "WinGet", "Packages", "BtbN.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe", "ffmpeg", "bin", "ffmpeg.exe"),
+        ]
+        cands.extend(extra)
+    else:
+        cands.extend([
+            "/usr/bin/ffmpeg",
+            "/usr/local/bin/ffmpeg",
+            "/opt/homebrew/bin/ffmpeg",
+            "/home/linuxbrew/.linuxbrew/bin/ffmpeg",
+            "/snap/bin/ffmpeg",
+            "/app/bin/ffmpeg",
+            "/usr/bin/vendor_perl/ffmpeg",
+        ])
+    seen = set()
+    result: List[str] = []
+    for c in cands:
+        if not c:
+            continue
+        k = c.lower() if IS_WINDOWS else c
+        if k in seen:
+            continue
+        seen.add(k)
+        result.append(c)
+    return result
+
+
+def resolve_ffmpeg_binary() -> Tuple[str, str, Dict[str, Any]]:
+    """Return (binary_to_use, human_error, install_steps_dict)."""
+    install_steps = _default_ffmpeg_install_steps()
+    candidates = _common_ffmpeg_candidates()
+    # First pass: PATH-less absolute candidates (or configured)
+    resolved_configured: Optional[str] = None
+    for cand in candidates:
+        if os.path.isabs(cand):
+            if os.path.isdir(cand):
+                continue
+            if os.path.isfile(cand):
+                # Keep first absolute file hit as best-effort configured resolved
+                if resolved_configured is None:
+                    resolved_configured = cand
+        else:
+            # Relative or bare name: try shutil.which
+            found = shutil.which(cand)
+            if found:
+                return found, "", install_steps
+    if resolved_configured is not None:
+        return resolved_configured, "", install_steps
+    # Fallback: fall back to whatever is configured (bare "ffmpeg" command usually) so caller can error nicely
+    configured = os.getenv("FFMPEG_BINARY", "ffmpeg").strip() or "ffmpeg"
+    last_path = candidates[-1] if candidates else configured
+    if IS_WINDOWS:
+        msg = (
+            "FFmpeg មិនទាន់បានដំឡើងនៅលើ Windows នោះទេ។ "
+            "សូមធ្វើតាមជំហាននៅក្នុង install_steps ដើម្បីដំឡើង។ "
+            f"(Last checked: {last_path})"
+        )
+    else:
+        msg = (
+            "FFmpeg is not installed on this server yet. "
+            "Please install the ffmpeg package using the steps in install_steps. "
+            f"(Last checked: {last_path})"
+        )
+    return configured, msg, install_steps
+
+
+# Finalize FFMPEG_BINARY early so all callers use the resolved path
+FFMPEG_BINARY, FFMPEG_MISSING_ERROR, FFMPEG_INSTALL_STEPS = resolve_ffmpeg_binary()
+
 WORKER_READY: Dict[str, Any] = {
     "ffmpeg_ok": False,
     "ffmpeg_error": "",
+    "ffmpeg_install_steps": FFMPEG_INSTALL_STEPS,
     "whisper_ok": True,
     "whisper_error": "",
     "whisper_loaded": False,
@@ -135,6 +274,7 @@ def refresh_worker_ready_state(load_whisper: bool = False) -> Dict[str, Any]:
 
     WORKER_READY["ffmpeg_ok"] = ffmpeg_ok
     WORKER_READY["ffmpeg_error"] = ffmpeg_error
+    WORKER_READY["ffmpeg_install_steps"] = FFMPEG_INSTALL_STEPS
     WORKER_READY["whisper_ok"] = whisper_ok
     WORKER_READY["whisper_error"] = whisper_error
     WORKER_READY["whisper_loaded"] = whisper_loaded
@@ -357,10 +497,16 @@ def get_whisper_model() -> WhisperModel:
 def ensure_command_exists(command: str) -> None:
     if os.path.isabs(command):
         if not os.path.exists(command):
-            raise RuntimeError(f"FFmpeg binary not found: {command}")
+            raise RuntimeError(
+                "FFmpeg binary not found: " + command + ". "
+                + (FFMPEG_MISSING_ERROR or "សូមដំឡើង FFmpeg មុនពេលប្រើប្រាស់។")
+            )
         return
     if shutil.which(command) is None:
-        raise RuntimeError(f"FFmpeg command not found in PATH: {command}")
+        raise RuntimeError(
+            "FFmpeg command not found in PATH: " + command + ". "
+            + (FFMPEG_MISSING_ERROR or "សូមដំឡើង FFmpeg មុនពេលប្រើប្រាស់។")
+        )
 
 
 def resolve_ffprobe_binary() -> str:
@@ -369,7 +515,9 @@ def resolve_ffprobe_binary() -> str:
         candidate = os.path.join(directory, "ffprobe.exe" if os.name == "nt" else "ffprobe")
         if os.path.exists(candidate):
             return candidate
-    return "ffprobe.exe" if os.name == "nt" else "ffprobe"
+    fallback = "ffprobe.exe" if os.name == "nt" else "ffprobe"
+    found = shutil.which(fallback)
+    return found or fallback
 
 
 def get_audio_duration_seconds(audio_path: str) -> float:
@@ -1184,6 +1332,7 @@ def health() -> Dict[str, Any]:
         "ffmpeg_binary": FFMPEG_BINARY,
         "ffmpeg_ok": status.get("ffmpeg_ok", False),
         "ffmpeg_error": status.get("ffmpeg_error", ""),
+        "ffmpeg_install_steps": status.get("ffmpeg_install_steps", FFMPEG_INSTALL_STEPS),
         "whisper_ok": status.get("whisper_ok", False),
         "whisper_error": status.get("whisper_error", ""),
         "whisper_loaded": status.get("whisper_loaded", False),

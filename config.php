@@ -69,30 +69,139 @@ if (!function_exists('resolve_ffmpeg_binary_status')) {
             'status' => 'error',
             'message' => 'FFMPEG_BINARY is not configured.',
             'candidate_paths' => [],
+            'install_steps' => [],
         ];
 
-        if ($configuredPath === '') {
-            return $status;
+        // Build a list of candidates:
+        // 1) explicit config + sub-paths inside it if directory
+        // 2) PHP's PATH environment via where/which (if shell available)
+        // 3) common install directories on Windows (Program Files, scoop, choco, xampp)
+        // 4) common install directories on Linux (apt, snap, brew, /usr/local)
+        $candidates = [];
+        if ($configuredPath !== '') {
+            $candidates[] = $configuredPath;
+            if (@is_dir($configuredPath)) {
+                $status['is_directory'] = true;
+                $candidates[] = rtrim($configuredPath, "/\\") . DIRECTORY_SEPARATOR . 'ffmpeg';
+                $candidates[] = rtrim($configuredPath, "/\\") . DIRECTORY_SEPARATOR . 'ffmpeg.exe';
+                $candidates[] = rtrim($configuredPath, "/\\") . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'ffmpeg';
+                $candidates[] = rtrim($configuredPath, "/\\") . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'ffmpeg.exe';
+            }
         }
 
-        $candidates = [$configuredPath];
-        if (@is_dir($configuredPath)) {
-            $status['is_directory'] = true;
-            $candidates[] = rtrim($configuredPath, "/\\") . DIRECTORY_SEPARATOR . 'ffmpeg';
-            $candidates[] = rtrim($configuredPath, "/\\") . DIRECTORY_SEPARATOR . 'ffmpeg.exe';
-            $candidates[] = rtrim($configuredPath, "/\\") . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'ffmpeg';
-            $candidates[] = rtrim($configuredPath, "/\\") . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'ffmpeg.exe';
+        // 2) PATH probe via shell (platform-safe fallback, no shell_exec output dependence)
+        if ($shellAvailable) {
+            if ($isWindows) {
+                $wherePath = rtrim((string) @shell_exec('where.exe ffmpeg 2>NUL'));
+                if ($wherePath !== '') {
+                    foreach (explode("\n", str_replace("\r", "\n", $wherePath)) as $ln) {
+                        $ln = trim($ln);
+                        if ($ln !== '') $candidates[] = $ln;
+                    }
+                }
+            } else {
+                $whichPath = rtrim((string) @shell_exec('command -v ffmpeg 2>/dev/null'));
+                if ($whichPath !== '') $candidates[] = $whichPath;
+            }
         }
+
+        // 3) Common Windows paths
+        if ($isWindows) {
+            $pf = (string) (getenv('ProgramFiles') ?: 'C:\\Program Files');
+            $pfx86 = (string) (getenv('ProgramFiles(x86)') ?: 'C:\\Program Files (x86)');
+            $pd = (string) (getenv('ProgramData') ?: 'C:\\ProgramData');
+            $up = (string) (getenv('USERPROFILE') ?: 'C:\\Users\\Public');
+            $sysDrive = (string) (getenv('SystemDrive') ?: 'C:');
+            $candidates[] = $pf . '\\FFmpeg\\bin\\ffmpeg.exe';
+            $candidates[] = $pf . '\\ffmpeg\\bin\\ffmpeg.exe';
+            $candidates[] = $pf . '\\FFmpeg\\ffmpeg.exe';
+            $candidates[] = $pfx86 . '\\FFmpeg\\bin\\ffmpeg.exe';
+            $candidates[] = $pfx86 . '\\ffmpeg\\bin\\ffmpeg.exe';
+            $candidates[] = $pd . '\\chocolatey\\bin\\ffmpeg.exe';
+            $candidates[] = $sysDrive . '\\ffmpeg\\bin\\ffmpeg.exe';
+            $candidates[] = $sysDrive . '\\ffmpeg\\ffmpeg.exe';
+            $candidates[] = $up . '\\scoop\\shims\\ffmpeg.exe';
+            $candidates[] = $up . '\\scoop\\apps\\ffmpeg\\current\\bin\\ffmpeg.exe';
+            $candidates[] = $sysDrive . '\\xampp\\apache\\bin\\ffmpeg.exe';
+            $candidates[] = $sysDrive . '\\xampp\\php\\ffmpeg.exe';
+            $candidates[] = $sysDrive . '\\xampp\\mysql\\bin\\ffmpeg.exe';
+            $candidates[] = $pf . '\\Gyan\\FFmpeg\\bin\\ffmpeg.exe';
+            $candidates[] = $pf . '\\BuildTools\\ffmpeg\\bin\\ffmpeg.exe';
+            // winget: Gyan.FFmpeg, BtbN.FFmpeg
+            $candidates[] = $up . '\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg\\bin\\ffmpeg.exe';
+            $candidates[] = $up . '\\AppData\\Local\\Microsoft\\WinGet\\Packages\\BtbN.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg\\bin\\ffmpeg.exe';
+        } else {
+            // 4) Common Unix paths
+            $candidates[] = '/usr/bin/ffmpeg';
+            $candidates[] = '/usr/local/bin/ffmpeg';
+            $candidates[] = '/opt/homebrew/bin/ffmpeg';
+            $candidates[] = '/home/linuxbrew/.linuxbrew/bin/ffmpeg';
+            $candidates[] = '/snap/bin/ffmpeg';
+            $candidates[] = '/app/bin/ffmpeg';
+            $candidates[] = '/usr/bin/vendor_perl/ffmpeg';
+        }
+
         $candidates = array_values(array_unique(array_filter($candidates, static function ($value) {
             return trim((string) $value) !== '';
         })));
         $status['candidate_paths'] = $candidates;
 
+        $installSteps = [];
+        if ($isWindows) {
+            $installSteps = [
+                'title' => 'ដំឡើង FFmpeg លើ Windows',
+                'steps' => [
+                    'វិធីទី ១ (លឿនបំផុត)៖ បើក PowerShell រង្វាស់ Administrator រួចរត់៖ winget install --id Gyan.FFmpeg -e --accept-source-agreements --accept-package-agreements',
+                    'វិធីទី ២៖ បើកម៉ឺនុយ Chocolatey៖ choco install ffmpeg -y',
+                    'វិធីទី ៣៖ បើកម៉ឺនុយ Scoop៖ scoop install ffmpeg',
+                    'វិធីទី ៤ (ដោយដៃ)៖ ទៅ https://www.gyan.dev/ffmpeg/builds/ → ទាញយក ffmpeg-release-essentials.zip → ដកហូតដាក់ C:\\ffmpeg បន្ទាប់មកបន្ថែម C:\\ffmpeg\\bin ទៅក្នុង System PATH របស់ Windows។',
+                    'បន្ទាប់ពីដំឡើង រួចរត់៖ ffmpeg -version ដើម្បីផ្ទៀងផ្ទាត់។ បើមិនដំណើរទេ សូម set FFMPEG_BINARY=C:\\ffmpeg\\bin\\ffmpeg.exe ក្នុង file .env របស់គម្រោង។',
+                ],
+            ];
+        } else {
+            $osStr = PHP_OS;
+            if (stripos($osStr, 'LINUX') !== false) {
+                $installSteps = [
+                    'title' => 'Install FFmpeg (Linux)',
+                    'steps' => [
+                        'Debian/Ubuntu: sudo apt update && sudo apt install -y ffmpeg',
+                        'RHEL/CentOS/Rocky: sudo dnf install -y ffmpeg',
+                        'Fedora: sudo dnf install -y ffmpeg',
+                        'Arch: sudo pacman -S --noconfirm ffmpeg',
+                        'Snap: sudo snap install ffmpeg',
+                        'Set FFMPEG_BINARY=/usr/bin/ffmpeg ក្នុង .env ប្រសិនបើ PATH មិនមែនជាអថេរ។',
+                    ],
+                ];
+            } elseif (stripos($osStr, 'DARWIN') !== false) {
+                $installSteps = [
+                    'title' => 'Install FFmpeg (macOS)',
+                    'steps' => [
+                        'Homebrew: brew install ffmpeg',
+                        'MacPorts: sudo port install ffmpeg',
+                        'Set FFMPEG_BINARY=/opt/homebrew/bin/ffmpeg ក្នុង .env ប្រសិនបើ Apple Silicon',
+                    ],
+                ];
+            } else {
+                $installSteps = [
+                    'title' => 'Install FFmpeg',
+                    'steps' => [
+                        'ដំឡើង ffmpeg តាម package manager របស់ OS របស់អ្នក។',
+                        'បន្ទាប់មកដាក់ path ពេញលេញទៅ FFMPEG_BINARY ក្នុង file .env',
+                    ],
+                ];
+            }
+        }
+        $status['install_steps'] = $installSteps;
+
+        // Scan candidates
+        $lastDirCandidate = null;
         foreach ($candidates as $candidate) {
             if (!@file_exists($candidate)) {
+                if (@is_dir($candidate)) $lastDirCandidate = $candidate;
                 continue;
             }
             if (@is_dir($candidate)) {
+                $lastDirCandidate = $candidate;
                 continue;
             }
 
@@ -121,11 +230,19 @@ if (!function_exists('resolve_ffmpeg_binary_status')) {
             return $status;
         }
 
-        if (@file_exists($configuredPath)) {
+        if ($configuredPath !== '' && @file_exists($configuredPath)) {
             $status['exists'] = true;
         }
 
-        if ($status['is_directory']) {
+        if ($lastDirCandidate !== null && $configuredPath === '') {
+            // keep best-effort
+        }
+
+        if ($configuredPath === '') {
+            $status['message'] = $isWindows
+                ? 'FFmpeg មិនទាន់បានដំឡើងនៅលើ Windows នោះទេ។ សូមធ្វើតាមជំហាន install_steps ដើម្បីដំឡើង។'
+                : 'FFmpeg is not installed on this server yet. Please install the ffmpeg package.';
+        } elseif ($status['is_directory']) {
             $status['message'] = 'FFMPEG_BINARY points to a directory. Point it to the ffmpeg binary file or keep this directory only if it contains ffmpeg inside it.';
         } else {
             $status['message'] = 'FFmpeg binary could not be found at the configured path.';
