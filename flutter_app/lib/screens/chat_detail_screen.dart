@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -5,9 +6,24 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:image_picker/image_picker.dart';
 import '../providers/user_provider.dart';
 import '../services/api_service.dart';
 import '../widgets/chat_wallpaper_picker.dart';
+
+Color _getAvatarBgColor(String name) {
+  if (name.isEmpty) return const Color(0xFF0084FF);
+  const colors = [
+    Color(0xFF0084FF),
+    Color(0xFFFFB300),
+    Color(0xFFAB47BC),
+    Color(0xFF26A69A),
+    Color(0xFFFF7043),
+    Color(0xFF66BB6A),
+    Color(0xFFEC407A),
+  ];
+  return colors[name.codeUnitAt(0) % colors.length];
+}
 
 // ==========================================
 // MESSENGER DARK THEME TOKENS
@@ -217,19 +233,19 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
           // Avatar
           CircleAvatar(
-            radius: 20.0,
+            radius: 24.0,
             backgroundImage: widget.targetUserPhoto.isNotEmpty
                 ? NetworkImage(ApiService.getFullImageUrl(widget.targetUserPhoto))
                 : null,
-            backgroundColor: _MsgDark.card,
+            backgroundColor: _getAvatarBgColor(widget.targetUserName),
             child: widget.targetUserPhoto.isEmpty
                 ? Text(
                     widget.targetUserName.isNotEmpty ? widget.targetUserName[0].toUpperCase() : 'U',
-                    style: GoogleFonts.inter(color: _MsgDark.textPrimary, fontWeight: FontWeight.bold),
+                    style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
                   )
                 : null,
           ),
-          const SizedBox(width: 10.0),
+          const SizedBox(width: 12.0),
 
           // Name & status
           Expanded(
@@ -293,8 +309,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               },
             );
           }),
-          _buildHeaderIconBtn(Icons.call_rounded, onTap: () {}),
-          _buildHeaderIconBtn(Icons.videocam_rounded, onTap: () {}),
+          _buildHeaderIconBtn(Icons.call_rounded, onTap: () => _showCallDialog(false)),
+          _buildHeaderIconBtn(Icons.videocam_rounded, onTap: () => _showCallDialog(true)),
         ],
       ),
     );
@@ -339,20 +355,28 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         final isMine = (data['senderId'] ?? '') == currentUserId;
         final Timestamp? ts = data['timestamp'] as Timestamp?;
         final DateTime msgTime = ts?.toDate() ?? DateTime.now();
-        final String msgType = data['type'] ?? 'text';
-        final String text = data['text'] ?? '';
 
-        // Show date divider if day changed from previous message
+        final String rawText = (data['text'] ?? data['message'] ?? data['content'] ?? '').toString();
+        final String imageUrl = (data['imageUrl'] ?? data['mediaUrl'] ?? (data['type'] == 'image' ? rawText : '')).toString();
+        final String audioUrl = (data['audioUrl'] ?? data['voiceUrl'] ?? data['base64Audio'] ?? '').toString();
+        final String rawType = (data['type'] ?? '').toString();
+
         final bool showDivider = _shouldShowDateDivider(index, ts);
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (showDivider) _buildDateDivider(msgTime),
-            if (msgType == 'callMissed') _buildCallEventCard(isMissed: true, time: msgTime),
-            if (msgType == 'callVideo') _buildCallEventCard(isMissed: false, time: msgTime),
-            if (msgType == 'text') _buildTextBubble(text: text, isMine: isMine, time: msgTime),
-            if (msgType == 'sticker') _buildStickerBubble(text: text, isMine: isMine),
+            if (rawType == 'callMissed') _buildCallEventCard(isMissed: true, time: msgTime),
+            if (rawType == 'callVideo') _buildCallEventCard(isMissed: false, time: msgTime),
+            if (imageUrl.isNotEmpty || rawType == 'image')
+              _buildImageBubble(imageUrl: imageUrl, isMine: isMine, time: msgTime),
+            if (audioUrl.isNotEmpty || rawType == 'audio' || rawType == 'voice')
+              _buildVoiceBubble(audioUrl: audioUrl, isMine: isMine, time: msgTime),
+            if (rawType == 'sticker' || rawText == '👍')
+              _buildStickerBubble(text: rawText.isNotEmpty ? rawText : '👍', isMine: isMine),
+            if (rawType != 'callMissed' && rawType != 'callVideo' && !imageUrl.isNotEmpty && rawType != 'image' && !audioUrl.isNotEmpty && rawType != 'audio' && rawType != 'voice' && rawType != 'sticker' && rawText != '👍' && rawText.isNotEmpty)
+              _buildTextBubble(text: rawText, isMine: isMine, time: msgTime),
           ],
         );
       },
@@ -377,15 +401,15 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           CircleAvatar(
-            radius: 40.0,
+            radius: 44.0,
             backgroundImage: widget.targetUserPhoto.isNotEmpty
                 ? NetworkImage(ApiService.getFullImageUrl(widget.targetUserPhoto))
                 : null,
-            backgroundColor: _MsgDark.card,
+            backgroundColor: _getAvatarBgColor(widget.targetUserName),
             child: widget.targetUserPhoto.isEmpty
                 ? Text(
                     widget.targetUserName.isNotEmpty ? widget.targetUserName[0].toUpperCase() : 'U',
-                    style: GoogleFonts.inter(color: _MsgDark.textPrimary, fontSize: 28, fontWeight: FontWeight.bold),
+                    style: GoogleFonts.inter(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
                   )
                 : null,
           ),
@@ -613,6 +637,226 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
   }
 
+  // Image Bubble
+  Widget _buildImageBubble({
+    required String imageUrl,
+    required bool isMine,
+    required DateTime time,
+  }) {
+    final bool isBase64 = imageUrl.startsWith('data:image');
+    final ImageProvider imgProvider = isBase64
+        ? MemoryImage(base64Decode(imageUrl.split(',').last))
+        : NetworkImage(imageUrl) as ImageProvider;
+
+    return Align(
+      alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
+      child: Column(
+        crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        children: [
+          GestureDetector(
+            onTap: () {
+              showDialog(
+                context: context,
+                builder: (ctx) => Dialog(
+                  backgroundColor: Colors.transparent,
+                  insetPadding: EdgeInsets.zero,
+                  child: Stack(
+                    alignment: Alignment.topRight,
+                    children: [
+                      InteractiveViewer(child: Image(image: imgProvider, fit: BoxFit.contain)),
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded, color: Colors.white, size: 30),
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+            child: Container(
+              margin: const EdgeInsets.symmetric(vertical: 4.0),
+              constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.7),
+              height: 200.0,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16.0),
+                image: DecorationImage(image: imgProvider, fit: BoxFit.cover),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(left: 4.0, right: 4.0, bottom: 4.0),
+            child: Text(
+              DateFormat('h:mm a').format(time),
+              style: GoogleFonts.inter(fontSize: 10.0, color: _MsgDark.textMuted),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Voice Message Bubble
+  Widget _buildVoiceBubble({
+    required String audioUrl,
+    required bool isMine,
+    required DateTime time,
+  }) {
+    return Align(
+      alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
+      child: Column(
+        crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        children: [
+          Container(
+            margin: const EdgeInsets.symmetric(vertical: 4.0),
+            padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
+            decoration: BoxDecoration(
+              color: isMine ? _MsgDark.sentBubble : _MsgDark.receivedBubble,
+              borderRadius: BorderRadius.circular(18.0),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 26.0),
+                const SizedBox(width: 8.0),
+                Row(
+                  children: List.generate(12, (i) {
+                    final heights = [12.0, 18.0, 8.0, 22.0, 14.0, 20.0, 10.0, 16.0, 24.0, 12.0, 18.0, 10.0];
+                    return Container(
+                      width: 3.0,
+                      height: heights[i % heights.length],
+                      margin: const EdgeInsets.symmetric(horizontal: 1.5),
+                      decoration: BoxDecoration(
+                        color: Colors.white70,
+                        borderRadius: BorderRadius.circular(2.0),
+                      ),
+                    );
+                  }),
+                ),
+                const SizedBox(width: 10.0),
+                Text(
+                  '0:15',
+                  style: GoogleFonts.inter(color: Colors.white, fontSize: 12.0, fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(left: 4.0, right: 4.0, bottom: 4.0),
+            child: Text(
+              DateFormat('h:mm a').format(time),
+              style: GoogleFonts.inter(fontSize: 10.0, color: _MsgDark.textMuted),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Call Dialog
+  void _showCallDialog(bool isVideo) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF242526),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircleAvatar(
+              radius: 36,
+              backgroundImage: widget.targetUserPhoto.isNotEmpty
+                  ? NetworkImage(ApiService.getFullImageUrl(widget.targetUserPhoto))
+                  : null,
+              backgroundColor: _getAvatarBgColor(widget.targetUserName),
+              child: widget.targetUserPhoto.isEmpty
+                  ? Text(widget.targetUserName[0].toUpperCase(), style: GoogleFonts.inter(fontSize: 24, color: Colors.white, fontWeight: FontWeight.bold))
+                  : null,
+            ),
+            const SizedBox(height: 16),
+            Text(widget.targetUserName, style: GoogleFonts.kantumruyPro(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+            const SizedBox(height: 6),
+            Text(isVideo ? 'កំពុងការហៅវីដេអូ... (Video calling...)' : 'កំពុងការហៅសំឡេង... (Audio calling...)', style: GoogleFonts.kantumruyPro(fontSize: 13, color: _MsgDark.textMuted)),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                FloatingActionButton(
+                  backgroundColor: Colors.redAccent,
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Icon(Icons.call_end_rounded, color: Colors.white),
+                ),
+              ],
+            )
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Pick and Send Image
+  Future<void> _pickAndSendImage(ImageSource source) async {
+    try {
+      final XFile? file = await ImagePicker().pickImage(source: source, imageQuality: 70);
+      if (file == null || currentUserId.isEmpty) return;
+      final bytes = await file.readAsBytes();
+      if (bytes.isEmpty) return;
+
+      if (!mounted) return;
+      final base64Image = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
+
+      final msgData = {
+        'text': '',
+        'imageUrl': base64Image,
+        'type': 'image',
+        'senderId': currentUserId,
+        'senderName': userProvider.name ?? '',
+        'senderPhoto': userProvider.avatar ?? '',
+        'timestamp': FieldValue.serverTimestamp(),
+        'isRead': false,
+      };
+
+      final batch = _firestore.batch();
+      final msgRef = _firestore.collection('chats').doc(_roomId).collection('messages').doc();
+      batch.set(msgRef, msgData);
+      batch.set(_firestore.collection('chats').doc(_roomId), {
+        'participants': [currentUserId, widget.targetUserId],
+        'lastMessage': '📷 បានផ្ញើរូបភាព',
+        'lastTimestamp': FieldValue.serverTimestamp(),
+        'lastSenderId': currentUserId,
+      }, SetOptions(merge: true));
+      await batch.commit();
+    } catch (e) {
+      debugPrint('Pick image error: $e');
+    }
+  }
+
+  // Send Thumbs Up
+  Future<void> _sendThumbsUp() async {
+    if (currentUserId.isEmpty) return;
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    final msgData = {
+      'text': '👍',
+      'type': 'sticker',
+      'senderId': currentUserId,
+      'senderName': userProvider.name ?? '',
+      'senderPhoto': userProvider.avatar ?? '',
+      'timestamp': FieldValue.serverTimestamp(),
+      'isRead': false,
+    };
+
+    final batch = _firestore.batch();
+    final msgRef = _firestore.collection('chats').doc(_roomId).collection('messages').doc();
+    batch.set(msgRef, msgData);
+    batch.set(_firestore.collection('chats').doc(_roomId), {
+      'participants': [currentUserId, widget.targetUserId],
+      'lastMessage': '👍',
+      'lastTimestamp': FieldValue.serverTimestamp(),
+      'lastSenderId': currentUserId,
+    }, SetOptions(merge: true));
+    await batch.commit();
+  }
+
   // ==========================================
   // C. BOTTOM INPUT TOOLBAR
   // ==========================================
@@ -624,10 +868,20 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           // Action icons left
-          _buildToolbarIcon(Icons.add_circle_rounded),
-          _buildToolbarIcon(Icons.camera_alt_rounded),
-          _buildToolbarIcon(Icons.photo_rounded),
-          _buildToolbarIcon(Icons.mic_rounded),
+          _buildToolbarIcon(Icons.add_circle_rounded, onTap: () {
+            _pickAndSendImage(ImageSource.gallery);
+          }),
+          _buildToolbarIcon(Icons.camera_alt_rounded, onTap: () {
+            _pickAndSendImage(ImageSource.camera);
+          }),
+          _buildToolbarIcon(Icons.photo_rounded, onTap: () {
+            _pickAndSendImage(ImageSource.gallery);
+          }),
+          _buildToolbarIcon(Icons.mic_rounded, onTap: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('សូមចុចវាយសារ ឬផ្ញើ 👍', style: GoogleFonts.kantumruyPro()), duration: const Duration(seconds: 2)),
+            );
+          }),
           const SizedBox(width: 4.0),
 
           // Text input field
@@ -671,7 +925,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             builder: (context, value, _) {
               final hasText = value.text.trim().isNotEmpty;
               return GestureDetector(
-                onTap: hasText ? _sendMessage : () {},
+                onTap: hasText ? _sendMessage : _sendThumbsUp,
                 child: Padding(
                   padding: const EdgeInsets.only(left: 2.0, bottom: 6.0),
                   child: Icon(
@@ -688,10 +942,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
   }
 
-  Widget _buildToolbarIcon(IconData icon) {
+  Widget _buildToolbarIcon(IconData icon, {VoidCallback? onTap}) {
     return IconButton(
       icon: Icon(icon, color: _MsgDark.iconColor, size: 26.0),
-      onPressed: () {},
+      onPressed: onTap ?? () {},
       padding: const EdgeInsets.symmetric(horizontal: 4.0),
       constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
     );

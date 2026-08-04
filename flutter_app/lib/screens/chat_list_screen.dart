@@ -26,6 +26,20 @@ class MessengerTheme {
   static const Color unreadDot = Color(0xFF0084FF);
 }
 
+Color _getAvatarBgColor(String name) {
+  if (name.isEmpty) return const Color(0xFF0084FF);
+  const colors = [
+    Color(0xFF0084FF),
+    Color(0xFFFFB300),
+    Color(0xFFAB47BC),
+    Color(0xFF26A69A),
+    Color(0xFFFF7043),
+    Color(0xFF66BB6A),
+    Color(0xFFEC407A),
+  ];
+  return colors[name.codeUnitAt(0) % colors.length];
+}
+
 class ChatListScreen extends StatefulWidget {
   const ChatListScreen({super.key});
 
@@ -258,14 +272,15 @@ class _ChatListScreenState extends State<ChatListScreen> {
 
           // User avatar
           CircleAvatar(
-            radius: 18.0,
+            radius: 22.0,
             backgroundImage: user.avatar != null && user.avatar!.isNotEmpty
                 ? NetworkImage(ApiService.getFullImageUrl(user.avatar!))
                 : null,
+            backgroundColor: _getAvatarBgColor(user.name ?? ''),
             child: user.avatar == null || user.avatar!.isEmpty
                 ? Text(
                     (user.name ?? 'U').substring(0, 1).toUpperCase(),
-                    style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 13),
+                    style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 14),
                   )
                 : null,
           ),
@@ -374,7 +389,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
     final storyUsers = usersList.take(8).toList();
 
     return SizedBox(
-      height: 94.0,
+      height: 106.0,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
@@ -387,14 +402,14 @@ class _ChatListScreenState extends State<ChatListScreen> {
               child: Column(
                 children: [
                   Container(
-                    width: 54.0,
-                    height: 54.0,
+                    width: 60.0,
+                    height: 60.0,
                     decoration: BoxDecoration(
                       color: MessengerTheme.actionBtnBg,
                       shape: BoxShape.circle,
                       border: Border.all(color: Colors.grey.shade300, width: 0.8),
                     ),
-                    child: const Icon(Icons.add_rounded, size: 26.0, color: MessengerTheme.textPrimary),
+                    child: const Icon(Icons.add_rounded, size: 28.0, color: MessengerTheme.textPrimary),
                   ),
                   const SizedBox(height: 8.0),
                   SizedBox(
@@ -452,12 +467,13 @@ class _ChatListScreenState extends State<ChatListScreen> {
                             ),
                           ),
                           child: CircleAvatar(
-                            radius: 23.0,
+                            radius: 28.0,
                             backgroundImage: avatar.isNotEmpty ? NetworkImage(ApiService.getFullImageUrl(avatar)) : null,
+                            backgroundColor: _getAvatarBgColor(name),
                             child: avatar.isEmpty
                                 ? Text(
                                     name.isNotEmpty ? name.substring(0, 1).toUpperCase() : 'U',
-                                    style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14),
+                                    style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
                                   )
                                 : null,
                           ),
@@ -576,9 +592,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
             child: Row(
               children: [
                 const CircleAvatar(
-                  radius: 26.0,
+                  radius: 30.0,
                   backgroundColor: MessengerTheme.activeBlue,
-                  child: Icon(Icons.groups_rounded, color: Colors.white, size: 28),
+                  child: Icon(Icons.groups_rounded, color: Colors.white, size: 30),
                 ),
                 const SizedBox(width: 14.0),
                 Expanded(
@@ -642,9 +658,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
         child: Row(
           children: [
             CircleAvatar(
-              radius: 26.0,
+              radius: 30.0,
               backgroundColor: Colors.indigo.shade400,
-              child: const Icon(Icons.forum_rounded, color: Colors.white, size: 26),
+              child: const Icon(Icons.forum_rounded, color: Colors.white, size: 28),
             ),
             const SizedBox(width: 14.0),
             Expanded(
@@ -694,13 +710,13 @@ class _ChatListScreenState extends State<ChatListScreen> {
         child: Row(
           children: [
             CircleAvatar(
-              radius: 26.0,
+              radius: 30.0,
               backgroundColor: const Color(0xFFF9FAFB),
               child: ClipOval(
                 child: Image.network(
                   'https://images.unsplash.com/photo-1614162692292-7ac56d7f7f1e?w=120&auto=format&fit=crop',
-                  width: 52.0,
-                  height: 52.0,
+                  width: 60.0,
+                  height: 60.0,
                   fit: BoxFit.cover,
                 ),
               ),
@@ -855,12 +871,13 @@ class _ChatListScreenState extends State<ChatListScreen> {
                         Stack(
                           children: [
                             CircleAvatar(
-                              radius: 26.0,
+                              radius: 32.0,
                               backgroundImage: avatar.isNotEmpty ? NetworkImage(ApiService.getFullImageUrl(avatar)) : null,
+                              backgroundColor: _getAvatarBgColor(title),
                               child: avatar.isEmpty
                                   ? Text(
                                       title.isNotEmpty ? title.substring(0, 1).toUpperCase() : 'U',
-                                      style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16),
+                                      style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white),
                                     )
                                   : null,
                             ),

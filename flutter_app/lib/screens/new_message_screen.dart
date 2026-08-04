@@ -3,13 +3,27 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/api_service.dart';
 import 'chat_detail_screen.dart';
+import 'chat_create_group_screen.dart';
+
+Color _getAvatarBgColor(String name) {
+  if (name.isEmpty) return const Color(0xFF0084FF);
+  const colors = [
+    Color(0xFF0084FF),
+    Color(0xFFFFB300),
+    Color(0xFFAB47BC),
+    Color(0xFF26A69A),
+    Color(0xFFFF7043),
+    Color(0xFF66BB6A),
+    Color(0xFFEC407A),
+  ];
+  return colors[name.codeUnitAt(0) % colors.length];
+}
 
 // ==========================================
 // DARK THEME TOKENS (Shared with ChatDetailScreen)
 // ==========================================
 class _NMDark {
   static const Color bg = Color(0xFF1C1C1E);
-  static const Color card = Color(0xFF3A3B3C);
   static const Color textPrimary = Color(0xFFFFFFFF);
   static const Color textMuted = Color(0xFFB0B3B8);
   static const Color accent = Color(0xFF0084FF);
@@ -104,16 +118,16 @@ class ContactTile extends StatelessWidget {
             Stack(
               children: [
                 CircleAvatar(
-                  radius: 26.0,
+                  radius: 30.0,
                   backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
-                  backgroundColor: _NMDark.card,
+                  backgroundColor: _getAvatarBgColor(name),
                   child: avatarUrl.isEmpty
                       ? Text(
                           name.isNotEmpty ? name[0].toUpperCase() : 'U',
                           style: GoogleFonts.inter(
-                            color: _NMDark.textPrimary,
+                            color: Colors.white,
                             fontWeight: FontWeight.bold,
-                            fontSize: 16.0,
+                            fontSize: 18.0,
                           ),
                         )
                       : null,
@@ -123,13 +137,13 @@ class ContactTile extends StatelessWidget {
                     right: 0.0,
                     bottom: 0.0,
                     child: Container(
-                      width: 14.0,
-                      height: 14.0,
+                      width: 15.0,
+                      height: 15.0,
                       decoration: const BoxDecoration(
                         color: _NMDark.onlineGreen,
                         shape: BoxShape.circle,
                         border: Border.fromBorderSide(
-                          BorderSide(color: _NMDark.bg, width: 2.0),
+                          BorderSide(color: _NMDark.bg, width: 2.5),
                         ),
                       ),
                     ),
@@ -264,7 +278,26 @@ class _NewMessageScreenState extends State<NewMessageScreen> {
                     const SizedBox(height: 8.0),
                     ..._quickActions.map((action) => _QuickActionTile(
                           action: action,
-                          onTap: () {},
+                          onTap: () {
+                            if (action.label == 'Group chat') {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => ChatCreateGroupScreen(
+                                    allUsers: widget.allUsers,
+                                    currentUserId: widget.currentUserId,
+                                  ),
+                                ),
+                              );
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('មុខងារ "${action.label}" នឹងមកដល់ឆាប់ៗនេះ!', style: GoogleFonts.kantumruyPro()),
+                                  duration: const Duration(seconds: 2),
+                                ),
+                              );
+                            }
+                          },
                         )),
                     const SizedBox(height: 8.0),
                   ],
