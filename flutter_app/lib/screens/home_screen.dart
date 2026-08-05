@@ -47,6 +47,7 @@ import 'product_analyzer_screen.dart';
 import 'poll_voting_screen.dart';
 import 'document_scanner_screen.dart';
 import 'app_settings_screen.dart';
+import 'kpi_performance_screen.dart';
 
 // ========== SLIDE PAGE ROUTE (Feature #9) ==========
 PageRouteBuilder _slideRoute(Widget page) {
@@ -2178,7 +2179,7 @@ class _HomeContentState extends State<HomeContent> {
     final orderStr = user.getConfig(
       'home_card_order$suffix',
       defaultValue:
-          'stats_slider,attendance,outside_attendance,product_analyzer,training_quiz,poll_voting,announcements,meetings,checklist,daily_report,mission,trip,user_management,request_form,reports,material_request,notification,payroll,document_scanner,app_settings',
+          'stats_slider,attendance,outside_attendance,kpi,product_analyzer,training_quiz,poll_voting,announcements,meetings,checklist,daily_report,mission,trip,user_management,request_form,reports,material_request,notification,payroll,document_scanner,app_settings',
     );
 
     final keys = orderStr
@@ -2482,6 +2483,20 @@ class _HomeContentState extends State<HomeContent> {
           } else {
             Navigator.push(context, _slideRoute(const PayrollScreen()));
           }
+        },
+      ),
+
+      'kpi': (isList) => _buildActionItem(
+        isList: isList,
+        key: 'show_kpi_card$suffix',
+        user: user,
+        label: "ការវាយតម្លៃ KPI/OKR",
+        subtitle: "តាមដាន និងវាយតម្លៃការងារ",
+        icon: Icons.auto_graph_rounded,
+        color: const Color(0xFF8B5CF6),
+        onTap: () {
+          _hapticLight();
+          Navigator.push(context, _slideRoute(const KpiPerformanceScreen()));
         },
       ),
 

@@ -6,6 +6,7 @@ import 'package:local_auth/local_auth.dart';
 import 'package:provider/provider.dart';
 import '../providers/user_provider.dart';
 import '../services/api_service.dart';
+import '../services/payslip_pdf_service.dart';
 import '../utils/app_theme.dart';
 import '../widgets/app_widgets.dart';
 
@@ -402,8 +403,16 @@ class _PayrollScreenState extends State<PayrollScreen> {
   }
 
   Widget _buildPayrollCard(dynamic item) {
-    double calculatedSalary =
-        double.tryParse(item['calculated_salary']?.toString() ?? '0') ?? 0;
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    double baseSalary = double.tryParse(item['base_salary']?.toString() ?? '0') ?? 0;
+    double otHours = double.tryParse(item['ot_hours']?.toString() ?? '0') ?? 0;
+    double otPay = double.tryParse(item['ot_pay']?.toString() ?? '0') ?? 0;
+    double allowances = double.tryParse(item['allowances']?.toString() ?? '0') ?? 0;
+    double lateDeductions = double.tryParse(item['late_deductions']?.toString() ?? '0') ?? 0;
+    double nssfDeductions = double.tryParse(item['nssf_deductions']?.toString() ?? '0') ?? 0;
+    double taxDeductions = double.tryParse(item['tax_deductions']?.toString() ?? '0') ?? 0;
+    double calculatedSalary = double.tryParse(item['calculated_salary']?.toString() ?? '0') ?? (baseSalary + otPay + allowances - lateDeductions - nssfDeductions - taxDeductions);
+    int presentDays = int.tryParse(item['present_days']?.toString() ?? '0') ?? 0;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
@@ -492,13 +501,45 @@ class _PayrollScreenState extends State<PayrollScreen> {
           ),
           _buildInfoRow(
             "ប្រាក់ខែគោល (Base Salary)",
-            "\$${item['base_salary']}",
+            "\$${baseSalary.toStringAsFixed(2)}",
           ),
           const SizedBox(height: 8),
           _buildInfoRow(
             "វត្តមាន (Present Days)",
-            "${item['present_days']} ថ្ងៃ",
+            "$presentDays ថ្ងៃ",
           ),
+          if (otPay > 0 || otHours > 0) ...[
+            const SizedBox(height: 8),
+            _buildInfoRow(
+              "ប្រាក់ថែមម៉ោង (OT Pay)",
+              "\$${otPay.toStringAsFixed(2)} (${otHours.toStringAsFixed(1)}h)",
+              valueColor: Colors.greenAccent,
+            ),
+          ],
+          if (allowances > 0) ...[
+            const SizedBox(height: 8),
+            _buildInfoRow(
+              "ប្រាក់ឧបត្ថម្ភ (Allowances)",
+              "\$${allowances.toStringAsFixed(2)}",
+              valueColor: Colors.greenAccent,
+            ),
+          ],
+          if (lateDeductions > 0) ...[
+            const SizedBox(height: 8),
+            _buildInfoRow(
+              "កាត់ការអវត្តមាន/យឺត (Deduction)",
+              "-\$${lateDeductions.toStringAsFixed(2)}",
+              valueColor: Colors.redAccent,
+            ),
+          ],
+          if (nssfDeductions > 0 || taxDeductions > 0) ...[
+            const SizedBox(height: 8),
+            _buildInfoRow(
+              "ប.ស.ស. & ពន្ធ (NSSF & Tax)",
+              "-\$${(nssfDeductions + taxDeductions).toStringAsFixed(2)}",
+              valueColor: Colors.redAccent,
+            ),
+          ],
           const SizedBox(height: 16),
           Container(
             padding: const EdgeInsets.all(16),
@@ -527,23 +568,56 @@ class _PayrollScreenState extends State<PayrollScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 12),
-          Align(
-            alignment: Alignment.centerRight,
-            child: Text(
-              "កាលបរិច្ឆេទ: ${item['payment_date'] ?? '-'}",
-              style: GoogleFonts.inter(
-                color: AppTheme.textSecondary.withValues(alpha: 0.7),
-                fontSize: 11,
+          const SizedBox(height: 14),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                "កាលបរិច្ឆេទ: ${item['payment_date'] ?? '-'}",
+                style: GoogleFonts.inter(
+                  color: AppTheme.textSecondary.withValues(alpha: 0.7),
+                  fontSize: 11,
+                ),
               ),
-            ),
+              OutlinedButton.icon(
+                onPressed: () => PayslipPdfService.printOrSharePayslip(
+                  employeeName: userProvider.name ?? 'Employee',
+                  position: userProvider.position ?? '',
+                  department: userProvider.department ?? '',
+                  month: '${item['payroll_month']}',
+                  year: '${item['payroll_year']}',
+                  baseSalary: baseSalary,
+                  presentDays: presentDays,
+                  otHours: otHours,
+                  otPay: otPay,
+                  allowances: allowances,
+                  lateDeductions: lateDeductions,
+                  nssfDeductions: nssfDeductions,
+                  taxDeductions: taxDeductions,
+                  netSalary: calculatedSalary,
+                  paymentDate: '${item['payment_date'] ?? ''}',
+                  paymentStatus: '${item['status'] ?? 'Paid'}',
+                ),
+                icon: const Icon(Icons.picture_as_pdf_rounded, size: 16),
+                label: Text(
+                  'ទាញយក Payslip',
+                  style: GoogleFonts.kantumruyPro(fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppTheme.primary,
+                  side: BorderSide(color: AppTheme.primary.withValues(alpha: 0.5)),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _buildInfoRow(String label, String value) {
+  Widget _buildInfoRow(String label, String value, {Color? valueColor}) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -551,15 +625,15 @@ class _PayrollScreenState extends State<PayrollScreen> {
           label,
           style: GoogleFonts.kantumruyPro(
             color: AppTheme.textSecondary,
-            fontSize: 14,
+            fontSize: 13.5,
           ),
         ),
         Text(
           value,
           style: GoogleFonts.poppins(
-            color: AppTheme.textPrimary,
+            color: valueColor ?? AppTheme.textPrimary,
             fontWeight: FontWeight.w600,
-            fontSize: 14,
+            fontSize: 13.5,
           ),
         ),
       ],
