@@ -743,7 +743,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             // Bottom Action Bar (Download, Forward, Share)
             Container(
               padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 24.0),
-              color: Colors.black88,
+              color: Colors.black87,
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
@@ -1040,7 +1040,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                         onTap: () async {
                           Navigator.pop(ctx);
                           final userProvider = Provider.of<UserProvider>(context, listen: false);
-                          final targetRoomId = "PRIVATE_${[currentUserId, targetId]..sort().join('_')}";
+                          final targetRoomId = "PRIVATE_${([currentUserId, targetId]..sort()).join('_')}";
 
                           final msgData = {
                             'text': type == 'text' ? content : '',
@@ -1299,9 +1299,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       context: context,
       barrierDismissible: false,
       builder: (ctx) {
-        return StatefulWidget(
+        Timer? callTimer;
+        return StatefulBuilder(
           builder: (context, setStateCall) {
-            Timer.periodic(const Duration(seconds: 1), (timer) {
+            callTimer ??= Timer.periodic(const Duration(seconds: 1), (timer) {
               if (ctx.mounted) {
                 setStateCall(() => callSeconds++);
               } else {
