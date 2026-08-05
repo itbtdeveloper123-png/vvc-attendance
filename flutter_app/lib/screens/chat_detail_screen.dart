@@ -115,7 +115,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   // Audio Playback state
   String? _currentlyPlayingAudio;
   bool _isPlayingAudio = false;
-  double _playbackSpeed = 1.0;
+  final double _playbackSpeed = 1.0;
   Duration _currentAudioPosition = Duration.zero;
   Duration _currentAudioDuration = Duration.zero;
 
@@ -1490,7 +1490,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                       'បង្ហាញឈ្មោះអ្នកផ្ញើដើម (Show original sender)',
                       style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 13.5),
                     ),
-                    activeColor: const Color(0xFF0084FF),
+                    activeThumbColor: const Color(0xFF0084FF),
                     dense: true,
                   ),
                   const Divider(color: Colors.white24, height: 1),
