@@ -50,7 +50,6 @@ MemoryImage _getMemoryImage(String base64Str) {
 class _MsgDark {
   static const Color bg = Color(0xFF000000);
   static const Color card = Color(0xFF242526);
-  static const Color inputBg = Color(0xFF3A3B3C);
   static const Color sentBubble = Color(0xFF0084FF);
   static const Color receivedBubble = Color(0xFF3A3B3C);
   static const Color textPrimary = Color(0xFFFFFFFF);
@@ -1274,19 +1273,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         );
       }),
     );
-  }
-
-  void _togglePlaybackSpeed() {
-    setState(() {
-      if (_playbackSpeed == 1.0) {
-        _playbackSpeed = 1.5;
-      } else if (_playbackSpeed == 1.5) {
-        _playbackSpeed = 2.0;
-      } else {
-        _playbackSpeed = 1.0;
-      }
-    });
-    _audioPlayer.setPlaybackRate(_playbackSpeed);
   }
 
   // Voice Message Options BottomSheet (Reply, Forward, Pin, Delete)
