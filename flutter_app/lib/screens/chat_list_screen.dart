@@ -768,20 +768,19 @@ class _ChatListScreenState extends State<ChatListScreen> {
                                     )
                                   : null,
                             ),
-                            if (isOnline)
-                              Positioned(
-                                right: 0.0,
-                                bottom: 0.0,
-                                child: Container(
-                                  width: 14.0,
-                                  height: 14.0,
-                                  decoration: const BoxDecoration(
-                                    color: MessengerTheme.onlineGreen,
-                                    shape: BoxShape.circle,
-                                    border: Border.fromBorderSide(BorderSide(color: Colors.white, width: 2.0)),
-                                  ),
+                            Positioned(
+                              right: 0.0,
+                              bottom: 0.0,
+                              child: Container(
+                                width: 15.0,
+                                height: 15.0,
+                                decoration: BoxDecoration(
+                                  color: isOnline ? MessengerTheme.onlineGreen : const Color(0xFFB0B3B8),
+                                  shape: BoxShape.circle,
+                                  border: const Border.fromBorderSide(BorderSide(color: Colors.white, width: 2.5)),
                                 ),
                               ),
+                            ),
                           ],
                         ),
                         const SizedBox(width: 14.0),

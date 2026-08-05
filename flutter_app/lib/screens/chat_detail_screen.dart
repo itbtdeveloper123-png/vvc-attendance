@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -93,6 +94,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
   bool _isLoadingHistory = true;
 
+  // Realtime Presence State
+  bool _isTargetOnline = false;
+  DateTime? _targetLastActive;
+  StreamSubscription<DocumentSnapshot>? _presenceSubscription;
+  StreamSubscription<DocumentSnapshot>? _roomStateSubscription;
+
+  // Typing & Recording Indicator State
+  bool _isTargetTyping = false;
+  bool _isTargetRecordingVoice = false;
+  Timer? _typingDebounceTimer;
+
   // Voice Recording state
   bool _isRecording = false;
   int _recordingSeconds = 0;
@@ -147,7 +159,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     if (mounted) {
       setState(() => _currentWallpaper = wp);
     }
+    _updateMyPresence(true);
+    _listenTargetPresence();
+    _listenRoomState();
     _listenMessages();
+
+    _msgController.addListener(_onTextChanged);
   }
 
   void _listenMessages() {
@@ -233,12 +250,96 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     await batch.commit();
   }
 
+  Future<void> _updateMyPresence(bool online) async {
+    if (currentUserId.isEmpty) return;
+    try {
+      await _firestore.collection('users').doc(currentUserId).set({
+        'isOnline': online,
+        'lastActive': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (_) {}
+  }
+
+  void _listenTargetPresence() {
+    if (widget.isGroup || widget.targetUserId.isEmpty) return;
+    _presenceSubscription?.cancel();
+    _presenceSubscription = _firestore
+        .collection('users')
+        .doc(widget.targetUserId)
+        .snapshots()
+        .listen((doc) {
+      if (doc.exists && mounted) {
+        final data = doc.data();
+        final online = data?['isOnline'] == true;
+        final ts = data?['lastActive'] as Timestamp?;
+        setState(() {
+          _isTargetOnline = online;
+          _targetLastActive = ts?.toDate();
+        });
+      }
+    });
+  }
+
+  void _listenRoomState() {
+    _roomStateSubscription?.cancel();
+    _roomStateSubscription = _firestore
+        .collection('chats')
+        .doc(_roomId)
+        .snapshots()
+        .listen((doc) {
+      if (doc.exists && mounted) {
+        final data = doc.data();
+        if (data != null) {
+          final typingMap = data['typing'] as Map<String, dynamic>? ?? {};
+          final recordingMap = data['recordingVoice'] as Map<String, dynamic>? ?? {};
+          setState(() {
+            _isTargetTyping = typingMap[widget.targetUserId] == true;
+            _isTargetRecordingVoice = recordingMap[widget.targetUserId] == true;
+          });
+        }
+      }
+    });
+  }
+
+  void _onTextChanged() {
+    if (currentUserId.isEmpty) return;
+    _typingDebounceTimer?.cancel();
+    _setTypingState(true);
+    _typingDebounceTimer = Timer(const Duration(seconds: 2), () {
+      _setTypingState(false);
+    });
+  }
+
+  Future<void> _setTypingState(bool isTyping) async {
+    if (currentUserId.isEmpty) return;
+    try {
+      await _firestore.collection('chats').doc(_roomId).set({
+        'typing': {currentUserId: isTyping},
+      }, SetOptions(merge: true));
+    } catch (_) {}
+  }
+
+  Future<void> _setRecordingVoiceState(bool isRecording) async {
+    if (currentUserId.isEmpty) return;
+    try {
+      await _firestore.collection('chats').doc(_roomId).set({
+        'recordingVoice': {currentUserId: isRecording},
+      }, SetOptions(merge: true));
+    } catch (_) {}
+  }
+
   @override
   void dispose() {
+    _updateMyPresence(false);
+    _setTypingState(false);
+    _setRecordingVoiceState(false);
     _messageSubscription?.cancel();
+    _presenceSubscription?.cancel();
+    _roomStateSubscription?.cancel();
     _positionSub?.cancel();
     _durationSub?.cancel();
     _recordingTimer?.cancel();
+    _typingDebounceTimer?.cancel();
     _msgController.dispose();
     _scrollController.dispose();
     _audioRecorder.dispose();
@@ -250,116 +351,338 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _MsgDark.bg,
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildHeader(),
-            Expanded(
-              child: Container(
-                decoration: _currentWallpaper.isNotEmpty
-                    ? BoxDecoration(
-                        image: DecorationImage(
-                          image: AssetImage(_currentWallpaper),
-                          fit: BoxFit.cover,
-                          colorFilter: ColorFilter.mode(
-                            Colors.black.withValues(alpha: 0.45),
-                            BlendMode.darken,
-                          ),
-                        ),
-                      )
-                    : null,
+      body: Container(
+        decoration: _currentWallpaper.isNotEmpty
+            ? BoxDecoration(
+                image: DecorationImage(
+                  image: AssetImage(_currentWallpaper),
+                  fit: BoxFit.cover,
+                  colorFilter: ColorFilter.mode(
+                    Colors.black.withValues(alpha: 0.45),
+                    BlendMode.darken,
+                  ),
+                ),
+              )
+            : null,
+        child: SafeArea(
+          child: Column(
+            children: [
+              _buildHeader(),
+              Expanded(
                 child: _buildMessageFeed(),
               ),
-            ),
-            if (_replyingToMessage != null) _buildReplyPreviewBanner(),
-            if (_showPlusMenu) _buildPlusMenuOverlay(),
-            _buildInputToolbar(),
-          ],
+              if (_replyingToMessage != null) _buildReplyPreviewBanner(),
+              if (_showPlusMenu) _buildPlusMenuOverlay(),
+              _buildInputToolbar(),
+            ],
+          ),
         ),
       ),
     );
   }
 
   // ==========================================
-  // A. CUSTOM APP BAR
+  // A. CUSTOM APP BAR (Translucent Messenger Style)
   // ==========================================
   Widget _buildHeader() {
-    return Container(
-      color: _MsgDark.bg,
-      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
-      child: Row(
-        children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new_rounded, color: _MsgDark.iconColor, size: 22),
-            onPressed: () => Navigator.pop(context),
-          ),
-          Stack(
+    String statusText = 'គ្មាន Online';
+    if (_isTargetOnline) {
+      statusText = 'សកម្មឥឡូវនេះ (Active Now)';
+    } else if (_targetLastActive != null) {
+      final diff = DateTime.now().difference(_targetLastActive!);
+      if (diff.inMinutes < 60) {
+        statusText = 'សកម្ម ${diff.inMinutes} នាទីមុន';
+      } else if (diff.inHours < 24) {
+        statusText = 'សកម្ម ${diff.inHours} ម៉ោងមុន';
+      } else {
+        statusText = DateFormat('dd/MM HH:mm').format(_targetLastActive!);
+      }
+    }
+
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: Container(
+          color: Colors.black.withValues(alpha: 0.45),
+          padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
+          child: Row(
             children: [
-              CircleAvatar(
-                radius: 20.0,
-                backgroundImage: widget.targetUserPhoto.isNotEmpty
-                    ? NetworkImage(ApiService.getFullImageUrl(widget.targetUserPhoto))
-                    : null,
-                backgroundColor: _getAvatarBgColor(widget.targetUserName),
-                child: widget.targetUserPhoto.isEmpty
-                    ? Text(
-                        widget.targetUserName.isNotEmpty ? widget.targetUserName[0].toUpperCase() : 'U',
-                        style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
-                      )
-                    : null,
+              IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 22),
+                onPressed: () => Navigator.pop(context),
               ),
-              Positioned(
-                right: 0,
-                bottom: 0,
-                child: Container(
-                  width: 10,
-                  height: 10,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF44B700),
-                    shape: BoxShape.circle,
-                    border: Border.all(color: _MsgDark.bg, width: 1.5),
-                  ),
+              GestureDetector(
+                onTap: _showUserProfileModal,
+                child: Row(
+                  children: [
+                    Stack(
+                      children: [
+                        CircleAvatar(
+                          radius: 20.0,
+                          backgroundImage: widget.targetUserPhoto.isNotEmpty
+                              ? NetworkImage(ApiService.getFullImageUrl(widget.targetUserPhoto))
+                              : null,
+                          backgroundColor: _getAvatarBgColor(widget.targetUserName),
+                          child: widget.targetUserPhoto.isEmpty
+                              ? Text(
+                                  widget.targetUserName.isNotEmpty ? widget.targetUserName[0].toUpperCase() : 'U',
+                                  style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
+                                )
+                              : null,
+                        ),
+                        Positioned(
+                          right: 0,
+                          bottom: 0,
+                          child: Container(
+                            width: 11,
+                            height: 11,
+                            decoration: BoxDecoration(
+                              color: _isTargetOnline ? const Color(0xFF44B700) : Colors.grey,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.black, width: 1.8),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(width: 10.0),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          widget.targetUserName,
+                          style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16.0),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          statusText,
+                          style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 11.5),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
+              ),
+              const Spacer(),
+              IconButton(
+                icon: const Icon(Icons.palette_rounded, color: _MsgDark.iconColor, size: 24),
+                onPressed: () => showChatWallpaperPicker(
+                  context,
+                  targetId: widget.targetUserId,
+                  targetName: widget.targetUserName,
+                  onWallpaperSelected: (wp) => setState(() => _currentWallpaper = wp),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.phone_rounded, color: _MsgDark.iconColor, size: 24),
+                onPressed: () => _showCallDialog(false),
+              ),
+              IconButton(
+                icon: const Icon(Icons.videocam_rounded, color: _MsgDark.iconColor, size: 26),
+                onPressed: () => _showCallDialog(true),
               ),
             ],
           ),
-          const SizedBox(width: 10.0),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  widget.targetUserName,
-                  style: GoogleFonts.kantumruyPro(color: _MsgDark.textPrimary, fontWeight: FontWeight.bold, fontSize: 16.0),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                Text(
-                  'សកម្មឥឡូវនេះ (Active Now)',
-                  style: GoogleFonts.kantumruyPro(color: _MsgDark.textMuted, fontSize: 11.5),
-                ),
-              ],
+        ),
+      ),
+    );
+  }
+
+  void _showUserProfileModal() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1C1C1E),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28.0)),
+      ),
+      builder: (ctx) {
+        return StreamBuilder<DocumentSnapshot>(
+          stream: _firestore.collection('users').doc(widget.targetUserId).snapshots(),
+          builder: (context, snapshot) {
+            Map<String, dynamic> uData = {};
+            if (snapshot.hasData && snapshot.data!.exists) {
+              uData = snapshot.data!.data() as Map<String, dynamic>;
+            }
+
+            final name = uData['name'] ?? widget.targetUserName;
+            final avatar = uData['avatar'] ?? widget.targetUserPhoto;
+            final position = uData['position'] ?? uData['role'] ?? 'បុគ្គលិក';
+            final department = uData['department'] ?? 'VVC';
+            final phone = uData['phone'] ?? uData['phone_number'] ?? 'គ្មានទិន្នន័យ';
+            final email = uData['email'] ?? 'គ្មានទិន្នន័យ';
+            final bool online = uData['isOnline'] == true;
+
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(20.0, 12.0, 20.0, 30.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(width: 40, height: 4.5, decoration: BoxDecoration(color: Colors.white30, borderRadius: BorderRadius.circular(10))),
+                  const SizedBox(height: 20),
+                  Stack(
+                    children: [
+                      CircleAvatar(
+                        radius: 46.0,
+                        backgroundImage: avatar.isNotEmpty ? NetworkImage(ApiService.getFullImageUrl(avatar)) : null,
+                        backgroundColor: _getAvatarBgColor(name),
+                        child: avatar.isEmpty
+                            ? Text(name.isNotEmpty ? name[0].toUpperCase() : 'U', style: GoogleFonts.kantumruyPro(fontSize: 32, color: Colors.white, fontWeight: FontWeight.bold))
+                            : null,
+                      ),
+                      Positioned(
+                        right: 2,
+                        bottom: 2,
+                        child: Container(
+                          width: 18,
+                          height: 18,
+                          decoration: BoxDecoration(
+                            color: online ? const Color(0xFF44B700) : Colors.grey,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: const Color(0xFF1C1C1E), width: 3),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    name,
+                    style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '$position • $department',
+                    style: GoogleFonts.kantumruyPro(color: _MsgDark.textMuted, fontSize: 13.5),
+                  ),
+                  const SizedBox(height: 18),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _buildProfileActionButton(Icons.phone_rounded, 'ការហៅ', () {
+                        Navigator.pop(ctx);
+                        _showCallDialog(false);
+                      }),
+                      _buildProfileActionButton(Icons.videocam_rounded, 'វីដេអូ', () {
+                        Navigator.pop(ctx);
+                        _showCallDialog(true);
+                      }),
+                      _buildProfileActionButton(Icons.wallpaper_rounded, 'Wallpaper', () {
+                        Navigator.pop(ctx);
+                        showChatWallpaperPicker(
+                          context,
+                          targetId: widget.targetUserId,
+                          targetName: widget.targetUserName,
+                          onWallpaperSelected: (wp) => setState(() => _currentWallpaper = wp),
+                        );
+                      }),
+                    ],
+                  ),
+                  const SizedBox(height: 22),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2C2C2E),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Column(
+                      children: [
+                        ListTile(
+                          leading: const Icon(Icons.phone_outlined, color: _MsgDark.iconColor),
+                          title: Text('លេខទូរស័ព្ទ', style: GoogleFonts.kantumruyPro(color: _MsgDark.textMuted, fontSize: 12)),
+                          subtitle: Text(phone, style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
+                        ),
+                        const Divider(height: 1, color: Colors.white12),
+                        ListTile(
+                          leading: const Icon(Icons.email_outlined, color: _MsgDark.iconColor),
+                          title: Text('អ៊ីមែល', style: GoogleFonts.kantumruyPro(color: _MsgDark.textMuted, fontSize: 12)),
+                          subtitle: Text(email, style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildProfileActionButton(IconData icon, String label, VoidCallback onTap) {
+    return Column(
+      children: [
+        InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(30),
+          child: Container(
+            width: 48,
+            height: 48,
+            decoration: const BoxDecoration(
+              color: Color(0xFF2C2C2E),
+              shape: BoxShape.circle,
             ),
+            child: Icon(icon, color: _MsgDark.iconColor, size: 24),
           ),
-          IconButton(
-            icon: const Icon(Icons.palette_rounded, color: _MsgDark.iconColor, size: 24),
-            onPressed: () => showChatWallpaperPicker(
-              context,
-              targetId: widget.targetUserId,
-              targetName: widget.targetUserName,
-              onWallpaperSelected: (wp) => setState(() => _currentWallpaper = wp),
+        ),
+        const SizedBox(height: 6),
+        Text(label, style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 12)),
+      ],
+    );
+  }
+
+  Widget _buildTypingIndicator() {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 4.0),
+        padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
+        decoration: BoxDecoration(
+          color: const Color(0xFF2C2C2E),
+          borderRadius: BorderRadius.circular(18.0),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'កំពុងវាយ...',
+              style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 12.5),
             ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.phone_rounded, color: _MsgDark.iconColor, size: 24),
-            onPressed: () => _showCallDialog(false),
-          ),
-          IconButton(
-            icon: const Icon(Icons.videocam_rounded, color: _MsgDark.iconColor, size: 26),
-            onPressed: () => _showCallDialog(true),
-          ),
-        ],
+            const SizedBox(width: 8.0),
+            const SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(strokeWidth: 2.0, color: _MsgDark.iconColor),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildVoiceRecordingIndicator() {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 4.0),
+        padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
+        decoration: BoxDecoration(
+          color: const Color(0xFF2C2C2E),
+          borderRadius: BorderRadius.circular(18.0),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.mic_rounded, color: Colors.redAccent, size: 16),
+            const SizedBox(width: 6.0),
+            Text(
+              'កំពុងថតសំឡេង...',
+              style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 12.5),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -395,11 +718,18 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       );
     }
 
+    final bool hasIndicator = _isTargetTyping || _isTargetRecordingVoice;
+
     return ListView.builder(
       controller: _scrollController,
       padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
-      itemCount: _messageDocs.length,
+      itemCount: _messageDocs.length + (hasIndicator ? 1 : 0),
       itemBuilder: (context, index) {
+        if (index == _messageDocs.length) {
+          if (_isTargetRecordingVoice) return _buildVoiceRecordingIndicator();
+          return _buildTypingIndicator();
+        }
+
         final doc = _messageDocs[index];
         final data = doc.data() as Map<String, dynamic>;
         final String senderId = data['senderId'] ?? '';
@@ -543,7 +873,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                 ],
                 Text(
                   text,
-                  style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 14.5, height: 1.35),
+                  style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 14.5, height: 1.35, fontWeight: FontWeight.bold),
                 ),
               ],
             ),
@@ -789,7 +1119,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
   }
 
-  // Interactive Playable Voice Message Bubble (Seek Bar + Speed Toggle + Long Press)
+  // Interactive Playable Voice Message Bubble (Waveform Bars + Speed Toggle + Long Press)
   Widget _buildVoiceBubble({
     required String docId,
     required String audioUrl,
@@ -814,7 +1144,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             onLongPress: () => _showVoiceOptionsModal(docId, audioUrl),
             child: Container(
               margin: const EdgeInsets.symmetric(vertical: 4.0),
-              padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 8.0),
+              padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 10.0),
               decoration: BoxDecoration(
                 color: isMine ? _MsgDark.sentBubble : const Color(0xFF2C2C2E),
                 borderRadius: BorderRadius.only(
@@ -827,29 +1157,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Speed Toggle Button (1x / 1.5x / 2x)
-                  GestureDetector(
-                    onTap: _togglePlaybackSpeed,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 4.0),
-                      decoration: BoxDecoration(
-                        color: Colors.white24,
-                        borderRadius: BorderRadius.circular(10.0),
-                      ),
-                      child: Text(
-                        '${_playbackSpeed.toStringAsFixed(1).replaceAll('.0', '')}x',
-                        style: GoogleFonts.inter(color: Colors.white, fontSize: 10.0, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8.0),
-
                   // Play / Pause Button
                   GestureDetector(
                     onTap: () => _togglePlayAudio(audioUrl),
                     child: Container(
-                      width: 36.0,
-                      height: 36.0,
+                      width: 38.0,
+                      height: 38.0,
                       decoration: BoxDecoration(
                         color: isMine ? Colors.white24 : const Color(0xFF48484A),
                         shape: BoxShape.circle,
@@ -857,36 +1170,35 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                       child: Icon(
                         isThisPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
                         color: Colors.white,
-                        size: 22.0,
+                        size: 24.0,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8.0),
+                  const SizedBox(width: 10.0),
 
-                  // Interactive Seek Slider / Waveform
-                  SizedBox(
-                    width: 130.0,
-                    child: SliderTheme(
-                      data: SliderThemeData(
-                        trackHeight: 3.0,
-                        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6.0),
-                        overlayShape: const RoundSliderOverlayShape(overlayRadius: 10.0),
-                        activeTrackColor: Colors.white,
-                        inactiveTrackColor: Colors.white38,
-                        thumbColor: Colors.white,
-                      ),
-                      child: Slider(
-                        value: isThisPlaying ? progress : 0.0,
-                        onChanged: (val) {
-                          if (isThisPlaying && _currentAudioDuration.inMilliseconds > 0) {
-                            final seekMs = (val * _currentAudioDuration.inMilliseconds).round();
-                            _audioPlayer.seek(Duration(milliseconds: seekMs));
-                          }
-                        },
+                  // Waveform Bars (Vertical Audio Wave)
+                  GestureDetector(
+                    onHorizontalDragUpdate: (details) {
+                      if (isThisPlaying && _currentAudioDuration.inMilliseconds > 0) {
+                        final dx = details.localPosition.dx.clamp(0.0, 120.0);
+                        final val = dx / 120.0;
+                        final seekMs = (val * _currentAudioDuration.inMilliseconds).round();
+                        _audioPlayer.seek(Duration(milliseconds: seekMs));
+                      }
+                    },
+                    child: SizedBox(
+                      width: 120.0,
+                      height: 30.0,
+                      child: Center(
+                        child: _buildWaveformBars(
+                          isPlaying: isThisPlaying,
+                          progress: progress,
+                          isMine: isMine,
+                        ),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 6.0),
+                  const SizedBox(width: 10.0),
 
                   // Duration Readout
                   Text(
@@ -895,8 +1207,25 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                         : _formatDuration(durationSeconds),
                     style: GoogleFonts.inter(
                       color: Colors.white,
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w600,
+                      fontSize: 12.0,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(width: 8.0),
+
+                  // Speed Toggle Button (1x / 1.5x / 2x)
+                  GestureDetector(
+                    onTap: _togglePlaybackSpeed,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5.0, vertical: 3.0),
+                      decoration: BoxDecoration(
+                        color: Colors.white24,
+                        borderRadius: BorderRadius.circular(8.0),
+                      ),
+                      child: Text(
+                        '${_playbackSpeed.toStringAsFixed(1).replaceAll('.0', '')}x',
+                        style: GoogleFonts.inter(color: Colors.white, fontSize: 9.5, fontWeight: FontWeight.bold),
+                      ),
                     ),
                   ),
                 ],
@@ -921,6 +1250,43 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildWaveformBars({
+    required bool isPlaying,
+    required double progress,
+    required bool isMine,
+  }) {
+    const barsCount = 24;
+    const heights = [
+      8.0, 16.0, 24.0, 12.0, 30.0, 18.0, 26.0, 10.0,
+      22.0, 32.0, 14.0, 28.0, 20.0, 34.0, 16.0, 24.0,
+      10.0, 28.0, 18.0, 30.0, 12.0, 22.0, 16.0, 8.0
+    ];
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: List.generate(barsCount, (index) {
+        final barHeight = heights[index % heights.length];
+        final barProgress = (index + 1) / barsCount;
+        final isPlayed = isPlaying && barProgress <= progress;
+
+        final Color barColor = isMine
+            ? (isPlayed ? Colors.white : Colors.white38)
+            : (isPlayed ? _MsgDark.iconColor : Colors.white38);
+
+        return Container(
+          width: 3.0,
+          height: barHeight,
+          margin: const EdgeInsets.symmetric(horizontal: 1.0),
+          decoration: BoxDecoration(
+            color: barColor,
+            borderRadius: BorderRadius.circular(1.5),
+          ),
+        );
+      }),
     );
   }
 
@@ -1054,6 +1420,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                             'isRead': false,
                           };
 
+                          final messenger = ScaffoldMessenger.of(context);
                           final batch = _firestore.batch();
                           final msgRef = _firestore.collection('chats').doc(targetRoomId).collection('messages').doc();
                           batch.set(msgRef, msgData);
@@ -1067,7 +1434,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                           await batch.commit();
 
                           if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
+                            messenger.showSnackBar(
                               SnackBar(content: Text('បានបញ្ជូនបន្តសារទៅកាន់ $name រួចរាល់!', style: GoogleFonts.kantumruyPro())),
                             );
                           }
@@ -1199,6 +1566,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     required bool isRead,
   }) {
     final mapsUrl = 'https://maps.google.com/?q=$lat,$lng';
+    String addressStr = text.replaceFirst('📍 ទីតាំងបច្ចុប្បន្ន៖\n', '').trim();
+    if (addressStr.startsWith('http') || addressStr.isEmpty) {
+      addressStr = 'រាជធានីភ្នំពេញ, ប្រទេសកម្ពុជា ($lat, $lng)';
+    }
 
     return Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
@@ -1214,52 +1585,74 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             },
             child: Container(
               margin: const EdgeInsets.symmetric(vertical: 4.0),
-              width: 240.0,
+              width: 250.0,
               decoration: BoxDecoration(
                 color: isMine ? _MsgDark.sentBubble : const Color(0xFF2C2C2E),
-                borderRadius: BorderRadius.circular(16.0),
+                borderRadius: BorderRadius.circular(20.0),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.3),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    height: 90.0,
+                    height: 95.0,
                     decoration: const BoxDecoration(
                       color: Color(0xFF1E293B),
-                      borderRadius: BorderRadius.vertical(top: Radius.circular(16.0)),
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(20.0)),
                     ),
                     child: Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(Icons.location_on_rounded, color: Colors.redAccent, size: 36.0),
-                          const SizedBox(height: 4),
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: const BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.location_on_rounded, color: Colors.redAccent, size: 28.0),
+                          ),
+                          const SizedBox(height: 6),
                           Text(
                             'Google Maps Location',
-                            style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                            style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
                           ),
                         ],
                       ),
                     ),
                   ),
                   Padding(
-                    padding: const EdgeInsets.all(10.0),
+                    padding: const EdgeInsets.all(12.0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           '📍 ទីតាំងបច្ចុប្បន្ន',
-                          style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                          style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13.5),
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Lat: ${lat.toStringAsFixed(4)}, Lng: ${lng.toStringAsFixed(4)}',
-                          style: GoogleFonts.inter(color: Colors.white70, fontSize: 11),
+                          addressStr,
+                          style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 12.0),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'បើកមើលក្នុង Google Maps ➔',
-                          style: GoogleFonts.kantumruyPro(color: Colors.tealAccent, fontWeight: FontWeight.bold, fontSize: 12),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Text(
+                              'បើកមើលក្នុង Google Maps',
+                              style: GoogleFonts.kantumruyPro(color: isMine ? Colors.white : Colors.tealAccent, fontWeight: FontWeight.bold, fontSize: 12.5),
+                            ),
+                            const SizedBox(width: 4),
+                            Icon(Icons.arrow_forward_rounded, size: 14, color: isMine ? Colors.white : Colors.tealAccent),
+                          ],
                         ),
                       ],
                     ),
@@ -1438,6 +1831,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           path: path,
           encoder: record_pkg.AudioEncoder.aacLc,
         );
+        _setRecordingVoiceState(true);
         setState(() {
           _isRecording = true;
           _recordingSeconds = 0;
@@ -1457,6 +1851,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   Future<void> _stopAndSendRecording() async {
     try {
       _recordingTimer?.cancel();
+      _setRecordingVoiceState(false);
       final path = await _audioRecorder.stop();
       final duration = _recordingSeconds;
       setState(() {
@@ -1507,6 +1902,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   Future<void> _cancelRecording() async {
     try {
       _recordingTimer?.cancel();
+      _setRecordingVoiceState(false);
       await _audioRecorder.stop();
       setState(() {
         _isRecording = false;
@@ -1708,156 +2104,166 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   }
 
   // ==========================================
-  // C. BOTTOM INPUT TOOLBAR (Cleaned Borders & Centered Icons)
+  // C. BOTTOM INPUT TOOLBAR (Translucent Messenger Style)
   // ==========================================
   Widget _buildInputToolbar() {
     if (_isRecording) {
-      return Container(
-        color: _MsgDark.bg,
-        padding: const EdgeInsets.fromLTRB(12.0, 8.0, 12.0, 12.0),
-        child: Container(
-          height: 48.0,
-          decoration: BoxDecoration(
-            color: const Color(0xFF2C2C2E),
-            borderRadius: BorderRadius.circular(24.0),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 10.0),
-          child: Row(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.delete_outline_rounded, color: Colors.white70, size: 24),
-                onPressed: _cancelRecording,
+      return ClipRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+          child: Container(
+            color: Colors.black.withValues(alpha: 0.45),
+            padding: const EdgeInsets.fromLTRB(12.0, 8.0, 12.0, 12.0),
+            child: Container(
+              height: 48.0,
+              decoration: BoxDecoration(
+                color: const Color(0xFF2C2C2E),
+                borderRadius: BorderRadius.circular(24.0),
               ),
-              const SizedBox(width: 4.0),
-              Container(
-                width: 32.0,
-                height: 32.0,
-                decoration: const BoxDecoration(
-                  color: Colors.redAccent,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.mic_rounded, color: Colors.white, size: 18),
-              ),
-              const SizedBox(width: 10.0),
-              Expanded(
-                child: Row(
-                  children: List.generate(22, (i) {
-                    final heights = [10.0, 18.0, 8.0, 24.0, 14.0, 20.0, 12.0, 16.0, 26.0, 10.0, 18.0, 12.0];
-                    final h = heights[(i + _recordingSeconds) % heights.length];
-                    return Container(
-                      width: 3.0,
-                      height: h,
-                      margin: const EdgeInsets.symmetric(horizontal: 1.5),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF0084FF),
-                        borderRadius: BorderRadius.circular(2.0),
-                      ),
-                    );
-                  }),
-                ),
-              ),
-              const SizedBox(width: 8.0),
-              Text(
-                _formatDuration(_recordingSeconds),
-                style: GoogleFonts.inter(color: Colors.white, fontSize: 13.0, fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(width: 10.0),
-              GestureDetector(
-                onTap: _stopAndSendRecording,
-                child: Container(
-                  width: 36.0,
-                  height: 36.0,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF0084FF),
-                    shape: BoxShape.circle,
+              padding: const EdgeInsets.symmetric(horizontal: 10.0),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline_rounded, color: Colors.white70, size: 24),
+                    onPressed: _cancelRecording,
                   ),
-                  child: const Icon(Icons.send_rounded, color: Colors.white, size: 18),
-                ),
+                  const SizedBox(width: 4.0),
+                  Container(
+                    width: 32.0,
+                    height: 32.0,
+                    decoration: const BoxDecoration(
+                      color: Colors.redAccent,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.mic_rounded, color: Colors.white, size: 18),
+                  ),
+                  const SizedBox(width: 10.0),
+                  Expanded(
+                    child: Row(
+                      children: List.generate(22, (i) {
+                        final heights = [10.0, 18.0, 8.0, 24.0, 14.0, 20.0, 12.0, 16.0, 26.0, 10.0, 18.0, 12.0];
+                        final h = heights[(i + _recordingSeconds) % heights.length];
+                        return Container(
+                          width: 3.0,
+                          height: h,
+                          margin: const EdgeInsets.symmetric(horizontal: 1.5),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0084FF),
+                            borderRadius: BorderRadius.circular(2.0),
+                          ),
+                        );
+                      }),
+                    ),
+                  ),
+                  const SizedBox(width: 8.0),
+                  Text(
+                    _formatDuration(_recordingSeconds),
+                    style: GoogleFonts.inter(color: Colors.white, fontSize: 13.0, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(width: 10.0),
+                  GestureDetector(
+                    onTap: _stopAndSendRecording,
+                    child: Container(
+                      width: 36.0,
+                      height: 36.0,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF0084FF),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.send_rounded, color: Colors.white, size: 18),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       );
     }
 
-    return Container(
-      color: _MsgDark.bg,
-      padding: const EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 12.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          _buildToolbarIcon(
-            _showPlusMenu ? Icons.cancel_rounded : Icons.add_circle_rounded,
-            onTap: () {
-              setState(() => _showPlusMenu = !_showPlusMenu);
-            },
-          ),
-          _buildToolbarIcon(Icons.camera_alt_rounded, onTap: () {
-            _pickAndSendImage(ImageSource.camera);
-          }),
-          _buildToolbarIcon(Icons.photo_rounded, onTap: () {
-            _pickAndSendImage(ImageSource.gallery);
-          }),
-          _buildToolbarIcon(Icons.mic_rounded, onTap: _startRecording),
-          const SizedBox(width: 4.0),
-
-          // Text input field with NO inner border
-          Expanded(
-            child: Container(
-              constraints: const BoxConstraints(minHeight: 38.0, maxHeight: 120.0),
-              decoration: BoxDecoration(
-                color: _MsgDark.inputBg,
-                borderRadius: BorderRadius.circular(22.0),
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: Container(
+          color: Colors.black.withValues(alpha: 0.45),
+          padding: const EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 12.0),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              _buildToolbarIcon(
+                _showPlusMenu ? Icons.cancel_rounded : Icons.add_circle_rounded,
+                onTap: () {
+                  setState(() => _showPlusMenu = !_showPlusMenu);
+                },
               ),
-              padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 2.0),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _msgController,
-                      maxLines: null,
-                      style: GoogleFonts.kantumruyPro(color: _MsgDark.textPrimary, fontSize: 15.0),
-                      cursorColor: _MsgDark.iconColor,
-                      decoration: InputDecoration(
-                        hintText: 'Aa',
-                        hintStyle: GoogleFonts.inter(color: _MsgDark.textMuted, fontSize: 15.0),
-                        border: InputBorder.none,
-                        enabledBorder: InputBorder.none,
-                        focusedBorder: InputBorder.none,
-                        filled: false,
-                        isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(vertical: 8.0),
-                      ),
-                      onSubmitted: (_) => _sendMessage(),
-                    ),
+              _buildToolbarIcon(Icons.camera_alt_rounded, onTap: () {
+                _pickAndSendImage(ImageSource.camera);
+              }),
+              _buildToolbarIcon(Icons.photo_rounded, onTap: () {
+                _pickAndSendImage(ImageSource.gallery);
+              }),
+              _buildToolbarIcon(Icons.mic_rounded, onTap: _startRecording),
+              const SizedBox(width: 4.0),
+
+              // Text input field with NO inner border
+              Expanded(
+                child: Container(
+                  constraints: const BoxConstraints(minHeight: 38.0, maxHeight: 120.0),
+                  decoration: BoxDecoration(
+                    color: _MsgDark.inputBg,
+                    borderRadius: BorderRadius.circular(22.0),
                   ),
-                  const Icon(Icons.sentiment_satisfied_alt_rounded, color: _MsgDark.iconColor, size: 22.0),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(width: 6.0),
-
-          // Send / Thumbs up button
-          ValueListenableBuilder<TextEditingValue>(
-            valueListenable: _msgController,
-            builder: (context, value, _) {
-              final hasText = value.text.trim().isNotEmpty;
-              return GestureDetector(
-                onTap: hasText ? _sendMessage : _sendThumbsUp,
-                child: Padding(
-                  padding: const EdgeInsets.only(left: 2.0),
-                  child: Icon(
-                    hasText ? Icons.send_rounded : Icons.thumb_up_alt_rounded,
-                    color: _MsgDark.iconColor,
-                    size: 28.0,
+                  padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 2.0),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _msgController,
+                          maxLines: null,
+                          style: GoogleFonts.kantumruyPro(color: _MsgDark.textPrimary, fontSize: 15.0),
+                          cursorColor: _MsgDark.iconColor,
+                          decoration: InputDecoration(
+                            hintText: 'Aa',
+                            hintStyle: GoogleFonts.inter(color: _MsgDark.textMuted, fontSize: 15.0),
+                            border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            filled: false,
+                            isDense: true,
+                            contentPadding: const EdgeInsets.symmetric(vertical: 8.0),
+                          ),
+                          onSubmitted: (_) => _sendMessage(),
+                        ),
+                      ),
+                      const Icon(Icons.sentiment_satisfied_alt_rounded, color: _MsgDark.iconColor, size: 22.0),
+                    ],
                   ),
                 ),
-              );
-            },
+              ),
+              const SizedBox(width: 6.0),
+
+              // Send / Thumbs up button
+              ValueListenableBuilder<TextEditingValue>(
+                valueListenable: _msgController,
+                builder: (context, value, _) {
+                  final hasText = value.text.trim().isNotEmpty;
+                  return GestureDetector(
+                    onTap: hasText ? _sendMessage : _sendThumbsUp,
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 2.0),
+                      child: Icon(
+                        hasText ? Icons.send_rounded : Icons.thumb_up_alt_rounded,
+                        color: _MsgDark.iconColor,
+                        size: 28.0,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
