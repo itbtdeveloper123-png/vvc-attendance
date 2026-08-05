@@ -204,12 +204,20 @@ class _AppSearchFieldState extends State<AppSearchField> {
                 color: widget.textColor ?? AppTheme.textPrimary,
                 fontSize: 14,
               ),
-              decoration: InputDecoration.collapsed(
+              decoration: InputDecoration(
                 hintText: widget.hintText,
                 hintStyle: GoogleFonts.kantumruyPro(
                   color: widget.hintColor ?? AppTheme.fieldHintColor,
                   fontSize: 13,
                 ),
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                disabledBorder: InputBorder.none,
+                errorBorder: InputBorder.none,
+                focusedErrorBorder: InputBorder.none,
+                contentPadding: EdgeInsets.zero,
+                isDense: true,
               ),
               onChanged: widget.onChanged,
             ),

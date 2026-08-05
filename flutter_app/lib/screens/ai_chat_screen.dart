@@ -2083,12 +2083,20 @@ class _AiChatScreenState extends State<AiChatScreen>
                     color: Colors.white,
                     fontSize: 14,
                   ),
-                  decoration: InputDecoration.collapsed(
+                  decoration: InputDecoration(
                     hintText: 'សួរ AI ឬពិនិត្យទិន្នន័យ HRM...',
                     hintStyle: GoogleFonts.kantumruyPro(
                       color: AppTheme.textMuted,
                       fontSize: 13,
                     ),
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    disabledBorder: InputBorder.none,
+                    errorBorder: InputBorder.none,
+                    focusedErrorBorder: InputBorder.none,
+                    contentPadding: EdgeInsets.zero,
+                    isDense: true,
                   ),
                   onSubmitted: (_) {
                     if (canSend) _sendMessage();

@@ -146,15 +146,15 @@ class AppTheme {
       hintStyle: GoogleFonts.kantumruyPro(color: fieldHintColor),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(radiusMd),
-        borderSide: BorderSide(color: fieldBorder),
+        borderSide: BorderSide.none,
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(radiusMd),
-        borderSide: BorderSide(color: fieldBorder),
+        borderSide: BorderSide.none,
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(radiusMd),
-        borderSide: BorderSide(color: primaryLight, width: 1.5),
+        borderSide: BorderSide.none,
       ),
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(style: filledButtonStyle()),
