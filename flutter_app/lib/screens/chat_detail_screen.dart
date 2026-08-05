@@ -122,6 +122,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   // Reply State
   String? _replyingToMessage;
 
+  // Pinned Message State
+  Map<String, dynamic>? _pinnedMessage;
+
   String get _roomId {
     if (widget.isGroup) return widget.targetUserId;
     final List<String> ids = [currentUserId, widget.targetUserId]..sort();
@@ -220,21 +223,24 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   Future<void> _sendMessage() async {
     final text = _msgController.text.trim();
     if (text.isEmpty || currentUserId.isEmpty) return;
-    _msgController.clear();
 
+    _msgController.clear();
+    _setTypingState(false);
     final userProvider = Provider.of<UserProvider>(context, listen: false);
+
+    final replyMsg = _replyingToMessage;
+    setState(() => _replyingToMessage = null);
+
     final msgData = {
       'text': text,
+      'type': 'text',
       'senderId': currentUserId,
       'senderName': userProvider.name ?? '',
       'senderPhoto': userProvider.avatar ?? '',
       'timestamp': FieldValue.serverTimestamp(),
-      'type': 'text',
       'isRead': false,
-      if (_replyingToMessage != null) 'replyTo': _replyingToMessage,
+      if (replyMsg != null) 'replyTo': replyMsg,
     };
-
-    setState(() => _replyingToMessage = null);
 
     final batch = _firestore.batch();
     final msgRef = _firestore.collection('chats').doc(_roomId).collection('messages').doc();
@@ -291,9 +297,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         if (data != null) {
           final typingMap = data['typing'] as Map<String, dynamic>? ?? {};
           final recordingMap = data['recordingVoice'] as Map<String, dynamic>? ?? {};
+          final pinned = data['pinnedMessage'] as Map<String, dynamic>?;
           setState(() {
             _isTargetTyping = typingMap[widget.targetUserId] == true;
             _isTargetRecordingVoice = recordingMap[widget.targetUserId] == true;
+            _pinnedMessage = pinned;
           });
         }
       }
@@ -348,36 +356,92 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _MsgDark.bg,
-      body: Container(
-        decoration: _currentWallpaper.isNotEmpty
-            ? BoxDecoration(
-                image: DecorationImage(
-                  image: AssetImage(_currentWallpaper),
-                  fit: BoxFit.cover,
-                  colorFilter: ColorFilter.mode(
-                    Colors.black.withValues(alpha: 0.18),
-                    BlendMode.darken,
+    return GestureDetector(
+      onTap: () => FocusScope.of(context).unfocus(),
+      behavior: HitTestBehavior.opaque,
+      child: Scaffold(
+        backgroundColor: _MsgDark.bg,
+        body: Container(
+          decoration: _currentWallpaper.isNotEmpty
+              ? BoxDecoration(
+                  image: DecorationImage(
+                    image: AssetImage(_currentWallpaper),
+                    fit: BoxFit.cover,
+                    colorFilter: ColorFilter.mode(
+                      Colors.black.withValues(alpha: 0.18),
+                      BlendMode.darken,
+                    ),
                   ),
+                )
+              : null,
+          child: SafeArea(
+            child: Column(
+              children: [
+                _buildHeader(),
+                _buildPinnedMessageBanner(),
+                Expanded(
+                  child: _buildMessageFeed(),
                 ),
-              )
-            : null,
-        child: SafeArea(
-          child: Column(
-            children: [
-              _buildHeader(),
-              Expanded(
-                child: _buildMessageFeed(),
-              ),
-              if (_replyingToMessage != null) _buildReplyPreviewBanner(),
-              if (_showPlusMenu) _buildPlusMenuOverlay(),
-              _buildInputToolbar(),
-            ],
+                if (_replyingToMessage != null) _buildReplyPreviewBanner(),
+                if (_showPlusMenu) _buildPlusMenuOverlay(),
+                _buildInputToolbar(),
+              ],
+            ),
           ),
         ),
       ),
     );
+  }
+
+  // Pinned Message Banner Widget
+  Widget _buildPinnedMessageBanner() {
+    if (_pinnedMessage == null || _pinnedMessage!['text'] == null) return const SizedBox.shrink();
+
+    final text = _pinnedMessage!['text'].toString();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 8.0),
+      margin: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(12.0),
+        border: Border.all(color: Colors.white24, width: 0.8),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.push_pin_rounded, color: Color(0xFFFFD700), size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'សារបានប៉ិន (Pinned Message)',
+                  style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 10.5, fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  text,
+                  style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 13.0, fontWeight: FontWeight.w600),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          GestureDetector(
+            onTap: _unpinMessage,
+            child: const Icon(Icons.close_rounded, color: Colors.white70, size: 18),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _unpinMessage() async {
+    await _firestore.collection('chats').doc(_roomId).update({
+      'pinnedMessage': FieldValue.delete(),
+    });
   }
 
   // ==========================================
@@ -723,6 +787,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         final doc = _messageDocs[index];
         final data = doc.data() as Map<String, dynamic>;
         final String senderId = data['senderId'] ?? '';
+        final String senderName = (data['senderName'] ?? '').toString();
         final bool isMine = senderId == currentUserId;
 
         final Timestamp? ts = data['timestamp'] as Timestamp?;
@@ -735,6 +800,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         final String rawType = (data['type'] ?? '').toString();
         final bool isRead = data['isRead'] == true;
         final String? replyTo = data['replyTo'] as String?;
+        final String? forwardedFrom = data['forwardedFrom'] as String?;
 
         final bool showDivider = _shouldShowDateDivider(index, ts);
 
@@ -742,20 +808,20 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (showDivider) _buildDateDivider(msgTime),
-            if (rawType == 'callMissed') _buildCallEventCard(isMissed: true, time: msgTime),
-            if (rawType == 'callVideo') _buildCallEventCard(isMissed: false, time: msgTime),
+            if (rawType == 'callMissed') _buildCallEventCard(docId: doc.id, isMissed: true, time: msgTime, senderName: senderName),
+            if (rawType == 'callVideo') _buildCallEventCard(docId: doc.id, isMissed: false, time: msgTime, senderName: senderName),
             if (imageUrl.isNotEmpty || rawType == 'image')
-              _buildImageBubble(docId: doc.id, imageUrl: imageUrl, isMine: isMine, time: msgTime, isRead: isRead),
+              _buildImageBubble(docId: doc.id, imageUrl: imageUrl, isMine: isMine, time: msgTime, isRead: isRead, senderName: senderName),
             if (audioUrl.isNotEmpty || rawType == 'audio' || rawType == 'voice')
-              _buildVoiceBubble(docId: doc.id, audioUrl: audioUrl, durationSeconds: durationSeconds, isMine: isMine, time: msgTime, isRead: isRead),
+              _buildVoiceBubble(docId: doc.id, audioUrl: audioUrl, durationSeconds: durationSeconds, isMine: isMine, time: msgTime, isRead: isRead, senderName: senderName),
             if (rawType == 'file')
-              _buildFileBubble(fileName: (data['fileName'] ?? 'Document').toString(), fileSize: (data['fileSize'] ?? '').toString(), isMine: isMine, time: msgTime, isRead: isRead),
+              _buildFileBubble(docId: doc.id, fileName: (data['fileName'] ?? 'Document').toString(), fileSize: (data['fileSize'] ?? '').toString(), isMine: isMine, time: msgTime, isRead: isRead, senderName: senderName),
             if (rawType == 'location')
-              _buildLocationBubble(text: rawText, lat: (data['latitude'] ?? 0.0) as double, lng: (data['longitude'] ?? 0.0) as double, isMine: isMine, time: msgTime, isRead: isRead),
+              _buildLocationBubble(docId: doc.id, text: rawText, lat: (data['latitude'] ?? 0.0) as double, lng: (data['longitude'] ?? 0.0) as double, isMine: isMine, time: msgTime, isRead: isRead, senderName: senderName),
             if (rawType == 'sticker' || rawText == '👍')
-              _buildStickerBubble(text: rawText.isNotEmpty ? rawText : '👍', isMine: isMine),
+              _buildStickerBubble(docId: doc.id, text: rawText.isNotEmpty ? rawText : '👍', isMine: isMine, senderName: senderName),
             if (rawType != 'callMissed' && rawType != 'callVideo' && !imageUrl.isNotEmpty && rawType != 'image' && !audioUrl.isNotEmpty && rawType != 'audio' && rawType != 'voice' && rawType != 'file' && rawType != 'location' && rawType != 'sticker' && rawText != '👍' && rawText.isNotEmpty)
-              _buildTextBubble(text: rawText, replyTo: replyTo, isMine: isMine, time: msgTime, isRead: isRead),
+              _buildTextBubble(docId: doc.id, text: rawText, replyTo: replyTo, forwardedFrom: forwardedFrom, senderName: senderName, isMine: isMine, time: msgTime, isRead: isRead),
           ],
         );
       },
@@ -818,8 +884,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
   // Text Message Bubble
   Widget _buildTextBubble({
+    required String docId,
     required String text,
     String? replyTo,
+    String? forwardedFrom,
+    required String senderName,
     required bool isMine,
     required DateTime time,
     required bool isRead,
@@ -829,43 +898,53 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       child: Column(
         crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
-          Container(
-            margin: const EdgeInsets.symmetric(vertical: 3.0),
-            padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
-            constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.72),
-            decoration: BoxDecoration(
-              color: isMine ? _MsgDark.sentBubble : _MsgDark.receivedBubble,
-              borderRadius: BorderRadius.only(
-                topLeft: const Radius.circular(18.0),
-                topRight: const Radius.circular(18.0),
-                bottomLeft: Radius.circular(isMine ? 18.0 : 4.0),
-                bottomRight: Radius.circular(isMine ? 4.0 : 18.0),
+          GestureDetector(
+            onLongPress: () => _showMessageOptionsModal(docId: docId, content: text, type: 'text', senderName: senderName),
+            child: Container(
+              margin: const EdgeInsets.symmetric(vertical: 3.0),
+              padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
+              constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.72),
+              decoration: BoxDecoration(
+                color: isMine ? _MsgDark.sentBubble : _MsgDark.receivedBubble,
+                borderRadius: BorderRadius.only(
+                  topLeft: const Radius.circular(18.0),
+                  topRight: const Radius.circular(18.0),
+                  bottomLeft: Radius.circular(isMine ? 18.0 : 4.0),
+                  bottomRight: Radius.circular(isMine ? 4.0 : 18.0),
+                ),
               ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (replyTo != null) ...[
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    margin: const EdgeInsets.only(bottom: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.black26,
-                      borderRadius: BorderRadius.circular(8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (forwardedFrom != null && forwardedFrom.isNotEmpty) ...[
+                    Text(
+                      '↪️ បញ្ជូនបន្តពី $forwardedFrom',
+                      style: GoogleFonts.kantumruyPro(fontSize: 11.0, color: Colors.white70, fontStyle: FontStyle.italic),
                     ),
-                    child: Text(
-                      '↩️ $replyTo',
-                      style: GoogleFonts.kantumruyPro(fontSize: 11.5, color: Colors.white70),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    const SizedBox(height: 4),
+                  ],
+                  if (replyTo != null) ...[
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      margin: const EdgeInsets.only(bottom: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.black26,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        '↩️ $replyTo',
+                        style: GoogleFonts.kantumruyPro(fontSize: 11.5, color: Colors.white70),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
+                  ],
+                  Text(
+                    text,
+                    style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 14.5, height: 1.35, fontWeight: FontWeight.bold),
                   ),
                 ],
-                Text(
-                  text,
-                  style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 14.5, height: 1.35, fontWeight: FontWeight.bold),
-                ),
-              ],
+              ),
             ),
           ),
           Padding(
@@ -890,92 +969,108 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   }
 
   // Sticker / Emoji Bubble
-  Widget _buildStickerBubble({required String text, required bool isMine}) {
+  Widget _buildStickerBubble({
+    required String docId,
+    required String text,
+    required bool isMine,
+    required String senderName,
+  }) {
     return Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4.0),
-        child: Text(text, style: const TextStyle(fontSize: 48.0)),
+      child: GestureDetector(
+        onLongPress: () => _showMessageOptionsModal(docId: docId, content: text, type: 'sticker', senderName: senderName),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4.0),
+          child: Text(text, style: const TextStyle(fontSize: 48.0)),
+        ),
       ),
     );
   }
 
   // Call Event Card
-  Widget _buildCallEventCard({required bool isMissed, required DateTime time}) {
+  Widget _buildCallEventCard({
+    required String docId,
+    required bool isMissed,
+    required DateTime time,
+    required String senderName,
+  }) {
     return Align(
       alignment: Alignment.centerRight,
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 6.0),
-        width: 220.0,
-        decoration: BoxDecoration(
-          color: _MsgDark.card,
-          borderRadius: BorderRadius.circular(16.0),
-        ),
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14.0, 14.0, 14.0, 10.0),
-              child: Row(
-                children: [
-                  Container(
-                    width: 40.0,
-                    height: 40.0,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF3E4042),
-                      shape: BoxShape.circle,
+      child: GestureDetector(
+        onLongPress: () => _showMessageOptionsModal(docId: docId, content: isMissed ? 'Missed Call' : 'Video Call', type: 'call', senderName: senderName),
+        child: Container(
+          margin: const EdgeInsets.symmetric(vertical: 6.0),
+          width: 220.0,
+          decoration: BoxDecoration(
+            color: _MsgDark.card,
+            borderRadius: BorderRadius.circular(16.0),
+          ),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14.0, 14.0, 14.0, 10.0),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 40.0,
+                      height: 40.0,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF3E4042),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        isMissed ? Icons.phone_disabled_rounded : Icons.videocam_rounded,
+                        size: 20.0,
+                        color: isMissed ? Colors.redAccent : _MsgDark.iconColor,
+                      ),
                     ),
-                    child: Icon(
-                      isMissed ? Icons.phone_disabled_rounded : Icons.videocam_rounded,
-                      size: 20.0,
-                      color: isMissed ? Colors.redAccent : _MsgDark.iconColor,
-                    ),
-                  ),
-                  const SizedBox(width: 12.0),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          isMissed ? 'Missed audio call' : 'Video call',
-                          style: GoogleFonts.inter(
-                            color: _MsgDark.textPrimary,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14.0,
+                    const SizedBox(width: 12.0),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            isMissed ? 'Missed audio call' : 'Video call',
+                            style: GoogleFonts.inter(
+                              color: _MsgDark.textPrimary,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14.0,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 2.0),
-                        Text(
-                          isMissed ? DateFormat('h:mm a').format(time) : '4 min, 31 secs',
-                          style: GoogleFonts.inter(fontSize: 12.0, color: _MsgDark.textMuted),
-                        ),
-                      ],
+                          const SizedBox(height: 2.0),
+                          Text(
+                            isMissed ? DateFormat('h:mm a').format(time) : '4 min, 31 secs',
+                            style: GoogleFonts.inter(fontSize: 12.0, color: _MsgDark.textMuted),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            const Divider(height: 1.0, color: Color(0xFF3E4042)),
-            InkWell(
-              onTap: () => _showCallDialog(false),
-              borderRadius: const BorderRadius.only(
-                bottomLeft: Radius.circular(16.0),
-                bottomRight: Radius.circular(16.0),
-              ),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 10.0),
-                child: Text(
-                  'Call again',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.inter(
-                    color: _MsgDark.iconColor,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14.0,
+              const Divider(height: 1.0, color: Color(0xFF3E4042)),
+              InkWell(
+                onTap: () => _showCallDialog(false),
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(16.0),
+                  bottomRight: Radius.circular(16.0),
+                ),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 10.0),
+                  child: Text(
+                    'Call again',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.inter(
+                      color: _MsgDark.iconColor,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14.0,
+                    ),
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -988,6 +1083,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     required bool isMine,
     required DateTime time,
     required bool isRead,
+    required String senderName,
   }) {
     final bool isBase64 = imageUrl.startsWith('data:image');
     final ImageProvider imgProvider = isBase64
@@ -1002,6 +1098,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           GestureDetector(
             key: ValueKey(imageUrl),
             onTap: () => _showFullScreenImageViewer(imgProvider, imageUrl),
+            onLongPress: () => _showMessageOptionsModal(docId: docId, content: imageUrl, type: 'image', senderName: senderName),
             child: Container(
               margin: const EdgeInsets.symmetric(vertical: 4.0),
               constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.7),
@@ -1033,77 +1130,80 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
   }
 
-  // Full Screen Image Viewer Modal (Close, Download, Forward, Share)
+  // Full Screen Image Viewer Modal (Close, Download, Forward, Share with Drag-Down Dismiss)
   void _showFullScreenImageViewer(ImageProvider imgProvider, String rawUrl) {
     showDialog(
       context: context,
       builder: (ctx) => Dialog(
-        backgroundColor: Colors.black.withValues(alpha: 0.92),
+        backgroundColor: Colors.black.withValues(alpha: 0.95),
         insetPadding: EdgeInsets.zero,
-        child: Stack(
-          alignment: Alignment.bottomCenter,
-          children: [
-            Center(
-              child: InteractiveViewer(
-                child: Image(image: imgProvider, fit: BoxFit.contain),
-              ),
-            ),
-            // Top Bar: Close Button
-            Positioned(
-              top: 40.0,
-              right: 16.0,
-              child: CircleAvatar(
-                backgroundColor: Colors.black54,
-                child: IconButton(
-                  icon: const Icon(Icons.close_rounded, color: Colors.white, size: 24),
-                  onPressed: () => Navigator.pop(ctx),
+        child: Dismissible(
+          key: UniqueKey(),
+          direction: DismissDirection.vertical,
+          onDismissed: (_) => Navigator.pop(ctx),
+          child: Stack(
+            alignment: Alignment.bottomCenter,
+            children: [
+              Center(
+                child: InteractiveViewer(
+                  child: Image(image: imgProvider, fit: BoxFit.contain),
                 ),
               ),
-            ),
-            // Bottom Action Bar (Download, Forward, Share)
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 24.0),
-              color: Colors.black87,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.download_rounded, color: Colors.white, size: 26),
-                    onPressed: () async {
-                      Navigator.pop(ctx);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('បានរក្សាទុករូបភាពក្នុង Gallery!', style: GoogleFonts.kantumruyPro())),
-                      );
-                    },
-                    tooltip: 'Save Image',
+              Positioned(
+                top: 40.0,
+                right: 16.0,
+                child: CircleAvatar(
+                  backgroundColor: Colors.black54,
+                  child: IconButton(
+                    icon: const Icon(Icons.close_rounded, color: Colors.white, size: 24),
+                    onPressed: () => Navigator.pop(ctx),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.shortcut_rounded, color: Colors.white, size: 26),
-                    onPressed: () {
-                      Navigator.pop(ctx);
-                      _showForwardModal(rawUrl, 'image');
-                    },
-                    tooltip: 'Forward Image',
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.share_rounded, color: Colors.white, size: 26),
-                    onPressed: () async {
-                      Navigator.pop(ctx);
-                      if (rawUrl.startsWith('http')) {
-                        Share.share(rawUrl);
-                      } else {
-                        final dir = await getTemporaryDirectory();
-                        final tempFile = File('${dir.path}/shared_img_${DateTime.now().millisecondsSinceEpoch}.jpg');
-                        await tempFile.writeAsBytes(base64Decode(rawUrl.split(',').last));
-                        Share.shareXFiles([XFile(tempFile.path)]);
-                      }
-                    },
-                    tooltip: 'Share Image',
-                  ),
-                ],
+                ),
               ),
-            ),
-          ],
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 24.0),
+                color: Colors.black87,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.download_rounded, color: Colors.white, size: 26),
+                      onPressed: () async {
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('បានរក្សាទុករូបភាពក្នុង Gallery!', style: GoogleFonts.kantumruyPro())),
+                        );
+                      },
+                      tooltip: 'Save Image',
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.shortcut_rounded, color: Colors.white, size: 26),
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        _showForwardModal(rawUrl, 'image');
+                      },
+                      tooltip: 'Forward Image',
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.share_rounded, color: Colors.white, size: 26),
+                      onPressed: () async {
+                        Navigator.pop(ctx);
+                        if (rawUrl.startsWith('http')) {
+                          Share.share(rawUrl);
+                        } else {
+                          final dir = await getTemporaryDirectory();
+                          final tempFile = File('${dir.path}/shared_img_${DateTime.now().millisecondsSinceEpoch}.jpg');
+                          await tempFile.writeAsBytes(base64Decode(rawUrl.split(',').last));
+                          Share.shareXFiles([XFile(tempFile.path)]);
+                        }
+                      },
+                      tooltip: 'Share Image',
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1117,6 +1217,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     required bool isMine,
     required DateTime time,
     required bool isRead,
+    required String senderName,
   }) {
     final bool isThisPlaying = _isPlayingAudio && _currentlyPlayingAudio == audioUrl;
 
@@ -1136,7 +1237,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
           GestureDetector(
-            onLongPress: () => _showVoiceOptionsModal(docId, audioUrl),
+            onLongPress: () => _showMessageOptionsModal(docId: docId, content: audioUrl, type: 'voice', senderName: senderName),
             child: Container(
               margin: const EdgeInsets.symmetric(vertical: 4.0),
               padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
@@ -1275,8 +1376,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
   }
 
-  // Voice Message Options BottomSheet (Reply, Forward, Pin, Delete)
-  void _showVoiceOptionsModal(String docId, String audioUrl) {
+  // Universal Message Options BottomSheet (Reply, Forward, Pin, Delete)
+  void _showMessageOptionsModal({
+    required String docId,
+    required String content,
+    required String type,
+    required String senderName,
+  }) {
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF2C2C2E),
@@ -1296,7 +1402,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                 title: Text('ឆ្លើយតប (Reply)', style: GoogleFonts.kantumruyPro(color: Colors.white)),
                 onTap: () {
                   Navigator.pop(ctx);
-                  setState(() => _replyingToMessage = '🎙️ សារសំឡេង');
+                  String summary = content;
+                  if (type == 'voice') summary = '🎙️ សារសំឡេង';
+                  if (type == 'image') summary = '🖼️ រូបភាព';
+                  if (type == 'location') summary = '📍 ទីតាំង';
+                  setState(() => _replyingToMessage = summary);
                 },
               ),
               ListTile(
@@ -1304,17 +1414,31 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                 title: Text('បញ្ជូនបន្ត (Forward)', style: GoogleFonts.kantumruyPro(color: Colors.white)),
                 onTap: () {
                   Navigator.pop(ctx);
-                  _showForwardModal(audioUrl, 'voice');
+                  _showForwardModal(content, type, originalSenderName: senderName);
                 },
               ),
               ListTile(
                 leading: const Icon(Icons.push_pin_rounded, color: Colors.white),
                 title: Text('ប៉ិនទុក (Pin)', style: GoogleFonts.kantumruyPro(color: Colors.white)),
-                onTap: () {
+                onTap: () async {
                   Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('បានប៉ិនសារទុក!', style: GoogleFonts.kantumruyPro())),
-                  );
+                  String summary = content;
+                  if (type == 'voice') summary = '🎙️ សារសំឡេង';
+                  if (type == 'image') summary = '🖼️ រូបភាព';
+                  if (type == 'location') summary = '📍 ទីតាំង';
+                  await _firestore.collection('chats').doc(_roomId).set({
+                    'pinnedMessage': {
+                      'id': docId,
+                      'text': summary,
+                      'type': type,
+                      'senderName': senderName,
+                    }
+                  }, SetOptions(merge: true));
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('បានប៉ិនសារទុក!', style: GoogleFonts.kantumruyPro())),
+                    );
+                  }
                 },
               ),
               ListTile(
@@ -1333,89 +1457,113 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
   }
 
-  // Forward Message Modal to Select Contact
-  void _showForwardModal(String content, String type) {
+  // Forward Message Modal with Employee List & Show Sender Name Option
+  void _showForwardModal(String content, String type, {String originalSenderName = ''}) {
+    bool showSenderName = true;
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF2C2C2E),
+      backgroundColor: const Color(0xFF1E1E2E),
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20.0)),
       ),
       builder: (ctx) {
-        return StreamBuilder<QuerySnapshot>(
-          stream: _firestore.collection('users').snapshots(),
-          builder: (context, snap) {
-            if (!snap.hasData) return const Center(child: CircularProgressIndicator());
-            final users = snap.data!.docs.where((d) => d.id != currentUserId).toList();
-
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Text(
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.75,
+              color: const Color(0xFF1E1E2E),
+              child: Column(
+                children: [
+                  const SizedBox(height: 8),
+                  Container(width: 36, height: 4, decoration: BoxDecoration(color: Colors.white30, borderRadius: BorderRadius.circular(2))),
+                  const SizedBox(height: 12),
+                  Text(
                     'បញ្ជូនបន្តទៅកាន់ (Forward to)',
                     style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                   ),
-                ),
-                Expanded(
-                  child: ListView.builder(
-                    itemCount: users.length,
-                    itemBuilder: (context, index) {
-                      final u = users[index].data() as Map<String, dynamic>;
-                      final targetId = users[index].id;
-                      final name = u['name'] ?? 'User';
-                      final avatar = u['avatar'] ?? '';
-
-                      return ListTile(
-                        leading: CircleAvatar(
-                          backgroundImage: avatar.isNotEmpty ? NetworkImage(ApiService.getFullImageUrl(avatar)) : null,
-                          backgroundColor: _getAvatarBgColor(name),
-                          child: avatar.isEmpty ? Text(name[0].toUpperCase(), style: const TextStyle(color: Colors.white)) : null,
-                        ),
-                        title: Text(name, style: GoogleFonts.kantumruyPro(color: Colors.white)),
-                        trailing: const Icon(Icons.send_rounded, color: _MsgDark.iconColor),
-                        onTap: () async {
-                          Navigator.pop(ctx);
-                          final userProvider = Provider.of<UserProvider>(context, listen: false);
-                          final targetRoomId = "PRIVATE_${([currentUserId, targetId]..sort()).join('_')}";
-
-                          final msgData = {
-                            'text': type == 'text' ? content : '',
-                            if (type == 'image') 'imageUrl': content,
-                            if (type == 'voice') 'base64Audio': content,
-                            'type': type,
-                            'senderId': currentUserId,
-                            'senderName': userProvider.name ?? '',
-                            'senderPhoto': userProvider.avatar ?? '',
-                            'timestamp': FieldValue.serverTimestamp(),
-                            'isRead': false,
-                          };
-
-                          final messenger = ScaffoldMessenger.of(context);
-                          final batch = _firestore.batch();
-                          final msgRef = _firestore.collection('chats').doc(targetRoomId).collection('messages').doc();
-                          batch.set(msgRef, msgData);
-                          batch.set(_firestore.collection('chats').doc(targetRoomId), {
-                            'participants': [currentUserId, targetId],
-                            'lastMessage': '↪️ បានបញ្ជូនបន្តសារ',
-                            'lastTimestamp': FieldValue.serverTimestamp(),
-                            'lastSenderId': currentUserId,
-                            'isRead': false,
-                          }, SetOptions(merge: true));
-                          await batch.commit();
-
-                          if (mounted) {
-                            messenger.showSnackBar(
-                              SnackBar(content: Text('បានបញ្ជូនបន្តសារទៅកាន់ $name រួចរាល់!', style: GoogleFonts.kantumruyPro())),
-                            );
-                          }
-                        },
-                      );
-                    },
+                  const SizedBox(height: 4),
+                  SwitchListTile(
+                    value: showSenderName,
+                    onChanged: (val) => setModalState(() => showSenderName = val),
+                    title: Text(
+                      'បង្ហាញឈ្មោះអ្នកផ្ញើដើម (Show original sender)',
+                      style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 13.5),
+                    ),
+                    activeColor: const Color(0xFF0084FF),
+                    dense: true,
                   ),
-                ),
-              ],
+                  const Divider(color: Colors.white24, height: 1),
+                  Expanded(
+                    child: StreamBuilder<QuerySnapshot>(
+                      stream: _firestore.collection('users').snapshots(),
+                      builder: (context, snap) {
+                        if (!snap.hasData) return const Center(child: CircularProgressIndicator(color: Colors.white));
+                        final users = snap.data!.docs.where((d) => d.id != currentUserId).toList();
+
+                        return ListView.builder(
+                          itemCount: users.length,
+                          itemBuilder: (context, index) {
+                            final u = users[index].data() as Map<String, dynamic>;
+                            final targetId = users[index].id;
+                            final name = u['name'] ?? 'User';
+                            final avatar = u['avatar'] ?? '';
+
+                            return ListTile(
+                              leading: CircleAvatar(
+                                backgroundImage: avatar.isNotEmpty ? NetworkImage(ApiService.getFullImageUrl(avatar)) : null,
+                                backgroundColor: _getAvatarBgColor(name),
+                                child: avatar.isEmpty ? Text(name[0].toUpperCase(), style: const TextStyle(color: Colors.white)) : null,
+                              ),
+                              title: Text(name, style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.w600)),
+                              subtitle: Text(u['position'] ?? u['department'] ?? '', style: GoogleFonts.inter(color: Colors.white70, fontSize: 12)),
+                              trailing: const Icon(Icons.send_rounded, color: Color(0xFF0084FF)),
+                              onTap: () async {
+                                Navigator.pop(ctx);
+                                final userProvider = Provider.of<UserProvider>(context, listen: false);
+                                final targetRoomId = "PRIVATE_${([currentUserId, targetId]..sort()).join('_')}";
+
+                                final msgData = {
+                                  'text': type == 'text' ? content : '',
+                                  if (type == 'image') 'imageUrl': content,
+                                  if (type == 'voice') 'base64Audio': content,
+                                  'type': type,
+                                  'isForwarded': true,
+                                  'forwardedFrom': showSenderName && originalSenderName.isNotEmpty ? originalSenderName : null,
+                                  'senderId': currentUserId,
+                                  'senderName': userProvider.name ?? '',
+                                  'senderPhoto': userProvider.avatar ?? '',
+                                  'timestamp': FieldValue.serverTimestamp(),
+                                  'isRead': false,
+                                };
+
+                                final messenger = ScaffoldMessenger.of(context);
+                                final batch = _firestore.batch();
+                                final msgRef = _firestore.collection('chats').doc(targetRoomId).collection('messages').doc();
+                                batch.set(msgRef, msgData);
+                                batch.set(_firestore.collection('chats').doc(targetRoomId), {
+                                  'participants': [currentUserId, targetId],
+                                  'lastMessage': '↪️ បានបញ្ជូនបន្តសារ',
+                                  'lastTimestamp': FieldValue.serverTimestamp(),
+                                  'lastSenderId': currentUserId,
+                                  'isRead': false,
+                                }, SetOptions(merge: true));
+                                await batch.commit();
+
+                                if (mounted) {
+                                  messenger.showSnackBar(
+                                    SnackBar(content: Text('បានបញ្ជូនបន្តសារទៅកាន់ $name រួចរាល់!', style: GoogleFonts.kantumruyPro())),
+                                  );
+                                }
+                              },
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
             );
           },
         );
@@ -1463,48 +1611,53 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
   // File Bubble
   Widget _buildFileBubble({
+    required String docId,
     required String fileName,
     required String fileSize,
     required bool isMine,
     required DateTime time,
     required bool isRead,
+    required String senderName,
   }) {
     return Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
       child: Column(
         crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
-          Container(
-            margin: const EdgeInsets.symmetric(vertical: 4.0),
-            padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
-            decoration: BoxDecoration(
-              color: isMine ? _MsgDark.sentBubble : const Color(0xFF2C2C2E),
-              borderRadius: BorderRadius.circular(16.0),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.insert_drive_file_rounded, color: Colors.white, size: 28.0),
-                const SizedBox(width: 10.0),
-                Flexible(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        fileName,
-                        style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14.0),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      if (fileSize.isNotEmpty)
+          GestureDetector(
+            onLongPress: () => _showMessageOptionsModal(docId: docId, content: fileName, type: 'file', senderName: senderName),
+            child: Container(
+              margin: const EdgeInsets.symmetric(vertical: 4.0),
+              padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
+              decoration: BoxDecoration(
+                color: isMine ? _MsgDark.sentBubble : const Color(0xFF2C2C2E),
+                borderRadius: BorderRadius.circular(16.0),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.insert_drive_file_rounded, color: Colors.white, size: 28.0),
+                  const SizedBox(width: 10.0),
+                  Flexible(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                         Text(
-                          fileSize,
-                          style: GoogleFonts.inter(color: Colors.white70, fontSize: 11.0),
+                          fileName,
+                          style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14.0),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                    ],
+                        if (fileSize.isNotEmpty)
+                          Text(
+                            fileSize,
+                            style: GoogleFonts.inter(color: Colors.white70, fontSize: 11.0),
+                          ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
           Padding(
@@ -1530,12 +1683,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
   // Rich Google Maps Card Widget
   Widget _buildLocationBubble({
+    required String docId,
     required String text,
     required double lat,
     required double lng,
     required bool isMine,
     required DateTime time,
     required bool isRead,
+    required String senderName,
   }) {
     final mapsUrl = 'https://maps.google.com/?q=$lat,$lng';
     String addressStr = text.replaceFirst('📍 ទីតាំងបច្ចុប្បន្ន៖\n', '').trim();
@@ -1555,6 +1710,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                 await launchUrl(uri, mode: LaunchMode.externalApplication);
               }
             },
+            onLongPress: () => _showMessageOptionsModal(docId: docId, content: text, type: 'location', senderName: senderName),
             child: Container(
               margin: const EdgeInsets.symmetric(vertical: 4.0),
               width: 250.0,
@@ -1730,7 +1886,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   // Pick and Send Image
   Future<void> _pickAndSendImage(ImageSource source) async {
     try {
-      final XFile? file = await ImagePicker().pickImage(source: source, imageQuality: 70);
+      final XFile? file = await ImagePicker().pickImage(
+        source: source,
+        imageQuality: 70,
+        preferredCameraDevice: CameraDevice.rear,
+      );
       if (file == null || currentUserId.isEmpty) return;
       final bytes = await file.readAsBytes();
       if (bytes.isEmpty) return;
