@@ -115,7 +115,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   // Audio Playback state
   String? _currentlyPlayingAudio;
   bool _isPlayingAudio = false;
-  final double _playbackSpeed = 1.0;
+  double _playbackSpeed = 1.0;
   Duration _currentAudioPosition = Duration.zero;
   Duration _currentAudioDuration = Duration.zero;
 
@@ -1314,6 +1314,27 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
+                  const SizedBox(width: 8.0),
+
+                  // Speed Toggle Button (1x / 1.5x / 2x)
+                  GestureDetector(
+                    onTap: _togglePlaybackSpeed,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 3.0),
+                      decoration: BoxDecoration(
+                        color: isMine ? Colors.black.withValues(alpha: 0.18) : Colors.white.withValues(alpha: 0.22),
+                        borderRadius: BorderRadius.circular(10.0),
+                      ),
+                      child: Text(
+                        '${_playbackSpeed.toStringAsFixed(1).replaceAll('.0', '')}x',
+                        style: GoogleFonts.inter(
+                          color: textColor,
+                          fontSize: 10.0,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -1337,6 +1358,19 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         ],
       ),
     );
+  }
+
+  void _togglePlaybackSpeed() {
+    setState(() {
+      if (_playbackSpeed == 1.0) {
+        _playbackSpeed = 1.5;
+      } else if (_playbackSpeed == 1.5) {
+        _playbackSpeed = 2.0;
+      } else {
+        _playbackSpeed = 1.0;
+      }
+    });
+    _audioPlayer.setPlaybackRate(_playbackSpeed);
   }
 
   Widget _buildWaveformBars({
