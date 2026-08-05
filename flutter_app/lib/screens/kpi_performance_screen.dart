@@ -41,7 +41,7 @@ class _KpiPerformanceScreenState extends State<KpiPerformanceScreen> with Single
     setState(() => _isLoading = true);
     try {
       final userProvider = context.read<UserProvider>();
-      final userId = userProvider.userId ?? '';
+      final userId = userProvider.employeeId ?? '';
 
       if (userId.isNotEmpty) {
         final doc = await _firestore.collection('kpi_reviews').doc(userId).get();
@@ -95,7 +95,7 @@ class _KpiPerformanceScreenState extends State<KpiPerformanceScreen> with Single
   Future<void> _saveEvaluation() async {
     try {
       final userProvider = context.read<UserProvider>();
-      final userId = userProvider.userId ?? '';
+      final userId = userProvider.employeeId ?? '';
 
       if (userId.isNotEmpty) {
         await _firestore.collection('kpi_reviews').doc(userId).set({
@@ -129,7 +129,7 @@ class _KpiPerformanceScreenState extends State<KpiPerformanceScreen> with Single
     }
   }
 
-  double get _calculateOverallScore() {
+  double get _calculateOverallScore {
     if (_goals.isEmpty) return 0.0;
     double weightedSum = 0;
     double totalWeight = 0;
@@ -148,7 +148,7 @@ class _KpiPerformanceScreenState extends State<KpiPerformanceScreen> with Single
 
   @override
   Widget build(BuildContext context) {
-    final overallScore = _calculateOverallScore();
+    final overallScore = _calculateOverallScore;
 
     return DynamicAppBarWrapper(
       title: "ការវាយតម្លៃប្រតិបត្តិការងារ (KPI/OKR)",

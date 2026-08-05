@@ -94,22 +94,27 @@ class _ChatListScreenState extends State<ChatListScreen> {
         .where('participantIds', arrayContains: currentUserId)
         .snapshots()
         .listen((snapshot) {
-      if (mounted) {
-        setState(() {
-          final groups = snapshot.docs
-              .map((doc) => {'id': doc.id, ...doc.data()})
-              .toList();
+          if (mounted) {
+            setState(() {
+              final groups =
+                  snapshot.docs
+                      .map((doc) => {'id': doc.id, ...doc.data()})
+                      .toList();
 
-          groups.sort((a, b) {
-            final timeA = (a['lastTimestamp'] as Timestamp?)?.toDate() ?? DateTime(1970);
-            final timeB = (b['lastTimestamp'] as Timestamp?)?.toDate() ?? DateTime(1970);
-            return timeB.compareTo(timeA);
-          });
+              groups.sort((a, b) {
+                final timeA =
+                    (a['lastTimestamp'] as Timestamp?)?.toDate() ??
+                    DateTime(1970);
+                final timeB =
+                    (b['lastTimestamp'] as Timestamp?)?.toDate() ??
+                    DateTime(1970);
+                return timeB.compareTo(timeA);
+              });
 
-          customGroups = groups;
+              customGroups = groups;
+            });
+          }
         });
-      }
-    });
   }
 
   void _listenToActiveChats() {
@@ -119,25 +124,25 @@ class _ChatListScreenState extends State<ChatListScreen> {
         .where('participants', arrayContains: currentUserId)
         .snapshots()
         .listen((snapshot) {
-      final Map<String, Timestamp?> activity = {};
-      for (var doc in snapshot.docs) {
-        final data = doc.data();
-        final List<dynamic> p = data['participants'] ?? [];
-        final otherId = p.firstWhere(
-          (id) => id != currentUserId,
-          orElse: () => '',
-        );
-        if (otherId.isNotEmpty) {
-          activity[otherId] = data['lastTimestamp'] as Timestamp?;
-        }
-      }
-      if (mounted) {
-        setState(() {
-          chatActivity = activity;
-          _sortUsers();
+          final Map<String, Timestamp?> activity = {};
+          for (var doc in snapshot.docs) {
+            final data = doc.data();
+            final List<dynamic> p = data['participants'] ?? [];
+            final otherId = p.firstWhere(
+              (id) => id != currentUserId,
+              orElse: () => '',
+            );
+            if (otherId.isNotEmpty) {
+              activity[otherId] = data['lastTimestamp'] as Timestamp?;
+            }
+          }
+          if (mounted) {
+            setState(() {
+              chatActivity = activity;
+              _sortUsers();
+            });
+          }
         });
-      }
-    });
   }
 
   void _sortUsers() {
@@ -156,19 +161,21 @@ class _ChatListScreenState extends State<ChatListScreen> {
       if (res['success'] == true) {
         final List<dynamic> fetched = res['users'] ?? [];
         if (mounted) {
-          final List<dynamic> filtered = fetched.where((u) {
-            final role = (u['role'] ?? '').toString().toLowerCase();
-            final name = (u['name'] ?? '').toString().toLowerCase();
-            final eid = (u['employee_id'] ?? '').toString().toLowerCase();
+          final List<dynamic> filtered =
+              fetched.where((u) {
+                final role = (u['role'] ?? '').toString().toLowerCase();
+                final name = (u['name'] ?? '').toString().toLowerCase();
+                final eid = (u['employee_id'] ?? '').toString().toLowerCase();
 
-            bool isTechnical = role.contains('admin') ||
-                eid.contains('admin') ||
-                name.contains('demo') ||
-                name.contains('it-by-vvc') ||
-                name.isEmpty;
+                bool isTechnical =
+                    role.contains('admin') ||
+                    eid.contains('admin') ||
+                    name.contains('demo') ||
+                    name.contains('it-by-vvc') ||
+                    name.isEmpty;
 
-            return !isTechnical;
-          }).toList();
+                return !isTechnical;
+              }).toList();
 
           setState(() {
             usersList = filtered;
@@ -192,13 +199,14 @@ class _ChatListScreenState extends State<ChatListScreen> {
       if (query.isEmpty) {
         filteredUsers = usersList;
       } else {
-        filteredUsers = usersList.where((u) {
-          final name = (u['name'] ?? '').toString().toLowerCase();
-          final eid = (u['employee_id'] ?? '').toString().toLowerCase();
-          final dept = (u['department'] ?? '').toString().toLowerCase();
-          final q = query.toLowerCase();
-          return name.contains(q) || eid.contains(q) || dept.contains(q);
-        }).toList();
+        filteredUsers =
+            usersList.where((u) {
+              final name = (u['name'] ?? '').toString().toLowerCase();
+              final eid = (u['employee_id'] ?? '').toString().toLowerCase();
+              final dept = (u['department'] ?? '').toString().toLowerCase();
+              final q = query.toLowerCase();
+              return name.contains(q) || eid.contains(q) || dept.contains(q);
+            }).toList();
       }
     });
   }
@@ -233,22 +241,25 @@ class _ChatListScreenState extends State<ChatListScreen> {
 
             // Conversations & Stories Area
             Expanded(
-              child: isLoading
-                  ? const Center(
-                      child: CircularProgressIndicator(color: MessengerTheme.activeBlue),
-                    )
-                  : ListView(
-                      physics: const BouncingScrollPhysics(),
-                      children: [
-                        const SizedBox(height: 8),
-                        // B. Stories horizontal row (Active team online colleagues)
-                        _buildStoriesSection(),
-                        const SizedBox(height: 16),
+              child:
+                  isLoading
+                      ? const Center(
+                        child: CircularProgressIndicator(
+                          color: MessengerTheme.activeBlue,
+                        ),
+                      )
+                      : ListView(
+                        physics: const BouncingScrollPhysics(),
+                        children: [
+                          const SizedBox(height: 8),
+                          // B. Stories horizontal row (Active team online colleagues)
+                          _buildStoriesSection(),
+                          const SizedBox(height: 16),
 
-                        // C. Main conversations vertical list
-                        _buildChatListSection(),
-                      ],
-                    ),
+                          // C. Main conversations vertical list
+                          _buildChatListSection(),
+                        ],
+                      ),
             ),
           ],
         ),
@@ -266,23 +277,33 @@ class _ChatListScreenState extends State<ChatListScreen> {
         children: [
           // Back arrow navigation icon
           IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new_rounded, color: MessengerTheme.textPrimary, size: 20),
+            icon: const Icon(
+              Icons.arrow_back_ios_new_rounded,
+              color: MessengerTheme.textPrimary,
+              size: 20,
+            ),
             onPressed: () => Navigator.pop(context),
           ),
 
           // User avatar
           CircleAvatar(
             radius: 22.0,
-            backgroundImage: user.avatar != null && user.avatar!.isNotEmpty
-                ? NetworkImage(ApiService.getFullImageUrl(user.avatar!))
-                : null,
+            backgroundImage:
+                user.avatar != null && user.avatar!.isNotEmpty
+                    ? NetworkImage(ApiService.getFullImageUrl(user.avatar!))
+                    : null,
             backgroundColor: _getAvatarBgColor(user.name ?? ''),
-            child: user.avatar == null || user.avatar!.isEmpty
-                ? Text(
-                    (user.name ?? 'U').substring(0, 1).toUpperCase(),
-                    style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 14),
-                  )
-                : null,
+            child:
+                user.avatar == null || user.avatar!.isEmpty
+                    ? Text(
+                      (user.name ?? 'U').substring(0, 1).toUpperCase(),
+                      style: GoogleFonts.inter(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        fontSize: 14,
+                      ),
+                    )
+                    : null,
           ),
           const SizedBox(width: 10.0),
 
@@ -299,10 +320,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
           ),
 
           // Action rounded buttons
-          _buildActionButton(
-            icon: Icons.camera_alt_rounded,
-            onTap: () {},
-          ),
+          _buildActionButton(icon: Icons.camera_alt_rounded, onTap: () {}),
           const SizedBox(width: 10.0),
           _buildActionButton(
             icon: Icons.edit_rounded,
@@ -310,10 +328,11 @@ class _ChatListScreenState extends State<ChatListScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => NewMessageScreen(
-                    allUsers: usersList,
-                    currentUserId: currentUserId,
-                  ),
+                  builder:
+                      (_) => NewMessageScreen(
+                        allUsers: usersList,
+                        currentUserId: currentUserId,
+                      ),
                 ),
               );
             },
@@ -323,7 +342,10 @@ class _ChatListScreenState extends State<ChatListScreen> {
     );
   }
 
-  Widget _buildActionButton({required IconData icon, required VoidCallback onTap}) {
+  Widget _buildActionButton({
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -359,11 +381,18 @@ class _ChatListScreenState extends State<ChatListScreen> {
               color: MessengerTheme.textSecondary,
               fontSize: 14.0,
             ),
-            prefixIcon: const Icon(Icons.search_rounded, color: MessengerTheme.textSecondary, size: 19.0),
+            prefixIcon: const Icon(
+              Icons.search_rounded,
+              color: MessengerTheme.textSecondary,
+              size: 19.0,
+            ),
             filled: true,
             fillColor: MessengerTheme.actionBtnBg,
             isDense: true,
-            contentPadding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 14.0),
+            contentPadding: const EdgeInsets.symmetric(
+              vertical: 8.0,
+              horizontal: 14.0,
+            ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(19.0),
               borderSide: BorderSide.none,
@@ -374,7 +403,10 @@ class _ChatListScreenState extends State<ChatListScreen> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(19.0),
-              borderSide: const BorderSide(color: MessengerTheme.activeBlue, width: 1.0),
+              borderSide: const BorderSide(
+                color: MessengerTheme.activeBlue,
+                width: 1.0,
+              ),
             ),
           ),
         ),
@@ -392,12 +424,13 @@ class _ChatListScreenState extends State<ChatListScreen> {
         List<DocumentSnapshot> realStories = [];
         if (snapshot.hasData) {
           final now = DateTime.now();
-          realStories = snapshot.data!.docs.where((doc) {
-            final data = doc.data() as Map<String, dynamic>?;
-            final ts = data?['createdAt'] as Timestamp?;
-            if (ts == null) return false;
-            return now.difference(ts.toDate()).inHours < 24;
-          }).toList();
+          realStories =
+              snapshot.data!.docs.where((doc) {
+                final data = doc.data() as Map<String, dynamic>?;
+                final ts = data?['createdAt'] as Timestamp?;
+                if (ts == null) return false;
+                return now.difference(ts.toDate()).inHours < 24;
+              }).toList();
         }
 
         return SizedBox(
@@ -419,9 +452,16 @@ class _ChatListScreenState extends State<ChatListScreen> {
                         decoration: BoxDecoration(
                           color: MessengerTheme.actionBtnBg,
                           shape: BoxShape.circle,
-                          border: Border.all(color: Colors.grey.shade300, width: 0.8),
+                          border: Border.all(
+                            color: Colors.grey.shade300,
+                            width: 0.8,
+                          ),
                         ),
-                        child: const Icon(Icons.add_rounded, size: 28.0, color: MessengerTheme.textPrimary),
+                        child: const Icon(
+                          Icons.add_rounded,
+                          size: 28.0,
+                          color: MessengerTheme.textPrimary,
+                        ),
                       ),
                       const SizedBox(height: 8.0),
                       SizedBox(
@@ -443,7 +483,8 @@ class _ChatListScreenState extends State<ChatListScreen> {
                 );
               }
 
-              final storyData = realStories[index - 1].data() as Map<String, dynamic>;
+              final storyData =
+                  realStories[index - 1].data() as Map<String, dynamic>;
               final String name = storyData['userName'] ?? 'User';
               final String avatar = storyData['userPhoto'] ?? '';
 
@@ -455,15 +496,30 @@ class _ChatListScreenState extends State<ChatListScreen> {
                       padding: const EdgeInsets.all(2.0),
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        border: Border.all(color: MessengerTheme.activeBlue, width: 2.0),
+                        border: Border.all(
+                          color: MessengerTheme.activeBlue,
+                          width: 2.0,
+                        ),
                       ),
                       child: CircleAvatar(
                         radius: 28.0,
-                        backgroundImage: avatar.isNotEmpty ? NetworkImage(ApiService.getFullImageUrl(avatar)) : null,
+                        backgroundImage:
+                            avatar.isNotEmpty
+                                ? NetworkImage(
+                                  ApiService.getFullImageUrl(avatar),
+                                )
+                                : null,
                         backgroundColor: _getAvatarBgColor(name),
-                        child: avatar.isEmpty
-                            ? Text(name.isNotEmpty ? name[0].toUpperCase() : 'U', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold))
-                            : null,
+                        child:
+                            avatar.isEmpty
+                                ? Text(
+                                  name.isNotEmpty ? name[0].toUpperCase() : 'U',
+                                  style: GoogleFonts.inter(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                )
+                                : null,
                       ),
                     ),
                     const SizedBox(height: 8.0),
@@ -474,7 +530,10 @@ class _ChatListScreenState extends State<ChatListScreen> {
                         textAlign: TextAlign.center,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.kantumruyPro(fontSize: 11.5, color: MessengerTheme.textPrimary),
+                        style: GoogleFonts.kantumruyPro(
+                          fontSize: 11.5,
+                          color: MessengerTheme.textPrimary,
+                        ),
                       ),
                     ),
                   ],
@@ -541,21 +600,35 @@ class _ChatListScreenState extends State<ChatListScreen> {
         }
 
         return InkWell(
-          onTap: () => _navigateToChat('ALL', 'Team Chat Group (ក្រុមរួម)', '', isGroup: true),
-          onLongPress: () => showChatWallpaperPicker(
-            context,
-            targetId: 'ALL',
-            targetName: 'Team Chat Group',
-            onWallpaperSelected: (_) {},
-          ),
+          onTap:
+              () => _navigateToChat(
+                'ALL',
+                'Team Chat Group (ក្រុមរួម)',
+                '',
+                isGroup: true,
+              ),
+          onLongPress:
+              () => showChatWallpaperPicker(
+                context,
+                targetId: 'ALL',
+                targetName: 'Team Chat Group',
+                onWallpaperSelected: (_) {},
+              ),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16.0,
+              vertical: 8.0,
+            ),
             child: Row(
               children: [
                 const CircleAvatar(
                   radius: 30.0,
                   backgroundColor: MessengerTheme.activeBlue,
-                  child: Icon(Icons.groups_rounded, color: Colors.white, size: 30),
+                  child: Icon(
+                    Icons.groups_rounded,
+                    color: Colors.white,
+                    size: 30,
+                  ),
                 ),
                 const SizedBox(width: 14.0),
                 Expanded(
@@ -564,7 +637,11 @@ class _ChatListScreenState extends State<ChatListScreen> {
                     children: [
                       Text(
                         'Team Chat Group (ក្រុមរួម)',
-                        style: GoogleFonts.kantumruyPro(fontSize: 15.5, fontWeight: FontWeight.w600, color: MessengerTheme.textPrimary),
+                        style: GoogleFonts.kantumruyPro(
+                          fontSize: 15.5,
+                          fontWeight: FontWeight.w600,
+                          color: MessengerTheme.textPrimary,
+                        ),
                       ),
                       const SizedBox(height: 4.0),
                       Row(
@@ -574,22 +651,41 @@ class _ChatListScreenState extends State<ChatListScreen> {
                               lastMsg,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.kantumruyPro(fontSize: 13.5, color: MessengerTheme.textSecondary),
+                              style: GoogleFonts.kantumruyPro(
+                                fontSize: 13.5,
+                                color: MessengerTheme.textSecondary,
+                              ),
                             ),
                           ),
                           if (timeStr.isNotEmpty) ...[
                             const Padding(
                               padding: EdgeInsets.symmetric(horizontal: 6.0),
-                              child: Text('•', style: TextStyle(fontSize: 11, color: MessengerTheme.textSecondary)),
+                              child: Text(
+                                '•',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: MessengerTheme.textSecondary,
+                                ),
+                              ),
                             ),
-                            Text(timeStr, style: GoogleFonts.inter(fontSize: 13.0, color: MessengerTheme.textSecondary)),
+                            Text(
+                              timeStr,
+                              style: GoogleFonts.inter(
+                                fontSize: 13.0,
+                                color: MessengerTheme.textSecondary,
+                              ),
+                            ),
                           ],
                         ],
                       ),
                     ],
                   ),
                 ),
-                const Icon(Icons.arrow_forward_ios_rounded, size: 12.0, color: Colors.black26),
+                const Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  size: 12.0,
+                  color: Colors.black26,
+                ),
               ],
             ),
           ),
@@ -608,12 +704,13 @@ class _ChatListScreenState extends State<ChatListScreen> {
 
     return InkWell(
       onTap: () => _navigateToChat(groupId, name, '', isGroup: true),
-      onLongPress: () => showChatWallpaperPicker(
-        context,
-        targetId: groupId,
-        targetName: name,
-        onWallpaperSelected: (_) {},
-      ),
+      onLongPress:
+          () => showChatWallpaperPicker(
+            context,
+            targetId: groupId,
+            targetName: name,
+            onWallpaperSelected: (_) {},
+          ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
         child: Row(
@@ -621,7 +718,11 @@ class _ChatListScreenState extends State<ChatListScreen> {
             CircleAvatar(
               radius: 30.0,
               backgroundColor: Colors.indigo.shade400,
-              child: const Icon(Icons.forum_rounded, color: Colors.white, size: 28),
+              child: const Icon(
+                Icons.forum_rounded,
+                color: Colors.white,
+                size: 28,
+              ),
             ),
             const SizedBox(width: 14.0),
             Expanded(
@@ -630,39 +731,62 @@ class _ChatListScreenState extends State<ChatListScreen> {
                 children: [
                   Text(
                     name,
-                    style: GoogleFonts.kantumruyPro(fontSize: 15.5, fontWeight: FontWeight.w600, color: MessengerTheme.textPrimary),
+                    style: GoogleFonts.kantumruyPro(
+                      fontSize: 15.5,
+                      fontWeight: FontWeight.w600,
+                      color: MessengerTheme.textPrimary,
+                    ),
                   ),
                   const SizedBox(height: 4.0),
                   Row(
                     children: [
                       Flexible(
                         child: Text(
-                          lastMsg.isNotEmpty ? lastMsg : 'គ្មានសារកម្សាន្តនៅឡើយទេ',
+                          lastMsg.isNotEmpty
+                              ? lastMsg
+                              : 'គ្មានសារកម្សាន្តនៅឡើយទេ',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.kantumruyPro(fontSize: 13.5, color: MessengerTheme.textSecondary),
+                          style: GoogleFonts.kantumruyPro(
+                            fontSize: 13.5,
+                            color: MessengerTheme.textSecondary,
+                          ),
                         ),
                       ),
                       if (timeStr.isNotEmpty) ...[
                         const Padding(
                           padding: EdgeInsets.symmetric(horizontal: 6.0),
-                          child: Text('•', style: TextStyle(fontSize: 11, color: MessengerTheme.textSecondary)),
+                          child: Text(
+                            '•',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: MessengerTheme.textSecondary,
+                            ),
+                          ),
                         ),
-                        Text(timeStr, style: GoogleFonts.inter(fontSize: 13.0, color: MessengerTheme.textSecondary)),
+                        Text(
+                          timeStr,
+                          style: GoogleFonts.inter(
+                            fontSize: 13.0,
+                            color: MessengerTheme.textSecondary,
+                          ),
+                        ),
                       ],
                     ],
                   ),
                 ],
               ),
             ),
-            const Icon(Icons.arrow_forward_ios_rounded, size: 12.0, color: Colors.black26),
+            const Icon(
+              Icons.arrow_forward_ios_rounded,
+              size: 12.0,
+              color: Colors.black26,
+            ),
           ],
         ),
       ),
     );
   }
-
-
 
   // Real-time Employee Chat Tile (Firestore Stream-based)
   Widget _buildUserConversationTile(dynamic user) {
@@ -671,7 +795,8 @@ class _ChatListScreenState extends State<ChatListScreen> {
     final String avatar = user['avatar'] ?? '';
     final String position = user['position'] ?? 'បុគ្គលិក';
 
-    if (currentUserId.isEmpty || targetId.isEmpty) return const SizedBox.shrink();
+    if (currentUserId.isEmpty || targetId.isEmpty)
+      return const SizedBox.shrink();
 
     final List<String> ids = [currentUserId, targetId];
     ids.sort();
@@ -679,22 +804,25 @@ class _ChatListScreenState extends State<ChatListScreen> {
 
     // 1. Unread stream caching
     if (!_unreadStreams.containsKey(roomId)) {
-      _unreadStreams[roomId] = _firestore
-          .collection('chats')
-          .doc(roomId)
-          .collection('messages')
-          .where('isRead', isEqualTo: false)
-          .snapshots();
+      _unreadStreams[roomId] =
+          _firestore
+              .collection('chats')
+              .doc(roomId)
+              .collection('messages')
+              .where('isRead', isEqualTo: false)
+              .snapshots();
     }
 
     // 2. Presence stream caching
     if (!_presenceStreams.containsKey(targetId)) {
-      _presenceStreams[targetId] = _firestore.collection('users').doc(targetId).snapshots();
+      _presenceStreams[targetId] =
+          _firestore.collection('users').doc(targetId).snapshots();
     }
 
     // 3. Last Message stream caching
     if (!_lastMessageStreams.containsKey(roomId)) {
-      _lastMessageStreams[roomId] = _firestore.collection('chats').doc(roomId).snapshots();
+      _lastMessageStreams[roomId] =
+          _firestore.collection('chats').doc(roomId).snapshots();
     }
 
     return StreamBuilder<DocumentSnapshot>(
@@ -711,10 +839,11 @@ class _ChatListScreenState extends State<ChatListScreen> {
           builder: (context, unreadSnapshot) {
             int unreadCount = 0;
             if (unreadSnapshot.hasData) {
-              unreadCount = unreadSnapshot.data!.docs.where((doc) {
-                final data = doc.data() as Map<String, dynamic>;
-                return data['senderId'] != currentUserId;
-              }).length;
+              unreadCount =
+                  unreadSnapshot.data!.docs.where((doc) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    return data['senderId'] != currentUserId;
+                  }).length;
             }
             final bool isUnread = unreadCount > 0;
 
@@ -726,15 +855,18 @@ class _ChatListScreenState extends State<ChatListScreen> {
                 bool isLastMessageByMe = false;
 
                 if (chatSnapshot.hasData && chatSnapshot.data!.exists) {
-                  final chatData = chatSnapshot.data!.data() as Map<String, dynamic>?;
+                  final chatData =
+                      chatSnapshot.data!.data() as Map<String, dynamic>?;
                   if (chatData != null) {
                     final rawLastMsg = chatData['lastMessage'] ?? '';
-                    final Timestamp? ts = chatData['lastTimestamp'] as Timestamp?;
+                    final Timestamp? ts =
+                        chatData['lastTimestamp'] as Timestamp?;
                     final lastSenderId = chatData['lastSenderId'] ?? '';
-                    
+
                     if (rawLastMsg.isNotEmpty) {
                       isLastMessageByMe = lastSenderId == currentUserId;
-                      lastMsg = isLastMessageByMe ? "អ្នក៖ $rawLastMsg" : rawLastMsg;
+                      lastMsg =
+                          isLastMessageByMe ? "អ្នក៖ $rawLastMsg" : rawLastMsg;
                     }
                     if (ts != null) {
                       timeStr = _formatTimestamp(ts);
@@ -744,14 +876,18 @@ class _ChatListScreenState extends State<ChatListScreen> {
 
                 return InkWell(
                   onTap: () => _navigateToChat(targetId, title, avatar),
-                  onLongPress: () => showChatWallpaperPicker(
-                    context,
-                    targetId: targetId,
-                    targetName: title,
-                    onWallpaperSelected: (_) {},
-                  ),
+                  onLongPress:
+                      () => showChatWallpaperPicker(
+                        context,
+                        targetId: targetId,
+                        targetName: title,
+                        onWallpaperSelected: (_) {},
+                      ),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16.0,
+                      vertical: 8.0,
+                    ),
                     child: Row(
                       children: [
                         // Left profile picture with online indicator
@@ -759,14 +895,28 @@ class _ChatListScreenState extends State<ChatListScreen> {
                           children: [
                             CircleAvatar(
                               radius: 32.0,
-                              backgroundImage: avatar.isNotEmpty ? NetworkImage(ApiService.getFullImageUrl(avatar)) : null,
+                              backgroundImage:
+                                  avatar.isNotEmpty
+                                      ? NetworkImage(
+                                        ApiService.getFullImageUrl(avatar),
+                                      )
+                                      : null,
                               backgroundColor: _getAvatarBgColor(title),
-                              child: avatar.isEmpty
-                                  ? Text(
-                                      title.isNotEmpty ? title.substring(0, 1).toUpperCase() : 'U',
-                                      style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white),
-                                    )
-                                  : null,
+                              child:
+                                  avatar.isEmpty
+                                      ? Text(
+                                        title.isNotEmpty
+                                            ? title
+                                                .substring(0, 1)
+                                                .toUpperCase()
+                                            : 'U',
+                                        style: GoogleFonts.inter(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 18,
+                                          color: Colors.white,
+                                        ),
+                                      )
+                                      : null,
                             ),
                             Positioned(
                               right: 0.0,
@@ -775,9 +925,14 @@ class _ChatListScreenState extends State<ChatListScreen> {
                                 width: 15.0,
                                 height: 15.0,
                                 decoration: BoxDecoration(
-                                  color: isOnline ? MessengerTheme.onlineGreen : const Color(0xFFB0B3B8),
+                                  color:
+                                      isOnline
+                                          ? MessengerTheme.onlineGreen
+                                          : const Color(0xFFB0B3B8),
                                   shape: BoxShape.circle,
-                                  border: const Border.fromBorderSide(BorderSide(color: Colors.white, width: 2.5)),
+                                  border: const Border.fromBorderSide(
+                                    BorderSide(color: Colors.white, width: 2.5),
+                                  ),
                                 ),
                               ),
                             ),
@@ -794,7 +949,10 @@ class _ChatListScreenState extends State<ChatListScreen> {
                                 title,
                                 style: GoogleFonts.kantumruyPro(
                                   fontSize: 15.5,
-                                  fontWeight: isUnread ? FontWeight.bold : FontWeight.w600,
+                                  fontWeight:
+                                      isUnread
+                                          ? FontWeight.bold
+                                          : FontWeight.w600,
                                   color: MessengerTheme.textPrimary,
                                 ),
                                 maxLines: 1,
@@ -810,22 +968,42 @@ class _ChatListScreenState extends State<ChatListScreen> {
                                       overflow: TextOverflow.ellipsis,
                                       style: GoogleFonts.kantumruyPro(
                                         fontSize: 13.5,
-                                        fontWeight: isUnread ? FontWeight.w800 : FontWeight.normal,
-                                        color: isUnread ? MessengerTheme.textPrimary : MessengerTheme.textSecondary,
+                                        fontWeight:
+                                            isUnread
+                                                ? FontWeight.w800
+                                                : FontWeight.normal,
+                                        color:
+                                            isUnread
+                                                ? MessengerTheme.textPrimary
+                                                : MessengerTheme.textSecondary,
                                       ),
                                     ),
                                   ),
                                   if (timeStr.isNotEmpty) ...[
                                     const Padding(
-                                      padding: EdgeInsets.symmetric(horizontal: 6.0),
-                                      child: Text('•', style: TextStyle(fontSize: 11, color: MessengerTheme.textSecondary)),
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: 6.0,
+                                      ),
+                                      child: Text(
+                                        '•',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: MessengerTheme.textSecondary,
+                                        ),
+                                      ),
                                     ),
                                     Text(
                                       timeStr,
                                       style: GoogleFonts.inter(
                                         fontSize: 13.0,
-                                        fontWeight: isUnread ? FontWeight.w700 : FontWeight.normal,
-                                        color: isUnread ? MessengerTheme.textPrimary : MessengerTheme.textSecondary,
+                                        fontWeight:
+                                            isUnread
+                                                ? FontWeight.w700
+                                                : FontWeight.normal,
+                                        color:
+                                            isUnread
+                                                ? MessengerTheme.textPrimary
+                                                : MessengerTheme.textSecondary,
                                       ),
                                     ),
                                   ],
@@ -836,7 +1014,12 @@ class _ChatListScreenState extends State<ChatListScreen> {
                         ),
 
                         // Unread dot indicator or delivery status
-                        _buildConversationStatus(isUnread, isLastMessageByMe, avatar, title),
+                        _buildConversationStatus(
+                          isUnread,
+                          isLastMessageByMe,
+                          avatar,
+                          title,
+                        ),
                       ],
                     ),
                   ),
@@ -849,7 +1032,12 @@ class _ChatListScreenState extends State<ChatListScreen> {
     );
   }
 
-  Widget _buildConversationStatus(bool isUnread, bool isLastMessageByMe, String avatar, String title) {
+  Widget _buildConversationStatus(
+    bool isUnread,
+    bool isLastMessageByMe,
+    String avatar,
+    String title,
+  ) {
     if (isUnread) {
       return Container(
         width: 12.0,
@@ -863,14 +1051,22 @@ class _ChatListScreenState extends State<ChatListScreen> {
     if (isLastMessageByMe) {
       return CircleAvatar(
         radius: 7.0,
-        backgroundImage: avatar.isNotEmpty ? NetworkImage(ApiService.getFullImageUrl(avatar)) : null,
+        backgroundImage:
+            avatar.isNotEmpty
+                ? NetworkImage(ApiService.getFullImageUrl(avatar))
+                : null,
         backgroundColor: _getAvatarBgColor(title),
-        child: avatar.isEmpty
-            ? Text(
-                title.isNotEmpty ? title[0].toUpperCase() : 'U',
-                style: const TextStyle(fontSize: 7.0, color: Colors.white, fontWeight: FontWeight.bold),
-              )
-            : null,
+        child:
+            avatar.isEmpty
+                ? Text(
+                  title.isNotEmpty ? title[0].toUpperCase() : 'U',
+                  style: const TextStyle(
+                    fontSize: 7.0,
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                )
+                : null,
       );
     }
     return const SizedBox.shrink();
@@ -885,18 +1081,20 @@ class _ChatListScreenState extends State<ChatListScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => isGroup
-            ? TeamChatScreen(
-                targetUserId: id,
-                targetUserName: name,
-                targetUserPhoto: photo,
-                isGroup: true,
-              )
-            : ChatDetailScreen(
-                targetUserId: id,
-                targetUserName: name,
-                targetUserPhoto: photo,
-              ),
+        builder:
+            (_) =>
+                isGroup
+                    ? TeamChatScreen(
+                      targetUserId: id,
+                      targetUserName: name,
+                      targetUserPhoto: photo,
+                      isGroup: true,
+                    )
+                    : ChatDetailScreen(
+                      targetUserId: id,
+                      targetUserName: name,
+                      targetUserPhoto: photo,
+                    ),
       ),
     );
   }
