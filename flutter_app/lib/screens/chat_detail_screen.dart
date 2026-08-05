@@ -358,7 +358,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                   image: AssetImage(_currentWallpaper),
                   fit: BoxFit.cover,
                   colorFilter: ColorFilter.mode(
-                    Colors.black.withValues(alpha: 0.45),
+                    Colors.black.withValues(alpha: 0.18),
                     BlendMode.darken,
                   ),
                 ),
@@ -387,13 +387,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   Widget _buildHeader() {
     String statusText = 'គ្មាន Online';
     if (_isTargetOnline) {
-      statusText = 'សកម្មឥឡូវនេះ (Active Now)';
+      statusText = 'Active Now';
     } else if (_targetLastActive != null) {
       final diff = DateTime.now().difference(_targetLastActive!);
       if (diff.inMinutes < 60) {
-        statusText = 'សកម្ម ${diff.inMinutes} នាទីមុន';
+        statusText = 'Active ${diff.inMinutes}m ago';
       } else if (diff.inHours < 24) {
-        statusText = 'សកម្ម ${diff.inHours} ម៉ោងមុន';
+        statusText = 'Active ${diff.inHours}h ago';
       } else {
         statusText = DateFormat('dd/MM HH:mm').format(_targetLastActive!);
       }
@@ -401,9 +401,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
     return ClipRect(
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
         child: Container(
-          color: Colors.black.withValues(alpha: 0.45),
+          color: Colors.black.withValues(alpha: 0.20),
           padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
           child: Row(
             children: [
@@ -458,7 +458,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                         ),
                         Text(
                           statusText,
-                          style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 11.5),
+                          style: GoogleFonts.inter(color: Colors.white70, fontSize: 11.5, fontWeight: FontWeight.w400),
                         ),
                       ],
                     ),
@@ -467,20 +467,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               ),
               const Spacer(),
               IconButton(
-                icon: const Icon(Icons.palette_rounded, color: _MsgDark.iconColor, size: 24),
-                onPressed: () => showChatWallpaperPicker(
-                  context,
-                  targetId: widget.targetUserId,
-                  targetName: widget.targetUserName,
-                  onWallpaperSelected: (wp) => setState(() => _currentWallpaper = wp),
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.phone_rounded, color: _MsgDark.iconColor, size: 24),
+                icon: const Icon(Icons.phone_rounded, color: Colors.white, size: 24),
                 onPressed: () => _showCallDialog(false),
               ),
               IconButton(
-                icon: const Icon(Icons.videocam_rounded, color: _MsgDark.iconColor, size: 26),
+                icon: const Icon(Icons.videocam_rounded, color: Colors.white, size: 26),
                 onPressed: () => _showCallDialog(true),
               ),
             ],
@@ -1119,7 +1110,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
   }
 
-  // Interactive Playable Voice Message Bubble (Waveform Bars + Speed Toggle + Long Press)
+  // Interactive Playable Voice Message Bubble (Clean Messenger Style)
   Widget _buildVoiceBubble({
     required String docId,
     required String audioUrl,
@@ -1135,6 +1126,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       progress = (_currentAudioPosition.inMilliseconds / _currentAudioDuration.inMilliseconds).clamp(0.0, 1.0);
     }
 
+    final Color bubbleBg = isMine ? const Color(0xFFF29BB8) : const Color(0xDD4E1025);
+    final Color textColor = isMine ? const Color(0xFF1E1E1E) : Colors.white;
+    final Color playBg = isMine ? Colors.black.withValues(alpha: 0.25) : Colors.white.withValues(alpha: 0.25);
+    final Color playIconColor = isMine ? const Color(0xFF1E1E1E) : Colors.white;
+
     return Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
       child: Column(
@@ -1144,15 +1140,22 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             onLongPress: () => _showVoiceOptionsModal(docId, audioUrl),
             child: Container(
               margin: const EdgeInsets.symmetric(vertical: 4.0),
-              padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 10.0),
+              padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
               decoration: BoxDecoration(
-                color: isMine ? _MsgDark.sentBubble : const Color(0xFF2C2C2E),
+                color: bubbleBg,
                 borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(20.0),
-                  topRight: const Radius.circular(20.0),
-                  bottomLeft: Radius.circular(isMine ? 20.0 : 4.0),
-                  bottomRight: Radius.circular(isMine ? 4.0 : 20.0),
+                  topLeft: const Radius.circular(22.0),
+                  topRight: const Radius.circular(22.0),
+                  bottomLeft: Radius.circular(isMine ? 22.0 : 4.0),
+                  bottomRight: Radius.circular(isMine ? 4.0 : 22.0),
                 ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.15),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -1161,34 +1164,34 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                   GestureDetector(
                     onTap: () => _togglePlayAudio(audioUrl),
                     child: Container(
-                      width: 38.0,
-                      height: 38.0,
+                      width: 40.0,
+                      height: 40.0,
                       decoration: BoxDecoration(
-                        color: isMine ? Colors.white24 : const Color(0xFF48484A),
+                        color: playBg,
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
                         isThisPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                        color: Colors.white,
-                        size: 24.0,
+                        color: playIconColor,
+                        size: 26.0,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 10.0),
+                  const SizedBox(width: 12.0),
 
                   // Waveform Bars (Vertical Audio Wave)
                   GestureDetector(
                     onHorizontalDragUpdate: (details) {
                       if (isThisPlaying && _currentAudioDuration.inMilliseconds > 0) {
-                        final dx = details.localPosition.dx.clamp(0.0, 120.0);
-                        final val = dx / 120.0;
+                        final dx = details.localPosition.dx.clamp(0.0, 130.0);
+                        final val = dx / 130.0;
                         final seekMs = (val * _currentAudioDuration.inMilliseconds).round();
                         _audioPlayer.seek(Duration(milliseconds: seekMs));
                       }
                     },
                     child: SizedBox(
-                      width: 120.0,
-                      height: 30.0,
+                      width: 130.0,
+                      height: 32.0,
                       child: Center(
                         child: _buildWaveformBars(
                           isPlaying: isThisPlaying,
@@ -1198,7 +1201,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 10.0),
+                  const SizedBox(width: 12.0),
 
                   // Duration Readout
                   Text(
@@ -1206,26 +1209,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                         ? _formatDuration(_currentAudioPosition.inSeconds)
                         : _formatDuration(durationSeconds),
                     style: GoogleFonts.inter(
-                      color: Colors.white,
-                      fontSize: 12.0,
+                      color: textColor,
+                      fontSize: 12.5,
                       fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(width: 8.0),
-
-                  // Speed Toggle Button (1x / 1.5x / 2x)
-                  GestureDetector(
-                    onTap: _togglePlaybackSpeed,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 5.0, vertical: 3.0),
-                      decoration: BoxDecoration(
-                        color: Colors.white24,
-                        borderRadius: BorderRadius.circular(8.0),
-                      ),
-                      child: Text(
-                        '${_playbackSpeed.toStringAsFixed(1).replaceAll('.0', '')}x',
-                        style: GoogleFonts.inter(color: Colors.white, fontSize: 9.5, fontWeight: FontWeight.bold),
-                      ),
                     ),
                   ),
                 ],
@@ -1258,11 +1244,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     required double progress,
     required bool isMine,
   }) {
-    const barsCount = 24;
+    const barsCount = 26;
     const heights = [
       8.0, 16.0, 24.0, 12.0, 30.0, 18.0, 26.0, 10.0,
       22.0, 32.0, 14.0, 28.0, 20.0, 34.0, 16.0, 24.0,
-      10.0, 28.0, 18.0, 30.0, 12.0, 22.0, 16.0, 8.0
+      10.0, 28.0, 18.0, 30.0, 12.0, 22.0, 16.0, 8.0, 14.0, 10.0
     ];
 
     return Row(
@@ -1274,8 +1260,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         final isPlayed = isPlaying && barProgress <= progress;
 
         final Color barColor = isMine
-            ? (isPlayed ? Colors.white : Colors.white38)
-            : (isPlayed ? _MsgDark.iconColor : Colors.white38);
+            ? (isPlayed ? const Color(0xFF1E1E1E) : Colors.black38)
+            : (isPlayed ? Colors.white : Colors.white38);
 
         return Container(
           width: 3.0,
@@ -2110,9 +2096,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     if (_isRecording) {
       return ClipRect(
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
           child: Container(
-            color: Colors.black.withValues(alpha: 0.45),
+            color: Colors.black.withValues(alpha: 0.20),
             padding: const EdgeInsets.fromLTRB(12.0, 8.0, 12.0, 12.0),
             child: Container(
               height: 48.0,
@@ -2183,9 +2169,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
     return ClipRect(
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
         child: Container(
-          color: Colors.black.withValues(alpha: 0.45),
+          color: Colors.black.withValues(alpha: 0.20),
           padding: const EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 12.0),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
@@ -2205,12 +2191,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               _buildToolbarIcon(Icons.mic_rounded, onTap: _startRecording),
               const SizedBox(width: 4.0),
 
-              // Text input field with NO inner border
+              // Text input field with translucent pill shape
               Expanded(
                 child: Container(
                   constraints: const BoxConstraints(minHeight: 38.0, maxHeight: 120.0),
                   decoration: BoxDecoration(
-                    color: _MsgDark.inputBg,
+                    color: Colors.white.withValues(alpha: 0.20),
                     borderRadius: BorderRadius.circular(22.0),
                   ),
                   padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 2.0),
@@ -2221,11 +2207,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                         child: TextField(
                           controller: _msgController,
                           maxLines: null,
-                          style: GoogleFonts.kantumruyPro(color: _MsgDark.textPrimary, fontSize: 15.0),
-                          cursorColor: _MsgDark.iconColor,
+                          style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 15.0),
+                          cursorColor: Colors.white,
                           decoration: InputDecoration(
                             hintText: 'Aa',
-                            hintStyle: GoogleFonts.inter(color: _MsgDark.textMuted, fontSize: 15.0),
+                            hintStyle: GoogleFonts.inter(color: Colors.white70, fontSize: 15.0),
                             border: InputBorder.none,
                             enabledBorder: InputBorder.none,
                             focusedBorder: InputBorder.none,
@@ -2236,7 +2222,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                           onSubmitted: (_) => _sendMessage(),
                         ),
                       ),
-                      const Icon(Icons.sentiment_satisfied_alt_rounded, color: _MsgDark.iconColor, size: 22.0),
+                      const Icon(Icons.sentiment_satisfied_alt_rounded, color: Colors.white70, size: 22.0),
                     ],
                   ),
                 ),
@@ -2254,7 +2240,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                       padding: const EdgeInsets.only(left: 2.0),
                       child: Icon(
                         hasText ? Icons.send_rounded : Icons.thumb_up_alt_rounded,
-                        color: _MsgDark.iconColor,
+                        color: Colors.white,
                         size: 28.0,
                       ),
                     ),
@@ -2270,7 +2256,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
   Widget _buildToolbarIcon(IconData icon, {VoidCallback? onTap}) {
     return IconButton(
-      icon: Icon(icon, color: _MsgDark.iconColor, size: 26.0),
+      icon: Icon(icon, color: Colors.white, size: 26.0),
       onPressed: onTap ?? () {},
       padding: const EdgeInsets.symmetric(horizontal: 4.0),
       constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
