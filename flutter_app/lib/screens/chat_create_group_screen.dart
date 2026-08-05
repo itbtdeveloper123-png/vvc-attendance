@@ -424,64 +424,66 @@ class _ChatCreateGroupScreenState extends State<ChatCreateGroupScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
       child: Column(
         children: [
-          // Group Name Input
-          Container(
-            height: 44.0,
-            decoration: BoxDecoration(
-              color: _GPDark.card,
-              borderRadius: BorderRadius.circular(12.0),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 12.0),
-            child: Row(
-              children: [
-                const Icon(Icons.group_add_rounded, color: _GPDark.accent, size: 20.0),
-                const SizedBox(width: 10.0),
-                Expanded(
-                  child: TextField(
-                    controller: _groupNameController,
-                    style: GoogleFonts.kantumruyPro(color: _GPDark.textPrimary, fontSize: 15.0),
-                    cursorColor: _GPDark.accent,
-                    decoration: InputDecoration(
-                      hintText: 'ឈ្មោះក្រុម...',
-                      hintStyle: GoogleFonts.kantumruyPro(color: _GPDark.textMuted, fontSize: 14.5),
-                      border: InputBorder.none,
-                      isDense: true,
-                      contentPadding: EdgeInsets.zero,
-                    ),
-                  ),
+          // Group Name Input (Single Pill Capsule)
+          SizedBox(
+            height: 42.0,
+            child: TextField(
+              controller: _groupNameController,
+              style: GoogleFonts.kantumruyPro(color: _GPDark.textPrimary, fontSize: 15.0),
+              cursorColor: _GPDark.accent,
+              decoration: InputDecoration(
+                hintText: 'ឈ្មោះក្រុម...',
+                hintStyle: GoogleFonts.kantumruyPro(color: _GPDark.textMuted, fontSize: 14.5),
+                prefixIcon: const Icon(Icons.group_add_rounded, color: _GPDark.accent, size: 20.0),
+                filled: true,
+                fillColor: _GPDark.card,
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(20.0),
+                  borderSide: BorderSide.none,
                 ),
-              ],
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(20.0),
+                  borderSide: BorderSide.none,
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(20.0),
+                  borderSide: const BorderSide(color: _GPDark.accent, width: 1.0),
+                ),
+              ),
             ),
           ),
-          const SizedBox(height: 8.0),
+          const SizedBox(height: 10.0),
 
-          // Search Field
-          Container(
-            height: 40.0,
-            decoration: BoxDecoration(
-              color: _GPDark.card,
-              borderRadius: BorderRadius.circular(12.0),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 12.0),
-            child: Row(
-              children: [
-                const Icon(Icons.search_rounded, color: _GPDark.textMuted, size: 20.0),
-                const SizedBox(width: 10.0),
-                Expanded(
-                  child: TextField(
-                    controller: _searchController,
-                    style: GoogleFonts.kantumruyPro(color: _GPDark.textPrimary, fontSize: 15.0),
-                    cursorColor: _GPDark.accent,
-                    decoration: InputDecoration(
-                      hintText: 'Search',
-                      hintStyle: GoogleFonts.inter(color: _GPDark.textMuted, fontSize: 15.0),
-                      border: InputBorder.none,
-                      isDense: true,
-                      contentPadding: EdgeInsets.zero,
-                    ),
-                  ),
+          // Search Field (Single Pill Capsule)
+          SizedBox(
+            height: 42.0,
+            child: TextField(
+              controller: _searchController,
+              style: GoogleFonts.kantumruyPro(color: _GPDark.textPrimary, fontSize: 15.0),
+              cursorColor: _GPDark.accent,
+              decoration: InputDecoration(
+                hintText: 'Search',
+                hintStyle: GoogleFonts.inter(color: _GPDark.textMuted, fontSize: 15.0),
+                prefixIcon: const Icon(Icons.search_rounded, color: _GPDark.textMuted, size: 20.0),
+                filled: true,
+                fillColor: _GPDark.card,
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(20.0),
+                  borderSide: BorderSide.none,
                 ),
-              ],
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(20.0),
+                  borderSide: BorderSide.none,
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(20.0),
+                  borderSide: const BorderSide(color: _GPDark.accent, width: 1.0),
+                ),
+              ),
             ),
           ),
         ],

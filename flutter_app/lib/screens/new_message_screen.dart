@@ -406,7 +406,7 @@ class _NewMessageScreenState extends State<NewMessageScreen> {
   // "To:" search row
   Widget _buildToSearchRow() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
       child: Row(
         children: [
           Text(
@@ -419,17 +419,34 @@ class _NewMessageScreenState extends State<NewMessageScreen> {
           ),
           const SizedBox(width: 10.0),
           Expanded(
-            child: TextField(
-              controller: _searchController,
-              autofocus: false,
-              cursorColor: _NMDark.accent,
-              style: GoogleFonts.kantumruyPro(color: _NMDark.textPrimary, fontSize: 16.0),
-              decoration: InputDecoration(
-                hintText: 'ស្វែងរក...',
-                hintStyle: GoogleFonts.kantumruyPro(color: _NMDark.textMuted, fontSize: 15.0),
-                border: InputBorder.none,
-                isDense: true,
-                contentPadding: EdgeInsets.zero,
+            child: SizedBox(
+              height: 40.0,
+              child: TextField(
+                controller: _searchController,
+                autofocus: false,
+                cursorColor: _NMDark.accent,
+                style: GoogleFonts.kantumruyPro(color: _NMDark.textPrimary, fontSize: 15.0),
+                decoration: InputDecoration(
+                  hintText: 'ស្វែងរក...',
+                  hintStyle: GoogleFonts.kantumruyPro(color: _NMDark.textMuted, fontSize: 14.5),
+                  prefixIcon: const Icon(Icons.search_rounded, color: _NMDark.textMuted, size: 18.0),
+                  filled: true,
+                  fillColor: const Color(0xFF2C2C2E),
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 14.0),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(20.0),
+                    borderSide: BorderSide.none,
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(20.0),
+                    borderSide: BorderSide.none,
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(20.0),
+                    borderSide: const BorderSide(color: _NMDark.accent, width: 1.0),
+                  ),
+                ),
               ),
             ),
           ),

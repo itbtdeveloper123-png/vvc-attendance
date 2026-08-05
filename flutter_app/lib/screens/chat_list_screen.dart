@@ -344,38 +344,39 @@ class _ChatListScreenState extends State<ChatListScreen> {
   Widget _buildSearchBar() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 6.0),
-      child: Container(
+      child: SizedBox(
         height: 38.0,
-        decoration: BoxDecoration(
-          color: MessengerTheme.actionBtnBg,
-          borderRadius: BorderRadius.circular(10.0),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 12.0),
-        child: Row(
-          children: [
-            const Icon(Icons.search_rounded, color: MessengerTheme.textSecondary, size: 20.0),
-            const SizedBox(width: 8.0),
-            Expanded(
-              child: TextField(
-                onChanged: _filterUsers,
-                cursorColor: MessengerTheme.activeBlue,
-                style: GoogleFonts.kantumruyPro(
-                  color: MessengerTheme.textPrimary,
-                  fontSize: 14.5,
-                ),
-                decoration: InputDecoration(
-                  hintText: 'ស្វែងរកឈ្មោះបុគ្គលិក ឬផ្នែក...',
-                  hintStyle: GoogleFonts.kantumruyPro(
-                    color: MessengerTheme.textSecondary,
-                    fontSize: 14.0,
-                  ),
-                  border: InputBorder.none,
-                  isDense: true,
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
+        child: TextField(
+          onChanged: _filterUsers,
+          cursorColor: MessengerTheme.activeBlue,
+          style: GoogleFonts.kantumruyPro(
+            color: MessengerTheme.textPrimary,
+            fontSize: 14.5,
+          ),
+          decoration: InputDecoration(
+            hintText: 'ស្វែងរកឈ្មោះបុគ្គលិក ឬផ្នែក...',
+            hintStyle: GoogleFonts.kantumruyPro(
+              color: MessengerTheme.textSecondary,
+              fontSize: 14.0,
             ),
-          ],
+            prefixIcon: const Icon(Icons.search_rounded, color: MessengerTheme.textSecondary, size: 19.0),
+            filled: true,
+            fillColor: MessengerTheme.actionBtnBg,
+            isDense: true,
+            contentPadding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 14.0),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(19.0),
+              borderSide: BorderSide.none,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(19.0),
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(19.0),
+              borderSide: const BorderSide(color: MessengerTheme.activeBlue, width: 1.0),
+            ),
+          ),
         ),
       ),
     );

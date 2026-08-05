@@ -141,12 +141,20 @@ class AppTheme {
       error: error,
     ),
     inputDecorationTheme: InputDecorationTheme(
-      filled: true,
-      fillColor: fieldFill,
+      filled: false,
+      fillColor: Colors.transparent,
       hintStyle: GoogleFonts.kantumruyPro(color: fieldHintColor),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(radiusMd),
         borderSide: BorderSide(color: fieldBorder),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(radiusMd),
+        borderSide: BorderSide(color: fieldBorder),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(radiusMd),
+        borderSide: BorderSide(color: primaryLight, width: 1.5),
       ),
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(style: filledButtonStyle()),

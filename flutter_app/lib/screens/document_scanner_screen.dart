@@ -1121,23 +1121,33 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
           child: Row(
             children: [
               Expanded(
-                child: Container(
-                  height: 46,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.06),
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-                  ),
+                child: SizedBox(
+                  height: 42,
                   child: TextField(
                     controller: _searchController,
                     onChanged: _onSearchChanged,
                     style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 13.5),
+                    cursorColor: const Color(0xFF0E7490),
                     decoration: InputDecoration(
                       hintText: 'ស្វែងរកឯកសារ...',
-                      hintStyle: GoogleFonts.kantumruyPro(color: Colors.white30, fontSize: 12.5),
+                      hintStyle: GoogleFonts.kantumruyPro(color: Colors.white38, fontSize: 12.5),
                       prefixIcon: const Icon(Icons.search_rounded, color: Colors.white38, size: 20),
-                      border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 11),
+                      filled: true,
+                      fillColor: Colors.white.withValues(alpha: 0.08),
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(22),
+                        borderSide: BorderSide.none,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(22),
+                        borderSide: BorderSide.none,
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(22),
+                        borderSide: BorderSide(color: Colors.tealAccent.withValues(alpha: 0.5), width: 1.0),
+                      ),
                     ),
                   ),
                 ),
