@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'dart:async';
 import 'dart:io';
 import 'dart:ui';
@@ -16,6 +17,7 @@ import 'package:record/record.dart' as record_pkg;
 import 'package:audioplayers/audioplayers.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:image/image.dart' as img;
 import '../providers/user_provider.dart';
 import '../services/api_service.dart';
 import '../widgets/chat_wallpaper_picker.dart';
@@ -1101,11 +1103,20 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             onLongPress: () => _showMessageOptionsModal(docId: docId, content: imageUrl, type: 'image', senderName: senderName),
             child: Container(
               margin: const EdgeInsets.symmetric(vertical: 4.0),
-              constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.7),
-              height: 200.0,
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.of(context).size.width * 0.68,
+                maxHeight: 320.0,
+              ),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(16.0),
-                image: DecorationImage(image: imgProvider, fit: BoxFit.cover),
+                color: isMine ? _MsgDark.sentBubble : const Color(0xFF2C2C2E),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16.0),
+                child: Image(
+                  image: imgProvider,
+                  fit: BoxFit.contain,
+                ),
               ),
             ),
           ),
@@ -1922,15 +1933,26 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     try {
       final XFile? file = await ImagePicker().pickImage(
         source: source,
-        imageQuality: 70,
-        preferredCameraDevice: CameraDevice.rear,
+        imageQuality: 65,
+        maxWidth: 1024,
+        maxHeight: 1024,
       );
       if (file == null || currentUserId.isEmpty) return;
       final bytes = await file.readAsBytes();
       if (bytes.isEmpty) return;
 
+      // Fix orientation / mirroring and compress image size for Firestore (must be under 1MB limit)
+      Uint8List processedBytes = bytes;
+      try {
+        final img.Image? decoded = img.decodeImage(bytes);
+        if (decoded != null) {
+          final img.Image oriented = img.bakeOrientation(decoded);
+          processedBytes = Uint8List.fromList(img.encodeJpg(oriented, quality: 65));
+        }
+      } catch (_) {}
+
       if (!mounted) return;
-      final base64Image = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+      final base64Image = 'data:image/jpeg;base64,${base64Encode(processedBytes)}';
       final userProvider = Provider.of<UserProvider>(context, listen: false);
 
       final msgData = {
