@@ -14,6 +14,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:record/record.dart' as record_pkg;
 import 'package:audioplayers/audioplayers.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import '../providers/user_provider.dart';
 import '../services/api_service.dart';
 import '../widgets/chat_wallpaper_picker.dart';
@@ -32,6 +33,16 @@ Color _getAvatarBgColor(String name) {
   return colors[name.codeUnitAt(0) % colors.length];
 }
 
+// Memory Cache to prevent Base64 Image Flickering
+final Map<String, MemoryImage> _base64ImageCache = {};
+
+MemoryImage _getMemoryImage(String base64Str) {
+  return _base64ImageCache.putIfAbsent(
+    base64Str,
+    () => MemoryImage(base64Decode(base64Str.contains(',') ? base64Str.split(',').last : base64Str)),
+  );
+}
+
 // ==========================================
 // MESSENGER DARK THEME TOKENS
 // ==========================================
@@ -46,34 +57,6 @@ class _MsgDark {
   static const Color iconColor = Color(0xFF0084FF);
 }
 
-// ==========================================
-// DATA MODELS
-// ==========================================
-enum MessageType { text, sticker, callMissed, callVideo, security }
-
-class ChatMessage {
-  final String id;
-  final String text;
-  final MessageType type;
-  final bool isSentByMe;
-  final DateTime timestamp;
-  final String? callDuration;
-  final bool showAvatar;
-
-  const ChatMessage({
-    required this.id,
-    required this.text,
-    required this.type,
-    required this.isSentByMe,
-    required this.timestamp,
-    this.callDuration,
-    this.showAvatar = false,
-  });
-}
-
-// ==========================================
-// MAIN SCREEN WIDGET
-// ==========================================
 class ChatDetailScreen extends StatefulWidget {
   final String targetUserId;
   final String targetUserName;
@@ -105,6 +88,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   String _currentWallpaper = '';
   List<DocumentSnapshot> _messageDocs = [];
   StreamSubscription<QuerySnapshot>? _messageSubscription;
+  StreamSubscription<Duration>? _positionSub;
+  StreamSubscription<Duration>? _durationSub;
+
   bool _isLoadingHistory = true;
 
   // Voice Recording state
@@ -118,6 +104,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   // Audio Playback state
   String? _currentlyPlayingAudio;
   bool _isPlayingAudio = false;
+  double _playbackSpeed = 1.0;
+  Duration _currentAudioPosition = Duration.zero;
+  Duration _currentAudioDuration = Duration.zero;
+
+  // Reply State
+  String? _replyingToMessage;
+
   String get _roomId {
     if (widget.isGroup) return widget.targetUserId;
     final List<String> ids = [currentUserId, widget.targetUserId]..sort();
@@ -128,6 +121,22 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   void initState() {
     super.initState();
     _init();
+
+    _positionSub = _audioPlayer.onPositionChanged.listen((p) {
+      if (mounted) setState(() => _currentAudioPosition = p);
+    });
+    _durationSub = _audioPlayer.onDurationChanged.listen((d) {
+      if (mounted) setState(() => _currentAudioDuration = d);
+    });
+    _audioPlayer.onPlayerComplete.listen((_) {
+      if (mounted) {
+        setState(() {
+          _isPlayingAudio = false;
+          _currentlyPlayingAudio = null;
+          _currentAudioPosition = Duration.zero;
+        });
+      }
+    });
   }
 
   Future<void> _init() async {
@@ -155,9 +164,31 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           _messageDocs = snap.docs;
           _isLoadingHistory = false;
         });
+        _markMessagesAsRead(snap.docs);
         WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
       }
     });
+  }
+
+  Future<void> _markMessagesAsRead(List<DocumentSnapshot> docs) async {
+    if (currentUserId.isEmpty) return;
+    final batch = _firestore.batch();
+    bool hasUnread = false;
+
+    for (var doc in docs) {
+      final data = doc.data() as Map<String, dynamic>?;
+      if (data != null && data['senderId'] != currentUserId && data['isRead'] == false) {
+        batch.update(doc.reference, {'isRead': true});
+        hasUnread = true;
+      }
+    }
+
+    if (hasUnread) {
+      batch.set(_firestore.collection('chats').doc(_roomId), {
+        'isRead': true,
+      }, SetOptions(merge: true));
+      await batch.commit();
+    }
   }
 
   void _scrollToBottom() {
@@ -184,7 +215,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       'timestamp': FieldValue.serverTimestamp(),
       'type': 'text',
       'isRead': false,
+      if (_replyingToMessage != null) 'replyTo': _replyingToMessage,
     };
+
+    setState(() => _replyingToMessage = null);
 
     final batch = _firestore.batch();
     final msgRef = _firestore.collection('chats').doc(_roomId).collection('messages').doc();
@@ -194,6 +228,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       'lastMessage': text,
       'lastTimestamp': FieldValue.serverTimestamp(),
       'lastSenderId': currentUserId,
+      'isRead': false,
     }, SetOptions(merge: true));
     await batch.commit();
   }
@@ -201,6 +236,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   @override
   void dispose() {
     _messageSubscription?.cancel();
+    _positionSub?.cancel();
+    _durationSub?.cancel();
     _recordingTimer?.cancel();
     _msgController.dispose();
     _scrollController.dispose();
@@ -234,6 +271,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                 child: _buildMessageFeed(),
               ),
             ),
+            if (_replyingToMessage != null) _buildReplyPreviewBanner(),
             if (_showPlusMenu) _buildPlusMenuOverlay(),
             _buildInputToolbar(),
           ],
@@ -243,142 +281,130 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   }
 
   // ==========================================
-  // A. CUSTOM HEADER / APP BAR
+  // A. CUSTOM APP BAR
   // ==========================================
   Widget _buildHeader() {
     return Container(
       color: _MsgDark.bg,
-      padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 8.0),
+      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
       child: Row(
         children: [
-          // Back arrow
           IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new_rounded, color: _MsgDark.iconColor, size: 20),
+            icon: const Icon(Icons.arrow_back_ios_new_rounded, color: _MsgDark.iconColor, size: 22),
             onPressed: () => Navigator.pop(context),
           ),
-
-          // Avatar
-          CircleAvatar(
-            radius: 24.0,
-            backgroundImage: widget.targetUserPhoto.isNotEmpty
-                ? NetworkImage(ApiService.getFullImageUrl(widget.targetUserPhoto))
-                : null,
-            backgroundColor: _getAvatarBgColor(widget.targetUserName),
-            child: widget.targetUserPhoto.isEmpty
-                ? Text(
-                    widget.targetUserName.isNotEmpty ? widget.targetUserName[0].toUpperCase() : 'U',
-                    style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
-                  )
-                : null,
+          Stack(
+            children: [
+              CircleAvatar(
+                radius: 20.0,
+                backgroundImage: widget.targetUserPhoto.isNotEmpty
+                    ? NetworkImage(ApiService.getFullImageUrl(widget.targetUserPhoto))
+                    : null,
+                backgroundColor: _getAvatarBgColor(widget.targetUserName),
+                child: widget.targetUserPhoto.isEmpty
+                    ? Text(
+                        widget.targetUserName.isNotEmpty ? widget.targetUserName[0].toUpperCase() : 'U',
+                        style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
+                      )
+                    : null,
+              ),
+              Positioned(
+                right: 0,
+                bottom: 0,
+                child: Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF44B700),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: _MsgDark.bg, width: 1.5),
+                  ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 12.0),
-
-          // Name & status
+          const SizedBox(width: 10.0),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   widget.targetUserName,
-                  style: GoogleFonts.kantumruyPro(
-                    color: _MsgDark.textPrimary,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16.0,
-                  ),
+                  style: GoogleFonts.kantumruyPro(color: _MsgDark.textPrimary, fontWeight: FontWeight.bold, fontSize: 16.0),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                StreamBuilder<DocumentSnapshot>(
-                  stream: _firestore.collection('users').doc(widget.targetUserId).snapshots(),
-                  builder: (context, snap) {
-                    String status = 'Offline';
-                    Color statusColor = _MsgDark.textMuted;
-                    if (snap.hasData && snap.data!.exists) {
-                      final data = snap.data!.data() as Map<String, dynamic>?;
-                      if (data?['isOnline'] == true) {
-                        status = 'Active now';
-                        statusColor = const Color(0xFF44B700);
-                      } else if (data?['lastActive'] != null) {
-                        final last = (data!['lastActive'] as Timestamp).toDate();
-                        final diff = DateTime.now().difference(last);
-                        if (diff.inMinutes < 60) {
-                          status = 'Active ${diff.inMinutes}m ago';
-                        } else if (diff.inHours < 24) {
-                          status = 'Active ${diff.inHours}h ago';
-                        } else {
-                          status = 'Active ${diff.inDays}d ago';
-                        }
-                      }
-                    }
-                    return Text(
-                      status,
-                      style: GoogleFonts.inter(
-                        fontSize: 12.0,
-                        color: statusColor,
-                        fontWeight: FontWeight.w400,
-                      ),
-                    );
-                  },
+                Text(
+                  'សកម្មឥឡូវនេះ (Active Now)',
+                  style: GoogleFonts.kantumruyPro(color: _MsgDark.textMuted, fontSize: 11.5),
                 ),
               ],
             ),
           ),
-
-          // Audio call button
-          _buildHeaderIconBtn(Icons.palette_rounded, onTap: () {
-            showChatWallpaperPicker(
+          IconButton(
+            icon: const Icon(Icons.palette_rounded, color: _MsgDark.iconColor, size: 24),
+            onPressed: () => showChatWallpaperPicker(
               context,
               targetId: widget.targetUserId,
               targetName: widget.targetUserName,
-              onWallpaperSelected: (path) {
-                setState(() => _currentWallpaper = path);
-              },
-            );
-          }),
-          _buildHeaderIconBtn(Icons.call_rounded, onTap: () => _showCallDialog(false)),
-          _buildHeaderIconBtn(Icons.videocam_rounded, onTap: () => _showCallDialog(true)),
+              onWallpaperSelected: (wp) => setState(() => _currentWallpaper = wp),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.phone_rounded, color: _MsgDark.iconColor, size: 24),
+            onPressed: () => _showCallDialog(false),
+          ),
+          IconButton(
+            icon: const Icon(Icons.videocam_rounded, color: _MsgDark.iconColor, size: 26),
+            onPressed: () => _showCallDialog(true),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildHeaderIconBtn(IconData icon, {required VoidCallback onTap}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 36.0,
-        height: 36.0,
-        margin: const EdgeInsets.only(left: 4.0),
-        decoration: const BoxDecoration(
-          color: Color(0xFF3A3B3C),
-          shape: BoxShape.circle,
-        ),
-        child: Icon(icon, size: 18.0, color: _MsgDark.iconColor),
-      ),
-    );
-  }
-
   // ==========================================
-  // B. MESSAGE FEED
+  // B. MESSAGE FEED LIST
   // ==========================================
   Widget _buildMessageFeed() {
     if (_isLoadingHistory) {
-      return const Center(child: CircularProgressIndicator(color: _MsgDark.iconColor, strokeWidth: 2));
+      return const Center(child: CircularProgressIndicator(color: _MsgDark.iconColor));
     }
-
     if (_messageDocs.isEmpty) {
-      return _buildEmptyState();
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircleAvatar(
+              radius: 40,
+              backgroundColor: _getAvatarBgColor(widget.targetUserName),
+              backgroundImage: widget.targetUserPhoto.isNotEmpty
+                  ? NetworkImage(ApiService.getFullImageUrl(widget.targetUserPhoto))
+                  : null,
+              child: widget.targetUserPhoto.isEmpty
+                  ? Text(widget.targetUserName[0].toUpperCase(), style: GoogleFonts.inter(fontSize: 32, color: Colors.white, fontWeight: FontWeight.bold))
+                  : null,
+            ),
+            const SizedBox(height: 12),
+            Text(widget.targetUserName, style: GoogleFonts.kantumruyPro(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+            const SizedBox(height: 4),
+            Text('ចាប់ផ្តើមការសន្ទនាជាមួយគ្នា!', style: GoogleFonts.kantumruyPro(color: _MsgDark.textMuted, fontSize: 13)),
+          ],
+        ),
+      );
     }
 
     return ListView.builder(
       controller: _scrollController,
-      physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
       itemCount: _messageDocs.length,
       itemBuilder: (context, index) {
         final doc = _messageDocs[index];
         final data = doc.data() as Map<String, dynamic>;
-        final isMine = (data['senderId'] ?? '') == currentUserId;
+        final String senderId = data['senderId'] ?? '';
+        final bool isMine = senderId == currentUserId;
+
         final Timestamp? ts = data['timestamp'] as Timestamp?;
         final DateTime msgTime = ts?.toDate() ?? DateTime.now();
 
@@ -387,6 +413,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         final String audioUrl = (data['audioUrl'] ?? data['voiceUrl'] ?? data['base64Audio'] ?? '').toString();
         final int durationSeconds = (data['audioDuration'] ?? data['duration'] ?? 3) as int;
         final String rawType = (data['type'] ?? '').toString();
+        final bool isRead = data['isRead'] == true;
+        final String? replyTo = data['replyTo'] as String?;
 
         final bool showDivider = _shouldShowDateDivider(index, ts);
 
@@ -397,107 +425,84 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             if (rawType == 'callMissed') _buildCallEventCard(isMissed: true, time: msgTime),
             if (rawType == 'callVideo') _buildCallEventCard(isMissed: false, time: msgTime),
             if (imageUrl.isNotEmpty || rawType == 'image')
-              _buildImageBubble(imageUrl: imageUrl, isMine: isMine, time: msgTime),
+              _buildImageBubble(docId: doc.id, imageUrl: imageUrl, isMine: isMine, time: msgTime, isRead: isRead),
             if (audioUrl.isNotEmpty || rawType == 'audio' || rawType == 'voice')
-              _buildVoiceBubble(audioUrl: audioUrl, durationSeconds: durationSeconds, isMine: isMine, time: msgTime),
+              _buildVoiceBubble(docId: doc.id, audioUrl: audioUrl, durationSeconds: durationSeconds, isMine: isMine, time: msgTime, isRead: isRead),
             if (rawType == 'file')
-              _buildFileBubble(fileName: (data['fileName'] ?? 'Document').toString(), fileSize: (data['fileSize'] ?? '').toString(), isMine: isMine, time: msgTime),
+              _buildFileBubble(fileName: (data['fileName'] ?? 'Document').toString(), fileSize: (data['fileSize'] ?? '').toString(), isMine: isMine, time: msgTime, isRead: isRead),
             if (rawType == 'location')
-              _buildLocationBubble(text: rawText, lat: (data['latitude'] ?? 0.0) as double, lng: (data['longitude'] ?? 0.0) as double, isMine: isMine, time: msgTime),
+              _buildLocationBubble(text: rawText, lat: (data['latitude'] ?? 0.0) as double, lng: (data['longitude'] ?? 0.0) as double, isMine: isMine, time: msgTime, isRead: isRead),
             if (rawType == 'sticker' || rawText == '👍')
               _buildStickerBubble(text: rawText.isNotEmpty ? rawText : '👍', isMine: isMine),
             if (rawType != 'callMissed' && rawType != 'callVideo' && !imageUrl.isNotEmpty && rawType != 'image' && !audioUrl.isNotEmpty && rawType != 'audio' && rawType != 'voice' && rawType != 'file' && rawType != 'location' && rawType != 'sticker' && rawText != '👍' && rawText.isNotEmpty)
-              _buildTextBubble(text: rawText, isMine: isMine, time: msgTime),
+              _buildTextBubble(text: rawText, replyTo: replyTo, isMine: isMine, time: msgTime, isRead: isRead),
           ],
         );
       },
     );
   }
 
-  bool _shouldShowDateDivider(int index, Timestamp? ts) {
-    if (ts == null) return false;
-    if (index == 0) return true;
-    final prevDoc = _messageDocs[index - 1];
-    final prevData = prevDoc.data() as Map<String, dynamic>;
-    final Timestamp? prevTs = prevData['timestamp'] as Timestamp?;
-    if (prevTs == null) return false;
-    final cur = ts.toDate();
-    final prev = prevTs.toDate();
-    return cur.day != prev.day || cur.month != prev.month || cur.year != prev.year;
+  bool _shouldShowDateDivider(int index, Timestamp? currentTs) {
+    if (index == 0 || currentTs == null) return true;
+    final prevDoc = _messageDocs[index - 1].data() as Map<String, dynamic>?;
+    final Timestamp? prevTs = prevDoc?['timestamp'] as Timestamp?;
+    if (prevTs == null) return true;
+
+    final currDate = currentTs.toDate();
+    final prevDate = prevTs.toDate();
+    return currDate.day != prevDate.day || currDate.month != prevDate.month || currDate.year != prevDate.year;
   }
 
-  Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
+  // Date Divider in Khmer
+  Widget _buildDateDivider(DateTime date) {
+    final now = DateTime.now();
+    String dateStr = '';
+
+    if (date.year == now.year && date.month == now.month && date.day == now.day) {
+      dateStr = 'ថ្ងៃនេះ (Today)';
+    } else if (date.year == now.year && date.month == now.month && date.day == now.day - 1) {
+      dateStr = 'ម្សិលមិញ (Yesterday)';
+    } else {
+      dateStr = DateFormat('E, d MMM yyyy').format(date);
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 14.0),
+      child: Row(
         children: [
-          CircleAvatar(
-            radius: 44.0,
-            backgroundImage: widget.targetUserPhoto.isNotEmpty
-                ? NetworkImage(ApiService.getFullImageUrl(widget.targetUserPhoto))
-                : null,
-            backgroundColor: _getAvatarBgColor(widget.targetUserName),
-            child: widget.targetUserPhoto.isEmpty
-                ? Text(
-                    widget.targetUserName.isNotEmpty ? widget.targetUserName[0].toUpperCase() : 'U',
-                    style: GoogleFonts.inter(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
-                  )
-                : null,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            widget.targetUserName,
-            style: GoogleFonts.kantumruyPro(
-              color: _MsgDark.textPrimary,
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
+          const Expanded(child: Divider(color: Colors.white24, height: 1)),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10.0),
+            child: Text(
+              dateStr,
+              style: GoogleFonts.kantumruyPro(fontSize: 11.5, color: _MsgDark.textMuted, fontWeight: FontWeight.w600),
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            'ចាប់ផ្ដើមការជជែករបស់អ្នក!',
-            style: GoogleFonts.kantumruyPro(color: _MsgDark.textMuted, fontSize: 14),
-          ),
-          const SizedBox(height: 24),
-          _buildSecurityBanner(),
+          const Expanded(child: Divider(color: Colors.white24, height: 1)),
         ],
       ),
     );
   }
 
-  // Date Divider
-  Widget _buildDateDivider(DateTime date) {
-    final now = DateTime.now();
-    String label;
-    if (date.day == now.day && date.month == now.month && date.year == now.year) {
-      label = 'TODAY ${DateFormat('HH:mm').format(date)}';
-    } else if (date.year == now.year) {
-      label = '${DateFormat('EEE d MMM').format(date).toUpperCase()} AT ${DateFormat('HH:mm').format(date)}';
-    } else {
-      label = '${DateFormat('d MMM yyyy').format(date).toUpperCase()} AT ${DateFormat('HH:mm').format(date)}';
+  Widget _buildReadStatusIcon(bool isRead) {
+    if (isRead) {
+      return widget.targetUserPhoto.isNotEmpty
+          ? CircleAvatar(
+              radius: 6.0,
+              backgroundImage: NetworkImage(ApiService.getFullImageUrl(widget.targetUserPhoto)),
+            )
+          : const Icon(Icons.done_all_rounded, size: 14, color: _MsgDark.iconColor);
     }
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 16.0),
-      child: Center(
-        child: Text(
-          label,
-          style: GoogleFonts.inter(
-            fontSize: 11.0,
-            fontWeight: FontWeight.w500,
-            color: _MsgDark.textMuted,
-            letterSpacing: 0.4,
-          ),
-        ),
-      ),
-    );
+    return const Icon(Icons.done_all_rounded, size: 14, color: Colors.white38);
   }
 
-  // Text Bubble
+  // Text Message Bubble
   Widget _buildTextBubble({
     required String text,
+    String? replyTo,
     required bool isMine,
     required DateTime time,
+    required bool isRead,
   }) {
     return Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
@@ -505,9 +510,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
           Container(
-            margin: const EdgeInsets.symmetric(vertical: 2.0),
-            constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.72),
+            margin: const EdgeInsets.symmetric(vertical: 3.0),
             padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
+            constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.72),
             decoration: BoxDecoration(
               color: isMine ? _MsgDark.sentBubble : _MsgDark.receivedBubble,
               borderRadius: BorderRadius.only(
@@ -517,20 +522,46 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                 bottomRight: Radius.circular(isMine ? 4.0 : 18.0),
               ),
             ),
-            child: Text(
-              text,
-              style: GoogleFonts.kantumruyPro(
-                color: _MsgDark.textPrimary,
-                fontSize: 15.0,
-                height: 1.4,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (replyTo != null) ...[
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    margin: const EdgeInsets.only(bottom: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.black26,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      '↩️ $replyTo',
+                      style: GoogleFonts.kantumruyPro(fontSize: 11.5, color: Colors.white70),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+                Text(
+                  text,
+                  style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 14.5, height: 1.35),
+                ),
+              ],
             ),
           ),
           Padding(
             padding: const EdgeInsets.only(left: 4.0, right: 4.0, bottom: 4.0),
-            child: Text(
-              DateFormat('h:mm a').format(time),
-              style: GoogleFonts.inter(fontSize: 10.0, color: _MsgDark.textMuted),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  DateFormat('h:mm a').format(time),
+                  style: GoogleFonts.inter(fontSize: 10.0, color: _MsgDark.textMuted),
+                ),
+                if (isMine) ...[
+                  const SizedBox(width: 4.0),
+                  _buildReadStatusIcon(isRead),
+                ],
+              ],
             ),
           ),
         ],
@@ -545,42 +576,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 4.0),
         child: Text(text, style: const TextStyle(fontSize: 48.0)),
-      ),
-    );
-  }
-
-  // Security Banner
-  Widget _buildSecurityBanner() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.lock_rounded, size: 14.0, color: _MsgDark.textMuted),
-          const SizedBox(width: 6.0),
-          Flexible(
-            child: RichText(
-              textAlign: TextAlign.center,
-              text: TextSpan(
-                style: GoogleFonts.inter(fontSize: 12.0, color: _MsgDark.textMuted, height: 1.5),
-                children: [
-                  const TextSpan(
-                    text: 'New messages and calls are secured with end-to-end encryption. Only people in this chat can read, listen to or share them. ',
-                  ),
-                  TextSpan(
-                    text: 'Learn more',
-                    style: GoogleFonts.inter(
-                      fontSize: 12.0,
-                      color: _MsgDark.iconColor,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -630,9 +625,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                         ),
                         const SizedBox(height: 2.0),
                         Text(
-                          isMissed
-                              ? DateFormat('h:mm a').format(time)
-                              : '4 min, 31 secs',
+                          isMissed ? DateFormat('h:mm a').format(time) : '4 min, 31 secs',
                           style: GoogleFonts.inter(fontSize: 12.0, color: _MsgDark.textMuted),
                         ),
                       ],
@@ -643,7 +636,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             ),
             const Divider(height: 1.0, color: Color(0xFF3E4042)),
             InkWell(
-              onTap: () {},
+              onTap: () => _showCallDialog(false),
               borderRadius: const BorderRadius.only(
                 bottomLeft: Radius.circular(16.0),
                 bottomRight: Radius.circular(16.0),
@@ -668,15 +661,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
   }
 
-  // Image Bubble
+  // Non-Flickering Image Bubble + Full Screen Action Viewer
   Widget _buildImageBubble({
+    required String docId,
     required String imageUrl,
     required bool isMine,
     required DateTime time,
+    required bool isRead,
   }) {
     final bool isBase64 = imageUrl.startsWith('data:image');
     final ImageProvider imgProvider = isBase64
-        ? MemoryImage(base64Decode(imageUrl.split(',').last))
+        ? _getMemoryImage(imageUrl)
         : NetworkImage(imageUrl) as ImageProvider;
 
     return Align(
@@ -685,25 +680,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
           GestureDetector(
-            onTap: () {
-              showDialog(
-                context: context,
-                builder: (ctx) => Dialog(
-                  backgroundColor: Colors.transparent,
-                  insetPadding: EdgeInsets.zero,
-                  child: Stack(
-                    alignment: Alignment.topRight,
-                    children: [
-                      InteractiveViewer(child: Image(image: imgProvider, fit: BoxFit.contain)),
-                      IconButton(
-                        icon: const Icon(Icons.close_rounded, color: Colors.white, size: 30),
-                        onPressed: () => Navigator.pop(ctx),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
+            key: ValueKey(imageUrl),
+            onTap: () => _showFullScreenImageViewer(imgProvider, imageUrl),
             child: Container(
               margin: const EdgeInsets.symmetric(vertical: 4.0),
               constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.7),
@@ -716,9 +694,18 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           ),
           Padding(
             padding: const EdgeInsets.only(left: 4.0, right: 4.0, bottom: 4.0),
-            child: Text(
-              DateFormat('h:mm a').format(time),
-              style: GoogleFonts.inter(fontSize: 10.0, color: _MsgDark.textMuted),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  DateFormat('h:mm a').format(time),
+                  style: GoogleFonts.inter(fontSize: 10.0, color: _MsgDark.textMuted),
+                ),
+                if (isMine) ...[
+                  const SizedBox(width: 4.0),
+                  _buildReadStatusIcon(isRead),
+                ],
+              ],
             ),
           ),
         ],
@@ -726,93 +713,374 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
   }
 
-  // Voice Message Bubble
+  // Full Screen Image Viewer Modal (Close, Download, Forward, Share)
+  void _showFullScreenImageViewer(ImageProvider imgProvider, String rawUrl) {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.black.withValues(alpha: 0.92),
+        insetPadding: EdgeInsets.zero,
+        child: Stack(
+          alignment: Alignment.bottomCenter,
+          children: [
+            Center(
+              child: InteractiveViewer(
+                child: Image(image: imgProvider, fit: BoxFit.contain),
+              ),
+            ),
+            // Top Bar: Close Button
+            Positioned(
+              top: 40.0,
+              right: 16.0,
+              child: CircleAvatar(
+                backgroundColor: Colors.black54,
+                child: IconButton(
+                  icon: const Icon(Icons.close_rounded, color: Colors.white, size: 24),
+                  onPressed: () => Navigator.pop(ctx),
+                ),
+              ),
+            ),
+            // Bottom Action Bar (Download, Forward, Share)
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 24.0),
+              color: Colors.black88,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.download_rounded, color: Colors.white, size: 26),
+                    onPressed: () async {
+                      Navigator.pop(ctx);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('បានរក្សាទុករូបភាពក្នុង Gallery!', style: GoogleFonts.kantumruyPro())),
+                      );
+                    },
+                    tooltip: 'Save Image',
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.shortcut_rounded, color: Colors.white, size: 26),
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _showForwardModal(rawUrl, 'image');
+                    },
+                    tooltip: 'Forward Image',
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.share_rounded, color: Colors.white, size: 26),
+                    onPressed: () async {
+                      Navigator.pop(ctx);
+                      if (rawUrl.startsWith('http')) {
+                        Share.share(rawUrl);
+                      } else {
+                        final dir = await getTemporaryDirectory();
+                        final tempFile = File('${dir.path}/shared_img_${DateTime.now().millisecondsSinceEpoch}.jpg');
+                        await tempFile.writeAsBytes(base64Decode(rawUrl.split(',').last));
+                        Share.shareXFiles([XFile(tempFile.path)]);
+                      }
+                    },
+                    tooltip: 'Share Image',
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Interactive Playable Voice Message Bubble (Seek Bar + Speed Toggle + Long Press)
   Widget _buildVoiceBubble({
+    required String docId,
     required String audioUrl,
     required int durationSeconds,
     required bool isMine,
     required DateTime time,
+    required bool isRead,
   }) {
     final bool isThisPlaying = _isPlayingAudio && _currentlyPlayingAudio == audioUrl;
+
+    double progress = 0.0;
+    if (isThisPlaying && _currentAudioDuration.inMilliseconds > 0) {
+      progress = (_currentAudioPosition.inMilliseconds / _currentAudioDuration.inMilliseconds).clamp(0.0, 1.0);
+    }
 
     return Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
       child: Column(
         crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
-          Container(
-            margin: const EdgeInsets.symmetric(vertical: 4.0),
-            padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
-            decoration: BoxDecoration(
-              color: isMine ? _MsgDark.sentBubble : const Color(0xFF2C2C2E),
-              borderRadius: BorderRadius.only(
-                topLeft: const Radius.circular(20.0),
-                topRight: const Radius.circular(20.0),
-                bottomLeft: Radius.circular(isMine ? 20.0 : 4.0),
-                bottomRight: Radius.circular(isMine ? 4.0 : 20.0),
+          GestureDetector(
+            onLongPress: () => _showVoiceOptionsModal(docId, audioUrl),
+            child: Container(
+              margin: const EdgeInsets.symmetric(vertical: 4.0),
+              padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 8.0),
+              decoration: BoxDecoration(
+                color: isMine ? _MsgDark.sentBubble : const Color(0xFF2C2C2E),
+                borderRadius: BorderRadius.only(
+                  topLeft: const Radius.circular(20.0),
+                  topRight: const Radius.circular(20.0),
+                  bottomLeft: Radius.circular(isMine ? 20.0 : 4.0),
+                  bottomRight: Radius.circular(isMine ? 4.0 : 20.0),
+                ),
               ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Play / Pause Button
-                GestureDetector(
-                  onTap: () => _togglePlayAudio(audioUrl),
-                  child: Container(
-                    width: 38.0,
-                    height: 38.0,
-                    decoration: BoxDecoration(
-                      color: isMine ? Colors.white24 : const Color(0xFF48484A),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      isThisPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                      color: Colors.white,
-                      size: 24.0,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10.0),
-
-                // Animated Sound Waveform Bars
-                Row(
-                  children: List.generate(18, (i) {
-                    final heights = [10.0, 20.0, 14.0, 26.0, 12.0, 22.0, 8.0, 18.0, 24.0, 10.0, 16.0, 22.0, 12.0, 18.0, 24.0, 10.0, 14.0, 8.0];
-                    final h = heights[i % heights.length];
-                    return Container(
-                      width: 3.0,
-                      height: h,
-                      margin: const EdgeInsets.symmetric(horizontal: 1.5),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Speed Toggle Button (1x / 1.5x / 2x)
+                  GestureDetector(
+                    onTap: _togglePlaybackSpeed,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 4.0),
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: isThisPlaying ? 1.0 : 0.75),
-                        borderRadius: BorderRadius.circular(2.0),
+                        color: Colors.white24,
+                        borderRadius: BorderRadius.circular(10.0),
                       ),
-                    );
-                  }),
-                ),
-                const SizedBox(width: 10.0),
-
-                // Duration Readout
-                Text(
-                  _formatDuration(durationSeconds),
-                  style: GoogleFonts.inter(
-                    color: Colors.white,
-                    fontSize: 12.0,
-                    fontWeight: FontWeight.w600,
+                      child: Text(
+                        '${_playbackSpeed.toStringAsFixed(1).replaceAll('.0', '')}x',
+                        style: GoogleFonts.inter(color: Colors.white, fontSize: 10.0, fontWeight: FontWeight.bold),
+                      ),
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 8.0),
+
+                  // Play / Pause Button
+                  GestureDetector(
+                    onTap: () => _togglePlayAudio(audioUrl),
+                    child: Container(
+                      width: 36.0,
+                      height: 36.0,
+                      decoration: BoxDecoration(
+                        color: isMine ? Colors.white24 : const Color(0xFF48484A),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        isThisPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                        color: Colors.white,
+                        size: 22.0,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8.0),
+
+                  // Interactive Seek Slider / Waveform
+                  SizedBox(
+                    width: 130.0,
+                    child: SliderTheme(
+                      data: SliderThemeData(
+                        trackHeight: 3.0,
+                        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6.0),
+                        overlayShape: const RoundSliderOverlayShape(overlayRadius: 10.0),
+                        activeTrackColor: Colors.white,
+                        inactiveTrackColor: Colors.white38,
+                        thumbColor: Colors.white,
+                      ),
+                      child: Slider(
+                        value: isThisPlaying ? progress : 0.0,
+                        onChanged: (val) {
+                          if (isThisPlaying && _currentAudioDuration.inMilliseconds > 0) {
+                            final seekMs = (val * _currentAudioDuration.inMilliseconds).round();
+                            _audioPlayer.seek(Duration(milliseconds: seekMs));
+                          }
+                        },
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6.0),
+
+                  // Duration Readout
+                  Text(
+                    isThisPlaying
+                        ? _formatDuration(_currentAudioPosition.inSeconds)
+                        : _formatDuration(durationSeconds),
+                    style: GoogleFonts.inter(
+                      color: Colors.white,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           Padding(
             padding: const EdgeInsets.only(left: 4.0, right: 4.0, bottom: 4.0),
-            child: Text(
-              DateFormat('h:mm a').format(time),
-              style: GoogleFonts.inter(fontSize: 10.0, color: _MsgDark.textMuted),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  DateFormat('h:mm a').format(time),
+                  style: GoogleFonts.inter(fontSize: 10.0, color: _MsgDark.textMuted),
+                ),
+                if (isMine) ...[
+                  const SizedBox(width: 4.0),
+                  _buildReadStatusIcon(isRead),
+                ],
+              ],
             ),
           ),
         ],
       ),
+    );
+  }
+
+  void _togglePlaybackSpeed() {
+    setState(() {
+      if (_playbackSpeed == 1.0) {
+        _playbackSpeed = 1.5;
+      } else if (_playbackSpeed == 1.5) {
+        _playbackSpeed = 2.0;
+      } else {
+        _playbackSpeed = 1.0;
+      }
+    });
+    _audioPlayer.setPlaybackRate(_playbackSpeed);
+  }
+
+  // Voice Message Options BottomSheet (Reply, Forward, Pin, Delete)
+  void _showVoiceOptionsModal(String docId, String audioUrl) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF2C2C2E),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20.0)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 8),
+              Container(width: 36, height: 4, decoration: BoxDecoration(color: Colors.white30, borderRadius: BorderRadius.circular(2))),
+              const SizedBox(height: 12),
+              ListTile(
+                leading: const Icon(Icons.reply_rounded, color: Colors.white),
+                title: Text('ឆ្លើយតប (Reply)', style: GoogleFonts.kantumruyPro(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  setState(() => _replyingToMessage = '🎙️ សារសំឡេង');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.shortcut_rounded, color: Colors.white),
+                title: Text('បញ្ជូនបន្ត (Forward)', style: GoogleFonts.kantumruyPro(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _showForwardModal(audioUrl, 'voice');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.push_pin_rounded, color: Colors.white),
+                title: Text('ប៉ិនទុក (Pin)', style: GoogleFonts.kantumruyPro(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('បានប៉ិនសារទុក!', style: GoogleFonts.kantumruyPro())),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete_forever_rounded, color: Colors.redAccent),
+                title: Text('លុបសារ (Delete)', style: GoogleFonts.kantumruyPro(color: Colors.redAccent)),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await _firestore.collection('chats').doc(_roomId).collection('messages').doc(docId).delete();
+                },
+              ),
+              const SizedBox(height: 12),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // Forward Message Modal to Select Contact
+  void _showForwardModal(String content, String type) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF2C2C2E),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20.0)),
+      ),
+      builder: (ctx) {
+        return StreamBuilder<QuerySnapshot>(
+          stream: _firestore.collection('users').snapshots(),
+          builder: (context, snap) {
+            if (!snap.hasData) return const Center(child: CircularProgressIndicator());
+            final users = snap.data!.docs.where((d) => d.id != currentUserId).toList();
+
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Text(
+                    'បញ្ជូនបន្តទៅកាន់ (Forward to)',
+                    style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: users.length,
+                    itemBuilder: (context, index) {
+                      final u = users[index].data() as Map<String, dynamic>;
+                      final targetId = users[index].id;
+                      final name = u['name'] ?? 'User';
+                      final avatar = u['avatar'] ?? '';
+
+                      return ListTile(
+                        leading: CircleAvatar(
+                          backgroundImage: avatar.isNotEmpty ? NetworkImage(ApiService.getFullImageUrl(avatar)) : null,
+                          backgroundColor: _getAvatarBgColor(name),
+                          child: avatar.isEmpty ? Text(name[0].toUpperCase(), style: const TextStyle(color: Colors.white)) : null,
+                        ),
+                        title: Text(name, style: GoogleFonts.kantumruyPro(color: Colors.white)),
+                        trailing: const Icon(Icons.send_rounded, color: _MsgDark.iconColor),
+                        onTap: () async {
+                          Navigator.pop(ctx);
+                          final userProvider = Provider.of<UserProvider>(context, listen: false);
+                          final targetRoomId = "PRIVATE_${[currentUserId, targetId]..sort().join('_')}";
+
+                          final msgData = {
+                            'text': type == 'text' ? content : '',
+                            if (type == 'image') 'imageUrl': content,
+                            if (type == 'voice') 'base64Audio': content,
+                            'type': type,
+                            'senderId': currentUserId,
+                            'senderName': userProvider.name ?? '',
+                            'senderPhoto': userProvider.avatar ?? '',
+                            'timestamp': FieldValue.serverTimestamp(),
+                            'isRead': false,
+                          };
+
+                          final batch = _firestore.batch();
+                          final msgRef = _firestore.collection('chats').doc(targetRoomId).collection('messages').doc();
+                          batch.set(msgRef, msgData);
+                          batch.set(_firestore.collection('chats').doc(targetRoomId), {
+                            'participants': [currentUserId, targetId],
+                            'lastMessage': '↪️ បានបញ្ជូនបន្តសារ',
+                            'lastTimestamp': FieldValue.serverTimestamp(),
+                            'lastSenderId': currentUserId,
+                            'isRead': false,
+                          }, SetOptions(merge: true));
+                          await batch.commit();
+
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('បានបញ្ជូនបន្តសារទៅកាន់ $name រួចរាល់!', style: GoogleFonts.kantumruyPro())),
+                            );
+                          }
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
@@ -843,18 +1111,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         await _audioPlayer.play(UrlSource(url));
       }
 
+      await _audioPlayer.setPlaybackRate(_playbackSpeed);
+
       setState(() {
         _currentlyPlayingAudio = url;
         _isPlayingAudio = true;
-      });
-
-      _audioPlayer.onPlayerComplete.listen((_) {
-        if (mounted) {
-          setState(() {
-            _isPlayingAudio = false;
-            _currentlyPlayingAudio = null;
-          });
-        }
       });
     } catch (e) {
       debugPrint('Audio playback error: $e');
@@ -867,6 +1128,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     required String fileSize,
     required bool isMine,
     required DateTime time,
+    required bool isRead,
   }) {
     return Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
@@ -908,9 +1170,18 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           ),
           Padding(
             padding: const EdgeInsets.only(left: 4.0, right: 4.0, bottom: 4.0),
-            child: Text(
-              DateFormat('h:mm a').format(time),
-              style: GoogleFonts.inter(fontSize: 10.0, color: _MsgDark.textMuted),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  DateFormat('h:mm a').format(time),
+                  style: GoogleFonts.inter(fontSize: 10.0, color: _MsgDark.textMuted),
+                ),
+                if (isMine) ...[
+                  const SizedBox(width: 4.0),
+                  _buildReadStatusIcon(isRead),
+                ],
+              ],
             ),
           ),
         ],
@@ -918,14 +1189,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
   }
 
-  // Location Bubble
+  // Rich Google Maps Card Widget
   Widget _buildLocationBubble({
     required String text,
     required double lat,
     required double lng,
     required bool isMine,
     required DateTime time,
+    required bool isRead,
   }) {
+    final mapsUrl = 'https://maps.google.com/?q=$lat,$lng';
+
     return Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
       child: Column(
@@ -933,27 +1207,61 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         children: [
           GestureDetector(
             onTap: () async {
-              final uri = Uri.parse('https://maps.google.com/?q=$lat,$lng');
+              final uri = Uri.parse(mapsUrl);
               if (await canLaunchUrl(uri)) {
                 await launchUrl(uri, mode: LaunchMode.externalApplication);
               }
             },
             child: Container(
               margin: const EdgeInsets.symmetric(vertical: 4.0),
-              padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
+              width: 240.0,
               decoration: BoxDecoration(
                 color: isMine ? _MsgDark.sentBubble : const Color(0xFF2C2C2E),
                 borderRadius: BorderRadius.circular(16.0),
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.near_me_rounded, color: Colors.white, size: 26.0),
-                  const SizedBox(width: 10.0),
-                  Flexible(
-                    child: Text(
-                      text,
-                      style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 13.5),
+                  Container(
+                    height: 90.0,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF1E293B),
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(16.0)),
+                    ),
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.location_on_rounded, color: Colors.redAccent, size: 36.0),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Google Maps Location',
+                            style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(10.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '📍 ទីតាំងបច្ចុប្បន្ន',
+                          style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Lat: ${lat.toStringAsFixed(4)}, Lng: ${lng.toStringAsFixed(4)}',
+                          style: GoogleFonts.inter(color: Colors.white70, fontSize: 11),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'បើកមើលក្នុង Google Maps ➔',
+                          style: GoogleFonts.kantumruyPro(color: Colors.tealAccent, fontWeight: FontWeight.bold, fontSize: 12),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -962,10 +1270,269 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           ),
           Padding(
             padding: const EdgeInsets.only(left: 4.0, right: 4.0, bottom: 4.0),
-            child: Text(
-              DateFormat('h:mm a').format(time),
-              style: GoogleFonts.inter(fontSize: 10.0, color: _MsgDark.textMuted),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  DateFormat('h:mm a').format(time),
+                  style: GoogleFonts.inter(fontSize: 10.0, color: _MsgDark.textMuted),
+                ),
+                if (isMine) ...[
+                  const SizedBox(width: 4.0),
+                  _buildReadStatusIcon(isRead),
+                ],
+              ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Interactive Call Dialog with Timer, Mute & Speaker
+  void _showCallDialog(bool isVideo) {
+    int callSeconds = 0;
+    bool isMuted = false;
+    bool isSpeaker = false;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return StatefulWidget(
+          builder: (context, setStateCall) {
+            Timer.periodic(const Duration(seconds: 1), (timer) {
+              if (ctx.mounted) {
+                setStateCall(() => callSeconds++);
+              } else {
+                timer.cancel();
+              }
+            });
+
+            return AlertDialog(
+              backgroundColor: const Color(0xFF242526),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircleAvatar(
+                    radius: 40,
+                    backgroundImage: widget.targetUserPhoto.isNotEmpty
+                        ? NetworkImage(ApiService.getFullImageUrl(widget.targetUserPhoto))
+                        : null,
+                    backgroundColor: _getAvatarBgColor(widget.targetUserName),
+                    child: widget.targetUserPhoto.isEmpty
+                        ? Text(widget.targetUserName[0].toUpperCase(), style: GoogleFonts.inter(fontSize: 28, color: Colors.white, fontWeight: FontWeight.bold))
+                        : null,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(widget.targetUserName, style: GoogleFonts.kantumruyPro(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+                  const SizedBox(height: 6),
+                  Text(
+                    isVideo ? 'កំពុងការហៅវីដេអូ (${_formatDuration(callSeconds)})' : 'កំពុងការហៅសំឡេង (${_formatDuration(callSeconds)})',
+                    style: GoogleFonts.kantumruyPro(fontSize: 13, color: _MsgDark.textMuted),
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      IconButton(
+                        icon: Icon(isMuted ? Icons.mic_off_rounded : Icons.mic_rounded, color: isMuted ? Colors.redAccent : Colors.white, size: 28),
+                        onPressed: () => setStateCall(() => isMuted = !isMuted),
+                      ),
+                      FloatingActionButton(
+                        backgroundColor: Colors.redAccent,
+                        elevation: 0,
+                        onPressed: () => Navigator.pop(ctx),
+                        child: const Icon(Icons.call_end_rounded, color: Colors.white),
+                      ),
+                      IconButton(
+                        icon: Icon(isSpeaker ? Icons.volume_up_rounded : Icons.volume_down_rounded, color: isSpeaker ? _MsgDark.iconColor : Colors.white, size: 28),
+                        onPressed: () => setStateCall(() => isSpeaker = !isSpeaker),
+                      ),
+                    ],
+                  )
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // Pick and Send Image
+  Future<void> _pickAndSendImage(ImageSource source) async {
+    try {
+      final XFile? file = await ImagePicker().pickImage(source: source, imageQuality: 70);
+      if (file == null || currentUserId.isEmpty) return;
+      final bytes = await file.readAsBytes();
+      if (bytes.isEmpty) return;
+
+      if (!mounted) return;
+      final base64Image = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
+
+      final msgData = {
+        'text': '',
+        'imageUrl': base64Image,
+        'type': 'image',
+        'senderId': currentUserId,
+        'senderName': userProvider.name ?? '',
+        'senderPhoto': userProvider.avatar ?? '',
+        'timestamp': FieldValue.serverTimestamp(),
+        'isRead': false,
+      };
+
+      final batch = _firestore.batch();
+      final msgRef = _firestore.collection('chats').doc(_roomId).collection('messages').doc();
+      batch.set(msgRef, msgData);
+      batch.set(_firestore.collection('chats').doc(_roomId), {
+        'participants': [currentUserId, widget.targetUserId],
+        'lastMessage': '📷 បានផ្ញើរូបភាព',
+        'lastTimestamp': FieldValue.serverTimestamp(),
+        'lastSenderId': currentUserId,
+        'isRead': false,
+      }, SetOptions(merge: true));
+      await batch.commit();
+    } catch (e) {
+      debugPrint('Pick image error: $e');
+    }
+  }
+
+  // Send Thumbs Up
+  Future<void> _sendThumbsUp() async {
+    if (currentUserId.isEmpty) return;
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    final msgData = {
+      'text': '👍',
+      'type': 'sticker',
+      'senderId': currentUserId,
+      'senderName': userProvider.name ?? '',
+      'senderPhoto': userProvider.avatar ?? '',
+      'timestamp': FieldValue.serverTimestamp(),
+      'isRead': false,
+    };
+
+    final batch = _firestore.batch();
+    final msgRef = _firestore.collection('chats').doc(_roomId).collection('messages').doc();
+    batch.set(msgRef, msgData);
+    batch.set(_firestore.collection('chats').doc(_roomId), {
+      'participants': [currentUserId, widget.targetUserId],
+      'lastMessage': '👍',
+      'lastTimestamp': FieldValue.serverTimestamp(),
+      'lastSenderId': currentUserId,
+      'isRead': false,
+    }, SetOptions(merge: true));
+    await batch.commit();
+  }
+
+  // Voice Recording Functions
+  Future<void> _startRecording() async {
+    try {
+      if (await _audioRecorder.hasPermission()) {
+        final dir = await getTemporaryDirectory();
+        final path = '${dir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+        await _audioRecorder.start(
+          path: path,
+          encoder: record_pkg.AudioEncoder.aacLc,
+        );
+        setState(() {
+          _isRecording = true;
+          _recordingSeconds = 0;
+        });
+        _recordingTimer?.cancel();
+        _recordingTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+          if (mounted) {
+            setState(() => _recordingSeconds++);
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('Start recording error: $e');
+    }
+  }
+
+  Future<void> _stopAndSendRecording() async {
+    try {
+      _recordingTimer?.cancel();
+      final path = await _audioRecorder.stop();
+      final duration = _recordingSeconds;
+      setState(() {
+        _isRecording = false;
+        _recordingSeconds = 0;
+      });
+
+      if (path != null && path.isNotEmpty) {
+        final file = File(path);
+        if (await file.exists()) {
+          final bytes = await file.readAsBytes();
+          if (bytes.isNotEmpty && currentUserId.isNotEmpty) {
+            final base64Audio = 'data:audio/mp4;base64,${base64Encode(bytes)}';
+            if (!mounted) return;
+            final userProvider = Provider.of<UserProvider>(context, listen: false);
+
+            final msgData = {
+              'text': '',
+              'base64Audio': base64Audio,
+              'audioDuration': duration > 0 ? duration : 1,
+              'type': 'voice',
+              'senderId': currentUserId,
+              'senderName': userProvider.name ?? '',
+              'senderPhoto': userProvider.avatar ?? '',
+              'timestamp': FieldValue.serverTimestamp(),
+              'isRead': false,
+            };
+
+            final batch = _firestore.batch();
+            final msgRef = _firestore.collection('chats').doc(_roomId).collection('messages').doc();
+            batch.set(msgRef, msgData);
+            batch.set(_firestore.collection('chats').doc(_roomId), {
+              'participants': [currentUserId, widget.targetUserId],
+              'lastMessage': '🎙️ សារសំឡេង (${_formatDuration(duration)})',
+              'lastTimestamp': FieldValue.serverTimestamp(),
+              'lastSenderId': currentUserId,
+              'isRead': false,
+            }, SetOptions(merge: true));
+            await batch.commit();
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Stop recording error: $e');
+    }
+  }
+
+  Future<void> _cancelRecording() async {
+    try {
+      _recordingTimer?.cancel();
+      await _audioRecorder.stop();
+      setState(() {
+        _isRecording = false;
+        _recordingSeconds = 0;
+      });
+    } catch (e) {
+      debugPrint('Cancel recording error: $e');
+    }
+  }
+
+  Widget _buildReplyPreviewBanner() {
+    return Container(
+      color: const Color(0xFF2C2C2E),
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              'កំពុងឆ្លើយតបទៅកាន់៖ $_replyingToMessage',
+              style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 12.5),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close_rounded, color: Colors.white70, size: 18),
+            onPressed: () => setState(() => _replyingToMessage = null),
           ),
         ],
       ),
@@ -1079,6 +1646,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         'lastMessage': '📄 ឯកសារ៖ $fileName',
         'lastTimestamp': FieldValue.serverTimestamp(),
         'lastSenderId': currentUserId,
+        'isRead': false,
       }, SetOptions(merge: true));
       await batch.commit();
     } catch (e) {
@@ -1123,6 +1691,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           'lastMessage': '📍 បានផ្ញើទីតាំង (Location)',
           'lastTimestamp': FieldValue.serverTimestamp(),
           'lastSenderId': currentUserId,
+          'isRead': false,
         }, SetOptions(merge: true));
         await batch.commit();
       } else {
@@ -1137,201 +1706,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     }
   }
 
-  // Call Dialog
-  void _showCallDialog(bool isVideo) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF242526),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircleAvatar(
-              radius: 36,
-              backgroundImage: widget.targetUserPhoto.isNotEmpty
-                  ? NetworkImage(ApiService.getFullImageUrl(widget.targetUserPhoto))
-                  : null,
-              backgroundColor: _getAvatarBgColor(widget.targetUserName),
-              child: widget.targetUserPhoto.isEmpty
-                  ? Text(widget.targetUserName[0].toUpperCase(), style: GoogleFonts.inter(fontSize: 24, color: Colors.white, fontWeight: FontWeight.bold))
-                  : null,
-            ),
-            const SizedBox(height: 16),
-            Text(widget.targetUserName, style: GoogleFonts.kantumruyPro(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
-            const SizedBox(height: 6),
-            Text(isVideo ? 'កំពុងការហៅវីដេអូ... (Video calling...)' : 'កំពុងការហៅសំឡេង... (Audio calling...)', style: GoogleFonts.kantumruyPro(fontSize: 13, color: _MsgDark.textMuted)),
-            const SizedBox(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                FloatingActionButton(
-                  backgroundColor: Colors.redAccent,
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Icon(Icons.call_end_rounded, color: Colors.white),
-                ),
-              ],
-            )
-          ],
-        ),
-      ),
-    );
-  }
-
-  // Pick and Send Image
-  Future<void> _pickAndSendImage(ImageSource source) async {
-    try {
-      final XFile? file = await ImagePicker().pickImage(source: source, imageQuality: 70);
-      if (file == null || currentUserId.isEmpty) return;
-      final bytes = await file.readAsBytes();
-      if (bytes.isEmpty) return;
-
-      if (!mounted) return;
-      final base64Image = 'data:image/jpeg;base64,${base64Encode(bytes)}';
-      final userProvider = Provider.of<UserProvider>(context, listen: false);
-
-      final msgData = {
-        'text': '',
-        'imageUrl': base64Image,
-        'type': 'image',
-        'senderId': currentUserId,
-        'senderName': userProvider.name ?? '',
-        'senderPhoto': userProvider.avatar ?? '',
-        'timestamp': FieldValue.serverTimestamp(),
-        'isRead': false,
-      };
-
-      final batch = _firestore.batch();
-      final msgRef = _firestore.collection('chats').doc(_roomId).collection('messages').doc();
-      batch.set(msgRef, msgData);
-      batch.set(_firestore.collection('chats').doc(_roomId), {
-        'participants': [currentUserId, widget.targetUserId],
-        'lastMessage': '📷 បានផ្ញើរូបភាព',
-        'lastTimestamp': FieldValue.serverTimestamp(),
-        'lastSenderId': currentUserId,
-      }, SetOptions(merge: true));
-      await batch.commit();
-    } catch (e) {
-      debugPrint('Pick image error: $e');
-    }
-  }
-
-  // Send Thumbs Up
-  Future<void> _sendThumbsUp() async {
-    if (currentUserId.isEmpty) return;
-    final userProvider = Provider.of<UserProvider>(context, listen: false);
-    final msgData = {
-      'text': '👍',
-      'type': 'sticker',
-      'senderId': currentUserId,
-      'senderName': userProvider.name ?? '',
-      'senderPhoto': userProvider.avatar ?? '',
-      'timestamp': FieldValue.serverTimestamp(),
-      'isRead': false,
-    };
-
-    final batch = _firestore.batch();
-    final msgRef = _firestore.collection('chats').doc(_roomId).collection('messages').doc();
-    batch.set(msgRef, msgData);
-    batch.set(_firestore.collection('chats').doc(_roomId), {
-      'participants': [currentUserId, widget.targetUserId],
-      'lastMessage': '👍',
-      'lastTimestamp': FieldValue.serverTimestamp(),
-      'lastSenderId': currentUserId,
-    }, SetOptions(merge: true));
-    await batch.commit();
-  }
-
-  // Voice Recording Functions
-  Future<void> _startRecording() async {
-    try {
-      if (await _audioRecorder.hasPermission()) {
-        final dir = await getTemporaryDirectory();
-        final path = '${dir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
-        await _audioRecorder.start(
-          path: path,
-          encoder: record_pkg.AudioEncoder.aacLc,
-        );
-        setState(() {
-          _isRecording = true;
-          _recordingSeconds = 0;
-        });
-        _recordingTimer?.cancel();
-        _recordingTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-          if (mounted) {
-            setState(() => _recordingSeconds++);
-          }
-        });
-      }
-    } catch (e) {
-      debugPrint('Start recording error: $e');
-    }
-  }
-
-  Future<void> _stopAndSendRecording() async {
-    try {
-      _recordingTimer?.cancel();
-      final path = await _audioRecorder.stop();
-      final duration = _recordingSeconds;
-      setState(() {
-        _isRecording = false;
-        _recordingSeconds = 0;
-      });
-
-      if (path != null && path.isNotEmpty) {
-        final file = File(path);
-        if (await file.exists()) {
-          final bytes = await file.readAsBytes();
-          if (bytes.isNotEmpty && currentUserId.isNotEmpty) {
-            final base64Audio = 'data:audio/mp4;base64,${base64Encode(bytes)}';
-            if (!mounted) return;
-            final userProvider = Provider.of<UserProvider>(context, listen: false);
-
-            final msgData = {
-              'text': '',
-              'base64Audio': base64Audio,
-              'audioDuration': duration > 0 ? duration : 1,
-              'type': 'voice',
-              'senderId': currentUserId,
-              'senderName': userProvider.name ?? '',
-              'senderPhoto': userProvider.avatar ?? '',
-              'timestamp': FieldValue.serverTimestamp(),
-              'isRead': false,
-            };
-
-            final batch = _firestore.batch();
-            final msgRef = _firestore.collection('chats').doc(_roomId).collection('messages').doc();
-            batch.set(msgRef, msgData);
-            batch.set(_firestore.collection('chats').doc(_roomId), {
-              'participants': [currentUserId, widget.targetUserId],
-              'lastMessage': '🎙️ សារសំឡេង (${_formatDuration(duration)})',
-              'lastTimestamp': FieldValue.serverTimestamp(),
-              'lastSenderId': currentUserId,
-            }, SetOptions(merge: true));
-            await batch.commit();
-          }
-        }
-      }
-    } catch (e) {
-      debugPrint('Stop recording error: $e');
-    }
-  }
-
-  Future<void> _cancelRecording() async {
-    try {
-      _recordingTimer?.cancel();
-      await _audioRecorder.stop();
-      setState(() {
-        _isRecording = false;
-        _recordingSeconds = 0;
-      });
-    } catch (e) {
-      debugPrint('Cancel recording error: $e');
-    }
-  }
-
   // ==========================================
-  // C. BOTTOM INPUT TOOLBAR
+  // C. BOTTOM INPUT TOOLBAR (Cleaned Borders & Centered Icons)
   // ==========================================
   Widget _buildInputToolbar() {
     if (_isRecording) {
@@ -1347,14 +1723,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 10.0),
           child: Row(
             children: [
-              // Trash icon left to cancel
               IconButton(
                 icon: const Icon(Icons.delete_outline_rounded, color: Colors.white70, size: 24),
                 onPressed: _cancelRecording,
               ),
               const SizedBox(width: 4.0),
-
-              // Recording red mic badge
               Container(
                 width: 32.0,
                 height: 32.0,
@@ -1365,8 +1738,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                 child: const Icon(Icons.mic_rounded, color: Colors.white, size: 18),
               ),
               const SizedBox(width: 10.0),
-
-              // Sound Waveform Bars
               Expanded(
                 child: Row(
                   children: List.generate(22, (i) {
@@ -1385,15 +1756,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                 ),
               ),
               const SizedBox(width: 8.0),
-
-              // Recording Duration (0:01)
               Text(
                 _formatDuration(_recordingSeconds),
                 style: GoogleFonts.inter(color: Colors.white, fontSize: 13.0, fontWeight: FontWeight.w600),
               ),
               const SizedBox(width: 10.0),
-
-              // Send Voice Button
               GestureDetector(
                 onTap: _stopAndSendRecording,
                 child: Container(
@@ -1416,9 +1783,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       color: _MsgDark.bg,
       padding: const EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 12.0),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Action icons left
           _buildToolbarIcon(
             _showPlusMenu ? Icons.cancel_rounded : Icons.add_circle_rounded,
             onTap: () {
@@ -1434,7 +1800,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           _buildToolbarIcon(Icons.mic_rounded, onTap: _startRecording),
           const SizedBox(width: 4.0),
 
-          // Text input field
+          // Text input field with NO inner border
           Expanded(
             child: Container(
               constraints: const BoxConstraints(minHeight: 38.0, maxHeight: 120.0),
@@ -1444,7 +1810,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               ),
               padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 2.0),
               child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Expanded(
                     child: TextField(
@@ -1456,6 +1822,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                         hintText: 'Aa',
                         hintStyle: GoogleFonts.inter(color: _MsgDark.textMuted, fontSize: 15.0),
                         border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        filled: false,
                         isDense: true,
                         contentPadding: const EdgeInsets.symmetric(vertical: 8.0),
                       ),
@@ -1477,7 +1846,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               return GestureDetector(
                 onTap: hasText ? _sendMessage : _sendThumbsUp,
                 child: Padding(
-                  padding: const EdgeInsets.only(left: 2.0, bottom: 6.0),
+                  padding: const EdgeInsets.only(left: 2.0),
                   child: Icon(
                     hasText ? Icons.send_rounded : Icons.thumb_up_alt_rounded,
                     color: _MsgDark.iconColor,

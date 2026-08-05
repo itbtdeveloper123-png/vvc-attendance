@@ -383,141 +383,107 @@ class _ChatListScreenState extends State<ChatListScreen> {
   }
 
   // ==========================================
-  // ACTIVE STORIES ROW
+  // ACTIVE STORIES ROW (Real Data Only)
   // ==========================================
   Widget _buildStoriesSection() {
-    // Show top 8 colleagues from usersList as Active Stories
-    final storyUsers = usersList.take(8).toList();
+    return StreamBuilder<QuerySnapshot>(
+      stream: _firestore.collection('stories').snapshots(),
+      builder: (context, snapshot) {
+        List<DocumentSnapshot> realStories = [];
+        if (snapshot.hasData) {
+          final now = DateTime.now();
+          realStories = snapshot.data!.docs.where((doc) {
+            final data = doc.data() as Map<String, dynamic>?;
+            final ts = data?['createdAt'] as Timestamp?;
+            if (ts == null) return false;
+            return now.difference(ts.toDate()).inHours < 24;
+          }).toList();
+        }
 
-    return SizedBox(
-      height: 106.0,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-        itemCount: storyUsers.length + 1, // First item is "Your Story"
-        itemBuilder: (context, index) {
-          if (index == 0) {
-            return Container(
-              margin: const EdgeInsets.only(right: 14.0),
-              child: Column(
-                children: [
-                  Container(
-                    width: 60.0,
-                    height: 60.0,
-                    decoration: BoxDecoration(
-                      color: MessengerTheme.actionBtnBg,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.grey.shade300, width: 0.8),
-                    ),
-                    child: const Icon(Icons.add_rounded, size: 28.0, color: MessengerTheme.textPrimary),
-                  ),
-                  const SizedBox(height: 8.0),
-                  SizedBox(
-                    width: 60.0,
-                    child: Text(
-                      'រឿងរបស់អ្នក',
-                      textAlign: TextAlign.center,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.kantumruyPro(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w400,
-                        color: MessengerTheme.textSecondary,
+        return SizedBox(
+          height: 106.0,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            itemCount: realStories.length + 1,
+            itemBuilder: (context, index) {
+              if (index == 0) {
+                return Container(
+                  margin: const EdgeInsets.only(right: 14.0),
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 60.0,
+                        height: 60.0,
+                        decoration: BoxDecoration(
+                          color: MessengerTheme.actionBtnBg,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.grey.shade300, width: 0.8),
+                        ),
+                        child: const Icon(Icons.add_rounded, size: 28.0, color: MessengerTheme.textPrimary),
                       ),
-                    ),
+                      const SizedBox(height: 8.0),
+                      SizedBox(
+                        width: 60.0,
+                        child: Text(
+                          'រឿងរបស់អ្នក',
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.kantumruyPro(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w400,
+                            color: MessengerTheme.textSecondary,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            );
-          }
-
-          final user = storyUsers[index - 1];
-          final String name = user['name'] ?? 'Colleague';
-          final String targetId = user['employee_id'] ?? '';
-          final String avatar = user['avatar'] ?? '';
-          final String firstName = name.split(' ').last;
-
-          if (!_presenceStreams.containsKey(targetId)) {
-            _presenceStreams[targetId] = _firestore.collection('users').doc(targetId).snapshots();
-          }
-
-          return StreamBuilder<DocumentSnapshot>(
-            stream: _presenceStreams[targetId],
-            builder: (context, snapshot) {
-              bool isOnline = false;
-              if (snapshot.hasData && snapshot.data!.exists) {
-                final data = snapshot.data!.data() as Map<String, dynamic>?;
-                isOnline = data?['isOnline'] == true;
+                );
               }
+
+              final storyData = realStories[index - 1].data() as Map<String, dynamic>;
+              final String name = storyData['userName'] ?? 'User';
+              final String avatar = storyData['userPhoto'] ?? '';
 
               return Container(
                 margin: const EdgeInsets.only(right: 14.0),
                 child: Column(
                   children: [
-                    Stack(
-                      children: [
-                        // Border highlight for story
-                        Container(
-                          padding: const EdgeInsets.all(2.0),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: isOnline ? MessengerTheme.activeBlue : Colors.grey.shade300,
-                              width: 2.0,
-                            ),
-                          ),
-                          child: CircleAvatar(
-                            radius: 28.0,
-                            backgroundImage: avatar.isNotEmpty ? NetworkImage(ApiService.getFullImageUrl(avatar)) : null,
-                            backgroundColor: _getAvatarBgColor(name),
-                            child: avatar.isEmpty
-                                ? Text(
-                                    name.isNotEmpty ? name.substring(0, 1).toUpperCase() : 'U',
-                                    style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
-                                  )
-                                : null,
-                          ),
-                        ),
-                        // Online status indicator badge
-                        if (isOnline)
-                          Positioned(
-                            right: 2.0,
-                            bottom: 2.0,
-                            child: Container(
-                              width: 12.0,
-                              height: 12.0,
-                              decoration: BoxDecoration(
-                                color: MessengerTheme.onlineGreen,
-                                shape: BoxShape.circle,
-                                border: Border.all(color: Colors.white, width: 2.0),
-                              ),
-                            ),
-                          ),
-                      ],
+                    Container(
+                      padding: const EdgeInsets.all(2.0),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: MessengerTheme.activeBlue, width: 2.0),
+                      ),
+                      child: CircleAvatar(
+                        radius: 28.0,
+                        backgroundImage: avatar.isNotEmpty ? NetworkImage(ApiService.getFullImageUrl(avatar)) : null,
+                        backgroundColor: _getAvatarBgColor(name),
+                        child: avatar.isEmpty
+                            ? Text(name.isNotEmpty ? name[0].toUpperCase() : 'U', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold))
+                            : null,
+                      ),
                     ),
                     const SizedBox(height: 8.0),
                     SizedBox(
                       width: 60.0,
                       child: Text(
-                        firstName,
+                        name,
                         textAlign: TextAlign.center,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.kantumruyPro(
-                          fontSize: 11.5,
-                          fontWeight: isOnline ? FontWeight.w700 : FontWeight.w500,
-                          color: isOnline ? MessengerTheme.textPrimary : MessengerTheme.textSecondary,
-                        ),
+                        style: GoogleFonts.kantumruyPro(fontSize: 11.5, color: MessengerTheme.textPrimary),
                       ),
                     ),
                   ],
                 ),
               );
             },
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -871,7 +837,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                         ),
 
                         // Unread dot indicator or delivery status
-                        _buildConversationStatus(isUnread, isLastMessageByMe),
+                        _buildConversationStatus(isUnread, isLastMessageByMe, avatar, title),
                       ],
                     ),
                   ),
@@ -884,7 +850,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
     );
   }
 
-  Widget _buildConversationStatus(bool isUnread, bool isLastMessageByMe) {
+  Widget _buildConversationStatus(bool isUnread, bool isLastMessageByMe, String avatar, String title) {
     if (isUnread) {
       return Container(
         width: 12.0,
@@ -896,14 +862,16 @@ class _ChatListScreenState extends State<ChatListScreen> {
       );
     }
     if (isLastMessageByMe) {
-      return Container(
-        width: 14.0,
-        height: 14.0,
-        decoration: BoxDecoration(
-          color: Colors.grey.shade100,
-          shape: BoxShape.circle,
-        ),
-        child: const Icon(Icons.check_rounded, size: 9.0, color: Colors.black38),
+      return CircleAvatar(
+        radius: 7.0,
+        backgroundImage: avatar.isNotEmpty ? NetworkImage(ApiService.getFullImageUrl(avatar)) : null,
+        backgroundColor: _getAvatarBgColor(title),
+        child: avatar.isEmpty
+            ? Text(
+                title.isNotEmpty ? title[0].toUpperCase() : 'U',
+                style: const TextStyle(fontSize: 7.0, color: Colors.white, fontWeight: FontWeight.bold),
+              )
+            : null,
       );
     }
     return const SizedBox.shrink();
