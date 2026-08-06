@@ -223,11 +223,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     }
   }
 
-  Future<void> _sendMessage() async {
-    final text = _msgController.text.trim();
+  Future<void> _sendMessage({String? customText}) async {
+    final text = customText ?? _msgController.text.trim();
     if (text.isEmpty || currentUserId.isEmpty) return;
 
-    _msgController.clear();
+    if (customText == null) {
+      _msgController.clear();
+    }
     _setTypingState(false);
     final userProvider = Provider.of<UserProvider>(context, listen: false);
 
@@ -930,6 +932,23 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     required DateTime time,
     required bool isRead,
   }) {
+    if (text.contains('/g/')) {
+      final RegExp regExp = RegExp(r'(?:https?://)?(?:[a-zA-Z0-9.-]+)?/g/([a-zA-Z0-9_-]+)');
+      final match = regExp.firstMatch(text);
+      if (match != null) {
+        final String groupId = match.group(1)!;
+        return _buildGroupInviteCard(
+          docId: docId,
+          groupId: groupId,
+          fullLink: match.group(0) ?? text,
+          senderName: senderName,
+          isMine: isMine,
+          time: time,
+          isRead: isRead,
+        );
+      }
+    }
+
     return Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
       child: Column(
@@ -1001,6 +1020,219 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // Telegram-Style Group Invite Link Card
+  Widget _buildGroupInviteCard({
+    required String docId,
+    required String groupId,
+    required String fullLink,
+    required String senderName,
+    required bool isMine,
+    required DateTime time,
+    required bool isRead,
+  }) {
+    final stream = _firestore.collection('groups').doc(groupId).snapshots();
+
+    return Align(
+      alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 4.0),
+        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.78),
+        child: StreamBuilder<DocumentSnapshot>(
+          stream: stream,
+          builder: (context, snapshot) {
+            String groupName = 'ក្រុម (Group)';
+            String groupPhoto = '';
+
+            if (snapshot.hasData && snapshot.data!.exists) {
+              final data = snapshot.data!.data() as Map<String, dynamic>?;
+              if (data != null) {
+                groupName = data['name'] ?? groupName;
+                groupPhoto = data['photo'] ?? '';
+              }
+            }
+
+            final cardColor = isMine ? const Color(0xFF8B5CF6) : const Color(0xFF2C2C2E);
+
+            return GestureDetector(
+              onLongPress: () => _showMessageOptionsModal(
+                docId: docId,
+                content: fullLink,
+                type: 'text',
+                senderName: senderName,
+              ),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: cardColor,
+                  borderRadius: BorderRadius.circular(18.0),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.15),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Link URL Header
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+                      child: Text(
+                        fullLink,
+                        style: GoogleFonts.inter(
+                          color: Colors.white,
+                          fontSize: 13.5,
+                          decoration: TextDecoration.underline,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+
+                    // Inner Preview Card with Left White Line
+                    Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: IntrinsicHeight(
+                        child: Row(
+                          children: [
+                            // Left Accent Stripe
+                            Container(
+                              width: 3.5,
+                              decoration: const BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.only(
+                                  topLeft: Radius.circular(12),
+                                  bottomLeft: Radius.circular(12),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+
+                            // Group Name & Invite Subtitle
+                            Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      groupName,
+                                      style: GoogleFonts.kantumruyPro(
+                                        color: Colors.white,
+                                        fontSize: 14.5,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 3),
+                                    Text(
+                                      '$senderName invites you to join this group.',
+                                      style: GoogleFonts.inter(
+                                        color: Colors.white.withValues(alpha: 0.85),
+                                        fontSize: 12,
+                                      ),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+
+                            const SizedBox(width: 6),
+
+                            // Group Photo Thumbnail
+                            Padding(
+                              padding: const EdgeInsets.only(right: 8, top: 6, bottom: 6),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: Container(
+                                  width: 48,
+                                  height: 48,
+                                  color: const Color(0xFFFFB300),
+                                  child: groupPhoto.isNotEmpty
+                                      ? Image.network(
+                                          ApiService.getFullImageUrl(groupPhoto),
+                                          fit: BoxFit.cover,
+                                        )
+                                      : const Icon(Icons.groups_rounded, color: Colors.white, size: 28),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 6),
+                    const Divider(color: Colors.white24, height: 1, thickness: 0.7),
+
+                    // Action Button: VIEW GROUP
+                    InkWell(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ChatDetailScreen(
+                              targetUserId: groupId,
+                              targetUserName: groupName,
+                              targetUserPhoto: groupPhoto,
+                              isGroup: true,
+                            ),
+                          ),
+                        );
+                      },
+                      borderRadius: const BorderRadius.vertical(bottom: Radius.circular(18)),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 11),
+                        child: Center(
+                          child: Text(
+                            'VIEW GROUP',
+                            style: GoogleFonts.inter(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.8,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // Timestamp & Read indicator
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(0, 0, 10, 6),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Text(
+                            DateFormat('h:mm a').format(time),
+                            style: GoogleFonts.inter(fontSize: 10.0, color: Colors.white60),
+                          ),
+                          if (isMine) ...[
+                            const SizedBox(width: 4.0),
+                            _buildReadStatusIcon(isRead),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -2412,31 +2644,36 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
         child: Container(
           color: Colors.black.withValues(alpha: 0.20),
-          padding: const EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 12.0),
+          padding: const EdgeInsets.fromLTRB(10.0, 8.0, 10.0, 14.0),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              _buildToolbarIcon(
-                _showPlusMenu ? Icons.cancel_rounded : Icons.add_circle_rounded,
-                onTap: () {
-                  setState(() => _showPlusMenu = !_showPlusMenu);
-                },
+              // 1. Left Attachment Clip Button 📎
+              InkWell(
+                onTap: _showTelegramAttachmentSheet,
+                borderRadius: BorderRadius.circular(22),
+                child: Container(
+                  width: 42,
+                  height: 42,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF2C2C2E),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.attach_file_rounded,
+                    color: Colors.white,
+                    size: 22,
+                  ),
+                ),
               ),
-              _buildToolbarIcon(Icons.camera_alt_rounded, onTap: () {
-                _pickAndSendImage(ImageSource.camera);
-              }),
-              _buildToolbarIcon(Icons.photo_rounded, onTap: () {
-                _pickAndSendImage(ImageSource.gallery);
-              }),
-              _buildToolbarIcon(Icons.mic_rounded, onTap: _startRecording),
-              const SizedBox(width: 4.0),
+              const SizedBox(width: 8.0),
 
-              // Text input field with translucent pill shape
+              // 2. Middle Capsule Text Box with Sticker Icon 😊
               Expanded(
                 child: Container(
-                  constraints: const BoxConstraints(minHeight: 38.0, maxHeight: 120.0),
+                  constraints: const BoxConstraints(minHeight: 42.0, maxHeight: 120.0),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.20),
+                    color: const Color(0xFF2C2C2E),
                     borderRadius: BorderRadius.circular(22.0),
                   ),
                   padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 2.0),
@@ -2448,40 +2685,51 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                           controller: _msgController,
                           maxLines: null,
                           style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 15.0),
-                          cursorColor: Colors.white,
+                          cursorColor: const Color(0xFF007AFF),
                           decoration: InputDecoration(
-                            hintText: 'Aa',
-                            hintStyle: GoogleFonts.inter(color: Colors.white70, fontSize: 15.0),
+                            hintText: 'Message',
+                            hintStyle: GoogleFonts.inter(color: Colors.white38, fontSize: 15.0),
                             border: InputBorder.none,
                             enabledBorder: InputBorder.none,
                             focusedBorder: InputBorder.none,
                             filled: false,
                             isDense: true,
-                            contentPadding: const EdgeInsets.symmetric(vertical: 8.0),
+                            contentPadding: const EdgeInsets.symmetric(vertical: 10.0),
                           ),
                           onSubmitted: (_) => _sendMessage(),
                         ),
                       ),
-                      const Icon(Icons.sentiment_satisfied_alt_rounded, color: Colors.white70, size: 22.0),
+                      IconButton(
+                        icon: const Icon(Icons.sticky_note_2_outlined, color: Colors.white54, size: 22.0),
+                        onPressed: _sendThumbsUp,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                      ),
                     ],
                   ),
                 ),
               ),
-              const SizedBox(width: 6.0),
+              const SizedBox(width: 8.0),
 
-              // Send / Thumbs up button
+              // 3. Right Circular Voice / Send Button 🎙️ / ➔
               ValueListenableBuilder<TextEditingValue>(
                 valueListenable: _msgController,
                 builder: (context, value, _) {
                   final hasText = value.text.trim().isNotEmpty;
-                  return GestureDetector(
-                    onTap: hasText ? _sendMessage : _sendThumbsUp,
-                    child: Padding(
-                      padding: const EdgeInsets.only(left: 2.0),
+                  return InkWell(
+                    onTap: hasText ? _sendMessage : _startRecording,
+                    borderRadius: BorderRadius.circular(22),
+                    child: Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: hasText ? const Color(0xFF007AFF) : const Color(0xFF2C2C2E),
+                        shape: BoxShape.circle,
+                      ),
                       child: Icon(
-                        hasText ? Icons.send_rounded : Icons.thumb_up_alt_rounded,
+                        hasText ? Icons.send_rounded : Icons.mic_rounded,
                         color: Colors.white,
-                        size: 28.0,
+                        size: 20.0,
                       ),
                     ),
                   );
@@ -2494,12 +2742,429 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
   }
 
-  Widget _buildToolbarIcon(IconData icon, {VoidCallback? onTap}) {
-    return IconButton(
-      icon: Icon(icon, color: Colors.white, size: 26.0),
-      onPressed: onTap ?? () {},
-      padding: const EdgeInsets.symmetric(horizontal: 4.0),
-      constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+  // Telegram Attachment Bottom Sheet Modal (Gallery, File, Location, Poll, Contact)
+  void _showTelegramAttachmentSheet() {
+    int selectedTab = 0; // 0: Gallery, 1: File, 2: Location, 3: Poll, 4: Contact
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1C1C1E),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return SizedBox(
+              height: MediaQuery.of(context).size.height * 0.62,
+              child: Column(
+                children: [
+                  // Top Drag Handle & Close header
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+                    child: Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.close_rounded, color: Colors.white70),
+                          onPressed: () => Navigator.pop(ctx),
+                        ),
+                        const Spacer(),
+                        Container(
+                          width: 36,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: Colors.white24,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                        const Spacer(),
+                        const SizedBox(width: 48),
+                      ],
+                    ),
+                  ),
+
+                  // Tab Content View
+                  Expanded(
+                    child: _buildAttachmentTabContent(selectedTab, ctx),
+                  ),
+
+                  // Bottom Horizontal Category Tab Bar (Telegram Style)
+                  Container(
+                    color: const Color(0xFF121214),
+                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        _buildAttachmentTabItem(
+                          icon: Icons.photo_library_rounded,
+                          label: 'Gallery',
+                          isSelected: selectedTab == 0,
+                          onTap: () => setSheetState(() => selectedTab = 0),
+                        ),
+                        _buildAttachmentTabItem(
+                          icon: Icons.insert_drive_file_rounded,
+                          label: 'File',
+                          isSelected: selectedTab == 1,
+                          onTap: () => setSheetState(() => selectedTab = 1),
+                        ),
+                        _buildAttachmentTabItem(
+                          icon: Icons.location_on_rounded,
+                          label: 'Location',
+                          isSelected: selectedTab == 2,
+                          onTap: () => setSheetState(() => selectedTab = 2),
+                        ),
+                        _buildAttachmentTabItem(
+                          icon: Icons.bar_chart_rounded,
+                          label: 'Poll',
+                          isSelected: selectedTab == 3,
+                          onTap: () => setSheetState(() => selectedTab = 3),
+                        ),
+                        _buildAttachmentTabItem(
+                          icon: Icons.person_pin_rounded,
+                          label: 'Contact',
+                          isSelected: selectedTab == 4,
+                          onTap: () => setSheetState(() => selectedTab = 4),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildAttachmentTabItem({
+    required IconData icon,
+    required String label,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    final color = isSelected ? const Color(0xFF007AFF) : Colors.white60;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: isSelected ? const Color(0xFF007AFF).withValues(alpha: 0.2) : Colors.transparent,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 22),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: GoogleFonts.inter(
+                color: color,
+                fontSize: 11,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAttachmentTabContent(int tabIndex, BuildContext sheetCtx) {
+    switch (tabIndex) {
+      case 0: // Gallery
+        return Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(sheetCtx);
+                      _pickAndSendImage(ImageSource.gallery);
+                    },
+                    icon: const Icon(Icons.photo_library_rounded, color: Colors.white),
+                    label: Text('Album Gallery', style: GoogleFonts.kantumruyPro(color: Colors.white)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF007AFF),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    ),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(sheetCtx);
+                      _pickAndSendImage(ImageSource.camera);
+                    },
+                    icon: const Icon(Icons.camera_alt_rounded, color: Colors.white),
+                    label: Text('Camera', style: GoogleFonts.kantumruyPro(color: Colors.white)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF10B981),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              Expanded(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2C2C2E),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.collections_rounded, size: 48, color: Colors.white38),
+                        const SizedBox(height: 10),
+                        Text(
+                          'ជ្រើសរើសរូបភាព ឬវីដេអូដើម្បីផ្ញើ',
+                          style: GoogleFonts.kantumruyPro(color: Colors.white60, fontSize: 13.5),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+
+      case 1: // File
+        return Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2C2C2E),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Column(
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.photo_library_rounded, color: Color(0xFF007AFF)),
+                      title: Text('Select from Gallery', style: GoogleFonts.inter(color: Colors.white)),
+                      onTap: () {
+                        Navigator.pop(sheetCtx);
+                        _pickAndSendImage(ImageSource.gallery);
+                      },
+                    ),
+                    const Divider(height: 1, color: Colors.white12),
+                    ListTile(
+                      leading: const Icon(Icons.cloud_upload_rounded, color: Color(0xFF007AFF)),
+                      title: Text('Select from Files', style: GoogleFonts.inter(color: Colors.white)),
+                      onTap: () {
+                        Navigator.pop(sheetCtx);
+                        _pickAndSendFile();
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+
+      case 2: // Location
+        return Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            children: [
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2C2C2E),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Column(
+                  children: [
+                    const Icon(Icons.location_on_rounded, color: Color(0xFF007AFF), size: 54),
+                    const SizedBox(height: 12),
+                    Text(
+                      'ផ្ញើទីតាំងបច្ចុប្បន្ន (Send Current Location)',
+                      style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'ចែករំលែកទីតាំង GPS ជាក់ស្ដែងរបស់អ្នកទៅកាន់សមាជិក',
+                      style: GoogleFonts.kantumruyPro(color: Colors.white60, fontSize: 12.5),
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(sheetCtx);
+                        _sendLocation();
+                      },
+                      icon: const Icon(Icons.my_location_rounded, color: Colors.white),
+                      label: Text('Send My Current Location', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF007AFF),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+
+      case 3: // Poll
+        return Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            children: [
+              Text(
+                'បង្កើត Poll ស្ទង់មតិ',
+                style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(sheetCtx);
+                  _showCreatePollModal();
+                },
+                icon: const Icon(Icons.add_rounded, color: Colors.white),
+                label: Text('បង្កើត Poll ថ្មី', style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF8B5CF6),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                ),
+              ),
+            ],
+          ),
+        );
+
+      case 4: // Contact
+        return Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            children: [
+              Text(
+                'ចែករំលែក Contact បុគ្គលិក',
+                style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: 1,
+                  itemBuilder: (ctx, idx) {
+                    return ListTile(
+                      leading: const CircleAvatar(
+                        backgroundColor: Color(0xFF007AFF),
+                        child: Icon(Icons.person_rounded, color: Colors.white),
+                      ),
+                      title: Text(widget.targetUserName, style: GoogleFonts.kantumruyPro(color: Colors.white)),
+                      subtitle: Text('បុគ្គលិកក្រុមហ៊ុន', style: GoogleFonts.kantumruyPro(color: Colors.white54)),
+                      trailing: ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(sheetCtx);
+                          _sendMessage(customText: '👤 Contact: ${widget.targetUserName}');
+                        },
+                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF007AFF)),
+                        child: Text('Share', style: GoogleFonts.inter(color: Colors.white)),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+
+  void _showCreatePollModal() {
+    final qCtrl = TextEditingController();
+    final opt1Ctrl = TextEditingController();
+    final opt2Ctrl = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1E293B),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Text('បង្កើត Poll ស្ទង់មតិ', style: GoogleFonts.kantumruyPro(color: Colors.white)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: qCtrl,
+                style: GoogleFonts.kantumruyPro(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: 'សំនួរស្ទង់មតិ...',
+                  hintStyle: GoogleFonts.kantumruyPro(color: Colors.white38),
+                  filled: true,
+                  fillColor: const Color(0xFF0F172A),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: opt1Ctrl,
+                style: GoogleFonts.kantumruyPro(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: 'ជម្រើសទី ១',
+                  hintStyle: GoogleFonts.kantumruyPro(color: Colors.white38),
+                  filled: true,
+                  fillColor: const Color(0xFF0F172A),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: opt2Ctrl,
+                style: GoogleFonts.kantumruyPro(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: 'ជម្រើសទី ២',
+                  hintStyle: GoogleFonts.kantumruyPro(color: Colors.white38),
+                  filled: true,
+                  fillColor: const Color(0xFF0F172A),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('បោះបង់', style: GoogleFonts.kantumruyPro(color: Colors.white54)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final q = qCtrl.text.trim();
+                final o1 = opt1Ctrl.text.trim();
+                final o2 = opt2Ctrl.text.trim();
+                if (q.isNotEmpty && o1.isNotEmpty && o2.isNotEmpty) {
+                  Navigator.pop(ctx);
+                  _sendMessage(customText: '📊 Poll: $q\n1. $o1\n2. $o2');
+                }
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF8B5CF6)),
+              child: Text('បង្កើត Poll', style: GoogleFonts.kantumruyPro(color: Colors.white)),
+            ),
+          ],
+        );
+      },
     );
   }
 }
