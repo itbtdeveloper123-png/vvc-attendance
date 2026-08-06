@@ -29,19 +29,33 @@ subprojects {
     project.evaluationDependsOn(":app")
 }
 
+fun overrideSubprojectAndroid(proj: Project) {
+    val android = proj.extensions.findByName("android")
+    if (android != null) {
+        try {
+            val setCompileSdkVersion = android.javaClass.getMethod("setCompileSdkVersion", Int::class.javaPrimitiveType)
+            setCompileSdkVersion.invoke(android, 36)
+        } catch (_: Exception) {}
+        try {
+            val setCompileSdkVersionObj = android.javaClass.getMethod("setCompileSdkVersion", Int::class.javaObjectType)
+            setCompileSdkVersionObj.invoke(android, 36)
+        } catch (_: Exception) {}
+        try {
+            val setCompileSdk = android.javaClass.getMethod("setCompileSdk", Int::class.javaObjectType)
+            setCompileSdk.invoke(android, 36)
+        } catch (_: Exception) {}
+        try {
+            val getNamespace = android.javaClass.getMethod("getNamespace")
+            if (getNamespace.invoke(android) == null) {
+                val setNamespace = android.javaClass.getMethod("setNamespace", String::class.java)
+                setNamespace.invoke(android, "com.example.${proj.name.replace("-", "_")}")
+            }
+        } catch (_: Exception) {}
+    }
+}
+
 subprojects {
     plugins.withId("com.android.library") {
-        val android = extensions.findByName("android")
-        if (android != null) {
-            try {
-                val getNamespace = android.javaClass.getMethod("getNamespace")
-                if (getNamespace.invoke(android) == null) {
-                    val setNamespace = android.javaClass.getMethod("setNamespace", String::class.java)
-                    setNamespace.invoke(android, "com.example.${project.name.replace("-", "_")}")
-                }
-            } catch (_: Exception) {
-            }
-        }
         val manifestFile = file("src/main/AndroidManifest.xml")
         if (manifestFile.exists()) {
             val content = manifestFile.readText()
@@ -49,6 +63,13 @@ subprojects {
                 val updatedContent = content.replace(Regex("""package="[^"]*""""), "")
                 manifestFile.writeText(updatedContent)
             }
+        }
+    }
+    if (state.executed) {
+        overrideSubprojectAndroid(this)
+    } else {
+        afterEvaluate {
+            overrideSubprojectAndroid(this)
         }
     }
 }

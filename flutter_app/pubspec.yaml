@@ -73,12 +73,16 @@ dependencies:
   google_mlkit_digital_ink_recognition: ^0.15.0
   google_generative_ai: ^0.4.6
   share_plus: ^10.1.4
+  isar: ^3.1.0+1
+  isar_flutter_libs: ^3.1.0+1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.0
   flutter_launcher_icons: 0.13.1
+  isar_generator: ^3.1.0+1
+  build_runner: ^2.4.9
 
 flutter_launcher_icons:
   android: "ic_launcher"

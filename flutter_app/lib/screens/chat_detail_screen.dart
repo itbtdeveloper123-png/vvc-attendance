@@ -881,7 +881,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             )
           : const Icon(Icons.done_all_rounded, size: 14, color: _MsgDark.iconColor);
     }
-    return const Icon(Icons.done_all_rounded, size: 14, color: Colors.white38);
+    return const Icon(Icons.done_rounded, size: 14, color: Colors.white38);
   }
 
   // Text Message Bubble
@@ -1946,7 +1946,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       try {
         final img.Image? decoded = img.decodeImage(bytes);
         if (decoded != null) {
-          final img.Image oriented = img.bakeOrientation(decoded);
+          img.Image oriented = img.bakeOrientation(decoded);
+          if (source == ImageSource.camera) {
+            oriented = img.flipHorizontal(oriented);
+          }
           processedBytes = Uint8List.fromList(img.encodeJpg(oriented, quality: 65));
         }
       } catch (_) {}
