@@ -38,7 +38,14 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
   final ImagePicker _picker = ImagePicker();
   final R2StorageService _r2Service = R2StorageService();
 
+  late final Stream<DocumentSnapshot> _groupStream;
   bool _isUpdating = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _groupStream = _firestore.collection('groups').doc(widget.groupId).snapshots();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -62,9 +69,9 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
         centerTitle: true,
       ),
       body: StreamBuilder<DocumentSnapshot>(
-        stream: _firestore.collection('groups').doc(widget.groupId).snapshots(),
+        stream: _groupStream,
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
+          if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
             return const Center(child: CircularProgressIndicator(color: _GSDark.accent));
           }
 

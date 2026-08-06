@@ -1,29 +1,33 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:path_provider/path_provider.dart';
 import 'new_message_screen.dart';
 import 'chat_detail_screen.dart';
 import 'storage_usage_screen.dart';
+import 'add_story_screen.dart';
+import 'community_channel_screen.dart';
 import '../services/api_service.dart';
 import '../providers/user_provider.dart';
 import '../widgets/chat_wallpaper_picker.dart';
 
 // ==========================================
-// COLOR TOKENS (MESSENGER THEME)
+// COLOR TOKENS (DARK ENTERPRISE THEME)
 // ==========================================
 class MessengerTheme {
-  static const Color bg = Color(0xFFFFFFFF);
-  static const Color textPrimary = Color(0xFF000000);
-  static const Color textSecondary = Color(0xFF65676B);
-  static const Color activeBlue = Color(0xFF0084FF);
-  static const Color onlineGreen = Color(0xFF44B700);
-  static const Color actionBtnBg = Color(0xFFF0F2F5);
-  static const Color adBadgeBg = Color(0xFFE4E6EB);
-  static const Color unreadDot = Color(0xFF0084FF);
+  static const Color bg = Color(0xFF0F172A);
+  static const Color textPrimary = Color(0xFFFFFFFF);
+  static const Color textSecondary = Color(0xFF94A3B8);
+  static const Color activeBlue = Color(0xFF007AFF);
+  static const Color onlineGreen = Color(0xFF10B981);
+  static const Color actionBtnBg = Color(0xFF1E293B);
+  static const Color adBadgeBg = Color(0xFF334155);
+  static const Color unreadDot = Color(0xFF007AFF);
 }
 
 Color _getAvatarBgColor(String name) {
@@ -47,7 +51,7 @@ class ChatListScreen extends StatefulWidget {
   State<ChatListScreen> createState() => _ChatListScreenState();
 }
 
-class _ChatListScreenState extends State<ChatListScreen> {
+class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProviderStateMixin {
   final ApiService _api = ApiService();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
@@ -64,20 +68,66 @@ class _ChatListScreenState extends State<ChatListScreen> {
   final Map<String, Stream<DocumentSnapshot>> _presenceStreams = {};
   final Map<String, Stream<DocumentSnapshot>> _lastMessageStreams = {};
 
+  late AnimationController _broomAnimCtrl;
+  int _cacheSizeBytes = 0;
+  String _cacheSizeText = '';
+
   @override
   void initState() {
     super.initState();
+    _broomAnimCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
+
     _loadCurrentUserId().then((_) {
       _fetchUsersList();
       _listenToActiveChats();
       _listenToGroups();
+      _checkCacheSize();
     });
   }
 
   @override
   void dispose() {
+    _broomAnimCtrl.dispose();
     _groupsSubscription?.cancel();
     super.dispose();
+  }
+
+  Future<void> _checkCacheSize() async {
+    try {
+      final docDir = await getApplicationDocumentsDirectory();
+      final tempDir = await getTemporaryDirectory();
+      int total = 0;
+      if (docDir.existsSync()) {
+        for (var f in docDir.listSync(recursive: true, followLinks: false)) {
+          if (f is File) total += f.lengthSync();
+        }
+      }
+      if (tempDir.existsSync()) {
+        for (var f in tempDir.listSync(recursive: true, followLinks: false)) {
+          if (f is File) total += f.lengthSync();
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _cacheSizeBytes = total;
+          if (total > 0) {
+            final mb = (total / (1024 * 1024)).toStringAsFixed(1);
+            _cacheSizeText = '${mb}MB';
+          } else {
+            _cacheSizeText = '';
+          }
+        });
+        if (total > 15 * 1024 * 1024) {
+          _broomAnimCtrl.repeat(reverse: true);
+        } else {
+          _broomAnimCtrl.stop();
+        }
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadCurrentUserId() async {
@@ -319,14 +369,52 @@ class _ChatListScreenState extends State<ChatListScreen> {
             ),
           ),
 
-          // Action rounded buttons
-          _buildActionButton(
-            icon: Icons.cleaning_services_rounded,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const StorageUsageScreen(),
+          // Animated Broom / Clean Storage Action Button
+          AnimatedBuilder(
+            animation: _broomAnimCtrl,
+            builder: (context, child) {
+              final scale = 1.0 + (_broomAnimCtrl.value * 0.12);
+              return Transform.scale(
+                scale: _cacheSizeBytes > 15 * 1024 * 1024 ? scale : 1.0,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    _buildActionButton(
+                      icon: Icons.cleaning_services_rounded,
+                      onTap: () async {
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const StorageUsageScreen(),
+                          ),
+                        );
+                        _checkCacheSize();
+                      },
+                    ),
+                    if (_cacheSizeText.isNotEmpty)
+                      Positioned(
+                        right: -4,
+                        top: -4,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: _cacheSizeBytes > 30 * 1024 * 1024
+                                ? const Color(0xFFEF4444)
+                                : const Color(0xFFFF9500),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFF0F172A), width: 1.5),
+                          ),
+                          child: Text(
+                            _cacheSizeText,
+                            style: GoogleFonts.inter(
+                              color: Colors.white,
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               );
             },
@@ -452,43 +540,52 @@ class _ChatListScreenState extends State<ChatListScreen> {
             itemCount: realStories.length + 1,
             itemBuilder: (context, index) {
               if (index == 0) {
-                return Container(
-                  margin: const EdgeInsets.only(right: 14.0),
-                  child: Column(
-                    children: [
-                      Container(
-                        width: 60.0,
-                        height: 60.0,
-                        decoration: BoxDecoration(
-                          color: MessengerTheme.actionBtnBg,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: Colors.grey.shade300,
-                            width: 0.8,
+                return InkWell(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const AddStoryScreen()),
+                    );
+                  },
+                  borderRadius: BorderRadius.circular(30),
+                  child: Container(
+                    margin: const EdgeInsets.only(right: 14.0),
+                    child: Column(
+                      children: [
+                        Container(
+                          width: 60.0,
+                          height: 60.0,
+                          decoration: BoxDecoration(
+                            color: MessengerTheme.actionBtnBg,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: const Color(0xFF334155),
+                              width: 1.0,
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.add_rounded,
+                            size: 28.0,
+                            color: MessengerTheme.textPrimary,
                           ),
                         ),
-                        child: const Icon(
-                          Icons.add_rounded,
-                          size: 28.0,
-                          color: MessengerTheme.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: 8.0),
-                      SizedBox(
-                        width: 60.0,
-                        child: Text(
-                          'រឿងរបស់អ្នក',
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.kantumruyPro(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w400,
-                            color: MessengerTheme.textSecondary,
+                        const SizedBox(height: 8.0),
+                        SizedBox(
+                          width: 60.0,
+                          child: Text(
+                            'រឿងរបស់អ្នក',
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.kantumruyPro(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w400,
+                              color: MessengerTheme.textSecondary,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 );
               }
@@ -560,25 +657,30 @@ class _ChatListScreenState extends State<ChatListScreen> {
   // CONVERSATIONS LIST
   // ==========================================
   Widget _buildChatListSection() {
-    final int listLength = 1 + customGroups.length + filteredUsers.length;
+    final int listLength = 2 + customGroups.length + filteredUsers.length;
 
     return ListView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: listLength,
       itemBuilder: (context, index) {
-        // 1. Team General Group Chat at top (Index 0)
+        // 0. VVC Company Community & Announcements Channel
         if (index == 0) {
+          return _buildCommunityChannelTile();
+        }
+
+        // 1. Team General Group Chat (Index 1)
+        if (index == 1) {
           return _buildTeamGeneralGroupTile();
         }
 
         // 2. Custom created Groups
-        if (index > 0 && index <= customGroups.length) {
-          return _buildCustomGroupTile(customGroups[index - 1]);
+        if (index > 1 && index <= customGroups.length + 1) {
+          return _buildCustomGroupTile(customGroups[index - 2]);
         }
 
         // 3. Team Members private chats
-        final int userIdx = index - 1 - customGroups.length;
+        final int userIdx = index - 2 - customGroups.length;
         if (userIdx >= 0 && userIdx < filteredUsers.length) {
           final user = filteredUsers[userIdx];
           return _buildUserConversationTile(user);
@@ -586,6 +688,67 @@ class _ChatListScreenState extends State<ChatListScreen> {
 
         return const SizedBox.shrink();
       },
+    );
+  }
+
+  // Official VVC Community Channel Tile
+  Widget _buildCommunityChannelTile() {
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const CommunityChannelScreen()),
+        );
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+        child: Row(
+          children: [
+            Container(
+              width: 60,
+              height: 60,
+              decoration: const BoxDecoration(
+                color: Color(0xFF007AFF),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.hub_rounded, color: Colors.white, size: 30),
+            ),
+            const SizedBox(width: 14.0),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        'សហគមន៍ VVC (VVC Community)',
+                        style: GoogleFonts.kantumruyPro(
+                          fontSize: 15.5,
+                          fontWeight: FontWeight.bold,
+                          color: MessengerTheme.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      const Icon(Icons.verified_rounded, color: Color(0xFF007AFF), size: 16),
+                    ],
+                  ),
+                  const SizedBox(height: 4.0),
+                  Text(
+                    'ការជូនដំណឹង ព័ត៌មានក្រុមហ៊ុន និងការផ្សព្វផ្សាយ...',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.kantumruyPro(
+                      fontSize: 13.0,
+                      color: MessengerTheme.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios_rounded, size: 14.0, color: MessengerTheme.textSecondary),
+          ],
+        ),
+      ),
     );
   }
 
