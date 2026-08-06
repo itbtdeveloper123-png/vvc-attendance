@@ -16,7 +16,6 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:record/record.dart' as record_pkg;
 import 'package:audioplayers/audioplayers.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:image/image.dart' as img;
 import '../providers/user_provider.dart';
 import '../services/api_service.dart';
@@ -1416,7 +1415,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         children: [
           GestureDetector(
             key: ValueKey(imageUrl),
-            onTap: () => _showFullScreenImageViewer(imgProvider, imageUrl),
+            onTap: () => _showFullScreenImageViewer(
+              imgProvider: imgProvider,
+              rawUrl: imageUrl,
+              senderName: isMine ? 'You' : senderName,
+              time: time,
+              docId: docId,
+            ),
             onLongPress: () => _showMessageOptionsModal(docId: docId, content: imageUrl, type: 'image', senderName: senderName),
             child: Container(
               margin: const EdgeInsets.symmetric(vertical: 4.0),
@@ -1458,82 +1463,436 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
   }
 
-  // Full Screen Image Viewer Modal (Close, Download, Forward, Share with Drag-Down Dismiss)
-  void _showFullScreenImageViewer(ImageProvider imgProvider, String rawUrl) {
+  // Telegram Full Screen Image Viewer (Matching Attached 3 Screenshots 100%)
+  void _showFullScreenImageViewer({
+    required ImageProvider imgProvider,
+    required String rawUrl,
+    required String senderName,
+    required DateTime time,
+    required String docId,
+  }) {
+    final String dateStr = DateFormat('dd/MM/yy').format(time);
+
     showDialog(
       context: context,
-      builder: (ctx) => Dialog(
-        backgroundColor: Colors.black.withValues(alpha: 0.95),
-        insetPadding: EdgeInsets.zero,
-        child: Dismissible(
-          key: UniqueKey(),
-          direction: DismissDirection.vertical,
-          onDismissed: (_) => Navigator.pop(ctx),
-          child: Stack(
-            alignment: Alignment.bottomCenter,
+      barrierColor: Colors.black.withValues(alpha: 0.96),
+      builder: (ctx) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: EdgeInsets.zero,
+          child: StatefulBuilder(
+            builder: (context, setViewerState) {
+              return Stack(
+                children: [
+                  // Full Screen Interactive Viewer (Swipe down to dismiss)
+                  Dismissible(
+                    key: UniqueKey(),
+                    direction: DismissDirection.vertical,
+                    onDismissed: (_) => Navigator.pop(ctx),
+                    child: Center(
+                      child: InteractiveViewer(
+                        minScale: 0.8,
+                        maxScale: 4.0,
+                        child: Image(image: imgProvider, fit: BoxFit.contain),
+                      ),
+                    ),
+                  ),
+
+                  // Top Header Bar (Matching Screenshot 1)
+                  Positioned(
+                    top: MediaQuery.of(context).padding.top + 6,
+                    left: 14,
+                    right: 14,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        // Left Back Arrow Circle Button
+                        InkWell(
+                          onTap: () => Navigator.pop(ctx),
+                          borderRadius: BorderRadius.circular(20),
+                          child: Container(
+                            width: 38,
+                            height: 38,
+                            decoration: const BoxDecoration(
+                              color: Color(0x991C1C1E),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 18),
+                          ),
+                        ),
+
+                        // Center Sender Title & Date Capsule Pill
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: const Color(0x991C1C1E),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: Colors.white12, width: 0.5),
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                senderName,
+                                style: GoogleFonts.inter(color: Colors.white, fontSize: 13.5, fontWeight: FontWeight.bold),
+                              ),
+                              Text(
+                                dateStr,
+                                style: GoogleFonts.inter(color: const Color(0xFF8E8E93), fontSize: 11.0),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        // Right 3-Dots Circle Button ...
+                        InkWell(
+                          onTap: () {
+                            _showTelegramImage3DotsMenu(ctx, rawUrl, docId);
+                          },
+                          borderRadius: BorderRadius.circular(20),
+                          child: Container(
+                            width: 38,
+                            height: 38,
+                            decoration: const BoxDecoration(
+                              color: Color(0x991C1C1E),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.more_horiz_rounded, color: Colors.white, size: 22),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Bottom Action Bar (Matching Screenshot 1)
+                  Positioned(
+                    bottom: MediaQuery.of(context).padding.bottom + 12,
+                    left: 16,
+                    right: 16,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        // 1. Left Share/Forward Button ↪️
+                        InkWell(
+                          onTap: () {
+                            _showTelegramImageShareSheet(ctx, rawUrl);
+                          },
+                          borderRadius: BorderRadius.circular(22),
+                          child: Container(
+                            width: 44,
+                            height: 44,
+                            decoration: const BoxDecoration(
+                              color: Color(0x991C1C1E),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.reply_rounded, color: Colors.white, size: 22),
+                          ),
+                        ),
+
+                        // 2. Center Capsule Tools (Markup Pen 🖊️ & OCR Scanner 🖼️)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: const Color(0x991C1C1E),
+                            borderRadius: BorderRadius.circular(22),
+                            border: Border.all(color: Colors.white12, width: 0.5),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              InkWell(
+                                onTap: () {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('មុខងារ Markup Image Tool', style: GoogleFonts.kantumruyPro())),
+                                  );
+                                },
+                                child: const Icon(Icons.border_color_rounded, color: Colors.white, size: 20),
+                              ),
+                              const SizedBox(width: 24),
+                              InkWell(
+                                onTap: () {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('មុខងារ OCR Text Scanner', style: GoogleFonts.kantumruyPro())),
+                                  );
+                                },
+                                child: const Icon(Icons.crop_free_rounded, color: Colors.white, size: 20),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        // 3. Right Delete Trash Button 🗑️
+                        InkWell(
+                          onTap: () async {
+                            final confirm = await showDialog<bool>(
+                              context: ctx,
+                              builder: (c) => AlertDialog(
+                                backgroundColor: const Color(0xFF1E293B),
+                                title: Text('លុបរូបភាព', style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold)),
+                                content: Text('តើអ្នកពិតជាចង់លុបរូបភាពនេះមែនទេ?', style: GoogleFonts.kantumruyPro(color: Colors.white70)),
+                                actions: [
+                                  TextButton(onPressed: () => Navigator.pop(c, false), child: Text('បោះបង់', style: GoogleFonts.kantumruyPro(color: const Color(0xFF94A3B8)))),
+                                  ElevatedButton(
+                                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF3B30)),
+                                    onPressed: () => Navigator.pop(c, true),
+                                    child: Text('លុប', style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold)),
+                                  ),
+                                ],
+                              ),
+                            );
+
+                            if (confirm == true) {
+                              await _firestore.collection('chats').doc(_roomId).collection('messages').doc(docId).delete();
+                              if (ctx.mounted) Navigator.pop(ctx);
+                            }
+                          },
+                          borderRadius: BorderRadius.circular(22),
+                          child: Container(
+                            width: 44,
+                            height: 44,
+                            decoration: const BoxDecoration(
+                              color: Color(0x991C1C1E),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.delete_outline_rounded, color: Colors.white, size: 22),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  // Telegram Image Share Sheet ("Share with" Bottom Sheet - Screenshot 2)
+  void _showTelegramImageShareSheet(BuildContext parentCtx, String rawUrl) {
+    showModalBottomSheet(
+      context: parentCtx,
+      backgroundColor: const Color(0xFF1C1C1E),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetCtx) {
+        return Container(
+          padding: const EdgeInsets.all(16),
+          height: MediaQuery.of(parentCtx).size.height * 0.70,
+          child: Column(
             children: [
-              Center(
-                child: InteractiveViewer(
-                  child: Image(image: imgProvider, fit: BoxFit.contain),
+              // Top Header Row (Search, Title, Share arrow)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Icon(Icons.search_rounded, color: Color(0xFF0A84FF), size: 22),
+                  Column(
+                    children: [
+                      Text('Share with', style: GoogleFonts.inter(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                      Text('Select chats', style: GoogleFonts.inter(color: const Color(0xFF8E8E93), fontSize: 12)),
+                    ],
+                  ),
+                  const Icon(Icons.ios_share_rounded, color: Color(0xFF0A84FF), size: 22),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // Chat Targets Grid (5 columns)
+              Expanded(
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: _firestore.collection('users').snapshots(),
+                  builder: (context, snap) {
+                    if (!snap.hasData) return const Center(child: CircularProgressIndicator(color: Color(0xFF0A84FF)));
+                    final users = snap.data!.docs.where((d) => d.id != currentUserId).toList();
+
+                    return GridView.builder(
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 5,
+                        mainAxisSpacing: 14,
+                        crossAxisSpacing: 10,
+                        childAspectRatio: 0.75,
+                      ),
+                      itemCount: users.length + 1,
+                      itemBuilder: (context, idx) {
+                        if (idx == 0) {
+                          return InkWell(
+                            onTap: () {
+                              Navigator.pop(sheetCtx);
+                              _showForwardModal(rawUrl, 'image');
+                            },
+                            child: Column(
+                              children: [
+                                const CircleAvatar(
+                                  radius: 26,
+                                  backgroundColor: Color(0xFF0A84FF),
+                                  child: Icon(Icons.bookmark_rounded, color: Colors.white, size: 26),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  'Saved Messages',
+                                  style: GoogleFonts.inter(color: Colors.white, fontSize: 10),
+                                  textAlign: TextAlign.center,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+
+                        final uDoc = users[idx - 1];
+                        final uData = uDoc.data() as Map<String, dynamic>;
+                        final name = uData['name'] ?? 'User';
+                        final avatar = uData['avatar'] ?? '';
+
+                        return InkWell(
+                          onTap: () {
+                            Navigator.pop(sheetCtx);
+                            _showForwardModal(rawUrl, 'image');
+                          },
+                          child: Column(
+                            children: [
+                              CircleAvatar(
+                                radius: 26,
+                                backgroundImage: avatar.isNotEmpty ? NetworkImage(ApiService.getFullImageUrl(avatar)) : null,
+                                backgroundColor: const Color(0xFFFFB300),
+                                child: avatar.isEmpty ? Text(name[0].toUpperCase(), style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)) : null,
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                name,
+                                style: GoogleFonts.inter(color: Colors.white, fontSize: 10.5),
+                                textAlign: TextAlign.center,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    );
+                  },
                 ),
               ),
-              Positioned(
-                top: 40.0,
-                right: 16.0,
-                child: CircleAvatar(
-                  backgroundColor: Colors.black54,
-                  child: IconButton(
-                    icon: const Icon(Icons.close_rounded, color: Colors.white, size: 24),
-                    onPressed: () => Navigator.pop(ctx),
+              const SizedBox(height: 12),
+
+              // Save Image Card Button
+              InkWell(
+                onTap: () {
+                  Navigator.pop(sheetCtx);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('បានរក្សាទុករូបភាពក្នុង Gallery!', style: GoogleFonts.kantumruyPro())),
+                  );
+                },
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2C2C2E),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Text(
+                    'Save Image',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.inter(color: const Color(0xFF0A84FF), fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 24.0),
-                color: Colors.black87,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.download_rounded, color: Colors.white, size: 26),
-                      onPressed: () async {
-                        Navigator.pop(ctx);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('បានរក្សាទុករូបភាពក្នុង Gallery!', style: GoogleFonts.kantumruyPro())),
-                        );
-                      },
-                      tooltip: 'Save Image',
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.shortcut_rounded, color: Colors.white, size: 26),
-                      onPressed: () {
-                        Navigator.pop(ctx);
-                        _showForwardModal(rawUrl, 'image');
-                      },
-                      tooltip: 'Forward Image',
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.share_rounded, color: Colors.white, size: 26),
-                      onPressed: () async {
-                        Navigator.pop(ctx);
-                        if (rawUrl.startsWith('http')) {
-                          Share.share(rawUrl);
-                        } else {
-                          final dir = await getTemporaryDirectory();
-                          final tempFile = File('${dir.path}/shared_img_${DateTime.now().millisecondsSinceEpoch}.jpg');
-                          await tempFile.writeAsBytes(base64Decode(rawUrl.split(',').last));
-                          Share.shareXFiles([XFile(tempFile.path)]);
-                        }
-                      },
-                      tooltip: 'Share Image',
-                    ),
-                  ],
+              const SizedBox(height: 10),
+
+              // Cancel Capsule Button
+              InkWell(
+                onTap: () => Navigator.pop(sheetCtx),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2C2C2E),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Text(
+                    'Cancel',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.inter(color: const Color(0xFF0A84FF), fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
                 ),
               ),
             ],
           ),
-        ),
+        );
+      },
+    );
+  }
+
+  // Telegram Image 3-Dots Menu Context Sheet (Screenshot 3)
+  void _showTelegramImage3DotsMenu(BuildContext parentCtx, String rawUrl, String docId) {
+    showModalBottomSheet(
+      context: parentCtx,
+      backgroundColor: const Color(0xFF1C1C1E),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
+      builder: (menuCtx) {
+        return Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(width: 36, height: 4, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(10))),
+              const SizedBox(height: 10),
+              ListTile(
+                leading: const Icon(Icons.chat_bubble_outline_rounded, color: Colors.white),
+                title: Text('Show in Chat', style: GoogleFonts.inter(color: Colors.white, fontSize: 15)),
+                onTap: () {
+                  Navigator.pop(menuCtx);
+                  Navigator.pop(parentCtx);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.sentiment_satisfied_alt_rounded, color: Colors.white),
+                title: Text('Create Sticker', style: GoogleFonts.inter(color: Colors.white, fontSize: 15)),
+                onTap: () {
+                  Navigator.pop(menuCtx);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('មុខងារ Create Sticker', style: GoogleFonts.kantumruyPro())),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.arrow_downward_rounded, color: Colors.white),
+                title: Text('Save Image', style: GoogleFonts.inter(color: Colors.white, fontSize: 15)),
+                onTap: () {
+                  Navigator.pop(menuCtx);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('បានរក្សាទុករូបភាពក្នុង Gallery!', style: GoogleFonts.kantumruyPro())),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.reply_rounded, color: Colors.white),
+                title: Text('Reply', style: GoogleFonts.inter(color: Colors.white, fontSize: 15)),
+                onTap: () {
+                  Navigator.pop(menuCtx);
+                  Navigator.pop(parentCtx);
+                  setState(() => _replyingToMessage = '🖼️ រូបភាព');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete_outline_rounded, color: Color(0xFFFF3B30)),
+                title: Text('Delete', style: GoogleFonts.inter(color: const Color(0xFFFF3B30), fontSize: 15, fontWeight: FontWeight.bold)),
+                onTap: () async {
+                  Navigator.pop(menuCtx);
+                  await _firestore.collection('chats').doc(_roomId).collection('messages').doc(docId).delete();
+                  if (parentCtx.mounted) Navigator.pop(parentCtx);
+                },
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 

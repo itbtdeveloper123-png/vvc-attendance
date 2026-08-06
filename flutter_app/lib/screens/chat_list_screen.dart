@@ -14,7 +14,7 @@ import 'add_story_screen.dart';
 import 'community_channel_screen.dart';
 import '../services/api_service.dart';
 import '../providers/user_provider.dart';
-import '../widgets/chat_wallpaper_picker.dart';
+
 
 // ==========================================
 // COLOR TOKENS (DARK ENTERPRISE THEME)
@@ -781,11 +781,11 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
                 isGroup: true,
               ),
           onLongPress:
-              () => showChatWallpaperPicker(
-                context,
+              () => _showTelegramChatPeekPreview(
                 targetId: 'ALL',
                 targetName: 'Team Chat Group',
-                onWallpaperSelected: (_) {},
+                avatar: '',
+                isGroup: true,
               ),
           child: Padding(
             padding: const EdgeInsets.symmetric(
@@ -878,11 +878,11 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
     return InkWell(
       onTap: () => _navigateToChat(groupId, name, '', isGroup: true),
       onLongPress:
-          () => showChatWallpaperPicker(
-            context,
+          () => _showTelegramChatPeekPreview(
             targetId: groupId,
             targetName: name,
-            onWallpaperSelected: (_) {},
+            avatar: '',
+            isGroup: true,
           ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -1053,11 +1053,11 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
                 return InkWell(
                   onTap: () => _navigateToChat(targetId, title, avatar),
                   onLongPress:
-                      () => showChatWallpaperPicker(
-                        context,
+                      () => _showTelegramChatPeekPreview(
                         targetId: targetId,
                         targetName: title,
-                        onWallpaperSelected: (_) {},
+                        avatar: avatar,
+                        isGroup: false,
                       ),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
@@ -1274,6 +1274,269 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
               targetUserPhoto: photo,
               isGroup: isGroup,
             ),
+      ),
+    );
+  }
+
+  // Telegram 3D Touch / Peek & Pop Chat Preview Modal (Matching Attached Image 100%)
+  void _showTelegramChatPeekPreview({
+    required String targetId,
+    required String targetName,
+    required String avatar,
+    bool isGroup = false,
+  }) {
+    String roomId = targetId;
+    if (!isGroup) {
+      final List<String> ids = [currentUserId, targetId]..sort();
+      roomId = "PRIVATE_${ids[0]}_${ids[1]}";
+    }
+
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.78),
+      builder: (ctx) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 1. Scrollable Chat Feed Preview Window
+              Container(
+                height: MediaQuery.of(context).size.height * 0.54,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF17171C),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.12), width: 0.8),
+                  boxShadow: const [
+                    BoxShadow(color: Colors.black87, blurRadius: 20, offset: Offset(0, 8)),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(24),
+                  child: Stack(
+                    children: [
+                      Column(
+                        children: [
+                          // Capsule Header Pill inside Preview
+                          Container(
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            alignment: Alignment.center,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: const Color(0xDD262629),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(color: Colors.white12, width: 0.5),
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    targetName,
+                                    style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 13.5, fontWeight: FontWeight.bold),
+                                  ),
+                                  Text(
+                                    isGroup ? 'Group Chat' : 'last seen recently',
+                                    style: GoogleFonts.inter(color: const Color(0xFF8E8E93), fontSize: 10.5),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+
+                          // Scrollable Message Feed
+                          Expanded(
+                            child: StreamBuilder<QuerySnapshot>(
+                              stream: _firestore
+                                  .collection('chats')
+                                  .doc(roomId)
+                                  .collection('messages')
+                                  .orderBy('timestamp', descending: true)
+                                  .limit(30)
+                                  .snapshots(),
+                              builder: (context, snap) {
+                                if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
+                                  return const Center(child: CircularProgressIndicator(color: Color(0xFF0A84FF)));
+                                }
+
+                                if (!snap.hasData || snap.data!.docs.isEmpty) {
+                                  return Center(
+                                    child: Text(
+                                      'គ្មានសារក្នុងសន្ទនានេះទេ',
+                                      style: GoogleFonts.kantumruyPro(color: Colors.white54, fontSize: 13),
+                                    ),
+                                  );
+                                }
+
+                                final docs = snap.data!.docs;
+
+                                return ListView.builder(
+                                  reverse: true,
+                                  physics: const BouncingScrollPhysics(),
+                                  padding: const EdgeInsets.all(12),
+                                  itemCount: docs.length,
+                                  itemBuilder: (context, idx) {
+                                    final data = docs[idx].data() as Map<String, dynamic>;
+                                    final String text = data['text'] ?? '';
+                                    final String type = data['type'] ?? 'text';
+                                    final String senderId = data['senderId'] ?? '';
+                                    final bool isMine = senderId == currentUserId;
+                                    final Timestamp? ts = data['timestamp'] as Timestamp?;
+                                    final String timeStr = ts != null ? DateFormat('h:mm a').format(ts.toDate()) : '';
+
+                                    return Align(
+                                      alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
+                                      child: Container(
+                                        margin: const EdgeInsets.symmetric(vertical: 4),
+                                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                                        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.65),
+                                        decoration: BoxDecoration(
+                                          color: isMine ? const Color(0xFF0A84FF) : const Color(0xFF2C2C2E),
+                                          borderRadius: BorderRadius.circular(16),
+                                        ),
+                                        child: Column(
+                                          crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                                          children: [
+                                            if (type == 'voice')
+                                              Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  const Icon(Icons.play_circle_fill_rounded, color: Colors.white, size: 24),
+                                                  const SizedBox(width: 8),
+                                                  Text('Voice Message', style: GoogleFonts.inter(color: Colors.white, fontSize: 13)),
+                                                ],
+                                              )
+                                            else if (type == 'image')
+                                              Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  const Icon(Icons.image_rounded, color: Colors.white, size: 18),
+                                                  const SizedBox(width: 6),
+                                                  Text('Photo', style: GoogleFonts.inter(color: Colors.white, fontSize: 13)),
+                                                ],
+                                              )
+                                            else
+                                              Text(
+                                                text,
+                                                style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 13.5),
+                                              ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              timeStr,
+                                              style: GoogleFonts.inter(color: Colors.white70, fontSize: 10),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // 2. Context Actions Menu Card (Matching Screenshot 100%)
+              Align(
+                alignment: Alignment.centerRight,
+                child: Container(
+                  width: 240,
+                  decoration: BoxDecoration(
+                    color: const Color(0xEE1C1C1E),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.white12, width: 0.5),
+                    boxShadow: const [
+                      BoxShadow(color: Colors.black54, blurRadius: 16, offset: Offset(0, 4)),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildPeekActionItem(
+                        icon: Icons.move_to_inbox_rounded,
+                        title: 'Remove from Folder',
+                        onTap: () {
+                          Navigator.pop(ctx);
+                        },
+                      ),
+                      const Divider(height: 1, color: Color(0xFF334155), indent: 14, endIndent: 14),
+                      _buildPeekActionItem(
+                        icon: Icons.chat_bubble_outline_rounded,
+                        title: 'Mark as Unread',
+                        onTap: () {
+                          Navigator.pop(ctx);
+                        },
+                      ),
+                      const Divider(height: 1, color: Color(0xFF334155), indent: 14, endIndent: 14),
+                      _buildPeekActionItem(
+                        icon: Icons.push_pin_outlined,
+                        title: 'Pin',
+                        onTap: () {
+                          Navigator.pop(ctx);
+                        },
+                      ),
+                      const Divider(height: 1, color: Color(0xFF334155), indent: 14, endIndent: 14),
+                      _buildPeekActionItem(
+                        icon: Icons.notifications_off_outlined,
+                        title: 'Mute',
+                        onTap: () {
+                          Navigator.pop(ctx);
+                        },
+                      ),
+                      const Divider(height: 1, color: Color(0xFF334155), indent: 14, endIndent: 14),
+                      _buildPeekActionItem(
+                        icon: Icons.delete_outline_rounded,
+                        title: 'Delete',
+                        isDanger: true,
+                        onTap: () async {
+                          Navigator.pop(ctx);
+                          await _firestore.collection('chats').doc(roomId).delete();
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildPeekActionItem({
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+    bool isDanger = false,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              title,
+              style: GoogleFonts.inter(
+                color: isDanger ? const Color(0xFFFF3B30) : Colors.white,
+                fontSize: 14,
+                fontWeight: isDanger ? FontWeight.bold : FontWeight.w500,
+              ),
+            ),
+            Icon(icon, color: isDanger ? const Color(0xFFFF3B30) : Colors.white, size: 20),
+          ],
+        ),
       ),
     );
   }
