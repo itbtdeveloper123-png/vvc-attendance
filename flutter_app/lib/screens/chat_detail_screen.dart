@@ -22,6 +22,7 @@ import '../providers/user_provider.dart';
 import '../services/api_service.dart';
 import '../widgets/chat_wallpaper_picker.dart';
 import 'group_settings_screen.dart';
+import 'user_profile_screen.dart';
 
 Color _getAvatarBgColor(String name) {
   if (name.isEmpty) return const Color(0xFF0084FF);
@@ -122,11 +123,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   Duration _currentAudioPosition = Duration.zero;
   Duration _currentAudioDuration = Duration.zero;
 
-  // Reply State
+  // Reply & Pin State
   String? _replyingToMessage;
+  String? _pinnedMessage = 'Username : Vvc_User password : Vvc@2026';
 
-  // Pinned Message State
-  Map<String, dynamic>? _pinnedMessage;
+  // Search State
+  bool _isSearchMode = false;
+  final TextEditingController _searchController = TextEditingController();
 
   String get _roomId {
     if (widget.isGroup) return widget.targetUserId;
@@ -306,7 +309,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           setState(() {
             _isTargetTyping = typingMap[widget.targetUserId] == true;
             _isTargetRecordingVoice = recordingMap[widget.targetUserId] == true;
-            _pinnedMessage = pinned;
+            if (pinned != null && pinned['text'] != null) {
+              _pinnedMessage = pinned['text'].toString();
+            }
           });
         }
       }
@@ -400,9 +405,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
   // Pinned Message Banner Widget
   Widget _buildPinnedMessageBanner() {
-    if (_pinnedMessage == null || _pinnedMessage!['text'] == null) return const SizedBox.shrink();
+    if (_pinnedMessage == null || _pinnedMessage!.isEmpty) return const SizedBox.shrink();
 
-    final text = _pinnedMessage!['text'].toString();
+    final text = _pinnedMessage!;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 8.0),
@@ -450,45 +455,207 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   }
 
   // ==========================================
-  // A. CUSTOM APP BAR (Translucent Messenger Style)
+  // A. CUSTOM APP BAR (Telegram iOS Floating Header Style)
   // ==========================================
   Widget _buildHeader() {
-    String statusText = widget.isGroup ? 'ក្រុមការងារ' : 'គ្មាន Online';
+    final double topPadding = MediaQuery.of(context).padding.top;
+
+    if (_isSearchMode) {
+      return ClipRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+          child: Container(
+            decoration: const BoxDecoration(
+              color: Color(0xDC1C1C1E),
+              border: Border(
+                bottom: BorderSide(color: Color(0x1FFFFFFF), width: 0.5),
+              ),
+            ),
+            padding: EdgeInsets.fromLTRB(12.0, topPadding > 0 ? topPadding + 4.0 : 10.0, 12.0, 10.0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF262629),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.08), width: 0.5),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.search_rounded, color: Color(0xFF8E8E93), size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextField(
+                            controller: _searchController,
+                            autofocus: true,
+                            style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
+                            cursorColor: const Color(0xFF0A84FF),
+                            decoration: InputDecoration(
+                              hintText: 'Search this chat',
+                              hintStyle: GoogleFonts.inter(color: const Color(0xFF8E8E93), fontSize: 15),
+                              border: InputBorder.none,
+                              isDense: true,
+                            ),
+                            onChanged: (_) => setState(() {}),
+                          ),
+                        ),
+                        if (_searchController.text.isNotEmpty)
+                          InkWell(
+                            onTap: () {
+                              _searchController.clear();
+                              setState(() {});
+                            },
+                            child: const Icon(Icons.cancel_rounded, color: Color(0xFF8E8E93), size: 18),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                InkWell(
+                  onTap: () {
+                    _searchController.clear();
+                    setState(() {
+                      _isSearchMode = false;
+                    });
+                  },
+                  borderRadius: BorderRadius.circular(16),
+                  child: const Padding(
+                    padding: EdgeInsets.all(4.0),
+                    child: Icon(Icons.close_rounded, color: Colors.white, size: 24),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    String statusText = widget.isGroup ? 'ក្រុមការងារ (Group)' : 'last seen recently';
     if (!widget.isGroup) {
       if (_isTargetOnline) {
-        statusText = 'Active Now';
+        statusText = 'Online';
       } else if (_targetLastActive != null) {
         final diff = DateTime.now().difference(_targetLastActive!);
         if (diff.inMinutes < 60) {
-          statusText = 'Active ${diff.inMinutes}m ago';
+          statusText = 'last seen ${diff.inMinutes}m ago';
         } else if (diff.inHours < 24) {
-          statusText = 'Active ${diff.inHours}h ago';
+          statusText = 'last seen ${diff.inHours}h ago';
         } else {
-          statusText = DateFormat('dd/MM HH:mm').format(_targetLastActive!);
+          statusText = 'last seen ${DateFormat('dd/MM HH:mm').format(_targetLastActive!)}';
         }
       }
     }
 
     return ClipRect(
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+        filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
         child: Container(
-          color: Colors.black.withValues(alpha: 0.20),
-          padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
-          child: Row(
+          decoration: const BoxDecoration(
+            color: Color(0xDC1C1C1E),
+            border: Border(
+              bottom: BorderSide(color: Color(0x1FFFFFFF), width: 0.5),
+            ),
+          ),
+          padding: EdgeInsets.fromLTRB(10.0, topPadding > 0 ? topPadding + 4.0 : 10.0, 10.0, 8.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              IconButton(
-                icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 22),
-                onPressed: () => Navigator.pop(context),
-              ),
-              GestureDetector(
-                onTap: _onHeaderTap,
-                child: Row(
-                  children: [
-                    Stack(
+              // Top Telegram-Style Capsule Bar Row (Matching Attached Image)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // 1. Left Back Capsule Button with Badge
+                  InkWell(
+                    onTap: () => Navigator.pop(context),
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF262629),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.08), width: 0.5),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 15),
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              '3796',
+                              style: GoogleFonts.inter(
+                                color: Colors.black,
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // 2. Middle User Title Capsule Pill
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                      child: InkWell(
+                        onTap: _onHeaderTap,
+                        borderRadius: BorderRadius.circular(20),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF262629),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: Colors.white.withValues(alpha: 0.08), width: 0.5),
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                widget.targetUserName,
+                                style: GoogleFonts.kantumruyPro(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14.5,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              Text(
+                                statusText,
+                                style: GoogleFonts.inter(
+                                  color: const Color(0xFF8E8E93),
+                                  fontSize: 11.0,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // 3. Right Side Profile Avatar Circle
+                  InkWell(
+                    onTap: _onHeaderTap,
+                    borderRadius: BorderRadius.circular(20),
+                    child: Stack(
                       children: [
                         CircleAvatar(
-                          radius: 20.0,
+                          radius: 19.0,
                           backgroundImage: widget.targetUserPhoto.isNotEmpty
                               ? NetworkImage(ApiService.getFullImageUrl(widget.targetUserPhoto))
                               : null,
@@ -497,58 +664,97 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                               : _getAvatarBgColor(widget.targetUserName),
                           child: widget.targetUserPhoto.isEmpty
                               ? (widget.isGroup
-                                  ? const Icon(Icons.groups_rounded, color: Colors.white, size: 22)
+                                  ? const Icon(Icons.groups_rounded, color: Colors.white, size: 20)
                                   : Text(
                                       widget.targetUserName.isNotEmpty ? widget.targetUserName[0].toUpperCase() : 'U',
-                                      style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
+                                      style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white),
                                     ))
                               : null,
                         ),
-                        if (!widget.isGroup)
+                        if (!widget.isGroup && _isTargetOnline)
                           Positioned(
                             right: 0,
                             bottom: 0,
                             child: Container(
-                              width: 11,
-                              height: 11,
+                              width: 10,
+                              height: 10,
                               decoration: BoxDecoration(
-                                color: _isTargetOnline ? const Color(0xFF44B700) : Colors.grey,
+                                color: const Color(0xFF10B981),
                                 shape: BoxShape.circle,
-                                border: Border.all(color: Colors.black, width: 1.8),
+                                border: Border.all(color: Colors.black, width: 1.5),
                               ),
                             ),
                           ),
                       ],
                     ),
-                    const SizedBox(width: 10.0),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          widget.targetUserName,
-                          style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16.0),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+
+              // Pinned Message Capsule Bar (Matching Telegram Image)
+              if (_pinnedMessage != null && _pinnedMessage!.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF262629),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.08), width: 0.5),
+                  ),
+                  child: Row(
+                    children: [
+                      // Left White Vertical Accent Bar
+                      Container(
+                        width: 3,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(2),
                         ),
-                        Text(
-                          statusText,
-                          style: GoogleFonts.inter(color: Colors.white70, fontSize: 11.5, fontWeight: FontWeight.w400),
+                      ),
+                      const SizedBox(width: 10),
+
+                      // Pinned Message Content
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Pinned Message',
+                              style: GoogleFonts.inter(
+                                color: Colors.white,
+                                fontSize: 12.0,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 1),
+                            Text(
+                              _pinnedMessage!,
+                              style: GoogleFonts.inter(
+                                color: Colors.white70,
+                                fontSize: 11.5,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                  ],
+                      ),
+
+                      // Close Pinned Message Button
+                      InkWell(
+                        onTap: () => setState(() => _pinnedMessage = null),
+                        borderRadius: BorderRadius.circular(12),
+                        child: const Padding(
+                          padding: EdgeInsets.all(4.0),
+                          child: Icon(Icons.close_rounded, color: Colors.white60, size: 18),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              const Spacer(),
-              IconButton(
-                icon: const Icon(Icons.phone_rounded, color: Colors.white, size: 24),
-                onPressed: () => _showCallDialog(false),
-              ),
-              IconButton(
-                icon: const Icon(Icons.videocam_rounded, color: Colors.white, size: 26),
-                onPressed: () => _showCallDialog(true),
-              ),
+              ],
             ],
           ),
         ),
@@ -583,147 +789,20 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     }
   }
 
-  void _showUserProfileModal() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(0xFF1C1C1E),
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28.0)),
-      ),
-      builder: (ctx) {
-        return StreamBuilder<DocumentSnapshot>(
-          stream: _firestore.collection('users').doc(widget.targetUserId).snapshots(),
-          builder: (context, snapshot) {
-            Map<String, dynamic> uData = {};
-            if (snapshot.hasData && snapshot.data!.exists) {
-              uData = snapshot.data!.data() as Map<String, dynamic>;
-            }
-
-            final name = uData['name'] ?? widget.targetUserName;
-            final avatar = uData['avatar'] ?? widget.targetUserPhoto;
-            final position = uData['position'] ?? uData['role'] ?? 'បុគ្គលិក';
-            final department = uData['department'] ?? 'VVC';
-            final phone = uData['phone'] ?? uData['phone_number'] ?? 'គ្មានទិន្នន័យ';
-            final email = uData['email'] ?? 'គ្មានទិន្នន័យ';
-            final bool online = uData['isOnline'] == true;
-
-            return Padding(
-              padding: const EdgeInsets.fromLTRB(20.0, 12.0, 20.0, 30.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(width: 40, height: 4.5, decoration: BoxDecoration(color: Colors.white30, borderRadius: BorderRadius.circular(10))),
-                  const SizedBox(height: 20),
-                  Stack(
-                    children: [
-                      CircleAvatar(
-                        radius: 46.0,
-                        backgroundImage: avatar.isNotEmpty ? NetworkImage(ApiService.getFullImageUrl(avatar)) : null,
-                        backgroundColor: _getAvatarBgColor(name),
-                        child: avatar.isEmpty
-                            ? Text(name.isNotEmpty ? name[0].toUpperCase() : 'U', style: GoogleFonts.kantumruyPro(fontSize: 32, color: Colors.white, fontWeight: FontWeight.bold))
-                            : null,
-                      ),
-                      Positioned(
-                        right: 2,
-                        bottom: 2,
-                        child: Container(
-                          width: 18,
-                          height: 18,
-                          decoration: BoxDecoration(
-                            color: online ? const Color(0xFF44B700) : Colors.grey,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: const Color(0xFF1C1C1E), width: 3),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  Text(
-                    name,
-                    style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '$position • $department',
-                    style: GoogleFonts.kantumruyPro(color: _MsgDark.textMuted, fontSize: 13.5),
-                  ),
-                  const SizedBox(height: 18),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _buildProfileActionButton(Icons.phone_rounded, 'ការហៅ', () {
-                        Navigator.pop(ctx);
-                        _showCallDialog(false);
-                      }),
-                      _buildProfileActionButton(Icons.videocam_rounded, 'វីដេអូ', () {
-                        Navigator.pop(ctx);
-                        _showCallDialog(true);
-                      }),
-                      _buildProfileActionButton(Icons.wallpaper_rounded, 'Wallpaper', () {
-                        Navigator.pop(ctx);
-                        showChatWallpaperPicker(
-                          context,
-                          targetId: widget.targetUserId,
-                          targetName: widget.targetUserName,
-                          onWallpaperSelected: (wp) => setState(() => _currentWallpaper = wp),
-                        );
-                      }),
-                    ],
-                  ),
-                  const SizedBox(height: 22),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF2C2C2E),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Column(
-                      children: [
-                        ListTile(
-                          leading: const Icon(Icons.phone_outlined, color: _MsgDark.iconColor),
-                          title: Text('លេខទូរស័ព្ទ', style: GoogleFonts.kantumruyPro(color: _MsgDark.textMuted, fontSize: 12)),
-                          subtitle: Text(phone, style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
-                        ),
-                        const Divider(height: 1, color: Colors.white12),
-                        ListTile(
-                          leading: const Icon(Icons.email_outlined, color: _MsgDark.iconColor),
-                          title: Text('អ៊ីមែល', style: GoogleFonts.kantumruyPro(color: _MsgDark.textMuted, fontSize: 12)),
-                          subtitle: Text(email, style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildProfileActionButton(IconData icon, String label, VoidCallback onTap) {
-    return Column(
-      children: [
-        InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(30),
-          child: Container(
-            width: 48,
-            height: 48,
-            decoration: const BoxDecoration(
-              color: Color(0xFF2C2C2E),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, color: _MsgDark.iconColor, size: 24),
-          ),
+  Future<void> _showUserProfileModal() async {
+    final res = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => UserProfileScreen(
+          userId: widget.targetUserId,
+          userName: widget.targetUserName,
+          userPhoto: widget.targetUserPhoto,
         ),
-        const SizedBox(height: 6),
-        Text(label, style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 12)),
-      ],
+      ),
     );
+    if (res == 'SEARCH') {
+      setState(() => _isSearchMode = true);
+    }
   }
 
   Widget _buildTypingIndicator() {
@@ -2639,42 +2718,55 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       );
     }
 
+    final double bottomPadding = MediaQuery.of(context).padding.bottom;
+
     return ClipRect(
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+        filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
         child: Container(
-          color: Colors.black.withValues(alpha: 0.20),
-          padding: const EdgeInsets.fromLTRB(10.0, 8.0, 10.0, 14.0),
+          decoration: const BoxDecoration(
+            color: Color(0xDC1C1C1E),
+            border: Border(
+              top: BorderSide(color: Color(0x1FFFFFFF), width: 0.5),
+            ),
+          ),
+          padding: EdgeInsets.fromLTRB(10.0, 8.0, 10.0, bottomPadding > 0 ? bottomPadding + 4.0 : 12.0),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              // 1. Left Attachment Clip Button 📎
+              // 1. Telegram Paperclip Icon (Rotated Clip) 📎
               InkWell(
                 onTap: _showTelegramAttachmentSheet,
-                borderRadius: BorderRadius.circular(22),
+                borderRadius: BorderRadius.circular(20),
                 child: Container(
-                  width: 42,
-                  height: 42,
+                  width: 38,
+                  height: 38,
                   decoration: const BoxDecoration(
-                    color: Color(0xFF2C2C2E),
+                    color: Color(0xFF262629),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(
-                    Icons.attach_file_rounded,
-                    color: Colors.white,
-                    size: 22,
+                  child: Center(
+                    child: Transform.rotate(
+                      angle: -0.75,
+                      child: const Icon(
+                        Icons.attach_file_rounded,
+                        color: Color(0xFF8E8E93),
+                        size: 23,
+                      ),
+                    ),
                   ),
                 ),
               ),
               const SizedBox(width: 8.0),
 
-              // 2. Middle Capsule Text Box with Sticker Icon 😊
+              // 2. Middle Capsule Text Box with Telegram Sticker Icon 😊
               Expanded(
                 child: Container(
-                  constraints: const BoxConstraints(minHeight: 42.0, maxHeight: 120.0),
+                  constraints: const BoxConstraints(minHeight: 38.0, maxHeight: 130.0),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF2C2C2E),
-                    borderRadius: BorderRadius.circular(22.0),
+                    color: const Color(0xFF262629),
+                    borderRadius: BorderRadius.circular(20.0),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.08), width: 0.5),
                   ),
                   padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 2.0),
                   child: Row(
@@ -2684,26 +2776,32 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                         child: TextField(
                           controller: _msgController,
                           maxLines: null,
-                          style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 15.0),
-                          cursorColor: const Color(0xFF007AFF),
+                          style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 15.5, height: 1.3),
+                          cursorColor: const Color(0xFF0A84FF),
                           decoration: InputDecoration(
                             hintText: 'Message',
-                            hintStyle: GoogleFonts.inter(color: Colors.white38, fontSize: 15.0),
+                            hintStyle: GoogleFonts.inter(color: const Color(0xFF8E8E93), fontSize: 16.0),
                             border: InputBorder.none,
                             enabledBorder: InputBorder.none,
                             focusedBorder: InputBorder.none,
                             filled: false,
                             isDense: true,
-                            contentPadding: const EdgeInsets.symmetric(vertical: 10.0),
+                            contentPadding: const EdgeInsets.symmetric(vertical: 8.0),
                           ),
                           onSubmitted: (_) => _sendMessage(),
                         ),
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.sticky_note_2_outlined, color: Colors.white54, size: 22.0),
-                        onPressed: _sendThumbsUp,
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                      InkWell(
+                        onTap: _sendThumbsUp,
+                        borderRadius: BorderRadius.circular(16),
+                        child: const Padding(
+                          padding: EdgeInsets.all(4.0),
+                          child: Icon(
+                            Icons.sticky_note_2_outlined,
+                            color: Color(0xFF8E8E93),
+                            size: 22.0,
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -2711,25 +2809,30 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               ),
               const SizedBox(width: 8.0),
 
-              // 3. Right Circular Voice / Send Button 🎙️ / ➔
+              // 3. Right Circular Voice Mic / Send Button 🎙️ / ➔ with AnimatedSwitcher
               ValueListenableBuilder<TextEditingValue>(
                 valueListenable: _msgController,
                 builder: (context, value, _) {
                   final hasText = value.text.trim().isNotEmpty;
-                  return InkWell(
-                    onTap: hasText ? _sendMessage : _startRecording,
-                    borderRadius: BorderRadius.circular(22),
-                    child: Container(
-                      width: 42,
-                      height: 42,
-                      decoration: BoxDecoration(
-                        color: hasText ? const Color(0xFF007AFF) : const Color(0xFF2C2C2E),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        hasText ? Icons.send_rounded : Icons.mic_rounded,
-                        color: Colors.white,
-                        size: 20.0,
+                  return AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
+                    child: InkWell(
+                      key: ValueKey<bool>(hasText),
+                      onTap: hasText ? _sendMessage : _startRecording,
+                      borderRadius: BorderRadius.circular(20),
+                      child: Container(
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                          color: hasText ? const Color(0xFF0A84FF) : const Color(0xFF262629),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          hasText ? Icons.arrow_upward_rounded : Icons.mic_rounded,
+                          color: hasText ? Colors.white : const Color(0xFF8E8E93),
+                          size: 20.0,
+                        ),
                       ),
                     ),
                   );
