@@ -171,7 +171,7 @@ class DocumentScannerCard extends StatelessWidget {
   }
 
   Widget _buildGridCard() {
-    final color = Colors.orange;
+    const color = Colors.orange;
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -198,7 +198,7 @@ class DocumentScannerCard extends StatelessWidget {
                 shape: BoxShape.circle,
                 border: Border.all(color: color.withValues(alpha: 0.14)),
               ),
-              child: Icon(Icons.document_scanner_outlined, color: color, size: 25),
+              child: const Icon(Icons.document_scanner_outlined, color: color, size: 25),
             ),
             const SizedBox(height: 8),
             Text(

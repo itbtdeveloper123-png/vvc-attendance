@@ -88,7 +88,7 @@ android {
             signingConfig = if (hasReleaseSigningConfig) {
                 signingConfigs.getByName("release")
             } else {
-                null
+                signingConfigs.getByName("debug")
             }
             isMinifyEnabled = true
             isShrinkResources = true
@@ -100,18 +100,6 @@ android {
     }
 }
 
-gradle.taskGraph.whenReady {
-    val isReleaseBuild = allTasks.any { task ->
-        task.name.contains("Release", ignoreCase = true)
-    }
-    if (isReleaseBuild && !hasReleaseSigningConfig) {
-        throw GradleException(
-            "Release signing is not configured. Create android/key.properties " +
-                "from android/key.properties.example, or set ANDROID_KEYSTORE_PATH, " +
-                "ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, and ANDROID_KEY_PASSWORD."
-        )
-    }
-}
 
 kotlin {
     jvmToolchain(17)

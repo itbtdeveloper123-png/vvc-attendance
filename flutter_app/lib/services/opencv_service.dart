@@ -11,8 +11,6 @@ class OpenCVService {
   /// This service is deprecated and should not be used
   /// Use cunning_document_scanner instead
   @Deprecated('Use cunning_document_scanner package for native document scanning')
-  OpenCVService._();
-  
   factory OpenCVService() {
     throw UnimplementedError(
       'OpenCVService is deprecated. Use cunning_document_scanner package for native document scanning instead.',

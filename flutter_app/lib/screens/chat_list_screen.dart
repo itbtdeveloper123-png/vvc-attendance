@@ -795,8 +795,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
     final String avatar = user['avatar'] ?? '';
     final String position = user['position'] ?? 'បុគ្គលិក';
 
-    if (currentUserId.isEmpty || targetId.isEmpty)
+    if (currentUserId.isEmpty || targetId.isEmpty) {
       return const SizedBox.shrink();
+    }
 
     final List<String> ids = [currentUserId, targetId];
     ids.sort();
