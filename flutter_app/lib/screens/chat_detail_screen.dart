@@ -51,10 +51,8 @@ MemoryImage _getMemoryImage(String base64Str) {
 // MESSENGER DARK THEME TOKENS
 // ==========================================
 class _MsgDark {
-  static const Color bg = Color(0xFF000000);
   static const Color card = Color(0xFF242526);
   static const Color sentBubble = Color(0xFF0084FF);
-  static const Color receivedBubble = Color(0xFF3A3B3C);
   static const Color textPrimary = Color(0xFFFFFFFF);
   static const Color textMuted = Color(0xFFB0B3B8);
   static const Color iconColor = Color(0xFF0084FF);
@@ -371,33 +369,65 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       onTap: () => FocusScope.of(context).unfocus(),
       behavior: HitTestBehavior.opaque,
       child: Scaffold(
-        backgroundColor: _MsgDark.bg,
-        body: Container(
-          decoration: _currentWallpaper.isNotEmpty
-              ? BoxDecoration(
+        backgroundColor: const Color(0xFF0F172A),
+        body: Stack(
+          children: [
+            // 1. Background Wallpaper Layer with Dark Purple Overlay & Gradient
+            Positioned.fill(
+              child: Container(
+                decoration: BoxDecoration(
                   image: DecorationImage(
-                    image: AssetImage(_currentWallpaper),
+                    image: AssetImage(_currentWallpaper.isNotEmpty ? _currentWallpaper : 'assets/wallpapers/01.jpg'),
                     fit: BoxFit.cover,
-                    colorFilter: ColorFilter.mode(
-                      Colors.black.withValues(alpha: 0.18),
-                      BlendMode.darken,
+                    colorFilter: const ColorFilter.mode(
+                      Color(0xFF2E1A47),
+                      BlendMode.color,
                     ),
                   ),
-                )
-              : null,
-          child: SafeArea(
-            child: Column(
-              children: [
-                _buildHeader(),
-                Expanded(
-                  child: _buildMessageFeed(),
                 ),
-                if (_replyingToMessage != null) _buildReplyPreviewBanner(),
-                if (_showPlusMenu) _buildPlusMenuOverlay(),
-                _buildInputToolbar(),
-              ],
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        const Color(0xFF1E112C).withValues(alpha: 0.85),
+                        const Color(0xFF0F081D).withValues(alpha: 0.92),
+                      ],
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                    ),
+                  ),
+                ),
+              ),
             ),
-          ),
+
+            // 2. Real-time Messages Feed Layer
+            Positioned.fill(
+              child: _buildMessageFeed(),
+            ),
+
+            // 3. Top Frosted Glass App Bar Layer
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: _buildHeader(),
+            ),
+
+            // 4. Bottom Frosted Glass Input Toolbar Layer
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_replyingToMessage != null) _buildReplyPreviewBanner(),
+                  if (_showPlusMenu) _buildPlusMenuOverlay(),
+                  _buildInputToolbar(),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -508,9 +538,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
         child: Container(
-          decoration: const BoxDecoration(
-            color: Color(0x22000000),
-            border: Border(
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.65),
+            border: const Border(
               bottom: BorderSide(color: Color(0x1FFFFFFF), width: 0.5),
             ),
           ),
@@ -864,7 +894,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
     return ListView.builder(
       controller: _scrollController,
-      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+      physics: const BouncingScrollPhysics(),
+      clipBehavior: Clip.none,
+      padding: EdgeInsets.only(
+        top: MediaQuery.of(context).padding.top + 76.0 + (_pinnedMessage != null && _pinnedMessage!.isNotEmpty ? 50.0 : 0.0),
+        bottom: MediaQuery.of(context).padding.bottom + 85.0,
+        left: 12.0,
+        right: 12.0,
+      ),
       itemCount: _messageDocs.length + (hasIndicator ? 1 : 0),
       itemBuilder: (context, index) {
         if (index == _messageDocs.length) {
@@ -940,20 +977,23 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       dateStr = DateFormat('E, d MMM yyyy').format(date);
     }
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 14.0),
-      child: Row(
-        children: [
-          const Expanded(child: Divider(color: Colors.white24, height: 1)),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10.0),
-            child: Text(
-              dateStr,
-              style: GoogleFonts.kantumruyPro(fontSize: 11.5, color: _MsgDark.textMuted, fontWeight: FontWeight.w600),
-            ),
+    return Center(
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 14.0),
+        padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 5.0),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.35),
+          borderRadius: BorderRadius.circular(14.0),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08), width: 0.5),
+        ),
+        child: Text(
+          dateStr,
+          style: GoogleFonts.kantumruyPro(
+            color: Colors.white.withValues(alpha: 0.9),
+            fontSize: 12.0,
+            fontWeight: FontWeight.w500,
           ),
-          const Expanded(child: Divider(color: Colors.white24, height: 1)),
-        ],
+        ),
       ),
     );
   }
@@ -1010,7 +1050,25 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
               constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.72),
               decoration: BoxDecoration(
-                color: isMine ? _MsgDark.sentBubble : _MsgDark.receivedBubble,
+                gradient: isMine
+                    ? const LinearGradient(
+                        colors: [Color(0xFF2AABEE), Color(0xFF229ED9)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      )
+                    : null,
+                color: isMine ? null : const Color(0xFF1E293B).withValues(alpha: 0.85),
+                border: Border.all(
+                  color: isMine ? Colors.white.withValues(alpha: 0.2) : Colors.white.withValues(alpha: 0.1),
+                  width: 0.8,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.2),
+                    blurRadius: 6.0,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
                 borderRadius: BorderRadius.only(
                   topLeft: const Radius.circular(18.0),
                   topRight: const Radius.circular(18.0),
@@ -3054,9 +3112,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
         child: Container(
-          decoration: const BoxDecoration(
-            color: Color(0x22000000),
-            border: Border(
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.65),
+            border: const Border(
               top: BorderSide(color: Color(0x1FFFFFFF), width: 0.5),
             ),
           ),

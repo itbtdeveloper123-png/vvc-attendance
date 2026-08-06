@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
@@ -33,7 +33,17 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
   final ImagePicker _picker = ImagePicker();
   final R2StorageService _r2Service = R2StorageService();
 
-  // Auto Compress Image to Minimal Bytes (~150KB-200KB) while Retaining Crystal Clear HD Clarity
+  // Facebook Reactions Configuration
+  static const Map<String, Map<String, dynamic>> _reactions = {
+    'like': {'emoji': '👍', 'label': 'Like', 'color': Color(0xFF0A84FF)},
+    'love': {'emoji': '❤️', 'label': 'Love', 'color': Color(0xFFFF3B30)},
+    'haha': {'emoji': '😆', 'label': 'Haha', 'color': Color(0xFFFFCC00)},
+    'wow': {'emoji': '😮', 'label': 'Wow', 'color': Color(0xFFFFCC00)},
+    'sad': {'emoji': '😢', 'label': 'Sad', 'color': Color(0xFFFFCC00)},
+    'angry': {'emoji': '😡', 'label': 'Angry', 'color': Color(0xFFFF9500)},
+  };
+
+  // Auto Compress Image to Minimal Bytes (~150KB-200KB) while Retaining HD Quality
   Future<File> _compressImage(File file, {bool isCamera = false}) async {
     try {
       final bytes = await file.readAsBytes();
@@ -45,7 +55,6 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
         oriented = img.flipHorizontal(oriented);
       }
 
-      // Resize max dimension to 1200px
       if (oriented.width > 1200 || oriented.height > 1200) {
         oriented = img.copyResize(
           oriented,
@@ -66,6 +75,9 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
     }
   }
 
+  // ==========================================
+  // CREATE POST MODAL
+  // ==========================================
   void _showCreatePostModal(UserProvider user) {
     final textController = TextEditingController();
     File? selectedImage;
@@ -95,7 +107,7 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                   Row(
                     children: [
                       Text(
-                        'បង្កើតព័ត៌មានក្រុមហ៊ុន (Create Post)',
+                        'បង្កើតព័ត៌មាន (Create Post)',
                         style: GoogleFonts.kantumruyPro(
                           color: Colors.white,
                           fontSize: 16,
@@ -115,7 +127,7 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                     maxLines: 4,
                     style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 14.5),
                     decoration: InputDecoration(
-                      hintText: 'សរសេរព័ត៌មានក្រុមហ៊ុន ការប្រកាស ឬការផ្សព្វផ្សាយ...',
+                      hintText: 'សរសេរព័ត៌មាន ការប្រកាស ឬការផ្សព្វផ្សាយ...',
                       hintStyle: GoogleFonts.kantumruyPro(color: Colors.white38, fontSize: 14.0),
                       filled: true,
                       fillColor: _CommunityDark.bg,
@@ -131,7 +143,7 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                       children: [
                         ClipRRect(
                           borderRadius: BorderRadius.circular(16),
-                          child: Image.file(selectedImage!, height: 160, width: double.infinity, fit: BoxFit.cover),
+                          child: Image.file(selectedImage!, height: 180, width: double.infinity, fit: BoxFit.cover),
                         ),
                         Positioned(
                           right: 8,
@@ -139,7 +151,7 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                           child: InkWell(
                             onTap: () => setModalState(() => selectedImage = null),
                             child: Container(
-                              padding: const EdgeInsets.all(5),
+                              padding: const EdgeInsets.all(6),
                               decoration: const BoxDecoration(color: Color(0x99000000), shape: BoxShape.circle),
                               child: const Icon(Icons.close_rounded, color: Colors.white, size: 18),
                             ),
@@ -192,7 +204,7 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: _CommunityDark.accent,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
                         ),
                         onPressed: isPosting
                             ? null
@@ -212,7 +224,6 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                                     if (uploaded != null && uploaded.isNotEmpty) {
                                       mediaUrl = uploaded;
                                     } else {
-                                      // Robust Fallback to Base64 image if R2 fails
                                       final imgBytes = await selectedImage!.readAsBytes();
                                       mediaUrl = 'data:image/jpeg;base64,${base64Encode(imgBytes)}';
                                     }
@@ -220,11 +231,12 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
 
                                   await _firestore.collection('community_posts').add({
                                     'authorId': user.employeeId ?? '',
-                                    'authorName': user.name ?? 'VVC Admin',
+                                    'authorName': user.name ?? 'VVC Member',
                                     'authorAvatar': user.avatar ?? '',
                                     'roleTag': 'Official Announcement',
                                     'content': text,
                                     'mediaUrl': mediaUrl,
+                                    'reactionsMap': {},
                                     'likes': [],
                                     'createdAt': FieldValue.serverTimestamp(),
                                   });
@@ -233,7 +245,7 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                                     Navigator.pop(ctx);
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
-                                        content: Text('បានផ្សព្វផ្សាយព័ត៌មានក្រុមហ៊ុនរួចរាល់!', style: GoogleFonts.kantumruyPro()),
+                                        content: Text('បានផ្សព្វផ្សាយព័ត៌មានរួចរាល់!', style: GoogleFonts.kantumruyPro()),
                                         backgroundColor: _CommunityDark.success,
                                       ),
                                     );
@@ -259,6 +271,546 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                             : Text('ផ្សព្វផ្សាយ (Publish)', style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold)),
                       ),
                     ],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // ==========================================
+  // EDIT POST MODAL
+  // ==========================================
+  void _showEditPostModal(DocumentSnapshot postDoc) {
+    final data = postDoc.data() as Map<String, dynamic>;
+    final textController = TextEditingController(text: data['content'] ?? '');
+    String currentMediaUrl = data['mediaUrl'] ?? '';
+    File? newImage;
+    bool isSaving = false;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: _CommunityDark.card,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                20,
+                16,
+                20,
+                MediaQuery.of(context).viewInsets.bottom + 20,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        'កែប្រែព័ត៌មាន (Edit Post)',
+                        style: GoogleFonts.kantumruyPro(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded, color: Colors.white70),
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: textController,
+                    maxLines: 4,
+                    style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 14.5),
+                    decoration: InputDecoration(
+                      hintText: 'សរសេរព័ត៌មាន...',
+                      filled: true,
+                      fillColor: _CommunityDark.bg,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  if (newImage != null) ...[
+                    Stack(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: Image.file(newImage!, height: 180, width: double.infinity, fit: BoxFit.cover),
+                        ),
+                        Positioned(
+                          right: 8,
+                          top: 8,
+                          child: InkWell(
+                            onTap: () => setModalState(() => newImage = null),
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: const BoxDecoration(color: Color(0x99000000), shape: BoxShape.circle),
+                              child: const Icon(Icons.close_rounded, color: Colors.white, size: 18),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ] else if (currentMediaUrl.isNotEmpty) ...[
+                    Stack(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: Image.network(ApiService.getFullImageUrl(currentMediaUrl), height: 180, width: double.infinity, fit: BoxFit.cover),
+                        ),
+                        Positioned(
+                          right: 8,
+                          top: 8,
+                          child: InkWell(
+                            onTap: () => setModalState(() => currentMediaUrl = ''),
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: const BoxDecoration(color: Color(0x99000000), shape: BoxShape.circle),
+                              child: const Icon(Icons.close_rounded, color: Colors.white, size: 18),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      InkWell(
+                        onTap: () async {
+                          final picked = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+                          if (picked != null) {
+                            final comp = await _compressImage(File(picked.path), isCamera: false);
+                            setModalState(() {
+                              newImage = comp;
+                              currentMediaUrl = '';
+                            });
+                          }
+                        },
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: _CommunityDark.bg,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(Icons.photo_library_rounded, color: _CommunityDark.accent, size: 24),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      InkWell(
+                        onTap: () async {
+                          final picked = await _picker.pickImage(source: ImageSource.camera, imageQuality: 85);
+                          if (picked != null) {
+                            final comp = await _compressImage(File(picked.path), isCamera: true);
+                            setModalState(() {
+                              newImage = comp;
+                              currentMediaUrl = '';
+                            });
+                          }
+                        },
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: _CommunityDark.bg,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(Icons.camera_alt_rounded, color: _CommunityDark.success, size: 24),
+                        ),
+                      ),
+                      const Spacer(),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _CommunityDark.accent,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+                        ),
+                        onPressed: isSaving
+                            ? null
+                            : () async {
+                                final text = textController.text.trim();
+                                setModalState(() => isSaving = true);
+
+                                try {
+                                  String mediaUrl = currentMediaUrl;
+                                  if (newImage != null) {
+                                    final uploaded = await _r2Service.uploadMedia(
+                                      file: newImage!,
+                                      folder: 'community',
+                                    );
+                                    if (uploaded != null && uploaded.isNotEmpty) {
+                                      mediaUrl = uploaded;
+                                    } else {
+                                      final imgBytes = await newImage!.readAsBytes();
+                                      mediaUrl = 'data:image/jpeg;base64,${base64Encode(imgBytes)}';
+                                    }
+                                  }
+
+                                  await postDoc.reference.update({
+                                    'content': text,
+                                    'mediaUrl': mediaUrl,
+                                    'updatedAt': FieldValue.serverTimestamp(),
+                                  });
+
+                                  if (context.mounted) {
+                                    Navigator.pop(ctx);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('បានរក្សាទុកការកែប្រែ!', style: GoogleFonts.kantumruyPro()),
+                                        backgroundColor: _CommunityDark.success,
+                                      ),
+                                    );
+                                  }
+                                } catch (e) {
+                                  debugPrint('Update post error: $e');
+                                } finally {
+                                  if (ctx.mounted) {
+                                    setModalState(() => isSaving = false);
+                                  }
+                                }
+                              },
+                        child: isSaving
+                            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                            : Text('រក្សាទុក (Save)', style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // ==========================================
+  // DELETE POST CONFIRMATION
+  // ==========================================
+  void _confirmDeletePost(DocumentSnapshot postDoc) {
+    showDialog(
+      context: context,
+      builder: (dialogCtx) {
+        return AlertDialog(
+          backgroundColor: _CommunityDark.card,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Text(
+            'លុប Post',
+            style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+          content: Text(
+            'តើអ្នកពិតជាចង់លុប Post នេះចេញពីសហគមន៍មែនទេ?',
+            style: GoogleFonts.kantumruyPro(color: Colors.white70),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx),
+              child: Text('បោះបង់', style: GoogleFonts.kantumruyPro(color: Colors.white54)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: _CommunityDark.danger),
+              onPressed: () async {
+                Navigator.pop(dialogCtx);
+                await postDoc.reference.delete();
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('បានលុប Post រួចរាល់!', style: GoogleFonts.kantumruyPro()),
+                      backgroundColor: _CommunityDark.danger,
+                    ),
+                  );
+                }
+              },
+              child: Text('លុបចេញ', style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // ==========================================
+  // FACEBOOK REACTION PICKER POPUP
+  // ==========================================
+  void _showReactionPicker(BuildContext context, DocumentReference docRef, String currentUserId, Map<String, dynamic> currentReactionsMap) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return Container(
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E293B),
+            borderRadius: BorderRadius.circular(30),
+            border: Border.all(color: Colors.white24, width: 0.8),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.4),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: _reactions.entries.map((entry) {
+              final key = entry.key;
+              final emoji = entry.value['emoji'] as String;
+
+              return InkWell(
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  final Map<String, dynamic> updatedMap = Map.from(currentReactionsMap);
+                  if (updatedMap[currentUserId] == key) {
+                    updatedMap.remove(currentUserId);
+                  } else {
+                    updatedMap[currentUserId] = key;
+                  }
+                  await docRef.update({'reactionsMap': updatedMap});
+                },
+                child: Padding(
+                  padding: const EdgeInsets.all(4.0),
+                  child: Text(
+                    emoji,
+                    style: const TextStyle(fontSize: 32),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        );
+      },
+    );
+  }
+
+  // ==========================================
+  // COMMENTS BOTTOM SHEET (FACEBOOK STYLE)
+  // ==========================================
+  void _showCommentsSheet(DocumentSnapshot postDoc, UserProvider user) {
+    final commentController = TextEditingController();
+    bool isSending = false;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: _CommunityDark.card,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetCtx) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.75,
+              padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+              child: Column(
+                children: [
+                  // Top Header Bar
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                    child: Row(
+                      children: [
+                        Text(
+                          'មតិយោបល់ (Comments)',
+                          style: GoogleFonts.kantumruyPro(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const Spacer(),
+                        IconButton(
+                          icon: const Icon(Icons.close_rounded, color: Colors.white70),
+                          onPressed: () => Navigator.pop(sheetCtx),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(color: Colors.white12, height: 1),
+
+                  // Real-time Comments List
+                  Expanded(
+                    child: StreamBuilder<QuerySnapshot>(
+                      stream: postDoc.reference
+                          .collection('comments')
+                          .orderBy('createdAt', descending: false)
+                          .snapshots(),
+                      builder: (context, snapshot) {
+                        if (!snapshot.hasData) {
+                          return const Center(child: CircularProgressIndicator(color: _CommunityDark.accent));
+                        }
+
+                        final comments = snapshot.data!.docs;
+                        if (comments.isEmpty) {
+                          return Center(
+                            child: Text(
+                              'មិនទាន់មានមតិយោបល់នៅឡើយទេ\nជាអ្នកដំបូងដែលបញ្ចេញមតិ!',
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.kantumruyPro(color: Colors.white54, fontSize: 13.5),
+                            ),
+                          );
+                        }
+
+                        return ListView.builder(
+                          padding: const EdgeInsets.all(14),
+                          itemCount: comments.length,
+                          itemBuilder: (context, idx) {
+                            final cDoc = comments[idx];
+                            final cData = cDoc.data() as Map<String, dynamic>;
+                            final String cAuthorId = cData['authorId'] ?? '';
+                            final String cAuthorName = cData['authorName'] ?? 'Member';
+                            final String cAuthorAvatar = cData['authorAvatar'] ?? '';
+                            final String cText = cData['text'] ?? '';
+                            final Timestamp? cTs = cData['createdAt'] as Timestamp?;
+                            final String cTime = cTs != null ? DateFormat('HH:mm dd/MM').format(cTs.toDate()) : 'ទើបតែ';
+                            final bool isMyComment = cAuthorId == user.employeeId;
+
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 12),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  CircleAvatar(
+                                    radius: 16,
+                                    backgroundImage: cAuthorAvatar.isNotEmpty
+                                        ? NetworkImage(ApiService.getFullImageUrl(cAuthorAvatar))
+                                        : null,
+                                    backgroundColor: _CommunityDark.accent,
+                                    child: cAuthorAvatar.isEmpty
+                                        ? Text(cAuthorName[0].toUpperCase(), style: GoogleFonts.inter(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold))
+                                        : null,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                      decoration: BoxDecoration(
+                                        color: _CommunityDark.bg,
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Text(
+                                                cAuthorName,
+                                                style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                                              ),
+                                              const Spacer(),
+                                              Text(
+                                                cTime,
+                                                style: GoogleFonts.inter(color: Colors.white38, fontSize: 10),
+                                              ),
+                                              if (isMyComment) ...[
+                                                const SizedBox(width: 6),
+                                                InkWell(
+                                                  onTap: () => cDoc.reference.delete(),
+                                                  child: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 16),
+                                                ),
+                                              ],
+                                            ],
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            cText,
+                                            style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 13.5),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+
+                  // Bottom Input Field
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(14, 8, 14, 12),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF1E293B),
+                      border: Border(top: BorderSide(color: Colors.white12, width: 0.5)),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: commentController,
+                            style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 14),
+                            decoration: InputDecoration(
+                              hintText: 'សរសេរមតិយោបល់...',
+                              hintStyle: GoogleFonts.kantumruyPro(color: Colors.white38, fontSize: 13.5),
+                              filled: true,
+                              fillColor: _CommunityDark.bg,
+                              isDense: true,
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(20),
+                                borderSide: BorderSide.none,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        InkWell(
+                          onTap: isSending
+                              ? null
+                              : () async {
+                                  final text = commentController.text.trim();
+                                  if (text.isEmpty) return;
+                                  setSheetState(() => isSending = true);
+                                  try {
+                                    commentController.clear();
+                                    await postDoc.reference.collection('comments').add({
+                                      'authorId': user.employeeId ?? '',
+                                      'authorName': user.name ?? 'Member',
+                                      'authorAvatar': user.avatar ?? '',
+                                      'text': text,
+                                      'createdAt': FieldValue.serverTimestamp(),
+                                    });
+                                  } catch (e) {
+                                    debugPrint('Add comment error: $e');
+                                  } finally {
+                                    if (sheetCtx.mounted) {
+                                      setSheetState(() => isSending = false);
+                                    }
+                                  }
+                                },
+                          child: Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: const BoxDecoration(
+                              color: _CommunityDark.accent,
+                              shape: BoxShape.circle,
+                            ),
+                            child: isSending
+                                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                                : const Icon(Icons.send_rounded, color: Colors.white, size: 18),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -345,16 +897,39 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
               final doc = posts[index];
               final data = doc.data() as Map<String, dynamic>;
 
+              final String authorId = data['authorId'] ?? '';
               final String authorName = data['authorName'] ?? 'VVC Official';
               final String authorAvatar = data['authorAvatar'] ?? '';
-              final String roleTag = data['roleTag'] ?? 'Announcement';
+              final String roleTag = data['roleTag'] ?? 'Official Announcement';
               final String content = data['content'] ?? '';
               final String mediaUrl = data['mediaUrl'] ?? '';
-              final List<dynamic> likes = data['likes'] ?? [];
+              final Map<String, dynamic> reactionsMap = data['reactionsMap'] as Map<String, dynamic>? ?? {};
+              final List<dynamic> legacyLikes = data['likes'] ?? [];
               final Timestamp? ts = data['createdAt'] as Timestamp?;
               final String timeStr = ts != null ? DateFormat('dd/MM HH:mm').format(ts.toDate()) : 'ទើបតែ';
 
-              final bool isLiked = likes.contains(userProvider.employeeId);
+              final String myId = userProvider.employeeId ?? '';
+              final bool isMyPost = authorId == myId || myId == 'super_admin' || myId == 'admin';
+
+              // Determine current user reaction
+              String userReactionKey = reactionsMap[myId] ?? '';
+              if (userReactionKey.isEmpty && legacyLikes.contains(myId)) {
+                userReactionKey = 'like';
+              }
+
+              // Calculate reaction counts & badges
+              final Map<String, int> reactionCounts = {};
+              reactionsMap.forEach((uId, rKey) {
+                if (rKey is String && rKey.isNotEmpty) {
+                  reactionCounts[rKey] = (reactionCounts[rKey] ?? 0) + 1;
+                }
+              });
+              if (reactionCounts.isEmpty && legacyLikes.isNotEmpty) {
+                reactionCounts['like'] = legacyLikes.length;
+              }
+
+              int totalReactions = 0;
+              reactionCounts.forEach((_, cnt) => totalReactions += cnt);
 
               return Container(
                 margin: const EdgeInsets.only(bottom: 16),
@@ -367,7 +942,7 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Author Row
+                    // Author Header Row
                     Row(
                       children: [
                         CircleAvatar(
@@ -406,11 +981,47 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                             ],
                           ),
                         ),
+                        // Popup Menu for Edit / Delete Post
+                        if (isMyPost)
+                          PopupMenuButton<String>(
+                            icon: const Icon(Icons.more_horiz_rounded, color: Colors.white70),
+                            color: const Color(0xFF0F172A),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            onSelected: (val) {
+                              if (val == 'edit') {
+                                _showEditPostModal(doc);
+                              } else if (val == 'delete') {
+                                _confirmDeletePost(doc);
+                              }
+                            },
+                            itemBuilder: (context) => [
+                              PopupMenuItem(
+                                value: 'edit',
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.edit_rounded, color: Colors.white, size: 18),
+                                    const SizedBox(width: 10),
+                                    Text('កែប្រែ Post', style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 13.5)),
+                                  ],
+                                ),
+                              ),
+                              PopupMenuItem(
+                                value: 'delete',
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.delete_forever_rounded, color: Colors.redAccent, size: 18),
+                                    const SizedBox(width: 10),
+                                    Text('លុប Post', style: GoogleFonts.kantumruyPro(color: Colors.redAccent, fontSize: 13.5)),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
                       ],
                     ),
                     const SizedBox(height: 12),
 
-                    // Post Content
+                    // Post Content Text
                     if (content.isNotEmpty)
                       Text(
                         content,
@@ -436,33 +1047,127 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
 
                     const SizedBox(height: 14),
 
-                    // Actions Bar (Like & Share)
+                    // Reactions Count & Comments Count Row
+                    if (totalReactions > 0)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Row(
+                          children: [
+                            Row(
+                              children: reactionCounts.keys.take(3).map((rKey) {
+                                final emoji = _reactions[rKey]?['emoji'] ?? '👍';
+                                return Padding(
+                                  padding: const EdgeInsets.only(right: 2.0),
+                                  child: Text(emoji, style: const TextStyle(fontSize: 14)),
+                                );
+                              }).toList(),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              '$totalReactions',
+                              style: GoogleFonts.inter(color: Colors.white70, fontSize: 12.5),
+                            ),
+                            const Spacer(),
+                            StreamBuilder<QuerySnapshot>(
+                              stream: doc.reference.collection('comments').snapshots(),
+                              builder: (context, cSnap) {
+                                final count = cSnap.hasData ? cSnap.data!.docs.length : 0;
+                                if (count == 0) return const SizedBox.shrink();
+                                return Text(
+                                  '$count មតិយោបល់',
+                                  style: GoogleFonts.kantumruyPro(color: Colors.white54, fontSize: 12),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+
+                    const Divider(color: Colors.white12, height: 1),
+                    const SizedBox(height: 8),
+
+                    // Action Buttons Row (Like/Reaction, Comment, Share)
                     Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
-                        InkWell(
+                        // 1. Reaction / Like Button (Tap = toggle, Long press = Picker)
+                        GestureDetector(
                           onTap: () async {
-                            final List updated = List.from(likes);
-                            final myId = userProvider.employeeId ?? '';
-                            if (isLiked) {
-                              updated.remove(myId);
+                            final Map<String, dynamic> updatedMap = Map.from(reactionsMap);
+                            if (userReactionKey.isNotEmpty) {
+                              updatedMap.remove(myId);
                             } else {
-                              updated.add(myId);
+                              updatedMap[myId] = 'like';
                             }
-                            await doc.reference.update({'likes': updated});
+                            await doc.reference.update({'reactionsMap': updatedMap});
                           },
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          onLongPress: () {
+                            _showReactionPicker(context, doc.reference, myId, reactionsMap);
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                             child: Row(
                               children: [
-                                Icon(
-                                  isLiked ? Icons.thumb_up_alt_rounded : Icons.thumb_up_off_alt_rounded,
-                                  color: isLiked ? const Color(0xFF007AFF) : Colors.white60,
-                                  size: 20,
+                                Text(
+                                  userReactionKey.isNotEmpty ? (_reactions[userReactionKey]?['emoji'] ?? '👍') : '👍',
+                                  style: const TextStyle(fontSize: 16),
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
-                                  '${likes.length}',
-                                  style: GoogleFonts.inter(color: Colors.white70, fontSize: 13),
+                                  userReactionKey.isNotEmpty ? (_reactions[userReactionKey]?['label'] ?? 'Like') : 'Like',
+                                  style: GoogleFonts.inter(
+                                    color: userReactionKey.isNotEmpty
+                                        ? (_reactions[userReactionKey]?['color'] as Color? ?? _CommunityDark.accent)
+                                        : Colors.white60,
+                                    fontSize: 13,
+                                    fontWeight: userReactionKey.isNotEmpty ? FontWeight.bold : FontWeight.normal,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        // 2. Comment Button
+                        InkWell(
+                          onTap: () => _showCommentsSheet(doc, userProvider),
+                          borderRadius: BorderRadius.circular(12),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.mode_comment_outlined, color: Colors.white60, size: 18),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'បញ្ចេញមតិ',
+                                  style: GoogleFonts.kantumruyPro(color: Colors.white60, fontSize: 13),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        // 3. Share Button
+                        InkWell(
+                          onTap: () {
+                            Clipboard.setData(ClipboardData(text: content));
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('បានចម្លងអត្ថបទ Post!', style: GoogleFonts.kantumruyPro()),
+                                backgroundColor: _CommunityDark.accent,
+                              ),
+                            );
+                          },
+                          borderRadius: BorderRadius.circular(12),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.share_outlined, color: Colors.white60, size: 18),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'ចែករំលែក',
+                                  style: GoogleFonts.kantumruyPro(color: Colors.white60, fontSize: 13),
                                 ),
                               ],
                             ),
