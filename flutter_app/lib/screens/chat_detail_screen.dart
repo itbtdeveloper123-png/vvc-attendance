@@ -125,7 +125,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
   // Reply & Pin State
   String? _replyingToMessage;
-  String? _pinnedMessage = 'Username : Vvc_User password : Vvc@2026';
+  String? _pinnedMessage;
 
   // Search State
   bool _isSearchMode = false;
@@ -311,6 +311,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             _isTargetRecordingVoice = recordingMap[widget.targetUserId] == true;
             if (pinned != null && pinned['text'] != null) {
               _pinnedMessage = pinned['text'].toString();
+            } else {
+              _pinnedMessage = null;
             }
           });
         }
@@ -388,7 +390,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             child: Column(
               children: [
                 _buildHeader(),
-                _buildPinnedMessageBanner(),
                 Expanded(
                   child: _buildMessageFeed(),
                 ),
@@ -403,56 +404,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
   }
 
-  // Pinned Message Banner Widget
-  Widget _buildPinnedMessageBanner() {
-    if (_pinnedMessage == null || _pinnedMessage!.isEmpty) return const SizedBox.shrink();
 
-    final text = _pinnedMessage!;
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 8.0),
-      margin: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.55),
-        borderRadius: BorderRadius.circular(12.0),
-        border: Border.all(color: Colors.white24, width: 0.8),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.push_pin_rounded, color: Color(0xFFFFD700), size: 18),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'សារបានប៉ិន (Pinned Message)',
-                  style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 10.5, fontWeight: FontWeight.bold),
-                ),
-                Text(
-                  text,
-                  style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 13.0, fontWeight: FontWeight.w600),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-          GestureDetector(
-            onTap: _unpinMessage,
-            child: const Icon(Icons.close_rounded, color: Colors.white70, size: 18),
-          ),
-        ],
-      ),
-    );
-  }
 
-  Future<void> _unpinMessage() async {
-    await _firestore.collection('chats').doc(_roomId).update({
-      'pinnedMessage': FieldValue.delete(),
-    });
-  }
 
   // ==========================================
   // A. CUSTOM APP BAR (Telegram iOS Floating Header Style)
@@ -556,7 +510,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
         child: Container(
           decoration: const BoxDecoration(
-            color: Color(0xDC1C1C1E),
+            color: Color(0x22000000),
             border: Border(
               bottom: BorderSide(color: Color(0x1FFFFFFF), width: 0.5),
             ),
@@ -569,36 +523,53 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  // 1. Left Back Capsule Button with Badge
+                  // 1. Left Back Capsule Button with Dynamic Unread Badge
                   InkWell(
                     onTap: () => Navigator.pop(context),
                     borderRadius: BorderRadius.circular(20),
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF262629),
+                        color: const Color(0x66262629),
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.08), width: 0.5),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.15), width: 0.5),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 15),
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              '3796',
-                              style: GoogleFonts.inter(
-                                color: Colors.black,
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
+                          StreamBuilder<QuerySnapshot>(
+                            stream: _firestore
+                                .collection('chats')
+                                .where('participants', arrayContains: currentUserId)
+                                .where('isRead', isEqualTo: false)
+                                .snapshots(),
+                            builder: (context, snap) {
+                              int unread = 0;
+                              if (snap.hasData) {
+                                unread = snap.data!.docs.where((doc) {
+                                  final data = doc.data() as Map<String, dynamic>;
+                                  return data['lastSenderId'] != currentUserId;
+                                }).length;
+                              }
+                              if (unread == 0) return const SizedBox.shrink();
+                              return Container(
+                                margin: const EdgeInsets.only(left: 6),
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  '$unread',
+                                  style: GoogleFonts.inter(
+                                    color: Colors.black,
+                                    fontSize: 11.0,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              );
+                            },
                           ),
                         ],
                       ),
@@ -2725,7 +2696,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
         child: Container(
           decoration: const BoxDecoration(
-            color: Color(0xDC1C1C1E),
+            color: Color(0x22000000),
             border: Border(
               top: BorderSide(color: Color(0x1FFFFFFF), width: 0.5),
             ),

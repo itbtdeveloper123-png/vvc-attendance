@@ -1,13 +1,25 @@
 import 'dart:io';
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:image/image.dart' as img;
 import '../providers/user_provider.dart';
 import '../services/api_service.dart';
 import '../services/r2_storage_service.dart';
+
+class _CommunityDark {
+  static const Color bg = Color(0xFF0F172A);
+  static const Color card = Color(0xFF1E293B);
+  static const Color accent = Color(0xFF0A84FF);
+  static const Color success = Color(0xFF10B981);
+  static const Color danger = Color(0xFFFF3B30);
+}
 
 class CommunityChannelScreen extends StatefulWidget {
   const CommunityChannelScreen({super.key});
@@ -21,6 +33,39 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
   final ImagePicker _picker = ImagePicker();
   final R2StorageService _r2Service = R2StorageService();
 
+  // Auto Compress Image to Minimal Bytes (~150KB-200KB) while Retaining Crystal Clear HD Clarity
+  Future<File> _compressImage(File file, {bool isCamera = false}) async {
+    try {
+      final bytes = await file.readAsBytes();
+      final decoded = img.decodeImage(bytes);
+      if (decoded == null) return file;
+
+      img.Image oriented = img.bakeOrientation(decoded);
+      if (isCamera) {
+        oriented = img.flipHorizontal(oriented);
+      }
+
+      // Resize max dimension to 1200px
+      if (oriented.width > 1200 || oriented.height > 1200) {
+        oriented = img.copyResize(
+          oriented,
+          width: oriented.width > oriented.height ? 1200 : null,
+          height: oriented.height >= oriented.width ? 1200 : null,
+          interpolation: img.Interpolation.average,
+        );
+      }
+
+      final compressedBytes = Uint8List.fromList(img.encodeJpg(oriented, quality: 72));
+      final tempDir = await getTemporaryDirectory();
+      final compressedFile = File('${tempDir.path}/comp_${DateTime.now().millisecondsSinceEpoch}.jpg');
+      await compressedFile.writeAsBytes(compressedBytes);
+      return compressedFile;
+    } catch (e) {
+      debugPrint('Auto compress image error: $e');
+      return file;
+    }
+  }
+
   void _showCreatePostModal(UserProvider user) {
     final textController = TextEditingController();
     File? selectedImage;
@@ -28,7 +73,7 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1E293B),
+      backgroundColor: _CommunityDark.card,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -68,12 +113,12 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                   TextField(
                     controller: textController,
                     maxLines: 4,
-                    style: GoogleFonts.kantumruyPro(color: Colors.white),
+                    style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 14.5),
                     decoration: InputDecoration(
                       hintText: 'សរសេរព័ត៌មានក្រុមហ៊ុន ការប្រកាស ឬការផ្សព្វផ្សាយ...',
-                      hintStyle: GoogleFonts.kantumruyPro(color: Colors.white38),
+                      hintStyle: GoogleFonts.kantumruyPro(color: Colors.white38, fontSize: 14.0),
                       filled: true,
-                      fillColor: const Color(0xFF0F172A),
+                      fillColor: _CommunityDark.bg,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16),
                         borderSide: BorderSide.none,
@@ -85,8 +130,8 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                     Stack(
                       children: [
                         ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: Image.file(selectedImage!, height: 140, width: double.infinity, fit: BoxFit.cover),
+                          borderRadius: BorderRadius.circular(16),
+                          child: Image.file(selectedImage!, height: 160, width: double.infinity, fit: BoxFit.cover),
                         ),
                         Positioned(
                           right: 8,
@@ -94,40 +139,60 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                           child: InkWell(
                             onTap: () => setModalState(() => selectedImage = null),
                             child: Container(
-                              padding: const EdgeInsets.all(4),
-                              decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
-                              child: const Icon(Icons.close, color: Colors.white, size: 18),
+                              padding: const EdgeInsets.all(5),
+                              decoration: const BoxDecoration(color: Color(0x99000000), shape: BoxShape.circle),
+                              child: const Icon(Icons.close_rounded, color: Colors.white, size: 18),
                             ),
                           ),
                         ),
                       ],
                     ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
                   Row(
                     children: [
-                      IconButton(
-                        icon: const Icon(Icons.photo_library_rounded, color: Color(0xFF007AFF), size: 28),
-                        onPressed: () async {
-                          final picked = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
+                      InkWell(
+                        onTap: () async {
+                          final picked = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
                           if (picked != null) {
-                            setModalState(() => selectedImage = File(picked.path));
+                            final comp = await _compressImage(File(picked.path), isCamera: false);
+                            setModalState(() => selectedImage = comp);
                           }
                         },
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: _CommunityDark.bg,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(Icons.photo_library_rounded, color: _CommunityDark.accent, size: 24),
+                        ),
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.camera_alt_rounded, color: Color(0xFF10B981), size: 28),
-                        onPressed: () async {
-                          final picked = await _picker.pickImage(source: ImageSource.camera, imageQuality: 80);
+                      const SizedBox(width: 10),
+                      InkWell(
+                        onTap: () async {
+                          final picked = await _picker.pickImage(source: ImageSource.camera, imageQuality: 85);
                           if (picked != null) {
-                            setModalState(() => selectedImage = File(picked.path));
+                            final comp = await _compressImage(File(picked.path), isCamera: true);
+                            setModalState(() => selectedImage = comp);
                           }
                         },
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: _CommunityDark.bg,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(Icons.camera_alt_rounded, color: _CommunityDark.success, size: 24),
+                        ),
                       ),
                       const Spacer(),
                       ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF007AFF),
+                          backgroundColor: _CommunityDark.accent,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                         ),
                         onPressed: isPosting
                             ? null
@@ -137,33 +202,56 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
 
                                 setModalState(() => isPosting = true);
 
-                                String? mediaUrl;
-                                if (selectedImage != null) {
-                                  mediaUrl = await _r2Service.uploadMedia(
-                                    file: selectedImage!,
-                                    folder: 'community',
-                                  );
-                                }
+                                try {
+                                  String mediaUrl = '';
+                                  if (selectedImage != null) {
+                                    final uploaded = await _r2Service.uploadMedia(
+                                      file: selectedImage!,
+                                      folder: 'community',
+                                    );
+                                    if (uploaded != null && uploaded.isNotEmpty) {
+                                      mediaUrl = uploaded;
+                                    } else {
+                                      // Robust Fallback to Base64 image if R2 fails
+                                      final imgBytes = await selectedImage!.readAsBytes();
+                                      mediaUrl = 'data:image/jpeg;base64,${base64Encode(imgBytes)}';
+                                    }
+                                  }
 
-                                await _firestore.collection('community_posts').add({
-                                  'authorId': user.employeeId ?? '',
-                                  'authorName': user.name ?? 'VVC Admin',
-                                  'authorAvatar': user.avatar ?? '',
-                                  'roleTag': 'Official Announcement',
-                                  'content': text,
-                                  'mediaUrl': mediaUrl ?? '',
-                                  'likes': [],
-                                  'createdAt': FieldValue.serverTimestamp(),
-                                });
+                                  await _firestore.collection('community_posts').add({
+                                    'authorId': user.employeeId ?? '',
+                                    'authorName': user.name ?? 'VVC Admin',
+                                    'authorAvatar': user.avatar ?? '',
+                                    'roleTag': 'Official Announcement',
+                                    'content': text,
+                                    'mediaUrl': mediaUrl,
+                                    'likes': [],
+                                    'createdAt': FieldValue.serverTimestamp(),
+                                  });
 
-                                if (context.mounted) {
-                                  Navigator.pop(ctx);
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text('បានផ្សព្វផ្សាយព័ត៌មានក្រុមហ៊ុនរួចរាល់!', style: GoogleFonts.kantumruyPro()),
-                                      backgroundColor: const Color(0xFF10B981),
-                                    ),
-                                  );
+                                  if (context.mounted) {
+                                    Navigator.pop(ctx);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('បានផ្សព្វផ្សាយព័ត៌មានក្រុមហ៊ុនរួចរាល់!', style: GoogleFonts.kantumruyPro()),
+                                        backgroundColor: _CommunityDark.success,
+                                      ),
+                                    );
+                                  }
+                                } catch (e) {
+                                  debugPrint('Create post error: $e');
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('មានបញ្ហាក្នុងការផ្សព្វផ្សាយ៖ $e', style: GoogleFonts.kantumruyPro()),
+                                        backgroundColor: _CommunityDark.danger,
+                                      ),
+                                    );
+                                  }
+                                } finally {
+                                  if (ctx.mounted) {
+                                    setModalState(() => isPosting = false);
+                                  }
                                 }
                               },
                         child: isPosting

@@ -273,10 +273,12 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
           final String name = data['name'] ?? widget.userName;
           final String avatar = data['avatar'] ?? widget.userPhoto;
-          final String phone = data['phone'] ?? data['phone_number'] ?? '+855 90 910 416';
-          final String username = data['username'] ?? '@${name.replaceAll(' ', '').toLowerCase()}';
-          final String birthday = data['birthday'] ?? '4 Apr 1999 (27 years old)';
-          final String bio = data['bio'] ?? 'ស្នេហាគឺមិនមែនគ្រាន់តែពាក្យមួយទេ វាជាកម្លាំងនិងលំអជីវិតឱ្យស្រស់ស្អាត';
+          final String phone = (data['phone'] ?? data['phone_number'] ?? data['mobile'] ?? data['email'] ?? 'គ្មានទិន្នន័យ').toString();
+          final String username = data['username'] != null && data['username'].toString().isNotEmpty
+              ? '@${data['username']}'
+              : (data['email'] != null ? data['email'].toString() : 'គ្មានទិន្នន័យ');
+          final String birthday = (data['birthday'] ?? data['dob'] ?? 'គ្មានទិន្នន័យ').toString();
+          final String bio = (data['bio'] ?? data['position'] ?? data['department'] ?? 'គ្មានទិន្នន័យ').toString();
 
           final nameParts = name.split(' ');
           final firstName = nameParts.isNotEmpty ? nameParts[0] : name;

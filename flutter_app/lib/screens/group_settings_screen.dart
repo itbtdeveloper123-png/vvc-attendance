@@ -346,6 +346,37 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                                           ),
                                           child: Text(customTag, style: GoogleFonts.inter(color: _GSDark.accent, fontSize: 11, fontWeight: FontWeight.w600)),
                                         ),
+                                      if (isAdmin && uid != widget.currentUserId && !isUserOwner)
+                                        PopupMenuButton<String>(
+                                          icon: const Icon(Icons.more_vert_rounded, color: Colors.white54, size: 20),
+                                          color: _GSDark.card,
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                          onSelected: (val) async {
+                                            if (val == 'toggle_admin') {
+                                              admins[uid] = !(admins[uid] == true);
+                                              await _firestore.collection('groups').doc(widget.groupId).update({'admins': admins});
+                                            } else if (val == 'remove') {
+                                              final updated = List.from(participantIds)..remove(uid);
+                                              await _firestore.collection('groups').doc(widget.groupId).update({'participantIds': updated});
+                                            }
+                                          },
+                                          itemBuilder: (ctx) => [
+                                            PopupMenuItem(
+                                              value: 'toggle_admin',
+                                              child: Text(
+                                                isUserAdmin ? 'ដកសិទ្ធិ Admin' : 'ដំឡើងជា Admin',
+                                                style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 13.5),
+                                              ),
+                                            ),
+                                            PopupMenuItem(
+                                              value: 'remove',
+                                              child: Text(
+                                                'លុបចេញពីក្រុម',
+                                                style: GoogleFonts.kantumruyPro(color: _GSDark.danger, fontSize: 13.5),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                     ],
                                   ),
                                 );
@@ -354,6 +385,64 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                           ],
                         ),
                       ),
+                      const SizedBox(height: 20),
+
+                      // Admin Group Control Section (If Owner / Admin)
+                      if (isAdmin) ...[
+                        Container(
+                          decoration: BoxDecoration(
+                            color: _GSDark.card,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: _GSDark.divider, width: 0.8),
+                          ),
+                          child: Column(
+                            children: [
+                              ListTile(
+                                leading: const Icon(Icons.link_rounded, color: _GSDark.accent),
+                                title: Text('តំណភ្ជាប់អញ្ជើញ (Group Invite Link)', style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 14.5)),
+                                subtitle: Text('t.me/vvc_group_${widget.groupId.substring(0, widget.groupId.length > 6 ? 6 : widget.groupId.length)}', style: GoogleFonts.inter(color: _GSDark.textMuted, fontSize: 12)),
+                                trailing: const Icon(Icons.copy_rounded, color: Colors.white54, size: 18),
+                                onTap: () {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('បានចម្លង Invite Link រួចរាល់!', style: GoogleFonts.kantumruyPro())),
+                                  );
+                                },
+                              ),
+                              if (isOwner) ...[
+                                const Divider(height: 1, color: _GSDark.divider, indent: 50),
+                                ListTile(
+                                  leading: const Icon(Icons.delete_forever_rounded, color: _GSDark.danger),
+                                  title: Text('លុបក្រុមចោល (Delete Group)', style: GoogleFonts.kantumruyPro(color: _GSDark.danger, fontWeight: FontWeight.bold, fontSize: 14.5)),
+                                  onTap: () {
+                                    showDialog(
+                                      context: context,
+                                      builder: (ctx) => AlertDialog(
+                                        backgroundColor: _GSDark.card,
+                                        title: Text('លុបក្រុម', style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold)),
+                                        content: Text('តើអ្នកពិតជាចង់លុបក្រុមនេះចោលទាំងស្រុងមែនទេ?', style: GoogleFonts.kantumruyPro(color: Colors.white70)),
+                                        actions: [
+                                          TextButton(onPressed: () => Navigator.pop(ctx), child: Text('បោះបង់', style: GoogleFonts.kantumruyPro(color: _GSDark.textMuted))),
+                                          ElevatedButton(
+                                            style: ElevatedButton.styleFrom(backgroundColor: _GSDark.danger),
+                                            onPressed: () async {
+                                              Navigator.pop(ctx);
+                                              await _firestore.collection('groups').doc(widget.groupId).delete();
+                                              if (context.mounted) {
+                                                Navigator.of(context).popUntil((route) => route.isFirst);
+                                              }
+                                            },
+                                            child: Text('លុបក្រុម', style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold)),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 30),
                     ],
                   ),
