@@ -20,6 +20,9 @@ import 'package:image/image.dart' as img;
 import '../providers/user_provider.dart';
 import '../services/api_service.dart';
 import '../widgets/chat_wallpaper_picker.dart';
+import '../widgets/giphy_sticker_picker.dart';
+import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lottie/lottie.dart';
 import 'group_settings_screen.dart';
 import 'user_profile_screen.dart';
 
@@ -559,7 +562,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
+                          const Icon(LucideIcons.arrowLeft, color: Colors.white, size: 20),
                           StreamBuilder<QuerySnapshot>(
                             stream: _firestore
                                 .collection('chats')
@@ -682,7 +685,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                     borderRadius: BorderRadius.circular(20),
                     child: const Padding(
                       padding: EdgeInsets.all(6.0),
-                      child: Icon(Icons.search_rounded, color: Colors.white, size: 22),
+                      child: Icon(LucideIcons.search, color: Colors.white, size: 20),
                     ),
                   ),
                 ],
@@ -936,7 +939,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             if (rawType == 'location')
               _buildLocationBubble(docId: doc.id, text: rawText, lat: (data['latitude'] ?? 0.0) as double, lng: (data['longitude'] ?? 0.0) as double, isMine: isMine, time: msgTime, isRead: isRead, senderName: senderName),
             if (rawType == 'sticker' || rawText == '👍')
-              _buildStickerBubble(docId: doc.id, text: rawText.isNotEmpty ? rawText : '👍', isMine: isMine, senderName: senderName),
+              _buildStickerBubble(docId: doc.id, text: rawText.isNotEmpty ? rawText : '👍', stickerType: (data['stickerType'] ?? '').toString(), isMine: isMine, senderName: senderName),
             if (rawType != 'callMissed' && rawType != 'callVideo' && !imageUrl.isNotEmpty && rawType != 'image' && !audioUrl.isNotEmpty && rawType != 'audio' && rawType != 'voice' && rawType != 'file' && rawType != 'location' && rawType != 'sticker' && rawText != '👍' && rawText.isNotEmpty)
               _buildTextBubble(docId: doc.id, text: rawText, replyTo: replyTo, forwardedFrom: forwardedFrom, senderName: senderName, isMine: isMine, time: msgTime, isRead: isRead),
           ],
@@ -1336,21 +1339,108 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
   }
 
-  // Sticker / Emoji Bubble
+  // Sticker / Emoji / Giphy / Lottie Bubble
   Widget _buildStickerBubble({
     required String docId,
     required String text,
+    String? stickerType,
     required bool isMine,
     required String senderName,
   }) {
+    final bool isLottie = (stickerType == 'lottie') || text.endsWith('.json');
+    final bool isNetworkImage = text.startsWith('http') || text.startsWith('data:image');
+
+    Widget stickerWidget;
+    if (isLottie) {
+      stickerWidget = SizedBox(
+        width: 160,
+        height: 160,
+        child: Lottie.network(
+          text,
+          fit: BoxFit.contain,
+          errorBuilder: (context, error, stackTrace) {
+            return const Icon(LucideIcons.sparkles, color: Colors.amberAccent, size: 48);
+          },
+        ),
+      );
+    } else if (isNetworkImage) {
+      stickerWidget = ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Image.network(
+          text,
+          width: 160,
+          height: 160,
+          fit: BoxFit.contain,
+          loadingBuilder: (context, child, progress) {
+            if (progress == null) return child;
+            return const SizedBox(
+              width: 160,
+              height: 160,
+              child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF007AFF))),
+            );
+          },
+        ),
+      );
+    } else {
+      stickerWidget = Text(text, style: const TextStyle(fontSize: 48.0));
+    }
+
     return Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
       child: GestureDetector(
         onLongPress: () => _showMessageOptionsModal(docId: docId, content: text, type: 'sticker', senderName: senderName),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 4.0),
-          child: Text(text, style: const TextStyle(fontSize: 48.0)),
+          child: stickerWidget,
         ),
+      ),
+    );
+  }
+
+  Future<void> _sendStickerMessage(String stickerUrl, String stickerType) async {
+    if (stickerUrl.isEmpty || currentUserId.isEmpty) return;
+
+    if (stickerType == 'emoji') {
+      _sendMessage(customText: stickerUrl);
+      return;
+    }
+
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+
+    final msgData = {
+      'text': stickerUrl,
+      'stickerUrl': stickerUrl,
+      'stickerType': stickerType,
+      'type': 'sticker',
+      'senderId': currentUserId,
+      'senderName': userProvider.name ?? '',
+      'senderPhoto': userProvider.avatar ?? '',
+      'timestamp': FieldValue.serverTimestamp(),
+      'isRead': false,
+    };
+
+    final batch = _firestore.batch();
+    final msgRef = _firestore.collection('chats').doc(_roomId).collection('messages').doc();
+    batch.set(msgRef, msgData);
+    batch.set(_firestore.collection('chats').doc(_roomId), {
+      'participants': [currentUserId, widget.targetUserId],
+      'lastMessage': stickerType == 'lottie' ? '🎭 Lottie Sticker' : '🎨 Giphy Sticker',
+      'lastTimestamp': FieldValue.serverTimestamp(),
+      'lastSenderId': currentUserId,
+      'isRead': false,
+    }, SetOptions(merge: true));
+    await batch.commit();
+  }
+
+  void _showGiphyStickerPicker() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => GiphyStickerPickerBottomSheet(
+        onSelectSticker: (url, type) {
+          _sendStickerMessage(url, type);
+        },
       ),
     );
   }
@@ -2711,32 +2801,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     }
   }
 
-  // Send Thumbs Up
-  Future<void> _sendThumbsUp() async {
-    if (currentUserId.isEmpty) return;
-    final userProvider = Provider.of<UserProvider>(context, listen: false);
-    final msgData = {
-      'text': '👍',
-      'type': 'sticker',
-      'senderId': currentUserId,
-      'senderName': userProvider.name ?? '',
-      'senderPhoto': userProvider.avatar ?? '',
-      'timestamp': FieldValue.serverTimestamp(),
-      'isRead': false,
-    };
 
-    final batch = _firestore.batch();
-    final msgRef = _firestore.collection('chats').doc(_roomId).collection('messages').doc();
-    batch.set(msgRef, msgData);
-    batch.set(_firestore.collection('chats').doc(_roomId), {
-      'participants': [currentUserId, widget.targetUserId],
-      'lastMessage': '👍',
-      'lastTimestamp': FieldValue.serverTimestamp(),
-      'lastSenderId': currentUserId,
-      'isRead': false,
-    }, SetOptions(merge: true));
-    await batch.commit();
-  }
 
   // Voice Recording Functions
   Future<void> _startRecording() async {
@@ -3129,9 +3194,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                     child: Transform.rotate(
                       angle: -0.75,
                       child: const Icon(
-                        Icons.attach_file_rounded,
+                        LucideIcons.paperclip,
                         color: Color(0xFF8E8E93),
-                        size: 23,
+                        size: 20,
                       ),
                     ),
                   ),
@@ -3172,14 +3237,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                         ),
                       ),
                       InkWell(
-                        onTap: _sendThumbsUp,
+                        onTap: _showGiphyStickerPicker,
                         borderRadius: BorderRadius.circular(16),
                         child: const Padding(
                           padding: EdgeInsets.all(4.0),
                           child: Icon(
-                            Icons.sticky_note_2_outlined,
+                            LucideIcons.smile,
                             color: Color(0xFF8E8E93),
-                            size: 22.0,
+                            size: 21.0,
                           ),
                         ),
                       ),
@@ -3209,9 +3274,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
-                          hasText ? Icons.arrow_upward_rounded : Icons.mic_rounded,
+                          hasText ? LucideIcons.send : LucideIcons.mic,
                           color: hasText ? Colors.white : const Color(0xFF8E8E93),
-                          size: 20.0,
+                          size: 19.0,
                         ),
                       ),
                     ),
