@@ -19,15 +19,19 @@ class BadgeHoldersScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppTheme.bgDark,
       appBar: AppBar(
-        title: Text("អ្នកទទួលបាន $badgeLabel", style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold)),
+        title: Text(
+          "អ្នកទទួលបាន $badgeLabel",
+          style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold),
+        ),
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
       body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('users')
-            .where('badges', arrayContains: badgeType)
-            .snapshots(),
+        stream:
+            FirebaseFirestore.instance
+                .collection('users')
+                .where('badges', arrayContains: badgeType)
+                .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -59,20 +63,29 @@ class BadgeHoldersScreen extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: AppTheme.bgCard,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.05),
+                  ),
                 ),
                 child: Row(
                   children: [
                     Container(
-                      width: 50, height: 50,
+                      width: 50,
+                      height: 50,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: AppTheme.primary.withValues(alpha: 0.1),
                       ),
                       child: ClipOval(
-                        child: avatar.isNotEmpty
-                            ? Image.network(ApiService.getFullImageUrl(avatar), fit: BoxFit.cover, errorBuilder: (c, e, s) => _buildInitials(name))
-                            : _buildInitials(name),
+                        child:
+                            avatar.isNotEmpty
+                                ? Image.network(
+                                  ApiService.getFullImageUrl(avatar),
+                                  fit: BoxFit.cover,
+                                  errorBuilder:
+                                      (c, e, s) => _buildInitials(name),
+                                )
+                                : _buildInitials(name),
                       ),
                     ),
                     const SizedBox(width: 16),
@@ -99,16 +112,23 @@ class BadgeHoldersScreen extends StatelessWidget {
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.green.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
                         "សកម្ម",
-                        style: GoogleFonts.kantumruyPro(color: Colors.greenAccent, fontSize: 10, fontWeight: FontWeight.bold),
+                        style: GoogleFonts.kantumruyPro(
+                          color: Colors.greenAccent,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    )
+                    ),
                   ],
                 ),
               );
@@ -123,7 +143,10 @@ class BadgeHoldersScreen extends StatelessWidget {
     return Center(
       child: Text(
         name.isNotEmpty ? name.substring(0, 1).toUpperCase() : 'U',
-        style: GoogleFonts.inter(color: AppTheme.primaryLight, fontWeight: FontWeight.bold),
+        style: GoogleFonts.inter(
+          color: AppTheme.primaryLight,
+          fontWeight: FontWeight.bold,
+        ),
       ),
     );
   }

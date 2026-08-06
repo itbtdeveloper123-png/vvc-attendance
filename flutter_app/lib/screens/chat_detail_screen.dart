@@ -21,6 +21,7 @@ import 'package:image/image.dart' as img;
 import '../providers/user_provider.dart';
 import '../services/api_service.dart';
 import '../widgets/chat_wallpaper_picker.dart';
+import 'group_settings_screen.dart';
 
 Color _getAvatarBgColor(String name) {
   if (name.isEmpty) return const Color(0xFF0084FF);
@@ -450,17 +451,19 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   // A. CUSTOM APP BAR (Translucent Messenger Style)
   // ==========================================
   Widget _buildHeader() {
-    String statusText = 'គ្មាន Online';
-    if (_isTargetOnline) {
-      statusText = 'Active Now';
-    } else if (_targetLastActive != null) {
-      final diff = DateTime.now().difference(_targetLastActive!);
-      if (diff.inMinutes < 60) {
-        statusText = 'Active ${diff.inMinutes}m ago';
-      } else if (diff.inHours < 24) {
-        statusText = 'Active ${diff.inHours}h ago';
-      } else {
-        statusText = DateFormat('dd/MM HH:mm').format(_targetLastActive!);
+    String statusText = widget.isGroup ? 'ក្រុមការងារ' : 'គ្មាន Online';
+    if (!widget.isGroup) {
+      if (_isTargetOnline) {
+        statusText = 'Active Now';
+      } else if (_targetLastActive != null) {
+        final diff = DateTime.now().difference(_targetLastActive!);
+        if (diff.inMinutes < 60) {
+          statusText = 'Active ${diff.inMinutes}m ago';
+        } else if (diff.inHours < 24) {
+          statusText = 'Active ${diff.inHours}h ago';
+        } else {
+          statusText = DateFormat('dd/MM HH:mm').format(_targetLastActive!);
+        }
       }
     }
 
@@ -477,7 +480,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                 onPressed: () => Navigator.pop(context),
               ),
               GestureDetector(
-                onTap: _showUserProfileModal,
+                onTap: _onHeaderTap,
                 child: Row(
                   children: [
                     Stack(
@@ -487,27 +490,32 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                           backgroundImage: widget.targetUserPhoto.isNotEmpty
                               ? NetworkImage(ApiService.getFullImageUrl(widget.targetUserPhoto))
                               : null,
-                          backgroundColor: _getAvatarBgColor(widget.targetUserName),
+                          backgroundColor: widget.isGroup
+                              ? const Color(0xFFFFB300)
+                              : _getAvatarBgColor(widget.targetUserName),
                           child: widget.targetUserPhoto.isEmpty
-                              ? Text(
-                                  widget.targetUserName.isNotEmpty ? widget.targetUserName[0].toUpperCase() : 'U',
-                                  style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
-                                )
+                              ? (widget.isGroup
+                                  ? const Icon(Icons.groups_rounded, color: Colors.white, size: 22)
+                                  : Text(
+                                      widget.targetUserName.isNotEmpty ? widget.targetUserName[0].toUpperCase() : 'U',
+                                      style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
+                                    ))
                               : null,
                         ),
-                        Positioned(
-                          right: 0,
-                          bottom: 0,
-                          child: Container(
-                            width: 11,
-                            height: 11,
-                            decoration: BoxDecoration(
-                              color: _isTargetOnline ? const Color(0xFF44B700) : Colors.grey,
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.black, width: 1.8),
+                        if (!widget.isGroup)
+                          Positioned(
+                            right: 0,
+                            bottom: 0,
+                            child: Container(
+                              width: 11,
+                              height: 11,
+                              decoration: BoxDecoration(
+                                color: _isTargetOnline ? const Color(0xFF44B700) : Colors.grey,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.black, width: 1.8),
+                              ),
                             ),
                           ),
-                        ),
                       ],
                     ),
                     const SizedBox(width: 10.0),
@@ -544,6 +552,33 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         ),
       ),
     );
+  }
+
+  void _onHeaderTap() {
+    if (widget.isGroup) {
+      _openGroupSettings();
+    } else {
+      _showUserProfileModal();
+    }
+  }
+
+  Future<void> _openGroupSettings() async {
+    final api = ApiService();
+    final res = await api.fetchUsers();
+    final List<dynamic> users = res['success'] == true ? (res['users'] ?? []) : [];
+
+    if (mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => GroupSettingsScreen(
+            groupId: widget.targetUserId,
+            currentUserId: currentUserId,
+            allUsers: users,
+          ),
+        ),
+      );
+    }
   }
 
   void _showUserProfileModal() {

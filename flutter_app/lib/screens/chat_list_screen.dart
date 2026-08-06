@@ -11,7 +11,6 @@ import 'storage_usage_screen.dart';
 import '../services/api_service.dart';
 import '../providers/user_provider.dart';
 import '../widgets/chat_wallpaper_picker.dart';
-import 'team_chat_screen.dart';
 
 // ==========================================
 // COLOR TOKENS (MESSENGER THEME)
@@ -1106,19 +1105,12 @@ class _ChatListScreenState extends State<ChatListScreen> {
       context,
       MaterialPageRoute(
         builder:
-            (_) =>
-                isGroup
-                    ? TeamChatScreen(
-                      targetUserId: id,
-                      targetUserName: name,
-                      targetUserPhoto: photo,
-                      isGroup: true,
-                    )
-                    : ChatDetailScreen(
-                      targetUserId: id,
-                      targetUserName: name,
-                      targetUserPhoto: photo,
-                    ),
+            (_) => ChatDetailScreen(
+              targetUserId: id,
+              targetUserName: name,
+              targetUserPhoto: photo,
+              isGroup: isGroup,
+            ),
       ),
     );
   }
