@@ -7,8 +7,8 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'new_message_screen.dart';
 import 'chat_detail_screen.dart';
+import 'storage_usage_screen.dart';
 import '../services/api_service.dart';
-import '../services/isar_service.dart';
 import '../providers/user_provider.dart';
 import '../widgets/chat_wallpaper_picker.dart';
 import 'team_chat_screen.dart';
@@ -323,7 +323,14 @@ class _ChatListScreenState extends State<ChatListScreen> {
           // Action rounded buttons
           _buildActionButton(
             icon: Icons.cleaning_services_rounded,
-            onTap: _showClearCacheDialog,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const StorageUsageScreen(),
+                ),
+              );
+            },
           ),
           const SizedBox(width: 10.0),
           _buildActionButton(
@@ -340,45 +347,6 @@ class _ChatListScreenState extends State<ChatListScreen> {
                 ),
               );
             },
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showClearCacheDialog() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1E293B),
-        title: Text(
-          'សម្អាតទិន្នន័យ Local DB & Cache',
-          style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
-        ),
-        content: Text(
-          'តើអ្នកពិតជាចង់សម្អាតទិន្នន័យ Local DB (សារ និង cache លើទូរសព្ទ) មែនទេ? វាជួយសន្សំសំចៃទំហំទូរសព្ទរបស់អ្នក។ (ទិន្នន័យលើ Cloud រក្សាដដែល)',
-          style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 13.5),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text('បោះបង់', style: GoogleFonts.kantumruyPro(color: Colors.white54)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-            onPressed: () async {
-              Navigator.pop(ctx);
-              await IsarService().clearCacheAndLocalDb();
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('បានសម្អាតទិន្នន័យ Local DB & Cache រួចរាល់!', style: GoogleFonts.kantumruyPro()),
-                    backgroundColor: Colors.green,
-                  ),
-                );
-              }
-            },
-            child: Text('សម្អាតទិន្នន័យ', style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ],
       ),

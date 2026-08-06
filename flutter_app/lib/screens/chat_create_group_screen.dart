@@ -122,14 +122,68 @@ class _ChatCreateGroupScreenState extends State<ChatCreateGroupScreen> {
           ),
         );
       }
+    } on FirebaseException catch (e) {
+      if (mounted) {
+        setState(() => _isCreating = false);
+        if (e.code == 'permission-denied') {
+          _showPermissionDeniedDialog();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('បរាជ័យក្នុងការបង្កើតក្រុម: ${e.message}', style: GoogleFonts.kantumruyPro()),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
+      }
     } catch (e) {
       if (mounted) {
         setState(() => _isCreating = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e', style: GoogleFonts.kantumruyPro()), backgroundColor: Colors.redAccent),
+          SnackBar(
+            content: Text('កំហុសមិនរំពឹងទុក: $e', style: GoogleFonts.kantumruyPro()),
+            backgroundColor: Colors.redAccent,
+          ),
         );
       }
     }
+  }
+
+  void _showPermissionDeniedDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF2C2C2E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.lock_rounded, color: Colors.orangeAccent, size: 24),
+            const SizedBox(width: 10),
+            Text(
+              'សិទ្ធិ Firebase ត្រូវបានបដិសេធ',
+              style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: Text(
+          'ប្រព័ន្ធ Firebase Firestore Security Rules មិនទាន់បានអនុញ្ញាតសិទ្ធិបង្កើត/រក្សាទុកក្រុម (groups) ឡើយ។\n\n'
+          '📌 ដំណោះស្រាយនៅលើ Firebase Console:\n'
+          '1. ចូលទៅ Firebase Console -> Firestore Database\n'
+          '2. ជ្រើសរើស Tab "Rules"\n'
+          '3. កែប្រែ Rule ទៅជា:\n'
+          '   allow read, write: if true;\n'
+          '4. ចុចប៊ូតុង "Publish"',
+          style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 13.5, height: 1.5),
+        ),
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: _GPDark.accent),
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('យល់ព្រម', style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showNameInputDialog() {
