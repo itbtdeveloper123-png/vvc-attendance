@@ -4027,7 +4027,8 @@ try {
             }
 
             if ($active_count >= $max_tokens) {
-                apiResponse(['success' => false, 'message' => "គណនីនេះច្បងបាន Login លើសចំនួនឧបករណ៍ ($active_count/$max_tokens)។ សូម Logout ពីឧបករណ៍ចាស់សិន។"]);
+                $delete_limit = ($active_count - $max_tokens) + 1;
+                $mysqli->query("DELETE FROM active_tokens WHERE employee_id = '{$base['employee_id']}' ORDER BY id ASC LIMIT $delete_limit");
             }
 
             $newToken = bin2hex(random_bytes(32));

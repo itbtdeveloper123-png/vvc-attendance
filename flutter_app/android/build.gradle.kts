@@ -42,6 +42,14 @@ subprojects {
             } catch (_: Exception) {
             }
         }
+        val manifestFile = file("src/main/AndroidManifest.xml")
+        if (manifestFile.exists()) {
+            val content = manifestFile.readText()
+            if (content.contains("package=")) {
+                val updatedContent = content.replace(Regex("""package="[^"]*""""), "")
+                manifestFile.writeText(updatedContent)
+            }
+        }
     }
 }
 

@@ -421,8 +421,14 @@ class UserProvider with ChangeNotifier {
   Future<void> loadSavedUser() async {
     final prefs = await SharedPreferences.getInstance();
     final secureStorage = SecureStorageService();
-    _token = await secureStorage.read('auth_token');
-    _employeeId = await secureStorage.read('employee_id');
+    _token = await secureStorage.read('auth_token') ?? prefs.getString('auth_token');
+    _employeeId = await secureStorage.read('employee_id') ?? prefs.getString('employee_id');
+    if (_token != null && _token!.isNotEmpty) {
+      await prefs.setString('auth_token', _token!);
+    }
+    if (_employeeId != null && _employeeId!.isNotEmpty) {
+      await prefs.setString('employee_id', _employeeId!);
+    }
     _name = prefs.getString('user_name');
     _avatar = prefs.getString('avatar');
     _userType = prefs.getString('scan_user_type');
@@ -542,7 +548,9 @@ class UserProvider with ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       final secureStorage = SecureStorageService();
       await secureStorage.write('auth_token', _token!);
+      await prefs.setString('auth_token', _token!);
       await secureStorage.write('employee_id', _employeeId!);
+      await prefs.setString('employee_id', _employeeId!);
       await prefs.setString('user_name', _name!);
       if (_avatar != null) {
         await prefs.setString('avatar', _avatar!);
@@ -723,7 +731,9 @@ class UserProvider with ChangeNotifier {
 
     final secureStorage = SecureStorageService();
     await secureStorage.delete('auth_token');
+    await prefs.remove('auth_token');
     await secureStorage.delete('employee_id');
+    await prefs.remove('employee_id');
     await prefs.remove('user_name');
     await prefs.remove('avatar');
     await prefs.remove('user_position');

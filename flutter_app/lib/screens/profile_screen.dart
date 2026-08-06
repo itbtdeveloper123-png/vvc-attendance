@@ -1226,9 +1226,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             onTap: () async {
                               if (_isSwitchingAccount) return;
                               Navigator.of(ctx).pop();
-                              setState(() => _isSwitchingAccount = true);
+                              
+                              if (context.mounted) {
+                                showDialog(
+                                  context: context,
+                                  barrierDismissible: false,
+                                  builder: (_) => Center(
+                                    child: CircularProgressIndicator(color: AppTheme.primary),
+                                  ),
+                                );
+                              }
+
                               final result = await user.login(id, userType);
-                              setState(() => _isSwitchingAccount = false);
+
+                              if (context.mounted) {
+                                Navigator.of(context, rootNavigator: true).pop();
+                              }
+
                               if (!context.mounted) return;
 
                               if (result['success'] == true) {

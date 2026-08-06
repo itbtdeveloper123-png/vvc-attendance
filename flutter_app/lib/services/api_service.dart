@@ -8,6 +8,7 @@ import 'package:dio/dio.dart' as dio;
 import 'package:dio/io.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'local_db_service.dart';
+import 'secure_storage_service.dart';
 
 class ApiService {
   static const bool _isLocalMode = false;
@@ -178,8 +179,16 @@ class ApiService {
   }
 
   Future<Map<String, String>> _authHeaders() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('auth_token') ?? '';
+    String? token;
+    try {
+      final secureStorage = SecureStorageService();
+      token = await secureStorage.read('auth_token');
+    } catch (_) {}
+
+    if (token == null || token.isEmpty) {
+      final prefs = await SharedPreferences.getInstance();
+      token = prefs.getString('auth_token') ?? '';
+    }
     return {'Authorization': 'Bearer $token', 'Accept': 'application/json'};
   }
 
