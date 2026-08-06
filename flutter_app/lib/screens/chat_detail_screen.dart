@@ -536,7 +536,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
     return ClipRect(
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+        filter: ImageFilter.blur(sigmaX: 20.0, sigmaY: 20.0),
         child: Container(
           decoration: BoxDecoration(
             color: Colors.black.withValues(alpha: 0.65),
@@ -544,29 +544,22 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               bottom: BorderSide(color: Color(0x1FFFFFFF), width: 0.5),
             ),
           ),
-          padding: EdgeInsets.fromLTRB(10.0, topPadding > 0 ? topPadding + 4.0 : 10.0, 10.0, 8.0),
+          padding: EdgeInsets.fromLTRB(12.0, topPadding > 0 ? topPadding + 6.0 : 12.0, 12.0, 10.0),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Top Telegram-Style Capsule Bar Row (Matching Attached Image)
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  // 1. Left Back Capsule Button with Dynamic Unread Badge
+                  // 1. Back Button with Unread Badge
                   InkWell(
                     onTap: () => Navigator.pop(context),
                     borderRadius: BorderRadius.circular(20),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: const Color(0x66262629),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.15), width: 0.5),
-                      ),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(4, 6, 8, 6),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 15),
+                          const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
                           StreamBuilder<QuerySnapshot>(
                             stream: _firestore
                                 .collection('chats')
@@ -586,13 +579,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                                 margin: const EdgeInsets.only(left: 6),
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
                                 decoration: BoxDecoration(
-                                  color: Colors.white,
+                                  color: const Color(0xFF007AFF),
                                   borderRadius: BorderRadius.circular(10),
                                 ),
                                 child: Text(
                                   '$unread',
                                   style: GoogleFonts.inter(
-                                    color: Colors.black,
+                                    color: Colors.white,
                                     fontSize: 11.0,
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -605,116 +598,117 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                     ),
                   ),
 
-                  // 2. Middle User Title Capsule Pill
+                  // 2. Middle Profile Info (Avatar + Name + Status) Edge-to-Edge layout without floating rounded capsule
                   Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                      child: InkWell(
-                        onTap: _onHeaderTap,
-                        borderRadius: BorderRadius.circular(20),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF262629),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: Colors.white.withValues(alpha: 0.08), width: 0.5),
-                          ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                widget.targetUserName,
-                                style: GoogleFonts.kantumruyPro(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14.5,
+                    child: InkWell(
+                      onTap: _onHeaderTap,
+                      borderRadius: BorderRadius.circular(12),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 4.0),
+                        child: Row(
+                          children: [
+                            Stack(
+                              children: [
+                                CircleAvatar(
+                                  radius: 19.0,
+                                  backgroundImage: widget.targetUserPhoto.isNotEmpty
+                                      ? NetworkImage(ApiService.getFullImageUrl(widget.targetUserPhoto))
+                                      : null,
+                                  backgroundColor: widget.isGroup
+                                      ? const Color(0xFFFFB300)
+                                      : _getAvatarBgColor(widget.targetUserName),
+                                  child: widget.targetUserPhoto.isEmpty
+                                      ? (widget.isGroup
+                                          ? const Icon(Icons.groups_rounded, color: Colors.white, size: 20)
+                                          : Text(
+                                              widget.targetUserName.isNotEmpty ? widget.targetUserName[0].toUpperCase() : 'U',
+                                              style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white),
+                                            ))
+                                      : null,
                                 ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                                if (!widget.isGroup && _isTargetOnline)
+                                  Positioned(
+                                    right: 0,
+                                    bottom: 0,
+                                    child: Container(
+                                      width: 10,
+                                      height: 10,
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF10B981),
+                                        shape: BoxShape.circle,
+                                        border: Border.all(color: Colors.black, width: 1.5),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    widget.targetUserName,
+                                    style: GoogleFonts.kantumruyPro(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 15.0,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  Text(
+                                    statusText,
+                                    style: GoogleFonts.inter(
+                                      color: const Color(0xFF8E8E93),
+                                      fontSize: 11.5,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
                               ),
-                              Text(
-                                statusText,
-                                style: GoogleFonts.inter(
-                                  color: const Color(0xFF8E8E93),
-                                  fontSize: 11.0,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
                   ),
 
-                  // 3. Right Side Profile Avatar Circle
+                  // 3. Right Search Button
                   InkWell(
-                    onTap: _onHeaderTap,
+                    onTap: () => setState(() => _isSearchMode = true),
                     borderRadius: BorderRadius.circular(20),
-                    child: Stack(
-                      children: [
-                        CircleAvatar(
-                          radius: 19.0,
-                          backgroundImage: widget.targetUserPhoto.isNotEmpty
-                              ? NetworkImage(ApiService.getFullImageUrl(widget.targetUserPhoto))
-                              : null,
-                          backgroundColor: widget.isGroup
-                              ? const Color(0xFFFFB300)
-                              : _getAvatarBgColor(widget.targetUserName),
-                          child: widget.targetUserPhoto.isEmpty
-                              ? (widget.isGroup
-                                  ? const Icon(Icons.groups_rounded, color: Colors.white, size: 20)
-                                  : Text(
-                                      widget.targetUserName.isNotEmpty ? widget.targetUserName[0].toUpperCase() : 'U',
-                                      style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white),
-                                    ))
-                              : null,
-                        ),
-                        if (!widget.isGroup && _isTargetOnline)
-                          Positioned(
-                            right: 0,
-                            bottom: 0,
-                            child: Container(
-                              width: 10,
-                              height: 10,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF10B981),
-                                shape: BoxShape.circle,
-                                border: Border.all(color: Colors.black, width: 1.5),
-                              ),
-                            ),
-                          ),
-                      ],
+                    child: const Padding(
+                      padding: EdgeInsets.all(6.0),
+                      child: Icon(Icons.search_rounded, color: Colors.white, size: 22),
                     ),
                   ),
                 ],
               ),
 
-              // Pinned Message Capsule Bar (Matching Telegram Image)
+              // Pinned Message Bar if active
               if (_pinnedMessage != null && _pinnedMessage!.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF262629),
-                    borderRadius: BorderRadius.circular(18),
+                    color: Colors.white.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(14),
                     border: Border.all(color: Colors.white.withValues(alpha: 0.08), width: 0.5),
                   ),
                   child: Row(
                     children: [
-                      // Left White Vertical Accent Bar
                       Container(
                         width: 3,
-                        height: 32,
+                        height: 30,
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: const Color(0xFF007AFF),
                           borderRadius: BorderRadius.circular(2),
                         ),
                       ),
                       const SizedBox(width: 10),
-
-                      // Pinned Message Content
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -741,8 +735,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                           ],
                         ),
                       ),
-
-                      // Close Pinned Message Button
                       InkWell(
                         onTap: () => setState(() => _pinnedMessage = null),
                         borderRadius: BorderRadius.circular(12),
