@@ -8,7 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:lottie/lottie.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-// Helper Widget to Decompress & Render Telegram .tgs GZIP Lottie Assets
+// Helper Widget to Decompress & Render Telegram .tgs GZIP Lottie Assets (Optimized with Static Byte Caching)
 class TgsStickerAsset extends StatefulWidget {
   final String assetPath;
   final double? width;
@@ -28,6 +28,8 @@ class TgsStickerAsset extends StatefulWidget {
 }
 
 class _TgsStickerAssetState extends State<TgsStickerAsset> {
+  static final Map<String, Uint8List> _tgsByteCache = {};
+
   Uint8List? _uncompressedJsonBytes;
   bool _hasError = false;
 
@@ -46,6 +48,16 @@ class _TgsStickerAssetState extends State<TgsStickerAsset> {
   }
 
   Future<void> _loadTgs() async {
+    if (_tgsByteCache.containsKey(widget.assetPath)) {
+      if (mounted) {
+        setState(() {
+          _uncompressedJsonBytes = _tgsByteCache[widget.assetPath];
+          _hasError = false;
+        });
+      }
+      return;
+    }
+
     try {
       final ByteData data = await rootBundle.load(widget.assetPath);
       final Uint8List bytes = data.buffer.asUint8List();
@@ -57,6 +69,8 @@ class _TgsStickerAssetState extends State<TgsStickerAsset> {
       } else {
         decompressed = bytes;
       }
+
+      _tgsByteCache[widget.assetPath] = decompressed;
 
       if (mounted) {
         setState(() {
@@ -77,14 +91,17 @@ class _TgsStickerAssetState extends State<TgsStickerAsset> {
       return const Center(child: Icon(LucideIcons.sparkles, color: Colors.amberAccent, size: 24));
     }
     if (_uncompressedJsonBytes == null) {
-      return const Center(child: SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF007AFF))));
+      return const SizedBox.shrink();
     }
-    return Lottie.memory(
-      _uncompressedJsonBytes!,
-      width: widget.width,
-      height: widget.height,
-      fit: widget.fit,
-      errorBuilder: (_, __, ___) => const Center(child: Icon(LucideIcons.sparkles, color: Colors.amberAccent, size: 24)),
+    return RepaintBoundary(
+      child: Lottie.memory(
+        _uncompressedJsonBytes!,
+        width: widget.width,
+        height: widget.height,
+        fit: widget.fit,
+        frameRate: FrameRate(30),
+        errorBuilder: (_, __, ___) => const Center(child: Icon(LucideIcons.sparkles, color: Colors.amberAccent, size: 24)),
+      ),
     );
   }
 }
@@ -458,6 +475,9 @@ class _GiphyStickerPickerBottomSheetState extends State<GiphyStickerPickerBottom
         Expanded(
           child: GridView.builder(
             padding: const EdgeInsets.all(12),
+            cacheExtent: 600.0,
+            addAutomaticKeepAlives: true,
+            addRepaintBoundaries: true,
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 4,
               mainAxisSpacing: 12,
@@ -467,33 +487,36 @@ class _GiphyStickerPickerBottomSheetState extends State<GiphyStickerPickerBottom
             itemBuilder: (context, index) {
               final assetPath = currentPack.stickerAssets[index];
 
-              return InkWell(
-                onTap: () {
-                  Navigator.pop(context);
-                  widget.onSelectSticker(
-                    assetPath,
-                    currentPack.isAnimated ? 'lottie' : 'asset',
-                  );
-                },
-                borderRadius: BorderRadius.circular(16),
-                child: Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF2C2C2E).withValues(alpha: 0.6),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+              return RepaintBoundary(
+                child: InkWell(
+                  onTap: () {
+                    Navigator.pop(context);
+                    widget.onSelectSticker(
+                      assetPath,
+                      currentPack.isAnimated ? 'lottie' : 'asset',
+                    );
+                  },
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2C2C2E).withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+                    ),
+                    child: currentPack.isAnimated
+                        ? TgsStickerAsset(
+                            assetPath: assetPath,
+                            fit: BoxFit.contain,
+                          )
+                        : Image.asset(
+                            assetPath,
+                            fit: BoxFit.contain,
+                            cacheWidth: 160,
+                            errorBuilder: (context, error, stackTrace) =>
+                                const Center(child: Icon(LucideIcons.imageOff, color: Colors.white38, size: 24)),
+                          ),
                   ),
-                  child: currentPack.isAnimated
-                      ? TgsStickerAsset(
-                          assetPath: assetPath,
-                          fit: BoxFit.contain,
-                        )
-                      : Image.asset(
-                          assetPath,
-                          fit: BoxFit.contain,
-                          errorBuilder: (context, error, stackTrace) =>
-                              const Center(child: Icon(LucideIcons.imageOff, color: Colors.white38, size: 24)),
-                        ),
                 ),
               );
             },

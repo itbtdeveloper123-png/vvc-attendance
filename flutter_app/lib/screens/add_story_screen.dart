@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../providers/user_provider.dart';
 import '../services/r2_storage_service.dart';
+import '../widgets/vvc_global_alert.dart';
 
 class AddStoryScreen extends StatefulWidget {
   const AddStoryScreen({super.key});
@@ -34,11 +35,10 @@ class _AddStoryScreenState extends State<AddStoryScreen> {
 
   Future<void> _publishStory(UserProvider userProvider) async {
     if (_selectedFile == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('សូមជ្រើសរើសរូបភាពដើម្បីបង្ហោះរឿងរបស់អ្នក!', style: GoogleFonts.kantumruyPro()),
-          backgroundColor: Colors.orangeAccent,
-        ),
+      VvcAlert.showWarning(
+        context,
+        title: 'សូមជ្រើសរើសរូបភាព',
+        message: 'សូមជ្រើសរើសរូបភាពដើម្បីបង្ហោះរឿងរបស់អ្នក!',
       );
       return;
     }
@@ -65,11 +65,10 @@ class _AddStoryScreenState extends State<AddStoryScreen> {
 
         if (mounted) {
           Navigator.pop(context);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('បានបង្ហោះរឿងរបស់អ្នកដោយជោគជ័យ! (24h)', style: GoogleFonts.kantumruyPro()),
-              backgroundColor: const Color(0xFF10B981),
-            ),
+          VvcAlert.showSuccess(
+            context,
+            title: 'បង្ហោះបានជោគជ័យ!',
+            message: 'រឿងរបស់អ្នកនឹងបង្ហាញរយៈពេល 24 ម៉ោង',
           );
         }
       } else {
@@ -78,11 +77,10 @@ class _AddStoryScreenState extends State<AddStoryScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => _isUploading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('បរាជ័យក្នុងការបង្ហោះរឿង: $e', style: GoogleFonts.kantumruyPro()),
-            backgroundColor: Colors.redAccent,
-          ),
+        VvcAlert.showError(
+          context,
+          title: 'បរាជ័យក្នុងការបង្ហោះ',
+          message: e.toString(),
         );
       }
     }

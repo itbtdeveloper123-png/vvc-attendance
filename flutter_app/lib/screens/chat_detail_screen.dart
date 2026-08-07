@@ -26,6 +26,7 @@ import '../widgets/vvc_file_picker_bottom_sheet.dart';
 import '../widgets/vvc_location_picker_bottom_sheet.dart';
 import '../widgets/vvc_poll_picker_bottom_sheet.dart';
 import '../widgets/vvc_chat_context_menu.dart';
+import '../widgets/vvc_global_alert.dart';
 import 'vvc_contacts_flow_screens.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:lottie/lottie.dart';
@@ -136,6 +137,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   // Search State
   bool _isSearchMode = false;
   final TextEditingController _searchController = TextEditingController();
+
+  // Multi-Select & Batch Delete State
+  bool _isSelectionMode = false;
+  final Set<String> _selectedDocIds = {};
 
   String get _roomId {
     if (widget.isGroup) return widget.targetUserId;
@@ -426,19 +431,92 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               bottom: 0,
               left: 0,
               right: 0,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (_replyingToMessage != null) _buildReplyPreviewBanner(),
-                  if (_showPlusMenu) _buildPlusMenuOverlay(),
-                  _buildInputToolbar(),
-                ],
-              ),
+              child: _isSelectionMode
+                  ? _buildSelectionBottomBar()
+                  : Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (_replyingToMessage != null) _buildReplyPreviewBanner(),
+                        if (_showPlusMenu) _buildPlusMenuOverlay(),
+                        _buildInputToolbar(),
+                      ],
+                    ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildSelectionBottomBar() {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFF1E2738),
+        border: Border(
+          top: BorderSide(color: Colors.white12, width: 0.5),
+        ),
+      ),
+      padding: EdgeInsets.fromLTRB(16, 12, 16, MediaQuery.of(context).padding.bottom + 12),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          TextButton.icon(
+            onPressed: () {
+              setState(() {
+                _isSelectionMode = false;
+                _selectedDocIds.clear();
+              });
+            },
+            icon: const Icon(Icons.close_rounded, color: Colors.white70),
+            label: Text('បោះបង់', style: GoogleFonts.kantumruyPro(color: Colors.white70)),
+          ),
+          ElevatedButton.icon(
+            onPressed: _confirmDeleteSelectedMessages,
+            icon: const Icon(Icons.delete_forever_rounded, color: Colors.white),
+            label: Text('លុប (${_selectedDocIds.length})', style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _confirmDeleteSelectedMessages() async {
+    if (_selectedDocIds.isEmpty) return;
+    final int count = _selectedDocIds.length;
+
+    final confirmed = await VvcAlert.showConfirmDialog(
+      context,
+      title: 'លុបសារដែលបានជ្រើសរើស?',
+      message: 'តើអ្នកប្រាកដជាចង់លុបសារចំនួន $count ដែលបានជ្រើសរើសនេះមែនទេ?',
+      confirmText: 'លុប ($count)',
+      cancelText: 'បោះបង់',
+      isDestructive: true,
+    );
+
+    if (confirmed == true) {
+      final batch = _firestore.batch();
+      for (String id in _selectedDocIds) {
+        final msgRef = _firestore.collection('chats').doc(_roomId).collection('messages').doc(id);
+        batch.delete(msgRef);
+      }
+      await batch.commit();
+      setState(() {
+        _isSelectionMode = false;
+        _selectedDocIds.clear();
+      });
+      if (mounted) {
+        VvcAlert.showSuccess(
+          context,
+          title: 'បានលុបសារជោគជ័យ',
+          message: 'បានលុបសារចំនួន $count ចេញពីការសន្ទនា!',
+        );
+      }
+    }
   }
 
 
@@ -450,6 +528,51 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   // ==========================================
   Widget _buildHeader() {
     final double topPadding = MediaQuery.of(context).padding.top;
+
+    if (_isSelectionMode) {
+      return ClipRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+          child: Container(
+            decoration: const BoxDecoration(
+              color: Color(0xDC1C1C1E),
+              border: Border(
+                bottom: BorderSide(color: Color(0x1FFFFFFF), width: 0.5),
+              ),
+            ),
+            padding: EdgeInsets.fromLTRB(12.0, topPadding > 0 ? topPadding + 4.0 : 10.0, 12.0, 10.0),
+            child: Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.close_rounded, color: Colors.white, size: 24),
+                  onPressed: () {
+                    setState(() {
+                      _isSelectionMode = false;
+                      _selectedDocIds.clear();
+                    });
+                  },
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '${_selectedDocIds.length} ត្រូវបានជ្រើសរើស',
+                    style: GoogleFonts.kantumruyPro(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete_rounded, color: Colors.redAccent, size: 24),
+                  onPressed: _confirmDeleteSelectedMessages,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
 
     if (_isSearchMode) {
       return ClipRect(
@@ -940,7 +1063,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
         final bool showDivider = _shouldShowDateDivider(index, ts);
 
-        return Column(
+        final Widget messageContent = Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (showDivider) _buildDateDivider(msgTime),
@@ -960,6 +1083,44 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               _buildTextBubble(docId: doc.id, text: rawText, replyTo: replyTo, forwardedFrom: forwardedFrom, senderName: senderName, isMine: isMine, time: msgTime, isRead: isRead),
           ],
         );
+
+        if (_isSelectionMode) {
+          final bool isSelected = _selectedDocIds.contains(doc.id);
+          return InkWell(
+            onTap: () {
+              setState(() {
+                if (isSelected) {
+                  _selectedDocIds.remove(doc.id);
+                  if (_selectedDocIds.isEmpty) {
+                    _isSelectionMode = false;
+                  }
+                } else {
+                  _selectedDocIds.add(doc.id);
+                }
+              });
+            },
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              color: isSelected ? const Color(0xFF007AFF).withValues(alpha: 0.18) : Colors.transparent,
+              padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
+              child: Row(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(right: 10, left: 4),
+                    child: Icon(
+                      isSelected ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+                      color: isSelected ? const Color(0xFF007AFF) : Colors.white38,
+                      size: 24,
+                    ),
+                  ),
+                  Expanded(child: messageContent),
+                ],
+              ),
+            ),
+          );
+        }
+
+        return messageContent;
       },
     );
   }
@@ -2286,7 +2447,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         onDelete: () async {
           await _firestore.collection('chats').doc(_roomId).collection('messages').doc(docId).delete();
         },
-        onSelect: () {},
+        onSelect: () {
+          setState(() {
+            _isSelectionMode = true;
+            _selectedDocIds.clear();
+            _selectedDocIds.add(docId);
+          });
+        },
       );
       return;
     }

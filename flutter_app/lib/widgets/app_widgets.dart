@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import '../services/api_service.dart';
 import '../utils/app_theme.dart';
+import 'vvc_global_alert.dart';
 
 /// A reusable flat background shell for app screens.
 class AppBackgroundShell extends StatelessWidget {
@@ -1007,18 +1008,19 @@ class AppWidgets {
     String message, {
     bool isError = false,
   }) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          message,
-          style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 14),
-        ),
-        backgroundColor: isError ? Colors.redAccent : AppTheme.success,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        duration: const Duration(seconds: 3),
-      ),
-    );
+    if (isError) {
+      VvcAlert.showError(
+        context,
+        title: 'ជូនដំណឹង',
+        message: message,
+      );
+    } else {
+      VvcAlert.showSuccess(
+        context,
+        title: 'ជូនដំណឹង',
+        message: message,
+      );
+    }
   }
 }
 

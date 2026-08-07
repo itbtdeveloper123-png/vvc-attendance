@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../providers/user_provider.dart';
 import '../services/api_service.dart';
 import '../widgets/chat_wallpaper_picker.dart';
+import '../widgets/vvc_global_alert.dart';
 
 class UserProfileScreen extends StatefulWidget {
   final String userId;
@@ -216,8 +217,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               }),
               _buildMenuItem(Icons.lock_outline_rounded, 'Start Secret Chat', () {
                 Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Secret Chat Active (End-to-End Encrypted)', style: GoogleFonts.kantumruyPro())),
+                VvcAlert.showInfo(
+                  context,
+                  title: 'Secret Chat Active',
+                  message: 'ការសន្ទនាសម្ងាត់ត្រូវបានបើក (End-to-End Encrypted)',
                 );
               }),
               _buildMenuItem(Icons.ios_share_rounded, 'Share Contact', () {
