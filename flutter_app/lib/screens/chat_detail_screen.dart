@@ -22,7 +22,7 @@ import '../services/api_service.dart';
 import '../widgets/chat_wallpaper_picker.dart';
 import '../widgets/giphy_sticker_picker.dart';
 import '../widgets/vvc_file_picker_bottom_sheet.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:lottie/lottie.dart';
 import 'group_settings_screen.dart';
 import 'user_profile_screen.dart';
