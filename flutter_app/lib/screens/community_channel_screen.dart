@@ -33,6 +33,17 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
   final ImagePicker _picker = ImagePicker();
   final R2StorageService _r2Service = R2StorageService();
 
+  late final Stream<QuerySnapshot> _postsStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _postsStream = _firestore
+        .collection('community_posts')
+        .orderBy('createdAt', descending: true)
+        .snapshots();
+  }
+
   // Facebook Reactions Configuration
   static const Map<String, Map<String, dynamic>> _reactions = {
     'like': {'emoji': '👍', 'label': 'Like', 'color': Color(0xFF0A84FF)},
@@ -650,14 +661,37 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                     child: StreamBuilder<QuerySnapshot>(
                       stream: postDoc.reference
                           .collection('comments')
-                          .orderBy('createdAt', descending: false)
                           .snapshots(),
                       builder: (context, snapshot) {
+                        if (snapshot.hasError) {
+                          return Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(20.0),
+                              child: Text(
+                                'មិនទាន់មានមតិយោបល់នៅឡើយទេ\nជាអ្នកដំបូងដែលបញ្ចេញមតិ!',
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.kantumruyPro(color: Colors.white54, fontSize: 13.5),
+                              ),
+                            ),
+                          );
+                        }
+
                         if (!snapshot.hasData) {
                           return const Center(child: CircularProgressIndicator(color: _CommunityDark.accent));
                         }
 
-                        final comments = snapshot.data!.docs;
+                        final comments = List<DocumentSnapshot>.from(snapshot.data!.docs);
+                        // Sort by createdAt ascending safely on client side
+                        comments.sort((a, b) {
+                          final aData = a.data() as Map<String, dynamic>?;
+                          final bData = b.data() as Map<String, dynamic>?;
+                          final aTs = aData?['createdAt'] as Timestamp?;
+                          final bTs = bData?['createdAt'] as Timestamp?;
+                          if (aTs == null) return 1;
+                          if (bTs == null) return -1;
+                          return aTs.compareTo(bTs);
+                        });
+
                         if (comments.isEmpty) {
                           return Center(
                             child: Text(
@@ -722,7 +756,12 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                                               if (isMyComment) ...[
                                                 const SizedBox(width: 6),
                                                 InkWell(
-                                                  onTap: () => cDoc.reference.delete(),
+                                                  onTap: () async {
+                                                    try {
+                                                      await cDoc.reference.delete();
+                                                      await postDoc.reference.update({'commentsCount': FieldValue.increment(-1)});
+                                                    } catch (_) {}
+                                                  },
                                                   child: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 16),
                                                 ),
                                               ],
@@ -790,6 +829,7 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                                       'text': text,
                                       'createdAt': FieldValue.serverTimestamp(),
                                     });
+                                    await postDoc.reference.update({'commentsCount': FieldValue.increment(1)});
                                   } catch (e) {
                                     debugPrint('Add comment error: $e');
                                   } finally {
@@ -863,10 +903,7 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
         label: Text('បង្កើត Post', style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold)),
       ),
       body: StreamBuilder<QuerySnapshot>(
-        stream: _firestore
-            .collection('community_posts')
-            .orderBy('createdAt', descending: true)
-            .snapshots(),
+        stream: _postsStream,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator(color: Color(0xFF007AFF)));
@@ -905,6 +942,7 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
               final String mediaUrl = data['mediaUrl'] ?? '';
               final Map<String, dynamic> reactionsMap = data['reactionsMap'] as Map<String, dynamic>? ?? {};
               final List<dynamic> legacyLikes = data['likes'] ?? [];
+              final int commentsCount = (data['commentsCount'] as num?)?.toInt() ?? 0;
               final Timestamp? ts = data['createdAt'] as Timestamp?;
               final String timeStr = ts != null ? DateFormat('dd/MM HH:mm').format(ts.toDate()) : 'ទើបតែ';
 
@@ -1041,6 +1079,7 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                           ApiService.getFullImageUrl(mediaUrl),
                           fit: BoxFit.cover,
                           width: double.infinity,
+                          gaplessPlayback: true,
                         ),
                       ),
                     ],
@@ -1048,37 +1087,33 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                     const SizedBox(height: 14),
 
                     // Reactions Count & Comments Count Row
-                    if (totalReactions > 0)
+                    if (totalReactions > 0 || commentsCount > 0)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 10),
                         child: Row(
                           children: [
-                            Row(
-                              children: reactionCounts.keys.take(3).map((rKey) {
-                                final emoji = _reactions[rKey]?['emoji'] ?? '👍';
-                                return Padding(
-                                  padding: const EdgeInsets.only(right: 2.0),
-                                  child: Text(emoji, style: const TextStyle(fontSize: 14)),
-                                );
-                              }).toList(),
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              '$totalReactions',
-                              style: GoogleFonts.inter(color: Colors.white70, fontSize: 12.5),
-                            ),
+                            if (totalReactions > 0) ...[
+                              Row(
+                                children: reactionCounts.keys.take(3).map((rKey) {
+                                  final emoji = _reactions[rKey]?['emoji'] ?? '👍';
+                                  return Padding(
+                                    padding: const EdgeInsets.only(right: 2.0),
+                                    child: Text(emoji, style: const TextStyle(fontSize: 14)),
+                                  );
+                                }).toList(),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                '$totalReactions',
+                                style: GoogleFonts.inter(color: Colors.white70, fontSize: 12.5),
+                              ),
+                            ],
                             const Spacer(),
-                            StreamBuilder<QuerySnapshot>(
-                              stream: doc.reference.collection('comments').snapshots(),
-                              builder: (context, cSnap) {
-                                final count = cSnap.hasData ? cSnap.data!.docs.length : 0;
-                                if (count == 0) return const SizedBox.shrink();
-                                return Text(
-                                  '$count មតិយោបល់',
-                                  style: GoogleFonts.kantumruyPro(color: Colors.white54, fontSize: 12),
-                                );
-                              },
-                            ),
+                            if (commentsCount > 0)
+                              Text(
+                                '$commentsCount មតិយោបល់',
+                                style: GoogleFonts.kantumruyPro(color: Colors.white54, fontSize: 12),
+                              ),
                           ],
                         ),
                       ),

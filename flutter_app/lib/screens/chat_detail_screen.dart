@@ -3195,7 +3195,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             children: [
               // 1. Telegram Paperclip Icon (Rotated Clip) 📎
               InkWell(
-                onTap: _showTelegramAttachmentSheet,
+                onTap: _showVvcAttachmentSheet,
                 borderRadius: BorderRadius.circular(20),
                 child: Container(
                   width: 38,
@@ -3304,7 +3304,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
   }
 
-  void _showTelegramAttachmentSheet() {
+  void _showVvcAttachmentSheet() {
     VvcFilePickerBottomSheet.show(
       context: context,
       onSelectFromGallery: () => _pickAndSendImage(ImageSource.gallery),
@@ -3313,6 +3313,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       onSelectRecentFile: (file) {
         if (file['name'] != null) {
           _sendMessage(customText: '📄 ${file['name']}');
+        }
+      },
+      onTabChanged: (category) {
+        if (category == 'Poll') {
+          Navigator.pop(context);
+          _showCreatePollModal();
         }
       },
     );
