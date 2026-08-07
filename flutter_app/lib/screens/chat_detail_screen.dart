@@ -1414,10 +1414,19 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       stickerWidget = Text(text, style: const TextStyle(fontSize: 48.0));
     }
 
+    final bubbleKey = GlobalKey();
     return Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
       child: GestureDetector(
-        onLongPress: () => _showMessageOptionsModal(docId: docId, content: text, type: 'sticker', senderName: senderName),
+        key: bubbleKey,
+        onLongPress: () => _showMessageOptionsModal(
+          key: bubbleKey,
+          childWidget: stickerWidget,
+          docId: docId,
+          content: text,
+          type: 'sticker',
+          senderName: senderName,
+        ),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 4.0),
           child: stickerWidget,
@@ -1577,13 +1586,33 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         ? _getMemoryImage(imageUrl)
         : NetworkImage(imageUrl) as ImageProvider;
 
+    final bubbleKey = GlobalKey();
+    final bubbleChild = Container(
+      margin: const EdgeInsets.symmetric(vertical: 4.0),
+      constraints: BoxConstraints(
+        maxWidth: MediaQuery.of(context).size.width * 0.68,
+        maxHeight: 320.0,
+      ),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16.0),
+        color: isMine ? _MsgDark.sentBubble : const Color(0xFF2C2C2E),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16.0),
+        child: Image(
+          image: imgProvider,
+          fit: BoxFit.contain,
+        ),
+      ),
+    );
+
     return Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
       child: Column(
         crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
           GestureDetector(
-            key: ValueKey(imageUrl),
+            key: bubbleKey,
             onTap: () => _showFullScreenImageViewer(
               imgProvider: imgProvider,
               rawUrl: imageUrl,
@@ -1591,25 +1620,15 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               time: time,
               docId: docId,
             ),
-            onLongPress: () => _showMessageOptionsModal(docId: docId, content: imageUrl, type: 'image', senderName: senderName),
-            child: Container(
-              margin: const EdgeInsets.symmetric(vertical: 4.0),
-              constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width * 0.68,
-                maxHeight: 320.0,
-              ),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16.0),
-                color: isMine ? _MsgDark.sentBubble : const Color(0xFF2C2C2E),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(16.0),
-                child: Image(
-                  image: imgProvider,
-                  fit: BoxFit.contain,
-                ),
-              ),
+            onLongPress: () => _showMessageOptionsModal(
+              key: bubbleKey,
+              childWidget: bubbleChild,
+              docId: docId,
+              content: imageUrl,
+              type: 'image',
+              senderName: senderName,
             ),
+            child: bubbleChild,
           ),
           Padding(
             padding: const EdgeInsets.only(left: 4.0, right: 4.0, bottom: 4.0),
@@ -2087,113 +2106,124 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     final Color playBg = isMine ? Colors.black.withValues(alpha: 0.25) : Colors.white.withValues(alpha: 0.25);
     final Color playIconColor = isMine ? const Color(0xFF1E1E1E) : Colors.white;
 
+    final bubbleKey = GlobalKey();
+    final bubbleChild = Container(
+      margin: const EdgeInsets.symmetric(vertical: 4.0),
+      padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
+      decoration: BoxDecoration(
+        color: bubbleBg,
+        borderRadius: BorderRadius.only(
+          topLeft: const Radius.circular(22.0),
+          topRight: const Radius.circular(22.0),
+          bottomLeft: Radius.circular(isMine ? 22.0 : 4.0),
+          bottomRight: Radius.circular(isMine ? 4.0 : 22.0),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.15),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Play / Pause Button
+          GestureDetector(
+            onTap: () => _togglePlayAudio(audioUrl),
+            child: Container(
+              width: 40.0,
+              height: 40.0,
+              decoration: BoxDecoration(
+                color: playBg,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                isThisPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                color: playIconColor,
+                size: 26.0,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12.0),
+
+          // Waveform Bars (Vertical Audio Wave)
+          GestureDetector(
+            onHorizontalDragUpdate: (details) {
+              if (isThisPlaying && _currentAudioDuration.inMilliseconds > 0) {
+                final dx = details.localPosition.dx.clamp(0.0, 130.0);
+                final val = dx / 130.0;
+                final seekMs = (val * _currentAudioDuration.inMilliseconds).round();
+                _audioPlayer.seek(Duration(milliseconds: seekMs));
+              }
+            },
+            child: SizedBox(
+              width: 130.0,
+              height: 32.0,
+              child: Center(
+                child: _buildWaveformBars(
+                  isPlaying: isThisPlaying,
+                  progress: progress,
+                  isMine: isMine,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12.0),
+
+          // Duration Readout
+          Text(
+            isThisPlaying
+                ? _formatDuration(_currentAudioPosition.inSeconds)
+                : _formatDuration(durationSeconds),
+            style: GoogleFonts.inter(
+              color: textColor,
+              fontSize: 12.5,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(width: 8.0),
+
+          // Speed Toggle Button (1x / 1.5x / 2x)
+          GestureDetector(
+            onTap: _togglePlaybackSpeed,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 3.0),
+              decoration: BoxDecoration(
+                color: isMine ? Colors.black.withValues(alpha: 0.18) : Colors.white.withValues(alpha: 0.22),
+                borderRadius: BorderRadius.circular(10.0),
+              ),
+              child: Text(
+                '${_playbackSpeed.toStringAsFixed(1).replaceAll('.0', '')}x',
+                style: GoogleFonts.inter(
+                  color: textColor,
+                  fontSize: 10.0,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
     return Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
       child: Column(
         crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
           GestureDetector(
-            onLongPress: () => _showMessageOptionsModal(docId: docId, content: audioUrl, type: 'voice', senderName: senderName),
-            child: Container(
-              margin: const EdgeInsets.symmetric(vertical: 4.0),
-              padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
-              decoration: BoxDecoration(
-                color: bubbleBg,
-                borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(22.0),
-                  topRight: const Radius.circular(22.0),
-                  bottomLeft: Radius.circular(isMine ? 22.0 : 4.0),
-                  bottomRight: Radius.circular(isMine ? 4.0 : 22.0),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.15),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Play / Pause Button
-                  GestureDetector(
-                    onTap: () => _togglePlayAudio(audioUrl),
-                    child: Container(
-                      width: 40.0,
-                      height: 40.0,
-                      decoration: BoxDecoration(
-                        color: playBg,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        isThisPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                        color: playIconColor,
-                        size: 26.0,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12.0),
-
-                  // Waveform Bars (Vertical Audio Wave)
-                  GestureDetector(
-                    onHorizontalDragUpdate: (details) {
-                      if (isThisPlaying && _currentAudioDuration.inMilliseconds > 0) {
-                        final dx = details.localPosition.dx.clamp(0.0, 130.0);
-                        final val = dx / 130.0;
-                        final seekMs = (val * _currentAudioDuration.inMilliseconds).round();
-                        _audioPlayer.seek(Duration(milliseconds: seekMs));
-                      }
-                    },
-                    child: SizedBox(
-                      width: 130.0,
-                      height: 32.0,
-                      child: Center(
-                        child: _buildWaveformBars(
-                          isPlaying: isThisPlaying,
-                          progress: progress,
-                          isMine: isMine,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12.0),
-
-                  // Duration Readout
-                  Text(
-                    isThisPlaying
-                        ? _formatDuration(_currentAudioPosition.inSeconds)
-                        : _formatDuration(durationSeconds),
-                    style: GoogleFonts.inter(
-                      color: textColor,
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(width: 8.0),
-
-                  // Speed Toggle Button (1x / 1.5x / 2x)
-                  GestureDetector(
-                    onTap: _togglePlaybackSpeed,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 3.0),
-                      decoration: BoxDecoration(
-                        color: isMine ? Colors.black.withValues(alpha: 0.18) : Colors.white.withValues(alpha: 0.22),
-                        borderRadius: BorderRadius.circular(10.0),
-                      ),
-                      child: Text(
-                        '${_playbackSpeed.toStringAsFixed(1).replaceAll('.0', '')}x',
-                        style: GoogleFonts.inter(
-                          color: textColor,
-                          fontSize: 10.0,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+            key: bubbleKey,
+            onLongPress: () => _showMessageOptionsModal(
+              key: bubbleKey,
+              childWidget: bubbleChild,
+              docId: docId,
+              content: audioUrl,
+              type: 'voice',
+              senderName: senderName,
             ),
+            child: bubbleChild,
           ),
           Padding(
             padding: const EdgeInsets.only(left: 4.0, right: 4.0, bottom: 4.0),
@@ -2588,46 +2618,57 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     required bool isRead,
     required String senderName,
   }) {
+    final bubbleKey = GlobalKey();
+    final bubbleChild = Container(
+      margin: const EdgeInsets.symmetric(vertical: 4.0),
+      padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
+      decoration: BoxDecoration(
+        color: isMine ? _MsgDark.sentBubble : const Color(0xFF2C2C2E),
+        borderRadius: BorderRadius.circular(16.0),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.insert_drive_file_rounded, color: Colors.white, size: 28.0),
+          const SizedBox(width: 10.0),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  fileName,
+                  style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14.0),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (fileSize.isNotEmpty)
+                  Text(
+                    fileSize,
+                    style: GoogleFonts.inter(color: Colors.white70, fontSize: 11.0),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+
     return Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
       child: Column(
         crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
           GestureDetector(
-            onLongPress: () => _showMessageOptionsModal(docId: docId, content: fileName, type: 'file', senderName: senderName),
-            child: Container(
-              margin: const EdgeInsets.symmetric(vertical: 4.0),
-              padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
-              decoration: BoxDecoration(
-                color: isMine ? _MsgDark.sentBubble : const Color(0xFF2C2C2E),
-                borderRadius: BorderRadius.circular(16.0),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.insert_drive_file_rounded, color: Colors.white, size: 28.0),
-                  const SizedBox(width: 10.0),
-                  Flexible(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          fileName,
-                          style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14.0),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        if (fileSize.isNotEmpty)
-                          Text(
-                            fileSize,
-                            style: GoogleFonts.inter(color: Colors.white70, fontSize: 11.0),
-                          ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+            key: bubbleKey,
+            onLongPress: () => _showMessageOptionsModal(
+              key: bubbleKey,
+              childWidget: bubbleChild,
+              docId: docId,
+              content: fileName,
+              type: 'file',
+              senderName: senderName,
             ),
+            child: bubbleChild,
           ),
           Padding(
             padding: const EdgeInsets.only(left: 4.0, right: 4.0, bottom: 4.0),

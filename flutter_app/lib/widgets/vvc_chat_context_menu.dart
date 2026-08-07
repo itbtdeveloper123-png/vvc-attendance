@@ -376,6 +376,18 @@ class _VvcContextMenuOverlayState extends State<_VvcContextMenuOverlay>
     final double topOffset = widget.targetOffset.dy;
     final bool showMenuBelow = topOffset < screenSize.height * 0.55;
 
+    const double menuWidth = 250.0;
+    // Compute left position so menu card NEVER clips off screen
+    double computedLeft = widget.targetOffset.dx;
+    if (computedLeft + menuWidth > screenSize.width - 16.0) {
+      computedLeft = screenSize.width - menuWidth - 16.0;
+    }
+    if (computedLeft < 16.0) {
+      computedLeft = 16.0;
+    }
+
+    final bool isMineRight = widget.targetOffset.dx > screenSize.width * 0.4;
+
     return Stack(
       children: [
         // A. Darkened / Blurred Backdrop
@@ -396,10 +408,10 @@ class _VvcContextMenuOverlayState extends State<_VvcContextMenuOverlay>
 
         // B. Target Bubble + Clean Context Action Menu (Wrapped in Material to remove text underlines)
         Positioned(
-          left: widget.targetOffset.dx.clamp(12.0, screenSize.width - widget.targetSize.width - 12.0),
-          top: showMenuBelow ? widget.targetOffset.dy : null,
-          bottom: !showMenuBelow ? (screenSize.height - widget.targetOffset.dy) - widget.targetSize.height : null,
-          width: widget.targetSize.width.clamp(240.0, screenSize.width - 32.0),
+          left: computedLeft,
+          top: showMenuBelow ? widget.targetOffset.dy.clamp(40.0, screenSize.height - 250.0) : null,
+          bottom: !showMenuBelow ? (screenSize.height - widget.targetOffset.dy - widget.targetSize.height).clamp(40.0, screenSize.height - 250.0) : null,
+          width: menuWidth,
           child: Material(
             color: Colors.transparent,
             child: AnimatedBuilder(
@@ -407,10 +419,12 @@ class _VvcContextMenuOverlayState extends State<_VvcContextMenuOverlay>
               builder: (context, _) {
                 return ScaleTransition(
                   scale: _scaleAnim,
-                  alignment: showMenuBelow ? Alignment.topCenter : Alignment.bottomCenter,
+                  alignment: showMenuBelow
+                      ? (isMineRight ? Alignment.topRight : Alignment.topLeft)
+                      : (isMineRight ? Alignment.bottomRight : Alignment.bottomLeft),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: isMineRight ? CrossAxisAlignment.end : CrossAxisAlignment.start,
                     children: [
                       // 1. Focused Target Message Bubble
                       widget.childWidget,
