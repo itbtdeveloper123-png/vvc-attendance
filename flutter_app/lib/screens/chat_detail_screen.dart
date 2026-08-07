@@ -186,7 +186,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         .collection('chats')
         .doc(_roomId)
         .collection('messages')
-        .orderBy('timestamp', descending: false)
+        .orderBy('timestamp', descending: true)
         .snapshots()
         .listen((snap) {
       if (mounted) {
@@ -195,7 +195,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           _isLoadingHistory = false;
         });
         _markMessagesAsRead(snap.docs);
-        WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
       }
     });
   }
@@ -783,23 +782,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     }
   }
 
-  Future<void> _openGroupSettings() async {
-    final api = ApiService();
-    final res = await api.fetchUsers();
-    final List<dynamic> users = res['success'] == true ? (res['users'] ?? []) : [];
-
-    if (mounted) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => GroupSettingsScreen(
-            groupId: widget.targetUserId,
-            currentUserId: currentUserId,
-            allUsers: users,
-          ),
+  void _openGroupSettings() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => GroupSettingsScreen(
+          groupId: widget.targetUserId,
+          currentUserId: currentUserId,
+          allUsers: const [],
         ),
-      );
-    }
+      ),
+    );
   }
 
   Future<void> _showUserProfileModal() async {
@@ -906,6 +899,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     final bool hasIndicator = _isTargetTyping || _isTargetRecordingVoice;
 
     return ListView.builder(
+      reverse: true,
       controller: _scrollController,
       physics: const BouncingScrollPhysics(),
       clipBehavior: Clip.none,
@@ -967,14 +961,15 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   }
 
   bool _shouldShowDateDivider(int index, Timestamp? currentTs) {
-    if (index == 0 || currentTs == null) return true;
-    final prevDoc = _messageDocs[index - 1].data() as Map<String, dynamic>?;
-    final Timestamp? prevTs = prevDoc?['timestamp'] as Timestamp?;
-    if (prevTs == null) return true;
+    if (currentTs == null) return false;
+    if (index == _messageDocs.length - 1) return true;
+    final nextDoc = _messageDocs[index + 1].data() as Map<String, dynamic>?;
+    final Timestamp? nextTs = nextDoc?['timestamp'] as Timestamp?;
+    if (nextTs == null) return true;
 
     final currDate = currentTs.toDate();
-    final prevDate = prevTs.toDate();
-    return currDate.day != prevDate.day || currDate.month != prevDate.month || currDate.year != prevDate.year;
+    final nextDate = nextTs.toDate();
+    return currDate.day != nextDate.day || currDate.month != nextDate.month || currDate.year != nextDate.year;
   }
 
   // Date Divider in Khmer

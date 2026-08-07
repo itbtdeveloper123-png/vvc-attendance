@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:audioplayers/audioplayers.dart';
 import '../services/api_service.dart';
 import '../services/r2_storage_service.dart';
 
@@ -272,6 +273,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                           ],
                         ),
                       ),
+                      const SizedBox(height: 14),
                       // Dynamic Group Tab Content (Members, Media, Saved, Files, Voice)
                       _buildGroupTabContent(_selectedTab, participantIds, createdBy, admins, isAdmin),
                       const SizedBox(height: 20),
@@ -911,9 +913,22 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
               final text = data['text'] ?? data['fileName'] ?? 'សារប្រព័ន្ធផ្សព្វផ្សាយ';
               final sender = data['senderName'] ?? 'សមាជិក';
 
+              if (targetType == 'voice') {
+                final audioUrl = (data['audioUrl'] ?? data['voiceUrl'] ?? data['base64Audio'] ?? '').toString();
+                final durationSeconds = (data['audioDuration'] ?? data['duration'] ?? 3) as int;
+                final Timestamp? ts = data['timestamp'] as Timestamp?;
+
+                return _VoicePlayerTile(
+                  audioUrl: audioUrl,
+                  durationSeconds: durationSeconds,
+                  senderName: sender,
+                  timestamp: ts,
+                );
+              }
+
               return ListTile(
-                leading: Icon(
-                  targetType == 'voice' ? Icons.mic_rounded : Icons.insert_drive_file_rounded,
+                leading: const Icon(
+                  Icons.insert_drive_file_rounded,
                   color: _GSDark.accent,
                 ),
                 title: Text(text, style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 14)),
@@ -923,6 +938,152 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
           ),
         );
       },
+    );
+  }
+}
+
+class _VoicePlayerTile extends StatefulWidget {
+  final String audioUrl;
+  final int durationSeconds;
+  final String senderName;
+  final Timestamp? timestamp;
+
+  const _VoicePlayerTile({
+    required this.audioUrl,
+    required this.durationSeconds,
+    required this.senderName,
+    this.timestamp,
+  });
+
+  @override
+  State<_VoicePlayerTile> createState() => _VoicePlayerTileState();
+}
+
+class _VoicePlayerTileState extends State<_VoicePlayerTile> {
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  bool _isPlaying = false;
+  Duration _position = Duration.zero;
+  Duration _duration = Duration.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    _duration = Duration(seconds: widget.durationSeconds);
+    _audioPlayer.onPositionChanged.listen((p) {
+      if (mounted) setState(() => _position = p);
+    });
+    _audioPlayer.onDurationChanged.listen((d) {
+      if (mounted) setState(() => _duration = d);
+    });
+    _audioPlayer.onPlayerComplete.listen((_) {
+      if (mounted) {
+        setState(() {
+          _isPlaying = false;
+          _position = Duration.zero;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _audioPlayer.dispose();
+    super.dispose();
+  }
+
+  Future<void> _togglePlay() async {
+    if (_isPlaying) {
+      await _audioPlayer.pause();
+      if (mounted) setState(() => _isPlaying = false);
+    } else {
+      if (widget.audioUrl.isNotEmpty) {
+        await _audioPlayer.play(UrlSource(ApiService.getFullImageUrl(widget.audioUrl)));
+        if (mounted) setState(() => _isPlaying = true);
+      }
+    }
+  }
+
+  String _formatDuration(Duration d) {
+    final mins = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final secs = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$mins:$secs';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      child: Row(
+        children: [
+          // Play / Pause Button
+          InkWell(
+            onTap: _togglePlay,
+            borderRadius: BorderRadius.circular(22),
+            child: Container(
+              width: 44,
+              height: 44,
+              decoration: const BoxDecoration(
+                color: Color(0xFF3388FF),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                _isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                color: Colors.white,
+                size: 26,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          // Waveform bar & Info
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      widget.senderName,
+                      style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13.5),
+                    ),
+                    Text(
+                      _formatDuration(_isPlaying ? _position : _duration),
+                      style: GoogleFonts.inter(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                // Audio Waveform Progress Bar
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final progress = _duration.inMilliseconds > 0
+                        ? (_position.inMilliseconds / _duration.inMilliseconds).clamp(0.0, 1.0)
+                        : 0.0;
+                    return Container(
+                      height: 5,
+                      width: constraints.maxWidth,
+                      decoration: BoxDecoration(
+                        color: Colors.white24,
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                      child: FractionallySizedBox(
+                        alignment: Alignment.centerLeft,
+                        widthFactor: progress,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF3388FF),
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
