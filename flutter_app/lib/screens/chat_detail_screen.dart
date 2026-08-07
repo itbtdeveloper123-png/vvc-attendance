@@ -141,6 +141,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         isVideoCall: type == 'video',
         isCaller: true,
       )));
+    } else if (mounted) {
+      VvcAlert.showError(
+        context,
+        title: 'បរាជ័យ',
+        message: 'មិនអាចតភ្ជាប់ការហៅបានទេ។ សូមសាកល្បងម្ដងទៀត។ (Check Firestore Rules or connection)',
+      );
     }
   }
   Timer? _recordingTimer;

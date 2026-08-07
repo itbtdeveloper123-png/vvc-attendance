@@ -34,6 +34,7 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
   final R2StorageService _r2Service = R2StorageService();
 
   late final Stream<QuerySnapshot> _postsStream;
+  String _selectedTab = 'All';
 
   @override
   void initState() {
@@ -866,354 +867,480 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
     final userProvider = Provider.of<UserProvider>(context);
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF1E293B),
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
-          onPressed: () => Navigator.pop(context),
+      backgroundColor: _CommunityDark.bg,
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(110),
+        child: Container(
+          decoration: BoxDecoration(
+            color: _CommunityDark.bg,
+            border: const Border(bottom: BorderSide(color: Color(0xFF1E293B), width: 1)),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              // Top Nav Row
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 22),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                    Text(
+                      'VVC Community',
+                      style: GoogleFonts.inter(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.search_rounded, color: Colors.white, size: 26),
+                      onPressed: () {},
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.notifications_none_rounded, color: Colors.white, size: 26),
+                      onPressed: () {},
+                    ),
+                  ],
+                ),
+              ),
+              // Segment Filter Tabs
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+                child: Row(
+                  children: ['All', 'Announcements', 'Trending'].map((tab) {
+                    final isSelected = _selectedTab == tab;
+                    return GestureDetector(
+                      onTap: () => setState(() => _selectedTab = tab),
+                      child: Container(
+                        margin: const EdgeInsets.only(right: 12),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: isSelected ? _CommunityDark.card : Colors.transparent,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: isSelected ? _CommunityDark.accent.withValues(alpha: 0.5) : const Color(0xFF334155),
+                            width: 1,
+                          ),
+                        ),
+                        child: Text(
+                          tab,
+                          style: GoogleFonts.inter(
+                            color: isSelected ? _CommunityDark.accent : Colors.white70,
+                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
         ),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: const BoxDecoration(
-                color: Color(0xFF007AFF),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.hub_rounded, color: Colors.white, size: 18),
-            ),
-            const SizedBox(width: 10),
-            Text(
-              'សហគមន៍ VVC (Community)',
-              style: GoogleFonts.kantumruyPro(
-                color: Colors.white,
-                fontSize: 17,
-                fontWeight: FontWeight.bold,
-              ),
+      ),
+      floatingActionButton: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(30),
+          boxShadow: [
+            BoxShadow(
+              color: _CommunityDark.accent.withValues(alpha: 0.4),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
             ),
           ],
         ),
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showCreatePostModal(userProvider),
-        backgroundColor: const Color(0xFF007AFF),
-        icon: const Icon(Icons.add_rounded, color: Colors.white),
-        label: Text('បង្កើត Post', style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold)),
+        child: FloatingActionButton.extended(
+          onPressed: () => _showCreatePostModal(userProvider),
+          backgroundColor: _CommunityDark.accent,
+          elevation: 0,
+          icon: const Icon(Icons.add_rounded, color: Colors.white, size: 24),
+          label: Text('Create Post', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 15)),
+        ),
       ),
       body: StreamBuilder<QuerySnapshot>(
         stream: _postsStream,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator(color: Color(0xFF007AFF)));
+            return const Center(child: CircularProgressIndicator(color: _CommunityDark.accent));
           }
 
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.campaign_rounded, size: 64, color: Colors.white38),
-                  const SizedBox(height: 12),
-                  Text(
-                    'មិនទាន់មានការប្រកាសព័ត៌មាននៅឡើយទេ',
-                    style: GoogleFonts.kantumruyPro(color: Colors.white54, fontSize: 15),
-                  ),
-                ],
-              ),
-            );
-          }
+          final posts = snapshot.hasData ? snapshot.data!.docs : [];
 
-          final posts = snapshot.data!.docs;
-
-          return ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            itemCount: posts.length,
-            itemBuilder: (context, index) {
-              final doc = posts[index];
-              final data = doc.data() as Map<String, dynamic>;
-
-              final String authorId = data['authorId'] ?? '';
-              final String authorName = data['authorName'] ?? 'VVC Official';
-              final String authorAvatar = data['authorAvatar'] ?? '';
-              final String roleTag = data['roleTag'] ?? 'Official Announcement';
-              final String content = data['content'] ?? '';
-              final String mediaUrl = data['mediaUrl'] ?? '';
-              final Map<String, dynamic> reactionsMap = data['reactionsMap'] as Map<String, dynamic>? ?? {};
-              final List<dynamic> legacyLikes = data['likes'] ?? [];
-              final int commentsCount = (data['commentsCount'] as num?)?.toInt() ?? 0;
-              final Timestamp? ts = data['createdAt'] as Timestamp?;
-              final String timeStr = ts != null ? DateFormat('dd/MM HH:mm').format(ts.toDate()) : 'ទើបតែ';
-
-              final String myId = userProvider.employeeId ?? '';
-              final bool isMyPost = authorId == myId || myId == 'super_admin' || myId == 'admin';
-
-              // Determine current user reaction
-              String userReactionKey = reactionsMap[myId] ?? '';
-              if (userReactionKey.isEmpty && legacyLikes.contains(myId)) {
-                userReactionKey = 'like';
-              }
-
-              // Calculate reaction counts & badges
-              final Map<String, int> reactionCounts = {};
-              reactionsMap.forEach((uId, rKey) {
-                if (rKey is String && rKey.isNotEmpty) {
-                  reactionCounts[rKey] = (reactionCounts[rKey] ?? 0) + 1;
-                }
-              });
-              if (reactionCounts.isEmpty && legacyLikes.isNotEmpty) {
-                reactionCounts['like'] = legacyLikes.length;
-              }
-
-              int totalReactions = 0;
-              reactionCounts.forEach((_, cnt) => totalReactions += cnt);
-
-              return Container(
-                margin: const EdgeInsets.only(bottom: 16),
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1E293B),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: const Color(0xFF334155), width: 0.8),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Author Header Row
-                    Row(
+          return CustomScrollView(
+            slivers: [
+              // Create Post Input Card
+              SliverToBoxAdapter(
+                child: GestureDetector(
+                  onTap: () => _showCreatePostModal(userProvider),
+                  child: Container(
+                    margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: _CommunityDark.card,
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: const Color(0xFF334155), width: 0.8),
+                    ),
+                    child: Row(
                       children: [
                         CircleAvatar(
                           radius: 20,
-                          backgroundImage: authorAvatar.isNotEmpty
-                              ? NetworkImage(ApiService.getFullImageUrl(authorAvatar))
+                          backgroundColor: _CommunityDark.accent.withValues(alpha: 0.2),
+                          backgroundImage: (userProvider.avatar?.isNotEmpty ?? false)
+                              ? NetworkImage(ApiService.getFullImageUrl(userProvider.avatar!))
                               : null,
-                          backgroundColor: const Color(0xFF007AFF),
-                          child: authorAvatar.isEmpty
-                              ? Text(authorName[0].toUpperCase(), style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold))
+                          child: (userProvider.avatar?.isEmpty ?? true)
+                              ? Text(
+                                  (userProvider.name?.isNotEmpty ?? false) ? userProvider.name![0].toUpperCase() : 'U',
+                                  style: GoogleFonts.inter(color: _CommunityDark.accent, fontWeight: FontWeight.bold),
+                                )
                               : null,
                         ),
-                        const SizedBox(width: 10),
+                        const SizedBox(width: 14),
                         Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Text(
-                                    authorName,
-                                    style: GoogleFonts.kantumruyPro(
-                                      color: Colors.white,
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  const Icon(Icons.verified_rounded, color: Color(0xFF007AFF), size: 16),
-                                ],
-                              ),
-                              Text(
-                                '$roleTag • $timeStr',
-                                style: GoogleFonts.kantumruyPro(color: Colors.white54, fontSize: 11.5),
-                              ),
-                            ],
+                          child: Text(
+                            "What's on your mind?",
+                            style: GoogleFonts.inter(color: Colors.white54, fontSize: 15),
                           ),
                         ),
-                        // Popup Menu for Edit / Delete Post
-                        if (isMyPost)
-                          PopupMenuButton<String>(
-                            icon: const Icon(Icons.more_horiz_rounded, color: Colors.white70),
-                            color: const Color(0xFF0F172A),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                            onSelected: (val) {
-                              if (val == 'edit') {
-                                _showEditPostModal(doc);
-                              } else if (val == 'delete') {
-                                _confirmDeletePost(doc);
-                              }
-                            },
-                            itemBuilder: (context) => [
-                              PopupMenuItem(
-                                value: 'edit',
-                                child: Row(
-                                  children: [
-                                    const Icon(Icons.edit_rounded, color: Colors.white, size: 18),
-                                    const SizedBox(width: 10),
-                                    Text('កែប្រែ Post', style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 13.5)),
-                                  ],
-                                ),
-                              ),
-                              PopupMenuItem(
-                                value: 'delete',
-                                child: Row(
-                                  children: [
-                                    const Icon(Icons.delete_forever_rounded, color: Colors.redAccent, size: 18),
-                                    const SizedBox(width: 10),
-                                    Text('លុប Post', style: GoogleFonts.kantumruyPro(color: Colors.redAccent, fontSize: 13.5)),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
+                        const Icon(Icons.image_outlined, color: _CommunityDark.success, size: 24),
                       ],
                     ),
-                    const SizedBox(height: 12),
+                  ),
+                ),
+              ),
 
-                    // Post Content Text
-                    if (content.isNotEmpty)
-                      Text(
-                        content,
-                        style: GoogleFonts.kantumruyPro(
-                          color: Colors.white,
-                          fontSize: 14.5,
-                          height: 1.5,
+              // Empty State
+              if (posts.isEmpty)
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.campaign_rounded, size: 64, color: Colors.white38),
+                        const SizedBox(height: 12),
+                        Text(
+                          'មិនទាន់មានការប្រកាសព័ត៌មាននៅឡើយទេ',
+                          style: GoogleFonts.kantumruyPro(color: Colors.white54, fontSize: 15),
                         ),
-                      ),
+                      ],
+                    ),
+                  ),
+                )
+              else
+                // Feed Posts
+                SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final doc = posts[index];
+                      final data = doc.data() as Map<String, dynamic>;
 
-                    // Media Image Attachment
-                    if (mediaUrl.isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(14),
-                        child: Image.network(
-                          ApiService.getFullImageUrl(mediaUrl),
-                          fit: BoxFit.cover,
-                          width: double.infinity,
-                          gaplessPlayback: true,
-                        ),
-                      ),
-                    ],
+                      final String authorId = data['authorId'] ?? '';
+                      final String authorName = data['authorName'] ?? 'VVC Official';
+                      final String authorAvatar = data['authorAvatar'] ?? '';
+                      final String roleTag = data['roleTag'] ?? 'Official Announcement';
+                      final String content = data['content'] ?? '';
+                      final String mediaUrl = data['mediaUrl'] ?? '';
+                      final Map<String, dynamic> reactionsMap = data['reactionsMap'] as Map<String, dynamic>? ?? {};
+                      final List<dynamic> legacyLikes = data['likes'] ?? [];
+                      final int commentsCount = (data['commentsCount'] as num?)?.toInt() ?? 0;
+                      final Timestamp? ts = data['createdAt'] as Timestamp?;
+                      final String timeStr = ts != null ? DateFormat('MMM dd, HH:mm').format(ts.toDate()) : 'Just now';
 
-                    const SizedBox(height: 14),
+                      final String myId = userProvider.employeeId ?? '';
+                      final bool isMyPost = authorId == myId || myId == 'super_admin' || myId == 'admin';
 
-                    // Reactions Count & Comments Count Row
-                    if (totalReactions > 0 || commentsCount > 0)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: Row(
-                          children: [
-                            if (totalReactions > 0) ...[
-                              Row(
-                                children: reactionCounts.keys.take(3).map((rKey) {
-                                  final emoji = _reactions[rKey]?['emoji'] ?? '👍';
-                                  return Padding(
-                                    padding: const EdgeInsets.only(right: 2.0),
-                                    child: Text(emoji, style: const TextStyle(fontSize: 14)),
-                                  );
-                                }).toList(),
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                '$totalReactions',
-                                style: GoogleFonts.inter(color: Colors.white70, fontSize: 12.5),
-                              ),
-                            ],
-                            const Spacer(),
-                            if (commentsCount > 0)
-                              Text(
-                                '$commentsCount មតិយោបល់',
-                                style: GoogleFonts.kantumruyPro(color: Colors.white54, fontSize: 12),
-                              ),
+                      // Reaction Logic
+                      String userReactionKey = reactionsMap[myId] ?? '';
+                      if (userReactionKey.isEmpty && legacyLikes.contains(myId)) {
+                        userReactionKey = 'like';
+                      }
+
+                      final Map<String, int> reactionCounts = {};
+                      reactionsMap.forEach((uId, rKey) {
+                        if (rKey is String && rKey.isNotEmpty) {
+                          reactionCounts[rKey] = (reactionCounts[rKey] ?? 0) + 1;
+                        }
+                      });
+                      if (reactionCounts.isEmpty && legacyLikes.isNotEmpty) {
+                        reactionCounts['like'] = legacyLikes.length;
+                      }
+
+                      int totalReactions = 0;
+                      reactionCounts.forEach((_, cnt) => totalReactions += cnt);
+
+                      return Container(
+                        margin: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: _CommunityDark.card,
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(color: const Color(0xFF334155), width: 0.8),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.2),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
                           ],
                         ),
-                      ),
-
-                    const Divider(color: Colors.white12, height: 1),
-                    const SizedBox(height: 8),
-
-                    // Action Buttons Row (Like/Reaction, Comment, Share)
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: [
-                        // 1. Reaction / Like Button (Tap = toggle, Long press = Picker)
-                        GestureDetector(
-                          onTap: () async {
-                            final Map<String, dynamic> updatedMap = Map.from(reactionsMap);
-                            if (userReactionKey.isNotEmpty) {
-                              updatedMap.remove(myId);
-                            } else {
-                              updatedMap[myId] = 'like';
-                            }
-                            await doc.reference.update({'reactionsMap': updatedMap});
-                          },
-                          onLongPress: () {
-                            _showReactionPicker(context, doc.reference, myId, reactionsMap);
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                            child: Row(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Author Header
+                            Row(
                               children: [
-                                Text(
-                                  userReactionKey.isNotEmpty ? (_reactions[userReactionKey]?['emoji'] ?? '👍') : '👍',
-                                  style: const TextStyle(fontSize: 16),
+                                CircleAvatar(
+                                  radius: 22,
+                                  backgroundImage: authorAvatar.isNotEmpty
+                                      ? NetworkImage(ApiService.getFullImageUrl(authorAvatar))
+                                      : null,
+                                  backgroundColor: _CommunityDark.accent.withValues(alpha: 0.2),
+                                  child: authorAvatar.isEmpty
+                                      ? Text(authorName[0].toUpperCase(), style: GoogleFonts.inter(color: _CommunityDark.accent, fontWeight: FontWeight.bold, fontSize: 18))
+                                      : null,
                                 ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  userReactionKey.isNotEmpty ? (_reactions[userReactionKey]?['label'] ?? 'Like') : 'Like',
-                                  style: GoogleFonts.inter(
-                                    color: userReactionKey.isNotEmpty
-                                        ? (_reactions[userReactionKey]?['color'] as Color? ?? _CommunityDark.accent)
-                                        : Colors.white60,
-                                    fontSize: 13,
-                                    fontWeight: userReactionKey.isNotEmpty ? FontWeight.bold : FontWeight.normal,
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Text(
+                                            authorName,
+                                            style: GoogleFonts.kantumruyPro(
+                                              color: Colors.white,
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 4),
+                                          const Icon(Icons.verified_rounded, color: _CommunityDark.accent, size: 16),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Row(
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: _CommunityDark.accent.withValues(alpha: 0.15),
+                                              borderRadius: BorderRadius.circular(6),
+                                            ),
+                                            child: Text(
+                                              roleTag,
+                                              style: GoogleFonts.inter(color: _CommunityDark.accent, fontSize: 10, fontWeight: FontWeight.w600),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            '•  $timeStr',
+                                            style: GoogleFonts.inter(color: Colors.white54, fontSize: 12),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                if (isMyPost)
+                                  PopupMenuButton<String>(
+                                    icon: const Icon(Icons.more_horiz_rounded, color: Colors.white54),
+                                    color: const Color(0xFF0F172A),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                    onSelected: (val) {
+                                      if (val == 'edit') _showEditPostModal(doc);
+                                      if (val == 'delete') _confirmDeletePost(doc);
+                                    },
+                                    itemBuilder: (context) => [
+                                      PopupMenuItem(
+                                        value: 'edit',
+                                        child: Row(
+                                          children: [
+                                            const Icon(Icons.edit_rounded, color: Colors.white, size: 18),
+                                            const SizedBox(width: 10),
+                                            Text('កែប្រែ Post', style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 13.5)),
+                                          ],
+                                        ),
+                                      ),
+                                      PopupMenuItem(
+                                        value: 'delete',
+                                        child: Row(
+                                          children: [
+                                            const Icon(Icons.delete_forever_rounded, color: Colors.redAccent, size: 18),
+                                            const SizedBox(width: 10),
+                                            Text('លុប Post', style: GoogleFonts.kantumruyPro(color: Colors.redAccent, fontSize: 13.5)),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(height: 14),
+
+                            // Content
+                            if (content.isNotEmpty)
+                              Text(
+                                content,
+                                style: GoogleFonts.kantumruyPro(
+                                  color: Colors.white.withValues(alpha: 0.9),
+                                  fontSize: 15,
+                                  height: 1.5,
+                                ),
+                              ),
+
+                            if (mediaUrl.isNotEmpty) ...[
+                              const SizedBox(height: 16),
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(16),
+                                child: Image.network(
+                                  ApiService.getFullImageUrl(mediaUrl),
+                                  fit: BoxFit.cover,
+                                  width: double.infinity,
+                                ),
+                              ),
+                            ],
+
+                            const SizedBox(height: 16),
+                            // Engagement Metrics
+                            if (totalReactions > 0 || commentsCount > 0)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: Row(
+                                  children: [
+                                    if (totalReactions > 0) ...[
+                                      Row(
+                                        children: reactionCounts.keys.take(3).map((rKey) {
+                                          final emoji = _reactions[rKey]?['emoji'] ?? '👍';
+                                          return Padding(
+                                            padding: const EdgeInsets.only(right: 2.0),
+                                            child: Text(emoji, style: const TextStyle(fontSize: 14)),
+                                          );
+                                        }).toList(),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        '$totalReactions',
+                                        style: GoogleFonts.inter(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500),
+                                      ),
+                                    ],
+                                    const Spacer(),
+                                    if (commentsCount > 0)
+                                      Text(
+                                        '$commentsCount Comments',
+                                        style: GoogleFonts.inter(color: Colors.white54, fontSize: 13, fontWeight: FontWeight.w500),
+                                      ),
+                                  ],
+                                ),
+                              ),
+
+                            const Divider(color: Color(0xFF334155), height: 1),
+                            const SizedBox(height: 12),
+
+                            // Actions
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                // Like
+                                GestureDetector(
+                                  onTap: () async {
+                                    final Map<String, dynamic> updatedMap = Map.from(reactionsMap);
+                                    if (userReactionKey.isNotEmpty) {
+                                      updatedMap.remove(myId);
+                                    } else {
+                                      updatedMap[myId] = 'like';
+                                    }
+                                    await doc.reference.update({'reactionsMap': updatedMap});
+                                  },
+                                  onLongPress: () => _showReactionPicker(context, doc.reference, myId, reactionsMap),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                    child: Row(
+                                      children: [
+                                        Text(
+                                          userReactionKey.isNotEmpty ? (_reactions[userReactionKey]?['emoji'] ?? '👍') : '👍',
+                                          style: TextStyle(fontSize: userReactionKey.isNotEmpty ? 18 : 16),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          userReactionKey.isNotEmpty ? (_reactions[userReactionKey]?['label'] ?? 'Like') : 'Like',
+                                          style: GoogleFonts.inter(
+                                            color: userReactionKey.isNotEmpty
+                                                ? (_reactions[userReactionKey]?['color'] as Color? ?? _CommunityDark.accent)
+                                                : Colors.white60,
+                                            fontSize: 14,
+                                            fontWeight: userReactionKey.isNotEmpty ? FontWeight.bold : FontWeight.w500,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+
+                                // Comment
+                                InkWell(
+                                  onTap: () => _showCommentsSheet(doc, userProvider),
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                    child: Row(
+                                      children: [
+                                        const Icon(Icons.mode_comment_outlined, color: Colors.white60, size: 20),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          'Comment',
+                                          style: GoogleFonts.inter(color: Colors.white60, fontSize: 14, fontWeight: FontWeight.w500),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+
+                                // Share
+                                InkWell(
+                                  onTap: () {
+                                    Clipboard.setData(ClipboardData(text: content));
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('បានចម្លងអត្ថបទ Post!', style: GoogleFonts.kantumruyPro()),
+                                        backgroundColor: _CommunityDark.accent,
+                                      ),
+                                    );
+                                  },
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                    child: Row(
+                                      children: [
+                                        const Icon(Icons.ios_share_rounded, color: Colors.white60, size: 20),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          'Share',
+                                          style: GoogleFonts.inter(color: Colors.white60, fontSize: 14, fontWeight: FontWeight.w500),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
                               ],
                             ),
-                          ),
+                          ],
                         ),
-
-                        // 2. Comment Button
-                        InkWell(
-                          onTap: () => _showCommentsSheet(doc, userProvider),
-                          borderRadius: BorderRadius.circular(12),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                            child: Row(
-                              children: [
-                                const Icon(Icons.mode_comment_outlined, color: Colors.white60, size: 18),
-                                const SizedBox(width: 6),
-                                Text(
-                                  'បញ្ចេញមតិ',
-                                  style: GoogleFonts.kantumruyPro(color: Colors.white60, fontSize: 13),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-
-                        // 3. Share Button
-                        InkWell(
-                          onTap: () {
-                            Clipboard.setData(ClipboardData(text: content));
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('បានចម្លងអត្ថបទ Post!', style: GoogleFonts.kantumruyPro()),
-                                backgroundColor: _CommunityDark.accent,
-                              ),
-                            );
-                          },
-                          borderRadius: BorderRadius.circular(12),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                            child: Row(
-                              children: [
-                                const Icon(Icons.share_outlined, color: Colors.white60, size: 18),
-                                const SizedBox(width: 6),
-                                Text(
-                                  'ចែករំលែក',
-                                  style: GoogleFonts.kantumruyPro(color: Colors.white60, fontSize: 13),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                      );
+                    },
+                    childCount: posts.length,
+                  ),
                 ),
-              );
-            },
+              const SliverToBoxAdapter(child: SizedBox(height: 80)), // Padding for FAB
+            ],
           );
         },
       ),
