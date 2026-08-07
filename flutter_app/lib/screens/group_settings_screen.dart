@@ -1,9 +1,12 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../services/api_service.dart';
 import '../services/r2_storage_service.dart';
 
@@ -460,11 +463,6 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (context, setStateModal) {
-            final available = widget.allUsers.where((u) {
-              final uid = (u['employee_id'] ?? '').toString();
-              return !existingIds.contains(uid);
-            }).toList();
-
             return Container(
               height: MediaQuery.of(context).size.height * 0.75,
               padding: const EdgeInsets.all(16),
@@ -489,26 +487,59 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                   ),
                   const SizedBox(height: 12),
                   Expanded(
-                    child: ListView.builder(
-                      itemCount: available.length,
-                      itemBuilder: (ctx, idx) {
-                        final u = available[idx];
-                        final uid = (u['employee_id'] ?? '').toString();
-                        final name = u['name'] ?? uid;
-                        final isSelected = selectedNew.contains(uid);
+                    child: StreamBuilder<QuerySnapshot>(
+                      stream: _firestore.collection('users').snapshots(),
+                      builder: (context, snap) {
+                        if (!snap.hasData) {
+                          return const Center(child: CircularProgressIndicator(color: _GSDark.accent));
+                        }
+                        final available = snap.data!.docs.where((d) => !existingIds.contains(d.id)).toList();
 
-                        return CheckboxListTile(
-                          activeColor: _GSDark.accent,
-                          title: Text(name, style: GoogleFonts.inter(color: Colors.white)),
-                          value: isSelected,
-                          onChanged: (val) {
-                            setStateModal(() {
-                              if (val == true) {
-                                selectedNew.add(uid);
-                              } else {
-                                selectedNew.remove(uid);
-                              }
-                            });
+                        if (available.isEmpty) {
+                          return Center(
+                            child: Text(
+                              'គ្មានសមាជិកថ្មីសម្រាប់បន្ថែមទេ',
+                              style: GoogleFonts.kantumruyPro(color: Colors.white54),
+                            ),
+                          );
+                        }
+
+                        return ListView.builder(
+                          itemCount: available.length,
+                          itemBuilder: (ctx, idx) {
+                            final uDoc = available[idx];
+                            final uData = uDoc.data() as Map<String, dynamic>;
+                            final uid = uDoc.id;
+                            final name = uData['name'] ?? uData['employee_id'] ?? uid;
+                            final avatar = uData['avatar'] ?? uData['photo'] ?? uData['userPhoto'] ?? '';
+                            final position = uData['position'] ?? uData['department'] ?? '';
+                            final isSelected = selectedNew.contains(uid);
+
+                            return CheckboxListTile(
+                              activeColor: _GSDark.accent,
+                              secondary: CircleAvatar(
+                                radius: 18,
+                                backgroundImage: avatar.isNotEmpty
+                                    ? NetworkImage(ApiService.getFullImageUrl(avatar))
+                                    : null,
+                                backgroundColor: _GSDark.accent,
+                                child: avatar.isEmpty
+                                    ? Text(name.isNotEmpty ? name[0].toUpperCase() : 'U', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold))
+                                    : null,
+                              ),
+                              title: Text(name, style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.w600)),
+                              subtitle: position.isNotEmpty ? Text(position, style: GoogleFonts.inter(color: Colors.white54, fontSize: 12)) : null,
+                              value: isSelected,
+                              onChanged: (val) {
+                                setStateModal(() {
+                                  if (val == true) {
+                                    selectedNew.add(uid);
+                                  } else {
+                                    selectedNew.remove(uid);
+                                  }
+                                });
+                              },
+                            );
                           },
                         );
                       },
@@ -658,6 +689,37 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
     );
   }
 
+  void _openFullScreenImage(BuildContext context, String imageUrl) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.9),
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: EdgeInsets.zero,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            InteractiveViewer(
+              child: Image.network(
+                ApiService.getFullImageUrl(imageUrl),
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => const Icon(Icons.image_not_supported_rounded, color: Colors.white38, size: 60),
+              ),
+            ),
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 10,
+              right: 16,
+              child: IconButton(
+                icon: const Icon(Icons.close_rounded, color: Colors.white, size: 30),
+                onPressed: () => Navigator.pop(ctx),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildGroupTabContent(int selectedTab, List<dynamic> participantIds, String createdBy, Map<String, dynamic> admins, bool isAdmin) {
     if (selectedTab == 0) {
       // Member List Card
@@ -693,123 +755,129 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
               separatorBuilder: (_, __) => const Divider(height: 1, color: _GSDark.divider, indent: 64),
               itemBuilder: (context, idx) {
                 final uid = participantIds[idx].toString();
-                final userObj = widget.allUsers.firstWhere(
-                  (u) => (u['employee_id'] ?? '').toString() == uid,
-                  orElse: () => {'name': uid, 'avatar': '', 'isOnline': false},
-                );
 
-                final String memberName = userObj['name'] ?? uid;
-                final String avatar = userObj['avatar'] ?? '';
-                final bool isOnline = userObj['isOnline'] == true || uid == widget.currentUserId;
-                final bool isUserOwner = uid == createdBy;
-                final bool isUserAdmin = isUserOwner || (admins[uid] == true);
-                final String? customTag = userObj['tag']?.toString();
+                return StreamBuilder<DocumentSnapshot>(
+                  stream: _firestore.collection('users').doc(uid).snapshots(),
+                  builder: (context, userSnap) {
+                    Map<String, dynamic> userObj = {};
+                    if (userSnap.hasData && userSnap.data != null && userSnap.data!.exists) {
+                      userObj = userSnap.data!.data() as Map<String, dynamic>;
+                    }
 
-                String statusStr = isOnline ? 'online' : 'last seen recently';
+                    final String memberName = (userObj['name'] ?? userObj['employee_id'] ?? uid).toString();
+                    final String avatar = (userObj['avatar'] ?? userObj['photo'] ?? userObj['userPhoto'] ?? '').toString();
+                    final bool isOnline = userObj['isOnline'] == true || uid == widget.currentUserId;
+                    final bool isUserOwner = uid == createdBy;
+                    final bool isUserAdmin = isUserOwner || (admins[uid] == true);
+                    final String? customTag = userObj['tag']?.toString();
 
-                return ListTile(
-                  leading: Stack(
-                    children: [
-                      CircleAvatar(
-                        radius: 19,
-                        backgroundImage: avatar.isNotEmpty
-                            ? NetworkImage(ApiService.getFullImageUrl(avatar))
-                            : null,
-                        backgroundColor: _GSDark.accent,
-                        child: avatar.isEmpty
-                            ? Text(memberName.isNotEmpty ? memberName[0].toUpperCase() : 'U', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold))
-                            : null,
+                    String statusStr = isOnline ? 'online' : 'last seen recently';
+
+                    return ListTile(
+                      leading: Stack(
+                        children: [
+                          CircleAvatar(
+                            radius: 19,
+                            backgroundImage: avatar.isNotEmpty
+                                ? NetworkImage(ApiService.getFullImageUrl(avatar))
+                                : null,
+                            backgroundColor: _GSDark.accent,
+                            child: avatar.isEmpty
+                                ? Text(memberName.isNotEmpty ? memberName[0].toUpperCase() : 'U', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold))
+                                : null,
+                          ),
+                          if (isOnline)
+                            Positioned(
+                              right: 0,
+                              bottom: 0,
+                              child: Container(
+                                width: 9,
+                                height: 9,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF10B981),
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: _GSDark.card, width: 1.5),
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
-                      if (isOnline)
-                        Positioned(
-                          right: 0,
-                          bottom: 0,
-                          child: Container(
-                            width: 9,
-                            height: 9,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF10B981),
-                              shape: BoxShape.circle,
-                              border: Border.all(color: _GSDark.card, width: 1.5),
-                            ),
-                          ),
+                      title: Text(
+                        memberName,
+                        style: GoogleFonts.inter(color: Colors.white, fontSize: 14.5, fontWeight: FontWeight.w500),
+                      ),
+                      subtitle: Text(
+                        statusStr,
+                        style: GoogleFonts.inter(
+                          color: isOnline ? _GSDark.accent : _GSDark.textMuted,
+                          fontSize: 12,
                         ),
-                    ],
-                  ),
-                  title: Text(
-                    memberName,
-                    style: GoogleFonts.inter(color: Colors.white, fontSize: 14.5, fontWeight: FontWeight.w500),
-                  ),
-                  subtitle: Text(
-                    statusStr,
-                    style: GoogleFonts.inter(
-                      color: isOnline ? _GSDark.accent : _GSDark.textMuted,
-                      fontSize: 12,
-                    ),
-                  ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (isUserOwner)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: const Color(0x33A855F7),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Text('owner', style: GoogleFonts.inter(color: const Color(0xFFC084FC), fontSize: 11, fontWeight: FontWeight.w600)),
-                        )
-                      else if (isUserAdmin)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: const Color(0x3322C55E),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Text('admin', style: GoogleFonts.inter(color: const Color(0xFF4ADE80), fontSize: 11, fontWeight: FontWeight.w600)),
-                        )
-                      else if (customTag != null && customTag.isNotEmpty)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: const Color(0x330A84FF),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Text(customTag, style: GoogleFonts.inter(color: _GSDark.accent, fontSize: 11, fontWeight: FontWeight.w600)),
-                        ),
-                      if (isAdmin && uid != widget.currentUserId && !isUserOwner)
-                        PopupMenuButton<String>(
-                          icon: const Icon(Icons.more_vert_rounded, color: Colors.white54, size: 20),
-                          color: _GSDark.card,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                          onSelected: (val) async {
-                            if (val == 'toggle_admin') {
-                              admins[uid] = !(admins[uid] == true);
-                              await _firestore.collection('groups').doc(widget.groupId).update({'admins': admins});
-                            } else if (val == 'remove') {
-                              final updated = List.from(participantIds)..remove(uid);
-                              await _firestore.collection('groups').doc(widget.groupId).update({'participantIds': updated});
-                            }
-                          },
-                          itemBuilder: (ctx) => [
-                            PopupMenuItem(
-                              value: 'toggle_admin',
-                              child: Text(
-                                isUserAdmin ? 'ដកសិទ្ធិ Admin' : 'ដំឡើងជា Admin',
-                                style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 13.5),
+                      ),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (isUserOwner)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: const Color(0x33A855F7),
+                                borderRadius: BorderRadius.circular(10),
                               ),
-                            ),
-                            PopupMenuItem(
-                              value: 'remove',
-                              child: Text(
-                                'លុបចេញពីក្រុម',
-                                style: GoogleFonts.kantumruyPro(color: _GSDark.danger, fontSize: 13.5),
+                              child: Text('owner', style: GoogleFonts.inter(color: const Color(0xFFC084FC), fontSize: 11, fontWeight: FontWeight.w600)),
+                            )
+                          else if (isUserAdmin)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: const Color(0x3322C55E),
+                                borderRadius: BorderRadius.circular(10),
                               ),
+                              child: Text('admin', style: GoogleFonts.inter(color: const Color(0xFF4ADE80), fontSize: 11, fontWeight: FontWeight.w600)),
+                            )
+                          else if (customTag != null && customTag.isNotEmpty)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: const Color(0x330A84FF),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(customTag, style: GoogleFonts.inter(color: _GSDark.accent, fontSize: 11, fontWeight: FontWeight.w600)),
                             ),
-                          ],
-                        ),
-                    ],
-                  ),
+                          if (isAdmin && uid != widget.currentUserId && !isUserOwner)
+                            PopupMenuButton<String>(
+                              icon: const Icon(Icons.more_vert_rounded, color: Colors.white54, size: 20),
+                              color: _GSDark.card,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              onSelected: (val) async {
+                                if (val == 'toggle_admin') {
+                                  admins[uid] = !(admins[uid] == true);
+                                  await _firestore.collection('groups').doc(widget.groupId).update({'admins': admins});
+                                } else if (val == 'remove') {
+                                  final updated = List.from(participantIds)..remove(uid);
+                                  await _firestore.collection('groups').doc(widget.groupId).update({'participantIds': updated});
+                                }
+                              },
+                              itemBuilder: (ctx) => [
+                                PopupMenuItem(
+                                  value: 'toggle_admin',
+                                  child: Text(
+                                    isUserAdmin ? 'ដកសិទ្ធិ Admin' : 'ដំឡើងជា Admin',
+                                    style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 13.5),
+                                  ),
+                                ),
+                                PopupMenuItem(
+                                  value: 'remove',
+                                  child: Text(
+                                    'លុបចេញពីក្រុម',
+                                    style: GoogleFonts.kantumruyPro(color: _GSDark.danger, fontSize: 13.5),
+                                  ),
+                                ),
+                              ],
+                            ),
+                        ],
+                      ),
+                    );
+                  },
                 );
               },
             ),
@@ -839,10 +907,21 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
         final docs = snapshot.data!.docs.where((doc) {
           final data = doc.data() as Map<String, dynamic>;
           final type = data['type']?.toString() ?? '';
-          if (targetType == 'media') return type == 'image' || type == 'video' || data['stickerUrl'] != null;
-          if (targetType == 'file') return type == 'file' || type == 'document' || type == 'pdf';
-          if (targetType == 'voice') return type == 'voice' || type == 'audio';
-          if (targetType == 'saved') return data['isPinned'] == true || data['isSaved'] == true;
+          final imageUrl = (data['imageUrl'] ?? data['mediaUrl'] ?? data['fileUrl'] ?? (type == 'image' ? data['text'] : '') ?? '').toString();
+          final audioUrl = (data['audioUrl'] ?? data['voiceUrl'] ?? data['base64Audio'] ?? (type == 'voice' || type == 'audio' ? data['text'] : '') ?? '').toString();
+
+          if (targetType == 'media') {
+            return type == 'image' || type == 'video' || imageUrl.isNotEmpty || data['stickerUrl'] != null;
+          }
+          if (targetType == 'file') {
+            return type == 'file' || type == 'document' || type == 'pdf' || (data['fileName'] != null);
+          }
+          if (targetType == 'voice') {
+            return type == 'voice' || type == 'audio' || audioUrl.isNotEmpty;
+          }
+          if (targetType == 'saved') {
+            return data['isPinned'] == true || data['isSaved'] == true;
+          }
           return true;
         }).toList();
 
@@ -881,15 +960,20 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
             itemCount: docs.length,
             itemBuilder: (context, idx) {
               final data = docs[idx].data() as Map<String, dynamic>;
-              final url = data['fileUrl'] ?? data['text'] ?? data['stickerUrl'] ?? '';
-              return ClipRRect(
+              final String rawUrl = (data['imageUrl'] ?? data['mediaUrl'] ?? data['fileUrl'] ?? data['stickerUrl'] ?? data['text'] ?? '').toString();
+
+              return InkWell(
+                onTap: rawUrl.isNotEmpty ? () => _openFullScreenImage(context, rawUrl) : null,
                 borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  color: _GSDark.card,
-                  child: Image.network(
-                    ApiService.getFullImageUrl(url),
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => const Center(child: Icon(Icons.image_not_supported_rounded, color: Colors.white38)),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    color: _GSDark.card,
+                    child: Image.network(
+                      ApiService.getFullImageUrl(rawUrl),
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const Center(child: Icon(Icons.image_not_supported_rounded, color: Colors.white38)),
+                    ),
                   ),
                 ),
               );
@@ -914,7 +998,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
               final sender = data['senderName'] ?? 'សមាជិក';
 
               if (targetType == 'voice') {
-                final audioUrl = (data['audioUrl'] ?? data['voiceUrl'] ?? data['base64Audio'] ?? '').toString();
+                final audioUrl = (data['audioUrl'] ?? data['voiceUrl'] ?? data['base64Audio'] ?? (data['type'] == 'voice' ? data['text'] : '') ?? '').toString();
                 final durationSeconds = (data['audioDuration'] ?? data['duration'] ?? 3) as int;
                 final Timestamp? ts = data['timestamp'] as Timestamp?;
 
@@ -926,13 +1010,21 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                 );
               }
 
+              final fileUrl = (data['fileUrl'] ?? data['mediaUrl'] ?? data['url'] ?? data['text'] ?? '').toString();
+
               return ListTile(
                 leading: const Icon(
                   Icons.insert_drive_file_rounded,
                   color: _GSDark.accent,
+                  size: 28,
                 ),
                 title: Text(text, style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 14)),
                 subtitle: Text('ផ្ញើដោយ: $sender', style: GoogleFonts.kantumruyPro(color: _GSDark.textMuted, fontSize: 12)),
+                onTap: () async {
+                  if (fileUrl.startsWith('http')) {
+                    await launchUrl(Uri.parse(fileUrl), mode: LaunchMode.externalApplication);
+                  }
+                },
               );
             },
           ),
@@ -992,14 +1084,33 @@ class _VoicePlayerTileState extends State<_VoicePlayerTile> {
   }
 
   Future<void> _togglePlay() async {
-    if (_isPlaying) {
-      await _audioPlayer.pause();
-      if (mounted) setState(() => _isPlaying = false);
-    } else {
-      if (widget.audioUrl.isNotEmpty) {
-        await _audioPlayer.play(UrlSource(ApiService.getFullImageUrl(widget.audioUrl)));
-        if (mounted) setState(() => _isPlaying = true);
+    try {
+      if (_isPlaying) {
+        await _audioPlayer.pause();
+        if (mounted) setState(() => _isPlaying = false);
+        return;
       }
+
+      final url = widget.audioUrl.trim();
+      if (url.isEmpty) return;
+
+      if (url.startsWith('data:audio')) {
+        final base64Str = url.split(',').last;
+        final bytes = base64Decode(base64Str);
+        final dir = await getTemporaryDirectory();
+        final tempFile = File('${dir.path}/temp_play_group_${DateTime.now().millisecondsSinceEpoch}.m4a');
+        await tempFile.writeAsBytes(bytes);
+        await _audioPlayer.play(DeviceFileSource(tempFile.path));
+      } else if (url.startsWith('http://') || url.startsWith('https://')) {
+        await _audioPlayer.play(UrlSource(url));
+      } else {
+        await _audioPlayer.play(UrlSource(ApiService.getFullImageUrl(url)));
+      }
+
+      if (mounted) setState(() => _isPlaying = true);
+    } catch (e) {
+      debugPrint('Error playing voice in group settings: $e');
+      if (mounted) setState(() => _isPlaying = false);
     }
   }
 

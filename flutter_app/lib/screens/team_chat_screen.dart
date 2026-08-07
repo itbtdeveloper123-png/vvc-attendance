@@ -2428,23 +2428,44 @@ class _AudioMessageBubbleState extends State<AudioMessageBubble> {
   }
 
   Future<void> _prepareSource() async {
-    final bytes = await compute(base64Decode, widget.audioBase64);
-    if (!mounted) return;
-    setState(() => _audioBytes = bytes);
+    final raw = widget.audioBase64.trim();
+    if (raw.isEmpty) return;
+    if (raw.startsWith('http://') || raw.startsWith('https://')) return;
+    try {
+      final base64Str = raw.contains(',') ? raw.split(',').last : raw;
+      final bytes = await compute(base64Decode, base64Str);
+      if (!mounted) return;
+      setState(() => _audioBytes = bytes);
+    } catch (_) {}
   }
 
   Future<void> _togglePlay() async {
-    if (_audioBytes == null) return;
-    if (_isPlaying) {
-      await _player.pause();
-      setState(() => _isPlaying = false);
-    } else {
-      if (_position > Duration.zero && _position < _duration) {
-        await _player.resume();
-      } else {
-        await _player.play(BytesSource(_audioBytes!));
+    try {
+      if (_isPlaying) {
+        await _player.pause();
+        if (mounted) setState(() => _isPlaying = false);
+        return;
       }
-      setState(() => _isPlaying = true);
+
+      final raw = widget.audioBase64.trim();
+      if (raw.isEmpty) return;
+
+      if (raw.startsWith('http://') || raw.startsWith('https://')) {
+        await _player.play(UrlSource(raw));
+      } else if (_audioBytes != null) {
+        await _player.play(BytesSource(_audioBytes!));
+      } else if (raw.length > 100) {
+        final base64Str = raw.contains(',') ? raw.split(',').last : raw;
+        final bytes = base64Decode(base64Str);
+        await _player.play(BytesSource(bytes));
+      } else {
+        await _player.play(UrlSource(ApiService.getFullImageUrl(raw)));
+      }
+
+      if (mounted) setState(() => _isPlaying = true);
+    } catch (e) {
+      debugPrint('Error playing audio bubble in team_chat_screen: $e');
+      if (mounted) setState(() => _isPlaying = false);
     }
   }
 

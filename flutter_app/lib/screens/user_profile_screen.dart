@@ -1,8 +1,12 @@
+import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:provider/provider.dart';
+import 'package:audioplayers/audioplayers.dart';
+import 'package:path_provider/path_provider.dart';
 import '../providers/user_provider.dart';
 import '../services/api_service.dart';
 import '../widgets/chat_wallpaper_picker.dart';
@@ -515,6 +519,37 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     );
   }
 
+  void _openProfileImageModal(BuildContext context, String imageUrl) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.9),
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: EdgeInsets.zero,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            InteractiveViewer(
+              child: Image.network(
+                ApiService.getFullImageUrl(imageUrl),
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => const Icon(Icons.image_not_supported_rounded, color: Colors.white38, size: 60),
+              ),
+            ),
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 10,
+              right: 16,
+              child: IconButton(
+                icon: const Icon(Icons.close_rounded, color: Colors.white, size: 30),
+                onPressed: () => Navigator.pop(ctx),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildProfileTabContent(int selectedTab, String roomId) {
     if (roomId.isEmpty) {
       return _buildEmptyMediaState();
@@ -547,11 +582,24 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         final docs = snapshot.data!.docs.where((doc) {
           final data = doc.data() as Map<String, dynamic>;
           final type = data['type']?.toString() ?? '';
-          if (targetCategory == 'media') return type == 'image' || type == 'video' || data['stickerUrl'] != null;
-          if (targetCategory == 'file') return type == 'file' || type == 'document' || type == 'pdf';
-          if (targetCategory == 'music') return type == 'music' || type == 'audio';
-          if (targetCategory == 'voice') return type == 'voice';
-          if (targetCategory == 'posts') return type == 'link' || data['text']?.toString().contains('http') == true;
+          final imageUrl = (data['imageUrl'] ?? data['mediaUrl'] ?? data['fileUrl'] ?? (type == 'image' ? data['text'] : '') ?? '').toString();
+          final audioUrl = (data['audioUrl'] ?? data['voiceUrl'] ?? data['base64Audio'] ?? (type == 'voice' || type == 'audio' || type == 'music' ? data['text'] : '') ?? '').toString();
+
+          if (targetCategory == 'media') {
+            return type == 'image' || type == 'video' || imageUrl.isNotEmpty || data['stickerUrl'] != null;
+          }
+          if (targetCategory == 'file') {
+            return type == 'file' || type == 'document' || type == 'pdf' || (data['fileName'] != null);
+          }
+          if (targetCategory == 'music') {
+            return type == 'music' || type == 'audio' || (data['fileName']?.toString().endsWith('.mp3') == true);
+          }
+          if (targetCategory == 'voice') {
+            return type == 'voice' || type == 'audio' || audioUrl.isNotEmpty;
+          }
+          if (targetCategory == 'posts') {
+            return type == 'link' || data['text']?.toString().contains('http') == true;
+          }
           return true;
         }).toList();
 
@@ -571,16 +619,20 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             itemCount: docs.length,
             itemBuilder: (context, idx) {
               final data = docs[idx].data() as Map<String, dynamic>;
-              final url = data['fileUrl'] ?? data['text'] ?? data['stickerUrl'] ?? '';
-              return ClipRRect(
+              final String rawUrl = (data['imageUrl'] ?? data['mediaUrl'] ?? data['fileUrl'] ?? data['stickerUrl'] ?? data['text'] ?? '').toString();
+              return InkWell(
+                onTap: rawUrl.isNotEmpty ? () => _openProfileImageModal(context, rawUrl) : null,
                 borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  color: const Color(0xFF1E293B),
-                  child: Image.network(
-                    ApiService.getFullImageUrl(url),
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => const Center(
-                      child: Icon(Icons.image_not_supported_rounded, color: Colors.white38),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    color: const Color(0xFF1E293B),
+                    child: Image.network(
+                      ApiService.getFullImageUrl(rawUrl),
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const Center(
+                        child: Icon(Icons.image_not_supported_rounded, color: Colors.white38),
+                      ),
                     ),
                   ),
                 ),
@@ -605,13 +657,34 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               final text = data['text'] ?? data['fileName'] ?? 'សារប្រព័ន្ធផ្សព្វផ្សាយ';
               final sender = data['senderName'] ?? '';
 
+              if (targetCategory == 'voice' || targetCategory == 'music') {
+                final audioUrl = (data['audioUrl'] ?? data['voiceUrl'] ?? data['base64Audio'] ?? (data['type'] == 'voice' || data['type'] == 'music' ? data['text'] : '') ?? '').toString();
+                final durationSeconds = (data['audioDuration'] ?? data['duration'] ?? 3) as int;
+                final Timestamp? ts = data['timestamp'] as Timestamp?;
+
+                return _ProfileVoiceTile(
+                  audioUrl: audioUrl,
+                  durationSeconds: durationSeconds,
+                  senderName: sender.isNotEmpty ? sender : widget.userName,
+                  timestamp: ts,
+                );
+              }
+
+              final fileUrl = (data['fileUrl'] ?? data['mediaUrl'] ?? data['url'] ?? data['text'] ?? '').toString();
+
               return ListTile(
-                leading: Icon(
-                  targetCategory == 'voice' ? Icons.mic_rounded : Icons.insert_drive_file_rounded,
-                  color: const Color(0xFF0A84FF),
+                leading: const Icon(
+                  Icons.insert_drive_file_rounded,
+                  color: Color(0xFF0A84FF),
+                  size: 28,
                 ),
                 title: Text(text, style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 14)),
                 subtitle: Text(sender.isNotEmpty ? 'ផ្ញើដោយ: $sender' : 'សារចែករំលែក', style: GoogleFonts.kantumruyPro(color: const Color(0xFF94A3B8), fontSize: 12)),
+                onTap: () async {
+                  if (fileUrl.startsWith('http')) {
+                    await launchUrl(Uri.parse(fileUrl), mode: LaunchMode.externalApplication);
+                  }
+                },
               );
             },
           ),
@@ -637,6 +710,168 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           Text(
             'គ្មានប្រព័ន្ធផ្សព្វផ្សាយនៅឡើយទេ',
             style: GoogleFonts.kantumruyPro(color: const Color(0xFF94A3B8), fontSize: 13.5),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileVoiceTile extends StatefulWidget {
+  final String audioUrl;
+  final int durationSeconds;
+  final String senderName;
+  final Timestamp? timestamp;
+
+  const _ProfileVoiceTile({
+    required this.audioUrl,
+    required this.durationSeconds,
+    required this.senderName,
+    this.timestamp,
+  });
+
+  @override
+  State<_ProfileVoiceTile> createState() => _ProfileVoiceTileState();
+}
+
+class _ProfileVoiceTileState extends State<_ProfileVoiceTile> {
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  bool _isPlaying = false;
+  Duration _position = Duration.zero;
+  Duration _duration = Duration.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    _duration = Duration(seconds: widget.durationSeconds);
+    _audioPlayer.onPositionChanged.listen((p) {
+      if (mounted) setState(() => _position = p);
+    });
+    _audioPlayer.onDurationChanged.listen((d) {
+      if (mounted) setState(() => _duration = d);
+    });
+    _audioPlayer.onPlayerComplete.listen((_) {
+      if (mounted) {
+        setState(() {
+          _isPlaying = false;
+          _position = Duration.zero;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _audioPlayer.dispose();
+    super.dispose();
+  }
+
+  Future<void> _togglePlay() async {
+    try {
+      if (_isPlaying) {
+        await _audioPlayer.pause();
+        if (mounted) setState(() => _isPlaying = false);
+        return;
+      }
+
+      final url = widget.audioUrl.trim();
+      if (url.isEmpty) return;
+
+      if (url.startsWith('data:audio')) {
+        final base64Str = url.split(',').last;
+        final bytes = base64Decode(base64Str);
+        final dir = await getTemporaryDirectory();
+        final tempFile = File('${dir.path}/temp_play_profile_${DateTime.now().millisecondsSinceEpoch}.m4a');
+        await tempFile.writeAsBytes(bytes);
+        await _audioPlayer.play(DeviceFileSource(tempFile.path));
+      } else if (url.startsWith('http://') || url.startsWith('https://')) {
+        await _audioPlayer.play(UrlSource(url));
+      } else {
+        await _audioPlayer.play(UrlSource(ApiService.getFullImageUrl(url)));
+      }
+
+      if (mounted) setState(() => _isPlaying = true);
+    } catch (e) {
+      debugPrint('Error playing voice in profile screen: $e');
+      if (mounted) setState(() => _isPlaying = false);
+    }
+  }
+
+  String _formatDuration(Duration d) {
+    final mins = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final secs = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$mins:$secs';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      child: Row(
+        children: [
+          InkWell(
+            onTap: _togglePlay,
+            borderRadius: BorderRadius.circular(22),
+            child: Container(
+              width: 44,
+              height: 44,
+              decoration: const BoxDecoration(
+                color: Color(0xFF0A84FF),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                _isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                color: Colors.white,
+                size: 26,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      widget.senderName,
+                      style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13.5),
+                    ),
+                    Text(
+                      _formatDuration(_isPlaying ? _position : _duration),
+                      style: GoogleFonts.inter(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final progress = _duration.inMilliseconds > 0
+                        ? (_position.inMilliseconds / _duration.inMilliseconds).clamp(0.0, 1.0)
+                        : 0.0;
+                    return Container(
+                      height: 5,
+                      width: constraints.maxWidth,
+                      decoration: BoxDecoration(
+                        color: Colors.white24,
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                      child: FractionallySizedBox(
+                        alignment: Alignment.centerLeft,
+                        widthFactor: progress,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0A84FF),
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
           ),
         ],
       ),

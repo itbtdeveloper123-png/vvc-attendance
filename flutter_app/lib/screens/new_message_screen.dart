@@ -4,11 +4,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/api_service.dart';
 import 'chat_detail_screen.dart';
 import 'chat_create_group_screen.dart';
+import 'add_story_screen.dart';
 
 Color _getAvatarBgColor(String name) {
-  if (name.isEmpty) return const Color(0xFF0084FF);
+  if (name.isEmpty) return const Color(0xFF3388FF);
   const colors = [
-    Color(0xFF0084FF),
+    Color(0xFF3388FF),
     Color(0xFFFFB300),
     Color(0xFFAB47BC),
     Color(0xFF26A69A),
@@ -19,22 +20,17 @@ Color _getAvatarBgColor(String name) {
   return colors[name.codeUnitAt(0) % colors.length];
 }
 
-// ==========================================
-// DARK THEME TOKENS (Shared with ChatDetailScreen)
-// ==========================================
 class _NMDark {
   static const Color bg = Color(0xFF1C1C1E);
+  static const Color cardBg = Color(0xFF2C2C2E);
   static const Color textPrimary = Color(0xFFFFFFFF);
-  static const Color textMuted = Color(0xFFB0B3B8);
-  static const Color accent = Color(0xFF0084FF);
-  static const Color iconBg = Color(0xFF3A3B3C);
-  static const Color divider = Color(0xFF38383A);
-  static const Color onlineGreen = Color(0xFF44B700);
+  static const Color textMuted = Color(0xFF8E8E93);
+  static const Color accent = Color(0xFF3388FF);
+  static const Color iconBg = Color(0xFF2C2C2E);
+  static const Color divider = Color(0x1AFFFFFF);
+  static const Color onlineGreen = Color(0xFF10B981);
 }
 
-// ==========================================
-// DATA MODELS
-// ==========================================
 class _QuickAction {
   final IconData icon;
   final String label;
@@ -42,11 +38,6 @@ class _QuickAction {
   const _QuickAction({required this.icon, required this.label});
 }
 
-// ==========================================
-// SUB-WIDGETS
-// ==========================================
-
-/// Single row in the Quick Actions List (New note, Send an instant, etc.)
 class _QuickActionTile extends StatelessWidget {
   final _QuickAction action;
   final VoidCallback? onTap;
@@ -68,15 +59,15 @@ class _QuickActionTile extends StatelessWidget {
                 color: _NMDark.iconBg,
                 shape: BoxShape.circle,
               ),
-              child: Icon(action.icon, color: _NMDark.textPrimary, size: 22.0),
+              child: Icon(action.icon, color: _NMDark.accent, size: 22.0),
             ),
             const SizedBox(width: 14.0),
             Expanded(
               child: Text(
                 action.label,
-                style: GoogleFonts.kantumruyPro(
+                style: GoogleFonts.inter(
                   color: _NMDark.textPrimary,
-                  fontSize: 16.0,
+                  fontSize: 15.5,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -89,10 +80,10 @@ class _QuickActionTile extends StatelessWidget {
   }
 }
 
-/// Contact row with avatar + online badge + name + optional verified badge
 class ContactTile extends StatelessWidget {
   final String name;
   final String avatarUrl;
+  final String subtitle;
   final bool isOnline;
   final bool isVerified;
   final VoidCallback? onTap;
@@ -101,6 +92,7 @@ class ContactTile extends StatelessWidget {
     super.key,
     required this.name,
     required this.avatarUrl,
+    this.subtitle = '',
     this.isOnline = false,
     this.isVerified = false,
     this.onTap,
@@ -108,26 +100,27 @@ class ContactTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final fullAvatar = avatarUrl.isNotEmpty ? ApiService.getFullImageUrl(avatarUrl) : '';
+
     return InkWell(
       onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
         child: Row(
           children: [
-            // Avatar + online badge
             Stack(
               children: [
                 CircleAvatar(
-                  radius: 30.0,
-                  backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
+                  radius: 24.0,
+                  backgroundImage: fullAvatar.isNotEmpty ? NetworkImage(fullAvatar) : null,
                   backgroundColor: _getAvatarBgColor(name),
-                  child: avatarUrl.isEmpty
+                  child: fullAvatar.isEmpty
                       ? Text(
                           name.isNotEmpty ? name[0].toUpperCase() : 'U',
                           style: GoogleFonts.inter(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
-                            fontSize: 18.0,
+                            fontSize: 16.0,
                           ),
                         )
                       : null,
@@ -137,14 +130,12 @@ class ContactTile extends StatelessWidget {
                     right: 0.0,
                     bottom: 0.0,
                     child: Container(
-                      width: 15.0,
-                      height: 15.0,
-                      decoration: const BoxDecoration(
+                      width: 12.0,
+                      height: 12.0,
+                      decoration: BoxDecoration(
                         color: _NMDark.onlineGreen,
                         shape: BoxShape.circle,
-                        border: Border.fromBorderSide(
-                          BorderSide(color: _NMDark.bg, width: 2.5),
-                        ),
+                        border: Border.all(color: _NMDark.bg, width: 2.0),
                       ),
                     ),
                   ),
@@ -152,7 +143,6 @@ class ContactTile extends StatelessWidget {
             ),
             const SizedBox(width: 14.0),
 
-            // Name area
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -162,10 +152,10 @@ class ContactTile extends StatelessWidget {
                       Flexible(
                         child: Text(
                           name,
-                          style: GoogleFonts.kantumruyPro(
+                          style: GoogleFonts.inter(
                             color: _NMDark.textPrimary,
-                            fontSize: 15.5,
-                            fontWeight: FontWeight.w500,
+                            fontSize: 15.0,
+                            fontWeight: FontWeight.w600,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -177,7 +167,16 @@ class ContactTile extends StatelessWidget {
                       ],
                     ],
                   ),
-                  const Divider(height: 16.0, color: _NMDark.divider),
+                  const SizedBox(height: 3.0),
+                  Text(
+                    subtitle.isNotEmpty ? subtitle : (isOnline ? 'online' : 'last seen recently'),
+                    style: GoogleFonts.inter(
+                      color: isOnline ? _NMDark.accent : _NMDark.textMuted,
+                      fontSize: 12.5,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ],
               ),
             ),
@@ -188,9 +187,6 @@ class ContactTile extends StatelessWidget {
   }
 }
 
-// ==========================================
-// MAIN SCREEN: NEW MESSAGE / COMPOSE
-// ==========================================
 class NewMessageScreen extends StatefulWidget {
   final List<dynamic> allUsers;
   final String currentUserId;
@@ -210,7 +206,6 @@ class _NewMessageScreenState extends State<NewMessageScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   String _searchQuery = '';
-  List<dynamic> _filtered = [];
 
   final List<_QuickAction> _quickActions = const [
     _QuickAction(icon: Icons.chat_bubble_outline_rounded, label: 'New note'),
@@ -222,24 +217,10 @@ class _NewMessageScreenState extends State<NewMessageScreen> {
   @override
   void initState() {
     super.initState();
-    _filtered = widget.allUsers;
     _searchController.addListener(() {
-      _filterContacts(_searchController.text);
-    });
-  }
-
-  void _filterContacts(String query) {
-    setState(() {
-      _searchQuery = query;
-      if (query.isEmpty) {
-        _filtered = widget.allUsers;
-      } else {
-        _filtered = widget.allUsers.where((u) {
-          final name = (u['name'] ?? '').toString().toLowerCase();
-          final eid = (u['employee_id'] ?? '').toString().toLowerCase();
-          return name.contains(query.toLowerCase()) || eid.contains(query.toLowerCase());
-        }).toList();
-      }
+      setState(() {
+        _searchQuery = _searchController.text.trim();
+      });
     });
   }
 
@@ -257,101 +238,140 @@ class _NewMessageScreenState extends State<NewMessageScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // A. Header
             _buildHeader(),
-
-            // Divider
             const Divider(height: 1.0, color: _NMDark.divider),
-
-            // "To:" search row
             _buildToSearchRow(),
-
             const Divider(height: 1.0, color: _NMDark.divider),
 
-            // B & C: Quick actions + Suggested list
             Expanded(
-              child: ListView(
-                physics: const BouncingScrollPhysics(),
-                children: [
-                  // B. Quick Actions (only show when not searching)
-                  if (_searchQuery.isEmpty) ...[
-                    const SizedBox(height: 8.0),
-                    ..._quickActions.map((action) => _QuickActionTile(
-                          action: action,
-                          onTap: () {
-                            if (action.label == 'Group chat') {
-                              Navigator.push(
+              child: StreamBuilder<QuerySnapshot>(
+                stream: _firestore.collection('users').snapshots(),
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) {
+                    return const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(24),
+                        child: CircularProgressIndicator(color: _NMDark.accent),
+                      ),
+                    );
+                  }
+
+                  final usersDocs = snapshot.data!.docs.where((doc) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    final uid = doc.id;
+                    if (uid == widget.currentUserId) return false;
+                    final role = (data['role'] ?? '').toString().toLowerCase();
+                    if (role == 'admin_panel' || data['isAdminPanel'] == true) return false;
+
+                    if (_searchQuery.isNotEmpty) {
+                      final name = (data['name'] ?? data['username'] ?? '').toString().toLowerCase();
+                      final pos = (data['position'] ?? data['department'] ?? '').toString().toLowerCase();
+                      final empId = (data['employee_id'] ?? '').toString().toLowerCase();
+                      final q = _searchQuery.toLowerCase();
+                      return name.contains(q) || pos.contains(q) || empId.contains(q);
+                    }
+                    return true;
+                  }).toList();
+
+                  return ListView(
+                    physics: const BouncingScrollPhysics(),
+                    children: [
+                      if (_searchQuery.isEmpty) ...[
+                        const SizedBox(height: 8.0),
+                        ..._quickActions.map(
+                          (action) => _QuickActionTile(
+                            action: action,
+                            onTap: () {
+                              if (action.label == 'Group chat') {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => ChatCreateGroupScreen(
+                                      allUsers: widget.allUsers,
+                                      currentUserId: widget.currentUserId,
+                                    ),
+                                  ),
+                                );
+                              } else if (action.label == 'New story') {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const AddStoryScreen(),
+                                  ),
+                                );
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    backgroundColor: _NMDark.cardBg,
+                                    content: Text(
+                                      'មុខងារ "${action.label}" ត្រូវបានជ្រើសរើស',
+                                      style: GoogleFonts.kantumruyPro(color: Colors.white),
+                                    ),
+                                    duration: const Duration(seconds: 2),
+                                  ),
+                                );
+                              }
+                            },
+                          ),
+                        ),
+                        const SizedBox(height: 8.0),
+                      ],
+
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16.0, 12.0, 16.0, 6.0),
+                        child: Text(
+                          _searchQuery.isEmpty ? 'Suggested Contacts' : 'Search Results (${usersDocs.length})',
+                          style: GoogleFonts.inter(
+                            color: _NMDark.textMuted,
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+
+                      if (usersDocs.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.all(32.0),
+                          child: Center(
+                            child: Text(
+                              'រកមិនឃើញបុគ្គលិកឡើយ',
+                              style: GoogleFonts.kantumruyPro(color: _NMDark.textMuted, fontSize: 14),
+                            ),
+                          ),
+                        )
+                      else
+                        ...usersDocs.map((doc) {
+                          final data = doc.data() as Map<String, dynamic>;
+                          final String targetId = doc.id;
+                          final String name = (data['name'] ?? data['username'] ?? data['employee_id'] ?? 'User').toString();
+                          final String avatar = (data['avatar'] ?? data['photoUrl'] ?? data['photo'] ?? '').toString();
+                          final String position = (data['position'] ?? data['department'] ?? data['role'] ?? '').toString();
+                          final bool isOnline = data['isOnline'] == true;
+                          final bool isVerified = (data['role'] ?? '').toString().toLowerCase() == 'admin';
+
+                          return ContactTile(
+                            name: name,
+                            avatarUrl: avatar,
+                            subtitle: position,
+                            isOnline: isOnline,
+                            isVerified: isVerified,
+                            onTap: () {
+                              Navigator.pushReplacement(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) => ChatCreateGroupScreen(
-                                    allUsers: widget.allUsers,
-                                    currentUserId: widget.currentUserId,
+                                  builder: (_) => ChatDetailScreen(
+                                    targetUserId: targetId,
+                                    targetUserName: name,
+                                    targetUserPhoto: avatar,
                                   ),
                                 ),
                               );
-                            } else {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('មុខងារ "${action.label}" នឹងមកដល់ឆាប់ៗនេះ!', style: GoogleFonts.kantumruyPro()),
-                                  duration: const Duration(seconds: 2),
-                                ),
-                              );
-                            }
-                          },
-                        )),
-                    const SizedBox(height: 8.0),
-                  ],
-
-                  // C. Suggested / Search Results
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16.0, 8.0, 16.0, 4.0),
-                    child: Text(
-                      _searchQuery.isEmpty ? 'Suggested' : 'Results',
-                      style: GoogleFonts.inter(
-                        color: _NMDark.textMuted,
-                        fontSize: 14.0,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-
-                  // Contacts list with real-time presence
-                  ..._filtered.map((user) {
-                    final String name = user['name'] ?? 'Unknown';
-                    final String targetId = user['employee_id'] ?? '';
-                    final String avatar = user['avatar'] ?? '';
-                    final bool isVerified = (user['role'] ?? '').toString().toLowerCase() == 'admin';
-
-                    return StreamBuilder<DocumentSnapshot>(
-                      stream: _firestore.collection('users').doc(targetId).snapshots(),
-                      builder: (context, snap) {
-                        bool isOnline = false;
-                        if (snap.hasData && snap.data!.exists) {
-                          final data = snap.data!.data() as Map<String, dynamic>?;
-                          isOnline = data?['isOnline'] == true;
-                        }
-                        return ContactTile(
-                          name: name,
-                          avatarUrl: avatar.isNotEmpty ? ApiService.getFullImageUrl(avatar) : '',
-                          isOnline: isOnline,
-                          isVerified: isVerified,
-                          onTap: () {
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => ChatDetailScreen(
-                                  targetUserId: targetId,
-                                  targetUserName: name,
-                                  targetUserPhoto: avatar,
-                                ),
-                              ),
-                            );
-                          },
-                        );
-                      },
-                    );
-                  }),
-                ],
+                            },
+                          );
+                        }),
+                    ],
+                  );
+                },
               ),
             ),
           ],
@@ -360,16 +380,12 @@ class _NewMessageScreenState extends State<NewMessageScreen> {
     );
   }
 
-  // ==========================================
-  // A. HEADER
-  // ==========================================
   Widget _buildHeader() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 12.0),
       child: Stack(
         alignment: Alignment.center,
         children: [
-          // Cancel button left
           Align(
             alignment: Alignment.centerLeft,
             child: TextButton(
@@ -388,8 +404,6 @@ class _NewMessageScreenState extends State<NewMessageScreen> {
               ),
             ),
           ),
-
-          // Centered title
           Text(
             'New message',
             style: GoogleFonts.inter(
@@ -403,7 +417,6 @@ class _NewMessageScreenState extends State<NewMessageScreen> {
     );
   }
 
-  // "To:" search row
   Widget _buildToSearchRow() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -425,13 +438,13 @@ class _NewMessageScreenState extends State<NewMessageScreen> {
                 controller: _searchController,
                 autofocus: false,
                 cursorColor: _NMDark.accent,
-                style: GoogleFonts.kantumruyPro(color: _NMDark.textPrimary, fontSize: 15.0),
+                style: GoogleFonts.inter(color: _NMDark.textPrimary, fontSize: 15.0),
                 decoration: InputDecoration(
-                  hintText: 'ស្វែងរក...',
-                  hintStyle: GoogleFonts.kantumruyPro(color: _NMDark.textMuted, fontSize: 14.5),
+                  hintText: 'ស្វែងរកឈ្មោះបុគ្គលិក ឬ ផ្នែក...',
+                  hintStyle: GoogleFonts.kantumruyPro(color: _NMDark.textMuted, fontSize: 14.0),
                   prefixIcon: const Icon(Icons.search_rounded, color: _NMDark.textMuted, size: 18.0),
                   filled: true,
-                  fillColor: const Color(0xFF2C2C2E),
+                  fillColor: _NMDark.cardBg,
                   isDense: true,
                   contentPadding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 14.0),
                   border: OutlineInputBorder(
