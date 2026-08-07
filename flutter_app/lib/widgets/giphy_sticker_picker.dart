@@ -1,9 +1,93 @@
 import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:lottie/lottie.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+
+// Helper Widget to Decompress & Render Telegram .tgs GZIP Lottie Assets
+class TgsStickerAsset extends StatefulWidget {
+  final String assetPath;
+  final double? width;
+  final double? height;
+  final BoxFit fit;
+
+  const TgsStickerAsset({
+    super.key,
+    required this.assetPath,
+    this.width,
+    this.height,
+    this.fit = BoxFit.contain,
+  });
+
+  @override
+  State<TgsStickerAsset> createState() => _TgsStickerAssetState();
+}
+
+class _TgsStickerAssetState extends State<TgsStickerAsset> {
+  Uint8List? _uncompressedJsonBytes;
+  bool _hasError = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTgs();
+  }
+
+  @override
+  void didUpdateWidget(covariant TgsStickerAsset oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.assetPath != widget.assetPath) {
+      _loadTgs();
+    }
+  }
+
+  Future<void> _loadTgs() async {
+    try {
+      final ByteData data = await rootBundle.load(widget.assetPath);
+      final Uint8List bytes = data.buffer.asUint8List();
+
+      Uint8List decompressed;
+      // Check for GZIP magic numbers (0x1f, 0x8b)
+      if (bytes.length > 2 && bytes[0] == 0x1f && bytes[1] == 0x8b) {
+        decompressed = Uint8List.fromList(gzip.decode(bytes));
+      } else {
+        decompressed = bytes;
+      }
+
+      if (mounted) {
+        setState(() {
+          _uncompressedJsonBytes = decompressed;
+          _hasError = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _hasError = true);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_hasError) {
+      return const Center(child: Icon(LucideIcons.sparkles, color: Colors.amberAccent, size: 24));
+    }
+    if (_uncompressedJsonBytes == null) {
+      return const Center(child: SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF007AFF))));
+    }
+    return Lottie.memory(
+      _uncompressedJsonBytes!,
+      width: widget.width,
+      height: widget.height,
+      fit: widget.fit,
+      errorBuilder: (_, __, ___) => const Center(child: Icon(LucideIcons.sparkles, color: Colors.amberAccent, size: 24)),
+    );
+  }
+}
 
 class LocalStickerPack {
   final String id;
@@ -147,7 +231,6 @@ class _GiphyStickerPickerBottomSheetState extends State<GiphyStickerPickerBottom
   Future<void> _fetchGiphyData({String query = ''}) async {
     setState(() => _isLoading = true);
 
-    // Tab 1 = Giphy Stickers, Tab 2 = Giphy GIFs
     final bool isStickerTab = _tabController.index == 1;
     final String endpoint = isStickerTab ? 'stickers' : 'gifs';
     final String action = query.trim().isNotEmpty ? 'search' : 'trending';
@@ -317,7 +400,7 @@ class _GiphyStickerPickerBottomSheetState extends State<GiphyStickerPickerBottom
     );
   }
 
-  // Local Sticker Packs View (VVC Stickers, VVC Shop, Colorful, Shiba)
+  // Local Sticker Packs View (VVC Stickers, VVC Shop, Colorful, Shiba, Hands, Text Animated)
   Widget _buildLocalStickerPacksView() {
     final currentPack = _localStickerPacks[_selectedLocalPackIndex];
 
@@ -349,7 +432,7 @@ class _GiphyStickerPickerBottomSheetState extends State<GiphyStickerPickerBottom
                       width: 18,
                       height: 18,
                       child: pack.isAnimated
-                          ? Lottie.asset(pack.iconAsset, fit: BoxFit.contain)
+                          ? TgsStickerAsset(assetPath: pack.iconAsset, fit: BoxFit.contain)
                           : Image.asset(pack.iconAsset, fit: BoxFit.contain),
                     ),
                     const SizedBox(width: 6),
@@ -401,11 +484,9 @@ class _GiphyStickerPickerBottomSheetState extends State<GiphyStickerPickerBottom
                     border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
                   ),
                   child: currentPack.isAnimated
-                      ? Lottie.asset(
-                          assetPath,
+                      ? TgsStickerAsset(
+                          assetPath: assetPath,
                           fit: BoxFit.contain,
-                          errorBuilder: (context, error, stackTrace) =>
-                              const Center(child: Icon(LucideIcons.sparkles, color: Colors.amberAccent, size: 24)),
                         )
                       : Image.asset(
                           assetPath,

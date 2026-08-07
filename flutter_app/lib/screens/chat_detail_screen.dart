@@ -1387,12 +1387,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         stickerWidget = SizedBox(
           width: 150,
           height: 150,
-          child: Lottie.asset(
-            text,
+          child: TgsStickerAsset(
+            assetPath: text,
             fit: BoxFit.contain,
-            errorBuilder: (context, error, stackTrace) {
-              return const Icon(LucideIcons.sparkles, color: Colors.amberAccent, size: 48);
-            },
           ),
         );
       } else {

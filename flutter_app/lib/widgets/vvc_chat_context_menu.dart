@@ -374,19 +374,45 @@ class _VvcContextMenuOverlayState extends State<_VvcContextMenuOverlay>
     final menuItems = _buildMenuItems();
 
     final double topOffset = widget.targetOffset.dy;
-    final bool showMenuBelow = topOffset < screenSize.height * 0.55;
+    final bool showMenuBelow = topOffset < screenSize.height * 0.50;
 
-    const double menuWidth = 250.0;
+    final double containerWidth = widget.targetSize.width.clamp(250.0, screenSize.width * 0.78);
+
     // Compute left position so menu card NEVER clips off screen
     double computedLeft = widget.targetOffset.dx;
-    if (computedLeft + menuWidth > screenSize.width - 16.0) {
-      computedLeft = screenSize.width - menuWidth - 16.0;
+    if (computedLeft + containerWidth > screenSize.width - 16.0) {
+      computedLeft = screenSize.width - containerWidth - 16.0;
     }
     if (computedLeft < 16.0) {
       computedLeft = 16.0;
     }
 
     final bool isMineRight = widget.targetOffset.dx > screenSize.width * 0.4;
+    final double topSafeArea = MediaQuery.of(context).padding.top + 16.0;
+    final double bottomSafeArea = MediaQuery.of(context).padding.bottom + 16.0;
+
+    // Constrain maximum preview height to 36% of screen so tall images scale down properly
+    Widget constrainedChild = ConstrainedBox(
+      constraints: BoxConstraints(
+        maxHeight: screenSize.height * 0.36,
+        maxWidth: containerWidth,
+      ),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: isMineRight ? Alignment.topRight : Alignment.topLeft,
+        child: widget.childWidget,
+      ),
+    );
+
+    double? computedTop;
+    double? computedBottom;
+
+    if (showMenuBelow) {
+      computedTop = widget.targetOffset.dy.clamp(topSafeArea, screenSize.height - 460.0);
+    } else {
+      computedBottom = (screenSize.height - widget.targetOffset.dy - widget.targetSize.height)
+          .clamp(bottomSafeArea, screenSize.height - 460.0);
+    }
 
     return Stack(
       children: [
@@ -406,12 +432,12 @@ class _VvcContextMenuOverlayState extends State<_VvcContextMenuOverlay>
           ),
         ),
 
-        // B. Target Bubble + Clean Context Action Menu (Wrapped in Material to remove text underlines)
+        // B. Target Bubble + Clean Context Action Menu (Wrapped in Material)
         Positioned(
           left: computedLeft,
-          top: showMenuBelow ? widget.targetOffset.dy.clamp(40.0, screenSize.height - 250.0) : null,
-          bottom: !showMenuBelow ? (screenSize.height - widget.targetOffset.dy - widget.targetSize.height).clamp(40.0, screenSize.height - 250.0) : null,
-          width: menuWidth,
+          top: computedTop,
+          bottom: computedBottom,
+          width: containerWidth,
           child: Material(
             color: Colors.transparent,
             child: AnimatedBuilder(
@@ -422,17 +448,27 @@ class _VvcContextMenuOverlayState extends State<_VvcContextMenuOverlay>
                   alignment: showMenuBelow
                       ? (isMineRight ? Alignment.topRight : Alignment.topLeft)
                       : (isMineRight ? Alignment.bottomRight : Alignment.bottomLeft),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: isMineRight ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-                    children: [
-                      // 1. Focused Target Message Bubble
-                      widget.childWidget,
-                      const SizedBox(height: 8.0),
-
-                      // 2. Clean Context Action Menu Card (#2C2C2E)
-                      _buildContextMenuCard(menuItems),
-                    ],
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: isMineRight ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                      children: [
+                        if (showMenuBelow) ...[
+                          // 1. Focused Target Message Bubble
+                          constrainedChild,
+                          const SizedBox(height: 8.0),
+                          // 2. Clean Context Action Menu Card (#2C2C2E)
+                          _buildContextMenuCard(menuItems),
+                        ] else ...[
+                          // 1. Clean Context Action Menu Card (#2C2C2E)
+                          _buildContextMenuCard(menuItems),
+                          const SizedBox(height: 8.0),
+                          // 2. Focused Target Message Bubble
+                          constrainedChild,
+                        ],
+                      ],
+                    ),
                   ),
                 );
               },
