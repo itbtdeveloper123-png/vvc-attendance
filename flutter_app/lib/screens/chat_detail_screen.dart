@@ -21,6 +21,7 @@ import '../providers/user_provider.dart';
 import '../services/api_service.dart';
 import '../widgets/chat_wallpaper_picker.dart';
 import '../widgets/giphy_sticker_picker.dart';
+import '../widgets/vvc_file_picker_bottom_sheet.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:lottie/lottie.dart';
 import 'group_settings_screen.dart';
@@ -539,12 +540,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
     return ClipRect(
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20.0, sigmaY: 20.0),
+        filter: ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.65),
-            border: const Border(
-              bottom: BorderSide(color: Color(0x1FFFFFFF), width: 0.5),
+            color: Colors.black.withValues(alpha: 0.28),
+            border: Border(
+              bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05), width: 0.5),
             ),
           ),
           padding: EdgeInsets.fromLTRB(12.0, topPadding > 0 ? topPadding + 6.0 : 12.0, 12.0, 10.0),
@@ -739,7 +740,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                         ),
                       ),
                       InkWell(
-                        onTap: () => setState(() => _pinnedMessage = null),
+                        onTap: _unpinMessage,
                         borderRadius: BorderRadius.circular(12),
                         child: const Padding(
                           padding: EdgeInsets.all(4.0),
@@ -755,6 +756,19 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _unpinMessage() async {
+    setState(() {
+      _pinnedMessage = null;
+    });
+    try {
+      await _firestore.collection('chats').doc(_roomId).set({
+        'pinnedMessage': FieldValue.delete(),
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('Unpin message error: $e');
+    }
   }
 
   void _onHeaderTap() {
@@ -3167,12 +3181,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
     return ClipRect(
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+        filter: ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.65),
-            border: const Border(
-              top: BorderSide(color: Color(0x1FFFFFFF), width: 0.5),
+            color: Colors.black.withValues(alpha: 0.28),
+            border: Border(
+              top: BorderSide(color: Colors.white.withValues(alpha: 0.05), width: 0.5),
             ),
           ),
           padding: EdgeInsets.fromLTRB(10.0, 8.0, 10.0, bottomPadding > 0 ? bottomPadding + 4.0 : 12.0),
@@ -3204,7 +3218,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               ),
               const SizedBox(width: 8.0),
 
-              // 2. Middle Capsule Text Box with Telegram Sticker Icon 😊
+              // 2. Middle Capsule Text Box with Telegram Sticker Icon 🏷️
               Expanded(
                 child: Container(
                   constraints: const BoxConstraints(minHeight: 38.0, maxHeight: 130.0),
@@ -3242,9 +3256,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                         child: const Padding(
                           padding: EdgeInsets.all(4.0),
                           child: Icon(
-                            LucideIcons.smile,
+                            Icons.sticky_note_2_rounded,
                             color: Color(0xFF8E8E93),
-                            size: 21.0,
+                            size: 22.0,
                           ),
                         ),
                       ),
@@ -3290,355 +3304,21 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
   }
 
-  // Telegram Attachment Bottom Sheet Modal (Gallery, File, Location, Poll, Contact)
   void _showTelegramAttachmentSheet() {
-    int selectedTab = 0; // 0: Gallery, 1: File, 2: Location, 3: Poll, 4: Contact
-
-    showModalBottomSheet(
+    VvcFilePickerBottomSheet.show(
       context: context,
-      backgroundColor: const Color(0xFF1C1C1E),
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (context, setSheetState) {
-            return SizedBox(
-              height: MediaQuery.of(context).size.height * 0.62,
-              child: Column(
-                children: [
-                  // Top Drag Handle & Close header
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
-                    child: Row(
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.close_rounded, color: Colors.white70),
-                          onPressed: () => Navigator.pop(ctx),
-                        ),
-                        const Spacer(),
-                        Container(
-                          width: 36,
-                          height: 4,
-                          decoration: BoxDecoration(
-                            color: Colors.white24,
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                        ),
-                        const Spacer(),
-                        const SizedBox(width: 48),
-                      ],
-                    ),
-                  ),
-
-                  // Tab Content View
-                  Expanded(
-                    child: _buildAttachmentTabContent(selectedTab, ctx),
-                  ),
-
-                  // Bottom Horizontal Category Tab Bar (Telegram Style)
-                  Container(
-                    color: const Color(0xFF121214),
-                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: [
-                        _buildAttachmentTabItem(
-                          icon: Icons.photo_library_rounded,
-                          label: 'Gallery',
-                          isSelected: selectedTab == 0,
-                          onTap: () => setSheetState(() => selectedTab = 0),
-                        ),
-                        _buildAttachmentTabItem(
-                          icon: Icons.insert_drive_file_rounded,
-                          label: 'File',
-                          isSelected: selectedTab == 1,
-                          onTap: () => setSheetState(() => selectedTab = 1),
-                        ),
-                        _buildAttachmentTabItem(
-                          icon: Icons.location_on_rounded,
-                          label: 'Location',
-                          isSelected: selectedTab == 2,
-                          onTap: () => setSheetState(() => selectedTab = 2),
-                        ),
-                        _buildAttachmentTabItem(
-                          icon: Icons.bar_chart_rounded,
-                          label: 'Poll',
-                          isSelected: selectedTab == 3,
-                          onTap: () => setSheetState(() => selectedTab = 3),
-                        ),
-                        _buildAttachmentTabItem(
-                          icon: Icons.person_pin_rounded,
-                          label: 'Contact',
-                          isSelected: selectedTab == 4,
-                          onTap: () => setSheetState(() => selectedTab = 4),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
+      onSelectFromGallery: () => _pickAndSendImage(ImageSource.gallery),
+      onSelectFromFiles: _pickAndSendFile,
+      onScanDocument: () => _pickAndSendImage(ImageSource.camera),
+      onSelectRecentFile: (file) {
+        if (file['name'] != null) {
+          _sendMessage(customText: '📄 ${file['name']}');
+        }
       },
     );
   }
 
-  Widget _buildAttachmentTabItem({
-    required IconData icon,
-    required String label,
-    required bool isSelected,
-    required VoidCallback onTap,
-  }) {
-    final color = isSelected ? const Color(0xFF007AFF) : Colors.white60;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: isSelected ? const Color(0xFF007AFF).withValues(alpha: 0.2) : Colors.transparent,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: color, size: 22),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: GoogleFonts.inter(
-                color: color,
-                fontSize: 11,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
-  Widget _buildAttachmentTabContent(int tabIndex, BuildContext sheetCtx) {
-    switch (tabIndex) {
-      case 0: // Gallery
-        return Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.pop(sheetCtx);
-                      _pickAndSendImage(ImageSource.gallery);
-                    },
-                    icon: const Icon(Icons.photo_library_rounded, color: Colors.white),
-                    label: Text('Album Gallery', style: GoogleFonts.kantumruyPro(color: Colors.white)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF007AFF),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                    ),
-                  ),
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.pop(sheetCtx);
-                      _pickAndSendImage(ImageSource.camera);
-                    },
-                    icon: const Icon(Icons.camera_alt_rounded, color: Colors.white),
-                    label: Text('Camera', style: GoogleFonts.kantumruyPro(color: Colors.white)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF10B981),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              Expanded(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF2C2C2E),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.collections_rounded, size: 48, color: Colors.white38),
-                        const SizedBox(height: 10),
-                        Text(
-                          'ជ្រើសរើសរូបភាព ឬវីដេអូដើម្បីផ្ញើ',
-                          style: GoogleFonts.kantumruyPro(color: Colors.white60, fontSize: 13.5),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-
-      case 1: // File
-        return Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                decoration: BoxDecoration(
-                  color: const Color(0xFF2C2C2E),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Column(
-                  children: [
-                    ListTile(
-                      leading: const Icon(Icons.photo_library_rounded, color: Color(0xFF007AFF)),
-                      title: Text('Select from Gallery', style: GoogleFonts.inter(color: Colors.white)),
-                      onTap: () {
-                        Navigator.pop(sheetCtx);
-                        _pickAndSendImage(ImageSource.gallery);
-                      },
-                    ),
-                    const Divider(height: 1, color: Colors.white12),
-                    ListTile(
-                      leading: const Icon(Icons.cloud_upload_rounded, color: Color(0xFF007AFF)),
-                      title: Text('Select from Files', style: GoogleFonts.inter(color: Colors.white)),
-                      onTap: () {
-                        Navigator.pop(sheetCtx);
-                        _pickAndSendFile();
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-
-      case 2: // Location
-        return Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            children: [
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF2C2C2E),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Column(
-                  children: [
-                    const Icon(Icons.location_on_rounded, color: Color(0xFF007AFF), size: 54),
-                    const SizedBox(height: 12),
-                    Text(
-                      'ផ្ញើទីតាំងបច្ចុប្បន្ន (Send Current Location)',
-                      style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'ចែករំលែកទីតាំង GPS ជាក់ស្ដែងរបស់អ្នកទៅកាន់សមាជិក',
-                      style: GoogleFonts.kantumruyPro(color: Colors.white60, fontSize: 12.5),
-                    ),
-                    const SizedBox(height: 16),
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        Navigator.pop(sheetCtx);
-                        _sendLocation();
-                      },
-                      icon: const Icon(Icons.my_location_rounded, color: Colors.white),
-                      label: Text('Send My Current Location', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF007AFF),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-
-      case 3: // Poll
-        return Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            children: [
-              Text(
-                'បង្កើត Poll ស្ទង់មតិ',
-                style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.pop(sheetCtx);
-                  _showCreatePollModal();
-                },
-                icon: const Icon(Icons.add_rounded, color: Colors.white),
-                label: Text('បង្កើត Poll ថ្មី', style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF8B5CF6),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                ),
-              ),
-            ],
-          ),
-        );
-
-      case 4: // Contact
-        return Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            children: [
-              Text(
-                'ចែករំលែក Contact បុគ្គលិក',
-                style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              Expanded(
-                child: ListView.builder(
-                  itemCount: 1,
-                  itemBuilder: (ctx, idx) {
-                    return ListTile(
-                      leading: const CircleAvatar(
-                        backgroundColor: Color(0xFF007AFF),
-                        child: Icon(Icons.person_rounded, color: Colors.white),
-                      ),
-                      title: Text(widget.targetUserName, style: GoogleFonts.kantumruyPro(color: Colors.white)),
-                      subtitle: Text('បុគ្គលិកក្រុមហ៊ុន', style: GoogleFonts.kantumruyPro(color: Colors.white54)),
-                      trailing: ElevatedButton(
-                        onPressed: () {
-                          Navigator.pop(sheetCtx);
-                          _sendMessage(customText: '👤 Contact: ${widget.targetUserName}');
-                        },
-                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF007AFF)),
-                        child: Text('Share', style: GoogleFonts.inter(color: Colors.white)),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        );
-
-      default:
-        return const SizedBox.shrink();
-    }
-  }
 
   void _showCreatePollModal() {
     final qCtrl = TextEditingController();

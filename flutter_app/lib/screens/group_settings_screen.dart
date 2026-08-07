@@ -150,9 +150,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                     padding: const EdgeInsets.only(right: 14, top: 10, bottom: 10),
                     child: ElevatedButton(
                       onPressed: () {
-                        if (isAdmin) {
-                          _pickAndUpdateGroupPhoto();
-                        }
+                        _showEditGroupModal(context, groupData);
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: _GSDark.card,
@@ -224,167 +222,8 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                           ],
                         ),
                       ),
-                      const SizedBox(height: 14),
-
-                      // Member List Card (Matching Screenshot 100%)
-                      Container(
-                        decoration: BoxDecoration(
-                          color: _GSDark.card,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: _GSDark.divider, width: 0.8),
-                        ),
-                        child: Column(
-                          children: [
-                            // Top Add Members Item inside Card
-                            ListTile(
-                              leading: Container(
-                                width: 38,
-                                height: 38,
-                                decoration: const BoxDecoration(
-                                  color: Colors.transparent,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(Icons.person_add_alt_1_rounded, color: _GSDark.accent, size: 24),
-                              ),
-                              title: Text(
-                                'Add Members',
-                                style: GoogleFonts.inter(color: _GSDark.accent, fontSize: 15, fontWeight: FontWeight.w500),
-                              ),
-                              onTap: () => _showAddMembersModal(participantIds),
-                            ),
-                            const Divider(height: 1, color: _GSDark.divider, indent: 16),
-
-                            // Members List
-                            ListView.separated(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              itemCount: participantIds.length,
-                              separatorBuilder: (_, __) => const Divider(height: 1, color: _GSDark.divider, indent: 64),
-                              itemBuilder: (context, idx) {
-                                final uid = participantIds[idx].toString();
-                                final userObj = widget.allUsers.firstWhere(
-                                  (u) => (u['employee_id'] ?? '').toString() == uid,
-                                  orElse: () => {'name': uid, 'avatar': '', 'isOnline': false},
-                                );
-
-                                final String memberName = userObj['name'] ?? uid;
-                                final String avatar = userObj['avatar'] ?? '';
-                                final bool isOnline = userObj['isOnline'] == true || uid == widget.currentUserId;
-                                final bool isUserOwner = uid == createdBy;
-                                final bool isUserAdmin = isUserOwner || (admins[uid] == true);
-                                final String? customTag = userObj['tag']?.toString();
-
-                                String statusStr = isOnline ? 'online' : 'last seen recently';
-
-                                return ListTile(
-                                  leading: Stack(
-                                    children: [
-                                      CircleAvatar(
-                                        radius: 19,
-                                        backgroundImage: avatar.isNotEmpty
-                                            ? NetworkImage(ApiService.getFullImageUrl(avatar))
-                                            : null,
-                                        backgroundColor: _GSDark.accent,
-                                        child: avatar.isEmpty
-                                            ? Text(memberName.isNotEmpty ? memberName[0].toUpperCase() : 'U', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold))
-                                            : null,
-                                      ),
-                                      if (isOnline)
-                                        Positioned(
-                                          right: 0,
-                                          bottom: 0,
-                                          child: Container(
-                                            width: 9,
-                                            height: 9,
-                                            decoration: BoxDecoration(
-                                              color: const Color(0xFF10B981),
-                                              shape: BoxShape.circle,
-                                              border: Border.all(color: _GSDark.card, width: 1.5),
-                                            ),
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                  title: Text(
-                                    memberName,
-                                    style: GoogleFonts.inter(color: Colors.white, fontSize: 14.5, fontWeight: FontWeight.w500),
-                                  ),
-                                  subtitle: Text(
-                                    statusStr,
-                                    style: GoogleFonts.inter(
-                                      color: isOnline ? _GSDark.accent : _GSDark.textMuted,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                  trailing: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      if (isUserOwner)
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                          decoration: BoxDecoration(
-                                            color: const Color(0x33A855F7),
-                                            borderRadius: BorderRadius.circular(10),
-                                          ),
-                                          child: Text('owner', style: GoogleFonts.inter(color: const Color(0xFFC084FC), fontSize: 11, fontWeight: FontWeight.w600)),
-                                        )
-                                      else if (isUserAdmin)
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                          decoration: BoxDecoration(
-                                            color: const Color(0x3322C55E),
-                                            borderRadius: BorderRadius.circular(10),
-                                          ),
-                                          child: Text('admin', style: GoogleFonts.inter(color: const Color(0xFF4ADE80), fontSize: 11, fontWeight: FontWeight.w600)),
-                                        )
-                                      else if (customTag != null && customTag.isNotEmpty)
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                          decoration: BoxDecoration(
-                                            color: const Color(0x330A84FF),
-                                            borderRadius: BorderRadius.circular(10),
-                                          ),
-                                          child: Text(customTag, style: GoogleFonts.inter(color: _GSDark.accent, fontSize: 11, fontWeight: FontWeight.w600)),
-                                        ),
-                                      if (isAdmin && uid != widget.currentUserId && !isUserOwner)
-                                        PopupMenuButton<String>(
-                                          icon: const Icon(Icons.more_vert_rounded, color: Colors.white54, size: 20),
-                                          color: _GSDark.card,
-                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                          onSelected: (val) async {
-                                            if (val == 'toggle_admin') {
-                                              admins[uid] = !(admins[uid] == true);
-                                              await _firestore.collection('groups').doc(widget.groupId).update({'admins': admins});
-                                            } else if (val == 'remove') {
-                                              final updated = List.from(participantIds)..remove(uid);
-                                              await _firestore.collection('groups').doc(widget.groupId).update({'participantIds': updated});
-                                            }
-                                          },
-                                          itemBuilder: (ctx) => [
-                                            PopupMenuItem(
-                                              value: 'toggle_admin',
-                                              child: Text(
-                                                isUserAdmin ? 'ដកសិទ្ធិ Admin' : 'ដំឡើងជា Admin',
-                                                style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 13.5),
-                                              ),
-                                            ),
-                                            PopupMenuItem(
-                                              value: 'remove',
-                                              child: Text(
-                                                'លុបចេញពីក្រុម',
-                                                style: GoogleFonts.kantumruyPro(color: _GSDark.danger, fontSize: 13.5),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                    ],
-                                  ),
-                                );
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
+                      // Dynamic Group Tab Content (Members, Media, Saved, Files, Voice)
+                      _buildGroupTabContent(_selectedTab, participantIds, createdBy, admins, isAdmin),
                       const SizedBox(height: 20),
 
                       // Admin Group Control Section (If Owner / Admin)
@@ -605,6 +444,411 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
               ),
             );
           },
+        );
+      },
+    );
+  }
+
+  void _showEditGroupModal(BuildContext context, Map<String, dynamic> groupData) {
+    final nameCtrl = TextEditingController(text: groupData['name'] ?? '');
+    final descCtrl = TextEditingController(text: groupData['description'] ?? groupData['bio'] ?? '');
+    final String photo = groupData['photo'] ?? '';
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: _GSDark.bg,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                16,
+                12,
+                16,
+                MediaQuery.of(ctx).viewInsets.bottom + 20,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        child: Text('បោះបង់', style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 15)),
+                      ),
+                      Text(
+                        'ការកំណត់ក្រុម',
+                        style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                      TextButton(
+                        onPressed: () async {
+                          final newName = nameCtrl.text.trim();
+                          final newDesc = descCtrl.text.trim();
+                          if (newName.isNotEmpty) {
+                            await _firestore.collection('groups').doc(widget.groupId).update({
+                              'name': newName,
+                              'description': newDesc,
+                            });
+                          }
+                          if (ctx.mounted) Navigator.pop(ctx);
+                        },
+                        child: Text('រក្សាទុក', style: GoogleFonts.kantumruyPro(color: _GSDark.accent, fontSize: 15, fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  GestureDetector(
+                    onTap: () async {
+                      await _pickAndUpdateGroupPhoto();
+                      if (ctx.mounted) setModalState(() {});
+                    },
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        CircleAvatar(
+                          radius: 44,
+                          backgroundImage: photo.isNotEmpty
+                              ? NetworkImage(ApiService.getFullImageUrl(photo))
+                              : null,
+                          backgroundColor: const Color(0xFFFFB300),
+                          child: photo.isEmpty
+                              ? const Icon(Icons.groups_rounded, color: Colors.white, size: 44)
+                              : null,
+                        ),
+                        Container(
+                          width: 88,
+                          height: 88,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.black.withValues(alpha: 0.35),
+                          ),
+                          child: const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 28),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text('ប៉ះដើម្បីប្តូររូបភាពក្រុម', style: GoogleFonts.kantumruyPro(color: _GSDark.accent, fontSize: 12)),
+                  const SizedBox(height: 20),
+
+                  Container(
+                    decoration: BoxDecoration(
+                      color: _GSDark.card,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: _GSDark.divider, width: 0.8),
+                    ),
+                    child: TextField(
+                      controller: nameCtrl,
+                      style: GoogleFonts.kantumruyPro(color: Colors.white),
+                      decoration: InputDecoration(
+                        hintText: 'ឈ្មោះក្រុម (Group Name)',
+                        hintStyle: GoogleFonts.kantumruyPro(color: _GSDark.textMuted),
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  Container(
+                    decoration: BoxDecoration(
+                      color: _GSDark.card,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: _GSDark.divider, width: 0.8),
+                    ),
+                    child: TextField(
+                      controller: descCtrl,
+                      maxLines: 3,
+                      style: GoogleFonts.kantumruyPro(color: Colors.white),
+                      decoration: InputDecoration(
+                        hintText: 'ការពិពណ៌នាអំពីក្រុម (Description)',
+                        hintStyle: GoogleFonts.kantumruyPro(color: _GSDark.textMuted),
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildGroupTabContent(int selectedTab, List<dynamic> participantIds, String createdBy, Map<String, dynamic> admins, bool isAdmin) {
+    if (selectedTab == 0) {
+      // Member List Card
+      return Container(
+        decoration: BoxDecoration(
+          color: _GSDark.card,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: _GSDark.divider, width: 0.8),
+        ),
+        child: Column(
+          children: [
+            ListTile(
+              leading: Container(
+                width: 38,
+                height: 38,
+                decoration: const BoxDecoration(
+                  color: Colors.transparent,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.person_add_alt_1_rounded, color: _GSDark.accent, size: 24),
+              ),
+              title: Text(
+                'Add Members',
+                style: GoogleFonts.inter(color: _GSDark.accent, fontSize: 15, fontWeight: FontWeight.w500),
+              ),
+              onTap: () => _showAddMembersModal(participantIds),
+            ),
+            const Divider(height: 1, color: _GSDark.divider, indent: 16),
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: participantIds.length,
+              separatorBuilder: (_, __) => const Divider(height: 1, color: _GSDark.divider, indent: 64),
+              itemBuilder: (context, idx) {
+                final uid = participantIds[idx].toString();
+                final userObj = widget.allUsers.firstWhere(
+                  (u) => (u['employee_id'] ?? '').toString() == uid,
+                  orElse: () => {'name': uid, 'avatar': '', 'isOnline': false},
+                );
+
+                final String memberName = userObj['name'] ?? uid;
+                final String avatar = userObj['avatar'] ?? '';
+                final bool isOnline = userObj['isOnline'] == true || uid == widget.currentUserId;
+                final bool isUserOwner = uid == createdBy;
+                final bool isUserAdmin = isUserOwner || (admins[uid] == true);
+                final String? customTag = userObj['tag']?.toString();
+
+                String statusStr = isOnline ? 'online' : 'last seen recently';
+
+                return ListTile(
+                  leading: Stack(
+                    children: [
+                      CircleAvatar(
+                        radius: 19,
+                        backgroundImage: avatar.isNotEmpty
+                            ? NetworkImage(ApiService.getFullImageUrl(avatar))
+                            : null,
+                        backgroundColor: _GSDark.accent,
+                        child: avatar.isEmpty
+                            ? Text(memberName.isNotEmpty ? memberName[0].toUpperCase() : 'U', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold))
+                            : null,
+                      ),
+                      if (isOnline)
+                        Positioned(
+                          right: 0,
+                          bottom: 0,
+                          child: Container(
+                            width: 9,
+                            height: 9,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF10B981),
+                              shape: BoxShape.circle,
+                              border: Border.all(color: _GSDark.card, width: 1.5),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  title: Text(
+                    memberName,
+                    style: GoogleFonts.inter(color: Colors.white, fontSize: 14.5, fontWeight: FontWeight.w500),
+                  ),
+                  subtitle: Text(
+                    statusStr,
+                    style: GoogleFonts.inter(
+                      color: isOnline ? _GSDark.accent : _GSDark.textMuted,
+                      fontSize: 12,
+                    ),
+                  ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (isUserOwner)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: const Color(0x33A855F7),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text('owner', style: GoogleFonts.inter(color: const Color(0xFFC084FC), fontSize: 11, fontWeight: FontWeight.w600)),
+                        )
+                      else if (isUserAdmin)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: const Color(0x3322C55E),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text('admin', style: GoogleFonts.inter(color: const Color(0xFF4ADE80), fontSize: 11, fontWeight: FontWeight.w600)),
+                        )
+                      else if (customTag != null && customTag.isNotEmpty)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: const Color(0x330A84FF),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(customTag, style: GoogleFonts.inter(color: _GSDark.accent, fontSize: 11, fontWeight: FontWeight.w600)),
+                        ),
+                      if (isAdmin && uid != widget.currentUserId && !isUserOwner)
+                        PopupMenuButton<String>(
+                          icon: const Icon(Icons.more_vert_rounded, color: Colors.white54, size: 20),
+                          color: _GSDark.card,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          onSelected: (val) async {
+                            if (val == 'toggle_admin') {
+                              admins[uid] = !(admins[uid] == true);
+                              await _firestore.collection('groups').doc(widget.groupId).update({'admins': admins});
+                            } else if (val == 'remove') {
+                              final updated = List.from(participantIds)..remove(uid);
+                              await _firestore.collection('groups').doc(widget.groupId).update({'participantIds': updated});
+                            }
+                          },
+                          itemBuilder: (ctx) => [
+                            PopupMenuItem(
+                              value: 'toggle_admin',
+                              child: Text(
+                                isUserAdmin ? 'ដកសិទ្ធិ Admin' : 'ដំឡើងជា Admin',
+                                style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 13.5),
+                              ),
+                            ),
+                            PopupMenuItem(
+                              value: 'remove',
+                              child: Text(
+                                'លុបចេញពីក្រុម',
+                                style: GoogleFonts.kantumruyPro(color: _GSDark.danger, fontSize: 13.5),
+                              ),
+                            ),
+                          ],
+                        ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      );
+    }
+
+    String targetType = 'media';
+    if (selectedTab == 1) targetType = 'media';
+    if (selectedTab == 2) targetType = 'saved';
+    if (selectedTab == 3) targetType = 'file';
+    if (selectedTab == 4) targetType = 'voice';
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: _firestore
+          .collection('chats')
+          .doc(widget.groupId)
+          .collection('messages')
+          .orderBy('timestamp', descending: true)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator(color: _GSDark.accent)));
+        }
+
+        final docs = snapshot.data!.docs.where((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          final type = data['type']?.toString() ?? '';
+          if (targetType == 'media') return type == 'image' || type == 'video' || data['stickerUrl'] != null;
+          if (targetType == 'file') return type == 'file' || type == 'document' || type == 'pdf';
+          if (targetType == 'voice') return type == 'voice' || type == 'audio';
+          if (targetType == 'saved') return data['isPinned'] == true || data['isSaved'] == true;
+          return true;
+        }).toList();
+
+        if (docs.isEmpty) {
+          return Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 16),
+            decoration: BoxDecoration(
+              color: _GSDark.card,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: _GSDark.divider, width: 0.8),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.perm_media_outlined, color: _GSDark.textMuted, size: 40),
+                const SizedBox(height: 10),
+                Text(
+                  'គ្មានប្រព័ន្ធផ្សព្វផ្សាយនៅឡើយទេ',
+                  style: GoogleFonts.kantumruyPro(color: _GSDark.textMuted, fontSize: 13.5),
+                ),
+              ],
+            ),
+          );
+        }
+
+        if (targetType == 'media') {
+          return GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              crossAxisSpacing: 6,
+              mainAxisSpacing: 6,
+            ),
+            itemCount: docs.length,
+            itemBuilder: (context, idx) {
+              final data = docs[idx].data() as Map<String, dynamic>;
+              final url = data['fileUrl'] ?? data['text'] ?? data['stickerUrl'] ?? '';
+              return ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  color: _GSDark.card,
+                  child: Image.network(
+                    ApiService.getFullImageUrl(url),
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => const Center(child: Icon(Icons.image_not_supported_rounded, color: Colors.white38)),
+                  ),
+                ),
+              );
+            },
+          );
+        }
+
+        return Container(
+          decoration: BoxDecoration(
+            color: _GSDark.card,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: _GSDark.divider, width: 0.8),
+          ),
+          child: ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: docs.length,
+            separatorBuilder: (_, __) => const Divider(height: 1, color: _GSDark.divider, indent: 16),
+            itemBuilder: (context, idx) {
+              final data = docs[idx].data() as Map<String, dynamic>;
+              final text = data['text'] ?? data['fileName'] ?? 'សារប្រព័ន្ធផ្សព្វផ្សាយ';
+              final sender = data['senderName'] ?? 'សមាជិក';
+
+              return ListTile(
+                leading: Icon(
+                  targetType == 'voice' ? Icons.mic_rounded : Icons.insert_drive_file_rounded,
+                  color: _GSDark.accent,
+                ),
+                title: Text(text, style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 14)),
+                subtitle: Text('ផ្ញើដោយ: $sender', style: GoogleFonts.kantumruyPro(color: _GSDark.textMuted, fontSize: 12)),
+              );
+            },
+          ),
         );
       },
     );

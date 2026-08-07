@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:provider/provider.dart';
+import '../providers/user_provider.dart';
 import '../services/api_service.dart';
 import '../widgets/chat_wallpaper_picker.dart';
 
@@ -271,14 +273,29 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             data = snapshot.data!.data() as Map<String, dynamic>;
           }
 
+          final userProvider = Provider.of<UserProvider>(context, listen: false);
+          final currentUserId = (userProvider.employeeId ?? '').toString();
+          String roomId = '';
+          if (currentUserId.isNotEmpty && widget.userId.isNotEmpty) {
+            List<String> ids = [currentUserId, widget.userId]..sort();
+            roomId = ids.join('_');
+          }
+
           final String name = data['name'] ?? widget.userName;
           final String avatar = data['avatar'] ?? widget.userPhoto;
-          final String phone = (data['phone'] ?? data['phone_number'] ?? data['mobile'] ?? data['email'] ?? 'គ្មានទិន្នន័យ').toString();
-          final String username = data['username'] != null && data['username'].toString().isNotEmpty
-              ? '@${data['username']}'
-              : (data['email'] != null ? data['email'].toString() : 'គ្មានទិន្នន័យ');
-          final String birthday = (data['birthday'] ?? data['dob'] ?? 'គ្មានទិន្នន័យ').toString();
-          final String bio = (data['bio'] ?? data['position'] ?? data['department'] ?? 'គ្មានទិន្នន័យ').toString();
+          final rawPhone = (data['phone'] ?? data['phone_number'] ?? data['mobile'] ?? data['telephone'] ?? '').toString();
+          final String phone = rawPhone.isNotEmpty && rawPhone != 'null' ? rawPhone : (data['email'] ?? 'មិនទាន់បានបញ្ចូល').toString();
+          
+          final rawUsername = (data['username'] ?? '').toString();
+          final String username = rawUsername.isNotEmpty && rawUsername != 'null'
+              ? '@$rawUsername'
+              : (data['email'] != null ? data['email'].toString() : '@${name.toLowerCase().replaceAll(' ', '_')}');
+          
+          final rawDob = (data['birthday'] ?? data['dob'] ?? '').toString();
+          final String birthday = rawDob.isNotEmpty && rawDob != 'null' ? rawDob : 'មិនទាន់បានបញ្ចូល';
+          
+          final rawBio = (data['bio'] ?? data['position'] ?? data['department'] ?? '').toString();
+          final String bio = rawBio.isNotEmpty && rawBio != 'null' ? rawBio : 'មន្ត្រីបំពេញការងារ';
 
           final nameParts = name.split(' ');
           final firstName = nameParts.isNotEmpty ? nameParts[0] : name;
@@ -434,44 +451,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                       ),
                       const SizedBox(height: 14),
 
-                      // Media Grid Content Preview (Matching Screenshot 1)
-                      GridView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 3,
-                          crossAxisSpacing: 4,
-                          mainAxisSpacing: 4,
-                        ),
-                        itemCount: 3,
-                        itemBuilder: (context, idx) {
-                          final durations = ['0:15', '0:33', '1:00'];
-                          return Container(
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF1E293B),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                const Icon(Icons.play_circle_fill_rounded, color: Colors.white70, size: 36),
-                                Positioned(
-                                  right: 6,
-                                  bottom: 6,
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: Colors.black54,
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: Text(durations[idx], style: GoogleFonts.inter(color: Colors.white, fontSize: 10)),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
+                      // Dynamic Profile Tab Media Content
+                      _buildProfileTabContent(_selectedTab, roomId),
                       const SizedBox(height: 30),
                     ],
                   ),
@@ -527,6 +508,134 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             fontSize: 13,
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildProfileTabContent(int selectedTab, String roomId) {
+    if (roomId.isEmpty) {
+      return _buildEmptyMediaState();
+    }
+
+    String targetCategory = 'media';
+    if (selectedTab == 0) targetCategory = 'posts';
+    if (selectedTab == 1) targetCategory = 'media';
+    if (selectedTab == 2) targetCategory = 'file';
+    if (selectedTab == 3) targetCategory = 'music';
+    if (selectedTab == 4) targetCategory = 'voice';
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('chats')
+          .doc(roomId)
+          .collection('messages')
+          .orderBy('timestamp', descending: true)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(24),
+              child: CircularProgressIndicator(color: Color(0xFF0A84FF)),
+            ),
+          );
+        }
+
+        final docs = snapshot.data!.docs.where((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          final type = data['type']?.toString() ?? '';
+          if (targetCategory == 'media') return type == 'image' || type == 'video' || data['stickerUrl'] != null;
+          if (targetCategory == 'file') return type == 'file' || type == 'document' || type == 'pdf';
+          if (targetCategory == 'music') return type == 'music' || type == 'audio';
+          if (targetCategory == 'voice') return type == 'voice';
+          if (targetCategory == 'posts') return type == 'link' || data['text']?.toString().contains('http') == true;
+          return true;
+        }).toList();
+
+        if (docs.isEmpty) {
+          return _buildEmptyMediaState();
+        }
+
+        if (targetCategory == 'media') {
+          return GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              crossAxisSpacing: 6,
+              mainAxisSpacing: 6,
+            ),
+            itemCount: docs.length,
+            itemBuilder: (context, idx) {
+              final data = docs[idx].data() as Map<String, dynamic>;
+              final url = data['fileUrl'] ?? data['text'] ?? data['stickerUrl'] ?? '';
+              return ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  color: const Color(0xFF1E293B),
+                  child: Image.network(
+                    ApiService.getFullImageUrl(url),
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => const Center(
+                      child: Icon(Icons.image_not_supported_rounded, color: Colors.white38),
+                    ),
+                  ),
+                ),
+              );
+            },
+          );
+        }
+
+        return Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E293B),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFF334155), width: 0.8),
+          ),
+          child: ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: docs.length,
+            separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFF334155), indent: 16),
+            itemBuilder: (context, idx) {
+              final data = docs[idx].data() as Map<String, dynamic>;
+              final text = data['text'] ?? data['fileName'] ?? 'សារប្រព័ន្ធផ្សព្វផ្សាយ';
+              final sender = data['senderName'] ?? '';
+
+              return ListTile(
+                leading: Icon(
+                  targetCategory == 'voice' ? Icons.mic_rounded : Icons.insert_drive_file_rounded,
+                  color: const Color(0xFF0A84FF),
+                ),
+                title: Text(text, style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 14)),
+                subtitle: Text(sender.isNotEmpty ? 'ផ្ញើដោយ: $sender' : 'សារចែករំលែក', style: GoogleFonts.kantumruyPro(color: const Color(0xFF94A3B8), fontSize: 12)),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildEmptyMediaState() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E293B),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFF334155), width: 0.8),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.perm_media_outlined, color: Color(0xFF94A3B8), size: 40),
+          const SizedBox(height: 10),
+          Text(
+            'គ្មានប្រព័ន្ធផ្សព្វផ្សាយនៅឡើយទេ',
+            style: GoogleFonts.kantumruyPro(color: const Color(0xFF94A3B8), fontSize: 13.5),
+          ),
+        ],
       ),
     );
   }

@@ -31,9 +31,9 @@ class ChatMessage {
   });
 }
 
-/// អេក្រង់ជជែកបែប Frosted Glass (Telegram Look)
-class TelegramFrostedChatScreen extends StatelessWidget {
-  const TelegramFrostedChatScreen({super.key});
+/// អេក្រង់ជជែកបែប Frosted Glass (VVC Look)
+class VvcFrostedChatScreen extends StatelessWidget {
+  const VvcFrostedChatScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -181,7 +181,7 @@ class TelegramFrostedChatScreen extends StatelessWidget {
             right: 16.0,
           ),
           // ការរួមបញ្ចូលគ្នារវាង BackdropFilter និងការលាបពណ៌ខ្មៅស្រាល ដើម្បីបង្កើត Telegram Clean Look
-          color: Colors.black.withOpacity(0.65),
+          color: Colors.black.withValues(alpha: 0.28),
           child: Row(
             children: [
               // ប៊ូតុងត្រឡប់ក្រោយ (Back Button) រចនាបថរាងមូលស្រាល
@@ -279,7 +279,7 @@ class TelegramFrostedChatScreen extends StatelessWidget {
             left: 14.0,
             right: 14.0,
           ),
-          color: Colors.black.withOpacity(0.65), // ពណ៌ overlay ដូចរបារខាងលើ
+          color: Colors.black.withValues(alpha: 0.28), // ពណ៌ overlay ដូចរបារខាងលើ
           child: Row(
             children: [
               // ប៊ូតុងភ្ជាប់ឯកសារ (Paperclip Icon)
