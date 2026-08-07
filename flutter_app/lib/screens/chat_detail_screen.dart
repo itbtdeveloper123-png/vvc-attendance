@@ -1377,11 +1377,39 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     required bool isMine,
     required String senderName,
   }) {
-    final bool isLottie = (stickerType == 'lottie') || text.endsWith('.json');
+    final bool isLottie = (stickerType == 'lottie') || text.endsWith('.json') || text.endsWith('.tgs');
+    final bool isAsset = text.startsWith('assets/');
     final bool isNetworkImage = text.startsWith('http') || text.startsWith('data:image');
 
     Widget stickerWidget;
-    if (isLottie) {
+    if (isAsset) {
+      if (isLottie) {
+        stickerWidget = SizedBox(
+          width: 150,
+          height: 150,
+          child: Lottie.asset(
+            text,
+            fit: BoxFit.contain,
+            errorBuilder: (context, error, stackTrace) {
+              return const Icon(LucideIcons.sparkles, color: Colors.amberAccent, size: 48);
+            },
+          ),
+        );
+      } else {
+        stickerWidget = ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: Image.asset(
+            text,
+            width: 150,
+            height: 150,
+            fit: BoxFit.contain,
+            errorBuilder: (context, error, stackTrace) {
+              return const Icon(LucideIcons.imageOff, color: Colors.white54, size: 48);
+            },
+          ),
+        );
+      }
+    } else if (isLottie) {
       stickerWidget = SizedBox(
         width: 160,
         height: 160,
@@ -1458,12 +1486,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       'isRead': false,
     };
 
+    final isLottie = stickerType == 'lottie' || stickerUrl.endsWith('.json') || stickerUrl.endsWith('.tgs');
+
     final batch = _firestore.batch();
     final msgRef = _firestore.collection('chats').doc(_roomId).collection('messages').doc();
     batch.set(msgRef, msgData);
     batch.set(_firestore.collection('chats').doc(_roomId), {
       'participants': [currentUserId, widget.targetUserId],
-      'lastMessage': stickerType == 'lottie' ? '🎭 Lottie Sticker' : '🎨 Giphy Sticker',
+      'lastMessage': isLottie ? '🎭 Animated Sticker' : '🎨 Sticker',
       'lastTimestamp': FieldValue.serverTimestamp(),
       'lastSenderId': currentUserId,
       'isRead': false,
@@ -2657,7 +2687,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     return Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
       child: Column(
-        crossAxisAlignment: isMine ? Alignment.end : Alignment.start,
+        crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
           GestureDetector(
             key: bubbleKey,
@@ -2947,36 +2977,41 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                             BoxShadow(color: Colors.black87, blurRadius: 12, offset: Offset(0, 4)),
                           ],
                         ),
-            onLongPress: () => _showMessageOptionsModal(
-              key: bubbleKey,
-              childWidget: cardContent,
-              docId: docId,
-              content: text,
-              type: 'location',
-              senderName: senderName,
-            ),
-            child: cardContent,
-          ),
-          Padding(
-            padding: const EdgeInsets.only(left: 4.0, right: 4.0, bottom: 4.0),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  DateFormat('h:mm a').format(time),
-                  style: GoogleFonts.inter(fontSize: 10.0, color: _MsgDark.textMuted),
+                        child: const Icon(Icons.push_pin_rounded, color: Colors.white, size: 28),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.black87,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Text(
+                          locationTitle.isNotEmpty ? locationTitle : 'Pinned Location',
+                          style: GoogleFonts.inter(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                if (isMine) ...[
-                  const SizedBox(width: 4.0),
-                  _buildReadStatusIcon(isRead),
-                ],
-              ],
-            ),
+              ),
+
+              // C. Top Bar / Close Button
+              Positioned(
+                top: 40,
+                right: 16,
+                child: IconButton(
+                  icon: const Icon(Icons.close_rounded, color: Colors.white, size: 28),
+                  onPressed: () => Navigator.pop(modalCtx),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
+
 
   // Contact Card Bubble Widget
   Widget _buildContactCardBubble({

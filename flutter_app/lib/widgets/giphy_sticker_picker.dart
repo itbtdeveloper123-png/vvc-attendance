@@ -5,6 +5,22 @@ import 'package:http/http.dart' as http;
 import 'package:lottie/lottie.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+class LocalStickerPack {
+  final String id;
+  final String title;
+  final String iconAsset;
+  final bool isAnimated;
+  final List<String> stickerAssets;
+
+  LocalStickerPack({
+    required this.id,
+    required this.title,
+    required this.iconAsset,
+    this.isAnimated = false,
+    required this.stickerAssets,
+  });
+}
+
 class GiphyStickerPickerBottomSheet extends StatefulWidget {
   final Function(String url, String type) onSelectSticker;
 
@@ -25,6 +41,11 @@ class _GiphyStickerPickerBottomSheetState extends State<GiphyStickerPickerBottom
 
   List<dynamic> _giphyItems = [];
   bool _isLoading = true;
+
+  int _selectedLocalPackIndex = 0;
+
+  // Local Sticker Packs from assets/sticker/
+  late final List<LocalStickerPack> _localStickerPacks;
 
   // Preset Lottie Animated Stickers (High quality public animations)
   final List<Map<String, String>> _lottieStickers = [
@@ -57,13 +78,63 @@ class _GiphyStickerPickerBottomSheetState extends State<GiphyStickerPickerBottom
   final List<String> _quickEmojis = [
     '👍', '❤️', '🔥', '😂', '🥳', '🎉', '👏', '🙏',
     '😍', '😮', '😢', '💯', '🚀', '⭐', '✨', '👌',
+    '😎', '🤔', '😊', '🥰', '😴', '😭', '🤯', '💪',
   ];
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
+
+    _initLocalStickerPacks();
     _fetchGiphyData();
+  }
+
+  void _initLocalStickerPacks() {
+    _localStickerPacks = [
+      LocalStickerPack(
+        id: 'vvc_sticker',
+        title: 'VVC Stickers',
+        iconAsset: 'assets/sticker/vvc-sticker/0.webp',
+        isAnimated: false,
+        stickerAssets: List.generate(30, (i) => 'assets/sticker/vvc-sticker/$i.webp'),
+      ),
+      LocalStickerPack(
+        id: 'vvc_shop',
+        title: 'VVC Shop',
+        iconAsset: 'assets/sticker/vvc-shop/0.png',
+        isAnimated: false,
+        stickerAssets: List.generate(20, (i) => 'assets/sticker/vvc-shop/$i.png'),
+      ),
+      LocalStickerPack(
+        id: 'colorful_messages',
+        title: 'Colorful',
+        iconAsset: 'assets/sticker/ColorfulMessages/0.tgs',
+        isAnimated: true,
+        stickerAssets: List.generate(37, (i) => 'assets/sticker/ColorfulMessages/$i.tgs'),
+      ),
+      LocalStickerPack(
+        id: 'japanese_shiba',
+        title: 'Shiba',
+        iconAsset: 'assets/sticker/JapaneseShiba/0.tgs',
+        isAnimated: true,
+        stickerAssets: List.generate(29, (i) => 'assets/sticker/JapaneseShiba/$i.tgs'),
+      ),
+      LocalStickerPack(
+        id: 'hands_4_friends',
+        title: 'Hands',
+        iconAsset: 'assets/sticker/Hands4Friends/0.tgs',
+        isAnimated: true,
+        stickerAssets: List.generate(35, (i) => 'assets/sticker/Hands4Friends/$i.tgs'),
+      ),
+      LocalStickerPack(
+        id: 'text_animated',
+        title: 'Text Animated',
+        iconAsset: 'assets/sticker/TextAnimated/0.tgs',
+        isAnimated: true,
+        stickerAssets: List.generate(25, (i) => 'assets/sticker/TextAnimated/$i.tgs'),
+      ),
+    ];
   }
 
   @override
@@ -76,7 +147,8 @@ class _GiphyStickerPickerBottomSheetState extends State<GiphyStickerPickerBottom
   Future<void> _fetchGiphyData({String query = ''}) async {
     setState(() => _isLoading = true);
 
-    final bool isStickerTab = _tabController.index == 0;
+    // Tab 1 = Giphy Stickers, Tab 2 = Giphy GIFs
+    final bool isStickerTab = _tabController.index == 1;
     final String endpoint = isStickerTab ? 'stickers' : 'gifs';
     final String action = query.trim().isNotEmpty ? 'search' : 'trending';
 
@@ -98,8 +170,7 @@ class _GiphyStickerPickerBottomSheetState extends State<GiphyStickerPickerBottom
       } else {
         if (mounted) setState(() => _isLoading = false);
       }
-    } catch (e) {
-      debugPrint('Fetch Giphy error: $e');
+    } catch (_) {
       if (mounted) setState(() => _isLoading = false);
     }
   }
@@ -114,72 +185,85 @@ class _GiphyStickerPickerBottomSheetState extends State<GiphyStickerPickerBottom
       ),
       child: Column(
         children: [
-          // Top Drag Handle & Close
+          // Drag Handle
+          const SizedBox(height: 10),
+          Center(
+            child: Container(
+              width: 36,
+              height: 5,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Header Title
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Icon(LucideIcons.smile, color: Color(0xFF007AFF), size: 22),
-                const SizedBox(width: 8),
                 Text(
                   'Stickers & GIFs',
                   style: GoogleFonts.inter(
                     color: Colors.white,
-                    fontSize: 16,
+                    fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                const Spacer(),
                 IconButton(
                   icon: const Icon(LucideIcons.x, color: Colors.white70, size: 20),
                   onPressed: () => Navigator.pop(context),
+                  visualDensity: VisualDensity.compact,
                 ),
               ],
             ),
           ),
 
-          // Search Input Bar for Giphy
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 4.0),
-            child: Container(
-              height: 40,
-              decoration: BoxDecoration(
-                color: const Color(0xFF2C2C2E),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.08), width: 0.5),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Row(
-                children: [
-                  const Icon(LucideIcons.search, color: Color(0xFF8E8E93), size: 18),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: _searchController,
-                      style: GoogleFonts.inter(color: Colors.white, fontSize: 14),
-                      cursorColor: const Color(0xFF007AFF),
-                      decoration: InputDecoration(
-                        hintText: 'Search Giphy stickers & GIFs...',
-                        hintStyle: GoogleFonts.inter(color: const Color(0xFF8E8E93), fontSize: 13.5),
-                        border: InputBorder.none,
-                        isDense: true,
+          // Search Bar (only for Giphy tabs)
+          if (_tabController.index == 1 || _tabController.index == 2) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: Container(
+                height: 38,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2C2C2E),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(LucideIcons.search, color: Color(0xFF8E8E93), size: 16),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: _searchController,
+                        style: GoogleFonts.inter(color: Colors.white, fontSize: 13),
+                        decoration: InputDecoration(
+                          hintText: 'Search Giphy stickers & GIFs...',
+                          hintStyle: GoogleFonts.inter(color: const Color(0xFF8E8E93), fontSize: 13),
+                          border: InputBorder.none,
+                          isDense: true,
+                        ),
+                        onSubmitted: (query) => _fetchGiphyData(query: query),
                       ),
-                      onSubmitted: (val) => _fetchGiphyData(query: val),
                     ),
-                  ),
-                  if (_searchController.text.isNotEmpty)
-                    InkWell(
-                      onTap: () {
-                        _searchController.clear();
-                        _fetchGiphyData(query: '');
-                      },
-                      child: const Icon(LucideIcons.xCircle, color: Color(0xFF8E8E93), size: 16),
-                    ),
-                ],
+                    if (_searchController.text.isNotEmpty)
+                      InkWell(
+                        onTap: () {
+                          _searchController.clear();
+                          _fetchGiphyData(query: '');
+                        },
+                        child: const Icon(LucideIcons.xCircle, color: Color(0xFF8E8E93), size: 16),
+                      ),
+                  ],
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 6),
+            const SizedBox(height: 4),
+          ],
 
           // Category Tab Bar
           TabBar(
@@ -188,10 +272,18 @@ class _GiphyStickerPickerBottomSheetState extends State<GiphyStickerPickerBottom
             indicatorWeight: 3.0,
             labelColor: Colors.white,
             unselectedLabelColor: const Color(0xFF8E8E93),
-            labelStyle: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.bold),
-            onTap: (_) => _fetchGiphyData(query: _searchController.text),
+            labelStyle: GoogleFonts.inter(fontSize: 12.0, fontWeight: FontWeight.bold),
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
+            onTap: (_) {
+              setState(() {});
+              if (_tabController.index == 1 || _tabController.index == 2) {
+                _fetchGiphyData(query: _searchController.text);
+              }
+            },
             tabs: const [
-              Tab(text: 'Stickers'),
+              Tab(text: '✨ Packs'),
+              Tab(text: 'Giphy'),
               Tab(text: 'GIFs'),
               Tab(text: 'Lottie'),
               Tab(text: 'Emojis'),
@@ -203,6 +295,9 @@ class _GiphyStickerPickerBottomSheetState extends State<GiphyStickerPickerBottom
             child: TabBarView(
               controller: _tabController,
               children: [
+                // 0. Local VVC Sticker Packs Grid
+                _buildLocalStickerPacksView(),
+
                 // 1. Giphy Stickers Grid
                 _buildGiphyGrid(),
 
@@ -219,6 +314,111 @@ class _GiphyStickerPickerBottomSheetState extends State<GiphyStickerPickerBottom
           ),
         ],
       ),
+    );
+  }
+
+  // Local Sticker Packs View (VVC Stickers, VVC Shop, Colorful, Shiba)
+  Widget _buildLocalStickerPacksView() {
+    final currentPack = _localStickerPacks[_selectedLocalPackIndex];
+
+    return Column(
+      children: [
+        // Sub-Pack Category Selector Pills
+        Container(
+          height: 44,
+          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: _localStickerPacks.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (context, index) {
+              final pack = _localStickerPacks[index];
+              final isSelected = index == _selectedLocalPackIndex;
+
+              return ChoiceChip(
+                showCheckmark: false,
+                selected: isSelected,
+                selectedColor: const Color(0xFF007AFF),
+                backgroundColor: const Color(0xFF2C2C2E),
+                side: BorderSide.none,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                label: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: pack.isAnimated
+                          ? Lottie.asset(pack.iconAsset, fit: BoxFit.contain)
+                          : Image.asset(pack.iconAsset, fit: BoxFit.contain),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      pack.title,
+                      style: GoogleFonts.inter(
+                        color: isSelected ? Colors.white : Colors.white70,
+                        fontSize: 12,
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+                onSelected: (_) {
+                  setState(() => _selectedLocalPackIndex = index);
+                },
+              );
+            },
+          ),
+        ),
+
+        // Sticker Grid for Selected Pack
+        Expanded(
+          child: GridView.builder(
+            padding: const EdgeInsets.all(12),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 4,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+            ),
+            itemCount: currentPack.stickerAssets.length,
+            itemBuilder: (context, index) {
+              final assetPath = currentPack.stickerAssets[index];
+
+              return InkWell(
+                onTap: () {
+                  Navigator.pop(context);
+                  widget.onSelectSticker(
+                    assetPath,
+                    currentPack.isAnimated ? 'lottie' : 'asset',
+                  );
+                },
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2C2C2E).withValues(alpha: 0.6),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+                  ),
+                  child: currentPack.isAnimated
+                      ? Lottie.asset(
+                          assetPath,
+                          fit: BoxFit.contain,
+                          errorBuilder: (context, error, stackTrace) =>
+                              const Center(child: Icon(LucideIcons.sparkles, color: Colors.amberAccent, size: 24)),
+                        )
+                      : Image.asset(
+                          assetPath,
+                          fit: BoxFit.contain,
+                          errorBuilder: (context, error, stackTrace) =>
+                              const Center(child: Icon(LucideIcons.imageOff, color: Colors.white38, size: 24)),
+                        ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 

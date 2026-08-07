@@ -100,6 +100,14 @@ flutter:
     - assets/fonts/
     - assets/suits/
     - assets/wallpapers/
+    - assets/sticker/ColorfulMessages/
+    - assets/sticker/JapaneseShiba/
+    - assets/sticker/vvc-shop/
+    - assets/sticker/vvc-sticker/
+    - assets/sticker/Hands4Friends/
+    - assets/sticker/TextAnimated/
+
+
 
   fonts:
     - family: KhmerFont
