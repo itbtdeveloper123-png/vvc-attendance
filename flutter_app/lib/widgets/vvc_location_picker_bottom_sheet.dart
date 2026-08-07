@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:geolocator/geolocator.dart';
@@ -246,10 +247,8 @@ class _VvcLocationPickerBottomSheetState extends State<VvcLocationPickerBottomSh
         borderRadius: BorderRadius.circular(16),
         child: Stack(
           children: [
-            CustomPaint(
-              size: Size.infinite,
-              painter: _DarkMapPainter(),
-            ),
+            // Real OpenStreetMap / CartoDB Dark Map Tiles Grid
+            _buildRealMapViewTileGrid(),
 
             Center(
               child: Padding(
@@ -295,7 +294,7 @@ class _VvcLocationPickerBottomSheetState extends State<VvcLocationPickerBottomSh
                     onTap: () {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('Switched Map Style', style: GoogleFonts.inter()),
+                          content: Text('Switched Map Style (CartoDB Dark Theme)', style: GoogleFonts.inter()),
                           duration: const Duration(seconds: 1),
                         ),
                       );
@@ -305,7 +304,18 @@ class _VvcLocationPickerBottomSheetState extends State<VvcLocationPickerBottomSh
                   _buildFloatingMapButton(
                     icon: Icons.my_location_rounded,
                     iconColor: _accentColor,
-                    onTap: () {},
+                    onTap: () async {
+                      setState(() => _isLoadingGps = true);
+                      await _fetchRealGpsLocation();
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('បានចាប់ទីតាំង GPS ថ្មី ៖ $_currentLat, $_currentLng', style: GoogleFonts.kantumruyPro()),
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      }
+                    },
                   ),
                 ],
               ),
@@ -313,6 +323,52 @@ class _VvcLocationPickerBottomSheetState extends State<VvcLocationPickerBottomSh
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildRealMapViewTileGrid() {
+    final int zoom = 15;
+    final n = pow(2, zoom);
+    final x = (((_currentLng + 180.0) / 360.0) * n).floor();
+    final latRad = _currentLat * pi / 180.0;
+    final y = (((1.0 - (log(tan(latRad) + (1.0 / cos(latRad))) / pi)) / 2.0) * n).floor();
+
+    final List<String> tileUrls = [];
+    for (int dy = -1; dy <= 1; dy++) {
+      for (int dx = -1; dx <= 1; dx++) {
+        tileUrls.add('https://a.basemaps.cartocdn.com/dark_all/$zoom/${x + dx}/${y + dy}.png');
+      }
+    }
+
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: OverflowBox(
+            maxWidth: 768,
+            maxHeight: 768,
+            child: SizedBox(
+              width: 768,
+              height: 768,
+              child: GridView.count(
+                crossAxisCount: 3,
+                physics: const NeverScrollableScrollPhysics(),
+                children: tileUrls.map((url) {
+                  return Image.network(
+                    url,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(color: const Color(0xFF151D2A)),
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+        ),
+        Positioned.fill(
+          child: Container(
+            color: Colors.black.withValues(alpha: 0.1),
+          ),
+        ),
+      ],
     );
   }
 
