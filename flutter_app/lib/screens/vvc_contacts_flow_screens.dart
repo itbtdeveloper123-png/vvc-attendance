@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../services/api_service.dart';
 
 // ============================================================================
 // VVC DARK THEME DESIGN TOKENS
@@ -157,73 +159,113 @@ class _VvcNewMessageContactListScreenState extends State<VvcNewMessageContactLis
               ),
 
               Expanded(
-                child: ListView(
-                  physics: const BouncingScrollPhysics(),
-                  children: [
-                    // Action Items
-                    if (_searchQuery.isEmpty) ...[
-                      _buildActionRow(
-                        icon: Icons.people_outline_rounded,
-                        title: 'New Group',
-                        onTap: () {
-                          if (widget.onNewGroupTap != null) {
-                            widget.onNewGroupTap!();
-                          } else {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(builder: (_) => const VvcNewGroupMemberSelectionScreen()),
-                            );
-                          }
-                        },
-                      ),
-                      _buildActionRow(
-                        icon: Icons.person_add_alt_1_outlined,
-                        title: 'New Contact',
-                        onTap: () {
-                          if (widget.onNewContactTap != null) {
-                            widget.onNewContactTap!();
-                          } else {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(builder: (_) => const VvcNewContactFormScreen()),
-                            );
-                          }
-                        },
-                      ),
-                      _buildActionRow(
-                        icon: Icons.campaign_outlined,
-                        title: 'New Channel',
-                        onTap: () => widget.onNewChannelTap?.call(),
-                      ),
-                      const SizedBox(height: 12),
-                    ],
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance.collection('users').snapshots(),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData) {
+                      return const Center(child: CircularProgressIndicator(color: VvcTheme.accent));
+                    }
 
-                    // Grouped Contacts List
-                    ..._groupedContacts.entries.map((entry) {
-                      final letter = entry.key;
-                      final list = entry.value;
+                    final realContacts = snapshot.data!.docs.where((doc) {
+                      final d = doc.data() as Map<String, dynamic>;
+                      final role = (d['role'] ?? '').toString().toLowerCase();
+                      final email = (d['email'] ?? '').toString().toLowerCase();
+                      if (role == 'admin' || role == 'admin_panel' || d['isAdminPanel'] == true || email.contains('admin')) {
+                        return false;
+                      }
+                      return true;
+                    }).map((doc) {
+                      final d = doc.data() as Map<String, dynamic>;
+                      return {
+                        'id': doc.id,
+                        'name': d['name'] ?? d['username'] ?? 'User',
+                        'subtitle': d['position'] ?? d['department'] ?? 'last seen recently',
+                        'avatar': d['avatar'] ?? d['photoUrl'] ?? '',
+                        'phone': d['phone'] ?? d['phoneNumber'] ?? '',
+                        'isOnline': d['isOnline'] == true,
+                      };
+                    }).toList();
 
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                            width: double.infinity,
-                            color: const Color(0xFF141416),
-                            child: Text(
-                              letter,
-                              style: GoogleFonts.inter(
-                                color: VvcTheme.mutedText,
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
+                    final filtered = _searchQuery.isEmpty
+                        ? realContacts
+                        : realContacts.where((c) => (c['name'] ?? '').toString().toLowerCase().contains(_searchQuery)).toList();
+
+                    final Map<String, List<Map<String, dynamic>>> grouped = {};
+                    for (var c in filtered) {
+                      final name = (c['name'] ?? '').toString();
+                      final letter = name.isNotEmpty ? name[0].toUpperCase() : '#';
+                      grouped.putIfAbsent(letter, () => []).add(c);
+                    }
+
+                    return ListView(
+                      physics: const BouncingScrollPhysics(),
+                      children: [
+                        // Action Items
+                        if (_searchQuery.isEmpty) ...[
+                          _buildActionRow(
+                            icon: Icons.people_outline_rounded,
+                            title: 'New Group',
+                            onTap: () {
+                              if (widget.onNewGroupTap != null) {
+                                widget.onNewGroupTap!();
+                              } else {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(builder: (_) => const VvcNewGroupMemberSelectionScreen()),
+                                );
+                              }
+                            },
                           ),
-                          ...list.map((c) => _buildContactTile(c)),
+                          _buildActionRow(
+                            icon: Icons.person_add_alt_1_outlined,
+                            title: 'New Contact',
+                            onTap: () {
+                              if (widget.onNewContactTap != null) {
+                                widget.onNewContactTap!();
+                              } else {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(builder: (_) => const VvcNewContactFormScreen()),
+                                );
+                              }
+                            },
+                          ),
+                          _buildActionRow(
+                            icon: Icons.campaign_outlined,
+                            title: 'New Channel',
+                            onTap: () => widget.onNewChannelTap?.call(),
+                          ),
+                          const SizedBox(height: 12),
                         ],
-                      );
-                    }),
-                  ],
+
+                        // Grouped Real Contacts List
+                        ...grouped.entries.map((entry) {
+                          final letter = entry.key;
+                          final list = entry.value;
+
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                                width: double.infinity,
+                                color: const Color(0xFF141416),
+                                child: Text(
+                                  letter,
+                                  style: GoogleFonts.inter(
+                                    color: VvcTheme.mutedText,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              ...list.map((c) => _buildContactTile(c)),
+                            ],
+                          );
+                        }),
+                      ],
+                    );
+                  },
                 ),
               ),
             ],
@@ -511,69 +553,111 @@ class _VvcNewGroupMemberSelectionScreenState extends State<VvcNewGroupMemberSele
               ),
             ),
           ),
-
           Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              itemCount: _filtered.length,
-              itemBuilder: (context, idx) {
-                final c = _filtered[idx];
-                final String name = c['name'] ?? '';
-                final String subtitle = c['subtitle'] ?? '';
-                final bool isSelected = _selectedNames.contains(name);
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance.collection('users').snapshots(),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator(color: VvcTheme.accent));
+                }
 
-                return InkWell(
-                  onTap: () => _toggleSelect(name),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    child: Row(
-                      children: [
-                        // Left-side Checkbox/Radio Icon
-                        Container(
-                          width: 22,
-                          height: 22,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: isSelected ? VvcTheme.accent : Colors.transparent,
-                            border: Border.all(
-                              color: isSelected ? VvcTheme.accent : VvcTheme.mutedText,
-                              width: 1.5,
+                final realUsers = snapshot.data!.docs.where((doc) {
+                  final d = doc.data() as Map<String, dynamic>;
+                  final role = (d['role'] ?? '').toString().toLowerCase();
+                  final email = (d['email'] ?? '').toString().toLowerCase();
+                  if (role == 'admin' || role == 'admin_panel' || d['isAdminPanel'] == true || email.contains('admin')) {
+                    return false;
+                  }
+                  return true;
+                }).map((doc) {
+                  final d = doc.data() as Map<String, dynamic>;
+                  return {
+                    'id': doc.id,
+                    'name': d['name'] ?? d['username'] ?? 'User',
+                    'subtitle': d['position'] ?? d['department'] ?? 'last seen recently',
+                    'avatar': d['avatar'] ?? d['photoUrl'] ?? '',
+                    'isOnline': d['isOnline'] == true,
+                  };
+                }).toList();
+
+                final filtered = _searchQuery.isEmpty
+                    ? realUsers
+                    : realUsers.where((c) => (c['name'] ?? '').toString().toLowerCase().contains(_searchQuery)).toList();
+
+                return ListView.builder(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  itemCount: filtered.length,
+                  itemBuilder: (context, idx) {
+                    final c = filtered[idx];
+                    final String name = c['name'] ?? '';
+                    final String subtitle = c['subtitle'] ?? '';
+                    final String avatar = c['avatar'] ?? '';
+                    final bool isSelected = _selectedNames.contains(name);
+
+                    return InkWell(
+                      onTap: () => _toggleSelect(name),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 22,
+                              height: 22,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: isSelected ? VvcTheme.accent : Colors.transparent,
+                                border: Border.all(
+                                  color: isSelected ? VvcTheme.accent : VvcTheme.mutedText,
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: isSelected
+                                  ? const Icon(Icons.check_rounded, color: Colors.white, size: 14)
+                                  : null,
                             ),
-                          ),
-                          child: isSelected
-                              ? const Icon(Icons.check_rounded, color: Colors.white, size: 14)
-                              : null,
-                        ),
-                        const SizedBox(width: 14),
+                            const SizedBox(width: 14),
 
-                        CircleAvatar(
-                          radius: 20,
-                          backgroundColor: VvcTheme.accent.withValues(alpha: 0.8),
-                          child: Text(
-                            name.isNotEmpty ? name[0].toUpperCase() : 'U',
-                            style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                        const SizedBox(width: 14),
+                            CircleAvatar(
+                              radius: 20,
+                              backgroundImage: avatar.isNotEmpty ? NetworkImage(ApiService.getFullImageUrl(avatar)) : null,
+                              backgroundColor: VvcTheme.accent.withValues(alpha: 0.8),
+                              child: avatar.isEmpty
+                                  ? Text(
+                                      name.isNotEmpty ? name[0].toUpperCase() : 'U',
+                                      style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold),
+                                    )
+                                  : null,
+                            ),
+                            const SizedBox(width: 14),
 
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                name,
-                                style: GoogleFonts.inter(color: Colors.white, fontSize: 15.5, fontWeight: FontWeight.w500),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    name,
+                                    style: GoogleFonts.inter(
+                                      color: VvcTheme.textPrimary,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    subtitle,
+                                    style: GoogleFonts.inter(
+                                      color: VvcTheme.mutedText,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ],
                               ),
-                              Text(
-                                subtitle,
-                                style: GoogleFonts.inter(color: VvcTheme.mutedText, fontSize: 12.5),
-                              ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                  ),
+                      ),
+                    );
+                  },
                 );
               },
             ),

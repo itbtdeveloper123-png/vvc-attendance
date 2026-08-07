@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:geolocator/geolocator.dart';
 
 /// Reusable VVC Dark Theme "Location" Picker Modal Bottom Sheet Component
 class VvcLocationPickerBottomSheet extends StatefulWidget {
@@ -36,6 +37,52 @@ class _VvcLocationPickerBottomSheetState extends State<VvcLocationPickerBottomSh
   String _activeTab = 'Location';
   final TextEditingController _searchController = TextEditingController();
   bool _isSearchActive = false;
+
+  double _currentLat = 11.5564;
+  double _currentLng = 104.9282;
+  bool _isLoadingGps = true;
+  String _gpsAccuracyStr = 'Accurate to 10 metres';
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchRealGpsLocation();
+  }
+
+  Future<void> _fetchRealGpsLocation() async {
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        if (mounted) setState(() => _isLoadingGps = false);
+        return;
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+
+      if (permission == LocationPermission.whileInUse || permission == LocationPermission.always) {
+        Position pos = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high,
+          timeLimit: const Duration(seconds: 4),
+        );
+        if (mounted) {
+          setState(() {
+            _currentLat = pos.latitude;
+            _currentLng = pos.longitude;
+            _gpsAccuracyStr = 'Accurate to ${pos.accuracy.toInt()} metres (${pos.latitude.toStringAsFixed(4)}, ${pos.longitude.toStringAsFixed(4)})';
+            _isLoadingGps = false;
+          });
+        }
+      } else {
+        if (mounted) setState(() => _isLoadingGps = false);
+      }
+    } catch (e) {
+      debugPrint('Real GPS error: $e');
+      if (mounted) setState(() => _isLoadingGps = false);
+    }
+  }
 
   // Theme Colors
   static const Color _bgColor = Color(0xFF1C1C1E);
@@ -98,9 +145,9 @@ class _VvcLocationPickerBottomSheetState extends State<VvcLocationPickerBottomSh
     final locationData = {
       'type': 'current_location',
       'name': 'Current Location',
-      'address': 'Accurate to 10 metres',
-      'latitude': 11.5564,
-      'longitude': 104.9282,
+      'address': _gpsAccuracyStr,
+      'latitude': _currentLat,
+      'longitude': _currentLng,
       'timestamp': DateTime.now().toIso8601String(),
     };
 

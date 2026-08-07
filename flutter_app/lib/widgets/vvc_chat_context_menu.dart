@@ -371,7 +371,6 @@ class _VvcContextMenuOverlayState extends State<_VvcContextMenuOverlay>
   @override
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.of(context).size;
-    final emojis = widget.customEmojis ?? _defaultEmojis;
     final menuItems = _buildMenuItems();
 
     final double topOffset = widget.targetOffset.dy;
@@ -395,39 +394,35 @@ class _VvcContextMenuOverlayState extends State<_VvcContextMenuOverlay>
           ),
         ),
 
-        // B. Quick Reactions Emoji Bar + Target Bubble + Context Action Menu
+        // B. Target Bubble + Clean Context Action Menu (Wrapped in Material to remove text underlines)
         Positioned(
           left: widget.targetOffset.dx.clamp(12.0, screenSize.width - widget.targetSize.width - 12.0),
-          top: showMenuBelow ? widget.targetOffset.dy - 56.0 : null,
-          bottom: !showMenuBelow ? (screenSize.height - widget.targetOffset.dy) - widget.targetSize.height - 56.0 : null,
+          top: showMenuBelow ? widget.targetOffset.dy : null,
+          bottom: !showMenuBelow ? (screenSize.height - widget.targetOffset.dy) - widget.targetSize.height : null,
           width: widget.targetSize.width.clamp(240.0, screenSize.width - 32.0),
-          child: AnimatedBuilder(
-            animation: _animController,
-            builder: (context, _) {
-              return ScaleTransition(
-                scale: _scaleAnim,
-                alignment: showMenuBelow ? Alignment.topCenter : Alignment.bottomCenter,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // 1. Quick Reactions Floating Pill Bar
-                    _buildReactionPillBar(emojis),
-                    const SizedBox(height: 8.0),
+          child: Material(
+            color: Colors.transparent,
+            child: AnimatedBuilder(
+              animation: _animController,
+              builder: (context, _) {
+                return ScaleTransition(
+                  scale: _scaleAnim,
+                  alignment: showMenuBelow ? Alignment.topCenter : Alignment.bottomCenter,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // 1. Focused Target Message Bubble
+                      widget.childWidget,
+                      const SizedBox(height: 8.0),
 
-                    // 2. Focused Target Message Bubble
-                    Material(
-                      color: Colors.transparent,
-                      child: widget.childWidget,
-                    ),
-                    const SizedBox(height: 8.0),
-
-                    // 3. Context Action Menu Card (#2C2C2E)
-                    _buildContextMenuCard(menuItems),
-                  ],
-                ),
-              );
-            },
+                      // 2. Clean Context Action Menu Card (#2C2C2E)
+                      _buildContextMenuCard(menuItems),
+                    ],
+                  ),
+                );
+              },
+            ),
           ),
         ),
       ],

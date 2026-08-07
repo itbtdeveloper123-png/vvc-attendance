@@ -955,7 +955,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             if (rawType == 'file')
               _buildFileBubble(docId: doc.id, fileName: (data['fileName'] ?? 'Document').toString(), fileSize: (data['fileSize'] ?? '').toString(), isMine: isMine, time: msgTime, isRead: isRead, senderName: senderName),
             if (rawType == 'location')
-              _buildLocationBubble(docId: doc.id, text: rawText, lat: (data['latitude'] ?? 0.0) as double, lng: (data['longitude'] ?? 0.0) as double, isMine: isMine, time: msgTime, isRead: isRead, senderName: senderName),
+              _buildLocationCardBubble(docId: doc.id, text: rawText, isMine: isMine, time: msgTime, isRead: isRead, senderName: senderName),
             if (rawType == 'sticker' || rawText == '👍')
               _buildStickerBubble(docId: doc.id, text: rawText.isNotEmpty ? rawText : '👍', stickerType: (data['stickerType'] ?? '').toString(), isMine: isMine, senderName: senderName),
             if (rawType != 'callMissed' && rawType != 'callVideo' && !imageUrl.isNotEmpty && rawType != 'image' && !audioUrl.isNotEmpty && rawType != 'audio' && rawType != 'voice' && rawType != 'file' && rawType != 'location' && rawType != 'sticker' && rawText != '👍' && rawText.isNotEmpty)
@@ -1034,21 +1034,26 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     required DateTime time,
     required bool isRead,
   }) {
-    if (text.contains('/g/')) {
-      final RegExp regExp = RegExp(r'(?:https?://)?(?:[a-zA-Z0-9.-]+)?/g/([a-zA-Z0-9_-]+)');
-      final match = regExp.firstMatch(text);
-      if (match != null) {
-        final String groupId = match.group(1)!;
-        return _buildGroupInviteCard(
-          docId: docId,
-          groupId: groupId,
-          fullLink: match.group(0) ?? text,
-          senderName: senderName,
-          isMine: isMine,
-          time: time,
-          isRead: isRead,
-        );
-      }
+    if (text.startsWith('📍') || text.contains('maps.google.com') || text.startsWith('Current Location') || text.contains('q=')) {
+      return _buildLocationCardBubble(
+        docId: docId,
+        text: text,
+        senderName: senderName,
+        isMine: isMine,
+        time: time,
+        isRead: isRead,
+      );
+    }
+
+    if (text.startsWith('👤 Contact:') || text.contains('Contact:')) {
+      return _buildContactCardBubble(
+        docId: docId,
+        text: text,
+        senderName: senderName,
+        isMine: isMine,
+        time: time,
+        isRead: isRead,
+      );
     }
 
     final bubbleKey = GlobalKey();
@@ -2650,22 +2655,161 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
   }
 
-  // Rich Google Maps Card Widget
-  Widget _buildLocationBubble({
+  // Location Card Bubble Widget
+  Widget _buildLocationCardBubble({
     required String docId,
     required String text,
-    required double lat,
-    required double lng,
+    required String senderName,
     required bool isMine,
     required DateTime time,
     required bool isRead,
-    required String senderName,
   }) {
-    final mapsUrl = 'https://maps.google.com/?q=$lat,$lng';
-    String addressStr = text.replaceFirst('📍 ទីតាំងបច្ចុប្បន្ន៖\n', '').trim();
-    if (addressStr.startsWith('http') || addressStr.isEmpty) {
-      addressStr = 'រាជធានីភ្នំពេញ, ប្រទេសកម្ពុជា ($lat, $lng)';
+    double lat = 11.5564;
+    double lng = 104.9282;
+    String locationTitle = '📍 ទីតាំងបច្ចុប្បន្ន (Current Location)';
+
+    final RegExp regExp = RegExp(r'q=(-?\d+\.?\d*),(-?\d+\.?\d*)');
+    final match = regExp.firstMatch(text);
+    if (match != null) {
+      lat = double.tryParse(match.group(1)!) ?? 11.5564;
+      lng = double.tryParse(match.group(2)!) ?? 104.9282;
     }
+
+    if (text.contains(':')) {
+      final parts = text.split('\n');
+      if (parts.isNotEmpty && parts.first.contains('📍')) {
+        locationTitle = parts.first;
+      }
+    }
+
+    final mapsUrl = 'https://maps.google.com/?q=$lat,$lng';
+    final bubbleKey = GlobalKey();
+
+    final cardContent = Container(
+      width: 260,
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      decoration: BoxDecoration(
+        color: isMine ? const Color(0xFF229ED9) : const Color(0xFF2C2C2E),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.3),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            height: 110,
+            width: double.infinity,
+            decoration: const BoxDecoration(
+              color: Color(0xFF1E293B),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+            ),
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: Opacity(
+                    opacity: 0.35,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [const Color(0xFF0F172A), Colors.blueGrey.shade900],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: const BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(color: Colors.black45, blurRadius: 6, offset: Offset(0, 2)),
+                          ],
+                        ),
+                        child: const Icon(Icons.location_on_rounded, color: Colors.redAccent, size: 26),
+                      ),
+                      const SizedBox(height: 5),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.black87,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          '${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)}',
+                          style: GoogleFonts.inter(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  locationTitle,
+                  style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13.5),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'រាជធានីភ្នំពេញ, ប្រទេសកម្ពុជា',
+                  style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 12),
+                ),
+                const SizedBox(height: 10),
+                InkWell(
+                  onTap: () async {
+                    final uri = Uri.parse(mapsUrl);
+                    if (await canLaunchUrl(uri)) {
+                      await launchUrl(uri, mode: LaunchMode.externalApplication);
+                    }
+                  },
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.map_rounded, color: Colors.white, size: 16),
+                        const SizedBox(width: 6),
+                        Text(
+                          'បើកមើលក្នុង Google Maps',
+                          style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                        ),
+                        const SizedBox(width: 4),
+                        const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 14),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
 
     return Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
@@ -2673,90 +2817,193 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
           GestureDetector(
-            onTap: () async {
-              final uri = Uri.parse(mapsUrl);
-              if (await canLaunchUrl(uri)) {
-                await launchUrl(uri, mode: LaunchMode.externalApplication);
-              }
-            },
-            onLongPress: () => _showMessageOptionsModal(docId: docId, content: text, type: 'location', senderName: senderName),
-            child: Container(
-              margin: const EdgeInsets.symmetric(vertical: 4.0),
-              width: 250.0,
-              decoration: BoxDecoration(
-                color: isMine ? _MsgDark.sentBubble : const Color(0xFF2C2C2E),
-                borderRadius: BorderRadius.circular(20.0),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.3),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
+            key: bubbleKey,
+            onLongPress: () => _showMessageOptionsModal(
+              key: bubbleKey,
+              childWidget: cardContent,
+              docId: docId,
+              content: text,
+              type: 'location',
+              senderName: senderName,
+            ),
+            child: cardContent,
+          ),
+          Padding(
+            padding: const EdgeInsets.only(left: 4.0, right: 4.0, bottom: 4.0),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  DateFormat('h:mm a').format(time),
+                  style: GoogleFonts.inter(fontSize: 10.0, color: _MsgDark.textMuted),
+                ),
+                if (isMine) ...[
+                  const SizedBox(width: 4.0),
+                  _buildReadStatusIcon(isRead),
                 ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    height: 95.0,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF1E293B),
-                      borderRadius: BorderRadius.vertical(top: Radius.circular(20.0)),
-                    ),
-                    child: Center(
-                      child: Column(
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Contact Card Bubble Widget
+  Widget _buildContactCardBubble({
+    required String docId,
+    required String text,
+    required String senderName,
+    required bool isMine,
+    required DateTime time,
+    required bool isRead,
+  }) {
+    String contactName = 'Contact';
+    String contactSubtitle = '';
+    final lines = text.split('\n');
+    if (lines.isNotEmpty) {
+      contactName = lines.first.replaceAll('👤 Contact:', '').trim();
+    }
+    if (lines.length > 1) {
+      contactSubtitle = lines[1].replaceAll('ℹ️', '').replaceAll('📞', '').trim();
+    }
+
+    final bubbleKey = GlobalKey();
+
+    final cardContent = Container(
+      width: 250,
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      decoration: BoxDecoration(
+        color: isMine ? const Color(0xFF229ED9) : const Color(0xFF2C2C2E),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.3),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 22,
+                  backgroundColor: Colors.white24,
+                  child: Text(
+                    contactName.isNotEmpty ? contactName[0].toUpperCase() : 'C',
+                    style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        contactName,
+                        style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (contactSubtitle.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          contactSubtitle,
+                          style: GoogleFonts.inter(color: Colors.white70, fontSize: 12),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            const Divider(height: 1, color: Colors.white24),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: InkWell(
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('កំពុងបើកការសន្ទនាជាមួយ $contactName...', style: GoogleFonts.kantumruyPro())),
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: const BoxDecoration(
-                              color: Colors.white,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(Icons.location_on_rounded, color: Colors.redAccent, size: 28.0),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            'Google Maps Location',
-                            style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
-                          ),
+                          const Icon(Icons.chat_bubble_outline_rounded, color: Colors.white, size: 16),
+                          const SizedBox(width: 6),
+                          Text('💬 Chat', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
                         ],
                       ),
                     ),
                   ),
-                  Padding(
-                    padding: const EdgeInsets.all(12.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '📍 ទីតាំងបច្ចុប្បន្ន',
-                          style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13.5),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          addressStr,
-                          style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 12.0),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 10),
-                        Row(
-                          children: [
-                            Text(
-                              'បើកមើលក្នុង Google Maps',
-                              style: GoogleFonts.kantumruyPro(color: isMine ? Colors.white : Colors.tealAccent, fontWeight: FontWeight.bold, fontSize: 12.5),
-                            ),
-                            const SizedBox(width: 4),
-                            Icon(Icons.arrow_forward_rounded, size: 14, color: isMine ? Colors.white : Colors.tealAccent),
-                          ],
-                        ),
-                      ],
+                ),
+                Container(width: 1, height: 20, color: Colors.white24),
+                Expanded(
+                  child: InkWell(
+                    onTap: () async {
+                      final phoneClean = contactSubtitle.replaceAll(RegExp(r'[^\d+]'), '');
+                      final url = 'tel:${phoneClean.isNotEmpty ? phoneClean : "012345678"}';
+                      final uri = Uri.parse(url);
+                      if (await canLaunchUrl(uri)) {
+                        await launchUrl(uri);
+                      } else {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('កំពុងលេងការហៅទូរស័ព្ទទៅកាន់ $contactName ($url)', style: GoogleFonts.kantumruyPro())),
+                          );
+                        }
+                      }
+                    },
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.phone_outlined, color: Colors.white, size: 16),
+                          const SizedBox(width: 6),
+                          Text('📞 Call', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                        ],
+                      ),
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
+          ],
+        ),
+      ),
+    );
+
+    return Align(
+      alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
+      child: Column(
+        crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        children: [
+          GestureDetector(
+            key: bubbleKey,
+            onLongPress: () => _showMessageOptionsModal(
+              key: bubbleKey,
+              childWidget: cardContent,
+              docId: docId,
+              content: text,
+              type: 'text',
+              senderName: senderName,
+            ),
+            child: cardContent,
           ),
           Padding(
             padding: const EdgeInsets.only(left: 4.0, right: 4.0, bottom: 4.0),
