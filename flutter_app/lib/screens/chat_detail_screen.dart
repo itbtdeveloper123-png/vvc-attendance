@@ -3777,6 +3777,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   void _showVvcAttachmentSheet() {
     VvcFilePickerBottomSheet.show(
       context: context,
+      roomId: _roomId,
       onSelectFromGallery: () => _pickAndSendImage(ImageSource.gallery),
       onSelectFromFiles: _pickAndSendFile,
       onScanDocument: () => _pickAndSendImage(ImageSource.camera),

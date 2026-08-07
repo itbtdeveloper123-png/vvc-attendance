@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 
 /// Reusable VVC Dark Theme "File" Attachment Modal Bottom Sheet Component
 class VvcFilePickerBottomSheet extends StatefulWidget {
+  final String? roomId;
   final VoidCallback? onSelectFromGallery;
   final VoidCallback? onSelectFromFiles;
   final VoidCallback? onScanDocument;
@@ -11,6 +14,7 @@ class VvcFilePickerBottomSheet extends StatefulWidget {
 
   const VvcFilePickerBottomSheet({
     super.key,
+    this.roomId,
     this.onSelectFromGallery,
     this.onSelectFromFiles,
     this.onScanDocument,
@@ -20,6 +24,7 @@ class VvcFilePickerBottomSheet extends StatefulWidget {
 
   static Future<T?> show<T>({
     required BuildContext context,
+    String? roomId,
     VoidCallback? onSelectFromGallery,
     VoidCallback? onSelectFromFiles,
     VoidCallback? onScanDocument,
@@ -31,6 +36,7 @@ class VvcFilePickerBottomSheet extends StatefulWidget {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => VvcFilePickerBottomSheet(
+        roomId: roomId,
         onSelectFromGallery: onSelectFromGallery,
         onSelectFromFiles: onSelectFromFiles,
         onScanDocument: onScanDocument,
@@ -319,104 +325,188 @@ class _VvcFilePickerBottomSheetState extends State<VvcFilePickerBottomSheet> {
   }
 
   Widget _buildRecentFilesCard() {
-    final filtered = _recentFiles.where((f) {
-      if (_searchController.text.isEmpty) return true;
-      return f['name'].toString().toLowerCase().contains(_searchController.text.toLowerCase());
-    }).toList();
-
-    if (filtered.isEmpty) {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: _cardColor,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Center(
-          child: Text(
-            'No recent files found',
-            style: GoogleFonts.inter(color: _mutedColor, fontSize: 14),
-          ),
-        ),
-      );
+    if (widget.roomId == null || widget.roomId!.isEmpty) {
+      return _buildEmptyState();
     }
 
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('chats')
+          .doc(widget.roomId)
+          .collection('messages')
+          .where('type', isEqualTo: 'file')
+          .orderBy('timestamp', descending: true)
+          .limit(10)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: _cardColor,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Center(
+              child: SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(strokeWidth: 2, color: _accentColor),
+              ),
+            ),
+          );
+        }
+
+        final docs = snapshot.data?.docs ?? [];
+        final List<Map<String, dynamic>> fileList = [];
+
+        for (final doc in docs) {
+          final data = doc.data() as Map<String, dynamic>;
+          final fileName = (data['fileName'] ?? data['text'] ?? 'Document').toString().replaceAll('📄 ឯកសារ៖ ', '');
+          final fileSize = (data['fileSize'] ?? '').toString();
+          final ts = data['timestamp'] as Timestamp?;
+          final dateStr = ts != null ? DateFormat('dd MMM at HH:mm').format(ts.toDate()) : 'Recently';
+
+          String ext = 'FILE';
+          Color extColor = const Color(0xFFBF5AF2);
+
+          final nameLower = fileName.toLowerCase();
+          if (nameLower.endsWith('.pdf')) {
+            ext = 'PDF';
+            extColor = const Color(0xFFFF453A);
+          } else if (nameLower.endsWith('.zip') || nameLower.endsWith('.rar') || nameLower.endsWith('.7z')) {
+            ext = 'ZIP';
+            extColor = const Color(0xFFFF9F0A);
+          } else if (nameLower.endsWith('.xlsx') || nameLower.endsWith('.xls') || nameLower.endsWith('.csv')) {
+            ext = 'XLS';
+            extColor = const Color(0xFF30D158);
+          } else if (nameLower.endsWith('.docx') || nameLower.endsWith('.doc')) {
+            ext = 'DOC';
+            extColor = const Color(0xFF0A84FF);
+          } else if (nameLower.endsWith('.png') || nameLower.endsWith('.jpg') || nameLower.endsWith('.jpeg')) {
+            ext = 'IMG';
+            extColor = const Color(0xFF64D2FF);
+          }
+
+          fileList.add({
+            'name': fileName,
+            'extension': ext,
+            'color': extColor,
+            'size': fileSize.isNotEmpty ? fileSize : 'Document',
+            'date': dateStr,
+            'raw': data,
+          });
+        }
+
+        final filtered = fileList.where((f) {
+          if (_searchController.text.isEmpty) return true;
+          return f['name'].toString().toLowerCase().contains(_searchController.text.toLowerCase());
+        }).toList();
+
+        if (filtered.isEmpty) {
+          return _buildEmptyState();
+        }
+
+        return Container(
+          decoration: BoxDecoration(
+            color: _cardColor,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: filtered.length,
+            separatorBuilder: (context, index) => const Divider(
+              height: 1,
+              color: _dividerColor,
+              indent: 62,
+            ),
+            itemBuilder: (context, index) {
+              final file = filtered[index];
+              return InkWell(
+                onTap: () {
+                  Navigator.pop(context);
+                  widget.onSelectRecentFile?.call(file);
+                },
+                borderRadius: BorderRadius.circular(16),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 11.0),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: file['color'] as Color,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Center(
+                          child: Text(
+                            file['extension'].toString(),
+                            style: GoogleFonts.inter(
+                              color: Colors.white,
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              file['name'].toString(),
+                              style: GoogleFonts.inter(
+                                color: Colors.white,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '${file['size']} • ${file['date']}',
+                              style: GoogleFonts.inter(
+                                color: _mutedColor,
+                                fontSize: 12.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildEmptyState() {
     return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: _cardColor,
         borderRadius: BorderRadius.circular(16),
       ),
-      child: ListView.separated(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        itemCount: filtered.length,
-        separatorBuilder: (context, index) => const Divider(
-          height: 1,
-          color: _dividerColor,
-          indent: 62,
-        ),
-        itemBuilder: (context, index) {
-          final file = filtered[index];
-          return InkWell(
-            onTap: () {
-              Navigator.pop(context);
-              widget.onSelectRecentFile?.call(file);
-            },
-            borderRadius: BorderRadius.circular(16),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 11.0),
-              child: Row(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: file['color'] as Color,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Center(
-                      child: Text(
-                        file['extension'].toString(),
-                        style: GoogleFonts.inter(
-                          color: Colors.white,
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          file['name'].toString(),
-                          style: GoogleFonts.inter(
-                            color: Colors.white,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '${file['size']} • ${file['date']}',
-                          style: GoogleFonts.inter(
-                            color: _mutedColor,
-                            fontSize: 12.5,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
+      child: Column(
+        children: [
+          const Icon(Icons.insert_drive_file_outlined, color: _mutedColor, size: 36),
+          const SizedBox(height: 8),
+          Text(
+            'មិនទាន់មានប្រវត្តិផ្ញើឯកសារទេ (No recently sent files)',
+            style: GoogleFonts.kantumruyPro(color: _mutedColor, fontSize: 13),
+            textAlign: TextAlign.center,
+          ),
+        ],
       ),
     );
   }
