@@ -2784,7 +2784,57 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
   }
 
-  // Telegram Full Screen Interactive Map Viewer
+  // Helper: Fetch real-time live weather data from user's device GPS location
+  Future<Map<String, dynamic>?> _fetchRealWeather(double fallbackLat, double fallbackLng) async {
+    try {
+      double targetLat = fallbackLat;
+      double targetLng = fallbackLng;
+
+      // Request / check real device GPS location permission
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+
+      if (permission == LocationPermission.whileInUse || permission == LocationPermission.always) {
+        try {
+          final pos = await Geolocator.getCurrentPosition(
+            desiredAccuracy: LocationAccuracy.medium,
+            timeLimit: const Duration(seconds: 4),
+          );
+          targetLat = pos.latitude;
+          targetLng = pos.longitude;
+        } catch (_) {
+          final lastPos = await Geolocator.getLastKnownPosition();
+          if (lastPos != null) {
+            targetLat = lastPos.latitude;
+            targetLng = lastPos.longitude;
+          }
+        }
+      }
+
+      final client = HttpClient();
+      final uri = Uri.parse('https://api.open-meteo.com/v1/forecast?latitude=$targetLat&longitude=$targetLng&current_weather=true');
+      final request = await client.getUrl(uri);
+      final response = await request.close();
+      if (response.statusCode == 200) {
+        final body = await response.transform(utf8.decoder).join();
+        final json = jsonDecode(body) as Map<String, dynamic>;
+        final currentWeather = json['current_weather'] as Map<String, dynamic>?;
+        if (currentWeather != null) {
+          final double temp = (currentWeather['temperature'] as num).toDouble();
+          final int code = (currentWeather['weathercode'] as num).toInt();
+          return {
+            'temp': temp.round(),
+            'code': code,
+          };
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  // Telegram Full Screen Interactive Map Viewer (Exact 1:1 Telegram UI with Live Data)
   void _showTelegramFullScreenMapView({
     required double lat,
     required double lng,
@@ -2796,94 +2846,559 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     final latRad = lat * pi / 180.0;
     final tileY = (((1.0 - (log(tan(latRad) + (1.0 / cos(latRad))) / pi)) / 2.0) * n).floor();
 
-    final List<String> tileUrls = [];
+    final List<String> darkTileUrls = [];
+    final List<String> satelliteTileUrls = [];
+    final List<String> streetTileUrls = [];
+
     for (int dy = -2; dy <= 2; dy++) {
       for (int dx = -2; dx <= 2; dx++) {
-        tileUrls.add('https://a.basemaps.cartocdn.com/dark_all/$zoom/${tileX + dx}/${tileY + dy}.png');
+        final curX = tileX + dx;
+        final curY = tileY + dy;
+        darkTileUrls.add('https://a.basemaps.cartocdn.com/dark_all/$zoom/$curX/$curY.png');
+        satelliteTileUrls.add('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/$zoom/$curY/$curX');
+        streetTileUrls.add('https://a.basemaps.cartocdn.com/rastertiles/voyager/$zoom/$curX/$curY.png');
       }
     }
+
+    int mapStyleIndex = 0; // 0: Dark, 1: Satellite, 2: Street
+    String weatherText = '...';
+    IconData weatherIcon = Icons.cloud_rounded;
+    final TransformationController transformationController = TransformationController();
 
     showDialog(
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.96),
       builder: (modalCtx) {
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          insetPadding: EdgeInsets.zero,
-          child: Stack(
-            children: [
-              // A. Interactive / Grid CartoDB Dark Map
-              Positioned.fill(
-                child: InteractiveViewer(
-                  minScale: 0.8,
-                  maxScale: 3.5,
-                  child: OverflowBox(
-                    maxWidth: 1280,
-                    maxHeight: 1280,
-                    child: SizedBox(
-                      width: 1280,
-                      height: 1280,
-                      child: GridView.count(
-                        crossAxisCount: 5,
-                        physics: const NeverScrollableScrollPhysics(),
-                        children: tileUrls.map((url) {
-                          return Image.network(
-                            url,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(color: const Color(0xFF151D2A)),
-                          );
-                        }).toList(),
+        // Fetch Real Live Weather on opening
+        _fetchRealWeather(lat, lng).then((data) {
+          if (data != null && modalCtx.mounted) {
+            final int temp = data['temp'] as int;
+            final int code = data['code'] as int;
+
+            IconData icon = Icons.cloud_rounded;
+            if (code == 0) {
+              icon = Icons.wb_sunny_rounded;
+            } else if (code >= 1 && code <= 3) {
+              icon = Icons.wb_cloudy_rounded;
+            } else if (code >= 45 && code <= 48) {
+              icon = Icons.cloud_queue_rounded;
+            } else if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) {
+              icon = Icons.grain_rounded;
+            } else if (code >= 95) {
+              icon = Icons.thunderstorm_rounded;
+            }
+
+            // StatefulBuilder update
+            try {
+              (modalCtx as Element).markNeedsBuild();
+              weatherText = '$temp°C';
+              weatherIcon = icon;
+            } catch (_) {}
+          }
+        });
+
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            List<String> activeTileUrls = darkTileUrls;
+            if (mapStyleIndex == 1) {
+              activeTileUrls = satelliteTileUrls;
+            } else if (mapStyleIndex == 2) {
+              activeTileUrls = streetTileUrls;
+            }
+
+            return Dialog(
+              backgroundColor: const Color(0xFF0F172A),
+              insetPadding: EdgeInsets.zero,
+              child: Stack(
+                children: [
+                  // A. Interactive / Grid CartoDB & Esri Real Maps
+                  Positioned.fill(
+                    child: InteractiveViewer(
+                      transformationController: transformationController,
+                      minScale: 0.8,
+                      maxScale: 3.5,
+                      child: OverflowBox(
+                        maxWidth: 1280,
+                        maxHeight: 1280,
+                        child: SizedBox(
+                          width: 1280,
+                          height: 1280,
+                          child: GridView.count(
+                            crossAxisCount: 5,
+                            physics: const NeverScrollableScrollPhysics(),
+                            children: activeTileUrls.map((url) {
+                              return Image.network(
+                                url,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => Container(color: const Color(0xFF151D2A)),
+                              );
+                            }).toList(),
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ),
 
-              // B. Center Blue Pin Icon
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 24),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(5),
-                        decoration: const BoxDecoration(
-                          color: Color(0xFF3388FF),
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(color: Colors.black87, blurRadius: 12, offset: Offset(0, 4)),
+                  // B. Center Glowing Telegram Location Pin Icon
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 60),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              Container(
+                                width: 70,
+                                height: 70,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: const Color(0xFF007AFF).withValues(alpha: 0.25),
+                                ),
+                              ),
+                              Container(
+                                width: 52,
+                                height: 52,
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFF007AFF),
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black45,
+                                      blurRadius: 16,
+                                      offset: Offset(0, 6),
+                                    ),
+                                  ],
+                                ),
+                                child: const Icon(Icons.push_pin_rounded, color: Colors.white, size: 28),
+                              ),
+                              Positioned(
+                                bottom: 0,
+                                child: Container(
+                                  width: 10,
+                                  height: 10,
+                                  decoration: const BoxDecoration(
+                                    color: Colors.white,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // C. Top Navigation Bar (Close Button, Title, Share Button)
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    child: SafeArea(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            // 1. Close Button (Left)
+                            GestureDetector(
+                              onTap: () => Navigator.pop(modalCtx),
+                              child: Container(
+                                width: 38,
+                                height: 38,
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.55),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.close_rounded, color: Colors.white, size: 22),
+                              ),
+                            ),
+
+                            // 2. Title (Center)
+                            Text(
+                              'Location',
+                              style: GoogleFonts.inter(
+                                color: Colors.white,
+                                fontSize: 17,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+
+                            // 3. Share Button (Right)
+                            GestureDetector(
+                              onTap: () => _showOpenInMapsBottomSheet(lat: lat, lng: lng, locationTitle: locationTitle),
+                              child: Container(
+                                width: 38,
+                                height: 38,
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.55),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.ios_share_rounded, color: Colors.white, size: 20),
+                              ),
+                            ),
                           ],
                         ),
-                        child: const Icon(Icons.push_pin_rounded, color: Colors.white, size: 28),
                       ),
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.black87,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Text(
-                          locationTitle.isNotEmpty ? locationTitle : 'Pinned Location',
-                          style: GoogleFonts.inter(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
-                ),
-              ),
 
-              // C. Top Bar / Close Button
-              Positioned(
-                top: 40,
-                right: 16,
-                child: IconButton(
-                  icon: const Icon(Icons.close_rounded, color: Colors.white, size: 28),
-                  onPressed: () => Navigator.pop(modalCtx),
-                ),
+                  // D. Real Live Weather Badge (Top Left under top bar)
+                  Positioned(
+                    top: MediaQuery.of(context).padding.top + 54,
+                    left: 16,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.55),
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(weatherIcon, color: Colors.white, size: 16),
+                          const SizedBox(width: 6),
+                          Text(
+                            weatherText,
+                            style: GoogleFonts.inter(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // E. Floating Map Controls (Right Side - Switch Real Styles & Recenter)
+                  Positioned(
+                    right: 16,
+                    bottom: 175,
+                    child: Column(
+                      children: [
+                        // Map Style / Layers Toggle (Cycles Dark -> Satellite -> Street)
+                        GestureDetector(
+                          onTap: () {
+                            setModalState(() {
+                              mapStyleIndex = (mapStyleIndex + 1) % 3;
+                            });
+                            final styleNames = ['Dark Map', 'Satellite Hybrid', 'Street Map'];
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Style: ${styleNames[mapStyleIndex]}', style: GoogleFonts.inter()),
+                                duration: const Duration(milliseconds: 900),
+                              ),
+                            );
+                          },
+                          child: Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF1E2738),
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.3),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Icon(
+                              mapStyleIndex == 1
+                                  ? Icons.satellite_alt_rounded
+                                  : (mapStyleIndex == 2 ? Icons.map_outlined : Icons.map_rounded),
+                              color: Colors.white,
+                              size: 22,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        // Recenter Navigation Button
+                        GestureDetector(
+                          onTap: () {
+                            transformationController.value = Matrix4.identity();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Recenter to location', style: GoogleFonts.inter()),
+                                duration: const Duration(milliseconds: 900),
+                              ),
+                            );
+                          },
+                          child: Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF1E2738),
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.3),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              Icons.near_me_rounded,
+                              color: Colors.white,
+                              size: 22,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // F. Bottom Telegram Sheet Card
+                  Positioned(
+                    left: 12,
+                    right: 12,
+                    bottom: 24,
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1A2232),
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.4),
+                            blurRadius: 16,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                width: 44,
+                                height: 44,
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFF007AFF),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.push_pin_rounded, color: Colors.white, size: 22),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      locationTitle.isNotEmpty ? locationTitle : 'Location',
+                                      style: GoogleFonts.inter(
+                                        color: Colors.white,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      '${locationTitle.isNotEmpty ? locationTitle : 'Street 318'} • you are here',
+                                      style: GoogleFonts.inter(
+                                        color: Colors.white70,
+                                        fontSize: 13,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 14),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 48,
+                            child: ElevatedButton(
+                              onPressed: () => _showOpenInMapsBottomSheet(lat: lat, lng: lng, locationTitle: locationTitle),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF007AFF),
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                              ),
+                              child: Text(
+                                'Get Directions',
+                                style: GoogleFonts.inter(
+                                  fontSize: 15.5,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // Telegram "Open In" Bottom Sheet Modal
+  void _showOpenInMapsBottomSheet({
+    required double lat,
+    required double lng,
+    required String locationTitle,
+  }) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1E2738),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (bottomSheetCtx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header (Close Button + Title)
+                Row(
+                  children: [
+                    GestureDetector(
+                      onTap: () => Navigator.pop(bottomSheetCtx),
+                      child: Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.12),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.close_rounded, color: Colors.white, size: 18),
+                      ),
+                    ),
+                    Expanded(
+                      child: Text(
+                        'Open In',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.inter(
+                          color: Colors.white,
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 32),
+                  ],
+                ),
+                const SizedBox(height: 24),
+
+                // Grid Apps (Apple Maps & Google Maps)
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  children: [
+                    // 1. Apple Maps
+                    GestureDetector(
+                      onTap: () async {
+                        Navigator.pop(bottomSheetCtx);
+                        final uri = Uri.parse('https://maps.apple.com/?daddr=$lat,$lng');
+                        if (await canLaunchUrl(uri)) {
+                          await launchUrl(uri, mode: LaunchMode.externalApplication);
+                        }
+                      },
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 64,
+                            height: 64,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(18),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.2),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 3),
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              Icons.explore_rounded,
+                              color: Color(0xFF007AFF),
+                              size: 40,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Maps',
+                            style: GoogleFonts.inter(
+                              color: Colors.white,
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 28),
+
+                    // 2. Google Maps
+                    GestureDetector(
+                      onTap: () async {
+                        Navigator.pop(bottomSheetCtx);
+                        final uri = Uri.parse('https://www.google.com/maps/search/?api=1&query=$lat,$lng');
+                        if (await canLaunchUrl(uri)) {
+                          await launchUrl(uri, mode: LaunchMode.externalApplication);
+                        }
+                      },
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 64,
+                            height: 64,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(18),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.2),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 3),
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              Icons.location_on_rounded,
+                              color: Color(0xFFEA4335),
+                              size: 40,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Google Maps',
+                            style: GoogleFonts.inter(
+                              color: Colors.white,
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+              ],
+            ),
           ),
         );
       },
