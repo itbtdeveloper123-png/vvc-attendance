@@ -121,12 +121,16 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   int _recordingSeconds = 0;
 
   void _initiateCall(String type) async {
+    final prefs = await SharedPreferences.getInstance();
+    final callerName = prefs.getString('name') ?? prefs.getString('username') ?? 'Caller';
+    
     final callId = await CallService().startCall(
+      callerId: currentUserId,
       receiverId: widget.targetUserId,
       receiverName: widget.targetUserName,
       receiverPhoto: widget.targetUserPhoto,
       type: type,
-      callerName: 'Caller',
+      callerName: callerName,
       callerPhoto: currentUserPhoto,
     );
     if (callId != null && mounted) {

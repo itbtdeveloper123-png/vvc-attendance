@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/call_service.dart';
 import '../screens/call/incoming_call_screen.dart';
 
@@ -24,8 +25,13 @@ class _GlobalCallObserverState extends State<GlobalCallObserver> {
     _listenForIncomingCalls();
   }
 
-  void _listenForIncomingCalls() {
-    _callSub = _callService.getIncomingCalls().listen((snapshot) {
+  void _listenForIncomingCalls() async {
+    final prefs = await SharedPreferences.getInstance();
+    final currentUserId = prefs.getString('employee_id') ?? '';
+    
+    if (currentUserId.isEmpty) return;
+
+    _callSub = _callService.getIncomingCalls(currentUserId).listen((snapshot) {
       if (snapshot.docs.isNotEmpty) {
         final doc = snapshot.docs.first;
         final data = doc.data() as Map<String, dynamic>;

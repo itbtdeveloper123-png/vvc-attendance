@@ -1,13 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:uuid/uuid.dart';
 
 class CallService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
   
   // Start a new call
   Future<String?> startCall({
+    required String callerId,
     required String receiverId,
     required String receiverName,
     required String receiverPhoto,
@@ -16,8 +15,7 @@ class CallService {
     required String callerPhoto,
   }) async {
     try {
-      final callerId = _auth.currentUser?.uid;
-      if (callerId == null) return null;
+      if (callerId.isEmpty) return null;
 
       final callId = const Uuid().v4();
       
@@ -65,8 +63,8 @@ class CallService {
   }
 
   // Listen to incoming calls for current user
-  Stream<QuerySnapshot> getIncomingCalls() {
-    final currentUserId = _auth.currentUser?.uid ?? '';
+  Stream<QuerySnapshot> getIncomingCalls(String currentUserId) {
+    if (currentUserId.isEmpty) return const Stream.empty();
     return _firestore
         .collection('calls')
         .where('receiverId', isEqualTo: currentUserId)

@@ -771,6 +771,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
             ListView.separated(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
+              padding: EdgeInsets.zero,
               itemCount: participantIds.length,
               separatorBuilder: (_, __) => const Divider(height: 1, color: _GSDark.divider, indent: 64),
               itemBuilder: (context, idx) {
@@ -785,6 +786,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                     }
 
                     String memberName = userObj['name']?.toString() ?? '';
+                    if (memberName.isEmpty) memberName = userObj['username']?.toString() ?? '';
                     if (memberName.isEmpty) memberName = userObj['employee_id']?.toString() ?? '';
                     if (memberName.isEmpty) memberName = uid;
                     
