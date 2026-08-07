@@ -904,6 +904,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       controller: _scrollController,
       physics: const BouncingScrollPhysics(),
       clipBehavior: Clip.none,
+      cacheExtent: 800.0,
+      addAutomaticKeepAlives: true,
+      addRepaintBoundaries: true,
       padding: EdgeInsets.only(
         top: MediaQuery.of(context).padding.top + 76.0 + (_pinnedMessage != null && _pinnedMessage!.isNotEmpty ? 50.0 : 0.0),
         bottom: MediaQuery.of(context).padding.bottom + 85.0,
@@ -1610,9 +1613,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     required String senderName,
   }) {
     final bool isBase64 = imageUrl.startsWith('data:image');
-    final ImageProvider imgProvider = isBase64
+    final ImageProvider rawProvider = isBase64
         ? _getMemoryImage(imageUrl)
-        : NetworkImage(imageUrl) as ImageProvider;
+        : NetworkImage(imageUrl);
+    final ImageProvider imgProvider = ResizeImage(
+      rawProvider,
+      width: 600,
+    );
 
     final bubbleKey = GlobalKey();
     final bubbleChild = Container(
@@ -2112,7 +2119,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
   }
 
-  // Interactive Playable Voice Message Bubble (Clean Messenger Style)
+  // Interactive Playable Voice Message Bubble (Clean Messenger Style - Optimized Isolated Widget)
   Widget _buildVoiceBubble({
     required String docId,
     required String audioUrl,
@@ -2122,155 +2129,29 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     required bool isRead,
     required String senderName,
   }) {
-    final bool isThisPlaying = _isPlayingAudio && _currentlyPlayingAudio == audioUrl;
-
-    double progress = 0.0;
-    if (isThisPlaying && _currentAudioDuration.inMilliseconds > 0) {
-      progress = (_currentAudioPosition.inMilliseconds / _currentAudioDuration.inMilliseconds).clamp(0.0, 1.0);
-    }
-
-    final Color bubbleBg = isMine ? const Color(0xFFF29BB8) : const Color(0xDD4E1025);
-    final Color textColor = isMine ? const Color(0xFF1E1E1E) : Colors.white;
-    final Color playBg = isMine ? Colors.black.withValues(alpha: 0.25) : Colors.white.withValues(alpha: 0.25);
-    final Color playIconColor = isMine ? const Color(0xFF1E1E1E) : Colors.white;
-
-    final bubbleKey = GlobalKey();
-    final bubbleChild = Container(
-      margin: const EdgeInsets.symmetric(vertical: 4.0),
-      padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
-      decoration: BoxDecoration(
-        color: bubbleBg,
-        borderRadius: BorderRadius.only(
-          topLeft: const Radius.circular(22.0),
-          topRight: const Radius.circular(22.0),
-          bottomLeft: Radius.circular(isMine ? 22.0 : 4.0),
-          bottomRight: Radius.circular(isMine ? 4.0 : 22.0),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.15),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
+    return _VoiceBubbleWidget(
+      docId: docId,
+      audioUrl: audioUrl,
+      durationSeconds: durationSeconds,
+      isMine: isMine,
+      time: time,
+      isRead: isRead,
+      senderName: senderName,
+      audioPlayer: _audioPlayer,
+      onTogglePlay: _togglePlayAudio,
+      onToggleSpeed: _togglePlaybackSpeed,
+      playbackSpeed: _playbackSpeed,
+      currentlyPlayingAudio: _currentlyPlayingAudio,
+      isPlayingAudio: _isPlayingAudio,
+      onLongPressModal: (key, child) => _showMessageOptionsModal(
+        key: key,
+        childWidget: child,
+        docId: docId,
+        content: audioUrl,
+        type: 'voice',
+        senderName: senderName,
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Play / Pause Button
-          GestureDetector(
-            onTap: () => _togglePlayAudio(audioUrl),
-            child: Container(
-              width: 40.0,
-              height: 40.0,
-              decoration: BoxDecoration(
-                color: playBg,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                isThisPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                color: playIconColor,
-                size: 26.0,
-              ),
-            ),
-          ),
-          const SizedBox(width: 12.0),
-
-          // Waveform Bars (Vertical Audio Wave)
-          GestureDetector(
-            onHorizontalDragUpdate: (details) {
-              if (isThisPlaying && _currentAudioDuration.inMilliseconds > 0) {
-                final dx = details.localPosition.dx.clamp(0.0, 130.0);
-                final val = dx / 130.0;
-                final seekMs = (val * _currentAudioDuration.inMilliseconds).round();
-                _audioPlayer.seek(Duration(milliseconds: seekMs));
-              }
-            },
-            child: SizedBox(
-              width: 130.0,
-              height: 32.0,
-              child: Center(
-                child: _buildWaveformBars(
-                  isPlaying: isThisPlaying,
-                  progress: progress,
-                  isMine: isMine,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12.0),
-
-          // Duration Readout
-          Text(
-            isThisPlaying
-                ? _formatDuration(_currentAudioPosition.inSeconds)
-                : _formatDuration(durationSeconds),
-            style: GoogleFonts.inter(
-              color: textColor,
-              fontSize: 12.5,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(width: 8.0),
-
-          // Speed Toggle Button (1x / 1.5x / 2x)
-          GestureDetector(
-            onTap: _togglePlaybackSpeed,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 3.0),
-              decoration: BoxDecoration(
-                color: isMine ? Colors.black.withValues(alpha: 0.18) : Colors.white.withValues(alpha: 0.22),
-                borderRadius: BorderRadius.circular(10.0),
-              ),
-              child: Text(
-                '${_playbackSpeed.toStringAsFixed(1).replaceAll('.0', '')}x',
-                style: GoogleFonts.inter(
-                  color: textColor,
-                  fontSize: 10.0,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-
-    return Align(
-      alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
-      child: Column(
-        crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-        children: [
-          GestureDetector(
-            key: bubbleKey,
-            onLongPress: () => _showMessageOptionsModal(
-              key: bubbleKey,
-              childWidget: bubbleChild,
-              docId: docId,
-              content: audioUrl,
-              type: 'voice',
-              senderName: senderName,
-            ),
-            child: bubbleChild,
-          ),
-          Padding(
-            padding: const EdgeInsets.only(left: 4.0, right: 4.0, bottom: 4.0),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  DateFormat('h:mm a').format(time),
-                  style: GoogleFonts.inter(fontSize: 10.0, color: _MsgDark.textMuted),
-                ),
-                if (isMine) ...[
-                  const SizedBox(width: 4.0),
-                  _buildReadStatusIcon(isRead),
-                ],
-              ],
-            ),
-          ),
-        ],
-      ),
+      buildReadStatusIcon: _buildReadStatusIcon,
     );
   }
 
@@ -3893,6 +3774,258 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           },
         ),
       ),
+    );
+  }
+}
+
+// Optimized Isolated Voice Bubble Widget preventing Screen Rebuilds during Audio Playback
+class _VoiceBubbleWidget extends StatefulWidget {
+  final String docId;
+  final String audioUrl;
+  final int durationSeconds;
+  final bool isMine;
+  final DateTime time;
+  final bool isRead;
+  final String senderName;
+  final AudioPlayer audioPlayer;
+  final Function(String) onTogglePlay;
+  final VoidCallback onToggleSpeed;
+  final double playbackSpeed;
+  final String? currentlyPlayingAudio;
+  final bool isPlayingAudio;
+  final Function(GlobalKey, Widget) onLongPressModal;
+  final Widget Function(bool) buildReadStatusIcon;
+
+  const _VoiceBubbleWidget({
+    required this.docId,
+    required this.audioUrl,
+    required this.durationSeconds,
+    required this.isMine,
+    required this.time,
+    required this.isRead,
+    required this.senderName,
+    required this.audioPlayer,
+    required this.onTogglePlay,
+    required this.onToggleSpeed,
+    required this.playbackSpeed,
+    required this.currentlyPlayingAudio,
+    required this.isPlayingAudio,
+    required this.onLongPressModal,
+    required this.buildReadStatusIcon,
+  });
+
+  @override
+  State<_VoiceBubbleWidget> createState() => _VoiceBubbleWidgetState();
+}
+
+class _VoiceBubbleWidgetState extends State<_VoiceBubbleWidget> {
+  StreamSubscription<Duration>? _posSub;
+  Duration _pos = Duration.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    _listenPosition();
+  }
+
+  void _listenPosition() {
+    _posSub?.cancel();
+    _posSub = widget.audioPlayer.onPositionChanged.listen((p) {
+      if (mounted && widget.currentlyPlayingAudio == widget.audioUrl && widget.isPlayingAudio) {
+        setState(() {
+          _pos = p;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _posSub?.cancel();
+    super.dispose();
+  }
+
+  String _formatDuration(int seconds) {
+    final mins = seconds ~/ 60;
+    final secs = seconds % 60;
+    return '$mins:${secs.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bool isThisPlaying = widget.isPlayingAudio && widget.currentlyPlayingAudio == widget.audioUrl;
+
+    double progress = 0.0;
+    final totalMs = widget.durationSeconds * 1000;
+    if (isThisPlaying && totalMs > 0) {
+      progress = (_pos.inMilliseconds / totalMs).clamp(0.0, 1.0);
+    }
+
+    final Color bubbleBg = widget.isMine ? const Color(0xFFF29BB8) : const Color(0xDD4E1025);
+    final Color textColor = widget.isMine ? const Color(0xFF1E1E1E) : Colors.white;
+    final Color playBg = widget.isMine ? Colors.black.withValues(alpha: 0.25) : Colors.white.withValues(alpha: 0.25);
+    final Color playIconColor = widget.isMine ? const Color(0xFF1E1E1E) : Colors.white;
+
+    final bubbleKey = GlobalKey();
+    final bubbleChild = Container(
+      margin: const EdgeInsets.symmetric(vertical: 4.0),
+      padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
+      decoration: BoxDecoration(
+        color: bubbleBg,
+        borderRadius: BorderRadius.only(
+          topLeft: const Radius.circular(22.0),
+          topRight: const Radius.circular(22.0),
+          bottomLeft: Radius.circular(widget.isMine ? 22.0 : 4.0),
+          bottomRight: Radius.circular(widget.isMine ? 4.0 : 22.0),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.15),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          GestureDetector(
+            onTap: () => widget.onTogglePlay(widget.audioUrl),
+            child: Container(
+              width: 40.0,
+              height: 40.0,
+              decoration: BoxDecoration(
+                color: playBg,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                isThisPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                color: playIconColor,
+                size: 26.0,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12.0),
+          GestureDetector(
+            onHorizontalDragUpdate: (details) {
+              if (isThisPlaying && totalMs > 0) {
+                final dx = details.localPosition.dx.clamp(0.0, 130.0);
+                final val = dx / 130.0;
+                final seekMs = (val * totalMs).round();
+                widget.audioPlayer.seek(Duration(milliseconds: seekMs));
+              }
+            },
+            child: SizedBox(
+              width: 130.0,
+              height: 32.0,
+              child: Center(
+                child: _buildWaveformBars(
+                  isPlaying: isThisPlaying,
+                  progress: progress,
+                  isMine: widget.isMine,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12.0),
+          Text(
+            isThisPlaying
+                ? _formatDuration(_pos.inSeconds)
+                : _formatDuration(widget.durationSeconds),
+            style: GoogleFonts.inter(
+              color: textColor,
+              fontSize: 12.5,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(width: 8.0),
+          GestureDetector(
+            onTap: widget.onToggleSpeed,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 3.0),
+              decoration: BoxDecoration(
+                color: widget.isMine ? Colors.black.withValues(alpha: 0.18) : Colors.white.withValues(alpha: 0.22),
+                borderRadius: BorderRadius.circular(10.0),
+              ),
+              child: Text(
+                '${widget.playbackSpeed.toStringAsFixed(1).replaceAll('.0', '')}x',
+                style: GoogleFonts.inter(
+                  color: textColor,
+                  fontSize: 10.0,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    return Align(
+      alignment: widget.isMine ? Alignment.centerRight : Alignment.centerLeft,
+      child: Column(
+        crossAxisAlignment: widget.isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        children: [
+          GestureDetector(
+            key: bubbleKey,
+            onLongPress: () => widget.onLongPressModal(bubbleKey, bubbleChild),
+            child: bubbleChild,
+          ),
+          Padding(
+            padding: const EdgeInsets.only(left: 4.0, right: 4.0, bottom: 4.0),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  DateFormat('h:mm a').format(widget.time),
+                  style: GoogleFonts.inter(fontSize: 10.0, color: _MsgDark.textMuted),
+                ),
+                if (widget.isMine) ...[
+                  const SizedBox(width: 4.0),
+                  widget.buildReadStatusIcon(widget.isRead),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWaveformBars({
+    required bool isPlaying,
+    required double progress,
+    required bool isMine,
+  }) {
+    const barsCount = 26;
+    const heights = [
+      8.0, 16.0, 24.0, 12.0, 30.0, 18.0, 26.0, 10.0,
+      22.0, 32.0, 14.0, 28.0, 20.0, 34.0, 16.0, 24.0,
+      10.0, 28.0, 18.0, 30.0, 12.0, 22.0, 16.0, 8.0, 14.0, 10.0
+    ];
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: List.generate(barsCount, (index) {
+        final barHeight = heights[index % heights.length];
+        final barProgress = (index + 1) / barsCount;
+        final isPlayed = isPlaying && barProgress <= progress;
+
+        final Color barColor = isMine
+            ? (isPlayed ? const Color(0xFF1E1E1E) : Colors.black38)
+            : (isPlayed ? Colors.white : Colors.white38);
+
+        return Container(
+          width: 3.0,
+          height: barHeight,
+          margin: const EdgeInsets.symmetric(horizontal: 1.0),
+          decoration: BoxDecoration(
+            color: barColor,
+            borderRadius: BorderRadius.circular(1.5),
+          ),
+        );
+      }),
     );
   }
 }

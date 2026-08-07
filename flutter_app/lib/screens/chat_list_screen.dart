@@ -96,18 +96,26 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
   }
 
   Future<void> _checkCacheSize() async {
+    // Non-blocking async delay to prevent startup UI thread jank
+    await Future.delayed(const Duration(seconds: 2));
+    if (!mounted) return;
+
     try {
       final docDir = await getApplicationDocumentsDirectory();
       final tempDir = await getTemporaryDirectory();
       int total = 0;
       if (docDir.existsSync()) {
-        for (var f in docDir.listSync(recursive: true, followLinks: false)) {
-          if (f is File) total += f.lengthSync();
+        await for (var f in docDir.list(recursive: true, followLinks: false)) {
+          if (f is File) {
+            total += await f.length();
+          }
         }
       }
       if (tempDir.existsSync()) {
-        for (var f in tempDir.listSync(recursive: true, followLinks: false)) {
-          if (f is File) total += f.lengthSync();
+        await for (var f in tempDir.list(recursive: true, followLinks: false)) {
+          if (f is File) {
+            total += await f.length();
+          }
         }
       }
 
@@ -662,6 +670,9 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
     return ListView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
+      cacheExtent: 500.0,
+      addAutomaticKeepAlives: true,
+      addRepaintBoundaries: true,
       itemCount: listLength,
       itemBuilder: (context, index) {
         // 0. VVC Company Community & Announcements Channel
