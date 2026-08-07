@@ -3716,6 +3716,18 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         final double lng = locData['longitude'] ?? 104.9282;
         _sendMessage(customText: '📍 $name:\nhttps://maps.google.com/?q=$lat,$lng');
       },
+      onTabChanged: (category) {
+        Navigator.pop(context);
+        if (category == 'Gallery') {
+          _pickAndSendImage(ImageSource.gallery);
+        } else if (category == 'File') {
+          _showVvcAttachmentSheet();
+        } else if (category == 'Poll') {
+          _showCreatePollModal();
+        } else if (category == 'Contact') {
+          _showContactPickerModal();
+        }
+      },
     );
   }
 
@@ -3726,6 +3738,18 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         final q = pollData['question'] ?? '';
         final options = (pollData['options'] as List<dynamic>? ?? []).map((o) => '• $o').join('\n');
         _sendMessage(customText: '📊 Poll: $q\n$options');
+      },
+      onTabChanged: (category) {
+        Navigator.pop(context);
+        if (category == 'Gallery') {
+          _pickAndSendImage(ImageSource.gallery);
+        } else if (category == 'File') {
+          _showVvcAttachmentSheet();
+        } else if (category == 'Location') {
+          _showLocationPickerModal();
+        } else if (category == 'Contact') {
+          _showContactPickerModal();
+        }
       },
     );
   }

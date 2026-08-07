@@ -649,14 +649,13 @@ class _VvcLocationPickerBottomSheetState extends State<VvcLocationPickerBottomSh
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: categories.map((cat) {
           final String label = cat['label'] as String;
-          final bool isSelected = _activeTab == label;
+          final bool isSelected = label == 'Location';
 
           return InkWell(
             onTap: () {
-              setState(() {
-                _activeTab = label;
-              });
-              widget.onTabChanged?.call(label);
+              if (label != 'Location') {
+                widget.onTabChanged?.call(label);
+              }
             },
             borderRadius: BorderRadius.circular(16),
             child: Padding(

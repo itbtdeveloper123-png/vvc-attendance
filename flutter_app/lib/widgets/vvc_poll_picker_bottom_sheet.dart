@@ -4,15 +4,18 @@ import 'package:google_fonts/google_fonts.dart';
 /// Reusable VVC Dark Theme "New Poll" Modal Bottom Sheet Component
 class VvcPollPickerBottomSheet extends StatefulWidget {
   final Function(Map<String, dynamic> pollData)? onSendPoll;
+  final Function(String category)? onTabChanged;
 
   const VvcPollPickerBottomSheet({
     super.key,
     this.onSendPoll,
+    this.onTabChanged,
   });
 
   static Future<T?> show<T>({
     required BuildContext context,
     Function(Map<String, dynamic> pollData)? onSendPoll,
+    Function(String category)? onTabChanged,
   }) {
     return showModalBottomSheet<T>(
       context: context,
@@ -20,6 +23,7 @@ class VvcPollPickerBottomSheet extends StatefulWidget {
       backgroundColor: Colors.transparent,
       builder: (context) => VvcPollPickerBottomSheet(
         onSendPoll: onSendPoll,
+        onTabChanged: onTabChanged,
       ),
     );
   }
@@ -193,7 +197,76 @@ class _VvcPollPickerBottomSheetState extends State<VvcPollPickerBottomSheet> {
               ),
             ),
           ),
+          _buildBottomNavBar(),
         ],
+      ),
+    );
+  }
+
+  Widget _buildBottomNavBar() {
+    final categories = [
+      {'label': 'Gallery', 'icon': Icons.photo_library_outlined, 'selectedIcon': Icons.photo_library_rounded},
+      {'label': 'File', 'icon': Icons.insert_drive_file_outlined, 'selectedIcon': Icons.insert_drive_file_rounded},
+      {'label': 'Location', 'icon': Icons.location_on_outlined, 'selectedIcon': Icons.location_on_rounded},
+      {'label': 'Poll', 'icon': Icons.poll_outlined, 'selectedIcon': Icons.poll_rounded},
+      {'label': 'Contact', 'icon': Icons.person_outline_rounded, 'selectedIcon': Icons.person_rounded},
+    ];
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFF141416),
+        border: Border(top: BorderSide(color: Color(0x1AFFFFFF), width: 0.5)),
+      ),
+      padding: EdgeInsets.only(
+        top: 8,
+        bottom: MediaQuery.of(context).padding.bottom > 0
+            ? MediaQuery.of(context).padding.bottom + 4
+            : 10,
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: categories.map((cat) {
+          final String label = cat['label'] as String;
+          final bool isSelected = label == 'Poll';
+
+          return InkWell(
+            onTap: () {
+              if (label != 'Poll') {
+                widget.onTabChanged?.call(label);
+              }
+            },
+            borderRadius: BorderRadius.circular(16),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: isSelected ? _accentColor.withValues(alpha: 0.2) : Colors.transparent,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      isSelected ? (cat['selectedIcon'] as IconData) : (cat['icon'] as IconData),
+                      color: isSelected ? _accentColor : _mutedColor,
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    label,
+                    style: GoogleFonts.inter(
+                      color: isSelected ? _accentColor : _mutedColor,
+                      fontSize: 11,
+                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }).toList(),
       ),
     );
   }
