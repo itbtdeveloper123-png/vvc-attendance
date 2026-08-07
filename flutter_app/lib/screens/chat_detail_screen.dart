@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:async';
 import 'dart:io';
 import 'dart:ui';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -2656,7 +2657,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     return Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
       child: Column(
-        crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        crossAxisAlignment: isMine ? Alignment.end : Alignment.start,
         children: [
           GestureDetector(
             key: bubbleKey,
@@ -2691,7 +2692,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
   }
 
-  // Location Card Bubble Widget
+  // Location Map Bubble Widget (Telegram exact design)
   Widget _buildLocationCardBubble({
     required String docId,
     required String text,
@@ -2702,7 +2703,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   }) {
     double lat = 11.5564;
     double lng = 104.9282;
-    String locationTitle = '📍 ទីតាំងបច្ចុប្បន្ន (Current Location)';
+    String locationTitle = 'Location';
 
     final RegExp regExp = RegExp(r'q=(-?\d+\.?\d*),(-?\d+\.?\d*)');
     final match = regExp.firstMatch(text);
@@ -2714,146 +2715,238 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     if (text.contains(':')) {
       final parts = text.split('\n');
       if (parts.isNotEmpty && parts.first.contains('📍')) {
-        locationTitle = parts.first;
+        locationTitle = parts.first.replaceAll('📍', '').replaceAll(':', '').trim();
+      }
+    }
+    if (locationTitle.isEmpty) locationTitle = 'Location';
+
+    final bubbleKey = GlobalKey();
+
+    // 3x3 Tile Grid URLs
+    final int zoom = 15;
+    final n = pow(2, zoom);
+    final tileX = (((lng + 180.0) / 360.0) * n).floor();
+    final latRad = lat * pi / 180.0;
+    final tileY = (((1.0 - (log(tan(latRad) + (1.0 / cos(latRad))) / pi)) / 2.0) * n).floor();
+
+    final List<String> tileUrls = [];
+    for (int dy = -1; dy <= 1; dy++) {
+      for (int dx = -1; dx <= 1; dx++) {
+        tileUrls.add('https://a.basemaps.cartocdn.com/dark_all/$zoom/${tileX + dx}/${tileY + dy}.png');
       }
     }
 
-    final mapsUrl = 'https://maps.google.com/?q=$lat,$lng';
-    final bubbleKey = GlobalKey();
-
     final cardContent = Container(
       width: 260,
+      height: 150,
       margin: const EdgeInsets.symmetric(vertical: 4),
       decoration: BoxDecoration(
-        color: isMine ? const Color(0xFF229ED9) : const Color(0xFF2C2C2E),
-        borderRadius: BorderRadius.circular(16),
+        color: const Color(0xFF151D2A),
+        borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.3),
+            color: Colors.black.withValues(alpha: 0.35),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            height: 110,
-            width: double.infinity,
-            decoration: const BoxDecoration(
-              color: Color(0xFF1E293B),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-            ),
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: Opacity(
-                    opacity: 0.35,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [const Color(0xFF0F172A), Colors.blueGrey.shade900],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                      ),
-                    ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: Stack(
+          children: [
+            // A. Dark CartoDB Map Background (3x3 Grid centered)
+            Positioned.fill(
+              child: OverflowBox(
+                maxWidth: 768,
+                maxHeight: 768,
+                child: SizedBox(
+                  width: 768,
+                  height: 768,
+                  child: GridView.count(
+                    crossAxisCount: 3,
+                    physics: const NeverScrollableScrollPhysics(),
+                    children: tileUrls.map((url) {
+                      return Image.network(
+                        url,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(color: const Color(0xFF151D2A)),
+                      );
+                    }).toList(),
                   ),
                 ),
-                Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: const BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(color: Colors.black45, blurRadius: 6, offset: Offset(0, 2)),
-                          ],
-                        ),
-                        child: const Icon(Icons.location_on_rounded, color: Colors.redAccent, size: 26),
-                      ),
-                      const SizedBox(height: 5),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.black87,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Text(
-                          '${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)}',
-                          style: GoogleFonts.inter(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+              ),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  locationTitle,
-                  style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13.5),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+
+            // Slight dark tint overlay
+            Positioned.fill(
+              child: Container(
+                color: Colors.black.withValues(alpha: 0.15),
+              ),
+            ),
+
+            // B. Center Blue Pin (Telegram Pin Style)
+            Center(
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: const BoxDecoration(
+                  color: Color(0xFF3388FF),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(color: Colors.black54, blurRadius: 8, offset: Offset(0, 3)),
+                  ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'រាជធានីភ្នំពេញ, ប្រទេសកម្ពុជា',
-                  style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 12),
-                ),
-                const SizedBox(height: 10),
-                InkWell(
-                  onTap: () async {
-                    final uri = Uri.parse(mapsUrl);
-                    if (await canLaunchUrl(uri)) {
-                      await launchUrl(uri, mode: LaunchMode.externalApplication);
-                    }
-                  },
+                child: const Icon(Icons.push_pin_rounded, color: Colors.white, size: 22),
+              ),
+            ),
+
+            // C. Bottom Left " Maps" Provider Pill
+            Positioned(
+              bottom: 8,
+              left: 10,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.65),
                   borderRadius: BorderRadius.circular(10),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.map_rounded, color: Colors.white, size: 16),
-                        const SizedBox(width: 6),
-                        Text(
-                          'បើកមើលក្នុង Google Maps',
-                          style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
-                        ),
-                        const SizedBox(width: 4),
-                        const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 14),
-                      ],
-                    ),
-                  ),
                 ),
-              ],
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.apple, color: Colors.white, size: 13),
+                    const SizedBox(width: 3),
+                    Text(
+                      'Maps',
+                      style: GoogleFonts.inter(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              ),
             ),
-          ),
-        ],
+
+            // D. Bottom Right Timestamp & Status Ticks
+            Positioned(
+              bottom: 8,
+              right: 10,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.65),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      DateFormat('h:mm a').format(time),
+                      style: GoogleFonts.inter(fontSize: 10.0, color: Colors.white),
+                    ),
+                    if (isMine) ...[
+                      const SizedBox(width: 4.0),
+                      _buildReadStatusIcon(isRead),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
 
     return Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
-      child: Column(
-        crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-        children: [
-          GestureDetector(
-            key: bubbleKey,
+      child: GestureDetector(
+        key: bubbleKey,
+        onTap: () => _showTelegramFullScreenMapView(
+          lat: lat,
+          lng: lng,
+          locationTitle: locationTitle,
+        ),
+        onLongPress: () => _showMessageOptionsModal(
+          key: bubbleKey,
+          childWidget: cardContent,
+          docId: docId,
+          content: text,
+          type: 'location',
+          senderName: senderName,
+        ),
+        child: cardContent,
+      ),
+    );
+  }
+
+  // Telegram Full Screen Interactive Map Viewer
+  void _showTelegramFullScreenMapView({
+    required double lat,
+    required double lng,
+    required String locationTitle,
+  }) {
+    final int zoom = 15;
+    final n = pow(2, zoom);
+    final tileX = (((lng + 180.0) / 360.0) * n).floor();
+    final latRad = lat * pi / 180.0;
+    final tileY = (((1.0 - (log(tan(latRad) + (1.0 / cos(latRad))) / pi)) / 2.0) * n).floor();
+
+    final List<String> tileUrls = [];
+    for (int dy = -2; dy <= 2; dy++) {
+      for (int dx = -2; dx <= 2; dx++) {
+        tileUrls.add('https://a.basemaps.cartocdn.com/dark_all/$zoom/${tileX + dx}/${tileY + dy}.png');
+      }
+    }
+
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.96),
+      builder: (modalCtx) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: EdgeInsets.zero,
+          child: Stack(
+            children: [
+              // A. Interactive / Grid CartoDB Dark Map
+              Positioned.fill(
+                child: InteractiveViewer(
+                  minScale: 0.8,
+                  maxScale: 3.5,
+                  child: OverflowBox(
+                    maxWidth: 1280,
+                    maxHeight: 1280,
+                    child: SizedBox(
+                      width: 1280,
+                      height: 1280,
+                      child: GridView.count(
+                        crossAxisCount: 5,
+                        physics: const NeverScrollableScrollPhysics(),
+                        children: tileUrls.map((url) {
+                          return Image.network(
+                            url,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Container(color: const Color(0xFF151D2A)),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+              // B. Center Blue Pin Icon
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(5),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF3388FF),
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(color: Colors.black87, blurRadius: 12, offset: Offset(0, 4)),
+                          ],
+                        ),
             onLongPress: () => _showMessageOptionsModal(
               key: bubbleKey,
               childWidget: cardContent,
