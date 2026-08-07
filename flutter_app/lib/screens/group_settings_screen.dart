@@ -557,7 +557,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
   void _showEditGroupModal(BuildContext context, Map<String, dynamic> groupData) {
     final nameCtrl = TextEditingController(text: groupData['name'] ?? '');
     final descCtrl = TextEditingController(text: groupData['description'] ?? groupData['bio'] ?? '');
-    final String photo = groupData['photo'] ?? '';
+    String currentPhoto = groupData['photo'] ?? '';
 
     showModalBottomSheet(
       context: context,
@@ -610,19 +610,33 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
 
                   GestureDetector(
                     onTap: () async {
-                      await _pickAndUpdateGroupPhoto();
-                      if (ctx.mounted) setModalState(() {});
+                      final XFile? file = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
+                      if (file == null) return;
+
+                      final r2Url = await _r2Service.uploadMedia(file: File(file.path), folder: 'group_photos');
+
+                      if (r2Url != null) {
+                        await _firestore.collection('groups').doc(widget.groupId).update({'photo': r2Url});
+                        if (ctx.mounted) {
+                          setModalState(() {
+                            currentPhoto = r2Url;
+                          });
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('បានប្តូររូបភាពក្រុមជោគជ័យ!', style: GoogleFonts.kantumruyPro())),
+                          );
+                        }
+                      }
                     },
                     child: Stack(
                       alignment: Alignment.center,
                       children: [
                         CircleAvatar(
                           radius: 44,
-                          backgroundImage: photo.isNotEmpty
-                              ? NetworkImage(ApiService.getFullImageUrl(photo))
+                          backgroundImage: currentPhoto.isNotEmpty
+                              ? NetworkImage(ApiService.getFullImageUrl(currentPhoto))
                               : null,
                           backgroundColor: const Color(0xFFFFB300),
-                          child: photo.isEmpty
+                          child: currentPhoto.isEmpty
                               ? const Icon(Icons.groups_rounded, color: Colors.white, size: 44)
                               : null,
                         ),
@@ -700,11 +714,17 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
           alignment: Alignment.center,
           children: [
             InteractiveViewer(
-              child: Image.network(
-                ApiService.getFullImageUrl(imageUrl),
-                fit: BoxFit.contain,
-                errorBuilder: (_, __, ___) => const Icon(Icons.image_not_supported_rounded, color: Colors.white38, size: 60),
-              ),
+              child: imageUrl.startsWith('data:image')
+                  ? Image.memory(
+                      base64Decode(imageUrl.split(',').last),
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) => const Icon(Icons.image_not_supported_rounded, color: Colors.white38, size: 60),
+                    )
+                  : Image.network(
+                      ApiService.getFullImageUrl(imageUrl),
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) => const Icon(Icons.image_not_supported_rounded, color: Colors.white38, size: 60),
+                    ),
             ),
             Positioned(
               top: MediaQuery.of(context).padding.top + 10,
@@ -764,7 +784,10 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                       userObj = userSnap.data!.data() as Map<String, dynamic>;
                     }
 
-                    final String memberName = (userObj['name'] ?? userObj['employee_id'] ?? uid).toString();
+                    String memberName = userObj['name']?.toString() ?? '';
+                    if (memberName.isEmpty) memberName = userObj['employee_id']?.toString() ?? '';
+                    if (memberName.isEmpty) memberName = uid;
+                    
                     final String avatar = (userObj['avatar'] ?? userObj['photo'] ?? userObj['userPhoto'] ?? '').toString();
                     final bool isOnline = userObj['isOnline'] == true || uid == widget.currentUserId;
                     final bool isUserOwner = uid == createdBy;
@@ -960,7 +983,8 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
             itemCount: docs.length,
             itemBuilder: (context, idx) {
               final data = docs[idx].data() as Map<String, dynamic>;
-              final String rawUrl = (data['imageUrl'] ?? data['mediaUrl'] ?? data['fileUrl'] ?? data['stickerUrl'] ?? data['text'] ?? '').toString();
+              final type = data['type']?.toString() ?? '';
+              final String rawUrl = (data['imageUrl'] ?? data['mediaUrl'] ?? data['fileUrl'] ?? data['stickerUrl'] ?? (type == 'image' ? data['text'] : '') ?? '').toString();
 
               return InkWell(
                 onTap: rawUrl.isNotEmpty ? () => _openFullScreenImage(context, rawUrl) : null,
@@ -969,11 +993,17 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                   borderRadius: BorderRadius.circular(12),
                   child: Container(
                     color: _GSDark.card,
-                    child: Image.network(
-                      ApiService.getFullImageUrl(rawUrl),
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const Center(child: Icon(Icons.image_not_supported_rounded, color: Colors.white38)),
-                    ),
+                    child: rawUrl.startsWith('data:image')
+                        ? Image.memory(
+                            base64Decode(rawUrl.split(',').last),
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => const Center(child: Icon(Icons.image_not_supported_rounded, color: Colors.white38)),
+                          )
+                        : Image.network(
+                            ApiService.getFullImageUrl(rawUrl),
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => const Center(child: Icon(Icons.image_not_supported_rounded, color: Colors.white38)),
+                          ),
                   ),
                 ),
               );

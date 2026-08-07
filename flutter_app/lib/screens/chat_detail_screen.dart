@@ -142,6 +142,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   bool _isSelectionMode = false;
   final Set<String> _selectedDocIds = {};
 
+  // Pagination State
+  int _messageLimit = 30;
+  bool _hasMoreMessages = true;
+  bool _isFetchingMore = false;
+
   String get _roomId {
     if (widget.isGroup) return widget.targetUserId;
     final List<String> ids = [currentUserId, widget.targetUserId]..sort();
@@ -152,6 +157,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   void initState() {
     super.initState();
     _init();
+
+    _scrollController.addListener(_onScroll);
 
     _positionSub = _audioPlayer.onPositionChanged.listen((p) {
       if (mounted) setState(() => _currentAudioPosition = p);
@@ -188,21 +195,43 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
   void _listenMessages() {
     if (currentUserId.isEmpty) return;
+    _messageSubscription?.cancel();
     _messageSubscription = _firestore
         .collection('chats')
         .doc(_roomId)
         .collection('messages')
         .orderBy('timestamp', descending: true)
+        .limit(_messageLimit)
         .snapshots()
         .listen((snap) {
       if (mounted) {
         setState(() {
           _messageDocs = snap.docs;
           _isLoadingHistory = false;
+          _isFetchingMore = false;
+          if (snap.docs.length < _messageLimit) {
+            _hasMoreMessages = false;
+          }
         });
         _markMessagesAsRead(snap.docs);
       }
     });
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
+      _loadMoreMessages();
+    }
+  }
+
+  void _loadMoreMessages() {
+    if (_hasMoreMessages && !_isFetchingMore && _messageDocs.length >= _messageLimit) {
+      setState(() {
+        _isFetchingMore = true;
+        _messageLimit += 30;
+      });
+      _listenMessages();
+    }
   }
 
   Future<void> _markMessagesAsRead(List<DocumentSnapshot> docs) async {
@@ -530,19 +559,16 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     final double topPadding = MediaQuery.of(context).padding.top;
 
     if (_isSelectionMode) {
-      return ClipRect(
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-          child: Container(
-            decoration: const BoxDecoration(
-              color: Color(0xDC1C1C1E),
-              border: Border(
-                bottom: BorderSide(color: Color(0x1FFFFFFF), width: 0.5),
-              ),
-            ),
-            padding: EdgeInsets.fromLTRB(12.0, topPadding > 0 ? topPadding + 4.0 : 10.0, 12.0, 10.0),
-            child: Row(
-              children: [
+      return Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFC1C1C1E),
+          border: Border(
+            bottom: BorderSide(color: Color(0x1FFFFFFF), width: 0.5),
+          ),
+        ),
+        padding: EdgeInsets.fromLTRB(12.0, topPadding > 0 ? topPadding + 4.0 : 10.0, 12.0, 10.0),
+        child: Row(
+          children: [
                 IconButton(
                   icon: const Icon(Icons.close_rounded, color: Colors.white, size: 24),
                   onPressed: () {
@@ -569,8 +595,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                 ),
               ],
             ),
-          ),
-        ),
       );
     }
 
@@ -741,7 +765,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                             Stack(
                               children: [
                                 CircleAvatar(
-                                  radius: 19.0,
+                                  radius: 20.0,
                                   backgroundImage: widget.targetUserPhoto.isNotEmpty
                                       ? NetworkImage(ApiService.getFullImageUrl(widget.targetUserPhoto))
                                       : null,
@@ -783,8 +807,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                                     widget.targetUserName,
                                     style: GoogleFonts.kantumruyPro(
                                       color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 15.0,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 17.0,
                                     ),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
@@ -793,7 +817,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                                     statusText,
                                     style: GoogleFonts.inter(
                                       color: const Color(0xFF8E8E93),
-                                      fontSize: 11.5,
+                                      fontSize: 13.0,
                                     ),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
@@ -1171,16 +1195,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
   }
 
-  Widget _buildReadStatusIcon(bool isRead) {
+  Widget _buildReadStatusIcon(bool isRead, {bool isMine = false}) {
     if (isRead) {
-      return widget.targetUserPhoto.isNotEmpty
-          ? CircleAvatar(
-              radius: 6.0,
-              backgroundImage: NetworkImage(ApiService.getFullImageUrl(widget.targetUserPhoto)),
-            )
-          : const Icon(Icons.done_all_rounded, size: 14, color: _MsgDark.iconColor);
+      return Icon(Icons.done_all_rounded, size: 15, color: isMine ? Colors.white : const Color(0xFF007AFF));
     }
-    return const Icon(Icons.done_rounded, size: 14, color: Colors.white38);
+    return Icon(Icons.done_rounded, size: 15, color: isMine ? Colors.white70 : Colors.white54);
   }
 
   // Text Message Bubble
@@ -1222,25 +1241,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
       constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.72),
       decoration: BoxDecoration(
-        gradient: isMine
-            ? const LinearGradient(
-                colors: [Color(0xFF2AABEE), Color(0xFF229ED9)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              )
-            : null,
-        color: isMine ? null : const Color(0xFF2C2C2E),
-        border: Border.all(
-          color: isMine ? Colors.white.withValues(alpha: 0.2) : Colors.white.withValues(alpha: 0.1),
-          width: 0.8,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.2),
-            blurRadius: 6.0,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        color: isMine ? const Color(0xFF007AFF) : const Color(0xFF2C2C2E),
         borderRadius: BorderRadius.only(
           topLeft: const Radius.circular(18.0),
           topRight: const Radius.circular(18.0),
@@ -1274,9 +1275,32 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               ),
             ),
           ],
-          Text(
-            text,
-            style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 14.5, height: 1.35, fontWeight: FontWeight.bold),
+          Wrap(
+            alignment: WrapAlignment.end,
+            crossAxisAlignment: WrapCrossAlignment.end,
+            children: [
+              Text(
+                text,
+                style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 15.5, height: 1.35),
+              ),
+              const SizedBox(width: 8.0),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 2.0),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      DateFormat('h:mm a').format(time),
+                      style: GoogleFonts.inter(fontSize: 10.5, color: isMine ? Colors.white70 : Colors.white54),
+                    ),
+                    if (isMine) ...[
+                      const SizedBox(width: 4.0),
+                      _buildReadStatusIcon(isRead, isMine: true),
+                    ],
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -1284,38 +1308,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
     return Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
-      child: Column(
-        crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-        children: [
-          GestureDetector(
-            key: bubbleKey,
-            onLongPress: () => _showMessageOptionsModal(
-              key: bubbleKey,
-              childWidget: bubbleChild,
-              docId: docId,
-              content: text,
-              type: 'text',
-              senderName: senderName,
-            ),
-            child: bubbleChild,
-          ),
-          Padding(
-            padding: const EdgeInsets.only(left: 4.0, right: 4.0, bottom: 4.0),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  DateFormat('h:mm a').format(time),
-                  style: GoogleFonts.inter(fontSize: 10.0, color: _MsgDark.textMuted),
-                ),
-                if (isMine) ...[
-                  const SizedBox(width: 4.0),
-                  _buildReadStatusIcon(isRead),
-                ],
-              ],
-            ),
-          ),
-        ],
+      child: GestureDetector(
+        key: bubbleKey,
+        onLongPress: () => _showMessageOptionsModal(
+          key: bubbleKey,
+          childWidget: bubbleChild,
+          docId: docId,
+          content: text,
+          type: 'text',
+          senderName: senderName,
+        ),
+        child: bubbleChild,
       ),
     );
   }
@@ -1589,7 +1592,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           text,
           width: 160,
           height: 160,
-          fit: BoxFit.contain,
+          fit: BoxFit.cover,
+          cacheWidth: 320,
           loadingBuilder: (context, child, progress) {
             if (progress == null) return child;
             return const SizedBox(
@@ -2966,8 +2970,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       if (permission == LocationPermission.whileInUse || permission == LocationPermission.always) {
         try {
           final pos = await Geolocator.getCurrentPosition(
-            desiredAccuracy: LocationAccuracy.medium,
-            timeLimit: const Duration(seconds: 4),
+            locationSettings: const LocationSettings(
+              accuracy: LocationAccuracy.medium,
+              timeLimit: Duration(seconds: 4),
+            ),
           );
           targetLat = pos.latitude;
           targetLng = pos.longitude;

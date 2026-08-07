@@ -62,11 +62,10 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
   List<Map<String, dynamic>> customGroups = [];
   StreamSubscription? _groupsSubscription;
   Map<String, Timestamp?> chatActivity = {};
+  Map<String, Map<String, dynamic>> activeChatsData = {};
   String currentUserId = '';
 
-  final Map<String, Stream<QuerySnapshot>> _unreadStreams = {};
   final Map<String, Stream<DocumentSnapshot>> _presenceStreams = {};
-  final Map<String, Stream<DocumentSnapshot>> _lastMessageStreams = {};
 
   late AnimationController _broomAnimCtrl;
   int _cacheSizeBytes = 0;
@@ -183,6 +182,7 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
         .snapshots()
         .listen((snapshot) {
           final Map<String, Timestamp?> activity = {};
+          final Map<String, Map<String, dynamic>> chatsData = {};
           for (var doc in snapshot.docs) {
             final data = doc.data();
             final List<dynamic> p = data['participants'] ?? [];
@@ -192,11 +192,13 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
             );
             if (otherId.isNotEmpty) {
               activity[otherId] = data['lastTimestamp'] as Timestamp?;
+              chatsData[otherId] = data;
             }
           }
           if (mounted) {
             setState(() {
               chatActivity = activity;
+              activeChatsData = chatsData;
               _sortUsers();
             });
           }
@@ -987,27 +989,35 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
     ids.sort();
     final String roomId = "PRIVATE_${ids[0]}_${ids[1]}";
 
-    // 1. Unread stream caching
-    if (!_unreadStreams.containsKey(roomId)) {
-      _unreadStreams[roomId] =
-          _firestore
-              .collection('chats')
-              .doc(roomId)
-              .collection('messages')
-              .where('isRead', isEqualTo: false)
-              .snapshots();
+    final chatData = activeChatsData[targetId];
+    String lastMsg = position;
+    String timeStr = '';
+    bool isUnread = false;
+    bool isLastMessageByMe = false;
+    bool isLastMessageRead = false;
+
+    if (chatData != null) {
+      final rawLastMsg = chatData['lastMessage'] ?? '';
+      final Timestamp? ts = chatData['lastTimestamp'] as Timestamp?;
+      final lastSenderId = chatData['lastSenderId'] ?? '';
+      isLastMessageRead = chatData['isRead'] == true;
+
+      if (rawLastMsg.isNotEmpty) {
+        isLastMessageByMe = lastSenderId == currentUserId;
+        lastMsg = isLastMessageByMe ? "អ្នក៖ $rawLastMsg" : rawLastMsg;
+        if (!isLastMessageByMe && !isLastMessageRead) {
+          isUnread = true;
+        }
+      }
+      if (ts != null) {
+        timeStr = _formatTimestamp(ts);
+      }
     }
 
-    // 2. Presence stream caching
+    // Presence stream caching
     if (!_presenceStreams.containsKey(targetId)) {
       _presenceStreams[targetId] =
           _firestore.collection('users').doc(targetId).snapshots();
-    }
-
-    // 3. Last Message stream caching
-    if (!_lastMessageStreams.containsKey(roomId)) {
-      _lastMessageStreams[roomId] =
-          _firestore.collection('chats').doc(roomId).snapshots();
     }
 
     return StreamBuilder<DocumentSnapshot>(
@@ -1019,49 +1029,7 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
           isOnline = data?['isOnline'] == true;
         }
 
-        return StreamBuilder<QuerySnapshot>(
-          stream: _unreadStreams[roomId],
-          builder: (context, unreadSnapshot) {
-            int unreadCount = 0;
-            if (unreadSnapshot.hasData) {
-              unreadCount =
-                  unreadSnapshot.data!.docs.where((doc) {
-                    final data = doc.data() as Map<String, dynamic>;
-                    return data['senderId'] != currentUserId;
-                  }).length;
-            }
-            final bool isUnread = unreadCount > 0;
-
-            return StreamBuilder<DocumentSnapshot>(
-              stream: _lastMessageStreams[roomId],
-              builder: (context, chatSnapshot) {
-                String lastMsg = position;
-                String timeStr = '';
-                bool isLastMessageByMe = false;
-                bool isLastMessageRead = false;
-
-                if (chatSnapshot.hasData && chatSnapshot.data!.exists) {
-                  final chatData =
-                      chatSnapshot.data!.data() as Map<String, dynamic>?;
-                  if (chatData != null) {
-                    final rawLastMsg = chatData['lastMessage'] ?? '';
-                    final Timestamp? ts =
-                        chatData['lastTimestamp'] as Timestamp?;
-                    final lastSenderId = chatData['lastSenderId'] ?? '';
-                    isLastMessageRead = chatData['isRead'] == true;
-
-                    if (rawLastMsg.isNotEmpty) {
-                      isLastMessageByMe = lastSenderId == currentUserId;
-                      lastMsg =
-                          isLastMessageByMe ? "អ្នក៖ $rawLastMsg" : rawLastMsg;
-                    }
-                    if (ts != null) {
-                      timeStr = _formatTimestamp(ts);
-                    }
-                  }
-                }
-
-                return InkWell(
+        return InkWell(
                   onTap: () => _navigateToChat(targetId, title, avatar),
                   onLongPress:
                       () => _showTelegramChatPeekPreview(
@@ -1081,7 +1049,7 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
                         Stack(
                           children: [
                             CircleAvatar(
-                              radius: 32.0,
+                              radius: 26.0,
                               backgroundImage:
                                   avatar.isNotEmpty
                                       ? NetworkImage(
@@ -1135,11 +1103,8 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
                               Text(
                                 title,
                                 style: GoogleFonts.kantumruyPro(
-                                  fontSize: 15.5,
-                                  fontWeight:
-                                      isUnread
-                                          ? FontWeight.bold
-                                          : FontWeight.w600,
+                                  fontSize: 17.0,
+                                  fontWeight: FontWeight.w600,
                                   color: MessengerTheme.textPrimary,
                                 ),
                                 maxLines: 1,
@@ -1154,10 +1119,10 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: GoogleFonts.kantumruyPro(
-                                        fontSize: 13.5,
+                                        fontSize: 14.5,
                                         fontWeight:
                                             isUnread
-                                                ? FontWeight.w800
+                                                ? FontWeight.w600
                                                 : FontWeight.normal,
                                         color:
                                             isUnread
@@ -1182,10 +1147,10 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
                                     Text(
                                       timeStr,
                                       style: GoogleFonts.inter(
-                                        fontSize: 13.0,
+                                        fontSize: 13.5,
                                         fontWeight:
                                             isUnread
-                                                ? FontWeight.w700
+                                                ? FontWeight.w600
                                                 : FontWeight.normal,
                                         color:
                                             isUnread
@@ -1212,10 +1177,6 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
                     ),
                   ),
                 );
-              },
-            );
-          },
-        );
       },
     );
   }
@@ -1229,8 +1190,8 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
   ) {
     if (isUnread) {
       return Container(
-        width: 12.0,
-        height: 12.0,
+        width: 14.0,
+        height: 14.0,
         decoration: const BoxDecoration(
           color: MessengerTheme.unreadDot,
           shape: BoxShape.circle,
@@ -1239,29 +1200,15 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
     }
     if (isLastMessageByMe) {
       if (isLastMessageRead) {
-        return CircleAvatar(
-          radius: 7.0,
-          backgroundImage:
-              avatar.isNotEmpty
-                  ? NetworkImage(ApiService.getFullImageUrl(avatar))
-                  : null,
-          backgroundColor: _getAvatarBgColor(title),
-          child:
-              avatar.isEmpty
-                  ? Text(
-                    title.isNotEmpty ? title[0].toUpperCase() : 'U',
-                    style: const TextStyle(
-                      fontSize: 7.0,
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  )
-                  : null,
+        return const Icon(
+          Icons.done_all_rounded,
+          size: 16.0,
+          color: Color(0xFF007AFF),
         );
       } else {
         return const Icon(
           Icons.done_rounded,
-          size: 14.0,
+          size: 16.0,
           color: MessengerTheme.textSecondary,
         );
       }

@@ -65,8 +65,10 @@ class _VvcLocationPickerBottomSheetState extends State<VvcLocationPickerBottomSh
 
       if (permission == LocationPermission.whileInUse || permission == LocationPermission.always) {
         Position pos = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.high,
-          timeLimit: const Duration(seconds: 4),
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+            timeLimit: Duration(seconds: 4),
+          ),
         );
         if (mounted) {
           setState(() {
