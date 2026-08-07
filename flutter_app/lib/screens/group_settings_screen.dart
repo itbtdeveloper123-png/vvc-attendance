@@ -7,12 +7,12 @@ import '../services/api_service.dart';
 import '../services/r2_storage_service.dart';
 
 class _GSDark {
-  static const Color bg = Color(0xFF0F172A);
-  static const Color card = Color(0xFF1E293B);
-  static const Color textMuted = Color(0xFF94A3B8);
-  static const Color accent = Color(0xFF0A84FF);
-  static const Color danger = Color(0xFFFF3B30);
-  static const Color divider = Color(0xFF334155);
+  static const Color bg = Color(0xFF1C1C1E);
+  static const Color card = Color(0xFF2C2C2E);
+  static const Color textMuted = Color(0xFF8E8E93);
+  static const Color accent = Color(0xFF3388FF);
+  static const Color danger = Color(0xFFFF453A);
+  static const Color divider = Color(0x1AFFFFFF);
 }
 
 class GroupSettingsScreen extends StatefulWidget {
@@ -168,16 +168,66 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 16.0),
                   child: Column(
                     children: [
-                      // Group Avatar & Name Header (Matching Screenshot)
-                      CircleAvatar(
-                        radius: 46,
-                        backgroundImage: photo.isNotEmpty
-                            ? NetworkImage(ApiService.getFullImageUrl(photo))
-                            : null,
-                        backgroundColor: const Color(0xFFFFB300),
-                        child: photo.isEmpty
-                            ? const Icon(Icons.groups_rounded, color: Colors.white, size: 48)
-                            : null,
+                      // Group Avatar & Name Header (Telegram Dark Style)
+                      Stack(
+                        children: [
+                          Container(
+                            width: 96,
+                            height: 96,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: photo.isEmpty
+                                  ? const LinearGradient(
+                                      colors: [Color(0xFFFF9500), Color(0xFFFF5E36)],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                    )
+                                  : null,
+                              image: photo.isNotEmpty
+                                  ? DecorationImage(
+                                      image: NetworkImage(ApiService.getFullImageUrl(photo)),
+                                      fit: BoxFit.cover,
+                                    )
+                                  : null,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.3),
+                                  blurRadius: 16,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: photo.isEmpty
+                                ? Center(
+                                    child: Text(
+                                      name.isNotEmpty ? name[0].toUpperCase() : 'G',
+                                      style: GoogleFonts.inter(
+                                        color: Colors.white,
+                                        fontSize: 36,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  )
+                                : null,
+                          ),
+                          Positioned(
+                            right: 0,
+                            bottom: 0,
+                            child: InkWell(
+                              onTap: _pickAndUpdateGroupPhoto,
+                              borderRadius: BorderRadius.circular(16),
+                              child: Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: _GSDark.accent,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: _GSDark.bg, width: 2.5),
+                                ),
+                                child: const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 16),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 12),
                       Text(
@@ -297,21 +347,35 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
   Widget _buildActionButton(IconData icon, String label, VoidCallback onTap) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(18),
       child: Container(
-        width: 68,
-        height: 62,
+        width: 76,
+        padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
           color: _GSDark.card,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(18),
           border: Border.all(color: _GSDark.divider, width: 0.8),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.2),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Icon(icon, color: _GSDark.accent, size: 22),
-            const SizedBox(height: 4),
-            Text(label, style: GoogleFonts.inter(color: _GSDark.accent, fontSize: 11)),
+            const SizedBox(height: 5),
+            Text(
+              label,
+              style: GoogleFonts.inter(
+                color: _GSDark.accent,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ],
         ),
       ),
@@ -320,21 +384,29 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
 
   Widget _buildTab(String title, int index) {
     final isSelected = _selectedTab == index;
-    return GestureDetector(
-      onTap: () => setState(() => _selectedTab = index),
-      child: Container(
-        margin: const EdgeInsets.only(right: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? _GSDark.divider : _GSDark.card,
-          borderRadius: BorderRadius.circular(16),
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      margin: const EdgeInsets.only(right: 8),
+      decoration: BoxDecoration(
+        color: isSelected ? _GSDark.accent : _GSDark.card,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isSelected ? Colors.transparent : _GSDark.divider,
+          width: 0.8,
         ),
-        child: Text(
-          title,
-          style: GoogleFonts.inter(
-            color: isSelected ? Colors.white : _GSDark.textMuted,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-            fontSize: 13,
+      ),
+      child: InkWell(
+        onTap: () => setState(() => _selectedTab = index),
+        borderRadius: BorderRadius.circular(20),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Text(
+            title,
+            style: GoogleFonts.inter(
+              color: isSelected ? Colors.white : _GSDark.textMuted,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+              fontSize: 13,
+            ),
           ),
         ),
       ),

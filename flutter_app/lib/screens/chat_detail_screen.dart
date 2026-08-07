@@ -1,9 +1,9 @@
 import 'dart:convert';
-import 'dart:typed_data';
 import 'dart:async';
 import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -22,6 +22,10 @@ import '../services/api_service.dart';
 import '../widgets/chat_wallpaper_picker.dart';
 import '../widgets/giphy_sticker_picker.dart';
 import '../widgets/vvc_file_picker_bottom_sheet.dart';
+import '../widgets/vvc_location_picker_bottom_sheet.dart';
+import '../widgets/vvc_poll_picker_bottom_sheet.dart';
+import '../widgets/vvc_chat_context_menu.dart';
+import 'vvc_contacts_flow_screens.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:lottie/lottie.dart';
 import 'group_settings_screen.dart';
@@ -1047,77 +1051,88 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       }
     }
 
+    final bubbleKey = GlobalKey();
+    final bubbleChild = Container(
+      margin: const EdgeInsets.symmetric(vertical: 3.0),
+      padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
+      constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.72),
+      decoration: BoxDecoration(
+        gradient: isMine
+            ? const LinearGradient(
+                colors: [Color(0xFF2AABEE), Color(0xFF229ED9)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              )
+            : null,
+        color: isMine ? null : const Color(0xFF2C2C2E),
+        border: Border.all(
+          color: isMine ? Colors.white.withValues(alpha: 0.2) : Colors.white.withValues(alpha: 0.1),
+          width: 0.8,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.2),
+            blurRadius: 6.0,
+            offset: const Offset(0, 2),
+          ),
+        ],
+        borderRadius: BorderRadius.only(
+          topLeft: const Radius.circular(18.0),
+          topRight: const Radius.circular(18.0),
+          bottomLeft: Radius.circular(isMine ? 18.0 : 4.0),
+          bottomRight: Radius.circular(isMine ? 4.0 : 18.0),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (forwardedFrom != null && forwardedFrom.isNotEmpty) ...[
+            Text(
+              '↪️ បញ្ជូនបន្តពី $forwardedFrom',
+              style: GoogleFonts.kantumruyPro(fontSize: 11.0, color: Colors.white70, fontStyle: FontStyle.italic),
+            ),
+            const SizedBox(height: 4),
+          ],
+          if (replyTo != null) ...[
+            Container(
+              padding: const EdgeInsets.all(6),
+              margin: const EdgeInsets.only(bottom: 6),
+              decoration: BoxDecoration(
+                color: Colors.black26,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                '↩️ $replyTo',
+                style: GoogleFonts.kantumruyPro(fontSize: 11.5, color: Colors.white70),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+          Text(
+            text,
+            style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 14.5, height: 1.35, fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
+    );
+
     return Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
       child: Column(
         crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
           GestureDetector(
-            onLongPress: () => _showMessageOptionsModal(docId: docId, content: text, type: 'text', senderName: senderName),
-            child: Container(
-              margin: const EdgeInsets.symmetric(vertical: 3.0),
-              padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
-              constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.72),
-              decoration: BoxDecoration(
-                gradient: isMine
-                    ? const LinearGradient(
-                        colors: [Color(0xFF2AABEE), Color(0xFF229ED9)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      )
-                    : null,
-                color: isMine ? null : const Color(0xFF1E293B).withValues(alpha: 0.85),
-                border: Border.all(
-                  color: isMine ? Colors.white.withValues(alpha: 0.2) : Colors.white.withValues(alpha: 0.1),
-                  width: 0.8,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.2),
-                    blurRadius: 6.0,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-                borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(18.0),
-                  topRight: const Radius.circular(18.0),
-                  bottomLeft: Radius.circular(isMine ? 18.0 : 4.0),
-                  bottomRight: Radius.circular(isMine ? 4.0 : 18.0),
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (forwardedFrom != null && forwardedFrom.isNotEmpty) ...[
-                    Text(
-                      '↪️ បញ្ជូនបន្តពី $forwardedFrom',
-                      style: GoogleFonts.kantumruyPro(fontSize: 11.0, color: Colors.white70, fontStyle: FontStyle.italic),
-                    ),
-                    const SizedBox(height: 4),
-                  ],
-                  if (replyTo != null) ...[
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      margin: const EdgeInsets.only(bottom: 6),
-                      decoration: BoxDecoration(
-                        color: Colors.black26,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        '↩️ $replyTo',
-                        style: GoogleFonts.kantumruyPro(fontSize: 11.5, color: Colors.white70),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                  Text(
-                    text,
-                    style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 14.5, height: 1.35, fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ),
+            key: bubbleKey,
+            onLongPress: () => _showMessageOptionsModal(
+              key: bubbleKey,
+              childWidget: bubbleChild,
+              docId: docId,
+              content: text,
+              type: 'text',
+              senderName: senderName,
             ),
+            child: bubbleChild,
           ),
           Padding(
             padding: const EdgeInsets.only(left: 4.0, right: 4.0, bottom: 4.0),
@@ -2251,13 +2266,92 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
   }
 
-  // Universal Message Options BottomSheet (Reply, Forward, Pin, Delete)
+  Future<void> _sendReaction(String docId, String emoji) async {
+    try {
+      await _firestore.collection('chats').doc(_roomId).collection('messages').doc(docId).set({
+        'reactions': {
+          currentUserId: emoji,
+        }
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('Error sending reaction: $e');
+    }
+  }
+
+  // Telegram Dark Theme Context Menu (Reply, Copy, Save, Edit, Pin, Forward, Delete)
   void _showMessageOptionsModal({
     required String docId,
     required String content,
     required String type,
     required String senderName,
+    GlobalKey? key,
+    Widget? childWidget,
   }) {
+    ChatMessageType msgType = ChatMessageType.text;
+    if (type == 'voice') msgType = ChatMessageType.voice;
+    if (type == 'image') msgType = ChatMessageType.image;
+    if (type == 'file') msgType = ChatMessageType.file;
+
+    if (key != null && key.currentContext != null && childWidget != null) {
+      VvcChatContextMenu.show(
+        context: context,
+        widgetKey: key,
+        messageType: msgType,
+        childWidget: childWidget,
+        onReactionSelected: (emoji) {
+          _sendReaction(docId, emoji);
+        },
+        onReply: () {
+          String summary = content;
+          if (type == 'voice') summary = '🎙️ សារសំឡេង';
+          if (type == 'image') summary = '🖼️ រូបភាព';
+          if (type == 'location') summary = '📍 ទីតាំង';
+          setState(() => _replyingToMessage = summary);
+        },
+        onCopy: () {
+          Clipboard.setData(ClipboardData(text: content));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('បានចម្លងអត្ថបទ!', style: GoogleFonts.kantumruyPro())),
+          );
+        },
+        onSave: () {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('បានរក្សាទុក!', style: GoogleFonts.kantumruyPro())),
+          );
+        },
+        onEdit: () {
+          _msgController.text = content;
+        },
+        onPin: () async {
+          String summary = content;
+          if (type == 'voice') summary = '🎙️ សារសំឡេង';
+          if (type == 'image') summary = '🖼️ រូបភាព';
+          if (type == 'location') summary = '📍 ទីតាំង';
+          await _firestore.collection('chats').doc(_roomId).set({
+            'pinnedMessage': {
+              'id': docId,
+              'text': summary,
+              'type': type,
+              'senderName': senderName,
+            }
+          }, SetOptions(merge: true));
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('បានប៉ិនសារទុក!', style: GoogleFonts.kantumruyPro())),
+            );
+          }
+        },
+        onForward: () {
+          _showForwardModal(content, type, originalSenderName: senderName);
+        },
+        onDelete: () async {
+          await _firestore.collection('chats').doc(_roomId).collection('messages').doc(docId).delete();
+        },
+        onSelect: () {},
+      );
+      return;
+    }
+
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF2C2C2E),
@@ -3316,89 +3410,56 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         }
       },
       onTabChanged: (category) {
-        if (category == 'Poll') {
-          Navigator.pop(context);
+        Navigator.pop(context);
+        if (category == 'Gallery') {
+          _pickAndSendImage(ImageSource.gallery);
+        } else if (category == 'Location') {
+          _showLocationPickerModal();
+        } else if (category == 'Poll') {
           _showCreatePollModal();
+        } else if (category == 'Contact') {
+          _showContactPickerModal();
         }
       },
     );
   }
 
-
+  void _showLocationPickerModal() {
+    VvcLocationPickerBottomSheet.show(
+      context: context,
+      onSendLocation: (locData) {
+        final String name = locData['name'] ?? 'ទីតាំងបច្ចុប្បន្ន';
+        final double lat = locData['latitude'] ?? 11.5564;
+        final double lng = locData['longitude'] ?? 104.9282;
+        _sendMessage(customText: '📍 $name:\nhttps://maps.google.com/?q=$lat,$lng');
+      },
+    );
+  }
 
   void _showCreatePollModal() {
-    final qCtrl = TextEditingController();
-    final opt1Ctrl = TextEditingController();
-    final opt2Ctrl = TextEditingController();
-
-    showDialog(
+    VvcPollPickerBottomSheet.show(
       context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF1E293B),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Text('បង្កើត Poll ស្ទង់មតិ', style: GoogleFonts.kantumruyPro(color: Colors.white)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: qCtrl,
-                style: GoogleFonts.kantumruyPro(color: Colors.white),
-                decoration: InputDecoration(
-                  hintText: 'សំនួរស្ទង់មតិ...',
-                  hintStyle: GoogleFonts.kantumruyPro(color: Colors.white38),
-                  filled: true,
-                  fillColor: const Color(0xFF0F172A),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: opt1Ctrl,
-                style: GoogleFonts.kantumruyPro(color: Colors.white),
-                decoration: InputDecoration(
-                  hintText: 'ជម្រើសទី ១',
-                  hintStyle: GoogleFonts.kantumruyPro(color: Colors.white38),
-                  filled: true,
-                  fillColor: const Color(0xFF0F172A),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: opt2Ctrl,
-                style: GoogleFonts.kantumruyPro(color: Colors.white),
-                decoration: InputDecoration(
-                  hintText: 'ជម្រើសទី ២',
-                  hintStyle: GoogleFonts.kantumruyPro(color: Colors.white38),
-                  filled: true,
-                  fillColor: const Color(0xFF0F172A),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text('បោះបង់', style: GoogleFonts.kantumruyPro(color: Colors.white54)),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final q = qCtrl.text.trim();
-                final o1 = opt1Ctrl.text.trim();
-                final o2 = opt2Ctrl.text.trim();
-                if (q.isNotEmpty && o1.isNotEmpty && o2.isNotEmpty) {
-                  Navigator.pop(ctx);
-                  _sendMessage(customText: '📊 Poll: $q\n1. $o1\n2. $o2');
-                }
-              },
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF8B5CF6)),
-              child: Text('បង្កើត Poll', style: GoogleFonts.kantumruyPro(color: Colors.white)),
-            ),
-          ],
-        );
+      onSendPoll: (pollData) {
+        final q = pollData['question'] ?? '';
+        final options = (pollData['options'] as List<dynamic>? ?? []).map((o) => '• $o').join('\n');
+        _sendMessage(customText: '📊 Poll: $q\n$options');
       },
+    );
+  }
+
+  void _showContactPickerModal() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => VvcNewMessageContactListScreen(
+          onSelectContact: (contact) {
+            final name = contact['name'] ?? '';
+            final subtitle = contact['subtitle'] ?? '';
+            Navigator.pop(context);
+            _sendMessage(customText: '👤 Contact: $name\nℹ️ $subtitle');
+          },
+        ),
+      ),
     );
   }
 }
