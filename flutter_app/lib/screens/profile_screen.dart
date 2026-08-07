@@ -31,7 +31,7 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   Map<String, dynamic>? _targetUserData;
   bool _isLoading = false;
-  bool _isSwitchingAccount = false;
+  final bool _isSwitchingAccount = false;
   Timer? _pollingTimer;
   bool _khmerCalNotificationsEnabled = true;
 

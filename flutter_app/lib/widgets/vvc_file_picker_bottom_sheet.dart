@@ -51,7 +51,7 @@ class VvcFilePickerBottomSheet extends StatefulWidget {
 }
 
 class _VvcFilePickerBottomSheetState extends State<VvcFilePickerBottomSheet> {
-  String _activeTab = 'File';
+  final String _activeTab = 'File';
   final TextEditingController _searchController = TextEditingController();
   bool _isSearchActive = false;
 

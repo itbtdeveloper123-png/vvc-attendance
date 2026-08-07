@@ -21,6 +21,7 @@ import 'package:vvc_hrm/services/notification_service.dart';
 import 'package:vvc_hrm/services/background_location_service.dart';
 import 'package:vvc_hrm/services/offline_sync_service.dart';
 import 'package:vvc_hrm/services/khmer_calendar_notification_service.dart';
+import 'package:vvc_hrm/widgets/global_call_observer.dart';
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -198,9 +199,11 @@ class VvcHrmApp extends StatelessWidget {
           title: 'VVC Attendance',
           debugShowCheckedModeBanner: false,
           theme: seasonalTheme.themeData,
-          home: userProvider.isLoggedIn
-              ? HomeScreen(key: HomeScreen.homeKey)
-              : const LoginScreen(),
+          home: GlobalCallObserver(
+            child: userProvider.isLoggedIn
+                ? HomeScreen(key: HomeScreen.homeKey)
+                : const LoginScreen(),
+          ),
           localizationsDelegates: const [
             GlobalMaterialLocalizations.delegate,
             GlobalWidgetsLocalizations.delegate,

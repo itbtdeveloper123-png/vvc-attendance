@@ -35,7 +35,7 @@ class VvcLocationPickerBottomSheet extends StatefulWidget {
 }
 
 class _VvcLocationPickerBottomSheetState extends State<VvcLocationPickerBottomSheet> {
-  String _activeTab = 'Location';
+  final String _activeTab = 'Location';
   final TextEditingController _searchController = TextEditingController();
   bool _isSearchActive = false;
 
@@ -329,7 +329,7 @@ class _VvcLocationPickerBottomSheetState extends State<VvcLocationPickerBottomSh
   }
 
   Widget _buildRealMapViewTileGrid() {
-    final int zoom = 15;
+    const int zoom = 15;
     final n = pow(2, zoom);
     final x = (((_currentLng + 180.0) / 360.0) * n).floor();
     final latRad = _currentLat * pi / 180.0;

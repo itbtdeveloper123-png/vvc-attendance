@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -99,7 +98,7 @@ class _TgsStickerAssetState extends State<TgsStickerAsset> {
         width: widget.width,
         height: widget.height,
         fit: widget.fit,
-        frameRate: FrameRate(30),
+        frameRate: const FrameRate(30),
         errorBuilder: (_, __, ___) => const Center(child: Icon(LucideIcons.sparkles, color: Colors.amberAccent, size: 24)),
       ),
     );

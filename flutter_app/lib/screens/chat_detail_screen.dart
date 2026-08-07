@@ -32,7 +32,8 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:lottie/lottie.dart';
 import 'group_settings_screen.dart';
 import 'user_profile_screen.dart';
-
+import '../services/call_service.dart';
+import 'call/active_call_screen.dart';
 Color _getAvatarBgColor(String name) {
   if (name.isEmpty) return const Color(0xFF0084FF);
   const colors = [
@@ -118,6 +119,26 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   // Voice Recording state
   bool _isRecording = false;
   int _recordingSeconds = 0;
+
+  void _initiateCall(String type) async {
+    final callId = await CallService().startCall(
+      receiverId: widget.targetUserId,
+      receiverName: widget.targetUserName,
+      receiverPhoto: widget.targetUserPhoto,
+      type: type,
+      callerName: 'Caller',
+      callerPhoto: currentUserPhoto,
+    );
+    if (callId != null && mounted) {
+      Navigator.push(context, MaterialPageRoute(builder: (_) => ActiveCallScreen(
+        callId: callId,
+        channelId: callId,
+        targetName: widget.targetUserName,
+        isVideoCall: type == 'video',
+        isCaller: true,
+      )));
+    }
+  }
   Timer? _recordingTimer;
 
   // Plus Menu State (+)
@@ -831,7 +852,29 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                     ),
                   ),
 
-                  // 3. Right Search Button
+                  // 3. Audio Call Button
+                  if (!widget.isGroup)
+                    InkWell(
+                      onTap: () => _initiateCall('audio'),
+                      borderRadius: BorderRadius.circular(20),
+                      child: const Padding(
+                        padding: EdgeInsets.all(6.0),
+                        child: Icon(LucideIcons.phone, color: Colors.white, size: 20),
+                      ),
+                    ),
+                  
+                  // 4. Video Call Button
+                  if (!widget.isGroup)
+                    InkWell(
+                      onTap: () => _initiateCall('video'),
+                      borderRadius: BorderRadius.circular(20),
+                      child: const Padding(
+                        padding: EdgeInsets.all(6.0),
+                        child: Icon(LucideIcons.video, color: Colors.white, size: 20),
+                      ),
+                    ),
+
+                  // 5. Right Search Button
                   InkWell(
                     onTap: () => setState(() => _isSearchMode = true),
                     borderRadius: BorderRadius.circular(20),
@@ -2333,6 +2376,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     _audioPlayer.setPlaybackRate(_playbackSpeed);
   }
 
+  // ignore: unused_element
   Widget _buildWaveformBars({
     required bool isPlaying,
     required double progress,
@@ -2802,7 +2846,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     final bubbleKey = GlobalKey();
 
     // 3x3 Tile Grid URLs
-    final int zoom = 15;
+    const int zoom = 15;
     final n = pow(2, zoom);
     final tileX = (((lng + 180.0) / 360.0) * n).floor();
     final latRad = lat * pi / 180.0;
@@ -3013,7 +3057,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     required double lng,
     required String locationTitle,
   }) {
-    final int zoom = 15;
+    const int zoom = 15;
     final n = pow(2, zoom);
     final tileX = (((lng + 180.0) / 360.0) * n).floor();
     final latRad = lat * pi / 180.0;
@@ -4716,4 +4760,5 @@ class _VoiceBubbleWidgetState extends State<_VoiceBubbleWidget> {
       }),
     );
   }
+
 }

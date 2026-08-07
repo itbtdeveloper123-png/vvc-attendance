@@ -105,8 +105,8 @@ class VvcFrostedChatScreen extends StatelessWidget {
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      const Color(0xFF1E112C).withOpacity(0.85),
-                      const Color(0xFF0F081D).withOpacity(0.92),
+                      const Color(0xFF1E112C).withValues(alpha: 0.85),
+                      const Color(0xFF0F081D).withValues(alpha: 0.92),
                     ],
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
@@ -191,7 +191,7 @@ class VvcFrostedChatScreen extends StatelessWidget {
                   padding: const EdgeInsets.all(8.0),
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: Colors.white.withOpacity(0.12),
+                    color: Colors.white.withValues(alpha: 0.12),
                   ),
                   child: const Icon(
                     Icons.arrow_back_ios_new_rounded,
@@ -207,10 +207,10 @@ class VvcFrostedChatScreen extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 16.0),
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.35),
+                    color: Colors.black.withValues(alpha: 0.35),
                     borderRadius: BorderRadius.circular(20.0),
                     border: Border.all(
-                      color: Colors.white.withOpacity(0.08),
+                      color: Colors.white.withValues(alpha: 0.08),
                       width: 0.8,
                     ),
                   ),
@@ -246,7 +246,7 @@ class VvcFrostedChatScreen extends StatelessWidget {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: Colors.white.withOpacity(0.15),
+                    color: Colors.white.withValues(alpha: 0.15),
                     width: 1.5,
                   ),
                 ),
@@ -289,7 +289,7 @@ class VvcFrostedChatScreen extends StatelessWidget {
                   padding: const EdgeInsets.all(10.0),
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: Colors.white.withOpacity(0.1),
+                    color: Colors.white.withValues(alpha: 0.1),
                   ),
                   child: const Icon(
                     Icons.attach_file_rounded,
@@ -306,9 +306,9 @@ class VvcFrostedChatScreen extends StatelessWidget {
                   height: 44.0,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(22.0),
-                    color: Colors.black.withOpacity(0.3),
+                    color: Colors.black.withValues(alpha: 0.3),
                     border: Border.all(
-                      color: Colors.white.withOpacity(0.1),
+                      color: Colors.white.withValues(alpha: 0.1),
                       width: 0.8,
                     ),
                   ),
@@ -354,7 +354,7 @@ class VvcFrostedChatScreen extends StatelessWidget {
                   padding: const EdgeInsets.all(10.0),
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: Colors.white.withOpacity(0.1),
+                    color: Colors.white.withValues(alpha: 0.1),
                   ),
                   child: const Icon(
                     Icons.mic_none_rounded,
@@ -377,7 +377,7 @@ class VvcFrostedChatScreen extends StatelessWidget {
         margin: const EdgeInsets.symmetric(vertical: 16.0),
         padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 5.0),
         decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.3),
+          color: Colors.black.withValues(alpha: 0.3),
           borderRadius: BorderRadius.circular(12.0),
         ),
         child: Text(
@@ -408,7 +408,7 @@ class VvcFrostedChatScreen extends StatelessWidget {
               shadows: [
                 Shadow(
                   blurRadius: 10.0,
-                  color: Colors.black.withOpacity(0.3),
+                  color: Colors.black.withValues(alpha: 0.3),
                   offset: const Offset(0, 3),
                 ),
               ],
@@ -438,8 +438,8 @@ class VvcFrostedChatScreen extends StatelessWidget {
                 )
               : LinearGradient(
                   colors: [
-                    const Color(0xFFFCA5A5).withOpacity(0.85), // ពណ៌ផ្កាឈូក/ត្រីសាម៉ុងស្រាល
-                    const Color(0xFFF87171).withOpacity(0.9),
+                    const Color(0xFFFCA5A5).withValues(alpha: 0.85), // ពណ៌ផ្កាឈូក/ត្រីសាម៉ុងស្រាល
+                    const Color(0xFFF87171).withValues(alpha: 0.9),
                   ],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
@@ -459,7 +459,7 @@ class VvcFrostedChatScreen extends StatelessWidget {
                 ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.12),
+              color: Colors.black.withValues(alpha: 0.12),
               blurRadius: 6.0,
               offset: const Offset(0, 2),
             ),
@@ -514,7 +514,7 @@ class VvcFrostedChatScreen extends StatelessWidget {
                 padding: const EdgeInsets.all(6.0),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: message.isSent ? Colors.white24 : Colors.red.shade800.withOpacity(0.85),
+                  color: message.isSent ? Colors.white24 : Colors.red.shade800.withValues(alpha: 0.85),
                 ),
                 child: const Icon(
                   Icons.play_arrow_rounded,
@@ -544,7 +544,7 @@ class VvcFrostedChatScreen extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: isPlayed
                           ? (message.isSent ? Colors.white : Colors.red.shade900)
-                          : (message.isSent ? Colors.white30 : Colors.red.shade300.withOpacity(0.5)),
+                          : (message.isSent ? Colors.white30 : Colors.red.shade300.withValues(alpha: 0.5)),
                       borderRadius: BorderRadius.circular(1.0),
                     ),
                   );
@@ -565,7 +565,7 @@ class VvcFrostedChatScreen extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 1.0),
                 decoration: BoxDecoration(
-                  color: message.isSent ? Colors.white12 : Colors.black.withOpacity(0.06),
+                  color: message.isSent ? Colors.white12 : Colors.black.withValues(alpha: 0.06),
                   borderRadius: BorderRadius.circular(4.0),
                 ),
                 child: Text(
@@ -645,7 +645,7 @@ class VvcFrostedChatScreen extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 2.0),
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.5),
+                      color: Colors.black.withValues(alpha: 0.5),
                       borderRadius: BorderRadius.circular(8.0),
                     ),
                     child: Row(
