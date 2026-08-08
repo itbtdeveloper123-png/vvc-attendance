@@ -1068,7 +1068,7 @@ class _HomeContentState extends State<HomeContent> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.timer_outlined,
                     color: AppTheme.primary,
                     size: 13,
@@ -2495,7 +2495,7 @@ class _HomeContentState extends State<HomeContent> {
             label: "ប្រាក់បៀវត្ស",
             subtitle: "ពិនិត្យមើលប្រវត្តិបើកប្រាក់ខែ",
             icon: Icons.payments_rounded,
-            color: AppTheme.primary.shade700,
+            color: AppTheme.primaryDark,
             onTap: () {
               _hapticLight();
               if (user.isHRM || user.isAdmin || user.isAccounting) {
