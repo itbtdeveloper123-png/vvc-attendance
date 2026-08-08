@@ -6,9 +6,9 @@ class AppTheme {
   static bool isDarkMode = true;
 
   // === FLAT SOLID COLOR PALETTE ===
-  static Color primary = const Color(0xFF0E7490); // Teal
-  static Color primaryDark = const Color(0xFF155E75);
-  static Color primaryLight = const Color(0xFF22D3EE);
+  static Color primary = const Color(0xFFD4AF37); // Metallic Gold
+  static Color primaryDark = const Color(0xFFB8860B); // Dark Goldenrod
+  static Color primaryLight = const Color(0xFFF3E5AB); // Light Gold
   static Color secondary = const Color(0xFF2563EB); // Blue
   static Color accent = const Color(0xFFF59E0B); // Amber
   static Color success = const Color(0xFF16A34A); // Green

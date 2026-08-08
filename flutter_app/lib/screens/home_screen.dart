@@ -183,16 +183,16 @@ class HomeScreenState extends State<HomeScreen> {
   _PushUpdatePayload? _parsePushUpdatePayload(Map<String, dynamic>? pushData) {
     if (pushData == null || pushData.isEmpty) return null;
 
-    final version = '${pushData['latest_version'] ?? pushData['version'] ?? ''}'
-        .trim();
+    final version =
+        '${pushData['latest_version'] ?? pushData['version'] ?? ''}'.trim();
     final build =
         int.tryParse(
           '${pushData['latest_build'] ?? pushData['build_number'] ?? '0'}',
         ) ??
         0;
     final apkUrl = '${pushData['apk_url'] ?? ''}'.trim();
-    final message = '${pushData['message'] ?? pushData['update_message'] ?? ''}'
-        .trim();
+    final message =
+        '${pushData['message'] ?? pushData['update_message'] ?? ''}'.trim();
     final forceRaw = '${pushData['force_update'] ?? '0'}'.trim();
     final forceUpdate = forceRaw == '1' || forceRaw.toLowerCase() == 'true';
 
@@ -204,9 +204,10 @@ class HomeScreenState extends State<HomeScreen> {
       version: version,
       build: build,
       apkUrl: apkUrl,
-      message: message.isNotEmpty
-          ? message
-          : 'កម្មវិធីមានជំនាន់ថ្មី។ សូមធ្វើការអាប់ដេត។',
+      message:
+          message.isNotEmpty
+              ? message
+              : 'កម្មវិធីមានជំនាន់ថ្មី។ សូមធ្វើការអាប់ដេត។',
       forceUpdate: forceUpdate,
     );
   }
@@ -224,9 +225,8 @@ class HomeScreenState extends State<HomeScreen> {
   int _compareSemanticVersion(String a, String b) {
     final aParts = a.split('.').map((e) => int.tryParse(e) ?? 0).toList();
     final bParts = b.split('.').map((e) => int.tryParse(e) ?? 0).toList();
-    final maxLength = aParts.length > bParts.length
-        ? aParts.length
-        : bParts.length;
+    final maxLength =
+        aParts.length > bParts.length ? aParts.length : bParts.length;
 
     for (var i = 0; i < maxLength; i++) {
       final aValue = i < aParts.length ? aParts[i] : 0;
@@ -274,31 +274,35 @@ class HomeScreenState extends State<HomeScreen> {
       backgroundColor: AppTheme.bgDark,
       body: IndexedStack(index: _currentIndex, children: screens),
       bottomNavigationBar: _buildBottomNav(userProvider),
-      floatingActionButton: _currentIndex == 0
-          ? Transform.translate(
-              offset: const Offset(0, 6),
-              child: SizedBox(
-                width: 48, // ទំហំប៊ូតុងតូចជាងមុន
-                height: 48,
-                child: FloatingActionButton(
-                  backgroundColor: AppTheme.primary,
-                  elevation: 6,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  onPressed: () {
-                    _hapticLight();
-                    Navigator.push(context, _slideRoute(const AiChatScreen()));
-                  },
-                  child: const Icon(
-                    Icons.smart_toy_rounded,
-                    color: Colors.white,
-                    size: 24, // ទំហំ Icon តូចជាងមុន
+      floatingActionButton:
+          _currentIndex == 0
+              ? Transform.translate(
+                offset: const Offset(0, 6),
+                child: SizedBox(
+                  width: 48, // ទំហំប៊ូតុងតូចជាងមុន
+                  height: 48,
+                  child: FloatingActionButton(
+                    backgroundColor: AppTheme.primary,
+                    elevation: 6,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    onPressed: () {
+                      _hapticLight();
+                      Navigator.push(
+                        context,
+                        _slideRoute(const AiChatScreen()),
+                      );
+                    },
+                    child: const Icon(
+                      Icons.smart_toy_rounded,
+                      color: Colors.white,
+                      size: 24, // ទំហំ Icon តូចជាងមុន
+                    ),
                   ),
                 ),
-              ),
-            )
-          : null,
+              )
+              : null,
     );
   }
 
@@ -652,56 +656,59 @@ class _HomeContentState extends State<HomeContent> {
       if (!mounted) return;
       showDialog(
         context: context,
-        builder: (ctx) => Dialog(
-          backgroundColor: Colors.transparent,
-          child: Container(
-            padding: const EdgeInsets.all(28),
-            decoration: BoxDecoration(
-              color: AppTheme.bgCard,
-              borderRadius: BorderRadius.circular(28),
-              border: Border.all(
-                color: AppTheme.primary.withValues(alpha: 0.2),
-              ),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.sentiment_satisfied_alt_rounded,
-                  color: AppTheme.primaryLight,
-                  size: 36,
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'ថ្ងៃនេះ Feeling ដូចម្ដេច?',
-                  style: GoogleFonts.kantumruyPro(
-                    color: AppTheme.textPrimary,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+        builder:
+            (ctx) => Dialog(
+              backgroundColor: Colors.transparent,
+              child: Container(
+                padding: const EdgeInsets.all(28),
+                decoration: BoxDecoration(
+                  color: AppTheme.bgCard,
+                  borderRadius: BorderRadius.circular(28),
+                  border: Border.all(
+                    color: AppTheme.primary.withValues(alpha: 0.2),
                   ),
                 ),
-                const SizedBox(height: 20),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    _buildMoodBtn(ctx, '😴', 'ងងុយ'),
-                    _buildMoodBtn(ctx, '😊', 'ល្អ'),
-                    _buildMoodBtn(ctx, '🔥', 'Productive'),
-                    _buildMoodBtn(ctx, '😤', 'ហត់'),
+                    Icon(
+                      Icons.sentiment_satisfied_alt_rounded,
+                      color: AppTheme.primaryLight,
+                      size: 36,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'ថ្ងៃនេះ Feeling ដូចម្ដេច?',
+                      style: GoogleFonts.kantumruyPro(
+                        color: AppTheme.textPrimary,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        _buildMoodBtn(ctx, '😴', 'ងងុយ'),
+                        _buildMoodBtn(ctx, '😊', 'ល្អ'),
+                        _buildMoodBtn(ctx, '🔥', 'Productive'),
+                        _buildMoodBtn(ctx, '😤', 'ហត់'),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: Text(
+                        'រំលង',
+                        style: GoogleFonts.kantumruyPro(
+                          color: AppTheme.textMuted,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
-                const SizedBox(height: 12),
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: Text(
-                    'រំលង',
-                    style: GoogleFonts.kantumruyPro(color: AppTheme.textMuted),
-                  ),
-                ),
-              ],
+              ),
             ),
-          ),
-        ),
       );
     });
   }
@@ -889,9 +896,10 @@ class _HomeContentState extends State<HomeContent> {
       await NotificationService().showNotification(
         id: DateTime.now().millisecondsSinceEpoch.remainder(2147483647),
         title: 'ការជូនដំណឹងថ្មី',
-        body: count == 1
-            ? 'មានការជូនដំណឹងថ្មីមួយសម្រាប់អ្នក'
-            : 'មានការជូនដំណឹងថ្មី $count សម្រាប់អ្នក',
+        body:
+            count == 1
+                ? 'មានការជូនដំណឹងថ្មីមួយសម្រាប់អ្នក'
+                : 'មានការជូនដំណឹងថ្មី $count សម្រាប់អ្នក',
         payload: 'notifications',
       );
     } catch (_) {}
@@ -927,51 +935,6 @@ class _HomeContentState extends State<HomeContent> {
       decoration: BoxDecoration(color: AppTheme.bgDark),
       child: Stack(
         children: [
-          // Background Mesh Gradient Glowing Orbs
-          Positioned(
-            top: -100,
-            right: -100,
-            child: Container(
-              width: 300,
-              height: 300,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppTheme.primary.withValues(alpha: 0.25),
-              ),
-            ),
-          ),
-          Positioned(
-            top: 250,
-            left: -120,
-            child: Container(
-              width: 350,
-              height: 350,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: const Color(0xFF8B5CF6).withValues(alpha: 0.20), // Purple glow
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: 100,
-            right: -100,
-            child: Container(
-              width: 300,
-              height: 300,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppTheme.primaryLight.withValues(alpha: 0.25),
-              ),
-            ),
-          ),
-          // Blur layer to create the mesh effect
-          Positioned.fill(
-            child: BackdropFilter(
-              filter: ui.ImageFilter.blur(sigmaX: 80, sigmaY: 80),
-              child: Container(color: Colors.transparent),
-            ),
-          ),
-
           RefreshIndicator(
             onRefresh: () async {
               final seasonalThemeProvider = Provider.of<SeasonalThemeProvider>(
@@ -1099,7 +1062,7 @@ class _HomeContentState extends State<HomeContent> {
                 color: Colors.green.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: Colors.greenAccent.withValues(alpha: 0.3),
+                  color: AppTheme.primary.withValues(alpha: 0.3),
                 ),
               ),
               child: Row(
@@ -1107,14 +1070,14 @@ class _HomeContentState extends State<HomeContent> {
                 children: [
                   const Icon(
                     Icons.timer_outlined,
-                    color: Colors.greenAccent,
+                    color: AppTheme.primary,
                     size: 13,
                   ),
                   const SizedBox(width: 4),
                   Text(
                     _liveWorkDuration,
                     style: GoogleFonts.inter(
-                      color: Colors.greenAccent,
+                      color: AppTheme.primary,
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
                       fontFeatures: [const FontFeature.tabularFigures()],
@@ -1154,14 +1117,15 @@ class _HomeContentState extends State<HomeContent> {
                         child: ClipOval(
                           child:
                               user.avatarUrl != null &&
-                                  user.avatarUrl!.isNotEmpty
-                              ? Image.network(
-                                  user.avatarUrl!,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) =>
-                                      _buildInitialsAvatar(user),
-                                )
-                              : _buildInitialsAvatar(user),
+                                      user.avatarUrl!.isNotEmpty
+                                  ? Image.network(
+                                    user.avatarUrl!,
+                                    fit: BoxFit.cover,
+                                    errorBuilder:
+                                        (context, error, stackTrace) =>
+                                            _buildInitialsAvatar(user),
+                                  )
+                                  : _buildInitialsAvatar(user),
                         ),
                       ),
                       if (user.isVerified)
@@ -1324,7 +1288,7 @@ class _HomeContentState extends State<HomeContent> {
           ),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF7C3AED).withValues(alpha: 0.4),
+              color: AppTheme.primary.withValues(alpha: 0.4),
               blurRadius: 12,
               offset: const Offset(0, 4),
             ),
@@ -1435,8 +1399,8 @@ class _HomeContentState extends State<HomeContent> {
                             resultText = '"${command.recognizedText}"';
                             statusText =
                                 command.type == VoiceCommandType.unknown
-                                ? '❓ មិនស្គាល់ពាក្យ — សាកម្ដងទៀត'
-                                : '✅ ${VoiceCommandService.commandLabel(command.type)}';
+                                    ? '❓ មិនស្គាល់ពាក្យ — សាកម្ដងទៀត'
+                                    : '✅ ${VoiceCommandService.commandLabel(command.type)}';
                           });
 
                           if (command.type != VoiceCommandType.unknown) {
@@ -1467,22 +1431,19 @@ class _HomeContentState extends State<HomeContent> {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         gradient: LinearGradient(
-                          colors: isListening
-                              ? [Colors.redAccent, const Color(0xFFFF6B6B)]
-                              : [
-                                  const Color(0xFF7C3AED),
-                                  const Color(0xFF4F46E5),
-                                ],
+                          colors:
+                              isListening
+                                  ? [Colors.redAccent, const Color(0xFFFF6B6B)]
+                                  : [AppTheme.primary, AppTheme.primary],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color:
-                                (isListening
-                                        ? Colors.redAccent
-                                        : const Color(0xFF7C3AED))
-                                    .withValues(alpha: 0.5),
+                            color: (isListening
+                                    ? Colors.redAccent
+                                    : AppTheme.primary)
+                                .withValues(alpha: 0.5),
                             blurRadius: isListening ? 30 : 15,
                             spreadRadius: isListening ? 5 : 0,
                           ),
@@ -1505,9 +1466,10 @@ class _HomeContentState extends State<HomeContent> {
                       statusText,
                       key: ValueKey(statusText),
                       style: GoogleFonts.kantumruyPro(
-                        color: isListening
-                            ? Colors.redAccent
-                            : AppTheme.textSecondary,
+                        color:
+                            isListening
+                                ? Colors.redAccent
+                                : AppTheme.textSecondary,
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
                       ),
@@ -1550,32 +1512,33 @@ class _HomeContentState extends State<HomeContent> {
                         Wrap(
                           spacing: 8,
                           runSpacing: 8,
-                          children: VoiceCommandService.commandHints.map((
-                            hint,
-                          ) {
-                            return Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 5,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppTheme.primary.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color: AppTheme.primary.withValues(
-                                    alpha: 0.2,
+                          children:
+                              VoiceCommandService.commandHints.map((hint) {
+                                return Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 5,
                                   ),
-                                ),
-                              ),
-                              child: Text(
-                                '${hint['km']} · ${hint['en']}',
-                                style: GoogleFonts.kantumruyPro(
-                                  color: AppTheme.primaryLight,
-                                  fontSize: 11,
-                                ),
-                              ),
-                            );
-                          }).toList(),
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.primary.withValues(
+                                      alpha: 0.12,
+                                    ),
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: AppTheme.primary.withValues(
+                                        alpha: 0.2,
+                                      ),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    '${hint['km']} · ${hint['en']}',
+                                    style: GoogleFonts.kantumruyPro(
+                                      color: AppTheme.primaryLight,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
                         ),
                       ],
                     ),
@@ -1744,10 +1707,11 @@ class _HomeContentState extends State<HomeContent> {
             onPageChanged: (idx) => _safeSetState(() => _currentStatPage = idx),
             physics: const BouncingScrollPhysics(),
             itemCount: stats.length,
-            itemBuilder: (context, index) => Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 6),
-              child: FadeIn(child: stats[index]),
-            ),
+            itemBuilder:
+                (context, index) => Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  child: FadeIn(child: stats[index]),
+                ),
           ),
         ),
         const SizedBox(height: 12),
@@ -1770,9 +1734,10 @@ class _HomeContentState extends State<HomeContent> {
       height: 6,
       width: isActive ? 24 : 6,
       decoration: BoxDecoration(
-        color: isActive
-            ? AppTheme.primary
-            : AppTheme.textPrimary.withValues(alpha: 0.2),
+        color:
+            isActive
+                ? AppTheme.primary
+                : AppTheme.textPrimary.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(3),
       ),
     );
@@ -1787,15 +1752,16 @@ class _HomeContentState extends State<HomeContent> {
           height: 195, // Slightly increased height for zoom scale overhead
           child: PageView.builder(
             controller: _bannerController,
-            onPageChanged: (idx) =>
-                _safeSetState(() => _currentBannerPage = idx),
+            onPageChanged:
+                (idx) => _safeSetState(() => _currentBannerPage = idx),
             itemCount: count,
             physics: const BouncingScrollPhysics(),
             itemBuilder: (context, index) {
               final String heroTag = 'banner_hero_$index';
-              final Widget card = index == 0
-                  ? _buildEmployeePassCard(user)
-                  : _buildEventPassCard(_banners[index - 1]);
+              final Widget card =
+                  index == 0
+                      ? _buildEmployeePassCard(user)
+                      : _buildEventPassCard(_banners[index - 1]);
 
               return Hero(
                 tag: heroTag,
@@ -1807,8 +1773,9 @@ class _HomeContentState extends State<HomeContent> {
                       PageRouteBuilder(
                         opaque: false,
                         barrierDismissible: true,
-                        pageBuilder: (context, _, _) =>
-                            BannerDetailView(heroTag: heroTag, child: card),
+                        pageBuilder:
+                            (context, _, _) =>
+                                BannerDetailView(heroTag: heroTag, child: card),
                       ),
                     );
                   },
@@ -1818,8 +1785,9 @@ class _HomeContentState extends State<HomeContent> {
                       PageRouteBuilder(
                         opaque: false,
                         barrierDismissible: true,
-                        pageBuilder: (context, _, _) =>
-                            BannerDetailView(heroTag: heroTag, child: card),
+                        pageBuilder:
+                            (context, _, _) =>
+                                BannerDetailView(heroTag: heroTag, child: card),
                       ),
                     );
                   },
@@ -1869,9 +1837,10 @@ class _HomeContentState extends State<HomeContent> {
       height: 4,
       width: isActive ? 16 : 4,
       decoration: BoxDecoration(
-        color: isActive
-            ? AppTheme.primary
-            : AppTheme.textPrimary.withValues(alpha: 0.15),
+        color:
+            isActive
+                ? AppTheme.primary
+                : AppTheme.textPrimary.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(2),
       ),
     );
@@ -1987,16 +1956,17 @@ class _HomeContentState extends State<HomeContent> {
                   width: double.infinity,
                   height: double.infinity,
                   fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => Container(
-                    color: AppTheme.danger,
-                    child: const Center(
-                      child: Icon(
-                        Icons.broken_image_rounded,
-                        color: Colors.white,
-                        size: 40,
+                  errorBuilder:
+                      (context, error, stackTrace) => Container(
+                        color: AppTheme.danger,
+                        child: const Center(
+                          child: Icon(
+                            Icons.broken_image_rounded,
+                            color: Colors.white,
+                            size: 40,
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
                 )
               else
                 Container(color: AppTheme.danger),
@@ -2177,365 +2147,430 @@ class _HomeContentState extends State<HomeContent> {
           'stats_slider,attendance,outside_attendance,kpi,product_analyzer,training_quiz,poll_voting,announcements,meetings,checklist,daily_report,mission,trip,user_management,request_form,reports,material_request,notification,payroll,document_scanner,app_settings',
     );
 
-    final keys = orderStr
-        .split(',')
-        .map((e) => e.trim())
-        .where((e) => e.isNotEmpty)
-        .toList();
+    final keys =
+        orderStr
+            .split(',')
+            .map((e) => e.trim())
+            .where((e) => e.isNotEmpty)
+            .toList();
 
     // Mapping of available actions
     final Map<String, Widget Function(bool isList)> actionBuilders = {
-      'attendance': (isList) =>
-          _canShowRoleAction(user, 'show_attendance_card$suffix', suffix)
-          ? Padding(
-              padding: EdgeInsets.only(bottom: isList ? 10 : 0),
-              child: AttendanceScanCard(
-                nextAction: _nextAction,
-                isLoading: _isLoadingNextAction,
-                checkInTime: _checkInTime,
-                liveWorkDuration: _liveWorkDuration,
-                onCheckIn: () => _goScan('Check-In'),
-                onCheckOut: () => _goScan('Check-Out'),
-                onHistoryTap: () => Navigator.push(
+      'attendance':
+          (isList) =>
+              _canShowRoleAction(user, 'show_attendance_card$suffix', suffix)
+                  ? Padding(
+                    padding: EdgeInsets.only(bottom: isList ? 10 : 0),
+                    child: AttendanceScanCard(
+                      nextAction: _nextAction,
+                      isLoading: _isLoadingNextAction,
+                      checkInTime: _checkInTime,
+                      liveWorkDuration: _liveWorkDuration,
+                      onCheckIn: () => _goScan('Check-In'),
+                      onCheckOut: () => _goScan('Check-Out'),
+                      onHistoryTap:
+                          () => Navigator.push(
+                            context,
+                            _slideRoute(const ScanHistoryScreen()),
+                          ),
+                      onTap: () => _goScan(_nextAction),
+                    ),
+                  )
+                  : const SizedBox.shrink(),
+
+      'outside_attendance':
+          (isList) => _buildActionItem(
+            isList: isList,
+            key: 'show_outside_attendance_card$suffix',
+            user: user,
+            label: "Check-In ខាងក្រៅ",
+            subtitle: "Check-in ទីតាំងអតិថិជន",
+            icon: Icons.location_on_rounded,
+            color: Colors.redAccent,
+            onTap: () {
+              _hapticLight();
+              if (user.isHRM || user.isAdmin) {
+                Navigator.push(
                   context,
-                  _slideRoute(const ScanHistoryScreen()),
-                ),
-                onTap: () => _goScan(_nextAction),
-              ),
-            )
-          : const SizedBox.shrink(),
-
-      'outside_attendance': (isList) => _buildActionItem(
-        isList: isList,
-        key: 'show_outside_attendance_card$suffix',
-        user: user,
-        label: "Check-In ខាងក្រៅ",
-        subtitle: "Check-in ទីតាំងអតិថិជន",
-        icon: Icons.location_on_rounded,
-        color: Colors.redAccent,
-        onTap: () {
-          _hapticLight();
-          if (user.isHRM || user.isAdmin) {
-            Navigator.push(context, _slideRoute(const OutsideReportScreen()));
-          } else {
-            Navigator.push(
-              context,
-              _slideRoute(const OutsideAttendanceScreen()),
-            );
-          }
-        },
-      ),
-
-      'training_quiz': (isList) => _buildActionItem(
-        isList: isList,
-        key: 'show_training_quiz_card$suffix',
-        user: user,
-        label: "វគ្គបណ្ដុះបណ្ដាល",
-        subtitle: "ឆ្លើយសំណួរដើម្បីទទួលបានមេដាយ",
-        icon: Icons.psychology_rounded,
-        color: Colors.orangeAccent,
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const TrainingQuizScreen()),
-        ),
-      ),
-
-      'product_analyzer': (isList) => _buildActionItem(
-        isList: isList,
-        key: 'show_product_analyzer_card$suffix',
-        user: user,
-        label: "វិភាគផលិតផល",
-        subtitle: "ថតរូប ឬ Scan Barcode ដើម្បីឱ្យ AI វិភាគ",
-        icon: Icons.document_scanner_rounded,
-        color: const Color(0xFF8B5CF6),
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const ProductAnalyzerScreen()),
-        ),
-      ),
-
-      'poll_voting': (isList) => _buildActionItem(
-        isList: isList,
-        key: 'show_poll_voting_card$suffix',
-        user: user,
-        label: "បោះឆ្នោតបុគ្គលិក",
-        subtitle: "ចូលរួមបោះឆ្នោតបុគ្គលិកល្អ",
-        icon: Icons.how_to_vote_rounded,
-        color: const Color(0xFF10B981),
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const PollVotingScreen()),
-        ),
-      ),
-
-      'announcements': (isList) => _buildActionItem(
-        isList: isList,
-        key: 'show_announcements_card$suffix',
-        user: user,
-        label: "ការជូនដំណឹង",
-        subtitle: "គ្រប់គ្រង និងប្រកាសព័ត៌មានទូទៅ",
-        icon: Icons.campaign_rounded,
-        color: Colors.deepPurpleAccent,
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const AnnouncementsScreen()),
-        ),
-      ),
-
-      'meetings': (isList) => _buildActionItem(
-        isList: isList,
-        key: 'show_meetings_card$suffix',
-        user: user,
-        label: "កិច្ចប្រជុំ",
-        subtitle: "រៀបចំ និងកំណត់កាលវិភាគប្រជុំ",
-        icon: Icons.groups_rounded,
-        color: Colors.indigoAccent,
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const MeetingsScreen()),
-        ),
-      ),
-
-      'checklist': (isList) => _buildActionItem(
-        isList: isList,
-        key: 'show_checklist_card$suffix',
-        user: user,
-        label: "បញ្ជីការងារ",
-        subtitle: "តាមដានកិច្ចការងារប្រចាំថ្ងៃ",
-        icon: Icons.checklist_rounded,
-        color: Colors.tealAccent,
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const ChecklistScreen()),
-        ),
-      ),
-
-      'daily_report': (isList) => _buildActionItem(
-        isList: isList,
-        key: 'show_daily_report_card$suffix',
-        user: user,
-        label: "របាយការណ៍ប្រចាំថ្ងៃ",
-        subtitle: "បញ្ជូនរបាយការណ៍ការងារប្រចាំថ្ងៃ",
-        icon: Icons.summarize_rounded,
-        color: Colors.lightGreenAccent,
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const DailyReportScreen()),
-        ),
-      ),
-
-      'mission': (isList) => _buildActionItem(
-        isList: isList,
-        key: 'show_mission_card$suffix',
-        user: user,
-        label: "លិខិតបេសកកម្ម",
-        subtitle: "ស្នើសុំចេញបេសកកម្មខាងក្រៅ",
-        icon: Icons.map_rounded,
-        color: Colors.blueAccent,
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const MissionScreen()),
-        ),
-      ),
-
-      'user_management': (isList) => _buildActionItem(
-        isList: isList,
-        key: 'show_user_management_card$suffix',
-        user: user,
-        label: "គ្រប់គ្រងបុគ្គលិក",
-        subtitle: "បន្ថែម កែប្រែ និងពិនិត្យទិន្នន័យបុគ្គលិក",
-        icon: Icons.people_alt_rounded,
-        color: const Color(0xFF8B5CF6),
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const UserManagementScreen()),
-        ),
-      ),
-
-      'request_form': (isList) => _buildActionItem(
-        isList: isList,
-        key: 'show_request_form_card$suffix',
-        user: user,
-        label: "បញ្ជីសំណើ",
-        subtitle: "គ្រប់គ្រងសំណើច្បាប់ឈប់សម្រាក",
-        icon: Icons.list_alt_rounded,
-        color: const Color(0xFFF59E0B),
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => (user.isHRM || user.isAdmin)
-                ? const RequestListScreen()
-                : const RequestsScreen(),
+                  _slideRoute(const OutsideReportScreen()),
+                );
+              } else {
+                Navigator.push(
+                  context,
+                  _slideRoute(const OutsideAttendanceScreen()),
+                );
+              }
+            },
           ),
-        ),
-      ),
 
-      'reports': (isList) => _buildActionItem(
-        isList: isList,
-        key: 'show_reports_card$suffix',
-        user: user,
-        label: "របាយការណ៍វត្តមាន",
-        subtitle: "ពិនិត្យរបាយការណ៍វត្តមាន និងអវត្តមាន",
-        icon: Icons.insert_chart_rounded,
-        color: const Color(0xFF10B981),
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const AttendanceReportScreen()),
-        ),
-      ),
+      'training_quiz':
+          (isList) => _buildActionItem(
+            isList: isList,
+            key: 'show_training_quiz_card$suffix',
+            user: user,
+            label: "វគ្គបណ្ដុះបណ្ដាល",
+            subtitle: "ឆ្លើយសំណួរដើម្បីទទួលបានមេដាយ",
+            icon: Icons.psychology_rounded,
+            color: Colors.orangeAccent,
+            onTap:
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const TrainingQuizScreen()),
+                ),
+          ),
 
-      'material_request': (isList) => _buildActionItem(
-        isList: isList,
-        key: 'show_material_request_card$suffix',
-        user: user,
-        label: "ស្នើសុំសម្ភារៈ",
-        subtitle: "ស្នើសុំសម្ភារៈប្រើប្រាស់ក្នុងស្តុក",
-        icon: Icons.inventory_2_rounded,
-        color: Colors.cyanAccent,
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const MaterialRequestScreen()),
-        ),
-      ),
+      'product_analyzer':
+          (isList) => _buildActionItem(
+            isList: isList,
+            key: 'show_product_analyzer_card$suffix',
+            user: user,
+            label: "វិភាគផលិតផល",
+            subtitle: "ថតរូប ឬ Scan Barcode ដើម្បីឱ្យ AI វិភាគ",
+            icon: Icons.document_scanner_rounded,
+            color: AppTheme.primary,
+            onTap:
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const ProductAnalyzerScreen(),
+                  ),
+                ),
+          ),
 
-      'notification': (isList) => _buildActionItem(
-        isList: isList,
-        key: 'show_notification_card$suffix',
-        user: user,
-        label: "ផ្ញើការជូនដំណឹង",
-        subtitle: "Push notification ទៅបុគ្គលិក",
-        icon: Icons.send_rounded,
-        color: Colors.orangeAccent,
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const SendNotificationScreen()),
-        ),
-      ),
+      'poll_voting':
+          (isList) => _buildActionItem(
+            isList: isList,
+            key: 'show_poll_voting_card$suffix',
+            user: user,
+            label: "បោះឆ្នោតបុគ្គលិក",
+            subtitle: "ចូលរួមបោះឆ្នោតបុគ្គលិកល្អ",
+            icon: Icons.how_to_vote_rounded,
+            color: AppTheme.primary,
+            onTap:
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const PollVotingScreen()),
+                ),
+          ),
 
-      'notification_history': (isList) => _buildActionItem(
-        isList: isList,
-        key: 'show_notification_history_card$suffix',
-        user: user,
-        label: "ប្រវត្តិជូនដំណឹង",
-        subtitle: "ពិនិត្យប្រវត្តិទទួលបានដំណឹង",
-        icon: Icons.notifications_rounded,
-        color: Colors.orangeAccent,
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const NotificationScreen()),
-        ),
-      ),
+      'announcements':
+          (isList) => _buildActionItem(
+            isList: isList,
+            key: 'show_announcements_card$suffix',
+            user: user,
+            label: "ការជូនដំណឹង",
+            subtitle: "គ្រប់គ្រង និងប្រកាសព័ត៌មានទូទៅ",
+            icon: Icons.campaign_rounded,
+            color: Colors.deepPurpleAccent,
+            onTap:
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const AnnouncementsScreen(),
+                  ),
+                ),
+          ),
 
-      'employee_report': (isList) => _buildActionItem(
-        isList: isList,
-        key: 'show_employee_report_card$suffix',
-        user: user,
-        label: "របាយការណ៍វត្តមាន",
-        subtitle: "ពិនិត្យរបាយការណ៍វត្តមានប្រចាំសាខា",
-        icon: Icons.recent_actors_rounded,
-        color: Colors.pinkAccent,
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const EmployeeReportScreen()),
-        ),
-      ),
+      'meetings':
+          (isList) => _buildActionItem(
+            isList: isList,
+            key: 'show_meetings_card$suffix',
+            user: user,
+            label: "កិច្ចប្រជុំ",
+            subtitle: "រៀបចំ និងកំណត់កាលវិភាគប្រជុំ",
+            icon: Icons.groups_rounded,
+            color: Colors.indigoAccent,
+            onTap:
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const MeetingsScreen()),
+                ),
+          ),
 
-      'trip': (isList) => _buildActionItem(
-        isList: isList,
-        key: 'show_trip_card$suffix',
-        user: user,
-        label: "ការធ្វើដំណើរ",
-        subtitle: "តាមដាន និងកត់ត្រាការចុះជួបអតិថិជន",
-        icon: Icons.directions_car_rounded,
-        color: const Color(0xFF10B981),
-        onTap: () {
-          if (user.isHRM || user.isAdmin) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const TripReportScreen()),
-            );
-          } else {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const TripScreen()),
-            );
-          }
-        },
-      ),
+      'checklist':
+          (isList) => _buildActionItem(
+            isList: isList,
+            key: 'show_checklist_card$suffix',
+            user: user,
+            label: "បញ្ជីការងារ",
+            subtitle: "តាមដានកិច្ចការងារប្រចាំថ្ងៃ",
+            icon: Icons.checklist_rounded,
+            color: Colors.tealAccent,
+            onTap:
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ChecklistScreen()),
+                ),
+          ),
 
-      'payroll': (isList) => _buildActionItem(
-        isList: isList,
-        key: 'show_payroll_card$suffix',
-        user: user,
-        label: "ប្រាក់បៀវត្ស",
-        subtitle: "ពិនិត្យមើលប្រវត្តិបើកប្រាក់ខែ",
-        icon: Icons.payments_rounded,
-        color: Colors.greenAccent.shade700,
-        onTap: () {
-          _hapticLight();
-          if (user.isHRM || user.isAdmin || user.isAccounting) {
-            Navigator.push(context, _slideRoute(const PayrollAdminScreen()));
-          } else {
-            Navigator.push(context, _slideRoute(const PayrollScreen()));
-          }
-        },
-      ),
+      'daily_report':
+          (isList) => _buildActionItem(
+            isList: isList,
+            key: 'show_daily_report_card$suffix',
+            user: user,
+            label: "របាយការណ៍ប្រចាំថ្ងៃ",
+            subtitle: "បញ្ជូនរបាយការណ៍ការងារប្រចាំថ្ងៃ",
+            icon: Icons.summarize_rounded,
+            color: Colors.lightGreenAccent,
+            onTap:
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const DailyReportScreen()),
+                ),
+          ),
 
-      'kpi': (isList) => _buildActionItem(
-        isList: isList,
-        key: 'show_kpi_card$suffix',
-        user: user,
-        label: "ការវាយតម្លៃ KPI/OKR",
-        subtitle: "តាមដាន និងវាយតម្លៃការងារ",
-        icon: Icons.auto_graph_rounded,
-        color: const Color(0xFF8B5CF6),
-        onTap: () {
-          _hapticLight();
-          Navigator.push(context, _slideRoute(const KpiPerformanceScreen()));
-        },
-      ),
+      'mission':
+          (isList) => _buildActionItem(
+            isList: isList,
+            key: 'show_mission_card$suffix',
+            user: user,
+            label: "លិខិតបេសកកម្ម",
+            subtitle: "ស្នើសុំចេញបេសកកម្មខាងក្រៅ",
+            icon: Icons.map_rounded,
+            color: Colors.blueAccent,
+            onTap:
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const MissionScreen()),
+                ),
+          ),
 
-      'document_scanner': (isList) => _buildActionItem(
-        isList: isList,
-        key: 'show_document_scanner_card$suffix',
-        user: user,
-        label: "ស្កេនឯកសារ",
-        subtitle: "ស្កេនឯកសារអាជីព",
-        icon: Icons.document_scanner_outlined,
-        color: Colors.orange,
-        onTap: () {
-          _hapticLight();
-          Navigator.push(
-            context,
-            _slideRoute(const DocumentScannerScreen()),
-          );
-        },
-      ),
+      'user_management':
+          (isList) => _buildActionItem(
+            isList: isList,
+            key: 'show_user_management_card$suffix',
+            user: user,
+            label: "គ្រប់គ្រងបុគ្គលិក",
+            subtitle: "បន្ថែម កែប្រែ និងពិនិត្យទិន្នន័យបុគ្គលិក",
+            icon: Icons.people_alt_rounded,
+            color: AppTheme.primary,
+            onTap:
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const UserManagementScreen(),
+                  ),
+                ),
+          ),
 
-      'app_settings': (isList) => _buildActionItem(
-        isList: isList,
-        key: 'show_app_settings$suffix',
-        user: user,
-        label: "ការកំណត់កម្មវិធី",
-        subtitle: "គ្រប់គ្រងការបង្ហាញមុខងារ",
-        icon: Icons.settings_rounded,
-        color: Colors.grey.shade700,
-        onTap: () {
-          _hapticLight();
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const AppSettingsScreen()),
-          );
-        },
-      ),
+      'request_form':
+          (isList) => _buildActionItem(
+            isList: isList,
+            key: 'show_request_form_card$suffix',
+            user: user,
+            label: "បញ្ជីសំណើ",
+            subtitle: "គ្រប់គ្រងសំណើច្បាប់ឈប់សម្រាក",
+            icon: Icons.list_alt_rounded,
+            color: AppTheme.primary,
+            onTap:
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder:
+                        (_) =>
+                            (user.isHRM || user.isAdmin)
+                                ? const RequestListScreen()
+                                : const RequestsScreen(),
+                  ),
+                ),
+          ),
 
-      'stats_slider': (isList) =>
-          _canShowRoleAction(user, 'show_stats_slider$suffix', suffix)
-          ? Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: _buildStatsSlider(user),
-            )
-          : const SizedBox.shrink(),
+      'reports':
+          (isList) => _buildActionItem(
+            isList: isList,
+            key: 'show_reports_card$suffix',
+            user: user,
+            label: "របាយការណ៍វត្តមាន",
+            subtitle: "ពិនិត្យរបាយការណ៍វត្តមាន និងអវត្តមាន",
+            icon: Icons.insert_chart_rounded,
+            color: AppTheme.primary,
+            onTap:
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const AttendanceReportScreen(),
+                  ),
+                ),
+          ),
+
+      'material_request':
+          (isList) => _buildActionItem(
+            isList: isList,
+            key: 'show_material_request_card$suffix',
+            user: user,
+            label: "ស្នើសុំសម្ភារៈ",
+            subtitle: "ស្នើសុំសម្ភារៈប្រើប្រាស់ក្នុងស្តុក",
+            icon: Icons.inventory_2_rounded,
+            color: Colors.cyanAccent,
+            onTap:
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const MaterialRequestScreen(),
+                  ),
+                ),
+          ),
+
+      'notification':
+          (isList) => _buildActionItem(
+            isList: isList,
+            key: 'show_notification_card$suffix',
+            user: user,
+            label: "ផ្ញើការជូនដំណឹង",
+            subtitle: "Push notification ទៅបុគ្គលិក",
+            icon: Icons.send_rounded,
+            color: Colors.orangeAccent,
+            onTap:
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const SendNotificationScreen(),
+                  ),
+                ),
+          ),
+
+      'notification_history':
+          (isList) => _buildActionItem(
+            isList: isList,
+            key: 'show_notification_history_card$suffix',
+            user: user,
+            label: "ប្រវត្តិជូនដំណឹង",
+            subtitle: "ពិនិត្យប្រវត្តិទទួលបានដំណឹង",
+            icon: Icons.notifications_rounded,
+            color: Colors.orangeAccent,
+            onTap:
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const NotificationScreen()),
+                ),
+          ),
+
+      'employee_report':
+          (isList) => _buildActionItem(
+            isList: isList,
+            key: 'show_employee_report_card$suffix',
+            user: user,
+            label: "របាយការណ៍វត្តមាន",
+            subtitle: "ពិនិត្យរបាយការណ៍វត្តមានប្រចាំសាខា",
+            icon: Icons.recent_actors_rounded,
+            color: Colors.pinkAccent,
+            onTap:
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const EmployeeReportScreen(),
+                  ),
+                ),
+          ),
+
+      'trip':
+          (isList) => _buildActionItem(
+            isList: isList,
+            key: 'show_trip_card$suffix',
+            user: user,
+            label: "ការធ្វើដំណើរ",
+            subtitle: "តាមដាន និងកត់ត្រាការចុះជួបអតិថិជន",
+            icon: Icons.directions_car_rounded,
+            color: AppTheme.primary,
+            onTap: () {
+              if (user.isHRM || user.isAdmin) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const TripReportScreen()),
+                );
+              } else {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const TripScreen()),
+                );
+              }
+            },
+          ),
+
+      'payroll':
+          (isList) => _buildActionItem(
+            isList: isList,
+            key: 'show_payroll_card$suffix',
+            user: user,
+            label: "ប្រាក់បៀវត្ស",
+            subtitle: "ពិនិត្យមើលប្រវត្តិបើកប្រាក់ខែ",
+            icon: Icons.payments_rounded,
+            color: AppTheme.primary.shade700,
+            onTap: () {
+              _hapticLight();
+              if (user.isHRM || user.isAdmin || user.isAccounting) {
+                Navigator.push(
+                  context,
+                  _slideRoute(const PayrollAdminScreen()),
+                );
+              } else {
+                Navigator.push(context, _slideRoute(const PayrollScreen()));
+              }
+            },
+          ),
+
+      'kpi':
+          (isList) => _buildActionItem(
+            isList: isList,
+            key: 'show_kpi_card$suffix',
+            user: user,
+            label: "ការវាយតម្លៃ KPI/OKR",
+            subtitle: "តាមដាន និងវាយតម្លៃការងារ",
+            icon: Icons.auto_graph_rounded,
+            color: AppTheme.primary,
+            onTap: () {
+              _hapticLight();
+              Navigator.push(
+                context,
+                _slideRoute(const KpiPerformanceScreen()),
+              );
+            },
+          ),
+
+      'document_scanner':
+          (isList) => _buildActionItem(
+            isList: isList,
+            key: 'show_document_scanner_card$suffix',
+            user: user,
+            label: "ស្កេនឯកសារ",
+            subtitle: "ស្កេនឯកសារអាជីព",
+            icon: Icons.document_scanner_outlined,
+            color: Colors.orange,
+            onTap: () {
+              _hapticLight();
+              Navigator.push(
+                context,
+                _slideRoute(const DocumentScannerScreen()),
+              );
+            },
+          ),
+
+      'app_settings':
+          (isList) => _buildActionItem(
+            isList: isList,
+            key: 'show_app_settings$suffix',
+            user: user,
+            label: "ការកំណត់កម្មវិធី",
+            subtitle: "គ្រប់គ្រងការបង្ហាញមុខងារ",
+            icon: Icons.settings_rounded,
+            color: Colors.grey.shade700,
+            onTap: () {
+              _hapticLight();
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AppSettingsScreen()),
+              );
+            },
+          ),
+
+      'stats_slider':
+          (isList) =>
+              _canShowRoleAction(user, 'show_stats_slider$suffix', suffix)
+                  ? Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: _buildStatsSlider(user),
+                  )
+                  : const SizedBox.shrink(),
     };
 
     final isListLayout = layoutType == 'list';
@@ -2546,11 +2581,11 @@ class _HomeContentState extends State<HomeContent> {
       if (!actionBuilders.containsKey(key)) continue;
 
       // Pre-check visibility: skip hidden items (SizedBox.shrink has null width)
-      final bool isFullWidth = key == 'attendance' ||
-          key == 'stats_slider';
+      final bool isFullWidth = key == 'attendance' || key == 'stats_slider';
 
       // Check visibility before building the actual widget
-      final bool isVisible = actionBuilders.containsKey(key) &&
+      final bool isVisible =
+          actionBuilders.containsKey(key) &&
           _canShowRoleAction(
             user,
             _visibilityKeyForAction(key, suffix),
@@ -2655,7 +2690,9 @@ class _HomeContentState extends State<HomeContent> {
       return false;
     }
     // App settings only for HRM and Admin
-    if (configKey.contains('app_settings') && suffix != '__hrm' && suffix != '__admin') {
+    if (configKey.contains('app_settings') &&
+        suffix != '__hrm' &&
+        suffix != '__admin') {
       return false;
     }
     return true;
