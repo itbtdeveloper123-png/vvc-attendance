@@ -196,6 +196,7 @@ class UserProvider with ChangeNotifier {
   String? _phone;
   String? _email;
   bool _isLoggedIn = false;
+  bool _isInitialized = false;
   bool _isVerified = false;
   bool _faceScanEnabled = true;
   bool _faceRegistered = false;
@@ -216,6 +217,7 @@ class UserProvider with ChangeNotifier {
   String? get phone => _phone;
   String? get email => _email;
   bool get isVerified => _isVerified;
+  bool get isInitialized => _isInitialized;
   bool get faceScanEnabled => _faceScanEnabled;
   bool get faceRegistered => _faceRegistered;
   int get attendanceStreak => _attendanceStreak;
@@ -419,47 +421,78 @@ class UserProvider with ChangeNotifier {
   }
 
   Future<void> loadSavedUser() async {
-    final prefs = await SharedPreferences.getInstance();
-    final secureStorage = SecureStorageService();
-    _token = await secureStorage.read('auth_token') ?? prefs.getString('auth_token');
-    _employeeId = await secureStorage.read('employee_id') ?? prefs.getString('employee_id');
-    if (_token != null && _token!.isNotEmpty) {
-      await prefs.setString('auth_token', _token!);
-    }
-    if (_employeeId != null && _employeeId!.isNotEmpty) {
-      await prefs.setString('employee_id', _employeeId!);
-    }
-    _name = prefs.getString('user_name');
-    _avatar = prefs.getString('avatar');
-    _userType = prefs.getString('scan_user_type');
-    _legacyUserRole = prefs.getString('user_role');
-    _systemRoleStr = prefs.getString('system_role') ?? 'Employee';
-    _systemRoleLabel = prefs.getString('system_role_label') ?? '';
-    _department = prefs.getString('user_department');
-    _position = prefs.getString('user_position');
-    _branch = prefs.getString('user_branch');
-    _phone = prefs.getString('user_phone');
-    _email = prefs.getString('user_email');
-    _isVerified = prefs.getBool('is_verified') ?? false;
-    _faceScanEnabled = prefs.getBool('face_scan_enabled') ?? true;
-    _faceRegistered = prefs.getBool('face_registered') ?? false;
-    _attendanceStreak = prefs.getInt('attendance_streak') ?? 0;
-    _voiceControlEnabled = prefs.getBool('voice_control_enabled') ?? false;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _token = prefs.getString('auth_token');
+      _employeeId = prefs.getString('employee_id');
+      _name = prefs.getString('user_name');
+      _avatar = prefs.getString('avatar');
+      _userType = prefs.getString('scan_user_type');
+      _legacyUserRole = prefs.getString('user_role');
+      _systemRoleStr = prefs.getString('system_role') ?? 'Employee';
+      _systemRoleLabel = prefs.getString('system_role_label') ?? '';
+      _department = prefs.getString('user_department');
+      _position = prefs.getString('user_position');
+      _branch = prefs.getString('user_branch');
+      _phone = prefs.getString('user_phone');
+      _email = prefs.getString('user_email');
+      _isVerified = prefs.getBool('is_verified') ?? false;
+      _faceScanEnabled = prefs.getBool('face_scan_enabled') ?? true;
+      _faceRegistered = prefs.getBool('face_registered') ?? false;
+      _attendanceStreak = prefs.getInt('attendance_streak') ?? 0;
+      _voiceControlEnabled = prefs.getBool('voice_control_enabled') ?? false;
 
-    final savedSettings = prefs.getString('app_settings');
-    if (savedSettings != null) {
-      try {
-        _settings = Map<String, dynamic>.from(json.decode(savedSettings));
-      } catch (_) {}
+      final savedSettings = prefs.getString('app_settings');
+      if (savedSettings != null) {
+        try {
+          _settings = Map<String, dynamic>.from(json.decode(savedSettings));
+        } catch (_) {}
+      }
+
+      if (_token != null && _employeeId != null && _token!.isNotEmpty && _employeeId!.isNotEmpty) {
+        _isLoggedIn = true;
+        _refreshFcmTokenSilently();
+      }
+    } finally {
+      _isInitialized = true;
+      notifyListeners();
     }
 
-    if (_token != null && _employeeId != null) {
-      _isLoggedIn = true;
+    // Silent background sync with SecureStorage without blocking UI
+    _syncSecureStorageSilently();
+  }
 
-      // Refresh FCM Token in background (non-blocking — works offline)
-      _refreshFcmTokenSilently();
-    }
-    notifyListeners();
+  void _syncSecureStorageSilently() async {
+    try {
+      final secureStorage = SecureStorageService();
+      final secureToken = await secureStorage.read('auth_token');
+      final secureEmpId = await secureStorage.read('employee_id');
+      final prefs = await SharedPreferences.getInstance();
+
+      bool changed = false;
+      if (secureToken != null && secureToken.isNotEmpty && secureToken != _token) {
+        _token = secureToken;
+        await prefs.setString('auth_token', secureToken);
+        changed = true;
+      } else if (_token != null && _token!.isNotEmpty && (secureToken == null || secureToken.isEmpty)) {
+        await secureStorage.write('auth_token', _token!);
+      }
+
+      if (secureEmpId != null && secureEmpId.isNotEmpty && secureEmpId != _employeeId) {
+        _employeeId = secureEmpId;
+        await prefs.setString('employee_id', secureEmpId);
+        changed = true;
+      } else if (_employeeId != null && _employeeId!.isNotEmpty && (secureEmpId == null || secureEmpId.isEmpty)) {
+        await secureStorage.write('employee_id', _employeeId!);
+      }
+
+      if (changed) {
+        if (_token != null && _employeeId != null && _token!.isNotEmpty && _employeeId!.isNotEmpty) {
+          _isLoggedIn = true;
+        }
+        notifyListeners();
+      }
+    } catch (_) {}
   }
 
   /// Refresh FCM token silently in the background (fire-and-forget).

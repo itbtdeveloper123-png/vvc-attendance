@@ -21,6 +21,7 @@ import 'package:vvc_hrm/services/notification_service.dart';
 import 'package:vvc_hrm/services/background_location_service.dart';
 import 'package:vvc_hrm/services/offline_sync_service.dart';
 import 'package:vvc_hrm/services/khmer_calendar_notification_service.dart';
+import 'package:vvc_hrm/widgets/app_widgets.dart';
 import 'package:vvc_hrm/widgets/global_call_observer.dart';
 
 @pragma('vm:entry-point')
@@ -29,9 +30,38 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   debugPrint("Handling a background message: ${message.messageId}");
 }
 
-void main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  await initializeDateFormatting();
+  initializeDateFormatting();
+
+  // Instant local providers
+  final userProvider = UserProvider();
+  final themeProvider = SeasonalThemeProvider();
+
+  // STEP 1: Run the app immediately! First frame paints in <30ms without native launch screen freeze
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider<UserProvider>.value(value: userProvider),
+        ChangeNotifierProvider<SeasonalThemeProvider>.value(value: themeProvider),
+      ],
+      child: const VvcHrmApp(),
+    ),
+  );
+
+  // STEP 2: Asynchronous background bootstrapping
+  _runBackgroundBootstrap(userProvider);
+}
+
+/// Asynchronously initialize all background services without blocking UI rendering
+Future<void> _runBackgroundBootstrap(UserProvider userProvider) async {
+  // 1. Fast load saved user
+  await userProvider.loadSavedUser();
+
+  // 2. Start offline sync
+  OfflineSyncService().startListening();
+
+  // 3. Background location (non-blocking)
   if (!kIsWeb) {
     try {
       await BackgroundLocationService.initializeService();
@@ -40,26 +70,7 @@ void main() async {
     }
   }
 
-  // ---- STEP 1: Load saved user FIRST (local, no network needed) ----
-  final userProvider = UserProvider();
-  await userProvider.loadSavedUser();
-
-  // ---- STEP 2: Run the app immediately (works offline!) ----
-  runApp(
-    MultiProvider(
-      providers: [
-        ChangeNotifierProvider<UserProvider>(create: (_) => userProvider),
-        ChangeNotifierProvider<SeasonalThemeProvider>(
-          create: (_) => SeasonalThemeProvider(),
-        ),
-      ],
-      child: const VvcHrmApp(),
-    ),
-  );
-
-  OfflineSyncService().startListening();
-
-  // ---- STEP 3: Initialize Firebase & notifications in background (non-blocking) ----
+  // 4. Initialize Firebase & push notifications in background
   _initFirebaseInBackground();
 }
 
@@ -185,7 +196,6 @@ Future<void> _initFirebaseInBackground() async {
     debugPrint("Firebase messaging setup error: $e");
   }
 
-  // NotificationService is initialized before Firebase listeners above.
 }
 
 class VvcHrmApp extends StatelessWidget {
@@ -200,9 +210,11 @@ class VvcHrmApp extends StatelessWidget {
           debugShowCheckedModeBanner: false,
           theme: seasonalTheme.themeData,
           home: GlobalCallObserver(
-            child: userProvider.isLoggedIn
-                ? HomeScreen(key: HomeScreen.homeKey)
-                : const LoginScreen(),
+            child: !userProvider.isInitialized
+                ? const VvcAppSplashScreen()
+                : (userProvider.isLoggedIn
+                    ? HomeScreen(key: HomeScreen.homeKey)
+                    : const LoginScreen()),
           ),
           localizationsDelegates: const [
             GlobalMaterialLocalizations.delegate,

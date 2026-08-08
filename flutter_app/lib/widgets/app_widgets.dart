@@ -1643,3 +1643,84 @@ class VvcAppBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Size get preferredSize => Size.fromHeight((toolbarHeight ?? kToolbarHeight) + (bottom?.preferredSize.height ?? 0.0));
 }
+
+/// A sleek, animated splash screen shown immediately on startup
+/// to avoid blank/grey native launch delays.
+class VvcAppSplashScreen extends StatelessWidget {
+  const VvcAppSplashScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0F172A),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Gold Glowing Logo Icon
+            Container(
+              width: 90,
+              height: 90,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: const RadialGradient(
+                  colors: [
+                    Color(0xFFF59E0B),
+                    Color(0xFFD97706),
+                    Color(0xFFB45309),
+                  ],
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFF59E0B).withValues(alpha: 0.35),
+                    blurRadius: 32,
+                    spreadRadius: 4,
+                  ),
+                ],
+              ),
+              child: const Center(
+                child: Icon(
+                  Icons.access_time_filled_rounded,
+                  color: Colors.white,
+                  size: 46,
+                ),
+              ),
+            ),
+            const SizedBox(height: 28),
+            // Title
+            Text(
+              'VVC HRM',
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontSize: 26,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.2,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'ប្រព័ន្ធគ្រប់គ្រងវត្តមាន និងបុគ្គលិក',
+              style: GoogleFonts.kantumruyPro(
+                color: Colors.white.withValues(alpha: 0.65),
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 36),
+            // Subtle loader
+            SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  const Color(0xFFF59E0B).withValues(alpha: 0.8),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

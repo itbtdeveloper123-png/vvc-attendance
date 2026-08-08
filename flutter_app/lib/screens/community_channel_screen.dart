@@ -12,6 +12,7 @@ import 'package:image/image.dart' as img;
 import '../providers/user_provider.dart';
 import '../services/api_service.dart';
 import '../services/r2_storage_service.dart';
+import 'notification_screen.dart';
 
 class _CommunityDark {
   static const Color bg = Color(0xFF0F172A);
@@ -35,6 +36,8 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
 
   late final Stream<QuerySnapshot> _postsStream;
   String _selectedTab = 'All';
+  bool _isSearching = false;
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
@@ -43,6 +46,15 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
         .collection('community_posts')
         .orderBy('createdAt', descending: true)
         .snapshots();
+    _searchController.addListener(() {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   // Facebook Reactions Configuration
@@ -677,11 +689,17 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                           );
                         }
 
-                        if (!snapshot.hasData) {
-                          return const Center(child: CircularProgressIndicator(color: _CommunityDark.accent));
+                        if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+                          return const Center(
+                            child: SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(color: _CommunityDark.accent, strokeWidth: 2.5),
+                            ),
+                          );
                         }
 
-                        final comments = List<DocumentSnapshot>.from(snapshot.data!.docs);
+                        final comments = snapshot.hasData ? List<DocumentSnapshot>.from(snapshot.data!.docs) : <DocumentSnapshot>[];
                         // Sort by createdAt ascending safely on client side
                         comments.sort((a, b) {
                           final aData = a.data() as Map<String, dynamic>?;
@@ -884,26 +902,70 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                 child: Row(
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 22),
+                      icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
                       onPressed: () => Navigator.pop(context),
                     ),
-                    Text(
-                      'VVC Community',
-                      style: GoogleFonts.inter(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: -0.5,
+                    Expanded(
+                      child: _isSearching
+                          ? TextField(
+                              controller: _searchController,
+                              autofocus: true,
+                              style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 14.5),
+                              decoration: InputDecoration(
+                                hintText: 'ស្វែងរកព័ត៌មាន ឬអ្នកបង្ហោះ...',
+                                hintStyle: GoogleFonts.kantumruyPro(color: Colors.white38, fontSize: 13.5),
+                                filled: true,
+                                fillColor: const Color(0xFF1E293B),
+                                isDense: true,
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                  borderSide: BorderSide.none,
+                                ),
+                                prefixIcon: const Icon(Icons.search_rounded, color: Colors.white60, size: 18),
+                                suffixIcon: _searchController.text.isNotEmpty
+                                    ? IconButton(
+                                        icon: const Icon(Icons.clear_rounded, color: Colors.white60, size: 18),
+                                        onPressed: () => _searchController.clear(),
+                                      )
+                                    : null,
+                              ),
+                            )
+                          : Text(
+                              'VVC Community',
+                              style: GoogleFonts.inter(
+                                color: Colors.white,
+                                fontSize: 20,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: -0.5,
+                              ),
+                            ),
+                    ),
+                    IconButton(
+                      icon: Icon(
+                        _isSearching ? Icons.close_rounded : Icons.search_rounded,
+                        color: _isSearching ? _CommunityDark.accent : Colors.white,
+                        size: 24,
                       ),
+                      onPressed: () {
+                        setState(() {
+                          _isSearching = !_isSearching;
+                          if (!_isSearching) {
+                            _searchController.clear();
+                          }
+                        });
+                      },
                     ),
-                    const Spacer(),
                     IconButton(
-                      icon: const Icon(Icons.search_rounded, color: Colors.white, size: 26),
-                      onPressed: () {},
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.notifications_none_rounded, color: Colors.white, size: 26),
-                      onPressed: () {},
+                      icon: const Icon(Icons.notifications_none_rounded, color: Colors.white, size: 24),
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const NotificationScreen(),
+                          ),
+                        );
+                      },
                     ),
                   ],
                 ),
@@ -912,27 +974,32 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
                 child: Row(
-                  children: ['All', 'Announcements', 'Trending'].map((tab) {
-                    final isSelected = _selectedTab == tab;
+                  children: [
+                    {'id': 'All', 'label': 'All'},
+                    {'id': 'Announcements', 'label': 'Announcements'},
+                    {'id': 'Trending', 'label': 'Trending'},
+                  ].map((tabMap) {
+                    final tabId = tabMap['id']!;
+                    final isSelected = _selectedTab == tabId;
                     return GestureDetector(
-                      onTap: () => setState(() => _selectedTab = tab),
+                      onTap: () => setState(() => _selectedTab = tabId),
                       child: Container(
-                        margin: const EdgeInsets.only(right: 12),
+                        margin: const EdgeInsets.only(right: 10),
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                         decoration: BoxDecoration(
-                          color: isSelected ? _CommunityDark.card : Colors.transparent,
+                          color: isSelected ? _CommunityDark.accent.withValues(alpha: 0.15) : _CommunityDark.card,
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: isSelected ? _CommunityDark.accent.withValues(alpha: 0.5) : const Color(0xFF334155),
-                            width: 1,
+                            color: isSelected ? _CommunityDark.accent : const Color(0xFF334155),
+                            width: isSelected ? 1.5 : 1,
                           ),
                         ),
                         child: Text(
-                          tab,
+                          tabId,
                           style: GoogleFonts.inter(
                             color: isSelected ? _CommunityDark.accent : Colors.white70,
-                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                            fontSize: 14,
+                            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                            fontSize: 13.5,
                           ),
                         ),
                       ),
@@ -967,11 +1034,49 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
       body: StreamBuilder<QuerySnapshot>(
         stream: _postsStream,
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
+          if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
             return const Center(child: CircularProgressIndicator(color: _CommunityDark.accent));
           }
 
-          final posts = snapshot.hasData ? snapshot.data!.docs : [];
+          var posts = snapshot.hasData ? List<DocumentSnapshot>.from(snapshot.data!.docs) : <DocumentSnapshot>[];
+
+          // 1. Search Query Filter
+          final query = _searchController.text.trim().toLowerCase();
+          if (query.isNotEmpty) {
+            posts = posts.where((doc) {
+              final data = doc.data() as Map<String, dynamic>;
+              final content = (data['content'] ?? '').toString().toLowerCase();
+              final authorName = (data['authorName'] ?? '').toString().toLowerCase();
+              final roleTag = (data['roleTag'] ?? '').toString().toLowerCase();
+              return content.contains(query) || authorName.contains(query) || roleTag.contains(query);
+            }).toList();
+          }
+
+          // 2. Tab Category Filter & Sorting
+          if (_selectedTab == 'Announcements') {
+            posts = posts.where((doc) {
+              final data = doc.data() as Map<String, dynamic>;
+              final roleTag = (data['roleTag'] ?? '').toString().toLowerCase();
+              return data['isAnnouncement'] == true ||
+                  roleTag.contains('announcement') ||
+                  roleTag.contains('official') ||
+                  roleTag.contains('admin') ||
+                  roleTag.contains('hrm');
+            }).toList();
+          } else if (_selectedTab == 'Trending') {
+            // Sort by total engagement (likes + comments) descending
+            posts.sort((a, b) {
+              final aData = a.data() as Map<String, dynamic>;
+              final bData = b.data() as Map<String, dynamic>;
+              final aReactions = (aData['reactionsMap'] as Map?)?.length ?? (aData['likes'] as List?)?.length ?? 0;
+              final bReactions = (bData['reactionsMap'] as Map?)?.length ?? (bData['likes'] as List?)?.length ?? 0;
+              final aComments = (aData['commentsCount'] as num?)?.toInt() ?? 0;
+              final bComments = (bData['commentsCount'] as num?)?.toInt() ?? 0;
+              final aScore = aReactions + aComments;
+              final bScore = bReactions + bComments;
+              return bScore.compareTo(aScore);
+            });
+          }
 
           return CustomScrollView(
             slivers: [
