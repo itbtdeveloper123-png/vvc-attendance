@@ -307,78 +307,72 @@ class HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildBottomNav(UserProvider user) {
-    final hPad = AppResponsive.horizontalPadding(context);
     final bottomInset = MediaQuery.paddingOf(context).bottom;
-    return Container(
-      margin: EdgeInsets.fromLTRB(hPad, 0, hPad, bottomInset + 14),
-      decoration: BoxDecoration(
-        color: AppTheme.bgCard,
-        borderRadius: BorderRadius.circular(30),
-        border: Border.all(
-          color: AppTheme.textPrimary.withValues(alpha: 0.08),
-          width: 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.4),
-            blurRadius: 25,
-            offset: const Offset(0, 10),
+    return ClipRRect(
+      child: BackdropFilter(
+        filter: ui.ImageFilter.blur(sigmaX: 20.0, sigmaY: 20.0),
+        child: Container(
+          decoration: BoxDecoration(
+            color: AppTheme.bgDark.withValues(alpha: 0.65),
+            border: Border(
+              top: BorderSide(
+                color: AppTheme.textPrimary.withValues(alpha: 0.1),
+                width: 0.5,
+              ),
+            ),
           ),
-        ],
-      ),
-      child: Padding(
-        padding: EdgeInsets.symmetric(
-          horizontal: AppResponsive.isCompact(context) ? 8 : 15,
-          vertical: 8,
-        ),
-        child: GNav(
-          rippleColor: AppTheme.primary.withValues(alpha: 0.3),
-          hoverColor: AppTheme.primary.withValues(alpha: 0.1),
-          gap: 8,
-          activeColor: AppTheme.primary,
-          iconSize: 24,
-          padding: EdgeInsets.symmetric(
-            horizontal: AppResponsive.isCompact(context) ? 14 : 20,
-            vertical: 12,
+          padding: EdgeInsets.only(
+            bottom: bottomInset > 0 ? bottomInset : 12,
+            top: 10,
+            left: 20,
+            right: 20,
           ),
-          duration: const Duration(milliseconds: 400),
-          tabBackgroundColor: AppTheme.primary.withValues(alpha: 0.1),
-          color: AppTheme.textMuted,
-          tabs: [
-            GButton(
-              icon: Icons.dashboard_rounded,
-              text: 'ទំព័រដើម',
-              textStyle: GoogleFonts.kantumruyPro(
-                color: AppTheme.primary,
-                fontWeight: FontWeight.bold,
-                fontSize: 13,
+          child: GNav(
+            rippleColor: AppTheme.primary.withValues(alpha: 0.2),
+            hoverColor: AppTheme.primary.withValues(alpha: 0.1),
+            gap: 6,
+            activeColor: AppTheme.primary,
+            iconSize: 26,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            duration: const Duration(milliseconds: 300),
+            tabBackgroundColor: AppTheme.primary.withValues(alpha: 0.1),
+            color: AppTheme.textMuted,
+            tabs: [
+              GButton(
+                icon: Icons.dashboard_rounded,
+                text: 'ទំព័រដើម',
+                textStyle: GoogleFonts.kantumruyPro(
+                  color: AppTheme.primary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
               ),
-            ),
-            GButton(
-              icon: user.isHRM ? Icons.list_alt_rounded : Icons.layers_rounded,
-              text: user.isHRM ? "បញ្ជីសំណើ" : "សំណើ",
-              textStyle: GoogleFonts.kantumruyPro(
-                color: AppTheme.primary,
-                fontWeight: FontWeight.bold,
-                fontSize: 13,
+              GButton(
+                icon: user.isHRM ? Icons.list_alt_rounded : Icons.layers_rounded,
+                text: user.isHRM ? "បញ្ជីសំណើ" : "សំណើ",
+                textStyle: GoogleFonts.kantumruyPro(
+                  color: AppTheme.primary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
               ),
-            ),
-            GButton(
-              icon: Icons.person_rounded,
-              text: 'គណនី',
-              textStyle: GoogleFonts.kantumruyPro(
-                color: AppTheme.primary,
-                fontWeight: FontWeight.bold,
-                fontSize: 13,
+              GButton(
+                icon: Icons.person_rounded,
+                text: 'គណនី',
+                textStyle: GoogleFonts.kantumruyPro(
+                  color: AppTheme.primary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
               ),
-            ),
-          ],
-          selectedIndex: _currentIndex,
-          onTabChange: (index) {
-            setState(() {
-              _currentIndex = index;
-            });
-          },
+            ],
+            selectedIndex: _currentIndex,
+            onTabChange: (index) {
+              setState(() {
+                _currentIndex = index;
+              });
+            },
+          ),
         ),
       ),
     );
@@ -958,16 +952,41 @@ class _HomeContentState extends State<HomeContent> {
                 parent: BouncingScrollPhysics(),
               ),
               slivers: [
+                SliverAppBar(
+                  pinned: true,
+                  floating: true,
+                  elevation: 0,
+                  backgroundColor: Colors.transparent,
+                  surfaceTintColor: Colors.transparent,
+                  toolbarHeight: 70,
+                  titleSpacing: 16,
+                  flexibleSpace: ClipRect(
+                    child: BackdropFilter(
+                      filter: ui.ImageFilter.blur(sigmaX: 20.0, sigmaY: 20.0),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: AppTheme.bgDark.withValues(alpha: 0.75),
+                          border: Border(
+                            bottom: BorderSide(
+                              color: AppTheme.textPrimary.withValues(alpha: 0.05),
+                              width: 0.5,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  title: _buildTopBar(user),
+                ),
                 SliverToBoxAdapter(
                   child: SafeArea(
+                    top: false,
                     bottom: false,
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _buildTopBar(user),
-                          const SizedBox(height: 12),
                           _buildWeatherAndQuoteRow(),
                           const SizedBox(height: 14),
                           _buildWelcomeBanner(user),
