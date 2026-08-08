@@ -363,12 +363,12 @@ class AppStatCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return AppShimmer(
       enabled: isLoading,
-      child: Container(
+      child: AppTheme.glassBox(
+        color: color.withValues(alpha: 0.3),
+        borderColor: color.withValues(alpha: 0.2),
+        radius: AppTheme.radiusXl,
+        blur: 18,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: AppTheme.cardDecoration(
-          radius: AppTheme.radiusXl,
-          borderColor: color.withValues(alpha: 0.24),
-        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -437,20 +437,13 @@ class AppGridAction extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
+      child: AppTheme.glassBox(
+        color: color.withValues(alpha: 0.5),
+        borderColor: color.withValues(alpha: 0.3),
+        radius: 16,
+        blur: 24,
+        glow: true,
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-        decoration: BoxDecoration(
-          color: AppTheme.bgCard,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color.withValues(alpha: 0.22), width: 1.2),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.18),
-              blurRadius: 14,
-              offset: const Offset(0, 7),
-            ),
-          ],
-        ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.center,
@@ -554,21 +547,13 @@ class AttendanceScanCard extends StatelessWidget {
     bool isCheckIn = nextAction == 'Check-In';
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        width: double.infinity,
+      child: AppTheme.glassBox(
+        color: isCheckIn ? AppTheme.primary.withValues(alpha: 0.15) : AppTheme.accent.withValues(alpha: 0.15),
+        borderColor: isCheckIn ? AppTheme.primary.withValues(alpha: 0.4) : AppTheme.accent.withValues(alpha: 0.4),
+        radius: 28,
+        blur: 30,
+        glow: true,
         padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: AppTheme.bgCard,
-          borderRadius: BorderRadius.circular(28),
-          border: Border.all(color: AppTheme.borderColor),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
-              blurRadius: 20,
-              offset: const Offset(0, 10),
-            ),
-          ],
-        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -814,21 +799,13 @@ class AppActionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
+      child: AppTheme.glassBox(
+        color: isHighlighted ? iconColor.withValues(alpha: 0.2) : iconColor.withValues(alpha: 0.1),
+        borderColor: isHighlighted ? iconColor.withValues(alpha: 0.4) : iconColor.withValues(alpha: 0.2),
+        radius: AppTheme.radiusLg,
+        blur: 24,
+        glow: isHighlighted,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          color: isHighlighted
-              ? iconColor.withValues(alpha: 0.15)
-              : AppTheme.bgCard,
-          borderRadius: BorderRadius.circular(AppTheme.radiusLg),
-          border: Border.all(
-            color: isHighlighted
-                ? iconColor.withValues(alpha: 0.35)
-                : AppTheme.cardBorder,
-            width: 1.2,
-          ),
-          boxShadow: AppTheme.cardShadow,
-        ),
         child: Row(
           children: [
             Container(

@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -17,11 +18,11 @@ class AppTheme {
   static Color info = const Color(0xFF3B82F6);
 
   // Flat dark layers
-  static Color bgDark = const Color(0xFF111827);
+  static Color bgDark = const Color(0xFF000000); // OLED True Black
   static Color bgCard = const Color(0xFF1F2937);
   static Color bgCardLight = const Color(0xFF374151);
-  static Color bgSurface = const Color(0xFF0B1120);
-  static Color cardDark = const Color(0xFF1F2937);
+  static Color bgSurface = const Color(0xFF000000);
+  static Color cardDark = const Color(0xFF111827);
   static Color borderDark = const Color(0xFF475569);
   
   // Additional theme colors for compatibility
@@ -75,6 +76,64 @@ class AppTheme {
       borderRadius: BorderRadius.circular(radius),
       border: Border.all(color: borderColor ?? cardBorder),
       boxShadow: shadows ?? cardShadow,
+    );
+  }
+
+  // === GLASSMORPHISM DECORATIONS ===
+  static BoxDecoration glassDecoration({
+    Color? color,
+    double radius = radiusXl,
+    Color? borderColor,
+    bool glow = false,
+  }) {
+    final baseColor = color ?? Colors.white;
+    return BoxDecoration(
+      color: baseColor.withValues(alpha: 0.08), // Translucent surface
+      borderRadius: BorderRadius.circular(radius),
+      border: Border.all(
+        color: borderColor ?? baseColor.withValues(alpha: 0.15),
+        width: 1.5,
+      ),
+      boxShadow: glow
+          ? [
+              BoxShadow(
+                color: baseColor.withValues(alpha: 0.15),
+                blurRadius: 20,
+                spreadRadius: -5,
+              )
+            ]
+          : [],
+    );
+  }
+
+  static Widget glassBox({
+    required Widget child,
+    Color? color,
+    double radius = radiusXl,
+    Color? borderColor,
+    bool glow = false,
+    double blur = 16.0,
+    EdgeInsetsGeometry? padding,
+    EdgeInsetsGeometry? margin,
+  }) {
+    return Container(
+      margin: margin,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(radius),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
+          child: Container(
+            padding: padding,
+            decoration: glassDecoration(
+              color: color,
+              radius: radius,
+              borderColor: borderColor,
+              glow: glow,
+            ),
+            child: child,
+          ),
+        ),
+      ),
     );
   }
 

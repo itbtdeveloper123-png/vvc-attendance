@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -923,49 +924,51 @@ class _HomeContentState extends State<HomeContent> {
     final user = Provider.of<UserProvider>(context);
 
     return Container(
-      decoration: BoxDecoration(color: AppTheme.bgSurface),
+      decoration: BoxDecoration(color: AppTheme.bgDark),
       child: Stack(
         children: [
+          // Background Mesh Gradient Glowing Orbs
           Positioned(
-            top: -120,
+            top: -100,
             right: -100,
-            child: IgnorePointer(
-              child: Container(
-                width: 380,
-                height: 380,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppTheme.primary.withValues(alpha: 0.08),
-                ),
+            child: Container(
+              width: 300,
+              height: 300,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppTheme.primary.withValues(alpha: 0.25),
               ),
             ),
           ),
           Positioned(
-            top: 300,
+            top: 250,
             left: -120,
-            child: IgnorePointer(
-              child: Container(
-                width: 320,
-                height: 320,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppTheme.secondary.withValues(alpha: 0.06),
-                ),
+            child: Container(
+              width: 350,
+              height: 350,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFF8B5CF6).withValues(alpha: 0.20), // Purple glow
               ),
             ),
           ),
           Positioned(
             bottom: 100,
-            right: -150,
-            child: IgnorePointer(
-              child: Container(
-                width: 450,
-                height: 450,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppTheme.primary.withValues(alpha: 0.05),
-                ),
+            right: -100,
+            child: Container(
+              width: 300,
+              height: 300,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppTheme.primaryLight.withValues(alpha: 0.25),
               ),
+            ),
+          ),
+          // Blur layer to create the mesh effect
+          Positioned.fill(
+            child: BackdropFilter(
+              filter: ui.ImageFilter.blur(sigmaX: 80, sigmaY: 80),
+              child: Container(color: Colors.transparent),
             ),
           ),
 
@@ -1261,44 +1264,36 @@ class _HomeContentState extends State<HomeContent> {
         _hapticLight();
         onTap();
       },
-      child: Container(
-        margin: const EdgeInsets.only(left: 2),
-        width: 38,
-        height: 38,
-        decoration: BoxDecoration(
-          color: AppTheme.bgCard,
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: Colors.white.withValues(alpha: 0.2),
-            width: 1.2,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.15),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            Icon(icon, color: color ?? Colors.white, size: 24),
-            if (badge)
-              Positioned(
-                top: 10,
-                right: 10,
-                child: Container(
-                  width: 9,
-                  height: 9,
-                  decoration: BoxDecoration(
-                    color: Colors.redAccent,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: AppTheme.bgCard, width: 1.5),
+      child: AppTheme.glassBox(
+        color: Colors.white.withValues(alpha: 0.1),
+        borderColor: Colors.white.withValues(alpha: 0.2),
+        radius: 20,
+        blur: 16,
+        padding: const EdgeInsets.all(0),
+        margin: const EdgeInsets.only(left: 4),
+        child: SizedBox(
+          width: 38,
+          height: 38,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Icon(icon, color: color ?? Colors.white, size: 24),
+              if (badge)
+                Positioned(
+                  top: 10,
+                  right: 10,
+                  child: Container(
+                    width: 9,
+                    height: 9,
+                    decoration: BoxDecoration(
+                      color: Colors.redAccent,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: AppTheme.bgCard, width: 1.5),
+                    ),
                   ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );
