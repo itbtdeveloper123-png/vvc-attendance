@@ -10,6 +10,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import '../providers/user_provider.dart';
 import '../services/api_service.dart';
+import '../services/face_recognizer_service.dart';
 import '../utils/image_compress.dart';
 
 // ========================
@@ -31,6 +32,7 @@ class _FaceSetupScreenState extends State<FaceSetupScreen>
   CameraController? _cameraController;
   FaceDetector? _faceDetector;
   final ApiService _apiService = ApiService();
+  final FaceRecognizerService _faceRecognizer = FaceRecognizerService();
 
   bool _isInitializing = true;
   bool _isFaceDetected = false;
@@ -39,6 +41,9 @@ class _FaceSetupScreenState extends State<FaceSetupScreen>
   bool _cameraError = false;
 
   int _currentStep = 0;
+  // Store photo file paths (not base64) for AI face registration
+  final List<String> _capturedPhotoPaths = [];
+  // Keep base64 for server-side backup
   final List<String> _capturedPhotos = [];
   final List<String> _stepTitles = [
     'ស្ថានភាពទី ១ — ត្រង់ (Straight)',
@@ -212,6 +217,9 @@ class _FaceSetupScreenState extends State<FaceSetupScreen>
       await _cameraController!.stopImageStream();
       await Future.delayed(const Duration(milliseconds: 200));
       final photo = await _cameraController!.takePicture();
+      // Store file path for AI registration (on-device)
+      _capturedPhotoPaths.add(photo.path);
+      // Also encode base64 for server backup
       final b64 = await compressAndEncodeImage(await photo.readAsBytes());
       _capturedPhotos.add(b64);
       _successController.forward(from: 0);
@@ -241,16 +249,47 @@ class _FaceSetupScreenState extends State<FaceSetupScreen>
   Future<void> _submitRegistration() async {
     setState(() => _isSubmitting = true);
     try {
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
+      final userId = userProvider.employeeId ?? 'user';
+
+      // === STEP A: On-device AI Face Registration (FaceNet) ===
+      bool aiRegistrationOk = false;
+      try {
+        // Clear old faces first (re-register)
+        await _faceRecognizer.deleteAllFaces(userId);
+        // Register 3 photos (front, left, right)
+        final labels = ['front', 'left', 'right'];
+        int registered = 0;
+        for (int i = 0; i < _capturedPhotoPaths.length; i++) {
+          final ok = await _faceRecognizer.registerFace(
+            userId: userId,
+            imagePath: _capturedPhotoPaths[i],
+            imageId: labels[i],
+          );
+          if (ok) registered++;
+        }
+        aiRegistrationOk = registered > 0;
+        debugPrint('[FaceSetup] AI registered $registered/3 photos');
+      } catch (e) {
+        debugPrint('[FaceSetup] AI registration warning: $e');
+        // Non-fatal — continue to server registration
+      }
+
+      // === STEP B: Server-side Face Registration (backup) ===
       final result = await _apiService.registerFace(_capturedPhotos);
       if (!mounted) return;
       if (result['success'] == true) {
-        final userProvider = Provider.of<UserProvider>(context, listen: false);
         userProvider.setFaceRegistered(true);
+        if (aiRegistrationOk) {
+          debugPrint('[FaceSetup] ✅ Both AI + Server registration complete!');
+        } else {
+          debugPrint('[FaceSetup] ✅ Server registration complete (AI fallback).');
+        }
         _showSuccessDialog();
       } else {
         _showError(result['message'] ?? 'ចុះឈ្មោះបានបរាជ័យ');
         setState(() {
-          _currentStep = 0; _capturedPhotos.clear();
+          _currentStep = 0; _capturedPhotos.clear(); _capturedPhotoPaths.clear();
           _isCaptured = false; _isFaceDetected = false;
           _isSubmitting = false; _consecutiveFaceFrames = 0;
           _poseFeedback = 'សូមដាក់ផ្ទៃមុខឱ្យចំកណ្តាលក្របខ័ណ្ឌ';

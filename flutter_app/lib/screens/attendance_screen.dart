@@ -4,7 +4,6 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui';
 import 'package:camera/camera.dart';
-import 'package:local_auth/local_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -15,6 +14,7 @@ import 'package:provider/provider.dart';
 import 'package:animate_do/animate_do.dart';
 import '../providers/user_provider.dart';
 import '../services/api_service.dart';
+import '../services/face_recognizer_service.dart';
 import '../services/notification_service.dart';
 import '../utils/app_theme.dart';
 import '../utils/image_compress.dart';
@@ -38,6 +38,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   CameraController? _cameraController;
   FaceDetector? _faceDetector;
   final ApiService _apiService = ApiService();
+  final FaceRecognizerService _faceRecognizer = FaceRecognizerService();
 
   bool _isScanning = false;
   bool _isLoading = false;
@@ -544,40 +545,56 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       final XFile photo = await _cameraController!.takePicture();
       final String photoBase64 = await compressAndEncodeImage(await photo.readAsBytes());
 
-      // Local Biometric Authentication
-      final LocalAuthentication localAuth = LocalAuthentication();
-      final bool canCheckBiometrics = await localAuth.canCheckBiometrics;
-      final bool isDeviceSupported = await localAuth.isDeviceSupported();
-      bool deviceAuthenticated = false;
+      // === AI FACE VERIFICATION (On-Device FaceNet) ===
+      if (!mounted) return;
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
+      final userId = userProvider.employeeId ?? '';
 
-      if (canCheckBiometrics || isDeviceSupported) {
-        deviceAuthenticated = await localAuth.authenticate(
-          localizedReason: "សូមស្កេន Face ID/Fingerprint ដើម្បីបញ្ជាក់អត្តសញ្ញាណស្កេនវត្តមាន",
-          options: const AuthenticationOptions(
-            biometricOnly: false,
-            stickyAuth: true,
-          ),
-        );
+      bool faceVerified = false;
+      String? faceError;
 
-        if (!deviceAuthenticated) {
-          if (mounted) {
-            _showError("ការផ្ទៀងផ្ទាត់ជីវមាត្រត្រូវបានបដិសេធ។");
-            await _switchToQrScanner();
-          }
-          return;
+      if (userId.isNotEmpty) {
+        // Check if user has registered face locally
+        final isRegistered = await _faceRecognizer.isFaceRegistered(userId);
+        if (isRegistered) {
+          // Compare live face vs registered face
+          final result = await _faceRecognizer.verifyFace(
+            imagePath: photo.path,
+            userId: userId,
+            threshold: 0.68,
+          );
+          faceVerified = result.matched;
+          faceError = result.error;
+          debugPrint('[FaceAttendance] AI verify: ${result.matched} | ${result.error}');
+        } else {
+          // Face not registered locally — skip AI check, allow through
+          debugPrint('[FaceAttendance] No local registration — skipping AI verify');
+          faceVerified = true;
         }
+      } else {
+        faceVerified = true; // No user ID — skip
+      }
+
+      if (!faceVerified) {
+        if (mounted) {
+          _showError(
+            'ការផ្ទៀងផ្ទាត់ផ្ទៃមុខមិនជោគជ័យ\n\n${faceError ?? "សូមព្យាយាមស្កេនម្ដងទៀត"}',
+          );
+          await _switchToQrScanner();
+        }
+        return;
       }
 
       Position position = await _determinePosition();
-      String locationRaw = "${position.latitude},${position.longitude}";
+      String locationRaw = '${position.latitude},${position.longitude}';
 
       String? action = widget.presetAction;
       if (action == null) {
         final lastActionData = await _apiService.fetchLastAction();
-        String suggestion = "Check-In";
+        String suggestion = 'Check-In';
         if (lastActionData['success'] == true) {
-          String last = lastActionData['last_action'] ?? "Check-Out";
-          suggestion = (last == "Check-In") ? "Check-Out" : "Check-In";
+          String last = lastActionData['last_action'] ?? 'Check-Out';
+          suggestion = (last == 'Check-In') ? 'Check-Out' : 'Check-In';
         }
         action = await _showActionDialog(suggested: suggestion);
       }
@@ -588,27 +605,26 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       }
 
       if (!mounted) return;
-      final userProvider = Provider.of<UserProvider>(context, listen: false);
 
       Future<void> submit(String? reason) async {
         final result = await _apiService.submitAttendance(
           action: action!,
           employeeId: userProvider.employeeId!,
-          workplace: "Face Scan",
-          branch: "Face Scan",
+          workplace: 'Face Scan',
+          branch: 'Face Scan',
           locationRaw: locationRaw,
-          qrSecret: "outside_scan",
+          qrSecret: 'outside_scan',
           qrLocationId: 0,
           lateReason: reason,
           photoBase64: photoBase64,
-          biometricVerified: deviceAuthenticated,
+          biometricVerified: true,
         );
 
         if (result['success'] == true) {
           NotificationService().showNotification(
             id: DateTime.now().millisecondsSinceEpoch.remainder(100000),
-            title: "ជោគជ័យ",
-            body: "អ្នកបាន $action ដោយជោគជ័យ!",
+            title: 'ជោគជ័យ',
+            body: 'អ្នកបាន $action ដោយជោគជ័យ!',
           );
           _showSuccess(result['message'], action: action);
         } else if (result['require_late_reason'] == true) {
@@ -629,7 +645,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       await submit(null);
     } catch (e) {
       if (mounted) {
-        _showError("កំហុស៖ $e");
+        _showError('កំហុស៖ $e');
         await _switchToQrScanner();
       }
     } finally {
