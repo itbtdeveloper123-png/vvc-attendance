@@ -484,7 +484,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
       MaterialPageRoute(
         builder: (context) => Scaffold(
           backgroundColor: Colors.black,
-          appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
+          appBar: VvcAppBar(backgroundColor: Colors.transparent, elevation: 0),
           body: Center(child: InteractiveViewer(child: Image.network(url))),
         ),
       ),

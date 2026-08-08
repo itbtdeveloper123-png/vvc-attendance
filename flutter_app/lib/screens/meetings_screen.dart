@@ -1145,7 +1145,7 @@ class _MeetingsScreenState extends State<MeetingsScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.bgDark,
-      appBar: AppBar(
+      appBar: VvcAppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: true,

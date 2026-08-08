@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/api_service.dart';
 import '../utils/app_theme.dart';
+import '../widgets/app_widgets.dart';
 
 class PollVotingScreen extends StatefulWidget {
   const PollVotingScreen({super.key});
@@ -129,7 +130,7 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.bgDark,
-      appBar: AppBar(
+      appBar: VvcAppBar(
         backgroundColor: AppTheme.bgDark,
         elevation: 0,
         title: Text(

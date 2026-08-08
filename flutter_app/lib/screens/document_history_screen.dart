@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../services/document_history_service.dart';
 import 'document_scanner_screen.dart';
+import '../widgets/app_widgets.dart';
 
 /// Document History Screen
 /// Displays all saved documents with list/grid view, search, and quick actions
@@ -78,7 +79,7 @@ class _DocumentHistoryScreenState extends State<DocumentHistoryScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
-      appBar: AppBar(
+      appBar: VvcAppBar(
         backgroundColor: const Color(0xFF1E1E1E),
         elevation: 0,
         title: Text(

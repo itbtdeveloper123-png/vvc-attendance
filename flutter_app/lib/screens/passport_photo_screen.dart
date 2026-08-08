@@ -11,6 +11,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../services/subject_segmentation_service.dart';
+import '../widgets/app_widgets.dart';
 
 enum SuitCategory { all, male, female, student }
 
@@ -402,7 +403,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A),
-      appBar: AppBar(
+      appBar: VvcAppBar(
         backgroundColor: const Color(0xFF0F172A),
         elevation: 0,
         centerTitle: true,

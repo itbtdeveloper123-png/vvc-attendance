@@ -195,7 +195,7 @@ class _ScanHistoryScreenState extends State<ScanHistoryScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.bgDark,
-      appBar: AppBar(
+      appBar: VvcAppBar(
         title: Text(
           'ប្រវត្តិស្កេនវត្តមាន',
           style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold),

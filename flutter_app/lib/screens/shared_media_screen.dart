@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'dart:convert';
 import '../utils/app_theme.dart';
 import '../services/api_service.dart';
+import '../widgets/app_widgets.dart';
 
 class SharedMediaScreen extends StatelessWidget {
   final String targetUserId;
@@ -21,7 +22,7 @@ class SharedMediaScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.bgDark,
-      appBar: AppBar(
+      appBar: VvcAppBar(
         backgroundColor: AppTheme.bgCard,
         title: Text('រូបភាពដែលបានផ្ញើ ($targetUserName)', 
           style: GoogleFonts.kantumruyPro(fontSize: 16, fontWeight: FontWeight.bold)),

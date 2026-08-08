@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vvc_hrm/services/api_service.dart';
 import '../utils/app_theme.dart';
+import '../widgets/app_widgets.dart';
 
 class TrainingQuizScreen extends StatefulWidget {
   const TrainingQuizScreen({super.key});
@@ -188,7 +189,7 @@ class _TrainingQuizScreenState extends State<TrainingQuizScreen> {
     if (_questions.isEmpty) {
       return Scaffold(
         backgroundColor: AppTheme.bgDark,
-        appBar: AppBar(title: const Text("Quiz")),
+        appBar: VvcAppBar(title: const Text("Quiz")),
         body: Center(child: Text("មិនទាន់មានសំណួរនៅឡើយទេ", style: GoogleFonts.kantumruyPro(color: Colors.white))),
       );
     }
@@ -197,7 +198,7 @@ class _TrainingQuizScreenState extends State<TrainingQuizScreen> {
     
     return Scaffold(
       backgroundColor: AppTheme.bgDark,
-      appBar: AppBar(
+      appBar: VvcAppBar(
         title: Text("វគ្គបណ្ដុះបណ្ដាល (Quiz)", style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold)),
         backgroundColor: Colors.transparent,
         elevation: 0,

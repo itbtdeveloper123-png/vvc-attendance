@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../providers/user_provider.dart';
 import '../services/api_service.dart';
 import '../utils/app_theme.dart';
+import '../widgets/app_widgets.dart';
 
 /// App Settings Screen - Admin panel for controlling feature visibility
 /// Allows HRM and Admin users to control which features are shown to different roles
@@ -138,7 +139,7 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
     // Only allow HRM and Admin
     if (!user.isHRM && !user.isAdmin) {
       return Scaffold(
-        appBar: AppBar(
+        appBar: VvcAppBar(
           title: Text(
             'ការកំណត់កម្មវិធី',
             style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold),
@@ -162,7 +163,7 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: VvcAppBar(
         title: Text(
           'ការកំណត់កម្មវិធី',
           style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold),

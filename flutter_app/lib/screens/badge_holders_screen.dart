@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/app_theme.dart';
 import '../services/api_service.dart';
+import '../widgets/app_widgets.dart';
 
 class BadgeHoldersScreen extends StatelessWidget {
   final String badgeType;
@@ -18,7 +19,7 @@ class BadgeHoldersScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.bgDark,
-      appBar: AppBar(
+      appBar: VvcAppBar(
         title: Text(
           "អ្នកទទួលបាន $badgeLabel",
           style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold),

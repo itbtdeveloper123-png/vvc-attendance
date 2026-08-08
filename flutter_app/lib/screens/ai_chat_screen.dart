@@ -1392,7 +1392,7 @@ class _AiChatScreenState extends State<AiChatScreen>
 
     return Scaffold(
       backgroundColor: AppTheme.bgDark,
-      appBar: AppBar(
+      appBar: VvcAppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         titleSpacing: 0,

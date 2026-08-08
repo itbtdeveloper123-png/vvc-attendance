@@ -18,10 +18,10 @@ class AppTheme {
   static Color info = const Color(0xFF3B82F6);
 
   // Flat dark layers
-  static Color bgDark = const Color(0xFF000000); // OLED True Black
+  static Color bgDark = const Color(0xFF0F172A); // Premium Midnight Slate
   static Color bgCard = const Color(0xFF1F2937);
   static Color bgCardLight = const Color(0xFF374151);
-  static Color bgSurface = const Color(0xFF000000);
+  static Color bgSurface = const Color(0xFF0F172A);
   static Color cardDark = const Color(0xFF111827);
   static Color borderDark = const Color(0xFF475569);
   

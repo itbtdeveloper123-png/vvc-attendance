@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_mlkit_digital_ink_recognition/google_mlkit_digital_ink_recognition.dart' as mlkit;
 import '../services/digital_ink_service.dart';
+import '../widgets/app_widgets.dart';
 
 /// Digital Ink Recognition Screen (Handwriting & Shape recognition)
 class DigitalInkScreen extends StatefulWidget {
@@ -130,7 +131,7 @@ class _DigitalInkScreenState extends State<DigitalInkScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A),
-      appBar: AppBar(
+      appBar: VvcAppBar(
         backgroundColor: const Color(0xFF0F172A),
         elevation: 0,
         centerTitle: true,

@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:animate_do/animate_do.dart';
 import '../services/api_service.dart';
 import '../utils/app_theme.dart';
+import '../widgets/app_widgets.dart';
 
 class SendNotificationScreen extends StatefulWidget {
   const SendNotificationScreen({super.key});
@@ -123,7 +124,7 @@ class _SendNotificationScreenState extends State<SendNotificationScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A),
-      appBar: AppBar(
+      appBar: VvcAppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(

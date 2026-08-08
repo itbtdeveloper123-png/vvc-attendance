@@ -4,6 +4,7 @@ import '../models/notification_model.dart';
 import '../utils/app_theme.dart';
 import 'requests_screen.dart';
 import 'trip_tracking_screen.dart';
+import '../widgets/app_widgets.dart';
 
 class NotificationDetailSheet extends StatelessWidget {
   final NotificationModel notification;
@@ -74,7 +75,7 @@ class NotificationDetailSheet extends StatelessWidget {
                           onTap: () {
                             Navigator.push(context, MaterialPageRoute(builder: (context) => Scaffold(
                               backgroundColor: Colors.black,
-                              appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
+                              appBar: VvcAppBar(backgroundColor: Colors.transparent, elevation: 0),
                               body: Center(child: InteractiveViewer(child: Image.network(notification.imageUrl!))),
                             )));
                           },

@@ -5,6 +5,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../services/api_service.dart';
 import '../utils/app_theme.dart';
+import '../widgets/app_widgets.dart';
 
 class TripTrackingScreen extends StatefulWidget {
   final int tripId;
@@ -185,7 +186,7 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.bgDark,
-      appBar: AppBar(
+      appBar: VvcAppBar(
         title: Text(
           _trip?['user_name'] ?? 'តាមដានការធ្វើដំណើរ',
           style: GoogleFonts.kantumruyPro(),

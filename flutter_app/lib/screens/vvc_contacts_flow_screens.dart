@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/api_service.dart';
+import '../widgets/app_widgets.dart';
 
 // ============================================================================
 // VVC DARK THEME DESIGN TOKENS
@@ -106,7 +107,7 @@ class _VvcNewMessageContactListScreenState extends State<VvcNewMessageContactLis
 
     return Scaffold(
       backgroundColor: VvcTheme.primaryBg,
-      appBar: AppBar(
+      appBar: VvcAppBar(
         backgroundColor: VvcTheme.primaryBg,
         elevation: 0,
         leading: TextButton(
@@ -495,7 +496,7 @@ class _VvcNewGroupMemberSelectionScreenState extends State<VvcNewGroupMemberSele
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: VvcTheme.primaryBg,
-      appBar: AppBar(
+      appBar: VvcAppBar(
         backgroundColor: VvcTheme.primaryBg,
         elevation: 0,
         leading: IconButton(
@@ -715,7 +716,7 @@ class _VvcNewGroupDetailsScreenState extends State<VvcNewGroupDetailsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: VvcTheme.primaryBg,
-      appBar: AppBar(
+      appBar: VvcAppBar(
         backgroundColor: VvcTheme.primaryBg,
         elevation: 0,
         leading: IconButton(
@@ -894,7 +895,7 @@ class _VvcNewContactFormScreenState extends State<VvcNewContactFormScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: VvcTheme.primaryBg,
-      appBar: AppBar(
+      appBar: VvcAppBar(
         backgroundColor: VvcTheme.primaryBg,
         elevation: 0,
         leading: TextButton(

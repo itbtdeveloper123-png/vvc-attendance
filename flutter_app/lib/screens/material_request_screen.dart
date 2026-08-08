@@ -461,7 +461,7 @@ class _MaterialRequestScreenState extends State<MaterialRequestScreen> {
     return Scaffold(
       backgroundColor: AppTheme.bgDark,
       extendBodyBehindAppBar: true,
-      appBar: AppBar(
+      appBar: VvcAppBar(
         title: Text(
           'សុំសម្ភារៈប្រើប្រាស់',
           style: GoogleFonts.kantumruyPro(

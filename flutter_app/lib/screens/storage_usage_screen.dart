@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import '../services/isar_service.dart';
+import '../widgets/app_widgets.dart';
 
 class StorageCategory {
   final String id;
@@ -252,7 +253,7 @@ class _StorageUsageScreenState extends State<StorageUsageScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFF111827), // Sleek Dark Theme
-      appBar: AppBar(
+      appBar: VvcAppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(

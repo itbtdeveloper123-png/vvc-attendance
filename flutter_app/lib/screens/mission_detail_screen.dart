@@ -7,6 +7,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../utils/app_theme.dart';
+import '../widgets/app_widgets.dart';
 
 class MissionDetailScreen extends StatefulWidget {
   final Map<String, dynamic> mission;
@@ -114,7 +115,7 @@ class _MissionDetailScreenState extends State<MissionDetailScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.bgDark,
-      appBar: AppBar(
+      appBar: VvcAppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: Text(

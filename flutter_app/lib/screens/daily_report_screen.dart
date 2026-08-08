@@ -400,7 +400,7 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
       return Scaffold(
         backgroundColor: AppTheme.bgDark,
         extendBodyBehindAppBar: true,
-        appBar: AppBar(
+        appBar: VvcAppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
           centerTitle: true,
@@ -429,7 +429,7 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
       child: Scaffold(
         backgroundColor: AppTheme.bgDark,
         extendBodyBehindAppBar: true,
-        appBar: AppBar(
+        appBar: VvcAppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
           centerTitle: true,
@@ -2089,7 +2089,7 @@ class _DailyReportScreenshotPreviewState
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black87,
-      appBar: AppBar(
+      appBar: VvcAppBar(
         title: Text(
           "មើលជាមុន (Preview Report)",
           style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 16),

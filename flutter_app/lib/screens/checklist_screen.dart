@@ -660,7 +660,7 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
           ),
           Scaffold(
             backgroundColor: Colors.transparent,
-            appBar: AppBar(
+            appBar: VvcAppBar(
               backgroundColor: Colors.transparent,
               elevation: 0,
               leading: IconButton(

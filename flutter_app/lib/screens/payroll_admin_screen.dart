@@ -52,7 +52,7 @@ class _PayrollAdminScreenState extends State<PayrollAdminScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.bgDark,
-      appBar: AppBar(
+      appBar: VvcAppBar(
         title: Text(
           "ព័ត៌មានប្រាក់បៀវត្ស (HR)",
           style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold),

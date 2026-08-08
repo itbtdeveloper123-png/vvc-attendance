@@ -16,6 +16,7 @@ import '../services/document_history_service.dart';
 import '../widgets/export_modal.dart';
 import 'passport_photo_screen.dart';
 import 'digital_ink_screen.dart';
+import '../widgets/app_widgets.dart';
 
 /// Document Scanner Screen - Premium UI with Native Document Scanning
 /// 
@@ -932,7 +933,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A), // Luxury Dark Slate
       extendBodyBehindAppBar: false,
-      appBar: AppBar(
+      appBar: VvcAppBar(
         backgroundColor: const Color(0xFF0F172A),
         elevation: 0,
         centerTitle: true,
@@ -2310,7 +2311,7 @@ class _ImageCropperDialogState extends State<ImageCropperDialog> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0A0A0A),
-      appBar: AppBar(
+      appBar: VvcAppBar(
         backgroundColor: const Color(0xFF141428),
         elevation: 0,
         leading: IconButton(

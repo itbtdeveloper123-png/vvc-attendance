@@ -23,6 +23,7 @@ import '../utils/app_theme.dart';
 import 'profile_screen.dart';
 import 'shared_media_screen.dart';
 import '../widgets/image_viewer.dart';
+import '../widgets/app_widgets.dart';
 
 class TeamChatScreen extends StatefulWidget {
   final String targetUserId;
@@ -510,7 +511,7 @@ class _TeamChatScreenState extends State<TeamChatScreen>
       child: ClipRRect(
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-          child: AppBar(
+          child: VvcAppBar(
             backgroundColor: AppTheme.bgDark.withValues(alpha: 0.3),
             elevation: 0,
             toolbarHeight: 70,

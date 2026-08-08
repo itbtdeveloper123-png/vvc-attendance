@@ -230,7 +230,7 @@ class _TripReportScreenState extends State<TripReportScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.bgDark,
-      appBar: AppBar(
+      appBar: VvcAppBar(
         title: Text(
           "របាយការណ៍ការធ្វើដំណើរ",
           style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold),

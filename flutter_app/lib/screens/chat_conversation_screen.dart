@@ -6,6 +6,7 @@ import '../models/chat_message_model.dart';
 import '../controllers/chat_controller.dart';
 import '../services/isar_service.dart';
 import '../utils/app_theme.dart';
+import '../widgets/app_widgets.dart';
 
 class ChatConversationScreen extends StatefulWidget {
   final String roomId;
@@ -66,7 +67,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
       value: _controller,
       child: Scaffold(
         backgroundColor: const Color(0xFF0F172A),
-        appBar: AppBar(
+        appBar: VvcAppBar(
           backgroundColor: const Color(0xFF1E293B),
           elevation: 1,
           title: Text(

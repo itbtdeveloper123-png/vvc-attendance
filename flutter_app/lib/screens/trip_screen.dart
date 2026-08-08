@@ -16,6 +16,7 @@ import 'package:vvc_hrm/providers/user_provider.dart';
 import 'package:vvc_hrm/services/api_service.dart';
 import 'package:vvc_hrm/services/background_location_service.dart';
 import 'package:vvc_hrm/services/local_db_service.dart';
+import '../widgets/app_widgets.dart';
 
 class TripScreen extends StatefulWidget {
   const TripScreen({super.key});
@@ -1567,7 +1568,7 @@ class _TripScreenState extends State<TripScreen>
   // ─────────────────────────────────────────────────────────────────────────────
   Widget _buildCustomerList() {
     return Scaffold(
-      appBar: AppBar(
+      appBar: VvcAppBar(
         title: const Text(
           'ការធ្វើដំណើរ',
           style: TextStyle(

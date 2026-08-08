@@ -102,7 +102,7 @@ class _OutsideReportScreenState extends State<OutsideReportScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.bgDark,
-      appBar: AppBar(
+      appBar: VvcAppBar(
         title: Text(
           "របាយការណ៍វត្តមានក្រៅ",
           style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold),
@@ -404,7 +404,7 @@ class _OutsideReportScreenState extends State<OutsideReportScreen> {
                   MaterialPageRoute(
                     builder: (_) => Scaffold(
                       backgroundColor: Colors.black,
-                      appBar: AppBar(
+                      appBar: VvcAppBar(
                         backgroundColor: Colors.transparent,
                         iconTheme: const IconThemeData(color: Colors.white),
                       ),

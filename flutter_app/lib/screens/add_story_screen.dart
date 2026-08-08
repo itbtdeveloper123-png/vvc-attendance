@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../providers/user_provider.dart';
 import '../services/r2_storage_service.dart';
 import '../widgets/vvc_global_alert.dart';
+import '../widgets/app_widgets.dart';
 
 class AddStoryScreen extends StatefulWidget {
   const AddStoryScreen({super.key});
@@ -92,7 +93,7 @@ class _AddStoryScreenState extends State<AddStoryScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A),
-      appBar: AppBar(
+      appBar: VvcAppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(

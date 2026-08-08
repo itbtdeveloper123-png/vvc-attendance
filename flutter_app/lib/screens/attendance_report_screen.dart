@@ -111,7 +111,7 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
       length: 2,
       child: Scaffold(
         backgroundColor: AppTheme.bgDark,
-        appBar: AppBar(
+        appBar: VvcAppBar(
           title: Text(
             "របាយការណ៍វត្តមាន",
             style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold),

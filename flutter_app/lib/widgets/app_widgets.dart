@@ -1,3 +1,4 @@
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:google_fonts/google_fonts.dart';
@@ -1563,4 +1564,82 @@ class AppUserCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class VvcAppBar extends StatelessWidget implements PreferredSizeWidget {
+  final Widget? title;
+  final List<Widget>? actions;
+  final Widget? leading;
+  final double? leadingWidth;
+  final bool centerTitle;
+  final PreferredSizeWidget? bottom;
+  final double elevation;
+  final Color? backgroundColor;
+  final double? titleSpacing;
+  final IconThemeData? iconTheme;
+  final Color? foregroundColor;
+  final double? toolbarHeight;
+  final ShapeBorder? shape;
+  final bool automaticallyImplyLeading;
+  final double? scrolledUnderElevation;
+
+  const VvcAppBar({
+    super.key,
+    this.title,
+    this.actions,
+    this.leading,
+    this.leadingWidth,
+    this.centerTitle = true,
+    this.bottom,
+    this.elevation = 0,
+    this.backgroundColor,
+    this.titleSpacing,
+    this.iconTheme,
+    this.foregroundColor,
+    this.toolbarHeight,
+    this.shape,
+    this.automaticallyImplyLeading = true,
+    this.scrolledUnderElevation,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AppBar(
+      title: title,
+      actions: actions,
+      leading: leading,
+      leadingWidth: leadingWidth,
+      centerTitle: centerTitle,
+      elevation: elevation,
+      bottom: bottom,
+      titleSpacing: titleSpacing,
+      iconTheme: iconTheme,
+      foregroundColor: foregroundColor,
+      toolbarHeight: toolbarHeight,
+      shape: shape,
+      automaticallyImplyLeading: automaticallyImplyLeading,
+      scrolledUnderElevation: scrolledUnderElevation,
+      backgroundColor: Colors.transparent,
+      surfaceTintColor: Colors.transparent,
+      flexibleSpace: ClipRect(
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: 20.0, sigmaY: 20.0),
+          child: Container(
+            decoration: BoxDecoration(
+              color: backgroundColor ?? AppTheme.bgDark.withValues(alpha: 0.75),
+              border: Border(
+                bottom: BorderSide(
+                  color: AppTheme.textPrimary.withValues(alpha: 0.05),
+                  width: 0.5,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Size get preferredSize => Size.fromHeight((toolbarHeight ?? kToolbarHeight) + (bottom?.preferredSize.height ?? 0.0));
 }

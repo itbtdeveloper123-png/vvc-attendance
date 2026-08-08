@@ -283,7 +283,7 @@ class _MissionScreenState extends State<MissionScreen> {
       child: Scaffold(
         backgroundColor: AppTheme.bgDark,
         extendBodyBehindAppBar: true,
-        appBar: AppBar(
+        appBar: VvcAppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
           centerTitle: true,
