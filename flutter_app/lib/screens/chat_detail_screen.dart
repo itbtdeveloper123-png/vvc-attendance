@@ -225,7 +225,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   }
 
   void _listenMessages() {
-    if (currentUserId.isEmpty) return;
+    if (currentUserId.isEmpty) {
+      if (mounted) setState(() => _isLoadingHistory = false);
+      return;
+    }
     _messageSubscription?.cancel();
     _messageSubscription = _firestore
         .collection('chats')
@@ -234,19 +237,30 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         .orderBy('timestamp', descending: true)
         .limit(_messageLimit)
         .snapshots()
-        .listen((snap) {
-      if (mounted) {
-        setState(() {
-          _messageDocs = snap.docs;
-          _isLoadingHistory = false;
-          _isFetchingMore = false;
-          if (snap.docs.length < _messageLimit) {
-            _hasMoreMessages = false;
-          }
-        });
-        _markMessagesAsRead(snap.docs);
-      }
-    });
+        .listen(
+      (snap) {
+        if (mounted) {
+          setState(() {
+            _messageDocs = snap.docs;
+            _isLoadingHistory = false;
+            _isFetchingMore = false;
+            if (snap.docs.length < _messageLimit) {
+              _hasMoreMessages = false;
+            }
+          });
+          _markMessagesAsRead(snap.docs);
+        }
+      },
+      onError: (error) {
+        debugPrint('Error loading messages: $error');
+        if (mounted) {
+          setState(() {
+            _isLoadingHistory = false;
+            _isFetchingMore = false;
+          });
+        }
+      },
+    );
   }
 
   void _onScroll() {
