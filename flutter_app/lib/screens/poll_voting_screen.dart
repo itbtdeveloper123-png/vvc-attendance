@@ -174,19 +174,39 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
     }
   }
 
-  // Admin Panel 100% Matching Form Modal
-  void _showCreatePollDialog() {
-    final titleCtrl = TextEditingController();
-    final passcodeCtrl = TextEditingController();
+  // Admin Panel 100% Matching Form Modal (Supports Create & Edit)
+  void _showCreatePollDialog({Map<String, dynamic>? pollToEdit}) {
+    final isEditing = pollToEdit != null;
+    final pollIdInt = isEditing ? int.tryParse((pollToEdit['id'] ?? pollToEdit['doc_id'] ?? '').toString()) : null;
 
-    String selectedQuarter = 'Q1';
-    String selectedWarehouse = 'Head Office';
+    final titleCtrl = TextEditingController(text: pollToEdit?['title']?.toString() ?? '');
+    final passcodeCtrl = TextEditingController(text: pollToEdit?['passcode']?.toString() ?? pollToEdit?['access_code']?.toString() ?? '');
 
-    DateTime startDate = DateTime.now();
-    DateTime endDate = DateTime.now().add(const Duration(days: 7));
+    String selectedQuarter = pollToEdit?['quarter']?.toString() ?? 'Q1';
+    String selectedWarehouse = pollToEdit?['location']?.toString() ?? 'Head Office';
+
+    DateTime startDate = pollToEdit?['start_date'] != null
+        ? (DateTime.tryParse(pollToEdit!['start_date'].toString()) ?? DateTime.now())
+        : DateTime.now();
+    DateTime endDate = pollToEdit?['end_date'] != null
+        ? (DateTime.tryParse(pollToEdit!['end_date'].toString()) ?? DateTime.now().add(const Duration(days: 7)))
+        : DateTime.now().add(const Duration(days: 7));
 
     final List<String> selectedCandidates = [];
     final List<String> excludedCandidates = [];
+
+    if (isEditing && pollToEdit['candidates'] is List) {
+      for (var c in pollToEdit['candidates']) {
+        if (c['employee_id'] != null) {
+          selectedCandidates.add(c['employee_id'].toString());
+        }
+      }
+    }
+    if (isEditing && pollToEdit['excluded_candidates'] is List) {
+      for (var e in pollToEdit['excluded_candidates']) {
+        excludedCandidates.add(e.toString());
+      }
+    }
 
     showDialog(
       context: context,
@@ -207,7 +227,7 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Form Header (Matching Admin Panel Screenshot #1)
+                  // Form Header
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -216,14 +236,14 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
                           Container(
                             padding: const EdgeInsets.all(6),
                             decoration: BoxDecoration(
-                              color: AppTheme.primary,
+                              color: isEditing ? Colors.amberAccent : AppTheme.primary,
                               shape: BoxShape.circle,
                             ),
-                            child: const Icon(Icons.add, color: Colors.white, size: 20),
+                            child: Icon(isEditing ? Icons.edit_rounded : Icons.add, color: Colors.white, size: 20),
                           ),
                           const SizedBox(width: 10),
                           Text(
-                            'បង្កើតការបោះឆ្នោតថ្មី',
+                            isEditing ? 'កែប្រែការបោះឆ្នោត' : 'បង្កើតការបោះឆ្នោតថ្មី',
                             style: GoogleFonts.kantumruyPro(
                               color: Colors.white,
                               fontSize: 18,
@@ -285,97 +305,81 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
                   ),
                   const SizedBox(height: 14),
 
-                  // 4 & 5. កាលបរិច្ឆេទចាប់ផ្តើម * & កាលបរិច្ឆេទបញ្ចប់ * (DatePickers)
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _buildFormLabel('កាលបរិច្ឆេទចាប់ផ្តើម *'),
-                            const SizedBox(height: 6),
-                            InkWell(
-                              onTap: () async {
-                                final picked = await showDatePicker(
-                                  context: context,
-                                  initialDate: startDate,
-                                  firstDate: DateTime(2025),
-                                  lastDate: DateTime(2030),
-                                );
-                                if (picked != null) setDialogState(() => startDate = picked);
-                              },
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.05),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-                                ),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      '${startDate.year}-${startDate.month.toString().padLeft(2, '0')}-${startDate.day.toString().padLeft(2, '0')}',
-                                      style: GoogleFonts.inter(color: Colors.white, fontSize: 13.5),
-                                    ),
-                                    const Icon(Icons.calendar_today_rounded, color: Colors.white60, size: 18),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
+                  // 4. កាលបរិច្ឆេទចាប់ផ្តើម
+                  _buildFormLabel('កាលបរិច្ឆេទចាប់ផ្តើម'),
+                  const SizedBox(height: 6),
+                  InkWell(
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: startDate,
+                        firstDate: DateTime(2024),
+                        lastDate: DateTime(2030),
+                      );
+                      if (picked != null) setDialogState(() => startDate = picked);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _buildFormLabel('កាលបរិច្ឆេទបញ្ចប់ *'),
-                            const SizedBox(height: 6),
-                            InkWell(
-                              onTap: () async {
-                                final picked = await showDatePicker(
-                                  context: context,
-                                  initialDate: endDate,
-                                  firstDate: DateTime(2025),
-                                  lastDate: DateTime(2030),
-                                );
-                                if (picked != null) setDialogState(() => endDate = picked);
-                              },
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.05),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-                                ),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      '${endDate.year}-${endDate.month.toString().padLeft(2, '0')}-${endDate.day.toString().padLeft(2, '0')}',
-                                      style: GoogleFonts.inter(color: Colors.white, fontSize: 13.5),
-                                    ),
-                                    const Icon(Icons.calendar_today_rounded, color: Colors.white60, size: 18),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            '${startDate.year}-${startDate.month.toString().padLeft(2, '0')}-${startDate.day.toString().padLeft(2, '0')}',
+                            style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 13.5),
+                          ),
+                          const Icon(Icons.calendar_today_rounded, color: Colors.amberAccent, size: 18),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                   const SizedBox(height: 14),
 
-                  // 6. លេខកូដប្រវ៉ៃចូលមើលលទ្ធផល (ទុកទទេបើមិនចង់ប្រើ)
-                  _buildFormLabel('លេខកូដប្រវ៉ៃចូលមើលលទ្ធផល (ទុកទទេបើមិនចង់ប្រើ)'),
+                  // 5. កាលបរិច្ឆេទបញ្ចប់
+                  _buildFormLabel('កាលបរិច្ឆេទបញ្ចប់'),
+                  const SizedBox(height: 6),
+                  InkWell(
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: endDate,
+                        firstDate: DateTime(2024),
+                        lastDate: DateTime(2030),
+                      );
+                      if (picked != null) setDialogState(() => endDate = picked);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            '${endDate.year}-${endDate.month.toString().padLeft(2, '0')}-${endDate.day.toString().padLeft(2, '0')}',
+                            style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 13.5),
+                          ),
+                          const Icon(Icons.calendar_today_rounded, color: Colors.amberAccent, size: 18),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+
+                  // 6. លេខសម្ងាត់ចូលមើលលទ្ធផល (Passcode)
+                  _buildFormLabel('លេខសម្ងាត់ចូលមើលលទ្ធផល (Passcode)'),
                   const SizedBox(height: 6),
                   TextField(
                     controller: passcodeCtrl,
-                    style: GoogleFonts.inter(color: Colors.white, fontSize: 14),
-                    decoration: _inputDecoration('បញ្ចូលលេខកូដ (ជ្រើសរើស)'),
+                    style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 14),
+                    decoration: _inputDecoration('ឧទាហរណ៍: 123456 (ទុកទទេបើមិនត្រូវការ)'),
                   ),
                   const SizedBox(height: 14),
 
@@ -499,30 +503,19 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
                             };
                           }).toList();
 
-                          final pollMap = {
-                            'title': title,
-                            'quarter': selectedQuarter,
-                            'location': selectedWarehouse,
-                            'start_date': '${startDate.year}-${startDate.month.toString().padLeft(2, '0')}-${startDate.day.toString().padLeft(2, '0')}',
-                            'end_date': '${endDate.year}-${endDate.month.toString().padLeft(2, '0')}-${endDate.day.toString().padLeft(2, '0')}',
-                            'passcode': passcodeCtrl.text.trim(),
-                            'excluded_candidates': excludedCandidates,
-                            'candidates': candidatesData,
-                            'voter_audit_list': [],
-                            'has_voted': false,
-                            'status': 'active',
-                            'created_at': FieldValue.serverTimestamp(),
-                          };
+                          final startDateStr = '${startDate.year}-${startDate.month.toString().padLeft(2, '0')}-${startDate.day.toString().padLeft(2, '0')}';
+                          final endDateStr = '${endDate.year}-${endDate.month.toString().padLeft(2, '0')}-${endDate.day.toString().padLeft(2, '0')}';
 
                           try {
-                            // 1. Post to Backend API (so Admin Panel sees it!)
+                            // 1. Post to Backend API
                             try {
                               await _api.createPoll(
+                                id: pollIdInt,
                                 title: title,
                                 quarter: selectedQuarter,
                                 location: selectedWarehouse,
-                                startDate: '${startDate.year}-${startDate.month.toString().padLeft(2, '0')}-${startDate.day.toString().padLeft(2, '0')}',
-                                endDate: '${endDate.year}-${endDate.month.toString().padLeft(2, '0')}-${endDate.day.toString().padLeft(2, '0')}',
+                                startDate: startDateStr,
+                                endDate: endDateStr,
                                 passcode: passcodeCtrl.text.trim(),
                                 excludedCandidates: excludedCandidates,
                                 candidates: candidatesData,
@@ -531,21 +524,17 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
                               debugPrint('API createPoll error: $e');
                             }
 
-                            // 2. Save to Firestore
-                            try {
-                              final docRef = await _firestore.collection('polls').add(pollMap);
-                              pollMap['doc_id'] = docRef.id;
-                            } catch (e) {
-                              debugPrint('Firestore createPoll error: $e');
-                            }
-
-                            setState(() {
-                              _polls.insert(0, pollMap);
-                            });
+                            _loadInitialData();
 
                             if (!ctx.mounted) return;
                             Navigator.pop(ctx);
-                            if (mounted) VvcAlert.showSuccess(context, title: 'ជោគជ័យ', message: 'បានបង្កើតការបោះឆ្នោតថ្មីត្រឹមត្រូវតាម Admin Panel រួចរាល់!');
+                            if (mounted) {
+                              VvcAlert.showSuccess(
+                                context,
+                                title: 'ជោគជ័យ',
+                                message: isEditing ? 'បានរក្សាទុកការកែប្រែការបោះឆ្នោតរួចរាល់!' : 'បានបង្កើតការបោះឆ្នោតថ្មីត្រឹមត្រូវ!',
+                              );
+                            }
                           } catch (e) {
                             if (!ctx.mounted) return;
                             Navigator.pop(ctx);
@@ -553,11 +542,14 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
                           }
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.primary,
+                          backgroundColor: isEditing ? Colors.amberAccent : AppTheme.primary,
                           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
-                        child: Text('បង្កើតការបោះឆ្នោត', style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold)),
+                        child: Text(
+                          isEditing ? 'រក្សាទុកការកែប្រែ' : 'បង្កើតការបោះឆ្នោត',
+                          style: GoogleFonts.kantumruyPro(color: isEditing ? Colors.black : Colors.white, fontWeight: FontWeight.bold),
+                        ),
                       ),
                     ],
                   ),
@@ -568,6 +560,41 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
         ),
       ),
     );
+  }
+
+  Future<void> _deletePoll(Map<String, dynamic> poll) async {
+    final confirmed = await VvcAlert.showConfirmDialog(
+      context,
+      title: 'លុបការបោះឆ្នោត',
+      message: 'តើអ្នកប្រាកដជាចង់លុបការបោះឆ្នោត "${poll['title']}" នេះមែនទេ?',
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      final pollIdInt = int.tryParse((poll['id'] ?? poll['doc_id'] ?? '').toString());
+      if (pollIdInt != null && pollIdInt > 0) {
+        await _api.deletePoll(pollIdInt);
+      }
+
+      if (poll['doc_id'] != null && poll['doc_id'].toString().isNotEmpty) {
+        try {
+          await _firestore.collection('polls').doc(poll['doc_id'].toString()).delete();
+        } catch (e) {
+          debugPrint('Firestore delete poll error: $e');
+        }
+      }
+
+      _loadInitialData();
+
+      if (mounted) {
+        VvcAlert.showSuccess(context, title: 'ជោគជ័យ', message: 'បានលុបការបោះឆ្នោតរួចរាល់!');
+      }
+    } catch (e) {
+      if (mounted) {
+        VvcAlert.showError(context, title: 'កំហុស', message: 'មិនអាចលុបការបោះឆ្នោតបានទេ: $e');
+      }
+    }
   }
 
   Widget _buildFormLabel(String label) {
@@ -739,6 +766,9 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
     final docId = (poll['doc_id'] ?? poll['id'] ?? '').toString();
     String? selectedCandidateEmployeeId;
 
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    final isHrmOrAdmin = userProvider.isHRM || userProvider.isAdmin;
+
     return StatefulBuilder(
       builder: (context, setState) {
         return Container(
@@ -785,20 +815,52 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
                       ],
                     ),
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: hasVoted ? Colors.green : AppTheme.primary,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      hasVoted ? 'បានបោះឆ្នោត' : 'សកម្ម',
-                      style: GoogleFonts.kantumruyPro(
-                        color: Colors.white,
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.bold,
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: hasVoted ? Colors.green : AppTheme.primary,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          hasVoted ? 'បានបោះឆ្នោត' : 'សកម្ម',
+                          style: GoogleFonts.kantumruyPro(
+                            color: Colors.white,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
-                    ),
+                      if (isHrmOrAdmin) ...[
+                        const SizedBox(width: 6),
+                        GestureDetector(
+                          onTap: () => _showCreatePollDialog(pollToEdit: poll),
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: Colors.amber.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: Colors.amber.withValues(alpha: 0.5)),
+                            ),
+                            child: const Icon(Icons.edit_rounded, color: Colors.amber, size: 16),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        GestureDetector(
+                          onTap: () => _deletePoll(poll),
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: Colors.redAccent.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: Colors.redAccent.withValues(alpha: 0.5)),
+                            ),
+                            child: const Icon(Icons.delete_rounded, color: Colors.redAccent, size: 16),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ],
               ),
@@ -1263,6 +1325,7 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
   }
 
   Widget _buildInfoChip(String label, String value) {
+    if (value.trim().isEmpty) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.only(right: 8),
       child: Container(
