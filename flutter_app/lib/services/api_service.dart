@@ -491,6 +491,33 @@ class ApiService {
     );
   }
 
+  Future<Map<String, dynamic>> createPoll({
+    required String title,
+    required String quarter,
+    required String location,
+    required String startDate,
+    required String endDate,
+    required String passcode,
+    required List<String> excludedCandidates,
+    required List<Map<String, dynamic>> candidates,
+  }) async {
+    final headers = await _authHeaders();
+    return _processRequest(
+      'create_poll',
+      headers: headers,
+      body: {
+        'title': title,
+        'quarter': quarter,
+        'location': location,
+        'start_date': startDate,
+        'end_date': endDate,
+        'passcode': passcode,
+        'excluded_candidates': excludedCandidates,
+        'candidates': candidates,
+      },
+    );
+  }
+
   // ========== ATTENDANCE & SYNC ==========
   Future<Map<String, dynamic>> submitAttendance({
     required String action,

@@ -45,28 +45,55 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
       _errorMessage = null;
     });
 
+    final List<dynamic> allPolls = [];
+
     try {
       final usersRes = await _api.fetchUsers();
       if (usersRes['success'] == true && usersRes['data'] != null) {
         _allUsers = List<dynamic>.from(usersRes['data']);
       }
 
-      // Fetch real polls from Firestore
-      final snapshot = await _firestore
-          .collection('polls')
-          .orderBy('created_at', descending: true)
-          .get();
+      // 1. Fetch real polls from Backend API (Admin Panel!)
+      try {
+        final apiRes = await _api.fetchActivePolls();
+        if (apiRes['success'] == true && apiRes['data'] != null) {
+          final apiPolls = apiRes['data'] as List<dynamic>;
+          for (var p in apiPolls) {
+            final Map<String, dynamic> item = Map<String, dynamic>.from(p);
+            item['source'] = 'api';
+            allPolls.add(item);
+          }
+        }
+      } catch (e) {
+        debugPrint('API fetchActivePolls error: $e');
+      }
 
-      final List<dynamic> loaded = [];
-      for (var doc in snapshot.docs) {
-        final data = doc.data();
-        data['doc_id'] = doc.id;
-        loaded.add(data);
+      // 2. Fetch real polls from Firestore
+      try {
+        final snapshot = await _firestore
+            .collection('polls')
+            .orderBy('created_at', descending: true)
+            .get();
+
+        for (var doc in snapshot.docs) {
+          final data = doc.data();
+          data['doc_id'] = doc.id;
+          data['source'] = 'firestore';
+
+          bool exists = allPolls.any((x) =>
+              (x['doc_id'] != null && x['doc_id'] == doc.id) ||
+              (x['title'] != null && x['title'] == data['title']));
+          if (!exists) {
+            allPolls.add(data);
+          }
+        }
+      } catch (e) {
+        debugPrint('Firestore fetch polls error: $e');
       }
 
       if (mounted) {
         setState(() {
-          _polls = loaded;
+          _polls = allPolls;
           _isLoading = false;
         });
       }
@@ -89,40 +116,55 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
     if (confirmed != true) return;
 
     try {
-      final pollDocRef = _firestore.collection('polls').doc(pollDocId);
-      final docSnapshot = await pollDocRef.get();
+      // 1. Cast vote on API backend if integer poll ID
+      final pollIdInt = int.tryParse(pollDocId) ?? 0;
+      if (pollIdInt > 0) {
+        try {
+          await _api.castVote(pollIdInt, candidateEmployeeId);
+        } catch (e) {
+          debugPrint('API castVote error: $e');
+        }
+      }
 
-      if (docSnapshot.exists) {
-        final data = docSnapshot.data()!;
-        final candidates = List<Map<String, dynamic>>.from(data['candidates'] ?? []);
-        final auditList = List<Map<String, dynamic>>.from(data['voter_audit_list'] ?? []);
+      // 2. Cast vote on Firestore if Firestore doc exists
+      try {
+        final pollDocRef = _firestore.collection('polls').doc(pollDocId);
+        final docSnapshot = await pollDocRef.get();
 
-        String candidateName = candidateEmployeeId;
-        for (var c in candidates) {
-          if (c['employee_id'] == candidateEmployeeId) {
-            c['votes_count'] = (c['votes_count'] as int? ?? 0) + 1;
-            candidateName = c['name'] ?? candidateEmployeeId;
+        if (docSnapshot.exists) {
+          final data = docSnapshot.data()!;
+          final candidates = List<Map<String, dynamic>>.from(data['candidates'] ?? []);
+          final auditList = List<Map<String, dynamic>>.from(data['voter_audit_list'] ?? []);
+
+          String candidateName = candidateEmployeeId;
+          for (var c in candidates) {
+            if (c['employee_id'] == candidateEmployeeId) {
+              c['votes_count'] = (c['votes_count'] as int? ?? 0) + 1;
+              candidateName = c['name'] ?? candidateEmployeeId;
+            }
           }
+
+          auditList.add({
+            'voter_name': 'បុគ្គលិក',
+            'voter_id': '001',
+            'candidate_name': candidateName,
+            'candidate_id': candidateEmployeeId,
+            'time': 'ទើបតែបោះឆ្នោត',
+          });
+
+          await pollDocRef.update({
+            'candidates': candidates,
+            'voter_audit_list': auditList,
+            'has_voted': true,
+          });
         }
+      } catch (e) {
+        debugPrint('Firestore castVote error: $e');
+      }
 
-        auditList.add({
-          'voter_name': 'បុគ្គលិក',
-          'voter_id': '001',
-          'candidate_name': candidateName,
-          'candidate_id': candidateEmployeeId,
-          'time': 'ទើបតែបោះឆ្នោត',
-        });
-
-        await pollDocRef.update({
-          'candidates': candidates,
-          'voter_audit_list': auditList,
-          'has_voted': true,
-        });
-
-        if (mounted) {
-          VvcAlert.showSuccess(context, title: 'បោះឆ្នោតជោគជ័យ!', message: 'ការបោះឆ្នោតរបស់អ្នកត្រូវបានរក្សាទុក');
-          _loadInitialData();
-        }
+      if (mounted) {
+        VvcAlert.showSuccess(context, title: 'បោះឆ្នោតជោគជ័យ!', message: 'ការបោះឆ្នោតរបស់អ្នកត្រូវបានរក្សាទុក');
+        _loadInitialData();
       }
     } catch (e) {
       if (mounted) {
@@ -474,8 +516,29 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
                           };
 
                           try {
-                            final docRef = await _firestore.collection('polls').add(pollMap);
-                            pollMap['doc_id'] = docRef.id;
+                            // 1. Post to Backend API (so Admin Panel sees it!)
+                            try {
+                              await _api.createPoll(
+                                title: title,
+                                quarter: selectedQuarter,
+                                location: selectedWarehouse,
+                                startDate: '${startDate.year}-${startDate.month.toString().padLeft(2, '0')}-${startDate.day.toString().padLeft(2, '0')}',
+                                endDate: '${endDate.year}-${endDate.month.toString().padLeft(2, '0')}-${endDate.day.toString().padLeft(2, '0')}',
+                                passcode: passcodeCtrl.text.trim(),
+                                excludedCandidates: excludedCandidates,
+                                candidates: candidatesData,
+                              );
+                            } catch (e) {
+                              debugPrint('API createPoll error: $e');
+                            }
+
+                            // 2. Save to Firestore
+                            try {
+                              final docRef = await _firestore.collection('polls').add(pollMap);
+                              pollMap['doc_id'] = docRef.id;
+                            } catch (e) {
+                              debugPrint('Firestore createPoll error: $e');
+                            }
 
                             setState(() {
                               _polls.insert(0, pollMap);
@@ -616,6 +679,9 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
   }
 
   Widget _buildActivePollsTab() {
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    final isHrmOrAdmin = userProvider.isHRM || userProvider.isAdmin;
+
     if (_isLoading) return const Center(child: CircularProgressIndicator());
 
     if (_errorMessage != null) {
@@ -641,13 +707,15 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
             const Icon(Icons.how_to_vote_outlined, size: 64, color: Colors.white30),
             const SizedBox(height: 16),
             Text('មិនទាន់មានការបោះឆ្នោតសកម្មនៅឡើយទេ', style: GoogleFonts.kantumruyPro(color: Colors.white60, fontSize: 15)),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: _showCreatePollDialog,
-              icon: const Icon(Icons.add_rounded),
-              label: Text('បង្កើត Form បោះឆ្នោតថ្មី (Admin Panel)', style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold)),
-              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
-            ),
+            if (isHrmOrAdmin) ...[
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: _showCreatePollDialog,
+                icon: const Icon(Icons.add_rounded),
+                label: Text('បង្កើត Form បោះឆ្នោតថ្មី (Admin Panel)', style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
+              ),
+            ],
           ],
         ),
       );
@@ -669,7 +737,7 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
   Widget _buildPollCard(Map<String, dynamic> poll) {
     final hasVoted = poll['has_voted'] == true;
     final candidates = poll['candidates'] as List<dynamic>? ?? [];
-    final docId = (poll['doc_id'] ?? '').toString();
+    final docId = (poll['doc_id'] ?? poll['id'] ?? '').toString();
     String? selectedCandidateEmployeeId;
 
     return StatefulBuilder(
