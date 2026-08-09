@@ -512,8 +512,8 @@ class ApiService {
         'start_date': startDate,
         'end_date': endDate,
         'passcode': passcode,
-        'excluded_candidates': excludedCandidates,
-        'candidates': candidates,
+        'excluded_candidates': jsonEncode(excludedCandidates),
+        'candidates': jsonEncode(candidates),
       },
     );
   }
