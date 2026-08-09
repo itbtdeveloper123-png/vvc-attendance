@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter_khmer_chankitec/flutter_khmer_chankitec.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
@@ -20,6 +21,9 @@ class CertificateEditorScreen extends StatefulWidget {
   final String recipientLocation;
   final String quarterPeriod;
   final String? recipientAvatarUrl;
+  final int rankNumber;
+
+  final String initialCategory;
 
   const CertificateEditorScreen({
     super.key,
@@ -29,6 +33,8 @@ class CertificateEditorScreen extends StatefulWidget {
     this.recipientLocation = 'ការិយាល័យកណ្តាល',
     this.quarterPeriod = 'ត្រីមាសទី ២ នៃឆ្នាំ ២០២៦',
     this.recipientAvatarUrl,
+    this.rankNumber = 1,
+    this.initialCategory = 'skilled',
   });
 
   @override
@@ -37,19 +43,25 @@ class CertificateEditorScreen extends StatefulWidget {
 
 class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
   final GlobalKey _previewContainerKey = GlobalKey();
+  late PageController _pageController;
 
   late TextEditingController _nameController;
   late TextEditingController _genderController;
   late TextEditingController _deptController;
   late TextEditingController _locationController;
   late TextEditingController _quarterController;
-  late TextEditingController _issueDateController;
+  late TextEditingController _solarDateController;
+  late TextEditingController _lunarDateController;
   late TextEditingController _signatoryController;
   late TextEditingController _titleController;
   late TextEditingController _companyController;
 
   String _selectedTemplateAsset = 'assets/certificate_template/frame_quarter1.jpg';
   String _employeeCategory = 'skilled'; // 'skilled' (បុគ្គលិកជំនាញ) or 'worker' (កម្មករ)
+  int _workerRank = 1; // 1, 2, 3
+  int _activePageIndex = 0; // Page 0 or Page 1 for Skilled 2-page swipe
+
+  DateTime _selectedDate = DateTime(2026, 8, 5);
   bool _isGeneratingPdf = false;
   bool _showInlineControls = true;
 
@@ -65,29 +77,85 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
   @override
   void initState() {
     super.initState();
+    _pageController = PageController();
+    _workerRank = widget.rankNumber;
+    _employeeCategory = widget.initialCategory;
+
     _nameController = TextEditingController(text: widget.recipientName);
     _genderController = TextEditingController(text: widget.recipientGender);
     _deptController = TextEditingController(text: widget.recipientDept);
     _locationController = TextEditingController(text: widget.recipientLocation);
     _quarterController = TextEditingController(text: widget.quarterPeriod);
-    _issueDateController = TextEditingController(text: 'រាជធានីភ្នំពេញ, ថ្ងៃទី ០៩ ខែ សីហា ឆ្នាំ ២០២៦');
     _signatoryController = TextEditingController(text: 'នាត សុវណ្ណ');
     _titleController = TextEditingController(text: 'លិខិតសរសើរ');
     _companyController = TextEditingController(text: 'អគ្គនាយិកាក្រុមហ៊ុន វណ្ណ វណ្ណ ខេមបូឌា');
+
+    _solarDateController = TextEditingController();
+    _lunarDateController = TextEditingController();
+
+    _updateKhmerDates(_selectedDate);
   }
 
   @override
   void dispose() {
+    _pageController.dispose();
     _nameController.dispose();
     _genderController.dispose();
     _deptController.dispose();
     _locationController.dispose();
     _quarterController.dispose();
-    _issueDateController.dispose();
+    _solarDateController.dispose();
+    _lunarDateController.dispose();
     _signatoryController.dispose();
     _titleController.dispose();
     _companyController.dispose();
     super.dispose();
+  }
+
+  String _toKhmerDigits(String input) {
+    const english = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+    const khmer = ['០', '១', '២', '៣', '៤', '៥', '៦', '៧', '៨', '៩'];
+    for (int i = 0; i < english.length; i++) {
+      input = input.replaceAll(english[i], khmer[i]);
+    }
+    return input;
+  }
+
+  String _getKhmerMonthName(int month) {
+    const months = [
+      'មករា', 'កុម្ភៈ', 'មីនា', 'មេសា', 'ឧសភា', 'មិថុនា',
+      'កក្កដា', 'សីហា', 'កញ្ញា', 'តុលា', 'វិច្ឆិកា', 'ធ្នូ'
+    ];
+    return months[month - 1];
+  }
+
+  void _updateKhmerDates(DateTime date) {
+    _selectedDate = date;
+    final lunar = Chhankitek.fromDate(date);
+
+    final dayOfWeek = lunar.format("ថ្ងៃW");
+    final lunarDay = lunar.lunarDay.toString();
+    final lunarMonth = "ខែ${lunar.format("m")}";
+    final lunarYear = "ឆ្នាំ${lunar.format("a")}";
+    final era = lunar.format("e");
+    final buddhistEra = "ពុទ្ធសករាជ ${lunar.format("b")}";
+
+    setState(() {
+      _lunarDateController.text = "$dayOfWeek $lunarDay $lunarMonth $lunarYear $era $buddhistEra";
+      _solarDateController.text = "រាជធានីភ្នំពេញ, ថ្ងៃទី${_toKhmerDigits(date.day.toString())} ខែ${_getKhmerMonthName(date.month)} ឆ្នាំ${_toKhmerDigits(date.year.toString())}";
+    });
+  }
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2035),
+    );
+    if (picked != null) {
+      _updateKhmerDates(picked);
+    }
   }
 
   Future<Uint8List?> _capturePngBytes() async {
@@ -168,6 +236,8 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final bool isSkilled = _employeeCategory == 'skilled';
+
     return Scaffold(
       backgroundColor: AppTheme.bgDark,
       appBar: AppBar(
@@ -203,7 +273,7 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // Employee Type Tabs: បុគ្គលិកជំនាញ vs កម្មករ
+            // Employee Type Tabs: បុគ្គលិកជំនាញ vs កម្មករ / ប្រតិបត្តិការ
             Container(
               padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
               color: const Color(0xFF111E33),
@@ -216,14 +286,10 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
                         duration: const Duration(milliseconds: 200),
                         padding: const EdgeInsets.symmetric(vertical: 10),
                         decoration: BoxDecoration(
-                          color: _employeeCategory == 'skilled'
-                              ? Colors.amberAccent
-                              : Colors.white.withValues(alpha: 0.05),
+                          color: isSkilled ? Colors.amberAccent : Colors.white.withValues(alpha: 0.05),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: _employeeCategory == 'skilled'
-                                ? Colors.amberAccent
-                                : Colors.white.withValues(alpha: 0.1),
+                            color: isSkilled ? Colors.amberAccent : Colors.white.withValues(alpha: 0.1),
                           ),
                         ),
                         child: Row(
@@ -232,15 +298,15 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
                             Icon(
                               Icons.badge_rounded,
                               size: 18,
-                              color: _employeeCategory == 'skilled' ? Colors.black : Colors.white70,
+                              color: isSkilled ? Colors.black : Colors.white70,
                             ),
                             const SizedBox(width: 6),
                             Text(
-                              '👔 បុគ្គលិកជំនាញ',
+                              '👔 បុគ្គលិកជំនាញ (២ សន្លឹក)',
                               style: GoogleFonts.kantumruyPro(
-                                color: _employeeCategory == 'skilled' ? Colors.black : Colors.white70,
+                                color: isSkilled ? Colors.black : Colors.white70,
                                 fontWeight: FontWeight.bold,
-                                fontSize: 13.5,
+                                fontSize: 13,
                               ),
                             ),
                           ],
@@ -256,14 +322,10 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
                         duration: const Duration(milliseconds: 200),
                         padding: const EdgeInsets.symmetric(vertical: 10),
                         decoration: BoxDecoration(
-                          color: _employeeCategory == 'worker'
-                              ? Colors.cyanAccent
-                              : Colors.white.withValues(alpha: 0.05),
+                          color: !isSkilled ? Colors.cyanAccent : Colors.white.withValues(alpha: 0.05),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: _employeeCategory == 'worker'
-                                ? Colors.cyanAccent
-                                : Colors.white.withValues(alpha: 0.1),
+                            color: !isSkilled ? Colors.cyanAccent : Colors.white.withValues(alpha: 0.1),
                           ),
                         ),
                         child: Row(
@@ -272,15 +334,15 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
                             Icon(
                               Icons.engineering_rounded,
                               size: 18,
-                              color: _employeeCategory == 'worker' ? Colors.black : Colors.white70,
+                              color: !isSkilled ? Colors.black : Colors.white70,
                             ),
                             const SizedBox(width: 6),
                             Text(
-                              '👷‍♂️ កម្មករ / ប្រតិបត្តិការ',
+                              '👷‍♂️ កម្មករ (លេខ ១,២,៣)',
                               style: GoogleFonts.kantumruyPro(
-                                color: _employeeCategory == 'worker' ? Colors.black : Colors.white70,
+                                color: !isSkilled ? Colors.black : Colors.white70,
                                 fontWeight: FontWeight.bold,
-                                fontSize: 13.5,
+                                fontSize: 13,
                               ),
                             ),
                           ],
@@ -294,7 +356,7 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
 
             // Visual Template Selector Gallery
             Container(
-              height: 70,
+              height: 68,
               padding: const EdgeInsets.symmetric(vertical: 6),
               color: const Color(0xFF0D1627),
               child: ListView.builder(
@@ -322,8 +384,8 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
                             borderRadius: BorderRadius.circular(6),
                             child: Image.asset(
                               t['path']!,
-                              width: 60,
-                              height: 48,
+                              width: 56,
+                              height: 44,
                               fit: BoxFit.cover,
                             ),
                           ),
@@ -348,305 +410,88 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
               ),
             ),
 
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
 
-            // Certificate Preview Container (A4 Landscape ratio: 297mm x 210mm ~ 1.414)
+            // Preview Title & Swipe Navigation Indicator
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Column(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        '🔍 មើលគំរូផ្សាយផ្ទាល់ (Live A4 Preview)',
-                        style: GoogleFonts.kantumruyPro(
-                          color: Colors.white70,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      Text(
-                        'ចុចលើអត្ថបទដើម្បីកែប្រែដោយផ្ទាល់ (Inline Edit)',
-                        style: GoogleFonts.kantumruyPro(
-                          color: Colors.amberAccent,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-
-                  RepaintBoundary(
-                    key: _previewContainerKey,
-                    child: AspectRatio(
-                      aspectRatio: 1.414,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(8),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.5),
-                              blurRadius: 20,
-                              offset: const Offset(0, 8),
-                            ),
-                          ],
-                        ),
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            // 1. Background Template Image
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: Image.asset(
-                                _selectedTemplateAsset,
-                                fit: BoxFit.fill,
-                                errorBuilder: (ctx, err, stack) => Container(
-                                  color: Colors.white,
-                                  child: const Center(
-                                    child: Icon(Icons.workspace_premium_rounded, size: 80, color: Colors.amber),
-                                  ),
-                                ),
-                              ),
-                            ),
-
-                            // 2. Certificate Content Layer
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(40, 36, 40, 24),
-                              child: LayoutBuilder(
-                                builder: (context, constraints) {
-                                  final baseWidth = constraints.maxWidth;
-                                  final scale = baseWidth / 700;
-
-                                  return Column(
-                                    crossAxisAlignment: CrossAxisAlignment.center,
-                                    children: [
-                                      // Top Header & Recipient Photo Box
-                                      Stack(
-                                        children: [
-                                          Align(
-                                            alignment: Alignment.topCenter,
-                                            child: Column(
-                                              children: [
-                                                const SizedBox(height: 8),
-                                                Text(
-                                                  _titleController.text,
-                                                  textAlign: TextAlign.center,
-                                                  style: GoogleFonts.kantumruyPro(
-                                                    color: const Color(0xFF1E3A8A),
-                                                    fontSize: 28 * scale,
-                                                    fontWeight: FontWeight.bold,
-                                                    letterSpacing: 1.2,
-                                                  ),
-                                                ),
-                                                SizedBox(height: 4 * scale),
-                                                Container(
-                                                  width: 140 * scale,
-                                                  height: 2,
-                                                  color: const Color(0xFF1E3A8A),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          // Recipient Photo Placeholder Top Right (Matching user screenshot!)
-                                          Align(
-                                            alignment: Alignment.topRight,
-                                            child: Container(
-                                              width: 75 * scale,
-                                              height: 95 * scale,
-                                              decoration: BoxDecoration(
-                                                color: Colors.white,
-                                                borderRadius: BorderRadius.circular(6),
-                                                border: Border.all(
-                                                  color: const Color(0xFFD97706),
-                                                  width: 2,
-                                                ),
-                                                boxShadow: [
-                                                  BoxShadow(
-                                                    color: Colors.black.withValues(alpha: 0.15),
-                                                    blurRadius: 6,
-                                                  ),
-                                                ],
-                                              ),
-                                              child: ClipRRect(
-                                                borderRadius: BorderRadius.circular(4),
-                                                child: widget.recipientAvatarUrl != null &&
-                                                        widget.recipientAvatarUrl!.isNotEmpty
-                                                    ? Image.network(
-                                                        ApiService.getFullImageUrl(widget.recipientAvatarUrl!),
-                                                        fit: BoxFit.cover,
-                                                        errorBuilder: (_, __, ___) => _buildAvatarPlaceholder(scale),
-                                                      )
-                                                    : _buildAvatarPlaceholder(scale),
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-
-                                      SizedBox(height: 14 * scale),
-
-                                      // Subtitle / Company Title
-                                      Text(
-                                        _companyController.text,
-                                        style: GoogleFonts.kantumruyPro(
-                                          color: const Color(0xFF1E293B),
-                                          fontSize: 16 * scale,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      SizedBox(height: 4 * scale),
-                                      Text(
-                                        'សូមសរសើរចំពោះ',
-                                        style: GoogleFonts.kantumruyPro(
-                                          color: const Color(0xFFD97706),
-                                          fontSize: 17 * scale,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      SizedBox(height: 14 * scale),
-
-                                      // Paragraph Main Body Text
-                                      RichText(
-                                        textAlign: TextAlign.center,
-                                        text: TextSpan(
-                                          style: GoogleFonts.kantumruyPro(
-                                            color: const Color(0xFF1E293B),
-                                            fontSize: 13.5 * scale,
-                                            height: 1.6,
-                                          ),
-                                          children: [
-                                            TextSpan(
-                                              text: _employeeCategory == 'worker'
-                                                  ? 'កម្មករ/បុគ្គលិកប្រតិបត្តិការ ឈ្មោះ ៖ '
-                                                  : 'បុគ្គលិកឈ្មោះ ៖ ',
-                                            ),
-                                            TextSpan(
-                                              text: _nameController.text,
-                                              style: GoogleFonts.kantumruyPro(
-                                                color: const Color(0xFF2563EB),
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 15 * scale,
-                                              ),
-                                            ),
-                                            const TextSpan(text: ' ភេទ '),
-                                            TextSpan(
-                                              text: _genderController.text,
-                                              style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold),
-                                            ),
-                                            TextSpan(
-                                              text: _employeeCategory == 'worker'
-                                                  ? ' ផ្នែក '
-                                                  : ' ជាបុគ្គលិកផ្នែក ',
-                                            ),
-                                            TextSpan(
-                                              text: _deptController.text,
-                                              style: GoogleFonts.kantumruyPro(
-                                                color: const Color(0xFF2563EB),
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 14 * scale,
-                                              ),
-                                            ),
-                                            TextSpan(
-                                              text: _employeeCategory == 'worker'
-                                                  ? '\nដែលបានខិតខំប្រឹងប្រែងធ្វើការងារយ៉ាងសកម្ម និងមានភាពស្មោះត្រង់ក្នុងការបំពេញភារកិច្ចជូនក្រុមហ៊ុន និងបានជាប់\nជាបុគ្គលិក/កម្មករឆ្នើមផ្នែក '
-                                                  : '\nដែលបានខិតខំក្នុងតួនាទីរបស់ខ្លួនបានយ៉ាងល្អក្នុងការបំពេញការងារជូនក្រុមហ៊ុន និងបានជាប់\nជាបុគ្គលិកឆ្នើមផ្នែក ',
-                                            ),
-                                            TextSpan(
-                                              text: _locationController.text,
-                                              style: GoogleFonts.kantumruyPro(
-                                                color: const Color(0xFF2563EB),
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 14 * scale,
-                                              ),
-                                            ),
-                                            const TextSpan(text: ' ប្រចាំ '),
-                                            TextSpan(
-                                              text: _quarterController.text,
-                                              style: GoogleFonts.kantumruyPro(
-                                                color: const Color(0xFF2563EB),
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 14 * scale,
-                                              ),
-                                            ),
-                                            const TextSpan(text: ' ៕'),
-                                          ],
-                                        ),
-                                      ),
-
-                                      const Spacer(),
-
-                                      // Footer Section: Date, Title, Signature & Gold Ribbon Seal
-                                      Row(
-                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                        crossAxisAlignment: CrossAxisAlignment.end,
-                                        children: [
-                                          // Bottom Left: Gold Medal Ribbon Icon (Matching Screenshot!)
-                                          Container(
-                                            width: 60 * scale,
-                                            height: 60 * scale,
-                                            decoration: const BoxDecoration(
-                                              shape: BoxShape.circle,
-                                            ),
-                                            child: Icon(
-                                              Icons.workspace_premium_rounded,
-                                              size: 58 * scale,
-                                              color: const Color(0xFFD97706),
-                                            ),
-                                          ),
-
-                                          // Bottom Right: Signatory & Date
-                                          Column(
-                                            crossAxisAlignment: CrossAxisAlignment.center,
-                                            children: [
-                                              Text(
-                                                _issueDateController.text,
-                                                style: GoogleFonts.kantumruyPro(
-                                                  color: const Color(0xFF475569),
-                                                  fontSize: 11 * scale,
-                                                ),
-                                              ),
-                                              SizedBox(height: 4 * scale),
-                                              Text(
-                                                'អគ្គនាយិកា',
-                                                style: GoogleFonts.kantumruyPro(
-                                                  color: const Color(0xFF0F172A),
-                                                  fontSize: 14 * scale,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                              SizedBox(height: 4 * scale),
-                                              // Signature Image from Assets
-                                              Image.asset(
-                                                'assets/certificate_template/sign.png',
-                                                height: 38 * scale,
-                                                errorBuilder: (_, __, ___) => SizedBox(height: 38 * scale),
-                                              ),
-                                              SizedBox(height: 2 * scale),
-                                              Text(
-                                                _signatoryController.text,
-                                                style: GoogleFonts.kantumruyPro(
-                                                  color: const Color(0xFF0F172A),
-                                                  fontSize: 14 * scale,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  );
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                  Text(
+                    isSkilled ? '🔍 មើលគំរូ (២ សន្លឹក - Swipe Scroll ↔️)' : '🔍 មើលគំរូ (A4 Preview)',
+                    style: GoogleFonts.kantumruyPro(
+                      color: Colors.white70,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
+                  if (isSkilled)
+                    Row(
+                      children: [
+                        GestureDetector(
+                          onTap: () {
+                            _pageController.animateToPage(0, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: _activePageIndex == 0 ? Colors.amberAccent : Colors.white10,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              'សន្លឹកទី ១',
+                              style: GoogleFonts.kantumruyPro(
+                                color: _activePageIndex == 0 ? Colors.black : Colors.white70,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        GestureDetector(
+                          onTap: () {
+                            _pageController.animateToPage(1, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: _activePageIndex == 1 ? Colors.amberAccent : Colors.white10,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              'សន្លឹកទី ២',
+                              style: GoogleFonts.kantumruyPro(
+                                color: _activePageIndex == 1 ? Colors.black : Colors.white70,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                 ],
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            // Certificate Preview Stack (Swipeable if Skilled 2-page)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: AspectRatio(
+                aspectRatio: 1.414,
+                child: isSkilled
+                    ? PageView(
+                        controller: _pageController,
+                        onPageChanged: (idx) => setState(() => _activePageIndex = idx),
+                        children: [
+                          _buildSingleCertificateView(pageIndex: 0),
+                          _buildSingleCertificateView(pageIndex: 1),
+                        ],
+                      )
+                    : _buildSingleCertificateView(pageIndex: 0),
               ),
             ),
 
@@ -716,7 +561,67 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
                       ],
                     ),
                     const SizedBox(height: 10),
-                    _buildEditorField('កាលបរិច្ឆេទ & ទីតាំងចេញ', _issueDateController),
+
+                    // Rank Selection Dropdown (Only for Worker Tab)
+                    if (!isSkilled) ...[
+                      Text('ជ័យលាភី (Award Rank)', style: GoogleFonts.kantumruyPro(color: Colors.amberAccent, fontSize: 12, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 4),
+                      DropdownButtonFormField<int>(
+                        initialValue: _workerRank,
+                        dropdownColor: const Color(0xFF1E293B),
+                        style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 13.5),
+                        items: const [
+                          DropdownMenuItem(value: 1, child: Text('🥇 លេខ ១ (ជ័យលាភីលេខ ១)')),
+                          DropdownMenuItem(value: 2, child: Text('🥈 លេខ ២ (ជ័យលាភីលេខ ២)')),
+                          DropdownMenuItem(value: 3, child: Text('🥉 លេខ ៣ (ជ័យលាភីលេខ ៣)')),
+                        ],
+                        onChanged: (val) {
+                          if (val != null) setState(() => _workerRank = val);
+                        },
+                        decoration: InputDecoration(
+                          filled: true,
+                          fillColor: Colors.white.withValues(alpha: 0.05),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                    ],
+
+                    // DatePicker Selection Controls (Khmer Solar & Lunar Dates)
+                    _buildFormLabel('កាលបរិច្ឆេទចេញ (ចន្ទគតិ & សុរិយគតិ)'),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: InkWell(
+                            onTap: _pickDate,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.05),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.amberAccent.withValues(alpha: 0.4)),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    '📅 ជ្រើសរើសថ្ងៃខែឆ្នាំ: ${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}',
+                                    style: GoogleFonts.kantumruyPro(color: Colors.amberAccent, fontSize: 12.5, fontWeight: FontWeight.bold),
+                                  ),
+                                  const Icon(Icons.edit_calendar_rounded, color: Colors.amberAccent, size: 18),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    _buildEditorField('ថ្ងៃខែឆ្នាំ (ចន្ទគតិ - ស្វ័យប្រវត្តិ)', _lunarDateController),
+                    const SizedBox(height: 8),
+                    _buildEditorField('ទីតាំង & ថ្ងៃខែឆ្នាំ (សុរិយគតិ - ស្វ័យប្រវត្តិ)', _solarDateController),
                   ],
                 ),
               ),
@@ -778,18 +683,362 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
     );
   }
 
+  Widget _buildSingleCertificateView({required int pageIndex}) {
+    final bool isSkilled = _employeeCategory == 'skilled';
+
+    return RepaintBoundary(
+      key: pageIndex == 0 ? _previewContainerKey : null,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.5),
+              blurRadius: 18,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // 1. Background Template Image
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.asset(
+                _selectedTemplateAsset,
+                fit: BoxFit.fill,
+                errorBuilder: (ctx, err, stack) => Container(
+                  color: Colors.white,
+                  child: const Center(
+                    child: Icon(Icons.workspace_premium_rounded, size: 80, color: Colors.amber),
+                  ),
+                ),
+              ),
+            ),
+
+            // 2. Certificate Content Layer
+            Padding(
+              padding: const EdgeInsets.fromLTRB(40, 32, 40, 20),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final baseWidth = constraints.maxWidth;
+                  final scale = baseWidth / 700;
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      // Top Header & Recipient Photo Box
+                      Stack(
+                        children: [
+                          Align(
+                            alignment: Alignment.topCenter,
+                            child: Column(
+                              children: [
+                                const SizedBox(height: 6),
+                                Text(
+                                  pageIndex == 1 ? 'លិខិតសរសើរ & វាយតម្លៃ' : _titleController.text,
+                                  textAlign: TextAlign.center,
+                                  style: GoogleFonts.kantumruyPro(
+                                    color: const Color(0xFF1E3A8A),
+                                    fontSize: 26 * scale,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 1.2,
+                                  ),
+                                ),
+                                SizedBox(height: 4 * scale),
+                                Container(
+                                  width: 130 * scale,
+                                  height: 2,
+                                  color: const Color(0xFF1E3A8A),
+                                ),
+                              ],
+                            ),
+                          ),
+                          // Recipient Photo Placeholder Top Right
+                          Align(
+                            alignment: Alignment.topRight,
+                            child: Container(
+                              width: 72 * scale,
+                              height: 90 * scale,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: const Color(0xFFD97706),
+                                  width: 2,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.15),
+                                    blurRadius: 6,
+                                  ),
+                                ],
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(4),
+                                child: widget.recipientAvatarUrl != null &&
+                                        widget.recipientAvatarUrl!.isNotEmpty
+                                    ? Image.network(
+                                        ApiService.getFullImageUrl(widget.recipientAvatarUrl!),
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) => _buildAvatarPlaceholder(scale),
+                                      )
+                                    : _buildAvatarPlaceholder(scale),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      SizedBox(height: 12 * scale),
+
+                      // Subtitle / Company Title
+                      Text(
+                        _companyController.text,
+                        style: GoogleFonts.kantumruyPro(
+                          color: const Color(0xFF1E293B),
+                          fontSize: 15.5 * scale,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      SizedBox(height: 3 * scale),
+                      Text(
+                        pageIndex == 1 ? 'លទ្ធផលការងារឆ្នើម' : 'សូមសរសើរចំពោះ',
+                        style: GoogleFonts.kantumruyPro(
+                          color: const Color(0xFFD97706),
+                          fontSize: 16.5 * scale,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      SizedBox(height: 12 * scale),
+
+                      // Paragraph Main Body Text (Different Wording for Page 1 vs Page 2)
+                      if (pageIndex == 0)
+                        RichText(
+                          textAlign: TextAlign.center,
+                          text: TextSpan(
+                            style: GoogleFonts.kantumruyPro(
+                              color: const Color(0xFF1E293B),
+                              fontSize: 13 * scale,
+                              height: 1.55,
+                            ),
+                            children: [
+                              TextSpan(
+                                text: isSkilled
+                                    ? 'បុគ្គលិកជំនាញ ឈ្មោះ ៖ '
+                                    : 'កម្មករ/បុគ្គលិកប្រតិបត្តិការ ឈ្មោះ ៖ ',
+                              ),
+                              TextSpan(
+                                text: _nameController.text,
+                                style: GoogleFonts.kantumruyPro(
+                                  color: const Color(0xFF2563EB),
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14.5 * scale,
+                                ),
+                              ),
+                              const TextSpan(text: ' ភេទ '),
+                              TextSpan(
+                                text: _genderController.text,
+                                style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold),
+                              ),
+                              TextSpan(
+                                text: isSkilled ? ' ជាបុគ្គលិកផ្នែក ' : ' ផ្នែក ',
+                              ),
+                              TextSpan(
+                                text: _deptController.text,
+                                style: GoogleFonts.kantumruyPro(
+                                  color: const Color(0xFF2563EB),
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13.5 * scale,
+                                ),
+                              ),
+                              TextSpan(
+                                text: isSkilled
+                                    ? '\nដែលបានខិតខំក្នុងតួនាទីរបស់ខ្លួនបានយ៉ាងល្អក្នុងការបំពេញការងារជូនក្រុមហ៊ុន និងបានជាប់\nជាបុគ្គលិកឆ្នើមផ្នែក '
+                                    : '\nដែលបានខិតខំប្រឹងប្រែងធ្វើការងារយ៉ាងសកម្ម និងមានភាពស្មោះត្រង់ក្នុងការបំពេញភារកិច្ចជូនក្រុមហ៊ុន និងបានជាប់\nជាបុគ្គលិក/កម្មករឆ្នើមផ្នែក ',
+                              ),
+                              TextSpan(
+                                text: _locationController.text,
+                                style: GoogleFonts.kantumruyPro(
+                                  color: const Color(0xFF2563EB),
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13.5 * scale,
+                                ),
+                              ),
+                              const TextSpan(text: ' ប្រចាំ '),
+                              TextSpan(
+                                text: _quarterController.text,
+                                style: GoogleFonts.kantumruyPro(
+                                  color: const Color(0xFF2563EB),
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13.5 * scale,
+                                ),
+                              ),
+                              const TextSpan(text: ' ៕'),
+                            ],
+                          ),
+                        )
+                      else
+                        RichText(
+                          textAlign: TextAlign.center,
+                          text: TextSpan(
+                            style: GoogleFonts.kantumruyPro(
+                              color: const Color(0xFF1E293B),
+                              fontSize: 13 * scale,
+                              height: 1.55,
+                            ),
+                            children: [
+                              const TextSpan(text: 'សម្រាប់ការខិតខំប្រឹងប្រែង និងលទ្ធផលការងារដ៏ឆ្នើមរបស់ '),
+                              TextSpan(
+                                text: _nameController.text,
+                                style: GoogleFonts.kantumruyPro(
+                                  color: const Color(0xFF2563EB),
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14 * scale,
+                                ),
+                              ),
+                              TextSpan(
+                                text: ' ក្នុងការដឹកនាំ និងការសម្រេចបាននូវ KPI ខ្ពស់បំផុតប្រចាំ ${_quarterController.text} ជូនក្រុមហ៊ុន វណ្ណ វណ្ណ ខេមបូឌា ៕',
+                              ),
+                            ],
+                          ),
+                        ),
+
+                      const Spacer(),
+
+                      // Center Award Seal (Trophy Icon for Skilled vs Rank Number 1,2,3 for Worker)
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            width: 62 * scale,
+                            height: 62 * scale,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFFF59E0B), Color(0xFFB45309)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.amber.withValues(alpha: 0.4),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 3),
+                                ),
+                              ],
+                            ),
+                            child: isSkilled
+                                ? Icon(
+                                    Icons.emoji_events_rounded,
+                                    size: 36 * scale,
+                                    color: Colors.white,
+                                  )
+                                : Center(
+                                    child: Text(
+                                      _toKhmerDigits('$_workerRank'),
+                                      style: GoogleFonts.kantumruyPro(
+                                        color: Colors.white,
+                                        fontSize: 26 * scale,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                          ),
+                        ],
+                      ),
+
+                      const Spacer(),
+
+                      // Footer Section: Khmer Dates & Signatory block (NO extra bottom-left icon!)
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          // Bottom Right: Dual Dates (Lunar & Solar) and Signatory
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              // Line 1: Khmer Lunar Date
+                              Text(
+                                _lunarDateController.text,
+                                style: GoogleFonts.kantumruyPro(
+                                  color: const Color(0xFF334155),
+                                  fontSize: 10 * scale,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              SizedBox(height: 2 * scale),
+                              // Line 2: Khmer Solar Date
+                              Text(
+                                _solarDateController.text,
+                                style: GoogleFonts.kantumruyPro(
+                                  color: const Color(0xFF475569),
+                                  fontSize: 10.5 * scale,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              SizedBox(height: 4 * scale),
+                              Text(
+                                'អគ្គនាយិកា',
+                                style: GoogleFonts.kantumruyPro(
+                                  color: const Color(0xFF0F172A),
+                                  fontSize: 13.5 * scale,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              SizedBox(height: 3 * scale),
+                              // Signature Image from Assets
+                              Image.asset(
+                                'assets/certificate_template/sign.png',
+                                height: 36 * scale,
+                                errorBuilder: (_, __, ___) => SizedBox(height: 36 * scale),
+                              ),
+                              SizedBox(height: 2 * scale),
+                              Text(
+                                _signatoryController.text,
+                                style: GoogleFonts.kantumruyPro(
+                                  color: const Color(0xFF0F172A),
+                                  fontSize: 13.5 * scale,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildAvatarPlaceholder(double scale) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.person_rounded, size: 36 * scale, color: Colors.black38),
+          Icon(Icons.person_rounded, size: 34 * scale, color: Colors.black38),
           Text(
             'Photo',
-            style: GoogleFonts.inter(fontSize: 10 * scale, color: Colors.black45),
+            style: GoogleFonts.inter(fontSize: 9.5 * scale, color: Colors.black45),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildFormLabel(String label) {
+    return Text(
+      label,
+      style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 12),
     );
   }
 

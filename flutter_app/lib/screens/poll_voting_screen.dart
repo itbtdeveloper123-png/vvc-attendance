@@ -1,5 +1,8 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
+import '../providers/user_provider.dart';
 import '../services/api_service.dart';
 import '../utils/app_theme.dart';
 import '../widgets/vvc_global_alert.dart';
@@ -15,10 +18,13 @@ class PollVotingScreen extends StatefulWidget {
 class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final ApiService _api = ApiService();
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
   List<dynamic> _polls = [];
   List<dynamic> _allUsers = [];
   bool _isLoading = true;
   String? _errorMessage;
+  String _resultsCategory = 'skilled'; // 'skilled' (បុគ្គលិកជំនាញ) or 'worker' (កម្មករ)
 
   @override
   void initState() {
@@ -40,92 +46,40 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
     });
 
     try {
-      final response = await _api.fetchActivePolls();
       final usersRes = await _api.fetchUsers();
+      if (usersRes['success'] == true && usersRes['data'] != null) {
+        _allUsers = List<dynamic>.from(usersRes['data']);
+      }
+
+      // Fetch real polls from Firestore
+      final snapshot = await _firestore
+          .collection('polls')
+          .orderBy('created_at', descending: true)
+          .get();
+
+      final List<dynamic> loaded = [];
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        data['doc_id'] = doc.id;
+        loaded.add(data);
+      }
 
       if (mounted) {
         setState(() {
-          if (response['success'] == true && response['data'] != null) {
-            _polls = List<dynamic>.from(response['data']);
-          }
-          if (usersRes['success'] == true && usersRes['data'] != null) {
-            _allUsers = List<dynamic>.from(usersRes['data']);
-          }
+          _polls = loaded;
           _isLoading = false;
         });
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = 'កំហុសបច្ចេកទេស: $e';
           _isLoading = false;
         });
       }
     }
-
-    // Mock initial demo voting polls if server list is empty
-    if (_polls.isEmpty) {
-      _polls = [
-        {
-          'id': 101,
-          'title': 'បោះឆ្នោតជ្រើសរើសបុគ្គលិកឆ្នើម ប្រចាំត្រីមាសទី ២',
-          'quarter': 'ត្រីមាសទី ២ នៃឆ្នាំ ២០២៦',
-          'location': 'ការិយាល័យកណ្តាល',
-          'start_date': '២០២៦-០៧-០១',
-          'end_date': '២០២៦-០៨-៣១',
-          'has_voted': false,
-          'candidates': [
-            {
-              'employee_id': '168',
-              'name': 'លី ស៊ាងអ៊ី',
-              'dept': 'គណនេយ្យករ',
-              'avatar': '',
-              'votes_count': 14,
-            },
-            {
-              'employee_id': '1122',
-              'name': 'មាស វិចិត្រ',
-              'dept': 'IT Support',
-              'avatar': '',
-              'votes_count': 8,
-            },
-            {
-              'employee_id': '123',
-              'name': 'សុខ ចាន់',
-              'dept': 'រដ្ឋបាល',
-              'avatar': '',
-              'votes_count': 5,
-            },
-          ],
-          'voter_audit_list': [
-            {
-              'voter_name': 'សុខ ចាន់',
-              'voter_id': '123',
-              'candidate_name': 'លី ស៊ាងអ៊ី',
-              'candidate_id': '168',
-              'time': '09:30 AM, 08-08-2026',
-            },
-            {
-              'voter_name': 'មាស វិចិត្រ',
-              'voter_id': '1122',
-              'candidate_name': 'លី ស៊ាងអ៊ី',
-              'candidate_id': '168',
-              'time': '10:15 AM, 08-08-2026',
-            },
-            {
-              'voter_name': 'ស៊ុយ សម្បត្តិ',
-              'voter_id': '169',
-              'candidate_name': 'មាស វិចិត្រ',
-              'candidate_id': '1122',
-              'time': '02:45 PM, 08-08-2026',
-            },
-          ],
-        },
-      ];
-    }
   }
 
-  Future<void> _castVote(int pollId, String candidateEmployeeId) async {
+  Future<void> _castVote(String pollDocId, String candidateEmployeeId) async {
     final confirmed = await VvcAlert.showConfirmDialog(
       context,
       title: 'បោះឆ្នោតបុគ្គលិកឆ្នើម',
@@ -135,127 +89,236 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
     if (confirmed != true) return;
 
     try {
-      final response = await _api.castVote(pollId, candidateEmployeeId);
+      final pollDocRef = _firestore.collection('polls').doc(pollDocId);
+      final docSnapshot = await pollDocRef.get();
 
-      if (response['success'] == true) {
-        if (!mounted) return;
-        VvcAlert.showSuccess(context, title: 'បោះឆ្នោតជោគជ័យ!', message: 'ការបោះឆ្នោតរបស់អ្នកត្រូវបានរក្សាទុក');
-        _loadInitialData();
-      } else {
-        if (!mounted) return;
-        // Fallback local UI update if demo poll
-        setState(() {
-          for (var p in _polls) {
-            if (p['id'] == pollId) {
-              p['has_voted'] = true;
-              for (var c in p['candidates']) {
-                if (c['employee_id'] == candidateEmployeeId) {
-                  c['votes_count'] = (c['votes_count'] ?? 0) + 1;
-                }
-              }
-              (p['voter_audit_list'] ??= []).add({
-                'voter_name': 'អ្នកប្រើប្រាស់បច្ចុប្បន្ន',
-                'voter_id': '001',
-                'candidate_name': candidateEmployeeId,
-                'candidate_id': candidateEmployeeId,
-                'time': 'ទើបតែបោះឆ្នោត',
-              });
-            }
+      if (docSnapshot.exists) {
+        final data = docSnapshot.data()!;
+        final candidates = List<Map<String, dynamic>>.from(data['candidates'] ?? []);
+        final auditList = List<Map<String, dynamic>>.from(data['voter_audit_list'] ?? []);
+
+        String candidateName = candidateEmployeeId;
+        for (var c in candidates) {
+          if (c['employee_id'] == candidateEmployeeId) {
+            c['votes_count'] = (c['votes_count'] as int? ?? 0) + 1;
+            candidateName = c['name'] ?? candidateEmployeeId;
           }
+        }
+
+        auditList.add({
+          'voter_name': 'បុគ្គលិក',
+          'voter_id': '001',
+          'candidate_name': candidateName,
+          'candidate_id': candidateEmployeeId,
+          'time': 'ទើបតែបោះឆ្នោត',
         });
-        VvcAlert.showSuccess(context, title: 'បោះឆ្នោតជោគជ័យ!', message: 'ការបោះឆ្នោតរបស់អ្នកត្រូវបានរក្សាទុក');
+
+        await pollDocRef.update({
+          'candidates': candidates,
+          'voter_audit_list': auditList,
+          'has_voted': true,
+        });
+
+        if (mounted) {
+          VvcAlert.showSuccess(context, title: 'បោះឆ្នោតជោគជ័យ!', message: 'ការបោះឆ្នោតរបស់អ្នកត្រូវបានរក្សាទុក');
+          _loadInitialData();
+        }
       }
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
-        VvcAlert.showSuccess(context, title: 'បោះឆ្នោតជោគជ័យ!', message: 'ការបោះឆ្នោតរបស់អ្នកត្រូវបានរក្សាទុក');
+        VvcAlert.showError(context, title: 'បរាជ័យ', message: 'មិនអាចបោះឆ្នោតបានទេ: $e');
       }
     }
   }
 
+  // Admin Panel 100% Matching Form Modal
   void _showCreatePollDialog() {
-    final titleCtrl = TextEditingController(text: 'បោះឆ្នោតជ្រើសរើសបុគ្គលិកឆ្នើម');
-    final quarterCtrl = TextEditingController(text: 'ត្រីមាសទី ២ នៃឆ្នាំ ២០២៦');
-    final locationCtrl = TextEditingController(text: 'ការិយាល័យកណ្តាល');
+    final titleCtrl = TextEditingController();
+    final passcodeCtrl = TextEditingController();
+
+    String selectedQuarter = 'Q1';
+    String selectedWarehouse = 'Head Office';
+
+    DateTime startDate = DateTime.now();
+    DateTime endDate = DateTime.now().add(const Duration(days: 7));
+
     final List<String> selectedCandidates = [];
+    final List<String> excludedCandidates = [];
 
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => Dialog(
           backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
           child: Container(
-            padding: const EdgeInsets.all(22),
+            constraints: const BoxConstraints(maxWidth: 500),
             decoration: BoxDecoration(
-              color: const Color(0xFF131D2E).withValues(alpha: 0.95),
+              color: const Color(0xFF131D2E).withValues(alpha: 0.96),
               borderRadius: BorderRadius.circular(24),
               border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
             ),
             child: SingleChildScrollView(
+              padding: const EdgeInsets.all(22),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Form Header (Matching Admin Panel Screenshot #1)
                   Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Icon(Icons.add_task_rounded, color: Colors.amberAccent),
-                      const SizedBox(width: 8),
-                      Text(
-                        'បង្កើតការបោះឆ្នោត ថ្មី',
-                        style: GoogleFonts.kantumruyPro(
-                          color: Colors.white,
-                          fontSize: 17,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: AppTheme.primary,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.add, color: Colors.white, size: 20),
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            'បង្កើតការបោះឆ្នោតថ្មី',
+                            style: GoogleFonts.kantumruyPro(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded, color: Colors.white70),
+                        onPressed: () => Navigator.pop(ctx),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
-                  Text('ចំណងជើងការបោះឆ្នោត', style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 12.5)),
+                  const SizedBox(height: 18),
+
+                  // 1. ចំណងជើង *
+                  _buildFormLabel('ចំណងជើង *'),
                   const SizedBox(height: 6),
                   TextField(
                     controller: titleCtrl,
-                    style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 13.5),
-                    decoration: InputDecoration(
-                      filled: true,
-                      fillColor: Colors.white.withValues(alpha: 0.05),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
+                    style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 14),
+                    decoration: _inputDecoration('បញ្ចូលចំណងជើងការបោះឆ្នោត...'),
                   ),
                   const SizedBox(height: 14),
+
+                  // 2. ត្រីមាស (Quarter Dropdown)
+                  _buildFormLabel('ត្រីមាស'),
+                  const SizedBox(height: 6),
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedQuarter,
+                    dropdownColor: const Color(0xFF1E293B),
+                    style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 14),
+                    items: const [
+                      DropdownMenuItem(value: 'Q1', child: Text('Q1 (ត្រីមាសទី ១)')),
+                      DropdownMenuItem(value: 'Q2', child: Text('Q2 (ត្រីមាសទី ២)')),
+                      DropdownMenuItem(value: 'Q3', child: Text('Q3 (ត្រីមាសទី ៣)')),
+                      DropdownMenuItem(value: 'Q4', child: Text('Q4 (ត្រីមាសទី ៤)')),
+                    ],
+                    onChanged: (val) => setDialogState(() => selectedQuarter = val!),
+                    decoration: _inputDecoration('ជ្រើសរើសត្រីមាស'),
+                  ),
+                  const SizedBox(height: 14),
+
+                  // 3. WAREHOUSE (ទីតាំង/ឃ្លាំង)
+                  _buildFormLabel('WAREHOUSE (ទីតាំង/ឃ្លាំង)'),
+                  const SizedBox(height: 6),
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedWarehouse,
+                    dropdownColor: const Color(0xFF1E293B),
+                    style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 14),
+                    items: const [
+                      DropdownMenuItem(value: 'Head Office', child: Text('Head Office (ការិយាល័យកណ្តាល)')),
+                      DropdownMenuItem(value: 'Phnom Penh', child: Text('Phnom Penh (ភ្នំពេញ)')),
+                      DropdownMenuItem(value: 'Siem Reap', child: Text('Siem Reap (សៀមរាប)')),
+                      DropdownMenuItem(value: 'Battambang', child: Text('Battambang (បាត់ដំបង)')),
+                      DropdownMenuItem(value: 'Kampong Cham', child: Text('Kampong Cham (កំពង់ចាម)')),
+                    ],
+                    onChanged: (val) => setDialogState(() => selectedWarehouse = val!),
+                    decoration: _inputDecoration('ជ្រើសរើសទីតាំង'),
+                  ),
+                  const SizedBox(height: 14),
+
+                  // 4 & 5. កាលបរិច្ឆេទចាប់ផ្តើម * & កាលបរិច្ឆេទបញ្ចប់ * (DatePickers)
                   Row(
                     children: [
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('ត្រីមាស / ឆ្នាំ', style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 12)),
-                            const SizedBox(height: 4),
-                            TextField(
-                              controller: quarterCtrl,
-                              style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 13),
-                              decoration: InputDecoration(
-                                filled: true,
-                                fillColor: Colors.white.withValues(alpha: 0.05),
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            _buildFormLabel('កាលបរិច្ឆេទចាប់ផ្តើម *'),
+                            const SizedBox(height: 6),
+                            InkWell(
+                              onTap: () async {
+                                final picked = await showDatePicker(
+                                  context: context,
+                                  initialDate: startDate,
+                                  firstDate: DateTime(2025),
+                                  lastDate: DateTime(2030),
+                                );
+                                if (picked != null) setDialogState(() => startDate = picked);
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.05),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      '${startDate.year}-${startDate.month.toString().padLeft(2, '0')}-${startDate.day.toString().padLeft(2, '0')}',
+                                      style: GoogleFonts.inter(color: Colors.white, fontSize: 13.5),
+                                    ),
+                                    const Icon(Icons.calendar_today_rounded, color: Colors.white60, size: 18),
+                                  ],
+                                ),
                               ),
                             ),
                           ],
                         ),
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('ទីតាំង / ផ្នែក', style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 12)),
-                            const SizedBox(height: 4),
-                            TextField(
-                              controller: locationCtrl,
-                              style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 13),
-                              decoration: InputDecoration(
-                                filled: true,
-                                fillColor: Colors.white.withValues(alpha: 0.05),
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            _buildFormLabel('កាលបរិច្ឆេទបញ្ចប់ *'),
+                            const SizedBox(height: 6),
+                            InkWell(
+                              onTap: () async {
+                                final picked = await showDatePicker(
+                                  context: context,
+                                  initialDate: endDate,
+                                  firstDate: DateTime(2025),
+                                  lastDate: DateTime(2030),
+                                );
+                                if (picked != null) setDialogState(() => endDate = picked);
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.05),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      '${endDate.year}-${endDate.month.toString().padLeft(2, '0')}-${endDate.day.toString().padLeft(2, '0')}',
+                                      style: GoogleFonts.inter(color: Colors.white, fontSize: 13.5),
+                                    ),
+                                    const Icon(Icons.calendar_today_rounded, color: Colors.white60, size: 18),
+                                  ],
+                                ),
                               ),
                             ),
                           ],
@@ -263,11 +326,23 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
-                  Text('ជ្រើសរើសបេក្ខជនរួមបញ្ចូល:', style: GoogleFonts.kantumruyPro(color: Colors.amberAccent, fontSize: 13, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 14),
+
+                  // 6. លេខកូដប្រវ៉ៃចូលមើលលទ្ធផល (ទុកទទេបើមិនចង់ប្រើ)
+                  _buildFormLabel('លេខកូដប្រវ៉ៃចូលមើលលទ្ធផល (ទុកទទេបើមិនចង់ប្រើ)'),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: passcodeCtrl,
+                    style: GoogleFonts.inter(color: Colors.white, fontSize: 14),
+                    decoration: _inputDecoration('បញ្ចូលលេខកូដ (ជ្រើសរើស)'),
+                  ),
+                  const SizedBox(height: 14),
+
+                  // 7. ឈ្មោះដែលមិនត្រូវបោះឆ្នោត (OPTIONAL Excluded Candidates List)
+                  _buildFormLabel('ឈ្មោះដែលមិនត្រូវបោះឆ្នោត (OPTIONAL)'),
+                  const SizedBox(height: 6),
                   Container(
-                    constraints: const BoxConstraints(maxHeight: 180),
+                    constraints: const BoxConstraints(maxHeight: 140),
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.04),
                       borderRadius: BorderRadius.circular(12),
@@ -276,7 +351,7 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
                     child: _allUsers.isEmpty
                         ? Padding(
                             padding: const EdgeInsets.all(12),
-                            child: Text('កំពុងទាញយកបញ្ជីបុគ្គលិក...', style: GoogleFonts.kantumruyPro(color: Colors.white54)),
+                            child: Text('កំពុងទាញយកបញ្ជី...', style: GoogleFonts.kantumruyPro(color: Colors.white54)),
                           )
                         : ListView.builder(
                             shrinkWrap: true,
@@ -284,13 +359,61 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
                             itemBuilder: (ctx, i) {
                               final u = _allUsers[i];
                               final empId = u['employee_id']?.toString() ?? '';
-                              final name = u['name']?.toString() ?? 'N/A';
-                              final isChecked = selectedCandidates.contains(empId);
+                              final name = u['name']?.toString() ?? empId;
+                              final isChecked = excludedCandidates.contains(empId);
 
                               return CheckboxListTile(
                                 value: isChecked,
-                                title: Text(name, style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 13)),
-                                subtitle: Text('ID: $empId | ${u['position'] ?? ''}', style: GoogleFonts.inter(color: Colors.white54, fontSize: 11)),
+                                title: Text('$name ($empId)', style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 12.5)),
+                                subtitle: Text(u['branch'] ?? u['position'] ?? '', style: GoogleFonts.inter(color: Colors.white54, fontSize: 11)),
+                                activeColor: Colors.redAccent,
+                                onChanged: (val) {
+                                  setDialogState(() {
+                                    if (val == true) {
+                                      excludedCandidates.add(empId);
+                                      selectedCandidates.remove(empId);
+                                    } else {
+                                      excludedCandidates.remove(empId);
+                                    }
+                                  });
+                                },
+                              );
+                            },
+                          ),
+                  ),
+                  const SizedBox(height: 14),
+
+                  // 8. បុគ្គលិកដែលអនុញ្ញាតឱ្យបោះឆ្នោត / បេក្ខជន
+                  _buildFormLabel('បុគ្គលិកដែលអនុញ្ញាតឱ្យបោះឆ្នោត (បេក្ខជន) *'),
+                  const SizedBox(height: 6),
+                  Container(
+                    constraints: const BoxConstraints(maxHeight: 160),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.04),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                    ),
+                    child: _allUsers.isEmpty
+                        ? Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Text('កំពុងទាញយកបញ្ជី...', style: GoogleFonts.kantumruyPro(color: Colors.white54)),
+                          )
+                        : ListView.builder(
+                            shrinkWrap: true,
+                            itemCount: _allUsers.length,
+                            itemBuilder: (ctx, i) {
+                              final u = _allUsers[i];
+                              final empId = u['employee_id']?.toString() ?? '';
+                              final name = u['name']?.toString() ?? empId;
+                              final isChecked = selectedCandidates.contains(empId);
+                              final isExcluded = excludedCandidates.contains(empId);
+
+                              if (isExcluded) return const SizedBox.shrink();
+
+                              return CheckboxListTile(
+                                value: isChecked,
+                                title: Text('$name ($empId)', style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 13)),
+                                subtitle: Text('ផ្នែក: ${u['position'] ?? 'បុគ្គលិក'}', style: GoogleFonts.kantumruyPro(color: Colors.white54, fontSize: 11)),
                                 activeColor: AppTheme.primary,
                                 onChanged: (val) {
                                   setDialogState(() {
@@ -305,7 +428,9 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
                             },
                           ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 22),
+
+                  // Submit Buttons
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
@@ -313,38 +438,61 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
                         onPressed: () => Navigator.pop(ctx),
                         child: Text('បោះបង់', style: GoogleFonts.kantumruyPro(color: Colors.white60)),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 10),
                       ElevatedButton(
-                        onPressed: () {
-                          if (titleCtrl.text.trim().isEmpty) return;
+                        onPressed: () async {
+                          final title = titleCtrl.text.trim();
+                          if (title.isEmpty) {
+                            VvcAlert.showError(context, title: 'សូមបញ្ចូលចំណងជើង', message: 'ចំណងជើងការបោះឆ្នោតមិនអាចទទេបានទេ');
+                            return;
+                          }
 
-                          final newPoll = {
-                            'id': DateTime.now().millisecondsSinceEpoch,
-                            'title': titleCtrl.text.trim(),
-                            'quarter': quarterCtrl.text.trim(),
-                            'location': locationCtrl.text.trim(),
-                            'start_date': '២០២៦-០៨-០១',
-                            'end_date': '២០២៦-០៨-៣១',
-                            'has_voted': false,
-                            'candidates': selectedCandidates.map((id) {
-                              final u = _allUsers.firstWhere((x) => x['employee_id']?.toString() == id, orElse: () => {'name': id});
-                              return {
-                                'employee_id': id,
-                                'name': u['name'] ?? id,
-                                'dept': u['position'] ?? 'បុគ្គលិក',
-                                'avatar': u['avatar'] ?? '',
-                                'votes_count': 0,
-                              };
-                            }).toList(),
+                          final candidatesData = selectedCandidates.map((id) {
+                            final u = _allUsers.firstWhere((x) => x['employee_id']?.toString() == id, orElse: () => {'name': id});
+                            return {
+                              'employee_id': id,
+                              'name': u['name'] ?? id,
+                              'dept': u['position'] ?? 'បុគ្គលិក',
+                              'avatar': u['avatar'] ?? '',
+                              'votes_count': 0,
+                            };
+                          }).toList();
+
+                          final pollMap = {
+                            'title': title,
+                            'quarter': selectedQuarter,
+                            'location': selectedWarehouse,
+                            'start_date': '${startDate.year}-${startDate.month.toString().padLeft(2, '0')}-${startDate.day.toString().padLeft(2, '0')}',
+                            'end_date': '${endDate.year}-${endDate.month.toString().padLeft(2, '0')}-${endDate.day.toString().padLeft(2, '0')}',
+                            'passcode': passcodeCtrl.text.trim(),
+                            'excluded_candidates': excludedCandidates,
+                            'candidates': candidatesData,
                             'voter_audit_list': [],
+                            'has_voted': false,
+                            'status': 'active',
+                            'created_at': FieldValue.serverTimestamp(),
                           };
 
-                          setState(() => _polls.insert(0, newPoll));
-                          Navigator.pop(ctx);
-                          VvcAlert.showSuccess(context, title: 'ជោគជ័យ', message: 'បានបង្កើតការបោះឆ្នោតថ្មីរួចរាល់!');
+                          try {
+                            final docRef = await _firestore.collection('polls').add(pollMap);
+                            pollMap['doc_id'] = docRef.id;
+
+                            setState(() {
+                              _polls.insert(0, pollMap);
+                            });
+
+                            if (!ctx.mounted) return;
+                            Navigator.pop(ctx);
+                            if (mounted) VvcAlert.showSuccess(context, title: 'ជោគជ័យ', message: 'បានបង្កើតការបោះឆ្នោតថ្មីត្រឹមត្រូវតាម Admin Panel រួចរាល់!');
+                          } catch (e) {
+                            if (!ctx.mounted) return;
+                            Navigator.pop(ctx);
+                            if (mounted) VvcAlert.showError(context, title: 'កំហុស', message: 'មិនអាចរក្សាទុកការបោះឆ្នោតបានទេ: $e');
+                          }
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppTheme.primary,
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                         child: Text('បង្កើតការបោះឆ្នោត', style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold)),
@@ -360,7 +508,41 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
     );
   }
 
-  void _openCertificateEditor(Map<String, dynamic> candidate, Map<String, dynamic> poll) {
+  Widget _buildFormLabel(String label) {
+    return Text(
+      label,
+      style: GoogleFonts.kantumruyPro(
+        color: Colors.white.withValues(alpha: 0.9),
+        fontSize: 13,
+        fontWeight: FontWeight.bold,
+      ),
+    );
+  }
+
+  InputDecoration _inputDecoration(String hint) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: GoogleFonts.kantumruyPro(color: Colors.white30, fontSize: 13),
+      filled: true,
+      fillColor: Colors.white.withValues(alpha: 0.05),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+      ),
+    );
+  }
+
+  void _openCertificateEditor(
+    Map<String, dynamic> candidate,
+    Map<String, dynamic> poll, {
+    int rankNumber = 1,
+    String category = 'skilled',
+  }) {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -371,6 +553,8 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
           recipientLocation: poll['location']?.toString() ?? 'ការិយាល័យកណ្តាល',
           quarterPeriod: poll['quarter']?.toString() ?? 'ត្រីមាសទី ២ នៃឆ្នាំ ២០២៦',
           recipientAvatarUrl: candidate['avatar']?.toString(),
+          rankNumber: rankNumber,
+          initialCategory: category,
         ),
       ),
     );
@@ -378,12 +562,15 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
 
   @override
   Widget build(BuildContext context) {
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    final bool isHrmOrAdmin = userProvider.isHRM || userProvider.isAdmin;
+
     return Scaffold(
       backgroundColor: AppTheme.bgDark,
       appBar: AppBar(
         backgroundColor: const Color(0xFF111E33),
         title: Text(
-          'គ្រប់គ្រងការបោះឆ្នោតបុគ្គលិក',
+          isHrmOrAdmin ? 'គ្រប់គ្រងការបោះឆ្នោតបុគ្គលិក' : 'បោះឆ្នោតបុគ្គលិក',
           style: GoogleFonts.kantumruyPro(
             fontWeight: FontWeight.bold,
             color: Colors.white,
@@ -395,31 +582,36 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
-          IconButton(
-            tooltip: 'បង្កើតការបោះឆ្នោត ថ្មី',
-            icon: const Icon(Icons.add_circle_rounded, color: Colors.amberAccent, size: 28),
-            onPressed: _showCreatePollDialog,
-          ),
+          if (isHrmOrAdmin)
+            IconButton(
+              tooltip: 'បង្កើតការបោះឆ្នោត ថ្មី (Admin Panel)',
+              icon: const Icon(Icons.add_circle_rounded, color: Colors.amberAccent, size: 28),
+              onPressed: _showCreatePollDialog,
+            ),
         ],
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: Colors.amberAccent,
-          labelColor: Colors.amberAccent,
-          unselectedLabelColor: Colors.white70,
-          labelStyle: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold, fontSize: 13.5),
-          tabs: const [
-            Tab(text: "🗳️ ការបោះឆ្នោត (Active)"),
-            Tab(text: "📊 លទ្ធផល & អ្នកបោះឆ្នោត"),
-          ],
-        ),
+        bottom: isHrmOrAdmin
+            ? TabBar(
+                controller: _tabController,
+                indicatorColor: Colors.amberAccent,
+                labelColor: Colors.amberAccent,
+                unselectedLabelColor: Colors.white70,
+                labelStyle: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold, fontSize: 13.5),
+                tabs: const [
+                  Tab(text: "🗳️ ការបោះឆ្នោត (Active)"),
+                  Tab(text: "📊 លទ្ធផល & អ្នកបោះឆ្នោត"),
+                ],
+              )
+            : null,
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildActivePollsTab(),
-          _buildPollResultsTab(),
-        ],
-      ),
+      body: isHrmOrAdmin
+          ? TabBarView(
+              controller: _tabController,
+              children: [
+                _buildActivePollsTab(),
+                _buildPollResultsTab(),
+              ],
+            )
+          : _buildActivePollsTab(),
     );
   }
 
@@ -453,7 +645,7 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
             ElevatedButton.icon(
               onPressed: _showCreatePollDialog,
               icon: const Icon(Icons.add_rounded),
-              label: Text('បង្កើតការបោះឆ្នោត ថ្មី', style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold)),
+              label: Text('បង្កើត Form បោះឆ្នោតថ្មី (Admin Panel)', style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold)),
               style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
             ),
           ],
@@ -477,6 +669,7 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
   Widget _buildPollCard(Map<String, dynamic> poll) {
     final hasVoted = poll['has_voted'] == true;
     final candidates = poll['candidates'] as List<dynamic>? ?? [];
+    final docId = (poll['doc_id'] ?? '').toString();
     String? selectedCandidateEmployeeId;
 
     return StatefulBuilder(
@@ -579,7 +772,7 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: () => _castVote(poll['id'] as int? ?? 0, selectedCandidateEmployeeId!),
+                      onPressed: () => _castVote(docId, selectedCandidateEmployeeId!),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppTheme.primary,
                         padding: const EdgeInsets.symmetric(vertical: 14),
@@ -597,7 +790,18 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
   }
 
   Widget _buildPollResultsTab() {
-    if (_polls.isEmpty) return const Center(child: Text('មិនទាន់មានទិន្នន័យបោះឆ្នោតទេ', style: TextStyle(color: Colors.white54)));
+    if (_polls.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.bar_chart_rounded, size: 64, color: Colors.white30),
+            const SizedBox(height: 16),
+            Text('មិនទាន់មានទិន្នន័យបោះឆ្នោតទេ', style: GoogleFonts.kantumruyPro(color: Colors.white54, fontSize: 15)),
+          ],
+        ),
+      );
+    }
 
     final currentPoll = _polls.first;
     final candidates = List<Map<String, dynamic>>.from(currentPoll['candidates'] ?? []);
@@ -609,35 +813,225 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
     }
 
     candidates.sort((a, b) => (b['votes_count'] as int? ?? 0).compareTo(a['votes_count'] as int? ?? 0));
+    final bool isSkilledTab = _resultsCategory == 'skilled';
+    final topWinner = candidates.isNotEmpty ? candidates.first : <String, dynamic>{};
 
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
       children: [
-        // Poll Title Summary
+        // Poll Title Summary Header
         Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
             color: const Color(0xFF111E33),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.amberAccent.withValues(alpha: 0.2)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.25),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(currentPoll['title'] ?? '', style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+              Text(
+                currentPoll['title'] ?? 'បោះឆ្នោតបុគ្គលិកឆ្នើម',
+                style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 17),
+              ),
               const SizedBox(height: 6),
-              Text('សរុបសំឡេងឆ្នោត: $totalVotes សំឡេង', style: GoogleFonts.kantumruyPro(color: Colors.amberAccent, fontSize: 13, fontWeight: FontWeight.bold)),
+              Row(
+                children: [
+                  Text(
+                    'សរុបសំឡេងឆ្នោត ៖ ',
+                    style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 13),
+                  ),
+                  Text(
+                    '$totalVotes សំឡេង',
+                    style: GoogleFonts.kantumruyPro(color: Colors.amberAccent, fontSize: 14, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
             ],
           ),
         ),
 
+        const SizedBox(height: 16),
+
+        // Category Tab Switcher (👔 បុគ្គលិកជំនាញ vs 👷‍♂️ កម្មករ / ប្រតិបត្តិការ)
+        Container(
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: const Color(0xFF111E33),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => setState(() => _resultsCategory = 'skilled'),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.symmetric(vertical: 11),
+                    decoration: BoxDecoration(
+                      color: isSkilledTab ? Colors.amberAccent : Colors.transparent,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.badge_rounded,
+                          size: 18,
+                          color: isSkilledTab ? Colors.black : Colors.white70,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          '👔 បុគ្គលិកជំនាញ',
+                          style: GoogleFonts.kantumruyPro(
+                            color: isSkilledTab ? Colors.black : Colors.white70,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => setState(() => _resultsCategory = 'worker'),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.symmetric(vertical: 11),
+                    decoration: BoxDecoration(
+                      color: !isSkilledTab ? Colors.cyanAccent : Colors.transparent,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.engineering_rounded,
+                          size: 18,
+                          color: !isSkilledTab ? Colors.black : Colors.white70,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          '👷‍♂️ កម្មករ / ប្រតិបត្តិការ',
+                          style: GoogleFonts.kantumruyPro(
+                            color: !isSkilledTab ? Colors.black : Colors.white70,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        // ONE Unified Prominent Certificate Button
+        if (candidates.isNotEmpty)
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF1E293B), Color(0xFF0F172A)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: Colors.amberAccent.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.amberAccent.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.workspace_premium_rounded, color: Colors.amberAccent, size: 28),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        isSkilledTab
+                            ? '🎓 បង្កើតប័ណ្ណសរសើរជំនាញ (២ សន្លឹក)'
+                            : '🎓 បង្កើតប័ណ្ណសរសើរកម្មករ (លេខ ១,២,៣)',
+                        style: GoogleFonts.kantumruyPro(
+                          color: Colors.amberAccent,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14.5,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'ជ័យលាភី៖ ${topWinner['name'] ?? 'បុគ្គលិកឆ្នើម'} (${topWinner['votes_count'] ?? 0} ឆ្នោត)',
+                        style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+                ElevatedButton.icon(
+                  onPressed: () => _openCertificateEditor(
+                    topWinner,
+                    currentPoll,
+                    rankNumber: 1,
+                    category: _resultsCategory,
+                  ),
+                  icon: const Icon(Icons.print_rounded, size: 16, color: Colors.black),
+                  label: Text(
+                    'បង្កើត',
+                    style: GoogleFonts.kantumruyPro(color: Colors.black, fontWeight: FontWeight.bold),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.amberAccent,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
         const SizedBox(height: 18),
 
-        Text('📊 លទ្ធផលបោះឆ្នោតតាមបេក្ខជន:', style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+        Row(
+          children: [
+            const Icon(Icons.bar_chart_rounded, color: Colors.amberAccent, size: 20),
+            const SizedBox(width: 8),
+            Text(
+              isSkilledTab
+                  ? '📊 លទ្ធផលបោះឆ្នោត (បុគ្គលិកជំនាញ):'
+                  : '📊 លទ្ធផលបោះឆ្នោត (កម្មករ - លេខ ១,២,៣):',
+              style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+            ),
+          ],
+        ),
         const SizedBox(height: 10),
 
         for (int i = 0; i < candidates.length; i++) ...[
-          _buildCandidateResultCard(candidates[i], totalVotes, isWinner: i == 0 && totalVotes > 0, poll: currentPoll),
+          _buildCandidateResultCard(
+            candidates[i],
+            totalVotes,
+            isWinner: i == 0 && totalVotes > 0,
+            poll: currentPoll,
+            rankNumber: i + 1,
+            category: _resultsCategory,
+          ),
         ],
 
         const SizedBox(height: 22),
@@ -713,9 +1107,17 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
     );
   }
 
-  Widget _buildCandidateResultCard(Map<String, dynamic> c, int totalVotes, {required bool isWinner, required Map<String, dynamic> poll}) {
+  Widget _buildCandidateResultCard(
+    Map<String, dynamic> c,
+    int totalVotes, {
+    required bool isWinner,
+    required Map<String, dynamic> poll,
+    int rankNumber = 1,
+    String category = 'skilled',
+  }) {
     final votes = c['votes_count'] as int? ?? 0;
     final pct = totalVotes > 0 ? (votes / totalVotes) : 0.0;
+    final bool isWorker = category == 'worker';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -732,8 +1134,32 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
         children: [
           Row(
             children: [
-              if (isWinner) const Icon(Icons.emoji_events_rounded, color: Colors.amberAccent, size: 24),
-              if (isWinner) const SizedBox(width: 8),
+              if (isWorker)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  margin: const EdgeInsets.only(right: 8),
+                  decoration: BoxDecoration(
+                    color: rankNumber == 1
+                        ? Colors.amber.withValues(alpha: 0.2)
+                        : (rankNumber == 2 ? Colors.blueGrey.withValues(alpha: 0.2) : Colors.brown.withValues(alpha: 0.2)),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: rankNumber == 1 ? Colors.amber : (rankNumber == 2 ? Colors.blueGrey : Colors.brown),
+                    ),
+                  ),
+                  child: Text(
+                    rankNumber == 1 ? '🥇 លេខ ១' : (rankNumber == 2 ? '🥈 លេខ ២' : '🥉 លេខ ៣'),
+                    style: GoogleFonts.kantumruyPro(
+                      color: rankNumber == 1 ? Colors.amberAccent : (rankNumber == 2 ? Colors.cyanAccent : Colors.orangeAccent),
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                )
+              else if (isWinner) ...[
+                const Icon(Icons.emoji_events_rounded, color: Colors.amberAccent, size: 24),
+                const SizedBox(width: 8),
+              ],
               Expanded(
                 child: Text(
                   c['name'] ?? '',
@@ -754,7 +1180,7 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           ClipRRect(
             borderRadius: BorderRadius.circular(6),
             child: LinearProgressIndicator(
@@ -762,28 +1188,6 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
               minHeight: 8,
               backgroundColor: Colors.white10,
               color: isWinner ? Colors.amberAccent : AppTheme.primary,
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // Certificate Print Button
-          Align(
-            alignment: Alignment.centerRight,
-            child: OutlinedButton.icon(
-              onPressed: () => _openCertificateEditor(c, poll),
-              icon: const Icon(Icons.workspace_premium_rounded, size: 16, color: Colors.amberAccent),
-              label: Text(
-                '🎓 បង្កើតលិខិតសរសើរ (Certificate Print)',
-                style: GoogleFonts.kantumruyPro(
-                  color: Colors.amberAccent,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
-                ),
-              ),
-              style: OutlinedButton.styleFrom(
-                side: BorderSide(color: Colors.amberAccent.withValues(alpha: 0.4)),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
             ),
           ),
         ],
