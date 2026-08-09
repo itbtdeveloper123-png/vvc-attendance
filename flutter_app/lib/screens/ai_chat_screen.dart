@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../providers/user_provider.dart';
 import '../services/api_service.dart';
+import '../services/local_hr_assistant_service.dart';
 import '../utils/app_theme.dart';
 import '../widgets/app_widgets.dart';
 
@@ -202,6 +203,7 @@ class _AiChatScreenState extends State<AiChatScreen>
   bool _isDeletingSession = false;
   bool _hasComposerText = false;
   bool _showScrollToBottomButton = false;
+  bool _useLocalEngine = false;
 
   int? _activeSessionId;
   String _activeSessionTitle = 'AI Assistant';
@@ -611,6 +613,30 @@ class _AiChatScreenState extends State<AiChatScreen>
     });
     _scrollToBottom();
 
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+
+    if (_useLocalEngine) {
+      final localResult = await LocalHrAssistantService().processQuery(
+        text,
+        userName: userProvider.name,
+      );
+      if (!mounted) return;
+      setState(() {
+        _messages = [
+          ..._messages,
+          _AiMessage.assistant(
+            text: localResult.text,
+            createdAt: _currentTimestamp(),
+            provider: 'TFLite Local AI',
+            modelName: 'HR-Intent-Engine-1.0',
+          ),
+        ];
+        _isSending = false;
+      });
+      _scrollToBottom();
+      return;
+    }
+
     final res = await _api.sendAiChatMessage(text, sessionId: _activeSessionId);
     if (!mounted) return;
 
@@ -656,14 +682,19 @@ class _AiChatScreenState extends State<AiChatScreen>
       }
       _scrollToBottom();
     } else {
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
+      final localResult = await LocalHrAssistantService().processQuery(
+        text,
+        userName: userProvider.name,
+      );
       setState(() {
         _messages = [
           ..._messages,
           _AiMessage.assistant(
-            text: '${res['message'] ?? 'មិនអាចទទួលចម្លើយពី AI បានទេ'}',
+            text: localResult.text,
             createdAt: _currentTimestamp(),
-            isError: true,
-            retryText: text,
+            provider: 'TFLite Local AI (Offline)',
+            modelName: 'HR-Intent-Engine-1.0',
           ),
         ];
       });
@@ -1420,6 +1451,36 @@ class _AiChatScreenState extends State<AiChatScreen>
           ],
         ),
         actions: [
+          IconButton(
+            tooltip: _useLocalEngine
+                ? 'TFLite Local AI (ឥតគិតថ្លៃ & Offline)'
+                : 'Server AI (Online)',
+            onPressed: () {
+              setState(() {
+                _useLocalEngine = !_useLocalEngine;
+              });
+              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    _useLocalEngine
+                        ? '⚡ បានប្តូរទៅប្រើ TFLite Local AI (ឥតគិតថ្លៃ & Offline)'
+                        : '☁️ បានប្តូរទៅប្រើ Server AI (Online)',
+                    style: GoogleFonts.kantumruyPro(),
+                  ),
+                  duration: const Duration(seconds: 2),
+                  backgroundColor:
+                      _useLocalEngine ? Colors.green : AppTheme.primary,
+                ),
+              );
+            },
+            icon: Icon(
+              _useLocalEngine
+                  ? Icons.bolt_rounded
+                  : Icons.cloud_done_rounded,
+              color: _useLocalEngine ? Colors.amberAccent : Colors.cyanAccent,
+            ),
+          ),
           IconButton(
             tooltip: 'ប្រវត្តិជជែក',
             onPressed: _openSessionsSheet,

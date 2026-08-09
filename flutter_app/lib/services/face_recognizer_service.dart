@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:image/image.dart' as img;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tflite_flutter/tflite_flutter.dart';
+import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 
 // ========================
 // FaceRecognizerService
@@ -81,12 +82,35 @@ class FaceRecognizerService {
     if (_interpreter == null) return null;
 
     try {
+      final inputImage = InputImage.fromFilePath(imagePath);
+      final faceDetector = FaceDetector(
+        options: FaceDetectorOptions(performanceMode: FaceDetectorMode.fast),
+      );
+      final faces = await faceDetector.processImage(inputImage);
+      await faceDetector.close();
+
       final bytes = await File(imagePath).readAsBytes();
       final decodedImage = img.decodeImage(bytes);
       if (decodedImage == null) return null;
 
-      // Resize image to 112x112
-      final resized = img.copyResize(decodedImage, width: inputSize, height: inputSize);
+      img.Image faceCrop = decodedImage;
+
+      if (faces.isNotEmpty) {
+        final face = faces.first;
+        final rect = face.boundingBox;
+
+        int x = max(0, rect.left.toInt());
+        int y = max(0, rect.top.toInt());
+        int w = min(decodedImage.width - x, rect.width.toInt());
+        int h = min(decodedImage.height - y, rect.height.toInt());
+
+        if (w > 0 && h > 0) {
+          faceCrop = img.copyCrop(decodedImage, x: x, y: y, width: w, height: h);
+        }
+      }
+
+      // Resize cropped face to 112x112
+      final resized = img.copyResize(faceCrop, width: inputSize, height: inputSize);
 
       // Preprocess image bytes to float array [-1, 1]
       final input = Float32List(1 * inputSize * inputSize * 3);
@@ -123,7 +147,7 @@ class FaceRecognizerService {
   Future<FaceVerifyResult> verifyFace({
     required String imagePath,
     String? userId,
-    double threshold = 0.65,
+    double threshold = 0.50,
   }) async {
     await init();
     try {

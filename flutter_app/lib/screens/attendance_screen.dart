@@ -561,7 +561,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           final result = await _faceRecognizer.verifyFace(
             imagePath: photo.path,
             userId: userId,
-            threshold: 0.68,
+            threshold: 0.50,
           );
           faceVerified = result.matched;
           faceError = result.error;
@@ -596,11 +596,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           suggestion = (last == 'Check-In') ? 'Check-Out' : 'Check-In';
         }
         action = suggestion; // Automatically check-in or check-out
-      }
-
-      if (action == null) {
-        await _switchToQrScanner();
-        return;
       }
 
       if (!mounted) return;
