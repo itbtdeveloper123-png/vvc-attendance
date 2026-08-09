@@ -75,19 +75,20 @@ class _OutsideReportScreenState extends State<OutsideReportScreen> {
 
   List<dynamic> _getFilteredLogs() {
     final dateStr = DateFormat('dd/MM/yyyy').format(_selectedDate);
-    var filtered = _allLogs.where((log) {
-      final logDate = log['log_datetime']?.toString().split(' ')[0] ?? '';
-      // We are much looser here now to ensure data is seen
-      bool matchesDate = logDate == dateStr;
+    var filtered =
+        _allLogs.where((log) {
+          final logDate = log['log_datetime']?.toString().split(' ')[0] ?? '';
+          // We are much looser here now to ensure data is seen
+          bool matchesDate = logDate == dateStr;
 
-      // Keep photo filter if user specifically wants outside report with photos
-      // but let's make it more resilient
-      bool hasPhoto =
-          log['photo_path'] != null &&
-          log['photo_path'].toString().trim().isNotEmpty;
+          // Keep photo filter if user specifically wants outside report with photos
+          // but let's make it more resilient
+          bool hasPhoto =
+              log['photo_path'] != null &&
+              log['photo_path'].toString().trim().isNotEmpty;
 
-      return matchesDate && hasPhoto;
-    }).toList();
+          return matchesDate && hasPhoto;
+        }).toList();
 
     filtered.sort((a, b) {
       final tA = a['log_datetime'] ?? '';
@@ -123,10 +124,7 @@ class _OutsideReportScreenState extends State<OutsideReportScreen> {
       ),
       body: AppBackgroundShell(
         child: Column(
-          children: [
-            _buildFilterBar(),
-            Expanded(child: _buildFeedList()),
-          ],
+          children: [_buildFilterBar(), Expanded(child: _buildFeedList())],
         ),
       ),
     );
@@ -243,19 +241,20 @@ class _OutsideReportScreenState extends State<OutsideReportScreen> {
           AppResponsive.bottomPadding(context),
         ),
         itemCount: logs.length,
-        itemBuilder: (context, index) => AnimationConfiguration.staggeredList(
-          position: index,
-          duration: const Duration(milliseconds: 500),
-          child: SlideAnimation(
-            verticalOffset: 50.0,
-            child: FadeInAnimation(
-              child: AppResponsive.maxWidth(
-                context: context,
-                child: _buildFeedCard(logs[index]),
+        itemBuilder:
+            (context, index) => AnimationConfiguration.staggeredList(
+              position: index,
+              duration: const Duration(milliseconds: 500),
+              child: SlideAnimation(
+                verticalOffset: 50.0,
+                child: FadeInAnimation(
+                  child: AppResponsive.maxWidth(
+                    context: context,
+                    child: _buildFeedCard(logs[index]),
+                  ),
+                ),
               ),
             ),
-          ),
-        ),
       ),
     );
   }
@@ -312,11 +311,12 @@ class _OutsideReportScreenState extends State<OutsideReportScreen> {
                   backgroundColor: AppTheme.primary.withValues(alpha: 0.2),
                   backgroundImage:
                       (avatar != null && avatar.toString().isNotEmpty)
-                      ? NetworkImage(ApiService.getFullImageUrl(avatar))
-                      : null,
-                  child: (avatar == null || avatar.toString().isEmpty)
-                      ? Icon(Icons.person, color: AppTheme.primary)
-                      : null,
+                          ? NetworkImage(ApiService.getFullImageUrl(avatar))
+                          : null,
+                  child:
+                      (avatar == null || avatar.toString().isEmpty)
+                          ? Icon(Icons.person, color: AppTheme.primary)
+                          : null,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -402,82 +402,84 @@ class _OutsideReportScreenState extends State<OutsideReportScreen> {
               onTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (_) => Scaffold(
-                      backgroundColor: Colors.black,
-                      appBar: VvcAppBar(
-                        backgroundColor: Colors.transparent,
-                        iconTheme: const IconThemeData(color: Colors.white),
-                      ),
-                      body: Center(
-                        child: Stack(
-                          children: [
-                            InteractiveViewer(
-                              child: Image.network(
-                                ApiService.getFullImageUrl(photoPath),
-                                fit: BoxFit.contain,
-                              ),
-                            ),
-                            // Watermark in Full Preview
-                            Positioned(
-                              bottom: 20,
-                              left: 20,
-                              right: 20,
-                              child: Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: Colors.black54,
-                                  borderRadius: BorderRadius.circular(12),
+                    builder:
+                        (_) => Scaffold(
+                          backgroundColor: Colors.black,
+                          appBar: const VvcAppBar(
+                            backgroundColor: Colors.transparent,
+                            iconTheme: IconThemeData(color: Colors.white),
+                          ),
+                          body: Center(
+                            child: Stack(
+                              children: [
+                                InteractiveViewer(
+                                  child: Image.network(
+                                    ApiService.getFullImageUrl(photoPath),
+                                    fit: BoxFit.contain,
+                                  ),
                                 ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Row(
+                                // Watermark in Full Preview
+                                Positioned(
+                                  bottom: 20,
+                                  left: 20,
+                                  right: 20,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black54,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        const Icon(
-                                          Icons.location_on,
-                                          color: Colors.redAccent,
-                                          size: 16,
-                                        ),
-                                        const SizedBox(width: 6),
-                                        Expanded(
-                                          child: Text(
-                                            "${log['geo_address'] ?? location} ${log['latitude'] != null ? '\nGPS: ${log['latitude']}, ${log['longitude']}' : ''}",
-                                            style: GoogleFonts.kantumruyPro(
-                                              color: Colors.white,
-                                              fontSize: 13,
+                                        Row(
+                                          children: [
+                                            const Icon(
+                                              Icons.location_on,
+                                              color: Colors.redAccent,
+                                              size: 16,
                                             ),
-                                          ),
+                                            const SizedBox(width: 6),
+                                            Expanded(
+                                              child: Text(
+                                                "${log['geo_address'] ?? location} ${log['latitude'] != null ? '\nGPS: ${log['latitude']}, ${log['longitude']}' : ''}",
+                                                style: GoogleFonts.kantumruyPro(
+                                                  color: Colors.white,
+                                                  fontSize: 13,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Row(
+                                          children: [
+                                            const Icon(
+                                              Icons.access_time_filled,
+                                              color: Colors.cyanAccent,
+                                              size: 16,
+                                            ),
+                                            const SizedBox(width: 6),
+                                            Text(
+                                              dtStr,
+                                              style: GoogleFonts.inter(
+                                                color: Colors.white,
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ],
                                     ),
-                                    const SizedBox(height: 4),
-                                    Row(
-                                      children: [
-                                        const Icon(
-                                          Icons.access_time_filled,
-                                          color: Colors.cyanAccent,
-                                          size: 16,
-                                        ),
-                                        const SizedBox(width: 6),
-                                        Text(
-                                          dtStr,
-                                          style: GoogleFonts.inter(
-                                            color: Colors.white,
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
+                                  ),
                                 ),
-                              ),
+                              ],
                             ),
-                          ],
+                          ),
                         ),
-                      ),
-                    ),
                   ),
                 );
               },

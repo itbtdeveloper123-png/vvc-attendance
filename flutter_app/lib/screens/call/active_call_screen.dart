@@ -12,7 +12,8 @@ class ActiveCallScreen extends StatefulWidget {
   final String channelId;
   final String targetName;
   final bool isVideoCall;
-  final bool isCaller; // If caller, we wait for the other to join. If receiver, we just joined.
+  final bool
+  isCaller; // If caller, we wait for the other to join. If receiver, we just joined.
 
   const ActiveCallScreen({
     super.key,
@@ -32,10 +33,10 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
   int? _remoteUid;
   bool _localUserJoined = false;
   late RtcEngine _engine;
-  
+
   bool _isMuted = false;
   bool _isVideoDisabled = false;
-  
+
   StreamSubscription? _callStateSub;
   String _callStatus = 'connecting';
 
@@ -52,7 +53,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
         final data = doc.data() as Map<String, dynamic>;
         final status = data['status'];
         setState(() => _callStatus = status);
-        
+
         if (status == 'ended' || status == 'rejected') {
           _endCallLocally();
         }
@@ -68,10 +69,12 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
 
     // Create the engine
     _engine = createAgoraRtcEngine();
-    await _engine.initialize(const RtcEngineContext(
-      appId: appId,
-      channelProfile: ChannelProfileType.channelProfileCommunication,
-    ));
+    await _engine.initialize(
+      const RtcEngineContext(
+        appId: appId,
+        channelProfile: ChannelProfileType.channelProfileCommunication,
+      ),
+    );
 
     _engine.registerEventHandler(
       RtcEngineEventHandler(
@@ -88,7 +91,11 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
             _callStatus = 'connected';
           });
         },
-        onUserOffline: (RtcConnection connection, int remoteUid, UserOfflineReasonType reason) {
+        onUserOffline: (
+          RtcConnection connection,
+          int remoteUid,
+          UserOfflineReasonType reason,
+        ) {
           debugPrint("remote user $remoteUid left channel");
           setState(() {
             _remoteUid = null;
@@ -96,7 +103,9 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
           _endCallAndLeave();
         },
         onTokenPrivilegeWillExpire: (RtcConnection connection, String token) {
-          debugPrint('[onTokenPrivilegeWillExpire] connection: \${connection.toJson()}, token: $token');
+          debugPrint(
+            '[onTokenPrivilegeWillExpire] connection: \${connection.toJson()}, token: $token',
+          );
         },
       ),
     );
@@ -110,7 +119,8 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
 
     // Join channel
     await _engine.joinChannel(
-      token: '', // Use empty token for testing, or generate on server for production
+      token:
+          '', // Use empty token for testing, or generate on server for production
       channelId: widget.channelId,
       uid: 0,
       options: const ChannelMediaOptions(),
@@ -123,7 +133,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
     });
     _engine.muteLocalAudioStream(_isMuted);
   }
-  
+
   void _toggleVideo() {
     if (!widget.isVideoCall) return;
     setState(() {
@@ -131,7 +141,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
     });
     _engine.muteLocalVideoStream(_isVideoDisabled);
   }
-  
+
   void _switchCamera() {
     if (!widget.isVideoCall) return;
     _engine.switchCamera();
@@ -164,10 +174,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
         child: Stack(
           children: [
             // Remote Video or Audio Avatar
-            if (widget.isVideoCall)
-              _remoteVideo()
-            else
-              _audioCallPlaceholder(),
+            if (widget.isVideoCall) _remoteVideo() else _audioCallPlaceholder(),
 
             // Local Video (PiP)
             if (widget.isVideoCall && _localUserJoined && !_isVideoDisabled)
@@ -192,7 +199,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
                   ),
                 ),
               ),
-              
+
             // Status/Name Header
             Positioned(
               top: 30,
@@ -202,12 +209,19 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
                 children: [
                   Text(
                     widget.targetName,
-                    style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+                    style: GoogleFonts.kantumruyPro(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(height: 6),
                   Text(
                     _getStatusText(),
-                    style: GoogleFonts.inter(color: Colors.white70, fontSize: 14),
+                    style: GoogleFonts.inter(
+                      color: Colors.white70,
+                      fontSize: 14,
+                    ),
                   ),
                 ],
               ),
@@ -222,7 +236,8 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
                     _buildControlButton(
-                      icon: _isMuted ? Icons.mic_off_rounded : Icons.mic_rounded,
+                      icon:
+                          _isMuted ? Icons.mic_off_rounded : Icons.mic_rounded,
                       onTap: _toggleMute,
                       color: _isMuted ? Colors.white : Colors.white24,
                       iconColor: _isMuted ? Colors.black : Colors.white,
@@ -236,16 +251,20 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
                     ),
                     if (widget.isVideoCall)
                       _buildControlButton(
-                        icon: _isVideoDisabled ? Icons.videocam_off_rounded : Icons.videocam_rounded,
+                        icon:
+                            _isVideoDisabled
+                                ? Icons.videocam_off_rounded
+                                : Icons.videocam_rounded,
                         onTap: _toggleVideo,
                         color: _isVideoDisabled ? Colors.white : Colors.white24,
-                        iconColor: _isVideoDisabled ? Colors.black : Colors.white,
+                        iconColor:
+                            _isVideoDisabled ? Colors.black : Colors.white,
                       )
                     else
                       const SizedBox(width: 56), // spacer for audio call
-                      
+
                     if (widget.isVideoCall)
-                       _buildControlButton(
+                      _buildControlButton(
                         icon: Icons.flip_camera_ios_rounded,
                         onTap: _switchCamera,
                         color: Colors.white24,
@@ -260,11 +279,12 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
       ),
     );
   }
-  
+
   String _getStatusText() {
     if (_callStatus == 'ringing') return 'Ringing...';
     if (_callStatus == 'connecting') return 'Connecting...';
-    if (_callStatus == 'connected') return '00:00'; // Could implement a timer here
+    if (_callStatus == 'connected')
+      return '00:00'; // Could implement a timer here
     if (_callStatus == 'ended') return 'Call Ended';
     if (_callStatus == 'rejected') return 'Call Declined';
     return _callStatus;
@@ -291,11 +311,11 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
   }
 
   Widget _audioCallPlaceholder() {
-    return Center(
+    return const Center(
       child: CircleAvatar(
         radius: 80,
         backgroundColor: Colors.white10,
-        child: const Icon(Icons.person, size: 80, color: Colors.white30),
+        child: Icon(Icons.person, size: 80, color: Colors.white30),
       ),
     );
   }
@@ -312,10 +332,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
       child: Container(
         width: size,
         height: size,
-        decoration: BoxDecoration(
-          color: color,
-          shape: BoxShape.circle,
-        ),
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         child: Icon(icon, color: iconColor, size: size * 0.5),
       ),
     );

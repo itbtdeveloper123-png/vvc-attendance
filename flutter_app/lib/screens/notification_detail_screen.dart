@@ -32,7 +32,10 @@ class NotificationDetailSheet extends StatelessWidget {
             offset: const Offset(0, -10),
           ),
         ],
-        border: Border.all(color: AppTheme.borderColor.withValues(alpha: 0.5), width: 1),
+        border: Border.all(
+          color: AppTheme.borderColor.withValues(alpha: 0.5),
+          width: 1,
+        ),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -47,7 +50,7 @@ class NotificationDetailSheet extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 15),
-          
+
           Flexible(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -56,7 +59,8 @@ class NotificationDetailSheet extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // 1. Image if exists
-                  if (notification.imageUrl != null && notification.imageUrl!.isNotEmpty)
+                  if (notification.imageUrl != null &&
+                      notification.imageUrl!.isNotEmpty)
                     Container(
                       margin: const EdgeInsets.symmetric(vertical: 20),
                       decoration: BoxDecoration(
@@ -73,11 +77,26 @@ class NotificationDetailSheet extends StatelessWidget {
                         borderRadius: BorderRadius.circular(25),
                         child: GestureDetector(
                           onTap: () {
-                            Navigator.push(context, MaterialPageRoute(builder: (context) => Scaffold(
-                              backgroundColor: Colors.black,
-                              appBar: VvcAppBar(backgroundColor: Colors.transparent, elevation: 0),
-                              body: Center(child: InteractiveViewer(child: Image.network(notification.imageUrl!))),
-                            )));
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder:
+                                    (context) => Scaffold(
+                                      backgroundColor: Colors.black,
+                                      appBar: const VvcAppBar(
+                                        backgroundColor: Colors.transparent,
+                                        elevation: 0,
+                                      ),
+                                      body: Center(
+                                        child: InteractiveViewer(
+                                          child: Image.network(
+                                            notification.imageUrl!,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                              ),
+                            );
                           },
                           child: Image.network(
                             notification.imageUrl!,
@@ -90,7 +109,9 @@ class NotificationDetailSheet extends StatelessWidget {
                                 height: 220,
                                 width: double.infinity,
                                 color: AppTheme.bgCard,
-                                child: const Center(child: CircularProgressIndicator()),
+                                child: const Center(
+                                  child: CircularProgressIndicator(),
+                                ),
                               );
                             },
                           ),
@@ -99,7 +120,7 @@ class NotificationDetailSheet extends StatelessWidget {
                     ),
 
                   const SizedBox(height: 15),
-                  
+
                   // 2. Title & Message Card
                   Container(
                     width: double.infinity,
@@ -120,7 +141,11 @@ class NotificationDetailSheet extends StatelessWidget {
                                 color: AppTheme.primary.withValues(alpha: 0.1),
                                 shape: BoxShape.circle,
                               ),
-                              child: Icon(Icons.notifications_rounded, color: AppTheme.primary, size: 20),
+                              child: Icon(
+                                Icons.notifications_rounded,
+                                color: AppTheme.primary,
+                                size: 20,
+                              ),
                             ),
                             const SizedBox(width: 15),
                             Expanded(
@@ -136,7 +161,9 @@ class NotificationDetailSheet extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 18),
-                        Divider(color: AppTheme.borderColor.withValues(alpha: 0.5)),
+                        Divider(
+                          color: AppTheme.borderColor.withValues(alpha: 0.5),
+                        ),
                         const SizedBox(height: 18),
                         Text(
                           notification.message,
@@ -150,7 +177,11 @@ class NotificationDetailSheet extends StatelessWidget {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: [
-                            Icon(Icons.access_time_rounded, color: AppTheme.textSecondary, size: 14),
+                            Icon(
+                              Icons.access_time_rounded,
+                              color: AppTheme.textSecondary,
+                              size: 14,
+                            ),
                             const SizedBox(width: 6),
                             Text(
                               notification.sentAt,
@@ -173,21 +204,34 @@ class NotificationDetailSheet extends StatelessWidget {
                       child: ElevatedButton.icon(
                         onPressed: () {
                           Navigator.pop(context); // Close sheet
-                          Navigator.push(context, MaterialPageRoute(builder: (context) => const RequestsScreen()));
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const RequestsScreen(),
+                            ),
+                          );
                         },
                         icon: const Icon(Icons.list_alt_rounded),
-                        label: Text("មើលបញ្ជីសំណើ", style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold)),
+                        label: Text(
+                          "មើលបញ្ជីសំណើ",
+                          style: GoogleFonts.kantumruyPro(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           backgroundColor: AppTheme.primary,
                           foregroundColor: Colors.white,
                           elevation: 0,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(18),
+                          ),
                         ),
                       ),
                     ),
                   ],
-                  if (notification.type == 'gps_tracking' && notification.targetId > 0) ...[
+                  if (notification.type == 'gps_tracking' &&
+                      notification.targetId > 0) ...[
                     const SizedBox(height: 25),
                     SizedBox(
                       width: double.infinity,
@@ -197,23 +241,33 @@ class NotificationDetailSheet extends StatelessWidget {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => TripTrackingScreen(tripId: notification.targetId),
+                              builder:
+                                  (context) => TripTrackingScreen(
+                                    tripId: notification.targetId,
+                                  ),
                             ),
                           );
                         },
                         icon: const Icon(Icons.map_rounded),
-                        label: Text("តាមដានផែនទីដំណើរ", style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold)),
+                        label: Text(
+                          "តាមដានផែនទីដំណើរ",
+                          style: GoogleFonts.kantumruyPro(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           backgroundColor: const Color(0xFF10b981),
                           foregroundColor: Colors.white,
                           elevation: 0,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(18),
+                          ),
                         ),
                       ),
                     ),
                   ],
-                  
+
                   const SizedBox(height: 15),
                   SizedBox(
                     width: double.infinity,
@@ -221,10 +275,17 @@ class NotificationDetailSheet extends StatelessWidget {
                       onPressed: () => Navigator.pop(context),
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(18),
+                        ),
                         side: BorderSide(color: AppTheme.borderColor),
                       ),
-                      child: Text("បិទ", style: GoogleFonts.kantumruyPro(color: AppTheme.textSecondary)),
+                      child: Text(
+                        "បិទ",
+                        style: GoogleFonts.kantumruyPro(
+                          color: AppTheme.textSecondary,
+                        ),
+                      ),
                     ),
                   ),
                 ],
