@@ -13,6 +13,7 @@ import '../widgets/app_widgets.dart';
 import '../services/api_service.dart';
 import 'home_screen.dart';
 import 'login_screen.dart';
+import 'face_setup_screen.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../widgets/khmer_lunar_calendar_card.dart';
@@ -806,6 +807,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
       child: Column(
         children: [
+          if (widget.targetEmployeeId == null) ...[
+            _buildMenuItem(
+              icon: Icons.face_retouching_natural_rounded,
+              label: "ចុះឈ្មោះផ្ទៃមុខ (Face Scan)",
+              color: AppTheme.success,
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const FaceSetupScreen()),
+                );
+              },
+            ),
+            Divider(
+              color: AppTheme.textPrimary.withValues(alpha: 0.12),
+              height: 1,
+              indent: 16,
+              endIndent: 16,
+            ),
+          ],
           _buildMenuItem(
             icon: Icons.info_outline_rounded,
             label: "អំពីប្រព័ន្ធ",
