@@ -1073,38 +1073,7 @@ class _HomeContentState extends State<HomeContent> {
               ),
             ),
           const Spacer(),
-          // Feature #1: Live work timer
-          if (_liveWorkDuration.isNotEmpty)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.green.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: AppTheme.primary.withValues(alpha: 0.3),
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.timer_outlined,
-                    color: AppTheme.primary,
-                    size: 13,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    _liveWorkDuration,
-                    style: GoogleFonts.inter(
-                      color: AppTheme.primary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      fontFeatures: [const FontFeature.tabularFigures()],
-                    ),
-                  ),
-                ],
-              ),
-            ),
+
         ],
       ),
     );

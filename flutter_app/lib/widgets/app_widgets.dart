@@ -634,43 +634,7 @@ class AttendanceScanCard extends StatelessWidget {
                   ),
               ],
             ),
-            // Feature #1: Live work timer (shown when checked in)
-            if (liveWorkDuration.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.greenAccent.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: Colors.greenAccent.withValues(alpha: 0.25),
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.timer_outlined,
-                      color: Colors.greenAccent,
-                      size: 14,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      'ម៉ោងធ្វើការ: $liveWorkDuration',
-                      style: GoogleFonts.inter(
-                        color: Colors.greenAccent,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        fontFeatures: [const FontFeature.tabularFigures()],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+
             const SizedBox(height: 24),
             Row(
               children: [

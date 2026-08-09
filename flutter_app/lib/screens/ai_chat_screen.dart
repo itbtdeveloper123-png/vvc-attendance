@@ -1750,28 +1750,39 @@ class _AiChatScreenState extends State<AiChatScreen>
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
+        margin: const EdgeInsets.only(bottom: 14),
         constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.82,
+          maxWidth: MediaQuery.of(context).size.width * 0.84,
         ),
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
         decoration: BoxDecoration(
-          color: isUser ? AppTheme.primary : AppTheme.bgCardLight,
+          gradient: isUser
+              ? const LinearGradient(
+                  colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                )
+              : null,
+          color: isUser ? null : const Color(0xFF111E33),
           borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(20),
-            topRight: const Radius.circular(20),
-            bottomLeft: Radius.circular(isUser ? 20 : 6),
-            bottomRight: Radius.circular(isUser ? 6 : 20),
+            topLeft: const Radius.circular(22),
+            topRight: const Radius.circular(22),
+            bottomLeft: Radius.circular(isUser ? 22 : 6),
+            bottomRight: Radius.circular(isUser ? 6 : 22),
           ),
           border: Border.all(
             color: isError
                 ? AppTheme.danger.withValues(alpha: 0.45)
-                : Colors.white.withValues(alpha: 0.06),
+                : (isUser
+                    ? Colors.amberAccent.withValues(alpha: 0.3)
+                    : Colors.cyanAccent.withValues(alpha: 0.12)),
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.16),
-              blurRadius: 12,
+              color: isUser
+                  ? Colors.amber.withValues(alpha: 0.22)
+                  : Colors.black.withValues(alpha: 0.25),
+              blurRadius: 16,
               offset: const Offset(0, 6),
             ),
           ],
@@ -1779,20 +1790,60 @@ class _AiChatScreenState extends State<AiChatScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (!isUser) ...[
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: message.provider.contains('Local')
+                          ? Colors.amber.withValues(alpha: 0.15)
+                          : AppTheme.primary.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: message.provider.contains('Local')
+                            ? Colors.amber.withValues(alpha: 0.3)
+                            : AppTheme.primary.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          message.provider.contains('Local')
+                              ? Icons.bolt_rounded
+                              : Icons.auto_awesome_rounded,
+                          size: 11,
+                          color: message.provider.contains('Local')
+                              ? Colors.amberAccent
+                              : Colors.cyanAccent,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          message.provider.isNotEmpty
+                              ? message.provider
+                              : 'AI HR Assistant',
+                          style: GoogleFonts.kantumruyPro(
+                            color: message.provider.contains('Local')
+                                ? Colors.amberAccent
+                                : Colors.cyanAccent,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+            ],
             if (hasImageAttachment) ...[
               _buildMessageImage(message),
               if (hasText) const SizedBox(height: 10),
             ],
-            if (hasText)
-              Text(
-                text,
-                style: GoogleFonts.kantumruyPro(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  height: 1.45,
-                ),
-              ),
+            if (hasText) _buildFormattedText(text, isUser: isUser),
             if (!isUser && sources.isNotEmpty) ...[
               const SizedBox(height: 10),
               Container(
@@ -1868,17 +1919,17 @@ class _AiChatScreenState extends State<AiChatScreen>
                     icon: Icons.edit_rounded,
                     label: 'កែសំណួរ',
                     onTap: () => _editUserMessage(text),
-                    foregroundColor: AppTheme.bgDark,
-                    backgroundColor: Colors.white.withValues(alpha: 0.62),
-                    borderColor: Colors.white.withValues(alpha: 0.28),
+                    foregroundColor: Colors.white,
+                    backgroundColor: Colors.white.withValues(alpha: 0.22),
+                    borderColor: Colors.white.withValues(alpha: 0.35),
                   ),
                   _buildAssistantActionChip(
                     icon: Icons.replay_rounded,
                     label: 'ផ្ញើម្តងទៀត',
                     onTap: () => _resendUserMessage(text),
-                    foregroundColor: AppTheme.bgDark,
-                    backgroundColor: Colors.white.withValues(alpha: 0.62),
-                    borderColor: Colors.white.withValues(alpha: 0.28),
+                    foregroundColor: Colors.white,
+                    backgroundColor: Colors.white.withValues(alpha: 0.22),
+                    borderColor: Colors.white.withValues(alpha: 0.35),
                   ),
                 ],
               ),
@@ -1993,6 +2044,177 @@ class _AiChatScreenState extends State<AiChatScreen>
       ),
     );
   }
+  Widget _buildFormattedText(String rawText, {required bool isUser}) {
+    if (rawText.isEmpty) return const SizedBox.shrink();
+
+    final lines = rawText.split('\n');
+    final List<Widget> children = [];
+
+    for (int i = 0; i < lines.length; i++) {
+      final line = lines[i];
+      final trimmed = line.trim();
+
+      if (trimmed.isEmpty) {
+        children.add(const SizedBox(height: 6));
+        continue;
+      }
+
+      // Headers (### Header or ## Header)
+      if (trimmed.startsWith('### ') || trimmed.startsWith('## ') || trimmed.startsWith('# ')) {
+        final headerText = trimmed.replaceAll(RegExp(r'^#+\s*'), '');
+        children.add(
+          Padding(
+            padding: const EdgeInsets.only(top: 8, bottom: 4),
+            child: Text(
+              headerText,
+              style: GoogleFonts.kantumruyPro(
+                color: isUser ? Colors.white : Colors.cyanAccent,
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        );
+        continue;
+      }
+
+      // Bullet points (- Item or * Item or • Item)
+      if (RegExp(r'^[-*•]\s+').hasMatch(trimmed)) {
+        final content = trimmed.replaceFirst(RegExp(r'^[-*•]\s+'), '');
+        children.add(
+          Padding(
+            padding: const EdgeInsets.only(left: 2, top: 3, bottom: 3),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  margin: const EdgeInsets.only(top: 8, right: 8),
+                  width: 5,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: isUser ? Colors.white.withValues(alpha: 0.9) : Colors.cyanAccent,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                Expanded(
+                  child: RichText(
+                    text: TextSpan(
+                      children: _parseInlineMarkdown(content, isUser: isUser),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+        continue;
+      }
+
+      // Numbered items (1. Item, 2. Item)
+      final numMatch = RegExp(r'^(\d+)\.\s+(.*)$').firstMatch(trimmed);
+      if (numMatch != null) {
+        final numStr = numMatch.group(1)!;
+        final content = numMatch.group(2)!;
+        children.add(
+          Padding(
+            padding: const EdgeInsets.only(left: 2, top: 4, bottom: 4),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  margin: const EdgeInsets.only(right: 8, top: 2),
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: isUser
+                        ? Colors.white.withValues(alpha: 0.2)
+                        : Colors.cyanAccent.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    numStr,
+                    style: GoogleFonts.inter(
+                      color: isUser ? Colors.white : Colors.cyanAccent,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: RichText(
+                    text: TextSpan(
+                      children: _parseInlineMarkdown(content, isUser: isUser),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+        continue;
+      }
+
+      // Regular text line
+      children.add(
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: RichText(
+            text: TextSpan(
+              children: _parseInlineMarkdown(line, isUser: isUser),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: children,
+    );
+  }
+
+  List<InlineSpan> _parseInlineMarkdown(String text, {required bool isUser}) {
+    final List<InlineSpan> spans = [];
+    final RegExp exp = RegExp(r'\*\*(.*?)\*\*');
+    int lastIndex = 0;
+
+    final defaultStyle = GoogleFonts.kantumruyPro(
+      color: isUser ? Colors.white : Colors.white.withValues(alpha: 0.92),
+      fontSize: 14,
+      height: 1.5,
+      fontWeight: FontWeight.w400,
+    );
+
+    final boldStyle = GoogleFonts.kantumruyPro(
+      color: isUser ? Colors.white : Colors.amberAccent,
+      fontSize: 14,
+      height: 1.5,
+      fontWeight: FontWeight.bold,
+    );
+
+    for (final Match m in exp.allMatches(text)) {
+      if (m.start > lastIndex) {
+        spans.add(TextSpan(
+          text: text.substring(lastIndex, m.start),
+          style: defaultStyle,
+        ));
+      }
+      spans.add(TextSpan(
+        text: m.group(1),
+        style: boldStyle,
+      ));
+      lastIndex = m.end;
+    }
+
+    if (lastIndex < text.length) {
+      spans.add(TextSpan(
+        text: text.substring(lastIndex),
+        style: defaultStyle,
+      ));
+    }
+
+    return spans;
+  }
+
 
   Widget _buildAssistantActionChip({
     required IconData icon,
