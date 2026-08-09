@@ -567,9 +567,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           faceError = result.error;
           debugPrint('[FaceAttendance] AI verify: ${result.matched} | ${result.error}');
         } else {
-          // Face not registered locally — skip AI check, allow through
-          debugPrint('[FaceAttendance] No local registration — skipping AI verify');
-          faceVerified = true;
+          faceVerified = false;
+          faceError = 'អ្នកមិនទាន់បានចុះឈ្មោះផ្ទៃមុខទេ។ សូមចូលទៅកាន់ការកំណត់ដើម្បីចុះឈ្មោះជាមុនសិន។';
         }
       } else {
         faceVerified = true; // No user ID — skip
@@ -596,7 +595,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           String last = lastActionData['last_action'] ?? 'Check-Out';
           suggestion = (last == 'Check-In') ? 'Check-Out' : 'Check-In';
         }
-        action = await _showActionDialog(suggested: suggestion);
+        action = suggestion; // Automatically check-in or check-out
       }
 
       if (action == null) {

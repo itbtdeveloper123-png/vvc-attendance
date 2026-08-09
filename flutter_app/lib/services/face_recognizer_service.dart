@@ -142,14 +142,18 @@ class FaceRecognizerService {
       // Check if user is registered
       final registered = await isFaceRegistered(userId);
       if (!registered) {
-        // Not registered locally -> pass check
-        return FaceVerifyResult(matched: true, matchedUserId: userId);
+        return const FaceVerifyResult(
+          matched: false, 
+          error: 'មិនទាន់មានទិន្នន័យផ្ទៃមុខនៅក្នុងប្រព័ន្ធទេ សូមចុះឈ្មោះជាមុនសិន',
+        );
       }
 
       final liveEmbedding = await extractEmbedding(imagePath);
       if (liveEmbedding == null) {
-        // If TFLite model inference not active -> fallback pass
-        return FaceVerifyResult(matched: true, matchedUserId: userId);
+        return const FaceVerifyResult(
+          matched: false, 
+          error: 'ប្រព័ន្ធមិនអាចដំណើរការការសម្គាល់ផ្ទៃមុខបានទេ (អាចមកពីបញ្ហាម៉ូដែល AI ឫរូបភាព)',
+        );
       }
 
       // Load stored embeddings
@@ -170,7 +174,7 @@ class FaceRecognizerService {
 
       debugPrint('[FaceRecognizer] Max Similarity for $userId: $maxSimilarity (Threshold: $threshold)');
 
-      if (maxSimilarity >= threshold || maxSimilarity < 0) {
+      if (maxSimilarity >= threshold) {
         return FaceVerifyResult(matched: true, matchedUserId: userId);
       } else {
         return FaceVerifyResult(
