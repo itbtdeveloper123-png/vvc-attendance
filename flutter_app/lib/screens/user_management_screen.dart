@@ -397,24 +397,41 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: AppTheme.textPrimary.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppTheme.textPrimary.withValues(alpha: 0.08)),
+        color: const Color(0xFF111E33),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.15),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Row(
         children: [
           Container(
-            width: 36,
-            height: 36,
+            width: 38,
+            height: 38,
             decoration: BoxDecoration(
-              color: AppTheme.primary,
+              gradient: const LinearGradient(
+                colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
               borderRadius: BorderRadius.circular(12),
-              boxShadow: AppTheme.primaryShadow,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.amber.withValues(alpha: 0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
-            child: Icon(
+            child: const Icon(
               Icons.apartment_rounded,
-              color: AppTheme.textPrimary,
-              size: 18,
+              color: Colors.black,
+              size: 20,
             ),
           ),
           const SizedBox(width: 12),
@@ -422,26 +439,26 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             child: Text(
               title,
               style: GoogleFonts.kantumruyPro(
-                color: AppTheme.textPrimary,
-                fontSize: 14,
+                color: Colors.white,
+                fontSize: 15,
                 fontWeight: FontWeight.bold,
               ),
             ),
           ),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
             decoration: BoxDecoration(
-              color: AppTheme.primary.withValues(alpha: 0.15),
+              color: Colors.white.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(999),
               border: Border.all(
-                color: AppTheme.primary.withValues(alpha: 0.25),
+                color: Colors.white.withValues(alpha: 0.12),
               ),
             ),
             child: Text(
               '$count',
               style: GoogleFonts.inter(
-                color: AppTheme.primaryLight,
-                fontSize: 11,
+                color: Colors.amberAccent,
+                fontSize: 13,
                 fontWeight: FontWeight.bold,
               ),
             ),

@@ -19,6 +19,7 @@ import '../services/notification_service.dart';
 import '../utils/app_theme.dart';
 import '../utils/image_compress.dart';
 import 'face_setup_screen.dart';
+import '../widgets/vvc_global_alert.dart';
 
 class AttendanceScreen extends StatefulWidget {
   /// If set, auto-submits with this action (skips dialog).
@@ -1049,61 +1050,19 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     bool isError = false,
     String? result,
   }) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => FadeInScale(
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: AlertDialog(
-            backgroundColor: const Color(0xFF1E293B).withValues(alpha: 0.9),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(24),
-              side: BorderSide(color: color.withValues(alpha: 0.3)),
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, color: color, size: 64),
-                const SizedBox(height: 20),
-                Text(
-                  message,
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.kantumruyPro(
-                    color: AppTheme.textPrimary,
-                    fontSize: 16,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(context); // close dialog
-                    if (!isError && result != null && Navigator.canPop(context)) {
-                      // Return result to caller (Feature #1, #2, #5)
-                      Navigator.pop(context, result);
-                    } else {
-                      setState(() => _isScanning = true);
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: color.withValues(alpha: 0.2),
-                    foregroundColor: color,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: Text(
-                    "យល់ព្រម",
-                    style: GoogleFonts.kantumruyPro(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+    VvcAlert.showAlertDialog(
+      context,
+      title: isError ? 'ការផ្ទៀងផ្ទាត់ផ្ទៃមុខមិនជោគជ័យ' : 'ស្កេនវត្តមានជោគជ័យ',
+      message: message,
+      type: isError ? VvcAlertType.error : VvcAlertType.success,
+      buttonText: 'យល់ព្រម',
+      onPressed: () {
+        if (!isError && result != null && Navigator.canPop(context)) {
+          Navigator.pop(context, result);
+        } else {
+          setState(() => _isScanning = true);
+        }
+      },
     );
   }
 

@@ -51,6 +51,83 @@ class VvcAlert {
     showToast(context, title: title, message: message, type: VvcAlertType.warning);
   }
 
+  /// Show a Modern Glassmorphic Modal Alert Dialog (Single Button)
+  static Future<void> showAlertDialog(
+    BuildContext context, {
+    required String title,
+    required String message,
+    VvcAlertType type = VvcAlertType.info,
+    String buttonText = 'យល់ព្រម',
+    VoidCallback? onPressed,
+  }) {
+    return showDialog<void>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.75),
+      barrierDismissible: true,
+      builder: (ctx) => _VvcAlertDialog(
+        title: title,
+        message: message,
+        type: type,
+        buttonText: buttonText,
+        onPressed: onPressed,
+      ),
+    );
+  }
+
+  /// Helper: Show Success Modal Dialog
+  static Future<void> showSuccessDialog(
+    BuildContext context, {
+    required String title,
+    required String message,
+    String buttonText = 'យល់ព្រម',
+    VoidCallback? onPressed,
+  }) {
+    return showAlertDialog(
+      context,
+      title: title,
+      message: message,
+      type: VvcAlertType.success,
+      buttonText: buttonText,
+      onPressed: onPressed,
+    );
+  }
+
+  /// Helper: Show Error Modal Dialog
+  static Future<void> showErrorDialog(
+    BuildContext context, {
+    required String title,
+    required String message,
+    String buttonText = 'យល់ព្រម',
+    VoidCallback? onPressed,
+  }) {
+    return showAlertDialog(
+      context,
+      title: title,
+      message: message,
+      type: VvcAlertType.error,
+      buttonText: buttonText,
+      onPressed: onPressed,
+    );
+  }
+
+  /// Helper: Show Warning Modal Dialog
+  static Future<void> showWarningDialog(
+    BuildContext context, {
+    required String title,
+    required String message,
+    String buttonText = 'យល់ព្រម',
+    VoidCallback? onPressed,
+  }) {
+    return showAlertDialog(
+      context,
+      title: title,
+      message: message,
+      type: VvcAlertType.warning,
+      buttonText: buttonText,
+      onPressed: onPressed,
+    );
+  }
+
   /// Show a Modern Glassmorphic Confirmation Dialog Modal
   static Future<bool?> showConfirmDialog(
     BuildContext context, {
@@ -476,3 +553,241 @@ class _VvcConfirmDialog extends StatelessWidget {
     );
   }
 }
+
+// Internal Glassmorphic Single-Button Alert Modal Dialog
+class _VvcAlertDialog extends StatelessWidget {
+  final String title;
+  final String message;
+  final VvcAlertType type;
+  final String buttonText;
+  final VoidCallback? onPressed;
+
+  const _VvcAlertDialog({
+    required this.title,
+    required this.message,
+    required this.type,
+    required this.buttonText,
+    this.onPressed,
+  });
+
+  Color get _primaryColor {
+    switch (type) {
+      case VvcAlertType.success:
+        return const Color(0xFF10B981);
+      case VvcAlertType.error:
+        return const Color(0xFFEF4444);
+      case VvcAlertType.info:
+        return const Color(0xFF007AFF);
+      case VvcAlertType.warning:
+        return const Color(0xFFF59E0B);
+    }
+  }
+
+  List<Color> get _gradientColors {
+    switch (type) {
+      case VvcAlertType.success:
+        return [const Color(0xFF059669), const Color(0xFF10B981)];
+      case VvcAlertType.error:
+        return [const Color(0xFFDC2626), const Color(0xFFEF4444)];
+      case VvcAlertType.info:
+        return [const Color(0xFF0284C7), const Color(0xFF007AFF)];
+      case VvcAlertType.warning:
+        return [const Color(0xFFD97706), const Color(0xFFF59E0B)];
+    }
+  }
+
+  IconData get _icon {
+    switch (type) {
+      case VvcAlertType.success:
+        return Icons.check_circle_rounded;
+      case VvcAlertType.error:
+        return Icons.error_rounded;
+      case VvcAlertType.info:
+        return Icons.info_rounded;
+      case VvcAlertType.warning:
+        return Icons.warning_amber_rounded;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24.0),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 20.0, sigmaY: 20.0),
+          child: Container(
+            padding: const EdgeInsets.all(24.0),
+            decoration: BoxDecoration(
+              color: const Color(0xFF131D2E).withValues(alpha: 0.94),
+              borderRadius: BorderRadius.circular(24.0),
+              border: Border.all(
+                color: _primaryColor.withValues(alpha: 0.35),
+                width: 1.2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.5),
+                  blurRadius: 28.0,
+                  offset: const Offset(0, 10),
+                ),
+                BoxShadow(
+                  color: _primaryColor.withValues(alpha: 0.15),
+                  blurRadius: 20.0,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Top Icon Badge with Glow
+                Container(
+                  width: 62.0,
+                  height: 62.0,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: _gradientColors,
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: _primaryColor.withValues(alpha: 0.45),
+                        blurRadius: 16.0,
+                        offset: const Offset(0, 5),
+                      ),
+                    ],
+                  ),
+                  child: Icon(_icon, color: Colors.white, size: 34.0),
+                ),
+                const SizedBox(height: 18.0),
+
+                // Title
+                Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.kantumruyPro(
+                    color: Colors.white,
+                    fontSize: 18.0,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 10.0),
+
+                // Message Body
+                Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.kantumruyPro(
+                    color: Colors.white.withValues(alpha: 0.82),
+                    fontSize: 14.0,
+                    height: 1.45,
+                  ),
+                ),
+                const SizedBox(height: 24.0),
+
+                // Single Action Button
+                SizedBox(
+                  width: double.infinity,
+                  height: 48.0,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: _gradientColors,
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(16.0),
+                      boxShadow: [
+                        BoxShadow(
+                          color: _primaryColor.withValues(alpha: 0.35),
+                          blurRadius: 10.0,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        if (onPressed != null) onPressed!();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.transparent,
+                        shadowColor: Colors.transparent,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16.0),
+                        ),
+                      ),
+                      child: Text(
+                        buttonText,
+                        style: GoogleFonts.kantumruyPro(
+                          color: Colors.white,
+                          fontSize: 15.0,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Global Extensions on BuildContext for ultra-clean usage
+extension VvcAlertContextX on BuildContext {
+  void showSuccessToast(String title, {String? message}) =>
+      VvcAlert.showSuccess(this, title: title, message: message);
+
+  void showErrorToast(String title, {String? message}) =>
+      VvcAlert.showError(this, title: title, message: message);
+
+  void showWarningToast(String title, {String? message}) =>
+      VvcAlert.showWarning(this, title: title, message: message);
+
+  void showInfoToast(String title, {String? message}) =>
+      VvcAlert.showInfo(this, title: title, message: message);
+
+  Future<void> showAlertDialog({
+    required String title,
+    required String message,
+    VvcAlertType type = VvcAlertType.info,
+    String buttonText = 'យល់ព្រម',
+    VoidCallback? onPressed,
+  }) =>
+      VvcAlert.showAlertDialog(
+        this,
+        title: title,
+        message: message,
+        type: type,
+        buttonText: buttonText,
+        onPressed: onPressed,
+      );
+
+  Future<bool?> showConfirmDialog({
+    required String title,
+    required String message,
+    String confirmText = 'យល់ព្រម',
+    String cancelText = 'បោះបង់',
+    bool isDestructive = false,
+    IconData? icon,
+  }) =>
+      VvcAlert.showConfirmDialog(
+        this,
+        title: title,
+        message: message,
+        confirmText: confirmText,
+        cancelText: cancelText,
+        isDestructive: isDestructive,
+        icon: icon,
+      );
+}
+

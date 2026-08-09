@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
-import 'dart:ui';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -12,6 +11,7 @@ import '../providers/user_provider.dart';
 import '../services/api_service.dart';
 import '../services/face_recognizer_service.dart';
 import '../utils/image_compress.dart';
+import '../widgets/vvc_global_alert.dart';
 
 // ========================
 // FaceSetupScreen
@@ -303,68 +303,21 @@ class _FaceSetupScreenState extends State<FaceSetupScreen>
   }
 
   void _showSuccessDialog() {
-    _successController.forward(from: 0);
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-        child: Dialog(
-          backgroundColor: Colors.transparent,
-          child: Container(
-            padding: const EdgeInsets.all(32),
-            decoration: BoxDecoration(
-              color: const Color(0xFF0F1E35).withValues(alpha: 0.95),
-              borderRadius: BorderRadius.circular(28),
-              border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.5)),
-              boxShadow: [BoxShadow(color: Colors.greenAccent.withValues(alpha: 0.3), blurRadius: 40, spreadRadius: 5)],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ScaleTransition(
-                  scale: _successAnim,
-                  child: Container(
-                    width: 80, height: 80,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.greenAccent.withValues(alpha: 0.15),
-                      border: Border.all(color: Colors.greenAccent, width: 2),
-                    ),
-                    child: const Icon(Icons.check_rounded, color: Colors.greenAccent, size: 44),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Text('ចុះឈ្មោះជោគជ័យ!', style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20)),
-                const SizedBox(height: 12),
-                Text(
-                  'មុខរបស់អ្នកត្រូវបានចុះឈ្មោះដោយជោគជ័យ!\nឥឡូវ អ្នកអាចប្រើ Face Scan ដើម្បីចូលវត្តមានបាន។',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 13, height: 1.6),
-                ),
-                const SizedBox(height: 24),
-                ElevatedButton(
-                  onPressed: () { Navigator.pop(ctx); Navigator.pop(context, true); },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.greenAccent.withValues(alpha: 0.2),
-                    foregroundColor: Colors.greenAccent,
-                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  ),
-                  child: Text('បន្ត', style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold, fontSize: 16)),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+    VvcAlert.showSuccessDialog(
+      context,
+      title: 'ចុះឈ្មោះជោគជ័យ!',
+      message: 'មុខរបស់អ្នកត្រូវបានចុះឈ្មោះដោយជោគជ័យ!\nឥឡូវ អ្នកអាចប្រើ Face Scan ដើម្បីចូលវត្តមានបាន។',
+      buttonText: 'បន្ត',
+      onPressed: () => Navigator.pop(context, true),
     );
   }
 
   void _showError(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg, style: GoogleFonts.kantumruyPro()), backgroundColor: Colors.redAccent),
+    VvcAlert.showError(
+      context,
+      title: 'ការចុះឈ្មោះបរាជ័យ',
+      message: msg,
     );
   }
 

@@ -105,6 +105,7 @@ flutter:
     - assets/fonts/
     - assets/suits/
     - assets/wallpapers/
+    - assets/certificate_template/
     - assets/sticker/ColorfulMessages/
     - assets/sticker/JapaneseShiba/
     - assets/sticker/vvc-shop/

@@ -4,7 +4,6 @@ import 'dart:async';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import '../services/api_service.dart';
 import '../utils/app_theme.dart';
 import 'vvc_global_alert.dart';
@@ -1195,29 +1194,23 @@ class AppUserListTile extends StatelessWidget {
     final finalAvatarUrl = avatarUrl.isNotEmpty ? avatarUrl : null;
     final posStr = (user['position'] ?? '').toString().trim();
 
-    return AnimationConfiguration.staggeredList(
-      position: index,
-      duration: const Duration(milliseconds: 400),
-      child: SlideAnimation(
-        verticalOffset: 20.0,
-        child: FadeInAnimation(
-          child: GestureDetector(
-            onTap: onTap,
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: AppTheme.bgCard,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.08),
-                    blurRadius: 8,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: const Color(0xFF131F33),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.15),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
               child: Row(
                 children: [
                   Stack(
@@ -1338,10 +1331,7 @@ class AppUserListTile extends StatelessWidget {
                 ],
               ),
             ),
-          ),
-        ),
-      ),
-    );
+          );
   }
 }
 
@@ -1369,29 +1359,22 @@ class AppUserCard extends StatelessWidget {
     final finalAvatarUrl = avatarUrl.isNotEmpty ? avatarUrl : null;
     final posStr = (user['position'] ?? '').toString().trim();
 
-    return AnimationConfiguration.staggeredGrid(
-      position: index,
-      columnCount: 2,
-      duration: const Duration(milliseconds: 500),
-      child: SlideAnimation(
-        verticalOffset: 50.0,
-        child: FadeInAnimation(
-          child: GestureDetector(
-            onTap: onTap,
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(10, 16, 10, 16),
-              decoration: BoxDecoration(
-                color: AppTheme.bgCard,
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.1),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(12, 18, 12, 18),
+        decoration: BoxDecoration(
+          color: const Color(0xFF131F33),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.18),
+              blurRadius: 12,
+              offset: const Offset(0, 5),
+            ),
+          ],
+        ),
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
@@ -1523,10 +1506,7 @@ class AppUserCard extends StatelessWidget {
                 ],
               ),
             ),
-          ),
-        ),
-      ),
-    );
+          );
   }
 }
 
