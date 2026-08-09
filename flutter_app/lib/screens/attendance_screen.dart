@@ -561,7 +561,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           final result = await _faceRecognizer.verifyFace(
             imagePath: photo.path,
             userId: userId,
-            threshold: 0.50,
+            threshold: 0.65,
           );
           faceVerified = result.matched;
           faceError = result.error;

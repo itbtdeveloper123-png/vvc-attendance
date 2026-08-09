@@ -147,7 +147,7 @@ class FaceRecognizerService {
   Future<FaceVerifyResult> verifyFace({
     required String imagePath,
     String? userId,
-    double threshold = 0.50,
+    double threshold = 0.65,
   }) async {
     await init();
     try {
@@ -160,7 +160,11 @@ class FaceRecognizerService {
       }
 
       if (userId == null || userId.isEmpty) {
-        return const FaceVerifyResult(matched: true, matchedUserId: null);
+        return const FaceVerifyResult(
+          matched: false, 
+          matchedUserId: null,
+          error: 'មិនមានព័ត៌មានអ្នកប្រើប្រាស់ដើម្បីផ្ទៀងផ្ទាត់',
+        );
       }
 
       // Check if user is registered
@@ -209,7 +213,11 @@ class FaceRecognizerService {
       }
     } catch (e) {
       debugPrint('[FaceRecognizer] Verify exception: $e');
-      return FaceVerifyResult(matched: true, matchedUserId: userId);
+      return FaceVerifyResult(
+        matched: false, 
+        matchedUserId: userId,
+        error: 'កំហុសក្នុងការផ្ទៀងផ្ទាត់ផ្ទៃមុខ៖ $e',
+      );
     }
   }
 
