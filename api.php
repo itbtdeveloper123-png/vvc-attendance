@@ -7796,32 +7796,51 @@ try {
         
         $eid = (string)$user['employee_id'];
         $current_date = date('Y-m-d');
+        $user_role = strtolower($user['role'] ?? '');
+        $is_admin_or_hrm = in_array($user_role, ['admin', 'hrm', 'superadmin', 'manager', 'director']) || ($user['is_admin'] ?? 0) == 1;
         
-        // Fetch all active poll events
-        $res = $mysqli->query("SELECT * FROM poll_events WHERE (is_active = 1 OR is_active IS NULL) ORDER BY created_at DESC");
+        // Fetch all poll events
+        $res = $mysqli->query("SELECT * FROM poll_events ORDER BY id DESC");
         $polls = [];
         if ($res) {
             while ($row = $res->fetch_assoc()) {
-                // Check start & end date if present
-                if (!empty($row['start_date']) && $row['start_date'] !== '0000-00-00' && $row['start_date'] > $current_date) {
-                    continue;
-                }
-                if (!empty($row['end_date']) && $row['end_date'] !== '0000-00-00' && $row['end_date'] < $current_date) {
+                // If not admin/HRM, check active status
+                if (!$is_admin_or_hrm && isset($row['is_active']) && (int)$row['is_active'] === 0) {
                     continue;
                 }
 
-                // Check allowed employees (if specified, only allowed ones can view/vote)
+                // Check start & end date if present (admins bypass date restriction)
+                if (!$is_admin_or_hrm) {
+                    if (!empty($row['start_date']) && $row['start_date'] !== '0000-00-00' && $row['start_date'] > $current_date) {
+                        continue;
+                    }
+                    if (!empty($row['end_date']) && $row['end_date'] !== '0000-00-00' && $row['end_date'] < $current_date) {
+                        continue;
+                    }
+                }
+
+                // Check allowed employees (admins bypass allowed restriction)
                 $allowed_json = $row['allowed_employee_ids'] ?? '[]';
                 $allowed_arr = json_decode($allowed_json, true);
-                if (is_array($allowed_arr) && count($allowed_arr) > 0 && !in_array($eid, array_map('strval', $allowed_arr))) {
-                    continue;
+                if (!$is_admin_or_hrm && is_array($allowed_arr) && count($allowed_arr) > 0) {
+                    $allowed_str_list = array_map('strval', $allowed_arr);
+                    $eid_clean = ltrim($eid, '0');
+                    $is_allowed = in_array($eid, $allowed_str_list) || ($eid_clean !== '' && in_array($eid_clean, $allowed_str_list));
+                    if (!$is_allowed) {
+                        continue;
+                    }
                 }
 
                 // Check excluded employees
                 $excluded_json = $row['excluded_employee_ids'] ?? '[]';
                 $excluded_arr = json_decode($excluded_json, true);
-                if (is_array($excluded_arr) && count($excluded_arr) > 0 && in_array($eid, array_map('strval', $excluded_arr))) {
-                    continue;
+                if (!$is_admin_or_hrm && is_array($excluded_arr) && count($excluded_arr) > 0) {
+                    $excluded_str_list = array_map('strval', $excluded_arr);
+                    $eid_clean = ltrim($eid, '0');
+                    $is_excluded = in_array($eid, $excluded_str_list) || ($eid_clean !== '' && in_array($eid_clean, $excluded_str_list));
+                    if ($is_excluded) {
+                        continue;
+                    }
                 }
 
                 $poll_id = (int)$row['id'];

@@ -6,6 +6,7 @@ import '../providers/user_provider.dart';
 import '../services/api_service.dart';
 import '../utils/app_theme.dart';
 import '../widgets/vvc_global_alert.dart';
+import '../widgets/vvc_dropdown.dart';
 import 'certificate_editor_screen.dart';
 
 class PollVotingScreen extends StatefulWidget {
@@ -250,39 +251,37 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
                   const SizedBox(height: 14),
 
                   // 2. ត្រីមាស (Quarter Dropdown)
-                  _buildFormLabel('ត្រីមាស'),
-                  const SizedBox(height: 6),
-                  DropdownButtonFormField<String>(
-                    initialValue: selectedQuarter,
-                    dropdownColor: const Color(0xFF1E293B),
-                    style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 14),
+                  VvcDropdown<String>(
+                    label: 'ត្រីមាស',
+                    value: selectedQuarter,
+                    prefixIcon: Icons.calendar_today_rounded,
                     items: const [
-                      DropdownMenuItem(value: 'Q1', child: Text('Q1 (ត្រីមាសទី ១)')),
-                      DropdownMenuItem(value: 'Q2', child: Text('Q2 (ត្រីមាសទី ២)')),
-                      DropdownMenuItem(value: 'Q3', child: Text('Q3 (ត្រីមាសទី ៣)')),
-                      DropdownMenuItem(value: 'Q4', child: Text('Q4 (ត្រីមាសទី ៤)')),
+                      VvcDropdownItem(value: 'Q1', label: 'Q1 (ត្រីមាសទី ១)'),
+                      VvcDropdownItem(value: 'Q2', label: 'Q2 (ត្រីមាសទី ២)'),
+                      VvcDropdownItem(value: 'Q3', label: 'Q3 (ត្រីមាសទី ៣)'),
+                      VvcDropdownItem(value: 'Q4', label: 'Q4 (ត្រីមាសទី ៤)'),
                     ],
-                    onChanged: (val) => setDialogState(() => selectedQuarter = val!),
-                    decoration: _inputDecoration('ជ្រើសរើសត្រីមាស'),
+                    onChanged: (val) {
+                      if (val != null) setDialogState(() => selectedQuarter = val);
+                    },
                   ),
                   const SizedBox(height: 14),
 
                   // 3. WAREHOUSE (ទីតាំង/ឃ្លាំង)
-                  _buildFormLabel('WAREHOUSE (ទីតាំង/ឃ្លាំង)'),
-                  const SizedBox(height: 6),
-                  DropdownButtonFormField<String>(
-                    initialValue: selectedWarehouse,
-                    dropdownColor: const Color(0xFF1E293B),
-                    style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 14),
+                  VvcDropdown<String>(
+                    label: 'WAREHOUSE (ទីតាំង/ឃ្លាំង)',
+                    value: selectedWarehouse,
+                    prefixIcon: Icons.location_on_rounded,
                     items: const [
-                      DropdownMenuItem(value: 'Head Office', child: Text('Head Office (ការិយាល័យកណ្តាល)')),
-                      DropdownMenuItem(value: 'Phnom Penh', child: Text('Phnom Penh (ភ្នំពេញ)')),
-                      DropdownMenuItem(value: 'Siem Reap', child: Text('Siem Reap (សៀមរាប)')),
-                      DropdownMenuItem(value: 'Battambang', child: Text('Battambang (បាត់ដំបង)')),
-                      DropdownMenuItem(value: 'Kampong Cham', child: Text('Kampong Cham (កំពង់ចាម)')),
+                      VvcDropdownItem(value: 'Head Office', label: 'Head Office (ការិយាល័យកណ្តាល)'),
+                      VvcDropdownItem(value: 'Phnom Penh', label: 'Phnom Penh (ភ្នំពេញ)'),
+                      VvcDropdownItem(value: 'Siem Reap', label: 'Siem Reap (សៀមរាប)'),
+                      VvcDropdownItem(value: 'Battambang', label: 'Battambang (បាត់ដំបង)'),
+                      VvcDropdownItem(value: 'Kampong Cham', label: 'Kampong Cham (កំពង់ចាម)'),
                     ],
-                    onChanged: (val) => setDialogState(() => selectedWarehouse = val!),
-                    decoration: _inputDecoration('ជ្រើសរើសទីតាំង'),
+                    onChanged: (val) {
+                      if (val != null) setDialogState(() => selectedWarehouse = val);
+                    },
                   ),
                   const SizedBox(height: 14),
 

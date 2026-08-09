@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../widgets/app_widgets.dart';
+import '../widgets/vvc_dropdown.dart';
 import 'package:provider/provider.dart';
 import '../services/api_service.dart';
 import '../utils/app_theme.dart';
@@ -466,39 +467,13 @@ class _LateRequestScreenState extends State<LateRequestScreen> {
     List<String> items,
     Function(String?) onChanged,
   ) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: AppTheme.fieldFill,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.fieldBorder),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: value,
-          isExpanded: true,
-          dropdownColor: AppTheme.bgCard,
-          icon: Icon(
-            Icons.keyboard_arrow_down_rounded,
-            color: AppTheme.helperTextColor,
-          ),
-          items: items
-              .map(
-                (String v) => DropdownMenuItem(
-                  value: v,
-                  child: Text(
-                    v,
-                    style: GoogleFonts.kantumruyPro(
-                      color: AppTheme.textPrimary,
-                      fontSize: 14,
-                    ),
-                  ),
-                ),
-              )
-              .toList(),
-          onChanged: onChanged,
-        ),
-      ),
+    return VvcDropdown<String>(
+      value: value,
+      prefixIcon: Icons.access_time_filled_rounded,
+      items: items
+          .map((v) => VvcDropdownItem<String>(value: v, label: v))
+          .toList(),
+      onChanged: onChanged,
     );
   }
 

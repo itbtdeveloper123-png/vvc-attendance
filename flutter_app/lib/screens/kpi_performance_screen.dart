@@ -1,11 +1,14 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/user_provider.dart';
 import '../utils/app_theme.dart';
 import '../widgets/app_widgets.dart';
 import '../widgets/vvc_global_alert.dart';
+import '../widgets/vvc_dropdown.dart';
 
 class KpiPerformanceScreen extends StatefulWidget {
   const KpiPerformanceScreen({super.key});
@@ -42,21 +45,40 @@ class _KpiPerformanceScreenState extends State<KpiPerformanceScreen> with Single
     setState(() => _isLoading = true);
     try {
       final userProvider = context.read<UserProvider>();
-      final userId = userProvider.employeeId ?? '';
+      final userId = userProvider.employeeId ?? 'local_user';
 
-      if (userId.isNotEmpty) {
-        final doc = await _firestore.collection('kpi_reviews').doc(userId).get();
-        if (doc.exists) {
-          final data = doc.data()!;
-          _selfRating = double.tryParse(data['selfRating']?.toString() ?? '4.0') ?? 4.0;
-          _managerRating = double.tryParse(data['managerRating']?.toString() ?? '4.5') ?? 4.5;
-          _selfFeedback = data['selfFeedback'] ?? '';
-          if (data['goals'] != null) {
-            _goals = List<Map<String, dynamic>>.from(data['goals']);
+      // 1. Try loading from SharedPreferences (Local Storage)
+      final prefs = await SharedPreferences.getInstance();
+      final localData = prefs.getString('kpi_reviews_$userId');
+
+      if (localData != null && localData.isNotEmpty) {
+        final Map<String, dynamic> data = jsonDecode(localData);
+        _selfRating = double.tryParse(data['selfRating']?.toString() ?? '4.0') ?? 4.0;
+        _managerRating = double.tryParse(data['managerRating']?.toString() ?? '4.5') ?? 4.5;
+        _selfFeedback = data['selfFeedback'] ?? '';
+        if (data['goals'] != null) {
+          _goals = List<Map<String, dynamic>>.from(data['goals']);
+        }
+      } else {
+        // 2. Try Firestore fallback silently
+        try {
+          final doc = await _firestore.collection('kpi_reviews').doc(userId).get();
+          if (doc.exists && doc.data() != null) {
+            final data = doc.data()!;
+            _selfRating = double.tryParse(data['selfRating']?.toString() ?? '4.0') ?? 4.0;
+            _managerRating = double.tryParse(data['managerRating']?.toString() ?? '4.5') ?? 4.5;
+            _selfFeedback = data['selfFeedback'] ?? '';
+            if (data['goals'] != null) {
+              _goals = List<Map<String, dynamic>>.from(data['goals']);
+            }
           }
+        } catch (e) {
+          debugPrint('Firestore load KPI skipped: $e');
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Load KPI error: $e');
+    }
 
     if (_goals.isEmpty) {
       _goals = [
@@ -90,24 +112,38 @@ class _KpiPerformanceScreenState extends State<KpiPerformanceScreen> with Single
       ];
     }
 
-    setState(() => _isLoading = false);
+    if (mounted) {
+      setState(() => _isLoading = false);
+    }
   }
 
   Future<void> _saveEvaluation() async {
     try {
       final userProvider = context.read<UserProvider>();
-      final userId = userProvider.employeeId ?? '';
+      final userId = userProvider.employeeId ?? 'local_user';
 
-      if (userId.isNotEmpty) {
+      final dataToSave = {
+        'userId': userId,
+        'employeeName': userProvider.name ?? '',
+        'selfRating': _selfRating,
+        'managerRating': _managerRating,
+        'selfFeedback': _selfFeedback,
+        'goals': _goals,
+        'updatedAt': DateTime.now().toIso8601String(),
+      };
+
+      // 1. Always save locally to SharedPreferences first (Fast & Reliable!)
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('kpi_reviews_$userId', jsonEncode(dataToSave));
+
+      // 2. Try Firestore in background silently without throwing error popup to user
+      try {
         await _firestore.collection('kpi_reviews').doc(userId).set({
-          'userId': userId,
-          'employeeName': userProvider.name ?? '',
-          'selfRating': _selfRating,
-          'managerRating': _managerRating,
-          'selfFeedback': _selfFeedback,
-          'goals': _goals,
+          ...dataToSave,
           'updatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
+      } catch (e) {
+        debugPrint('Firestore save KPI skipped (using local storage): $e');
       }
 
       if (mounted) {
@@ -532,25 +568,20 @@ class _KpiPerformanceScreenState extends State<KpiPerformanceScreen> with Single
                     ),
                   ),
                   const SizedBox(height: 14),
-                  Text('ប្រភេទ (Category)', style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 12.5)),
-                  const SizedBox(height: 6),
-                  DropdownButtonFormField<String>(
-                    initialValue: category,
-                    dropdownColor: const Color(0xFF1E293B),
-                    style: GoogleFonts.inter(color: Colors.white, fontSize: 13.5),
+                  VvcDropdown<String>(
+                    label: 'ប្រភេទ (Category)',
+                    value: category,
+                    prefixIcon: Icons.grid_view_rounded,
                     items: const [
-                      DropdownMenuItem(value: 'Attendance', child: Text('Attendance (វត្តមាន)')),
-                      DropdownMenuItem(value: 'Performance', child: Text('Performance (លទ្ធផលការងារ)')),
-                      DropdownMenuItem(value: 'Learning', child: Text('Learning (ជំនាញ & បណ្តុះបណ្តាល)')),
-                      DropdownMenuItem(value: 'Sales', child: Text('Sales / Target (លក់/ចំណូល)')),
-                      DropdownMenuItem(value: 'Quality', child: Text('Quality / Service (គុណភាព)')),
+                      VvcDropdownItem(value: 'Attendance', label: 'Attendance (វត្តមាន)', icon: Icons.access_time_rounded),
+                      VvcDropdownItem(value: 'Performance', label: 'Performance (លទ្ធផលការងារ)', icon: Icons.trending_up_rounded),
+                      VvcDropdownItem(value: 'Learning', label: 'Learning (ជំនាញ & បណ្តុះបណ្តាល)', icon: Icons.school_rounded),
+                      VvcDropdownItem(value: 'Sales', label: 'Sales / Target (លក់/ចំណូល)', icon: Icons.monetization_on_rounded),
+                      VvcDropdownItem(value: 'Quality', label: 'Quality / Service (គុណភាព)', icon: Icons.star_rounded),
                     ],
-                    onChanged: (val) => setDialogState(() => category = val!),
-                    decoration: InputDecoration(
-                      filled: true,
-                      fillColor: Colors.white.withValues(alpha: 0.05),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
+                    onChanged: (val) {
+                      if (val != null) setDialogState(() => category = val);
+                    },
                   ),
                   const SizedBox(height: 14),
                   Row(
