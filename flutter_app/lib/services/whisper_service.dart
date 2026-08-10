@@ -80,6 +80,9 @@ class WhisperService {
     }
 
     String formattedUrl = apiUrl.trim();
+    if (formattedUrl.contains('ngrok-free.de') && !formattedUrl.contains('ngrok-free.dev')) {
+      formattedUrl = formattedUrl.replaceAll('ngrok-free.de', 'ngrok-free.dev');
+    }
     if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
       formattedUrl = 'https://$formattedUrl';
     }
