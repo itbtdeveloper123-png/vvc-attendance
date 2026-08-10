@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -802,8 +803,41 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
   Widget _buildPollCard(Map<String, dynamic> poll) {
     final userProvider = Provider.of<UserProvider>(context, listen: false);
     final isHrmOrAdmin = userProvider.isHRM || userProvider.isAdmin;
-    final hasVoted = poll['has_voted'] == true || poll['has_voted'] == 1 || poll['has_voted'] == '1' || poll['has_voted'] == 'true';
-    final candidates = poll['candidates'] as List<dynamic>? ?? [];
+    final bool hasVoted = poll['has_voted'] == true || poll['has_voted'] == 1 || poll['has_voted'] == '1' || poll['has_voted'] == 'true';
+    List<dynamic> candidates = List<dynamic>.from(poll['candidates'] as List<dynamic>? ?? []);
+    if (candidates.isEmpty && _allUsers.isNotEmpty) {
+      final List<String> empIds = [];
+      if (poll['allowed_employee_ids'] != null) {
+        final raw = poll['allowed_employee_ids'];
+        if (raw is List) {
+          empIds.addAll(raw.map((e) => e.toString()));
+        } else if (raw is String && raw.trim().isNotEmpty) {
+          try {
+            final decoded = jsonDecode(raw);
+            if (decoded is List) {
+              empIds.addAll(decoded.map((e) => e.toString()));
+            }
+          } catch (_) {}
+        }
+      }
+      if (empIds.isEmpty && poll['target_employee_ids'] != null) {
+        final raw = poll['target_employee_ids'].toString();
+        empIds.addAll(raw.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty));
+      }
+
+      if (empIds.isNotEmpty) {
+        candidates = _allUsers
+            .where((u) => empIds.contains(u['employee_id']?.toString()))
+            .map((u) => {
+                  'employee_id': u['employee_id'],
+                  'name': u['name'] ?? u['employee_id'],
+                  'department': u['position'] ?? u['department'] ?? 'បុគ្គលិក',
+                  'votes_count': 0,
+                })
+            .toList();
+      }
+    }
+
     final docId = (poll['doc_id'] ?? poll['id'] ?? '').toString();
     String? selectedCandidateEmployeeId;
 
