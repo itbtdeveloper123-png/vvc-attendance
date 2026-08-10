@@ -8,6 +8,7 @@ import '../utils/request_form_helpers.dart';
 import '../providers/user_provider.dart';
 import '../widgets/dept_head_selector.dart';
 import '../widgets/app_widgets.dart';
+import '../widgets/vvc_dropdown.dart';
 
 class OtRequestScreen extends StatefulWidget {
   final Map<String, dynamic>? initialData;
@@ -502,39 +503,13 @@ class _OtRequestScreenState extends State<OtRequestScreen> {
     List<String> items,
     Function(String?) onChanged,
   ) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: AppTheme.fieldFill,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.fieldBorder),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: value,
-          isExpanded: true,
-          dropdownColor: AppTheme.bgCard,
-          icon: Icon(
-            Icons.keyboard_arrow_down_rounded,
-            color: AppTheme.helperTextColor,
-          ),
-          items: items
-              .map(
-                (v) => DropdownMenuItem(
-                  value: v,
-                  child: Text(
-                    v,
-                    style: GoogleFonts.kantumruyPro(
-                      color: AppTheme.textPrimary,
-                      fontSize: 14,
-                    ),
-                  ),
-                ),
-              )
-              .toList(),
-          onChanged: onChanged,
-        ),
-      ),
+    return VvcDropdown<String>(
+      value: value,
+      prefixIcon: Icons.timer_rounded,
+      items: items
+          .map((v) => VvcDropdownItem<String>(value: v, label: v))
+          .toList(),
+      onChanged: onChanged,
     );
   }
 

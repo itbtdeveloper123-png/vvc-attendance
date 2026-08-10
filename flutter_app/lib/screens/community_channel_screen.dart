@@ -42,10 +42,11 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
   @override
   void initState() {
     super.initState();
-    _postsStream = _firestore
-        .collection('community_posts')
-        .orderBy('createdAt', descending: true)
-        .snapshots();
+    _postsStream =
+        _firestore
+            .collection('community_posts')
+            .orderBy('createdAt', descending: true)
+            .snapshots();
     _searchController.addListener(() {
       if (mounted) setState(() {});
     });
@@ -88,9 +89,13 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
         );
       }
 
-      final compressedBytes = Uint8List.fromList(img.encodeJpg(oriented, quality: 72));
+      final compressedBytes = Uint8List.fromList(
+        img.encodeJpg(oriented, quality: 72),
+      );
       final tempDir = await getTemporaryDirectory();
-      final compressedFile = File('${tempDir.path}/comp_${DateTime.now().millisecondsSinceEpoch}.jpg');
+      final compressedFile = File(
+        '${tempDir.path}/comp_${DateTime.now().millisecondsSinceEpoch}.jpg',
+      );
       await compressedFile.writeAsBytes(compressedBytes);
       return compressedFile;
     } catch (e) {
@@ -140,7 +145,10 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                       ),
                       const Spacer(),
                       IconButton(
-                        icon: const Icon(Icons.close_rounded, color: Colors.white70),
+                        icon: const Icon(
+                          Icons.close_rounded,
+                          color: Colors.white70,
+                        ),
                         onPressed: () => Navigator.pop(ctx),
                       ),
                     ],
@@ -149,10 +157,16 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                   TextField(
                     controller: textController,
                     maxLines: 4,
-                    style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 14.5),
+                    style: GoogleFonts.kantumruyPro(
+                      color: Colors.white,
+                      fontSize: 14.5,
+                    ),
                     decoration: InputDecoration(
                       hintText: 'សរសេរព័ត៌មាន ការប្រកាស ឬការផ្សព្វផ្សាយ...',
-                      hintStyle: GoogleFonts.kantumruyPro(color: Colors.white38, fontSize: 14.0),
+                      hintStyle: GoogleFonts.kantumruyPro(
+                        color: Colors.white38,
+                        fontSize: 14.0,
+                      ),
                       filled: true,
                       fillColor: _CommunityDark.bg,
                       border: OutlineInputBorder(
@@ -167,17 +181,30 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                       children: [
                         ClipRRect(
                           borderRadius: BorderRadius.circular(16),
-                          child: Image.file(selectedImage!, height: 180, width: double.infinity, fit: BoxFit.cover),
+                          child: Image.file(
+                            selectedImage!,
+                            height: 180,
+                            width: double.infinity,
+                            fit: BoxFit.cover,
+                          ),
                         ),
                         Positioned(
                           right: 8,
                           top: 8,
                           child: InkWell(
-                            onTap: () => setModalState(() => selectedImage = null),
+                            onTap:
+                                () => setModalState(() => selectedImage = null),
                             child: Container(
                               padding: const EdgeInsets.all(6),
-                              decoration: const BoxDecoration(color: Color(0x99000000), shape: BoxShape.circle),
-                              child: const Icon(Icons.close_rounded, color: Colors.white, size: 18),
+                              decoration: const BoxDecoration(
+                                color: Color(0x99000000),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.close_rounded,
+                                color: Colors.white,
+                                size: 18,
+                              ),
                             ),
                           ),
                         ),
@@ -188,9 +215,15 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                     children: [
                       InkWell(
                         onTap: () async {
-                          final picked = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+                          final picked = await _picker.pickImage(
+                            source: ImageSource.gallery,
+                            imageQuality: 85,
+                          );
                           if (picked != null) {
-                            final comp = await _compressImage(File(picked.path), isCamera: false);
+                            final comp = await _compressImage(
+                              File(picked.path),
+                              isCamera: false,
+                            );
                             setModalState(() => selectedImage = comp);
                           }
                         },
@@ -201,15 +234,25 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                             color: _CommunityDark.bg,
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: const Icon(Icons.photo_library_rounded, color: _CommunityDark.accent, size: 24),
+                          child: const Icon(
+                            Icons.photo_library_rounded,
+                            color: _CommunityDark.accent,
+                            size: 24,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 10),
                       InkWell(
                         onTap: () async {
-                          final picked = await _picker.pickImage(source: ImageSource.camera, imageQuality: 85);
+                          final picked = await _picker.pickImage(
+                            source: ImageSource.camera,
+                            imageQuality: 85,
+                          );
                           if (picked != null) {
-                            final comp = await _compressImage(File(picked.path), isCamera: true);
+                            final comp = await _compressImage(
+                              File(picked.path),
+                              isCamera: true,
+                            );
                             setModalState(() => selectedImage = comp);
                           }
                         },
@@ -220,79 +263,124 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                             color: _CommunityDark.bg,
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: const Icon(Icons.camera_alt_rounded, color: _CommunityDark.success, size: 24),
+                          child: const Icon(
+                            Icons.camera_alt_rounded,
+                            color: _CommunityDark.success,
+                            size: 24,
+                          ),
                         ),
                       ),
                       const Spacer(),
                       ElevatedButton(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: _CommunityDark.accent,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 22,
+                            vertical: 12,
+                          ),
                         ),
-                        onPressed: isPosting
-                            ? null
-                            : () async {
-                                final text = textController.text.trim();
-                                if (text.isEmpty && selectedImage == null) return;
+                        onPressed:
+                            isPosting
+                                ? null
+                                : () async {
+                                  final text = textController.text.trim();
+                                  if (text.isEmpty && selectedImage == null)
+                                    return;
 
-                                setModalState(() => isPosting = true);
+                                  setModalState(() => isPosting = true);
 
-                                try {
-                                  String mediaUrl = '';
-                                  if (selectedImage != null) {
-                                    final uploaded = await _r2Service.uploadMedia(
-                                      file: selectedImage!,
-                                      folder: 'community',
-                                    );
-                                    if (uploaded != null && uploaded.isNotEmpty) {
-                                      mediaUrl = uploaded;
-                                    } else {
-                                      final imgBytes = await selectedImage!.readAsBytes();
-                                      mediaUrl = 'data:image/jpeg;base64,${base64Encode(imgBytes)}';
+                                  try {
+                                    String mediaUrl = '';
+                                    if (selectedImage != null) {
+                                      final uploaded = await _r2Service
+                                          .uploadMedia(
+                                            file: selectedImage!,
+                                            folder: 'community',
+                                          );
+                                      if (uploaded != null &&
+                                          uploaded.isNotEmpty) {
+                                        mediaUrl = uploaded;
+                                      } else {
+                                        final imgBytes =
+                                            await selectedImage!.readAsBytes();
+                                        mediaUrl =
+                                            'data:image/jpeg;base64,${base64Encode(imgBytes)}';
+                                      }
+                                    }
+
+                                    await _firestore
+                                        .collection('community_posts')
+                                        .add({
+                                          'authorId': user.employeeId ?? '',
+                                          'authorName':
+                                              user.name ?? 'VVC Member',
+                                          'authorAvatar': user.avatar ?? '',
+                                          'roleTag': 'Official Announcement',
+                                          'content': text,
+                                          'mediaUrl': mediaUrl,
+                                          'reactionsMap': {},
+                                          'likes': [],
+                                          'createdAt':
+                                              FieldValue.serverTimestamp(),
+                                        });
+
+                                    if (context.mounted) {
+                                      Navigator.pop(ctx);
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            'បានផ្សព្វផ្សាយព័ត៌មានរួចរាល់!',
+                                            style: GoogleFonts.kantumruyPro(),
+                                          ),
+                                          backgroundColor:
+                                              _CommunityDark.success,
+                                        ),
+                                      );
+                                    }
+                                  } catch (e) {
+                                    debugPrint('Create post error: $e');
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            'មានបញ្ហាក្នុងការផ្សព្វផ្សាយ៖ $e',
+                                            style: GoogleFonts.kantumruyPro(),
+                                          ),
+                                          backgroundColor:
+                                              _CommunityDark.danger,
+                                        ),
+                                      );
+                                    }
+                                  } finally {
+                                    if (ctx.mounted) {
+                                      setModalState(() => isPosting = false);
                                     }
                                   }
-
-                                  await _firestore.collection('community_posts').add({
-                                    'authorId': user.employeeId ?? '',
-                                    'authorName': user.name ?? 'VVC Member',
-                                    'authorAvatar': user.avatar ?? '',
-                                    'roleTag': 'Official Announcement',
-                                    'content': text,
-                                    'mediaUrl': mediaUrl,
-                                    'reactionsMap': {},
-                                    'likes': [],
-                                    'createdAt': FieldValue.serverTimestamp(),
-                                  });
-
-                                  if (context.mounted) {
-                                    Navigator.pop(ctx);
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text('បានផ្សព្វផ្សាយព័ត៌មានរួចរាល់!', style: GoogleFonts.kantumruyPro()),
-                                        backgroundColor: _CommunityDark.success,
-                                      ),
-                                    );
-                                  }
-                                } catch (e) {
-                                  debugPrint('Create post error: $e');
-                                  if (context.mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text('មានបញ្ហាក្នុងការផ្សព្វផ្សាយ៖ $e', style: GoogleFonts.kantumruyPro()),
-                                        backgroundColor: _CommunityDark.danger,
-                                      ),
-                                    );
-                                  }
-                                } finally {
-                                  if (ctx.mounted) {
-                                    setModalState(() => isPosting = false);
-                                  }
-                                }
-                              },
-                        child: isPosting
-                            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                            : Text('ផ្សព្វផ្សាយ (Publish)', style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold)),
+                                },
+                        child:
+                            isPosting
+                                ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                                : Text(
+                                  'ផ្សព្វផ្សាយ (Publish)',
+                                  style: GoogleFonts.kantumruyPro(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                       ),
                     ],
                   ),
@@ -348,7 +436,10 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                       ),
                       const Spacer(),
                       IconButton(
-                        icon: const Icon(Icons.close_rounded, color: Colors.white70),
+                        icon: const Icon(
+                          Icons.close_rounded,
+                          color: Colors.white70,
+                        ),
                         onPressed: () => Navigator.pop(ctx),
                       ),
                     ],
@@ -357,7 +448,10 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                   TextField(
                     controller: textController,
                     maxLines: 4,
-                    style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 14.5),
+                    style: GoogleFonts.kantumruyPro(
+                      color: Colors.white,
+                      fontSize: 14.5,
+                    ),
                     decoration: InputDecoration(
                       hintText: 'សរសេរព័ត៌មាន...',
                       filled: true,
@@ -374,7 +468,12 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                       children: [
                         ClipRRect(
                           borderRadius: BorderRadius.circular(16),
-                          child: Image.file(newImage!, height: 180, width: double.infinity, fit: BoxFit.cover),
+                          child: Image.file(
+                            newImage!,
+                            height: 180,
+                            width: double.infinity,
+                            fit: BoxFit.cover,
+                          ),
                         ),
                         Positioned(
                           right: 8,
@@ -383,8 +482,15 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                             onTap: () => setModalState(() => newImage = null),
                             child: Container(
                               padding: const EdgeInsets.all(6),
-                              decoration: const BoxDecoration(color: Color(0x99000000), shape: BoxShape.circle),
-                              child: const Icon(Icons.close_rounded, color: Colors.white, size: 18),
+                              decoration: const BoxDecoration(
+                                color: Color(0x99000000),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.close_rounded,
+                                color: Colors.white,
+                                size: 18,
+                              ),
                             ),
                           ),
                         ),
@@ -395,17 +501,30 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                       children: [
                         ClipRRect(
                           borderRadius: BorderRadius.circular(16),
-                          child: Image.network(ApiService.getFullImageUrl(currentMediaUrl), height: 180, width: double.infinity, fit: BoxFit.cover),
+                          child: Image.network(
+                            ApiService.getFullImageUrl(currentMediaUrl),
+                            height: 180,
+                            width: double.infinity,
+                            fit: BoxFit.cover,
+                          ),
                         ),
                         Positioned(
                           right: 8,
                           top: 8,
                           child: InkWell(
-                            onTap: () => setModalState(() => currentMediaUrl = ''),
+                            onTap:
+                                () => setModalState(() => currentMediaUrl = ''),
                             child: Container(
                               padding: const EdgeInsets.all(6),
-                              decoration: const BoxDecoration(color: Color(0x99000000), shape: BoxShape.circle),
-                              child: const Icon(Icons.close_rounded, color: Colors.white, size: 18),
+                              decoration: const BoxDecoration(
+                                color: Color(0x99000000),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.close_rounded,
+                                color: Colors.white,
+                                size: 18,
+                              ),
                             ),
                           ),
                         ),
@@ -417,9 +536,15 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                     children: [
                       InkWell(
                         onTap: () async {
-                          final picked = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+                          final picked = await _picker.pickImage(
+                            source: ImageSource.gallery,
+                            imageQuality: 85,
+                          );
                           if (picked != null) {
-                            final comp = await _compressImage(File(picked.path), isCamera: false);
+                            final comp = await _compressImage(
+                              File(picked.path),
+                              isCamera: false,
+                            );
                             setModalState(() {
                               newImage = comp;
                               currentMediaUrl = '';
@@ -433,15 +558,25 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                             color: _CommunityDark.bg,
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: const Icon(Icons.photo_library_rounded, color: _CommunityDark.accent, size: 24),
+                          child: const Icon(
+                            Icons.photo_library_rounded,
+                            color: _CommunityDark.accent,
+                            size: 24,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 10),
                       InkWell(
                         onTap: () async {
-                          final picked = await _picker.pickImage(source: ImageSource.camera, imageQuality: 85);
+                          final picked = await _picker.pickImage(
+                            source: ImageSource.camera,
+                            imageQuality: 85,
+                          );
                           if (picked != null) {
-                            final comp = await _compressImage(File(picked.path), isCamera: true);
+                            final comp = await _compressImage(
+                              File(picked.path),
+                              isCamera: true,
+                            );
                             setModalState(() {
                               newImage = comp;
                               currentMediaUrl = '';
@@ -455,63 +590,97 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                             color: _CommunityDark.bg,
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: const Icon(Icons.camera_alt_rounded, color: _CommunityDark.success, size: 24),
+                          child: const Icon(
+                            Icons.camera_alt_rounded,
+                            color: _CommunityDark.success,
+                            size: 24,
+                          ),
                         ),
                       ),
                       const Spacer(),
                       ElevatedButton(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: _CommunityDark.accent,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 22,
+                            vertical: 12,
+                          ),
                         ),
-                        onPressed: isSaving
-                            ? null
-                            : () async {
-                                final text = textController.text.trim();
-                                setModalState(() => isSaving = true);
+                        onPressed:
+                            isSaving
+                                ? null
+                                : () async {
+                                  final text = textController.text.trim();
+                                  setModalState(() => isSaving = true);
 
-                                try {
-                                  String mediaUrl = currentMediaUrl;
-                                  if (newImage != null) {
-                                    final uploaded = await _r2Service.uploadMedia(
-                                      file: newImage!,
-                                      folder: 'community',
-                                    );
-                                    if (uploaded != null && uploaded.isNotEmpty) {
-                                      mediaUrl = uploaded;
-                                    } else {
-                                      final imgBytes = await newImage!.readAsBytes();
-                                      mediaUrl = 'data:image/jpeg;base64,${base64Encode(imgBytes)}';
+                                  try {
+                                    String mediaUrl = currentMediaUrl;
+                                    if (newImage != null) {
+                                      final uploaded = await _r2Service
+                                          .uploadMedia(
+                                            file: newImage!,
+                                            folder: 'community',
+                                          );
+                                      if (uploaded != null &&
+                                          uploaded.isNotEmpty) {
+                                        mediaUrl = uploaded;
+                                      } else {
+                                        final imgBytes =
+                                            await newImage!.readAsBytes();
+                                        mediaUrl =
+                                            'data:image/jpeg;base64,${base64Encode(imgBytes)}';
+                                      }
+                                    }
+
+                                    await postDoc.reference.update({
+                                      'content': text,
+                                      'mediaUrl': mediaUrl,
+                                      'updatedAt': FieldValue.serverTimestamp(),
+                                    });
+
+                                    if (context.mounted) {
+                                      Navigator.pop(ctx);
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            'បានរក្សាទុកការកែប្រែ!',
+                                            style: GoogleFonts.kantumruyPro(),
+                                          ),
+                                          backgroundColor:
+                                              _CommunityDark.success,
+                                        ),
+                                      );
+                                    }
+                                  } catch (e) {
+                                    debugPrint('Update post error: $e');
+                                  } finally {
+                                    if (ctx.mounted) {
+                                      setModalState(() => isSaving = false);
                                     }
                                   }
-
-                                  await postDoc.reference.update({
-                                    'content': text,
-                                    'mediaUrl': mediaUrl,
-                                    'updatedAt': FieldValue.serverTimestamp(),
-                                  });
-
-                                  if (context.mounted) {
-                                    Navigator.pop(ctx);
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text('បានរក្សាទុកការកែប្រែ!', style: GoogleFonts.kantumruyPro()),
-                                        backgroundColor: _CommunityDark.success,
-                                      ),
-                                    );
-                                  }
-                                } catch (e) {
-                                  debugPrint('Update post error: $e');
-                                } finally {
-                                  if (ctx.mounted) {
-                                    setModalState(() => isSaving = false);
-                                  }
-                                }
-                              },
-                        child: isSaving
-                            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                            : Text('រក្សាទុក (Save)', style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold)),
+                                },
+                        child:
+                            isSaving
+                                ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                                : Text(
+                                  'រក្សាទុក (Save)',
+                                  style: GoogleFonts.kantumruyPro(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                       ),
                     ],
                   ),
@@ -533,10 +702,15 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
       builder: (dialogCtx) {
         return AlertDialog(
           backgroundColor: _CommunityDark.card,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
           title: Text(
             'លុប Post',
-            style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold),
+            style: GoogleFonts.kantumruyPro(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
           ),
           content: Text(
             'តើអ្នកពិតជាចង់លុប Post នេះចេញពីសហគមន៍មែនទេ?',
@@ -545,23 +719,37 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogCtx),
-              child: Text('បោះបង់', style: GoogleFonts.kantumruyPro(color: Colors.white54)),
+              child: Text(
+                'បោះបង់',
+                style: GoogleFonts.kantumruyPro(color: Colors.white54),
+              ),
             ),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: _CommunityDark.danger),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _CommunityDark.danger,
+              ),
               onPressed: () async {
                 Navigator.pop(dialogCtx);
                 await postDoc.reference.delete();
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('បានលុប Post រួចរាល់!', style: GoogleFonts.kantumruyPro()),
+                      content: Text(
+                        'បានលុប Post រួចរាល់!',
+                        style: GoogleFonts.kantumruyPro(),
+                      ),
                       backgroundColor: _CommunityDark.danger,
                     ),
                   );
                 }
               },
-              child: Text('លុបចេញ', style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold)),
+              child: Text(
+                'លុបចេញ',
+                style: GoogleFonts.kantumruyPro(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
           ],
         );
@@ -572,7 +760,12 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
   // ==========================================
   // FACEBOOK REACTION PICKER POPUP
   // ==========================================
-  void _showReactionPicker(BuildContext context, DocumentReference docRef, String currentUserId, Map<String, dynamic> currentReactionsMap) {
+  void _showReactionPicker(
+    BuildContext context,
+    DocumentReference docRef,
+    String currentUserId,
+    Map<String, dynamic> currentReactionsMap,
+  ) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -594,30 +787,30 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: _reactions.entries.map((entry) {
-              final key = entry.key;
-              final emoji = entry.value['emoji'] as String;
+            children:
+                _reactions.entries.map((entry) {
+                  final key = entry.key;
+                  final emoji = entry.value['emoji'] as String;
 
-              return InkWell(
-                onTap: () async {
-                  Navigator.pop(ctx);
-                  final Map<String, dynamic> updatedMap = Map.from(currentReactionsMap);
-                  if (updatedMap[currentUserId] == key) {
-                    updatedMap.remove(currentUserId);
-                  } else {
-                    updatedMap[currentUserId] = key;
-                  }
-                  await docRef.update({'reactionsMap': updatedMap});
-                },
-                child: Padding(
-                  padding: const EdgeInsets.all(4.0),
-                  child: Text(
-                    emoji,
-                    style: const TextStyle(fontSize: 32),
-                  ),
-                ),
-              );
-            }).toList(),
+                  return InkWell(
+                    onTap: () async {
+                      Navigator.pop(ctx);
+                      final Map<String, dynamic> updatedMap = Map.from(
+                        currentReactionsMap,
+                      );
+                      if (updatedMap[currentUserId] == key) {
+                        updatedMap.remove(currentUserId);
+                      } else {
+                        updatedMap[currentUserId] = key;
+                      }
+                      await docRef.update({'reactionsMap': updatedMap});
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.all(4.0),
+                      child: Text(emoji, style: const TextStyle(fontSize: 32)),
+                    ),
+                  );
+                }).toList(),
           ),
         );
       },
@@ -643,7 +836,9 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
           builder: (context, setSheetState) {
             return Container(
               height: MediaQuery.of(context).size.height * 0.75,
-              padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+              ),
               child: Column(
                 children: [
                   // Top Header Bar
@@ -661,7 +856,10 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                         ),
                         const Spacer(),
                         IconButton(
-                          icon: const Icon(Icons.close_rounded, color: Colors.white70),
+                          icon: const Icon(
+                            Icons.close_rounded,
+                            color: Colors.white70,
+                          ),
                           onPressed: () => Navigator.pop(sheetCtx),
                         ),
                       ],
@@ -672,9 +870,8 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                   // Real-time Comments List
                   Expanded(
                     child: StreamBuilder<QuerySnapshot>(
-                      stream: postDoc.reference
-                          .collection('comments')
-                          .snapshots(),
+                      stream:
+                          postDoc.reference.collection('comments').snapshots(),
                       builder: (context, snapshot) {
                         if (snapshot.hasError) {
                           return Center(
@@ -683,23 +880,36 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                               child: Text(
                                 'មិនទាន់មានមតិយោបល់នៅឡើយទេ\nជាអ្នកដំបូងដែលបញ្ចេញមតិ!',
                                 textAlign: TextAlign.center,
-                                style: GoogleFonts.kantumruyPro(color: Colors.white54, fontSize: 13.5),
+                                style: GoogleFonts.kantumruyPro(
+                                  color: Colors.white54,
+                                  fontSize: 13.5,
+                                ),
                               ),
                             ),
                           );
                         }
 
-                        if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+                        if (snapshot.connectionState ==
+                                ConnectionState.waiting &&
+                            !snapshot.hasData) {
                           return const Center(
                             child: SizedBox(
                               width: 24,
                               height: 24,
-                              child: CircularProgressIndicator(color: _CommunityDark.accent, strokeWidth: 2.5),
+                              child: CircularProgressIndicator(
+                                color: _CommunityDark.accent,
+                                strokeWidth: 2.5,
+                              ),
                             ),
                           );
                         }
 
-                        final comments = snapshot.hasData ? List<DocumentSnapshot>.from(snapshot.data!.docs) : <DocumentSnapshot>[];
+                        final comments =
+                            snapshot.hasData
+                                ? List<DocumentSnapshot>.from(
+                                  snapshot.data!.docs,
+                                )
+                                : <DocumentSnapshot>[];
                         // Sort by createdAt ascending safely on client side
                         comments.sort((a, b) {
                           final aData = a.data() as Map<String, dynamic>?;
@@ -716,7 +926,10 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                             child: Text(
                               'មិនទាន់មានមតិយោបល់នៅឡើយទេ\nជាអ្នកដំបូងដែលបញ្ចេញមតិ!',
                               textAlign: TextAlign.center,
-                              style: GoogleFonts.kantumruyPro(color: Colors.white54, fontSize: 13.5),
+                              style: GoogleFonts.kantumruyPro(
+                                color: Colors.white54,
+                                fontSize: 13.5,
+                              ),
                             ),
                           );
                         }
@@ -728,12 +941,21 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                             final cDoc = comments[idx];
                             final cData = cDoc.data() as Map<String, dynamic>;
                             final String cAuthorId = cData['authorId'] ?? '';
-                            final String cAuthorName = cData['authorName'] ?? 'Member';
-                            final String cAuthorAvatar = cData['authorAvatar'] ?? '';
+                            final String cAuthorName =
+                                cData['authorName'] ?? 'Member';
+                            final String cAuthorAvatar =
+                                cData['authorAvatar'] ?? '';
                             final String cText = cData['text'] ?? '';
-                            final Timestamp? cTs = cData['createdAt'] as Timestamp?;
-                            final String cTime = cTs != null ? DateFormat('HH:mm dd/MM').format(cTs.toDate()) : 'ទើបតែ';
-                            final bool isMyComment = cAuthorId == user.employeeId;
+                            final Timestamp? cTs =
+                                cData['createdAt'] as Timestamp?;
+                            final String cTime =
+                                cTs != null
+                                    ? DateFormat(
+                                      'HH:mm dd/MM',
+                                    ).format(cTs.toDate())
+                                    : 'ទើបតែ';
+                            final bool isMyComment =
+                                cAuthorId == user.employeeId;
 
                             return Container(
                               margin: const EdgeInsets.only(bottom: 12),
@@ -742,46 +964,82 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                                 children: [
                                   CircleAvatar(
                                     radius: 16,
-                                    backgroundImage: cAuthorAvatar.isNotEmpty
-                                        ? NetworkImage(ApiService.getFullImageUrl(cAuthorAvatar))
-                                        : null,
+                                    backgroundImage:
+                                        cAuthorAvatar.isNotEmpty
+                                            ? NetworkImage(
+                                              ApiService.getFullImageUrl(
+                                                cAuthorAvatar,
+                                              ),
+                                            )
+                                            : null,
                                     backgroundColor: _CommunityDark.accent,
-                                    child: cAuthorAvatar.isEmpty
-                                        ? Text(cAuthorName[0].toUpperCase(), style: GoogleFonts.inter(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold))
-                                        : null,
+                                    child:
+                                        cAuthorAvatar.isEmpty
+                                            ? Text(
+                                              cAuthorName[0].toUpperCase(),
+                                              style: GoogleFonts.inter(
+                                                color: Colors.white,
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            )
+                                            : null,
                                   ),
                                   const SizedBox(width: 10),
                                   Expanded(
                                     child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 14,
+                                        vertical: 10,
+                                      ),
                                       decoration: BoxDecoration(
                                         color: _CommunityDark.bg,
                                         borderRadius: BorderRadius.circular(16),
                                       ),
                                       child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
                                           Row(
                                             children: [
                                               Text(
                                                 cAuthorName,
-                                                style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                                                style: GoogleFonts.kantumruyPro(
+                                                  color: Colors.white,
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
                                               ),
                                               const Spacer(),
                                               Text(
                                                 cTime,
-                                                style: GoogleFonts.inter(color: Colors.white38, fontSize: 10),
+                                                style: GoogleFonts.inter(
+                                                  color: Colors.white38,
+                                                  fontSize: 10,
+                                                ),
                                               ),
                                               if (isMyComment) ...[
                                                 const SizedBox(width: 6),
                                                 InkWell(
                                                   onTap: () async {
                                                     try {
-                                                      await cDoc.reference.delete();
-                                                      await postDoc.reference.update({'commentsCount': FieldValue.increment(-1)});
+                                                      await cDoc.reference
+                                                          .delete();
+                                                      await postDoc.reference
+                                                          .update({
+                                                            'commentsCount':
+                                                                FieldValue.increment(
+                                                                  -1,
+                                                                ),
+                                                          });
                                                     } catch (_) {}
                                                   },
-                                                  child: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 16),
+                                                  child: const Icon(
+                                                    Icons
+                                                        .delete_outline_rounded,
+                                                    color: Colors.redAccent,
+                                                    size: 16,
+                                                  ),
                                                 ),
                                               ],
                                             ],
@@ -789,7 +1047,10 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                                           const SizedBox(height: 4),
                                           Text(
                                             cText,
-                                            style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 13.5),
+                                            style: GoogleFonts.kantumruyPro(
+                                              color: Colors.white70,
+                                              fontSize: 13.5,
+                                            ),
                                           ),
                                         ],
                                       ),
@@ -809,21 +1070,32 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                     padding: const EdgeInsets.fromLTRB(14, 8, 14, 12),
                     decoration: const BoxDecoration(
                       color: Color(0xFF1E293B),
-                      border: Border(top: BorderSide(color: Colors.white12, width: 0.5)),
+                      border: Border(
+                        top: BorderSide(color: Colors.white12, width: 0.5),
+                      ),
                     ),
                     child: Row(
                       children: [
                         Expanded(
                           child: TextField(
                             controller: commentController,
-                            style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 14),
+                            style: GoogleFonts.kantumruyPro(
+                              color: Colors.white,
+                              fontSize: 14,
+                            ),
                             decoration: InputDecoration(
                               hintText: 'សរសេរមតិយោបល់...',
-                              hintStyle: GoogleFonts.kantumruyPro(color: Colors.white38, fontSize: 13.5),
+                              hintStyle: GoogleFonts.kantumruyPro(
+                                color: Colors.white38,
+                                fontSize: 13.5,
+                              ),
                               filled: true,
                               fillColor: _CommunityDark.bg,
                               isDense: true,
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 10,
+                              ),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(20),
                                 borderSide: BorderSide.none,
@@ -833,39 +1105,59 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                         ),
                         const SizedBox(width: 8),
                         InkWell(
-                          onTap: isSending
-                              ? null
-                              : () async {
-                                  final text = commentController.text.trim();
-                                  if (text.isEmpty) return;
-                                  setSheetState(() => isSending = true);
-                                  try {
-                                    commentController.clear();
-                                    await postDoc.reference.collection('comments').add({
-                                      'authorId': user.employeeId ?? '',
-                                      'authorName': user.name ?? 'Member',
-                                      'authorAvatar': user.avatar ?? '',
-                                      'text': text,
-                                      'createdAt': FieldValue.serverTimestamp(),
-                                    });
-                                    await postDoc.reference.update({'commentsCount': FieldValue.increment(1)});
-                                  } catch (e) {
-                                    debugPrint('Add comment error: $e');
-                                  } finally {
-                                    if (sheetCtx.mounted) {
-                                      setSheetState(() => isSending = false);
+                          onTap:
+                              isSending
+                                  ? null
+                                  : () async {
+                                    final text = commentController.text.trim();
+                                    if (text.isEmpty) return;
+                                    setSheetState(() => isSending = true);
+                                    try {
+                                      commentController.clear();
+                                      await postDoc.reference
+                                          .collection('comments')
+                                          .add({
+                                            'authorId': user.employeeId ?? '',
+                                            'authorName': user.name ?? 'Member',
+                                            'authorAvatar': user.avatar ?? '',
+                                            'text': text,
+                                            'createdAt':
+                                                FieldValue.serverTimestamp(),
+                                          });
+                                      await postDoc.reference.update({
+                                        'commentsCount': FieldValue.increment(
+                                          1,
+                                        ),
+                                      });
+                                    } catch (e) {
+                                      debugPrint('Add comment error: $e');
+                                    } finally {
+                                      if (sheetCtx.mounted) {
+                                        setSheetState(() => isSending = false);
+                                      }
                                     }
-                                  }
-                                },
+                                  },
                           child: Container(
                             padding: const EdgeInsets.all(10),
                             decoration: const BoxDecoration(
                               color: _CommunityDark.accent,
                               shape: BoxShape.circle,
                             ),
-                            child: isSending
-                                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                                : const Icon(Icons.send_rounded, color: Colors.white, size: 18),
+                            child:
+                                isSending
+                                    ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        color: Colors.white,
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                    : const Icon(
+                                      Icons.send_rounded,
+                                      color: Colors.white,
+                                      size: 18,
+                                    ),
                           ),
                         ),
                       ],
@@ -889,62 +1181,94 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(110),
         child: Container(
-          decoration: BoxDecoration(
+          decoration: const BoxDecoration(
             color: _CommunityDark.bg,
-            border: const Border(bottom: BorderSide(color: Color(0xFF1E293B), width: 1)),
+            border: Border(
+              bottom: BorderSide(color: Color(0xFF1E293B), width: 1),
+            ),
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
               // Top Nav Row
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8.0,
+                  vertical: 8.0,
+                ),
                 child: Row(
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
+                      icon: const Icon(
+                        Icons.arrow_back_ios_new_rounded,
+                        color: Colors.white,
+                        size: 20,
+                      ),
                       onPressed: () => Navigator.pop(context),
                     ),
                     Expanded(
-                      child: _isSearching
-                          ? TextField(
-                              controller: _searchController,
-                              autofocus: true,
-                              style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 14.5),
-                              decoration: InputDecoration(
-                                hintText: 'ស្វែងរកព័ត៌មាន ឬអ្នកបង្ហោះ...',
-                                hintStyle: GoogleFonts.kantumruyPro(color: Colors.white38, fontSize: 13.5),
-                                filled: true,
-                                fillColor: const Color(0xFF1E293B),
-                                isDense: true,
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                  borderSide: BorderSide.none,
+                      child:
+                          _isSearching
+                              ? TextField(
+                                controller: _searchController,
+                                autofocus: true,
+                                style: GoogleFonts.kantumruyPro(
+                                  color: Colors.white,
+                                  fontSize: 14.5,
                                 ),
-                                prefixIcon: const Icon(Icons.search_rounded, color: Colors.white60, size: 18),
-                                suffixIcon: _searchController.text.isNotEmpty
-                                    ? IconButton(
-                                        icon: const Icon(Icons.clear_rounded, color: Colors.white60, size: 18),
-                                        onPressed: () => _searchController.clear(),
-                                      )
-                                    : null,
+                                decoration: InputDecoration(
+                                  hintText: 'ស្វែងរកព័ត៌មាន ឬអ្នកបង្ហោះ...',
+                                  hintStyle: GoogleFonts.kantumruyPro(
+                                    color: Colors.white38,
+                                    fontSize: 13.5,
+                                  ),
+                                  filled: true,
+                                  fillColor: const Color(0xFF1E293B),
+                                  isDense: true,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 9,
+                                  ),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                  prefixIcon: const Icon(
+                                    Icons.search_rounded,
+                                    color: Colors.white60,
+                                    size: 18,
+                                  ),
+                                  suffixIcon:
+                                      _searchController.text.isNotEmpty
+                                          ? IconButton(
+                                            icon: const Icon(
+                                              Icons.clear_rounded,
+                                              color: Colors.white60,
+                                              size: 18,
+                                            ),
+                                            onPressed:
+                                                () => _searchController.clear(),
+                                          )
+                                          : null,
+                                ),
+                              )
+                              : Text(
+                                'VVC Community',
+                                style: GoogleFonts.inter(
+                                  color: Colors.white,
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: -0.5,
+                                ),
                               ),
-                            )
-                          : Text(
-                              'VVC Community',
-                              style: GoogleFonts.inter(
-                                color: Colors.white,
-                                fontSize: 20,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: -0.5,
-                              ),
-                            ),
                     ),
                     IconButton(
                       icon: Icon(
-                        _isSearching ? Icons.close_rounded : Icons.search_rounded,
-                        color: _isSearching ? _CommunityDark.accent : Colors.white,
+                        _isSearching
+                            ? Icons.close_rounded
+                            : Icons.search_rounded,
+                        color:
+                            _isSearching ? _CommunityDark.accent : Colors.white,
                         size: 24,
                       ),
                       onPressed: () {
@@ -957,7 +1281,11 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                       },
                     ),
                     IconButton(
-                      icon: const Icon(Icons.notifications_none_rounded, color: Colors.white, size: 24),
+                      icon: const Icon(
+                        Icons.notifications_none_rounded,
+                        color: Colors.white,
+                        size: 24,
+                      ),
                       onPressed: () {
                         Navigator.push(
                           context,
@@ -972,39 +1300,60 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
               ),
               // Segment Filter Tabs
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16.0,
+                  vertical: 4.0,
+                ),
                 child: Row(
-                  children: [
-                    {'id': 'All', 'label': 'All'},
-                    {'id': 'Announcements', 'label': 'Announcements'},
-                    {'id': 'Trending', 'label': 'Trending'},
-                  ].map((tabMap) {
-                    final tabId = tabMap['id']!;
-                    final isSelected = _selectedTab == tabId;
-                    return GestureDetector(
-                      onTap: () => setState(() => _selectedTab = tabId),
-                      child: Container(
-                        margin: const EdgeInsets.only(right: 10),
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: isSelected ? _CommunityDark.accent.withValues(alpha: 0.15) : _CommunityDark.card,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: isSelected ? _CommunityDark.accent : const Color(0xFF334155),
-                            width: isSelected ? 1.5 : 1,
+                  children:
+                      [
+                        {'id': 'All', 'label': 'All'},
+                        {'id': 'Announcements', 'label': 'Announcements'},
+                        {'id': 'Trending', 'label': 'Trending'},
+                      ].map((tabMap) {
+                        final tabId = tabMap['id']!;
+                        final isSelected = _selectedTab == tabId;
+                        return GestureDetector(
+                          onTap: () => setState(() => _selectedTab = tabId),
+                          child: Container(
+                            margin: const EdgeInsets.only(right: 10),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color:
+                                  isSelected
+                                      ? _CommunityDark.accent.withValues(
+                                        alpha: 0.15,
+                                      )
+                                      : _CommunityDark.card,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color:
+                                    isSelected
+                                        ? _CommunityDark.accent
+                                        : const Color(0xFF334155),
+                                width: isSelected ? 1.5 : 1,
+                              ),
+                            ),
+                            child: Text(
+                              tabId,
+                              style: GoogleFonts.inter(
+                                color:
+                                    isSelected
+                                        ? _CommunityDark.accent
+                                        : Colors.white70,
+                                fontWeight:
+                                    isSelected
+                                        ? FontWeight.w700
+                                        : FontWeight.w500,
+                                fontSize: 13.5,
+                              ),
+                            ),
                           ),
-                        ),
-                        child: Text(
-                          tabId,
-                          style: GoogleFonts.inter(
-                            color: isSelected ? _CommunityDark.accent : Colors.white70,
-                            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                            fontSize: 13.5,
-                          ),
-                        ),
-                      ),
-                    );
-                  }).toList(),
+                        );
+                      }).toList(),
                 ),
               ),
               const SizedBox(height: 8),
@@ -1028,48 +1377,75 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
           backgroundColor: _CommunityDark.accent,
           elevation: 0,
           icon: const Icon(Icons.add_rounded, color: Colors.white, size: 24),
-          label: Text('Create Post', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 15)),
+          label: Text(
+            'Create Post',
+            style: GoogleFonts.inter(
+              color: Colors.white,
+              fontWeight: FontWeight.w600,
+              fontSize: 15,
+            ),
+          ),
         ),
       ),
       body: StreamBuilder<QuerySnapshot>(
         stream: _postsStream,
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator(color: _CommunityDark.accent));
+          if (snapshot.connectionState == ConnectionState.waiting &&
+              !snapshot.hasData) {
+            return const Center(
+              child: CircularProgressIndicator(color: _CommunityDark.accent),
+            );
           }
 
-          var posts = snapshot.hasData ? List<DocumentSnapshot>.from(snapshot.data!.docs) : <DocumentSnapshot>[];
+          var posts =
+              snapshot.hasData
+                  ? List<DocumentSnapshot>.from(snapshot.data!.docs)
+                  : <DocumentSnapshot>[];
 
           // 1. Search Query Filter
           final query = _searchController.text.trim().toLowerCase();
           if (query.isNotEmpty) {
-            posts = posts.where((doc) {
-              final data = doc.data() as Map<String, dynamic>;
-              final content = (data['content'] ?? '').toString().toLowerCase();
-              final authorName = (data['authorName'] ?? '').toString().toLowerCase();
-              final roleTag = (data['roleTag'] ?? '').toString().toLowerCase();
-              return content.contains(query) || authorName.contains(query) || roleTag.contains(query);
-            }).toList();
+            posts =
+                posts.where((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  final content =
+                      (data['content'] ?? '').toString().toLowerCase();
+                  final authorName =
+                      (data['authorName'] ?? '').toString().toLowerCase();
+                  final roleTag =
+                      (data['roleTag'] ?? '').toString().toLowerCase();
+                  return content.contains(query) ||
+                      authorName.contains(query) ||
+                      roleTag.contains(query);
+                }).toList();
           }
 
           // 2. Tab Category Filter & Sorting
           if (_selectedTab == 'Announcements') {
-            posts = posts.where((doc) {
-              final data = doc.data() as Map<String, dynamic>;
-              final roleTag = (data['roleTag'] ?? '').toString().toLowerCase();
-              return data['isAnnouncement'] == true ||
-                  roleTag.contains('announcement') ||
-                  roleTag.contains('official') ||
-                  roleTag.contains('admin') ||
-                  roleTag.contains('hrm');
-            }).toList();
+            posts =
+                posts.where((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  final roleTag =
+                      (data['roleTag'] ?? '').toString().toLowerCase();
+                  return data['isAnnouncement'] == true ||
+                      roleTag.contains('announcement') ||
+                      roleTag.contains('official') ||
+                      roleTag.contains('admin') ||
+                      roleTag.contains('hrm');
+                }).toList();
           } else if (_selectedTab == 'Trending') {
             // Sort by total engagement (likes + comments) descending
             posts.sort((a, b) {
               final aData = a.data() as Map<String, dynamic>;
               final bData = b.data() as Map<String, dynamic>;
-              final aReactions = (aData['reactionsMap'] as Map?)?.length ?? (aData['likes'] as List?)?.length ?? 0;
-              final bReactions = (bData['reactionsMap'] as Map?)?.length ?? (bData['likes'] as List?)?.length ?? 0;
+              final aReactions =
+                  (aData['reactionsMap'] as Map?)?.length ??
+                  (aData['likes'] as List?)?.length ??
+                  0;
+              final bReactions =
+                  (bData['reactionsMap'] as Map?)?.length ??
+                  (bData['likes'] as List?)?.length ??
+                  0;
               final aComments = (aData['commentsCount'] as num?)?.toInt() ?? 0;
               final bComments = (bData['commentsCount'] as num?)?.toInt() ?? 0;
               final aScore = aReactions + aComments;
@@ -1090,31 +1466,54 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                     decoration: BoxDecoration(
                       color: _CommunityDark.card,
                       borderRadius: BorderRadius.circular(24),
-                      border: Border.all(color: const Color(0xFF334155), width: 0.8),
+                      border: Border.all(
+                        color: const Color(0xFF334155),
+                        width: 0.8,
+                      ),
                     ),
                     child: Row(
                       children: [
                         CircleAvatar(
                           radius: 20,
-                          backgroundColor: _CommunityDark.accent.withValues(alpha: 0.2),
-                          backgroundImage: (userProvider.avatar?.isNotEmpty ?? false)
-                              ? NetworkImage(ApiService.getFullImageUrl(userProvider.avatar!))
-                              : null,
-                          child: (userProvider.avatar?.isEmpty ?? true)
-                              ? Text(
-                                  (userProvider.name?.isNotEmpty ?? false) ? userProvider.name![0].toUpperCase() : 'U',
-                                  style: GoogleFonts.inter(color: _CommunityDark.accent, fontWeight: FontWeight.bold),
-                                )
-                              : null,
+                          backgroundColor: _CommunityDark.accent.withValues(
+                            alpha: 0.2,
+                          ),
+                          backgroundImage:
+                              (userProvider.avatar?.isNotEmpty ?? false)
+                                  ? NetworkImage(
+                                    ApiService.getFullImageUrl(
+                                      userProvider.avatar!,
+                                    ),
+                                  )
+                                  : null,
+                          child:
+                              (userProvider.avatar?.isEmpty ?? true)
+                                  ? Text(
+                                    (userProvider.name?.isNotEmpty ?? false)
+                                        ? userProvider.name![0].toUpperCase()
+                                        : 'U',
+                                    style: GoogleFonts.inter(
+                                      color: _CommunityDark.accent,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  )
+                                  : null,
                         ),
                         const SizedBox(width: 14),
                         Expanded(
                           child: Text(
                             "What's on your mind?",
-                            style: GoogleFonts.inter(color: Colors.white54, fontSize: 15),
+                            style: GoogleFonts.inter(
+                              color: Colors.white54,
+                              fontSize: 15,
+                            ),
                           ),
                         ),
-                        const Icon(Icons.image_outlined, color: _CommunityDark.success, size: 24),
+                        const Icon(
+                          Icons.image_outlined,
+                          color: _CommunityDark.success,
+                          size: 24,
+                        ),
                       ],
                     ),
                   ),
@@ -1129,11 +1528,18 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.campaign_rounded, size: 64, color: Colors.white38),
+                        const Icon(
+                          Icons.campaign_rounded,
+                          size: 64,
+                          color: Colors.white38,
+                        ),
                         const SizedBox(height: 12),
                         Text(
                           'មិនទាន់មានការប្រកាសព័ត៌មាននៅឡើយទេ',
-                          style: GoogleFonts.kantumruyPro(color: Colors.white54, fontSize: 15),
+                          style: GoogleFonts.kantumruyPro(
+                            color: Colors.white54,
+                            fontSize: 15,
+                          ),
                         ),
                       ],
                     ),
@@ -1142,309 +1548,456 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
               else
                 // Feed Posts
                 SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      final doc = posts[index];
-                      final data = doc.data() as Map<String, dynamic>;
+                  delegate: SliverChildBuilderDelegate((context, index) {
+                    final doc = posts[index];
+                    final data = doc.data() as Map<String, dynamic>;
 
-                      final String authorId = data['authorId'] ?? '';
-                      final String authorName = data['authorName'] ?? 'VVC Official';
-                      final String authorAvatar = data['authorAvatar'] ?? '';
-                      final String roleTag = data['roleTag'] ?? 'Official Announcement';
-                      final String content = data['content'] ?? '';
-                      final String mediaUrl = data['mediaUrl'] ?? '';
-                      final Map<String, dynamic> reactionsMap = data['reactionsMap'] as Map<String, dynamic>? ?? {};
-                      final List<dynamic> legacyLikes = data['likes'] ?? [];
-                      final int commentsCount = (data['commentsCount'] as num?)?.toInt() ?? 0;
-                      final Timestamp? ts = data['createdAt'] as Timestamp?;
-                      final String timeStr = ts != null ? DateFormat('MMM dd, HH:mm').format(ts.toDate()) : 'Just now';
+                    final String authorId = data['authorId'] ?? '';
+                    final String authorName =
+                        data['authorName'] ?? 'VVC Official';
+                    final String authorAvatar = data['authorAvatar'] ?? '';
+                    final String roleTag =
+                        data['roleTag'] ?? 'Official Announcement';
+                    final String content = data['content'] ?? '';
+                    final String mediaUrl = data['mediaUrl'] ?? '';
+                    final Map<String, dynamic> reactionsMap =
+                        data['reactionsMap'] as Map<String, dynamic>? ?? {};
+                    final List<dynamic> legacyLikes = data['likes'] ?? [];
+                    final int commentsCount =
+                        (data['commentsCount'] as num?)?.toInt() ?? 0;
+                    final Timestamp? ts = data['createdAt'] as Timestamp?;
+                    final String timeStr =
+                        ts != null
+                            ? DateFormat('MMM dd, HH:mm').format(ts.toDate())
+                            : 'Just now';
 
-                      final String myId = userProvider.employeeId ?? '';
-                      final bool isMyPost = authorId == myId || myId == 'super_admin' || myId == 'admin';
+                    final String myId = userProvider.employeeId ?? '';
+                    final bool isMyPost =
+                        authorId == myId ||
+                        myId == 'super_admin' ||
+                        myId == 'admin';
 
-                      // Reaction Logic
-                      String userReactionKey = reactionsMap[myId] ?? '';
-                      if (userReactionKey.isEmpty && legacyLikes.contains(myId)) {
-                        userReactionKey = 'like';
+                    // Reaction Logic
+                    String userReactionKey = reactionsMap[myId] ?? '';
+                    if (userReactionKey.isEmpty && legacyLikes.contains(myId)) {
+                      userReactionKey = 'like';
+                    }
+
+                    final Map<String, int> reactionCounts = {};
+                    reactionsMap.forEach((uId, rKey) {
+                      if (rKey is String && rKey.isNotEmpty) {
+                        reactionCounts[rKey] = (reactionCounts[rKey] ?? 0) + 1;
                       }
+                    });
+                    if (reactionCounts.isEmpty && legacyLikes.isNotEmpty) {
+                      reactionCounts['like'] = legacyLikes.length;
+                    }
 
-                      final Map<String, int> reactionCounts = {};
-                      reactionsMap.forEach((uId, rKey) {
-                        if (rKey is String && rKey.isNotEmpty) {
-                          reactionCounts[rKey] = (reactionCounts[rKey] ?? 0) + 1;
-                        }
-                      });
-                      if (reactionCounts.isEmpty && legacyLikes.isNotEmpty) {
-                        reactionCounts['like'] = legacyLikes.length;
-                      }
+                    int totalReactions = 0;
+                    reactionCounts.forEach((_, cnt) => totalReactions += cnt);
 
-                      int totalReactions = 0;
-                      reactionCounts.forEach((_, cnt) => totalReactions += cnt);
-
-                      return Container(
-                        margin: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: _CommunityDark.card,
-                          borderRadius: BorderRadius.circular(24),
-                          border: Border.all(color: const Color(0xFF334155), width: 0.8),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.2),
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
+                    return Container(
+                      margin: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: _CommunityDark.card,
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(
+                          color: const Color(0xFF334155),
+                          width: 0.8,
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Author Header
-                            Row(
-                              children: [
-                                CircleAvatar(
-                                  radius: 22,
-                                  backgroundImage: authorAvatar.isNotEmpty
-                                      ? NetworkImage(ApiService.getFullImageUrl(authorAvatar))
-                                      : null,
-                                  backgroundColor: _CommunityDark.accent.withValues(alpha: 0.2),
-                                  child: authorAvatar.isEmpty
-                                      ? Text(authorName[0].toUpperCase(), style: GoogleFonts.inter(color: _CommunityDark.accent, fontWeight: FontWeight.bold, fontSize: 18))
-                                      : null,
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          Text(
-                                            authorName,
-                                            style: GoogleFonts.kantumruyPro(
-                                              color: Colors.white,
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.bold,
-                                            ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.2),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Author Header
+                          Row(
+                            children: [
+                              CircleAvatar(
+                                radius: 22,
+                                backgroundImage:
+                                    authorAvatar.isNotEmpty
+                                        ? NetworkImage(
+                                          ApiService.getFullImageUrl(
+                                            authorAvatar,
                                           ),
-                                          const SizedBox(width: 4),
-                                          const Icon(Icons.verified_rounded, color: _CommunityDark.accent, size: 16),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Row(
-                                        children: [
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                            decoration: BoxDecoration(
-                                              color: _CommunityDark.accent.withValues(alpha: 0.15),
-                                              borderRadius: BorderRadius.circular(6),
-                                            ),
-                                            child: Text(
-                                              roleTag,
-                                              style: GoogleFonts.inter(color: _CommunityDark.accent, fontSize: 10, fontWeight: FontWeight.w600),
-                                            ),
+                                        )
+                                        : null,
+                                backgroundColor: _CommunityDark.accent
+                                    .withValues(alpha: 0.2),
+                                child:
+                                    authorAvatar.isEmpty
+                                        ? Text(
+                                          authorName[0].toUpperCase(),
+                                          style: GoogleFonts.inter(
+                                            color: _CommunityDark.accent,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 18,
                                           ),
-                                          const SizedBox(width: 6),
-                                          Text(
-                                            '•  $timeStr',
-                                            style: GoogleFonts.inter(color: Colors.white54, fontSize: 12),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                if (isMyPost)
-                                  PopupMenuButton<String>(
-                                    icon: const Icon(Icons.more_horiz_rounded, color: Colors.white54),
-                                    color: const Color(0xFF0F172A),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                    onSelected: (val) {
-                                      if (val == 'edit') _showEditPostModal(doc);
-                                      if (val == 'delete') _confirmDeletePost(doc);
-                                    },
-                                    itemBuilder: (context) => [
-                                      PopupMenuItem(
-                                        value: 'edit',
-                                        child: Row(
-                                          children: [
-                                            const Icon(Icons.edit_rounded, color: Colors.white, size: 18),
-                                            const SizedBox(width: 10),
-                                            Text('កែប្រែ Post', style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 13.5)),
-                                          ],
-                                        ),
-                                      ),
-                                      PopupMenuItem(
-                                        value: 'delete',
-                                        child: Row(
-                                          children: [
-                                            const Icon(Icons.delete_forever_rounded, color: Colors.redAccent, size: 18),
-                                            const SizedBox(width: 10),
-                                            Text('លុប Post', style: GoogleFonts.kantumruyPro(color: Colors.redAccent, fontSize: 13.5)),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                              ],
-                            ),
-                            const SizedBox(height: 14),
-
-                            // Content
-                            if (content.isNotEmpty)
-                              Text(
-                                content,
-                                style: GoogleFonts.kantumruyPro(
-                                  color: Colors.white.withValues(alpha: 0.9),
-                                  fontSize: 15,
-                                  height: 1.5,
-                                ),
+                                        )
+                                        : null,
                               ),
-
-                            if (mediaUrl.isNotEmpty) ...[
-                              const SizedBox(height: 16),
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(16),
-                                child: Image.network(
-                                  ApiService.getFullImageUrl(mediaUrl),
-                                  fit: BoxFit.cover,
-                                  width: double.infinity,
-                                ),
-                              ),
-                            ],
-
-                            const SizedBox(height: 16),
-                            // Engagement Metrics
-                            if (totalReactions > 0 || commentsCount > 0)
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 12),
-                                child: Row(
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    if (totalReactions > 0) ...[
-                                      Row(
-                                        children: reactionCounts.keys.take(3).map((rKey) {
-                                          final emoji = _reactions[rKey]?['emoji'] ?? '👍';
-                                          return Padding(
-                                            padding: const EdgeInsets.only(right: 2.0),
-                                            child: Text(emoji, style: const TextStyle(fontSize: 14)),
-                                          );
-                                        }).toList(),
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        '$totalReactions',
-                                        style: GoogleFonts.inter(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500),
-                                      ),
-                                    ],
-                                    const Spacer(),
-                                    if (commentsCount > 0)
-                                      Text(
-                                        '$commentsCount Comments',
-                                        style: GoogleFonts.inter(color: Colors.white54, fontSize: 13, fontWeight: FontWeight.w500),
-                                      ),
+                                    Row(
+                                      children: [
+                                        Text(
+                                          authorName,
+                                          style: GoogleFonts.kantumruyPro(
+                                            color: Colors.white,
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 4),
+                                        const Icon(
+                                          Icons.verified_rounded,
+                                          color: _CommunityDark.accent,
+                                          size: 16,
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 6,
+                                            vertical: 2,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: _CommunityDark.accent
+                                                .withValues(alpha: 0.15),
+                                            borderRadius: BorderRadius.circular(
+                                              6,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            roleTag,
+                                            style: GoogleFonts.inter(
+                                              color: _CommunityDark.accent,
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          '•  $timeStr',
+                                          style: GoogleFonts.inter(
+                                            color: Colors.white54,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ],
                                 ),
                               ),
-
-                            const Divider(color: Color(0xFF334155), height: 1),
-                            const SizedBox(height: 12),
-
-                            // Actions
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                // Like
-                                GestureDetector(
-                                  onTap: () async {
-                                    final Map<String, dynamic> updatedMap = Map.from(reactionsMap);
-                                    if (userReactionKey.isNotEmpty) {
-                                      updatedMap.remove(myId);
-                                    } else {
-                                      updatedMap[myId] = 'like';
-                                    }
-                                    await doc.reference.update({'reactionsMap': updatedMap});
+                              if (isMyPost)
+                                PopupMenuButton<String>(
+                                  icon: const Icon(
+                                    Icons.more_horiz_rounded,
+                                    color: Colors.white54,
+                                  ),
+                                  color: const Color(0xFF0F172A),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  onSelected: (val) {
+                                    if (val == 'edit') _showEditPostModal(doc);
+                                    if (val == 'delete')
+                                      _confirmDeletePost(doc);
                                   },
-                                  onLongPress: () => _showReactionPicker(context, doc.reference, myId, reactionsMap),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                    child: Row(
-                                      children: [
-                                        Text(
-                                          userReactionKey.isNotEmpty ? (_reactions[userReactionKey]?['emoji'] ?? '👍') : '👍',
-                                          style: TextStyle(fontSize: userReactionKey.isNotEmpty ? 18 : 16),
+                                  itemBuilder:
+                                      (context) => [
+                                        PopupMenuItem(
+                                          value: 'edit',
+                                          child: Row(
+                                            children: [
+                                              const Icon(
+                                                Icons.edit_rounded,
+                                                color: Colors.white,
+                                                size: 18,
+                                              ),
+                                              const SizedBox(width: 10),
+                                              Text(
+                                                'កែប្រែ Post',
+                                                style: GoogleFonts.kantumruyPro(
+                                                  color: Colors.white,
+                                                  fontSize: 13.5,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
                                         ),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          userReactionKey.isNotEmpty ? (_reactions[userReactionKey]?['label'] ?? 'Like') : 'Like',
-                                          style: GoogleFonts.inter(
-                                            color: userReactionKey.isNotEmpty
-                                                ? (_reactions[userReactionKey]?['color'] as Color? ?? _CommunityDark.accent)
-                                                : Colors.white60,
-                                            fontSize: 14,
-                                            fontWeight: userReactionKey.isNotEmpty ? FontWeight.bold : FontWeight.w500,
+                                        PopupMenuItem(
+                                          value: 'delete',
+                                          child: Row(
+                                            children: [
+                                              const Icon(
+                                                Icons.delete_forever_rounded,
+                                                color: Colors.redAccent,
+                                                size: 18,
+                                              ),
+                                              const SizedBox(width: 10),
+                                              Text(
+                                                'លុប Post',
+                                                style: GoogleFonts.kantumruyPro(
+                                                  color: Colors.redAccent,
+                                                  fontSize: 13.5,
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ),
                                       ],
-                                    ),
-                                  ),
                                 ),
+                            ],
+                          ),
+                          const SizedBox(height: 14),
 
-                                // Comment
-                                InkWell(
-                                  onTap: () => _showCommentsSheet(doc, userProvider),
-                                  borderRadius: BorderRadius.circular(12),
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                    child: Row(
-                                      children: [
-                                        const Icon(Icons.mode_comment_outlined, color: Colors.white60, size: 20),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          'Comment',
-                                          style: GoogleFonts.inter(color: Colors.white60, fontSize: 14, fontWeight: FontWeight.w500),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
+                          // Content
+                          if (content.isNotEmpty)
+                            Text(
+                              content,
+                              style: GoogleFonts.kantumruyPro(
+                                color: Colors.white.withValues(alpha: 0.9),
+                                fontSize: 15,
+                                height: 1.5,
+                              ),
+                            ),
 
-                                // Share
-                                InkWell(
-                                  onTap: () {
-                                    Clipboard.setData(ClipboardData(text: content));
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text('បានចម្លងអត្ថបទ Post!', style: GoogleFonts.kantumruyPro()),
-                                        backgroundColor: _CommunityDark.accent,
-                                      ),
-                                    );
-                                  },
-                                  borderRadius: BorderRadius.circular(12),
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                    child: Row(
-                                      children: [
-                                        const Icon(Icons.ios_share_rounded, color: Colors.white60, size: 20),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          'Share',
-                                          style: GoogleFonts.inter(color: Colors.white60, fontSize: 14, fontWeight: FontWeight.w500),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ],
+                          if (mediaUrl.isNotEmpty) ...[
+                            const SizedBox(height: 16),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(16),
+                              child: Image.network(
+                                ApiService.getFullImageUrl(mediaUrl),
+                                fit: BoxFit.cover,
+                                width: double.infinity,
+                              ),
                             ),
                           ],
-                        ),
-                      );
-                    },
-                    childCount: posts.length,
-                  ),
+
+                          const SizedBox(height: 16),
+                          // Engagement Metrics
+                          if (totalReactions > 0 || commentsCount > 0)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: Row(
+                                children: [
+                                  if (totalReactions > 0) ...[
+                                    Row(
+                                      children:
+                                          reactionCounts.keys.take(3).map((
+                                            rKey,
+                                          ) {
+                                            final emoji =
+                                                _reactions[rKey]?['emoji'] ??
+                                                '👍';
+                                            return Padding(
+                                              padding: const EdgeInsets.only(
+                                                right: 2.0,
+                                              ),
+                                              child: Text(
+                                                emoji,
+                                                style: const TextStyle(
+                                                  fontSize: 14,
+                                                ),
+                                              ),
+                                            );
+                                          }).toList(),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      '$totalReactions',
+                                      style: GoogleFonts.inter(
+                                        color: Colors.white70,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                  const Spacer(),
+                                  if (commentsCount > 0)
+                                    Text(
+                                      '$commentsCount Comments',
+                                      style: GoogleFonts.inter(
+                                        color: Colors.white54,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+
+                          const Divider(color: Color(0xFF334155), height: 1),
+                          const SizedBox(height: 12),
+
+                          // Actions
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              // Like
+                              GestureDetector(
+                                onTap: () async {
+                                  final Map<String, dynamic> updatedMap =
+                                      Map.from(reactionsMap);
+                                  if (userReactionKey.isNotEmpty) {
+                                    updatedMap.remove(myId);
+                                  } else {
+                                    updatedMap[myId] = 'like';
+                                  }
+                                  await doc.reference.update({
+                                    'reactionsMap': updatedMap,
+                                  });
+                                },
+                                onLongPress:
+                                    () => _showReactionPicker(
+                                      context,
+                                      doc.reference,
+                                      myId,
+                                      reactionsMap,
+                                    ),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 8,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Text(
+                                        userReactionKey.isNotEmpty
+                                            ? (_reactions[userReactionKey]?['emoji'] ??
+                                                '👍')
+                                            : '👍',
+                                        style: TextStyle(
+                                          fontSize:
+                                              userReactionKey.isNotEmpty
+                                                  ? 18
+                                                  : 16,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        userReactionKey.isNotEmpty
+                                            ? (_reactions[userReactionKey]?['label'] ??
+                                                'Like')
+                                            : 'Like',
+                                        style: GoogleFonts.inter(
+                                          color:
+                                              userReactionKey.isNotEmpty
+                                                  ? (_reactions[userReactionKey]?['color']
+                                                          as Color? ??
+                                                      _CommunityDark.accent)
+                                                  : Colors.white60,
+                                          fontSize: 14,
+                                          fontWeight:
+                                              userReactionKey.isNotEmpty
+                                                  ? FontWeight.bold
+                                                  : FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+
+                              // Comment
+                              InkWell(
+                                onTap:
+                                    () => _showCommentsSheet(doc, userProvider),
+                                borderRadius: BorderRadius.circular(12),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 8,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.mode_comment_outlined,
+                                        color: Colors.white60,
+                                        size: 20,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        'Comment',
+                                        style: GoogleFonts.inter(
+                                          color: Colors.white60,
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+
+                              // Share
+                              InkWell(
+                                onTap: () {
+                                  Clipboard.setData(
+                                    ClipboardData(text: content),
+                                  );
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        'បានចម្លងអត្ថបទ Post!',
+                                        style: GoogleFonts.kantumruyPro(),
+                                      ),
+                                      backgroundColor: _CommunityDark.accent,
+                                    ),
+                                  );
+                                },
+                                borderRadius: BorderRadius.circular(12),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 8,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.ios_share_rounded,
+                                        color: Colors.white60,
+                                        size: 20,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        'Share',
+                                        style: GoogleFonts.inter(
+                                          color: Colors.white60,
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  }, childCount: posts.length),
                 ),
-              const SliverToBoxAdapter(child: SizedBox(height: 80)), // Padding for FAB
+              const SliverToBoxAdapter(
+                child: SizedBox(height: 80),
+              ), // Padding for FAB
             ],
           );
         },

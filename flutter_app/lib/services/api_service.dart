@@ -516,6 +516,7 @@ class ApiService {
     };
     if (id != null && id > 0) {
       body['id'] = id.toString();
+      body['poll_id'] = id.toString();
     }
     return _processRequest('save_poll', headers: headers, body: body);
   }
@@ -549,6 +550,7 @@ class ApiService {
       headers: headers,
       body: {
         'id': pollId.toString(),
+        'poll_id': pollId.toString(),
       },
     );
   }

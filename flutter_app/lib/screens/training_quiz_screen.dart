@@ -38,7 +38,8 @@ class _TrainingQuizScreenState extends State<TrainingQuizScreen> {
     });
     try {
       final res = await _apiService.fetchTrainingQuestions();
-      if ((res['status'] == 'success' || res['success'] == true) && res['data'] != null) {
+      if ((res['status'] == 'success' || res['success'] == true) &&
+          res['data'] != null) {
         setState(() {
           _questions = List<Map<String, dynamic>>.from(res['data']);
           _isLoading = false;
@@ -84,13 +85,15 @@ class _TrainingQuizScreenState extends State<TrainingQuizScreen> {
   Future<void> _showResult() async {
     final prefs = await SharedPreferences.getInstance();
     final employeeId = prefs.getString('employee_id') ?? '';
-    
+
     // Auto-award badge if perfect score
     if (_score == _questions.length && employeeId.isNotEmpty) {
       try {
-        final docRef = FirebaseFirestore.instance.collection('users').doc(employeeId);
+        final docRef = FirebaseFirestore.instance
+            .collection('users')
+            .doc(employeeId);
         await docRef.set({
-          'badges': FieldValue.arrayUnion(['QUIZ_MASTER'])
+          'badges': FieldValue.arrayUnion(['QUIZ_MASTER']),
         }, SetOptions(merge: true));
       } catch (e) {
         debugPrint('Error awarding badge: $e');
@@ -102,62 +105,96 @@ class _TrainingQuizScreenState extends State<TrainingQuizScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: AppTheme.bgCard,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 80, height: 80,
-              decoration: BoxDecoration(color: _score == _questions.length ? Colors.orangeAccent.withValues(alpha: 0.2) : Colors.blueAccent.withValues(alpha: 0.2), shape: BoxShape.circle),
-              child: Icon(
-                _score == _questions.length ? Icons.emoji_events_rounded : Icons.thumb_up_rounded,
-                color: _score == _questions.length ? Colors.orangeAccent : Colors.blueAccent,
-                size: 40,
+      builder:
+          (context) => Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: AppTheme.bgCard,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(30),
               ),
             ),
-            const SizedBox(height: 20),
-            Text(
-              "លទ្ធផលរបស់អ្នក",
-              style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              "$_score / ${_questions.length}",
-              style: GoogleFonts.inter(color: Colors.white, fontSize: 40, fontWeight: FontWeight.w900),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              _score == _questions.length
-                  ? "សូមអបអរសាទរ! អ្នកទទួលបានមេដាយ 🧠 Quiz Master ប្រចាំសប្ដាហ៍នេះ!"
-                  : "ព្យាយាមម្ដងទៀតនៅសប្ដាហ៍ក្រោយដើម្បីប្រមូលមេដាយកិត្តិយស!",
-              textAlign: TextAlign.center,
-              style: GoogleFonts.kantumruyPro(color: AppTheme.textSecondary, fontSize: 14),
-            ),
-            const SizedBox(height: 30),
-            SizedBox(
-              width: double.infinity,
-              height: 54,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primary,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    color:
+                        _score == _questions.length
+                            ? Colors.orangeAccent.withValues(alpha: 0.2)
+                            : Colors.blueAccent.withValues(alpha: 0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    _score == _questions.length
+                        ? Icons.emoji_events_rounded
+                        : Icons.thumb_up_rounded,
+                    color:
+                        _score == _questions.length
+                            ? Colors.orangeAccent
+                            : Colors.blueAccent,
+                    size: 40,
+                  ),
                 ),
-                onPressed: () {
-                  Navigator.pop(context);
-                  Navigator.pop(context);
-                },
-                child: Text("ត្រឡប់ទៅវិញ", style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold)),
-              ),
+                const SizedBox(height: 20),
+                Text(
+                  "លទ្ធផលរបស់អ្នក",
+                  style: GoogleFonts.kantumruyPro(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  "$_score / ${_questions.length}",
+                  style: GoogleFonts.inter(
+                    color: Colors.white,
+                    fontSize: 40,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  _score == _questions.length
+                      ? "សូមអបអរសាទរ! អ្នកទទួលបានមេដាយ 🧠 Quiz Master ប្រចាំសប្ដាហ៍នេះ!"
+                      : "ព្យាយាមម្ដងទៀតនៅសប្ដាហ៍ក្រោយដើម្បីប្រមូលមេដាយកិត្តិយស!",
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.kantumruyPro(
+                    color: AppTheme.textSecondary,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 30),
+                SizedBox(
+                  width: double.infinity,
+                  height: 54,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primary,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    onPressed: () {
+                      Navigator.pop(context);
+                      Navigator.pop(context);
+                    },
+                    child: Text(
+                      "ត្រឡប់ទៅវិញ",
+                      style: GoogleFonts.kantumruyPro(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+              ],
             ),
-            const SizedBox(height: 20),
-          ],
-        ),
-      ),
+          ),
     );
   }
 
@@ -177,9 +214,15 @@ class _TrainingQuizScreenState extends State<TrainingQuizScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(_errorMessage, style: GoogleFonts.kantumruyPro(color: Colors.white)),
+              Text(
+                _errorMessage,
+                style: GoogleFonts.kantumruyPro(color: Colors.white),
+              ),
               const SizedBox(height: 20),
-              ElevatedButton(onPressed: _fetchQuestions, child: const Text("ព្យាយាមម្ដងទៀត")),
+              ElevatedButton(
+                onPressed: _fetchQuestions,
+                child: const Text("ព្យាយាមម្ដងទៀត"),
+              ),
             ],
           ),
         ),
@@ -189,17 +232,25 @@ class _TrainingQuizScreenState extends State<TrainingQuizScreen> {
     if (_questions.isEmpty) {
       return Scaffold(
         backgroundColor: AppTheme.bgDark,
-        appBar: VvcAppBar(title: const Text("Quiz")),
-        body: Center(child: Text("មិនទាន់មានសំណួរនៅឡើយទេ", style: GoogleFonts.kantumruyPro(color: Colors.white))),
+        appBar: const VvcAppBar(title: Text("Quiz")),
+        body: Center(
+          child: Text(
+            "មិនទាន់មានសំណួរនៅឡើយទេ",
+            style: GoogleFonts.kantumruyPro(color: Colors.white),
+          ),
+        ),
       );
     }
 
     final q = _questions[_currentQuestionIndex];
-    
+
     return Scaffold(
       backgroundColor: AppTheme.bgDark,
       appBar: VvcAppBar(
-        title: Text("វគ្គបណ្ដុះបណ្ដាល (Quiz)", style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold)),
+        title: Text(
+          "វគ្គបណ្ដុះបណ្ដាល (Quiz)",
+          style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold),
+        ),
         backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: true,
@@ -213,9 +264,21 @@ class _TrainingQuizScreenState extends State<TrainingQuizScreen> {
               // Progress Bar
               Row(
                 children: [
-                  Text("សំណួរទី ${_currentQuestionIndex + 1}/${_questions.length}", style: GoogleFonts.kantumruyPro(color: AppTheme.primaryLight, fontWeight: FontWeight.bold)),
+                  Text(
+                    "សំណួរទី ${_currentQuestionIndex + 1}/${_questions.length}",
+                    style: GoogleFonts.kantumruyPro(
+                      color: AppTheme.primaryLight,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   const Spacer(),
-                  Text("ពិន្ទុ: $_score", style: GoogleFonts.kantumruyPro(color: Colors.orangeAccent, fontWeight: FontWeight.bold)),
+                  Text(
+                    "ពិន្ទុ: $_score",
+                    style: GoogleFonts.kantumruyPro(
+                      color: Colors.orangeAccent,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 10),
@@ -227,7 +290,7 @@ class _TrainingQuizScreenState extends State<TrainingQuizScreen> {
                 borderRadius: BorderRadius.circular(4),
               ),
               const SizedBox(height: 30),
-              
+
               // Question Card
               FadeInDown(
                 key: ValueKey(_currentQuestionIndex),
@@ -236,20 +299,31 @@ class _TrainingQuizScreenState extends State<TrainingQuizScreen> {
                   decoration: BoxDecoration(
                     color: AppTheme.bgCard,
                     borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.05),
+                    ),
                     boxShadow: [
-                      BoxShadow(color: AppTheme.primary.withValues(alpha: 0.05), blurRadius: 20, spreadRadius: 5),
+                      BoxShadow(
+                        color: AppTheme.primary.withValues(alpha: 0.05),
+                        blurRadius: 20,
+                        spreadRadius: 5,
+                      ),
                     ],
                   ),
                   child: Text(
                     q['question'] ?? 'No Question',
-                    style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 18, height: 1.5, fontWeight: FontWeight.w600),
+                    style: GoogleFonts.kantumruyPro(
+                      color: Colors.white,
+                      fontSize: 18,
+                      height: 1.5,
+                      fontWeight: FontWeight.w600,
+                    ),
                     textAlign: TextAlign.center,
                   ),
                 ),
               ),
               const SizedBox(height: 30),
-              
+
               // Options
               Expanded(
                 child: ListView.builder(
@@ -258,10 +332,10 @@ class _TrainingQuizScreenState extends State<TrainingQuizScreen> {
                   itemBuilder: (context, index) {
                     final isCorrect = index == q['correct_index'];
                     final isSelected = index == _selectedAnswerIndex;
-                    
+
                     Color bgColor = AppTheme.bgCard;
                     Color borderColor = Colors.white.withValues(alpha: 0.1);
-                    
+
                     if (_isAnswered) {
                       if (isCorrect) {
                         bgColor = Colors.green.shade800.withValues(alpha: 0.3);
@@ -288,15 +362,29 @@ class _TrainingQuizScreenState extends State<TrainingQuizScreen> {
                           child: Row(
                             children: [
                               Container(
-                                width: 30, height: 30,
+                                width: 30,
+                                height: 30,
                                 decoration: BoxDecoration(
-                                  color: _isAnswered && isCorrect ? Colors.greenAccent.withValues(alpha: 0.2) : Colors.white.withValues(alpha: 0.05),
+                                  color:
+                                      _isAnswered && isCorrect
+                                          ? Colors.greenAccent.withValues(
+                                            alpha: 0.2,
+                                          )
+                                          : Colors.white.withValues(
+                                            alpha: 0.05,
+                                          ),
                                   shape: BoxShape.circle,
                                 ),
                                 child: Center(
                                   child: Text(
                                     String.fromCharCode(65 + index),
-                                    style: GoogleFonts.inter(color: _isAnswered && isCorrect ? Colors.greenAccent : Colors.white, fontWeight: FontWeight.bold),
+                                    style: GoogleFonts.inter(
+                                      color:
+                                          _isAnswered && isCorrect
+                                              ? Colors.greenAccent
+                                              : Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -304,13 +392,24 @@ class _TrainingQuizScreenState extends State<TrainingQuizScreen> {
                               Expanded(
                                 child: Text(
                                   q['options'][index] ?? '',
-                                  style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 14),
+                                  style: GoogleFonts.kantumruyPro(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                  ),
                                 ),
                               ),
                               if (_isAnswered && isCorrect)
-                                const Icon(Icons.check_circle_rounded, color: Colors.greenAccent, size: 20)
+                                const Icon(
+                                  Icons.check_circle_rounded,
+                                  color: Colors.greenAccent,
+                                  size: 20,
+                                )
                               else if (_isAnswered && isSelected && !isCorrect)
-                                const Icon(Icons.cancel_rounded, color: Colors.redAccent, size: 20)
+                                const Icon(
+                                  Icons.cancel_rounded,
+                                  color: Colors.redAccent,
+                                  size: 20,
+                                ),
                             ],
                           ),
                         ),
@@ -329,22 +428,39 @@ class _TrainingQuizScreenState extends State<TrainingQuizScreen> {
                     decoration: BoxDecoration(
                       color: Colors.blueAccent.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.3)),
+                      border: Border.all(
+                        color: Colors.blueAccent.withValues(alpha: 0.3),
+                      ),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
                           children: [
-                            const Icon(Icons.lightbulb_outline_rounded, color: Colors.blueAccent, size: 18),
+                            const Icon(
+                              Icons.lightbulb_outline_rounded,
+                              color: Colors.blueAccent,
+                              size: 18,
+                            ),
                             const SizedBox(width: 8),
-                            Text("ពន្យល់បកស្រាយ:", style: GoogleFonts.kantumruyPro(color: Colors.blueAccent, fontWeight: FontWeight.bold, fontSize: 13)),
+                            Text(
+                              "ពន្យល់បកស្រាយ:",
+                              style: GoogleFonts.kantumruyPro(
+                                color: Colors.blueAccent,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
                           ],
                         ),
                         const SizedBox(height: 8),
                         Text(
                           q['explanation'] ?? '',
-                          style: GoogleFonts.kantumruyPro(color: Colors.white.withValues(alpha: 0.8), fontSize: 13, height: 1.4),
+                          style: GoogleFonts.kantumruyPro(
+                            color: Colors.white.withValues(alpha: 0.8),
+                            fontSize: 13,
+                            height: 1.4,
+                          ),
                         ),
                       ],
                     ),

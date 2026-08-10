@@ -7,6 +7,7 @@ import '../providers/user_provider.dart';
 import '../services/api_service.dart';
 import '../utils/app_theme.dart';
 import '../widgets/app_widgets.dart';
+import '../widgets/vvc_dropdown.dart';
 
 class UserManagementScreen extends StatefulWidget {
   const UserManagementScreen({super.key});
@@ -474,34 +475,14 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     List<String> items,
     Function(String?) onChanged,
   ) {
-    return Container(
-      height: 38,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: BoxDecoration(
-        color: AppTheme.textPrimary.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: items.contains(value) ? value : items.first,
-          isExpanded: true,
-          dropdownColor: const Color(0xFF2E2E3E),
-          icon: Icon(
-            Icons.arrow_drop_down,
-            color: AppTheme.textPrimary.withValues(alpha: 0.5),
-          ),
-          style: TextStyle(color: AppTheme.textPrimary, fontSize: 12),
-          items: items
-              .map(
-                (e) => DropdownMenuItem(
-                  value: e,
-                  child: Text(e, maxLines: 1, overflow: TextOverflow.ellipsis),
-                ),
-              )
-              .toList(),
-          onChanged: onChanged,
-        ),
-      ),
+    return VvcPopupMenuDropdown<String>(
+      value: items.contains(value) ? value : items.first,
+      hint: hint,
+      prefixIcon: Icons.filter_list_rounded,
+      items: items
+          .map((e) => VvcDropdownItem<String>(value: e, label: e))
+          .toList(),
+      onChanged: onChanged,
     );
   }
 
@@ -794,54 +775,24 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     Function(String?) onChanged, {
     List<String>? items,
   }) {
-    final isSystemRoleDropdown = items == null;
     final list = items ?? appSystemRoleValues;
+    final isSystemRoleDropdown = items == null;
+    final selectedVal = list.contains(value) ? value : (list.isNotEmpty ? list.first : '');
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: GoogleFonts.kantumruyPro(
-            color: AppTheme.textPrimary.withValues(alpha: 0.70),
-            fontSize: 13,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          height: 52,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(
-            color: AppTheme.textPrimary.withValues(alpha: 0.05),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: AppTheme.textPrimary.withValues(alpha: 0.05),
-            ),
-          ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              value: list.contains(value) ? value : list.first,
-              isExpanded: true,
-              dropdownColor: const Color(0xFF2E2E3E),
-              icon: Icon(
-                Icons.keyboard_arrow_down_rounded,
-                color: AppTheme.textPrimary.withValues(alpha: 0.54),
-              ),
-              style: TextStyle(color: AppTheme.textPrimary, fontSize: 14),
-              items: list
-                  .map(
-                    (e) => DropdownMenuItem(
-                      value: e,
-                      child: Text(
-                        isSystemRoleDropdown
-                            ? appSystemRoleDisplayLabel(e)
-                            : e,
-                      ),
-                    ),
-                  )
-                  .toList(),
-              onChanged: onChanged,
-            ),
-          ),
+        VvcDropdown<String>(
+          label: label,
+          value: selectedVal,
+          items: list
+              .map(
+                (e) => VvcDropdownItem<String>(
+                  value: e,
+                  label: isSystemRoleDropdown ? appSystemRoleDisplayLabel(e) : e,
+                ),
+              )
+              .toList(),
+          onChanged: onChanged,
         ),
         const SizedBox(height: 16),
       ],

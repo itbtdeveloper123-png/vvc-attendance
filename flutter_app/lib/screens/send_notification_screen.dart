@@ -4,6 +4,7 @@ import 'package:animate_do/animate_do.dart';
 import '../services/api_service.dart';
 import '../utils/app_theme.dart';
 import '../widgets/app_widgets.dart';
+import '../widgets/vvc_dropdown.dart';
 
 class SendNotificationScreen extends StatefulWidget {
   const SendNotificationScreen({super.key});
@@ -187,30 +188,22 @@ class _SendNotificationScreenState extends State<SendNotificationScreen> {
   }
 
   Widget _buildRecipientDropdown() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: AppTheme.textPrimary.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.textPrimary.withValues(alpha: 0.10)),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          isExpanded: true,
-          value: _recipientType,
-          dropdownColor: const Color(0xFF1E293B),
-          style: GoogleFonts.kantumruyPro(color: AppTheme.textPrimary),
-          items: const [
-            DropdownMenuItem(value: 'all', child: Text("ទាំងអស់ (All Users)")),
-            DropdownMenuItem(value: 'role', child: Text("តាមតួនាទី (By Group/Role)")),
-            DropdownMenuItem(value: 'user', child: Text("បុគ្គលជាក់លាក់ (Specific Users)")),
-          ],
-          onChanged: (val) => setState(() {
-            _recipientType = val!;
+    return VvcDropdown<String>(
+      value: _recipientType,
+      prefixIcon: Icons.people_alt_rounded,
+      items: const [
+        VvcDropdownItem(value: 'all', label: "ទាំងអស់ (All Users)", icon: Icons.public_rounded),
+        VvcDropdownItem(value: 'role', label: "តាមតួនាទី (By Group/Role)", icon: Icons.groups_rounded),
+        VvcDropdownItem(value: 'user', label: "បុគ្គលជាក់លាក់ (Specific Users)", icon: Icons.person_rounded),
+      ],
+      onChanged: (val) {
+        if (val != null) {
+          setState(() {
+            _recipientType = val;
             if (_recipientType == 'all') { _selectedRoles = []; _selectedUsers = []; }
-          }),
-        ),
-      ),
+          });
+        }
+      },
     );
   }
 

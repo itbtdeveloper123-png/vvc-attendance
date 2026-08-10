@@ -79,9 +79,8 @@ class _NotificationScreenState extends State<NotificationScreen> {
             result['data'] ?? result['notifications'] ?? [];
         if (!mounted) return;
         setState(() {
-          _notifications = data
-              .map((item) => NotificationModel.fromJson(item))
-              .toList();
+          _notifications =
+              data.map((item) => NotificationModel.fromJson(item)).toList();
 
           // Sort: Unread (isRead == false) first, then by sentAt descending
           _notifications.sort((a, b) {
@@ -117,9 +116,8 @@ class _NotificationScreenState extends State<NotificationScreen> {
             result['data'] ?? result['notifications'] ?? [];
         if (!mounted) return;
         setState(() {
-          _notifications = data
-              .map((item) => NotificationModel.fromJson(item))
-              .toList();
+          _notifications =
+              data.map((item) => NotificationModel.fromJson(item)).toList();
 
           // Sort: Unread (isRead == false) first, then by sentAt descending
           _notifications.sort((a, b) {
@@ -184,25 +182,27 @@ class _NotificationScreenState extends State<NotificationScreen> {
         ),
       ],
       body: AppBackgroundShell(
-        child: _isLoading
-            ? _buildShimmerList()
-            : _error != null
-            ? _buildErrorState()
-            : Column(
-                children: [
-                  SizedBox(height: MediaQuery.paddingOf(context).top + 70),
-                  _buildToolbar(),
-                  Expanded(
-                    child: RefreshIndicator(
-                      onRefresh: _fetchNotifications,
-                      color: AppTheme.primary,
-                      child: _visibleNotifications.isEmpty
-                          ? _buildEmptyState()
-                          : _buildList(_visibleNotifications),
+        child:
+            _isLoading
+                ? _buildShimmerList()
+                : _error != null
+                ? _buildErrorState()
+                : Column(
+                  children: [
+                    SizedBox(height: MediaQuery.paddingOf(context).top + 70),
+                    _buildToolbar(),
+                    Expanded(
+                      child: RefreshIndicator(
+                        onRefresh: _fetchNotifications,
+                        color: AppTheme.primary,
+                        child:
+                            _visibleNotifications.isEmpty
+                                ? _buildEmptyState()
+                                : _buildList(_visibleNotifications),
+                      ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
       ),
     );
   }
@@ -251,14 +251,16 @@ class _NotificationScreenState extends State<NotificationScreen> {
         duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: selected
-              ? AppTheme.primary.withValues(alpha: 0.16)
-              : AppTheme.bgCard,
+          color:
+              selected
+                  ? AppTheme.primary.withValues(alpha: 0.16)
+                  : AppTheme.bgCard,
           borderRadius: BorderRadius.circular(999),
           border: Border.all(
-            color: selected
-                ? AppTheme.primary.withValues(alpha: 0.45)
-                : AppTheme.cardBorder,
+            color:
+                selected
+                    ? AppTheme.primary.withValues(alpha: 0.45)
+                    : AppTheme.cardBorder,
           ),
         ),
         child: Text(
@@ -283,18 +285,19 @@ class _NotificationScreenState extends State<NotificationScreen> {
         AppResponsive.bottomPadding(context),
       ),
       itemCount: 10,
-      itemBuilder: (context, index) => Padding(
-        padding: const EdgeInsets.only(bottom: 12),
-        child: AppShimmer(
-          child: Container(
-            height: 70,
-            decoration: BoxDecoration(
-              color: AppTheme.bgCard,
-              borderRadius: BorderRadius.circular(20),
+      itemBuilder:
+          (context, index) => Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: AppShimmer(
+              child: Container(
+                height: 70,
+                decoration: BoxDecoration(
+                  color: AppTheme.bgCard,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+              ),
             ),
           ),
-        ),
-      ),
     );
   }
 
@@ -313,13 +316,15 @@ class _NotificationScreenState extends State<NotificationScreen> {
     final isFiltered =
         _searchController.text.trim().isNotEmpty || _filter != 'all';
     return AppStateView(
-      icon: isFiltered
-          ? Icons.manage_search_rounded
-          : Icons.notifications_none_rounded,
+      icon:
+          isFiltered
+              ? Icons.manage_search_rounded
+              : Icons.notifications_none_rounded,
       title: isFiltered ? "រកមិនឃើញការជូនដំណឹង" : "មិនទាន់មានការជូនដំណឹងទេ",
-      message: isFiltered
-          ? "សាកល្បងប្តូរពាក្យស្វែងរក ឬ filter ផ្សេងទៀត"
-          : "ការជូនដំណឹងថ្មីៗនឹងបង្ហាញនៅទីនេះ",
+      message:
+          isFiltered
+              ? "សាកល្បងប្តូរពាក្យស្វែងរក ឬ filter ផ្សេងទៀត"
+              : "ការជូនដំណឹងថ្មីៗនឹងបង្ហាញនៅទីនេះ",
       color: AppTheme.primary,
     );
   }
@@ -360,14 +365,16 @@ class _NotificationScreenState extends State<NotificationScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: notification.isRead
-            ? AppTheme.bgCard.withValues(alpha: 0.6)
-            : AppTheme.bgCard,
+        color:
+            notification.isRead
+                ? AppTheme.bgCard.withValues(alpha: 0.6)
+                : AppTheme.bgCard,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: notification.isRead
-              ? AppTheme.borderColor
-              : AppTheme.primary.withValues(alpha: 0.3),
+          color:
+              notification.isRead
+                  ? AppTheme.borderColor
+                  : AppTheme.primary.withValues(alpha: 0.3),
         ),
       ),
       child: Column(
@@ -384,27 +391,28 @@ class _NotificationScreenState extends State<NotificationScreen> {
                 isScrollControlled: true,
                 backgroundColor: Colors.transparent,
                 enableDrag: true,
-                builder: (context) =>
-                    NotificationDetailSheet(notification: notification),
+                builder:
+                    (context) =>
+                        NotificationDetailSheet(notification: notification),
               );
             },
             leading: Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color:
-                    (notification.type == 'alert'
-                            ? AppTheme.error
-                            : AppTheme.primary)
-                        .withValues(alpha: 0.1),
+                color: (notification.type == 'alert'
+                        ? AppTheme.error
+                        : AppTheme.primary)
+                    .withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 notification.type == 'alert'
                     ? Icons.warning_rounded
                     : Icons.notifications_rounded,
-                color: notification.type == 'alert'
-                    ? AppTheme.error
-                    : AppTheme.primary,
+                color:
+                    notification.type == 'alert'
+                        ? AppTheme.error
+                        : AppTheme.primary,
                 size: 20,
               ),
             ),
@@ -412,9 +420,8 @@ class _NotificationScreenState extends State<NotificationScreen> {
               notification.title,
               style: GoogleFonts.kantumruyPro(
                 color: AppTheme.textPrimary,
-                fontWeight: notification.isRead
-                    ? FontWeight.normal
-                    : FontWeight.bold,
+                fontWeight:
+                    notification.isRead ? FontWeight.normal : FontWeight.bold,
               ),
             ),
             subtitle: Text(
@@ -426,16 +433,17 @@ class _NotificationScreenState extends State<NotificationScreen> {
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
-            trailing: notification.isRead
-                ? null
-                : Container(
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: AppTheme.primary,
-                      shape: BoxShape.circle,
+            trailing:
+                notification.isRead
+                    ? null
+                    : Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: AppTheme.primary,
+                        shape: BoxShape.circle,
+                      ),
                     ),
-                  ),
           ),
           if (notification.imageUrl != null &&
               notification.imageUrl!.isNotEmpty)
@@ -458,17 +466,18 @@ class _NotificationScreenState extends State<NotificationScreen> {
                         child: const Center(child: CircularProgressIndicator()),
                       );
                     },
-                    errorBuilder: (context, error, stackTrace) => Container(
-                      height: 50,
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        color: Colors.red.withValues(alpha: 0.05),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Center(
-                        child: Icon(Icons.broken_image, color: Colors.grey),
-                      ),
-                    ),
+                    errorBuilder:
+                        (context, error, stackTrace) => Container(
+                          height: 50,
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            color: Colors.red.withValues(alpha: 0.05),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Center(
+                            child: Icon(Icons.broken_image, color: Colors.grey),
+                          ),
+                        ),
                   ),
                 ),
               ),
@@ -482,11 +491,15 @@ class _NotificationScreenState extends State<NotificationScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => Scaffold(
-          backgroundColor: Colors.black,
-          appBar: VvcAppBar(backgroundColor: Colors.transparent, elevation: 0),
-          body: Center(child: InteractiveViewer(child: Image.network(url))),
-        ),
+        builder:
+            (context) => Scaffold(
+              backgroundColor: Colors.black,
+              appBar: const VvcAppBar(
+                backgroundColor: Colors.transparent,
+                elevation: 0,
+              ),
+              body: Center(child: InteractiveViewer(child: Image.network(url))),
+            ),
       ),
     );
   }
