@@ -32,8 +32,8 @@ class _MeetingTranscribeScreenState extends State<MeetingTranscribeScreen> {
   void initState() {
     super.initState();
     _selectedFilePath = widget.initialAudioPath;
-    // Default placeholder for Ngrok URL (User can edit dynamically)
-    _urlController.text = 'https://your-ngrok-url.ngrok-free.app';
+    // Default Ngrok URL for OpenAI Whisper Large-v3 Khmer STT
+    _urlController.text = 'https://uncombable-tari-brawly.ngrok-free.dev';
   }
 
   @override
