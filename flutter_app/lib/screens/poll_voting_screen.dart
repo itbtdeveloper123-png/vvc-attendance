@@ -174,16 +174,6 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
     }
   }
 
-<<<<<<< HEAD
-  // Admin Panel 100% Matching Form Modal
-  void _showCreatePollDialog({Map<String, dynamic>? pollToEdit}) {
-    final isEditing = pollToEdit != null;
-    final pollIdRaw = pollToEdit?['id'] ?? pollToEdit?['doc_id'];
-    final pollIdInt = int.tryParse(pollIdRaw?.toString() ?? '');
-
-    final titleCtrl = TextEditingController(text: pollToEdit?['title']?.toString() ?? '');
-    final passcodeCtrl = TextEditingController(text: pollToEdit?['access_code']?.toString() ?? pollToEdit?['passcode']?.toString() ?? '');
-=======
   // Admin Panel 100% Matching Form Modal (Supports Create & Edit)
   void _showCreatePollDialog({Map<String, dynamic>? pollToEdit}) {
     final isEditing = pollToEdit != null;
@@ -191,41 +181,26 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
 
     final titleCtrl = TextEditingController(text: pollToEdit?['title']?.toString() ?? '');
     final passcodeCtrl = TextEditingController(text: pollToEdit?['passcode']?.toString() ?? pollToEdit?['access_code']?.toString() ?? '');
->>>>>>> 4e3f602c6f42dc704361bb7f75e446fbe0eaeabe
 
     String selectedQuarter = pollToEdit?['quarter']?.toString() ?? 'Q1';
     String selectedWarehouse = pollToEdit?['location']?.toString() ?? 'Head Office';
 
     DateTime startDate = pollToEdit?['start_date'] != null
-<<<<<<< HEAD
-        ? DateTime.tryParse(pollToEdit!['start_date'].toString()) ?? DateTime.now()
-        : DateTime.now();
-    DateTime endDate = pollToEdit?['end_date'] != null
-        ? DateTime.tryParse(pollToEdit!['end_date'].toString()) ?? DateTime.now().add(const Duration(days: 7))
-=======
         ? (DateTime.tryParse(pollToEdit!['start_date'].toString()) ?? DateTime.now())
         : DateTime.now();
     DateTime endDate = pollToEdit?['end_date'] != null
         ? (DateTime.tryParse(pollToEdit!['end_date'].toString()) ?? DateTime.now().add(const Duration(days: 7)))
->>>>>>> 4e3f602c6f42dc704361bb7f75e446fbe0eaeabe
         : DateTime.now().add(const Duration(days: 7));
 
     final List<String> selectedCandidates = [];
-    if (pollToEdit?['candidates'] != null && pollToEdit!['candidates'] is List) {
-      for (var c in pollToEdit!['candidates']) {
-        if (c is Map && c['employee_id'] != null) {
-          selectedCandidates.add(c['employee_id'].toString());
-        } else if (c is String) {
-          selectedCandidates.add(c);
-        }
-      }
-    }
     final List<String> excludedCandidates = [];
 
     if (isEditing && pollToEdit['candidates'] is List) {
       for (var c in pollToEdit['candidates']) {
-        if (c['employee_id'] != null) {
+        if (c is Map && c['employee_id'] != null) {
           selectedCandidates.add(c['employee_id'].toString());
+        } else if (c is String) {
+          selectedCandidates.add(c);
         }
       }
     }
@@ -263,17 +238,10 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
                           Container(
                             padding: const EdgeInsets.all(6),
                             decoration: BoxDecoration(
-<<<<<<< HEAD
-                              color: isEditing ? Colors.amber : AppTheme.primary,
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(isEditing ? Icons.edit : Icons.add, color: isEditing ? Colors.black : Colors.white, size: 20),
-=======
                               color: isEditing ? Colors.amberAccent : AppTheme.primary,
                               shape: BoxShape.circle,
                             ),
                             child: Icon(isEditing ? Icons.edit_rounded : Icons.add, color: Colors.white, size: 20),
->>>>>>> 4e3f602c6f42dc704361bb7f75e446fbe0eaeabe
                           ),
                           const SizedBox(width: 10),
                           Text(
@@ -541,15 +509,9 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
                           final endDateStr = '${endDate.year}-${endDate.month.toString().padLeft(2, '0')}-${endDate.day.toString().padLeft(2, '0')}';
 
                           try {
-<<<<<<< HEAD
-                            // 1. Post/Update to Backend API (so Admin Panel sees it!)
+                            // 1. Post/Update to Backend API
                             try {
                               await _api.savePoll(
-=======
-                            // 1. Post to Backend API
-                            try {
-                              await _api.createPoll(
->>>>>>> 4e3f602c6f42dc704361bb7f75e446fbe0eaeabe
                                 id: pollIdInt,
                                 title: title,
                                 quarter: selectedQuarter,
@@ -564,25 +526,44 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
                               debugPrint('API savePoll error: $e');
                             }
 
-<<<<<<< HEAD
                             // 2. Save/Update to Firestore
                             if (pollToEdit?['doc_id'] != null) {
                               try {
-                                await _firestore.collection('polls').doc(pollToEdit!['doc_id']).update(pollMap);
+                                await _firestore.collection('polls').doc(pollToEdit!['doc_id']).update({
+                                  'title': title,
+                                  'quarter': selectedQuarter,
+                                  'location': selectedWarehouse,
+                                  'start_date': startDateStr,
+                                  'end_date': endDateStr,
+                                  'passcode': passcodeCtrl.text.trim(),
+                                  'excluded_candidates': excludedCandidates,
+                                  'candidates': candidatesData,
+                                });
                               } catch (e) {
                                 debugPrint('Firestore updatePoll error: $e');
                               }
                             } else {
                               try {
-                                final docRef = await _firestore.collection('polls').add(pollMap);
-                                pollMap['doc_id'] = docRef.id;
+                                final docRef = await _firestore.collection('polls').add({
+                                  'title': title,
+                                  'quarter': selectedQuarter,
+                                  'location': selectedWarehouse,
+                                  'start_date': startDateStr,
+                                  'end_date': endDateStr,
+                                  'passcode': passcodeCtrl.text.trim(),
+                                  'excluded_candidates': excludedCandidates,
+                                  'candidates': candidatesData,
+                                  'voter_audit_list': [],
+                                  'has_voted': false,
+                                  'status': 'active',
+                                  'created_at': FieldValue.serverTimestamp(),
+                                });
                               } catch (e) {
                                 debugPrint('Firestore createPoll error: $e');
                               }
                             }
-=======
+
                             _loadInitialData();
->>>>>>> 4e3f602c6f42dc704361bb7f75e446fbe0eaeabe
 
                             if (!ctx.mounted) return;
                             Navigator.pop(ctx);
@@ -590,14 +571,8 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
                               VvcAlert.showSuccess(
                                 context,
                                 title: 'ជោគជ័យ',
-<<<<<<< HEAD
-                                message: isEditing ? 'បានធ្វើបច្ចុប្បន្នភាពការបោះឆ្នោតជោគជ័យ!' : 'បានបង្កើតការបោះឆ្នោតថ្មីត្រឹមត្រូវតាម Admin Panel រួចរាល់!',
+                                message: isEditing ? 'បានធ្វើបច្ចុប្បន្នភាពការបោះឆ្នោតជោគជ័យ!' : 'បានបង្កើតការបោះឆ្នោតថ្មីត្រឹមត្រូវ!',
                               );
-                              _loadInitialData();
-=======
-                                message: isEditing ? 'បានរក្សាទុកការកែប្រែការបោះឆ្នោតរួចរាល់!' : 'បានបង្កើតការបោះឆ្នោតថ្មីត្រឹមត្រូវ!',
-                              );
->>>>>>> 4e3f602c6f42dc704361bb7f75e446fbe0eaeabe
                             }
                           } catch (e) {
                             if (!ctx.mounted) return;
@@ -884,32 +859,21 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
                   Row(
                     children: [
                       Container(
-<<<<<<< HEAD
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                         decoration: BoxDecoration(
                           color: hasVoted ? Colors.green : Colors.amber,
-=======
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: hasVoted ? Colors.green : AppTheme.primary,
->>>>>>> 4e3f602c6f42dc704361bb7f75e446fbe0eaeabe
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
                           hasVoted ? 'បានបោះឆ្នោត' : 'សកម្ម',
                           style: GoogleFonts.kantumruyPro(
-<<<<<<< HEAD
                             color: Colors.black,
-=======
-                            color: Colors.white,
->>>>>>> 4e3f602c6f42dc704361bb7f75e446fbe0eaeabe
                             fontSize: 11.5,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                       ),
                       if (isHrmOrAdmin) ...[
-<<<<<<< HEAD
                         const SizedBox(width: 8),
                         InkWell(
                           onTap: () => _showCreatePollDialog(pollToEdit: poll),
@@ -924,27 +888,7 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
                         ),
                         const SizedBox(width: 6),
                         InkWell(
-                          onTap: () async {
-                            final confirm = await VvcAlert.showConfirmDialog(
-                              context,
-                              title: 'លុបការបោះឆ្នោត',
-                              message: 'តើអ្នកប្រាកដជាចង់លុបការបោះឆ្នោតនេះមែនទេ?',
-                            );
-                            if (confirm == true) {
-                              final pollId = int.tryParse(docId) ?? 0;
-                              if (pollId > 0) {
-                                await _api.deletePoll(pollId);
-                              }
-                              if (poll['source'] == 'firestore') {
-                                try {
-                                  await _firestore.collection('polls').doc(docId).delete();
-                                } catch (e) {
-                                  debugPrint('Delete firestore poll error: $e');
-                                }
-                              }
-                              if (mounted) _loadInitialData();
-                            }
-                          },
+                          onTap: () => _deletePoll(poll),
                           child: Container(
                             padding: const EdgeInsets.all(6),
                             decoration: const BoxDecoration(
@@ -952,32 +896,6 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
                               shape: BoxShape.circle,
                             ),
                             child: const Icon(Icons.delete, color: Colors.white, size: 16),
-=======
-                        const SizedBox(width: 6),
-                        GestureDetector(
-                          onTap: () => _showCreatePollDialog(pollToEdit: poll),
-                          child: Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: Colors.amber.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: Colors.amber.withValues(alpha: 0.5)),
-                            ),
-                            child: const Icon(Icons.edit_rounded, color: Colors.amber, size: 16),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        GestureDetector(
-                          onTap: () => _deletePoll(poll),
-                          child: Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: Colors.redAccent.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: Colors.redAccent.withValues(alpha: 0.5)),
-                            ),
-                            child: const Icon(Icons.delete_rounded, color: Colors.redAccent, size: 16),
->>>>>>> 4e3f602c6f42dc704361bb7f75e446fbe0eaeabe
                           ),
                         ),
                       ],
