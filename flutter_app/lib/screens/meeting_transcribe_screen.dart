@@ -255,9 +255,7 @@ class _MeetingTranscribeScreenState extends State<MeetingTranscribeScreen> {
   }
 
   Widget _buildFileSelectorCard() {
-    final fileName = _selectedFilePath != null
-        ? _selectedFilePath!.split(Platform.pathSeparator).last
-        : null;
+    final fileName = _selectedFilePath?.split(Platform.pathSeparator).last;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -274,7 +272,7 @@ class _MeetingTranscribeScreenState extends State<MeetingTranscribeScreen> {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.audiotrack_rounded, color: AppTheme.primary, size: 22),
+                  Icon(Icons.audiotrack_rounded, color: AppTheme.primary, size: 22),
                   const SizedBox(width: 8),
                   Text(
                     'ឯកសារសម្លេងប្រជុំ (Audio File)',
