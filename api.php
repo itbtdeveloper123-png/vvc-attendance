@@ -7824,62 +7824,6 @@ try {
             break;
         }
         
-<<<<<<< HEAD
-        $eid = (string)($user['employee_id'] ?? '');
-        $current_date = date('Y-m-d');
-        $user_role = strtolower($user['role'] ?? '');
-        $is_admin = in_array($user_role, ['admin', 'hrm', 'superadmin', 'manager']);
-        
-        // Fetch active polls (for admin fetch all active/created polls, for standard users fetch active within date range)
-        if ($is_admin) {
-            $stmt = $mysqli->prepare("
-                SELECT p.* 
-                FROM poll_events p 
-                ORDER BY p.created_at DESC
-            ");
-        } else {
-            $stmt = $mysqli->prepare("
-                SELECT p.* 
-                FROM poll_events p 
-                WHERE (p.is_active = 1 OR p.is_active IS NULL)
-                AND (p.start_date IS NULL OR DATE(p.start_date) <= ?) 
-                AND (p.end_date IS NULL OR DATE(p.end_date) >= ?)
-                ORDER BY p.created_at DESC
-            ");
-            if ($stmt) {
-                $stmt->bind_param('ss', $current_date, $current_date);
-            }
-        }
-
-        if (!$stmt) {
-            apiResponse(['success' => false, 'message' => 'Database error: ' . $mysqli->error]);
-            break;
-        }
-
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $polls = [];
-
-        while ($row = $result->fetch_assoc()) {
-            $poll_id = (int)$row['id'];
-
-            // Filter for allowed/excluded employees (for non-admin users)
-            if (!$is_admin && !empty($eid)) {
-                $allowed_raw = trim($row['allowed_employee_ids'] ?? '');
-                if ($allowed_raw !== '' && $allowed_raw !== '[]' && $allowed_raw !== 'null') {
-                    $allowed_arr = json_decode($allowed_raw, true);
-                    if (is_array($allowed_arr) && count($allowed_arr) > 0 && !in_array($eid, array_map('strval', $allowed_arr))) {
-                        continue;
-                    }
-                }
-
-                $excluded_raw = trim($row['excluded_employee_ids'] ?? '');
-                if ($excluded_raw !== '' && $excluded_raw !== '[]' && $excluded_raw !== 'null') {
-                    $excluded_arr = json_decode($excluded_raw, true);
-                    if (is_array($excluded_arr) && count($excluded_arr) > 0 && in_array($eid, array_map('strval', $excluded_arr))) {
-                        continue;
-                    }
-=======
         $eid = (string)$user['employee_id'];
         $current_date = date('Y-m-d');
         $user_role = strtolower($user['role'] ?? '');
@@ -7893,7 +7837,6 @@ try {
                 // If not admin/HRM, check active status
                 if (!$is_admin_or_hrm && isset($row['is_active']) && (int)$row['is_active'] === 0) {
                     continue;
->>>>>>> 4e3f602c6f42dc704361bb7f75e446fbe0eaeabe
                 }
 
                 // Check start & end date if present (admins bypass date restriction)
@@ -7989,120 +7932,6 @@ try {
                 $row['candidates'] = $candidates;
                 $polls[] = $row;
             }
-<<<<<<< HEAD
-
-            // Check if current user has voted in this poll
-            $has_voted = false;
-            if (!empty($eid)) {
-                $vote_check = $mysqli->prepare("SELECT COUNT(*) as voted FROM poll_votes WHERE poll_id = ? AND voter_employee_id = ?");
-                if ($vote_check) {
-                    $vote_check->bind_param('is', $poll_id, $eid);
-                    $vote_check->execute();
-                    $vote_res = $vote_check->get_result()->fetch_assoc();
-                    $has_voted = ($vote_res['voted'] ?? 0) > 0;
-                    $vote_check->close();
-                }
-            }
-            $row['has_voted'] = $has_voted;
-
-            // Fetch candidates from `poll_candidates` joined with `users`
-            $candidates = [];
-            $cand_stmt = $mysqli->prepare("
-                SELECT c.id as candidate_db_id, c.employee_id, c.category, c.nomination_reason,
-                       u.name, u.department, u.profile_picture, u.photo, u.position
-                FROM poll_candidates c
-                LEFT JOIN users u ON c.employee_id = u.employee_id
-                WHERE c.poll_id = ?
-            ");
-            if ($cand_stmt) {
-                $cand_stmt->bind_param('i', $poll_id);
-                $cand_stmt->execute();
-                $cand_res = $cand_stmt->get_result();
-                while ($c_row = $cand_res->fetch_assoc()) {
-                    $c_id = (int)$c_row['candidate_db_id'];
-                    
-                    // Count votes for candidate
-                    $v_cnt_stmt = $mysqli->prepare("SELECT COUNT(*) as cnt FROM poll_votes WHERE poll_id = ? AND candidate_id = ?");
-                    $votes_cnt = 0;
-                    if ($v_cnt_stmt) {
-                        $v_cnt_stmt->bind_param('ii', $poll_id, $c_id);
-                        $v_cnt_stmt->execute();
-                        $v_res = $v_cnt_stmt->get_result()->fetch_assoc();
-                        $votes_cnt = (int)($v_res['cnt'] ?? 0);
-                        $v_cnt_stmt->close();
-                    }
-
-                    $candidates[] = [
-                        'id'              => $c_row['candidate_db_id'],
-                        'employee_id'     => $c_row['employee_id'],
-                        'name'            => !empty($c_row['name']) ? $c_row['name'] : $c_row['employee_id'],
-                        'category'        => $c_row['category'] ?? '',
-                        'department'      => $c_row['department'] ?? '',
-                        'position'        => $c_row['position'] ?? '',
-                        'profile_picture' => $c_row['profile_picture'] ?? $c_row['photo'] ?? '',
-                        'votes_count'     => $votes_cnt,
-                    ];
-                }
-                $cand_stmt->close();
-            }
-
-            // Fallback: If `poll_candidates` is empty, build candidates from `allowed_employee_ids` if present
-            if (empty($candidates)) {
-                $allowed_raw = trim($row['allowed_employee_ids'] ?? '');
-                if ($allowed_raw !== '' && $allowed_raw !== '[]' && $allowed_raw !== 'null') {
-                    $allowed_arr = json_decode($allowed_raw, true);
-                    if (is_array($allowed_arr) && count($allowed_arr) > 0) {
-                        foreach ($allowed_arr as $idx => $emp_id) {
-                            $emp_id = (string)$emp_id;
-                            $emp_name = $emp_id;
-                            $emp_dept = '';
-                            $emp_pos = '';
-                            $emp_pic = '';
-                            $name_stmt = $mysqli->prepare("SELECT name, department, position, profile_picture, photo FROM users WHERE employee_id = ? LIMIT 1");
-                            if ($name_stmt) {
-                                $name_stmt->bind_param('s', $emp_id);
-                                $name_stmt->execute();
-                                $n_row = $name_stmt->get_result()->fetch_assoc();
-                                if ($n_row) {
-                                    $emp_name = !empty($n_row['name']) ? $n_row['name'] : $emp_id;
-                                    $emp_dept = $n_row['department'] ?? '';
-                                    $emp_pos  = $n_row['position'] ?? '';
-                                    $emp_pic  = $n_row['profile_picture'] ?? $n_row['photo'] ?? '';
-                                }
-                                $name_stmt->close();
-                            }
-
-                            // Count votes for fallback candidate
-                            $v_cnt_stmt = $mysqli->prepare("SELECT COUNT(*) as cnt FROM poll_votes WHERE poll_id = ? AND (candidate_id = ? OR voter_employee_id = ?)");
-                            $votes_cnt = 0;
-                            if ($v_cnt_stmt) {
-                                $candidate_index = $idx + 1;
-                                $v_cnt_stmt->bind_param('iis', $poll_id, $candidate_index, $emp_id);
-                                $v_cnt_stmt->execute();
-                                $v_res = $v_cnt_stmt->get_result()->fetch_assoc();
-                                $votes_cnt = (int)($v_res['cnt'] ?? 0);
-                                $v_cnt_stmt->close();
-                            }
-
-                            $candidates[] = [
-                                'id'              => $idx + 1,
-                                'employee_id'     => $emp_id,
-                                'name'            => $emp_name,
-                                'category'        => '',
-                                'department'      => $emp_dept,
-                                'position'        => $emp_pos,
-                                'profile_picture' => $emp_pic,
-                                'votes_count'     => $votes_cnt,
-                            ];
-                        }
-                    }
-                }
-            }
-
-            $row['candidates'] = $candidates;
-            $polls[] = $row;
-=======
->>>>>>> 4e3f602c6f42dc704361bb7f75e446fbe0eaeabe
         }
 
         apiResponse(['success' => true, 'data' => $polls]);
