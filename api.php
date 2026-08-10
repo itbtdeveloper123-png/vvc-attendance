@@ -7530,19 +7530,53 @@ try {
                     $candidates = [];
                     if ($poll_id > 0) {
                         $cand_q = $mysqli->query("
-                            SELECT c.*, u.name, u.department, u.position, u.profile_picture, u.photo 
+                            SELECT c.*, u.name, u.department, u.position, u.profile_picture, u.photo,
+                                   (SELECT COUNT(*) FROM poll_votes v WHERE v.candidate_id = c.id) AS votes_count 
                             FROM poll_candidates c 
                             LEFT JOIN users u ON c.employee_id = u.employee_id 
                             WHERE c.poll_id = $poll_id
                         ");
                         if ($cand_q && $cand_q instanceof mysqli_result) {
                             while ($c_row = $cand_q->fetch_assoc()) {
+                                $c_row['votes_count'] = (int)($c_row['votes_count'] ?? 0);
                                 $candidates[] = $c_row;
                             }
                             $cand_q->free();
                         }
                     }
                     $row['candidates'] = $candidates;
+                    
+                    // Check if current user has voted in this poll
+                    $has_voted = false;
+                    if ($user && !empty($user['employee_id'])) {
+                        $v_chk = $mysqli->query("SELECT 1 FROM poll_votes WHERE poll_id = $poll_id AND voter_employee_id = '" . $mysqli->real_escape_string($user['employee_id']) . "' LIMIT 1");
+                        if ($v_chk && $v_chk->num_rows > 0) {
+                            $has_voted = true;
+                        }
+                    }
+                    $row['has_voted'] = $has_voted;
+
+                    // Fetch voter audit list for mobile app & admin panel results
+                    $audit_list = [];
+                    $audit_q = $mysqli->query("
+                        SELECT v.voter_employee_id AS voter_id, v.voted_at AS time,
+                               COALESCE(uv.name, v.voter_employee_id) AS voter_name,
+                               COALESCE(uc.name, c.employee_id) AS candidate_name
+                        FROM poll_votes v
+                        LEFT JOIN users uv ON v.voter_employee_id = uv.employee_id
+                        LEFT JOIN poll_candidates c ON v.candidate_id = c.id
+                        LEFT JOIN users uc ON c.employee_id = uc.employee_id
+                        WHERE v.poll_id = $poll_id
+                        ORDER BY v.voted_at DESC
+                    ");
+                    if ($audit_q && $audit_q instanceof mysqli_result) {
+                        while ($a_row = $audit_q->fetch_assoc()) {
+                            $audit_list[] = $a_row;
+                        }
+                        $audit_q->free();
+                    }
+                    $row['voter_audit_list'] = $audit_list;
+
                     $polls[] = $row;
                 }
                 $result->free();
@@ -8008,6 +8042,17 @@ try {
                     $candidate_id = (int)$c_row['id'];
                 }
                 $cand_find->close();
+            }
+
+            if ($candidate_id == 0) {
+                $cand_ins = $mysqli->prepare("INSERT INTO poll_candidates (poll_id, employee_id) VALUES (?, ?)");
+                if ($cand_ins) {
+                    $cand_ins->bind_param('is', $poll_id, $candidate_employee_id);
+                    if ($cand_ins->execute()) {
+                        $candidate_id = (int)$cand_ins->insert_id;
+                    }
+                    $cand_ins->close();
+                }
             }
         }
         
