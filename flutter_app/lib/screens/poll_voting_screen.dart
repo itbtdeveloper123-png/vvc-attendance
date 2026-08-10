@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
@@ -19,7 +18,6 @@ class PollVotingScreen extends StatefulWidget {
 
 class _PollVotingScreenState extends State<PollVotingScreen> {
   final ApiService _api = ApiService();
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   List<dynamic> _polls = [];
   List<dynamic> _allUsers = [];
@@ -39,61 +37,30 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
       _errorMessage = null;
     });
 
-    final List<dynamic> allPolls = [];
-
     try {
       final usersRes = await _api.fetchUsers();
       if (usersRes['success'] == true && usersRes['data'] != null) {
         _allUsers = List<dynamic>.from(usersRes['data']);
       }
 
-      // 1. Fetch real polls from Backend API (Admin Panel!)
-      try {
-        final apiRes = await _api.fetchActivePolls();
-        if (apiRes['success'] == true && apiRes['data'] != null) {
-          final apiPolls = apiRes['data'] as List<dynamic>;
-          for (var p in apiPolls) {
-            final Map<String, dynamic> item = Map<String, dynamic>.from(p);
-            item['source'] = 'api';
-            allPolls.add(item);
-          }
-        }
-      } catch (e) {
-        debugPrint('API fetchActivePolls error: $e');
-      }
-
-      // 2. Fetch real polls from Firestore
-      try {
-        final snapshot = await _firestore
-            .collection('polls')
-            .orderBy('created_at', descending: true)
-            .get();
-
-        for (var doc in snapshot.docs) {
-          final data = doc.data();
-          data['doc_id'] = doc.id;
-          data['source'] = 'firestore';
-
-          bool exists = allPolls.any((x) =>
-              (x['doc_id'] != null && x['doc_id'] == doc.id) ||
-              (x['title'] != null && x['title'] == data['title']));
-          if (!exists) {
-            allPolls.add(data);
-          }
-        }
-      } catch (e) {
-        debugPrint('Firestore fetch polls error: $e');
+      // Fetch polls exclusively from Backend API (MySQL DB in Admin Panel)
+      final apiRes = await _api.fetchActivePolls();
+      if (apiRes['success'] == true && apiRes['data'] != null) {
+        _polls = List<dynamic>.from(apiRes['data']);
+      } else {
+        _polls = [];
       }
 
       if (mounted) {
         setState(() {
-          _polls = allPolls;
           _isLoading = false;
         });
       }
     } catch (e) {
+      debugPrint('API fetchActivePolls error: $e');
       if (mounted) {
         setState(() {
+          _errorMessage = 'មិនអាចទាញយកទិន្នន័យបានទេ: $e';
           _isLoading = false;
         });
       }
@@ -110,55 +77,19 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
     if (confirmed != true) return;
 
     try {
-      // 1. Cast vote on API backend if integer poll ID
       final pollIdInt = int.tryParse(pollDocId) ?? 0;
       if (pollIdInt > 0) {
-        try {
-          await _api.castVote(pollIdInt, candidateEmployeeId);
-        } catch (e) {
-          debugPrint('API castVote error: $e');
-        }
-      }
-
-      // 2. Cast vote on Firestore if Firestore doc exists
-      try {
-        final pollDocRef = _firestore.collection('polls').doc(pollDocId);
-        final docSnapshot = await pollDocRef.get();
-
-        if (docSnapshot.exists) {
-          final data = docSnapshot.data()!;
-          final candidates = List<Map<String, dynamic>>.from(data['candidates'] ?? []);
-          final auditList = List<Map<String, dynamic>>.from(data['voter_audit_list'] ?? []);
-
-          String candidateName = candidateEmployeeId;
-          for (var c in candidates) {
-            if (c['employee_id'] == candidateEmployeeId) {
-              c['votes_count'] = (c['votes_count'] as int? ?? 0) + 1;
-              candidateName = c['name'] ?? candidateEmployeeId;
-            }
+        final res = await _api.castVote(pollIdInt, candidateEmployeeId);
+        if (res['success'] == true) {
+          if (mounted) {
+            VvcAlert.showSuccess(context, title: 'បោះឆ្នោតជោគជ័យ!', message: 'ការបោះឆ្នោតរបស់អ្នកត្រូវបានរក្សាទុកក្នុង DB');
+            _loadInitialData();
           }
-
-          auditList.add({
-            'voter_name': 'បុគ្គលិក',
-            'voter_id': '001',
-            'candidate_name': candidateName,
-            'candidate_id': candidateEmployeeId,
-            'time': 'ទើបតែបោះឆ្នោត',
-          });
-
-          await pollDocRef.update({
-            'candidates': candidates,
-            'voter_audit_list': auditList,
-            'has_voted': true,
-          });
+        } else {
+          if (mounted) {
+            VvcAlert.showError(context, title: 'បរាជ័យ', message: res['message'] ?? 'មិនអាចបោះឆ្នោតបានទេ');
+          }
         }
-      } catch (e) {
-        debugPrint('Firestore castVote error: $e');
-      }
-
-      if (mounted) {
-        VvcAlert.showSuccess(context, title: 'បោះឆ្នោតជោគជ័យ!', message: 'ការបោះឆ្នោតរបស់អ្នកត្រូវបានរក្សាទុក');
-        _loadInitialData();
       }
     } catch (e) {
       if (mounted) {
@@ -502,59 +433,17 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
                           final endDateStr = '${endDate.year}-${endDate.month.toString().padLeft(2, '0')}-${endDate.day.toString().padLeft(2, '0')}';
 
                           try {
-                            // 1. Post/Update to Backend API
-                            try {
-                              await _api.savePoll(
-                                id: pollIdInt,
-                                title: title,
-                                quarter: selectedQuarter,
-                                location: selectedWarehouse,
-                                startDate: startDateStr,
-                                endDate: endDateStr,
-                                passcode: passcodeCtrl.text.trim(),
-                                excludedCandidates: excludedCandidates,
-                                candidates: candidatesData,
-                              );
-                            } catch (e) {
-                              debugPrint('API savePoll error: $e');
-                            }
-
-                            // 2. Save/Update to Firestore
-                            if (pollToEdit?['doc_id'] != null) {
-                              try {
-                                await _firestore.collection('polls').doc(pollToEdit!['doc_id']).update({
-                                  'title': title,
-                                  'quarter': selectedQuarter,
-                                  'location': selectedWarehouse,
-                                  'start_date': startDateStr,
-                                  'end_date': endDateStr,
-                                  'passcode': passcodeCtrl.text.trim(),
-                                  'excluded_candidates': excludedCandidates,
-                                  'candidates': candidatesData,
-                                });
-                              } catch (e) {
-                                debugPrint('Firestore updatePoll error: $e');
-                              }
-                            } else {
-                              try {
-                                await _firestore.collection('polls').add({
-                                  'title': title,
-                                  'quarter': selectedQuarter,
-                                  'location': selectedWarehouse,
-                                  'start_date': startDateStr,
-                                  'end_date': endDateStr,
-                                  'passcode': passcodeCtrl.text.trim(),
-                                  'excluded_candidates': excludedCandidates,
-                                  'candidates': candidatesData,
-                                  'voter_audit_list': [],
-                                  'has_voted': false,
-                                  'status': 'active',
-                                  'created_at': FieldValue.serverTimestamp(),
-                                });
-                              } catch (e) {
-                                debugPrint('Firestore createPoll error: $e');
-                              }
-                            }
+                            await _api.savePoll(
+                              id: pollIdInt,
+                              title: title,
+                              quarter: selectedQuarter,
+                              location: selectedWarehouse,
+                              startDate: startDateStr,
+                              endDate: endDateStr,
+                              passcode: passcodeCtrl.text.trim(),
+                              excludedCandidates: excludedCandidates,
+                              candidates: candidatesData,
+                            );
 
                             _loadInitialData();
 
@@ -607,14 +496,6 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
       final pollIdInt = int.tryParse((poll['id'] ?? poll['doc_id'] ?? '').toString());
       if (pollIdInt != null && pollIdInt > 0) {
         await _api.deletePoll(pollIdInt);
-      }
-
-      if (poll['doc_id'] != null && poll['doc_id'].toString().isNotEmpty) {
-        try {
-          await _firestore.collection('polls').doc(poll['doc_id'].toString()).delete();
-        } catch (e) {
-          debugPrint('Firestore delete poll error: $e');
-        }
       }
 
       _loadInitialData();
@@ -906,59 +787,63 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
                 ],
               ),
               const SizedBox(height: 14),
-              if (candidates.isNotEmpty) ...[
-                Text(
-                  isHrmOrAdmin ? 'បញ្ជីឈ្មោះបេក្ខជន (${candidates.length}):' : 'ជ្រើសរើសបេក្ខជន:',
-                  style: GoogleFonts.kantumruyPro(
-                    color: Colors.amberAccent,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13.5,
+              if (isHrmOrAdmin) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.04),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.groups_rounded, color: Colors.amberAccent, size: 20),
+                      const SizedBox(width: 10),
+                      Text(
+                        'បេក្ខជនក្នុងបញ្ជី៖ ${candidates.length} នាក់',
+                        style: GoogleFonts.kantumruyPro(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13.5,
+                        ),
+                      ),
+                      const Spacer(),
+                      const Icon(Icons.chevron_right_rounded, color: Colors.white54, size: 20),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 8),
-                if (isHrmOrAdmin)
-                  ...candidates.map((candidate) {
-                    final name = candidate['name']?.toString() ?? candidate['employee_id']?.toString() ?? '';
-                    final dept = candidate['department'] ?? candidate['dept'] ?? candidate['category'] ?? 'បុគ្គលិក';
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.04),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () => _showPollResultsModal(poll),
+                    icon: const Icon(Icons.bar_chart_rounded, color: Colors.black, size: 18),
+                    label: Text(
+                      '📊 មើលលទ្ធផល & អ្នកបោះឆ្នោត',
+                      style: GoogleFonts.kantumruyPro(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                        fontSize: 13.5,
                       ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.person_outline_rounded, color: Colors.amberAccent, size: 20),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  name,
-                                  style: GoogleFonts.kantumruyPro(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                                Text(
-                                  'ផ្នែក: $dept',
-                                  style: GoogleFonts.kantumruyPro(
-                                    color: Colors.white60,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  })
-                else ...[
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.amberAccent,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ),
+              ] else ...[
+                if (candidates.isNotEmpty) ...[
+                  Text(
+                    'ជ្រើសរើសបេក្ខជន:',
+                    style: GoogleFonts.kantumruyPro(
+                      color: Colors.amberAccent,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13.5,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
                   ...candidates.map((candidate) {
                     final empId = candidate['employee_id']?.toString() ?? '';
                     final name = candidate['name']?.toString() ?? empId;
@@ -1001,27 +886,29 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
                         child: Text('បោះឆ្នោតឥឡូវនេះ', style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 15)),
                       ),
                     ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: () => _showPollResultsModal(poll),
-                      icon: const Icon(Icons.bar_chart_rounded, color: Colors.amberAccent, size: 18),
-                      label: Text(
-                        '📊 មើលលទ្ធផល & អ្នកបោះឆ្នោត',
-                        style: GoogleFonts.kantumruyPro(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.amberAccent,
-                          fontSize: 13.5,
+                  if (hasVoted) ...[
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () => _showPollResultsModal(poll),
+                        icon: const Icon(Icons.bar_chart_rounded, color: Colors.amberAccent, size: 18),
+                        label: Text(
+                          '📊 មើលលទ្ធផល & អ្នកបោះឆ្នោត',
+                          style: GoogleFonts.kantumruyPro(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.amberAccent,
+                            fontSize: 13.5,
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Colors.amberAccent),
+                          padding: const EdgeInsets.symmetric(vertical: 11),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                       ),
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: Colors.amberAccent),
-                        padding: const EdgeInsets.symmetric(vertical: 11),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
                     ),
-                  ),
+                  ],
                 ],
               ],
             ],
