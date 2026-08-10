@@ -6476,6 +6476,7 @@ try {
             }
             $stmt_admin->close();
         }
+        
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $settings_raw = $_POST['settings'] ?? '';
