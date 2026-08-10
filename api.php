@@ -6458,21 +6458,24 @@ try {
             $stmt_admin->bind_param("s", $eid);
             $stmt_admin->execute();
             $res_admin = $stmt_admin->get_result();
-            if ($row_admin = $res_admin->fetch_assoc()) {
+            if ($res_admin && $row_admin = $res_admin->fetch_assoc()) {
                 $user_role = $row_admin['user_role'] ?? '';
                 $creator = $row_admin['created_by_admin_id'] ?? '';
                 
                 $check = $mysqli->prepare("SELECT 1 FROM app_scan_settings WHERE admin_id = ? LIMIT 1");
-                $check->bind_param("s", $eid);
-                $check->execute();
-                if ($check->get_result()->num_rows > 0) {
-                    $owner_id = $eid;
-                } elseif (!empty($creator)) {
-                    $owner_id = $creator;
-                } elseif (strcasecmp($user_role, 'Admin') === 0) {
-                    $owner_id = $eid;
+                if ($check) {
+                    $check->bind_param("s", $eid);
+                    $check->execute();
+                    $res_check = $check->get_result();
+                    if ($res_check && $res_check->num_rows > 0) {
+                        $owner_id = $eid;
+                    } elseif (!empty($creator)) {
+                        $owner_id = $creator;
+                    } elseif (strcasecmp($user_role, 'Admin') === 0) {
+                        $owner_id = $eid;
+                    }
+                    $check->close();
                 }
-                $check->close();
             }
             $stmt_admin->close();
         }
