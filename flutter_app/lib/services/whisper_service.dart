@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
@@ -43,12 +44,16 @@ class WhisperTranscriptionResult {
 
   factory WhisperTranscriptionResult.fromJson(Map<String, dynamic> json) {
     final rawSegments = json['segments'] as List<dynamic>? ?? [];
+    final List<WhisperSegment> parsedSegments = [];
+    for (var item in rawSegments) {
+      if (item is Map) {
+        parsedSegments.add(WhisperSegment.fromJson(Map<String, dynamic>.from(item)));
+      }
+    }
     return WhisperTranscriptionResult(
       status: json['status'] as String? ?? 'success',
       language: json['language'] as String? ?? 'km',
-      segments: rawSegments
-          .map((s) => WhisperSegment.fromJson(Map<String, dynamic>.from(s)))
-          .toList(),
+      segments: parsedSegments,
     );
   }
 
@@ -79,7 +84,6 @@ class WhisperService {
       formattedUrl = 'https://$formattedUrl';
     }
 
-    // Ensure URL ends with /transcribe
     final Uri uri = Uri.parse(formattedUrl);
     String endpoint = formattedUrl;
     if (!uri.path.endsWith('/transcribe')) {
@@ -111,11 +115,15 @@ class WhisperService {
       );
 
       if (response.statusCode == 200 && response.data != null) {
-        final Map<String, dynamic> data = response.data is String
-            ? Map<String, dynamic>.from(Dio().options.responseType == ResponseType.json
-                ? (response.data as Map)
-                : {})
-            : Map<String, dynamic>.from(response.data as Map);
+        final rawData = response.data;
+        final Map<String, dynamic> data;
+        if (rawData is Map) {
+          data = Map<String, dynamic>.from(rawData);
+        } else if (rawData is String) {
+          data = Map<String, dynamic>.from(jsonDecode(rawData));
+        } else {
+          throw Exception('ទម្រង់ទិន្នន័យ Server មិនត្រឹមត្រូវ');
+        }
         return WhisperTranscriptionResult.fromJson(data);
       } else {
         throw Exception('Server error: ${response.statusCode} - ${response.statusMessage}');
@@ -125,9 +133,9 @@ class WhisperService {
       if (e.type == DioExceptionType.connectionTimeout ||
           e.type == DioExceptionType.receiveTimeout ||
           e.type == DioExceptionType.sendTimeout) {
-        throw Exception('ការតភ្ជាប់មានការយឺតយ៉ាវ (Timeout)។ សូមពិនិត្យមើលអ៊ីនធឺណិត ឬ Ngrok Server។');
+        throw Exception('ការតភ្ជាប់មានការយឺតយ៉ាវ (Timeout)។ សូមពិនិត្យមើល Ngrok Server។');
       } else if (e.response != null) {
-        throw Exception('Server ឆ្លើយតបមានបញ្ហា (${e.response?.statusCode}): ${e.response?.data}');
+        throw Exception('Server error (${e.response?.statusCode}): ${e.response?.data}');
       } else {
         throw Exception('មិនអាចភ្ជាប់ទៅកាន់ Server បានទេ៖ ${e.message}');
       }
