@@ -544,7 +544,7 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
                               }
                             } else {
                               try {
-                                final docRef = await _firestore.collection('polls').add({
+                                await _firestore.collection('polls').add({
                                   'title': title,
                                   'quarter': selectedQuarter,
                                   'location': selectedWarehouse,
@@ -806,9 +806,6 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
     final candidates = poll['candidates'] as List<dynamic>? ?? [];
     final docId = (poll['doc_id'] ?? poll['id'] ?? '').toString();
     String? selectedCandidateEmployeeId;
-
-    final userProvider = Provider.of<UserProvider>(context, listen: false);
-    final isHrmOrAdmin = userProvider.isHRM || userProvider.isAdmin;
 
     return StatefulBuilder(
       builder: (context, setState) {
