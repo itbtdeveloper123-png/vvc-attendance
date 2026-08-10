@@ -7496,6 +7496,7 @@ try {
         break;
 
     case 'get_polls':
+    case 'get_active_polls':
         try {
             error_log("API: get_polls called");
             
