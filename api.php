@@ -24,7 +24,10 @@ if ($action === 'test' || $action === 'health') {
     exit;
 }
 
-// Output buffering removed — apiResponse() handles clean output directly
+// Ensure clean output buffering for JSON responses
+if (ob_get_level() === 0) {
+    ob_start();
+}
 
 // 1. Headers & Environment
 error_reporting(E_ALL);
@@ -7492,43 +7495,57 @@ try {
         try {
             error_log("API: get_polls called");
             
-            // First test basic database connection
+            // Automatically ensure staff poll tables exist
+            if (file_exists(__DIR__ . '/admin_db_setup.php')) {
+                require_once __DIR__ . '/admin_db_setup.php';
+                if (function_exists('ensure_staff_poll_tables') && isset($mysqli) && $mysqli instanceof mysqli) {
+                    ensure_staff_poll_tables($mysqli);
+                }
+            }
+
             if (!$mysqli || $mysqli->connect_error) {
                 error_log("API: Database connection error: " . ($mysqli->connect_error ?? 'Unknown error'));
                 apiResponse(['success' => false, 'message' => 'Database connection failed']);
                 break;
             }
-            error_log("API: Database connection OK");
-            
-            // Use simple query first to avoid prepared statement issues
-            $query = "SELECT * FROM poll_events ORDER BY created_at DESC";
-            error_log("API: Executing query: " . $query);
-            
-            $result = $mysqli->query($query);
-            if (!$result) {
-                error_log("API: Query failed: " . $mysqli->error);
-                apiResponse(['success' => false, 'message' => 'Database query failed: ' . $mysqli->error]);
+
+            $table_check = $mysqli->query("SHOW TABLES LIKE 'poll_events'");
+            if (!$table_check || $table_check->num_rows == 0) {
+                apiResponse(['success' => true, 'data' => []]);
                 break;
             }
-            error_log("API: Query executed successfully");
+
+            $query = "SELECT * FROM poll_events ORDER BY created_at DESC";
+            $result = $mysqli->query($query);
             
             $polls = [];
-            while ($row = $result->fetch_assoc()) {
-                $polls[] = $row;
+            if ($result && $result instanceof mysqli_result) {
+                while ($row = $result->fetch_assoc()) {
+                    $poll_id = (int)($row['id'] ?? 0);
+                    $candidates = [];
+                    if ($poll_id > 0) {
+                        $cand_q = $mysqli->query("
+                            SELECT c.*, u.name, u.department, u.position, u.profile_picture, u.photo 
+                            FROM poll_candidates c 
+                            LEFT JOIN users u ON c.employee_id = u.employee_id 
+                            WHERE c.poll_id = $poll_id
+                        ");
+                        if ($cand_q && $cand_q instanceof mysqli_result) {
+                            while ($c_row = $cand_q->fetch_assoc()) {
+                                $candidates[] = $c_row;
+                            }
+                            $cand_q->free();
+                        }
+                    }
+                    $row['candidates'] = $candidates;
+                    $polls[] = $row;
+                }
+                $result->free();
             }
-            $result->free();
-            error_log("API: Retrieved " . count($polls) . " polls");
-            
-            // Ensure we always return valid JSON even if empty
-            if (empty($polls)) {
-                error_log("API: No polls found, returning empty array");
-                apiResponse(['success' => true, 'data' => []]);
-            } else {
-                apiResponse(['success' => true, 'data' => $polls]);
-            }
-        } catch (Exception $e) {
-            error_log("API: Exception in get_polls: " . $e->getMessage());
-            error_log("API: Exception trace: " . $e->getTraceAsString());
+
+            apiResponse(['success' => true, 'data' => $polls]);
+        } catch (Throwable $e) {
+            error_log("API: Throwable in get_polls: " . $e->getMessage());
             apiResponse(['success' => false, 'message' => 'Server error: ' . $e->getMessage()]);
         }
         break;
