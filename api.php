@@ -7969,26 +7969,15 @@ try {
         
         $poll_id               = (int)($_POST['poll_id'] ?? 0);
         $candidate_employee_id = trim($_POST['candidate_employee_id'] ?? '');
-<<<<<<< HEAD
         $candidate_id_param    = (int)($_POST['candidate_id'] ?? 0);
         $eid                   = (string)($user['employee_id'] ?? '');
         
         if ($poll_id <= 0 || ($candidate_employee_id === '' && $candidate_id_param <= 0)) {
-=======
-        $candidate_id          = (int)($_POST['candidate_id'] ?? 0);
-        $eid                   = (string)$user['employee_id'];
-        
-        if ($poll_id <= 0 || ($candidate_employee_id === '' && $candidate_id <= 0)) {
->>>>>>> 4e3f602c6f42dc704361bb7f75e446fbe0eaeabe
             apiResponse(['success' => false, 'message' => 'Poll ID and Candidate selection required']);
             break;
         }
         
-<<<<<<< HEAD
         // Check if poll exists
-=======
-        // Fetch poll
->>>>>>> 4e3f602c6f42dc704361bb7f75e446fbe0eaeabe
         $poll_check = $mysqli->prepare("SELECT * FROM poll_events WHERE id = ?");
         if (!$poll_check) {
             apiResponse(['success' => false, 'message' => 'Database error: ' . $mysqli->error]);
@@ -7999,49 +7988,33 @@ try {
         $poll = $poll_check->get_result()->fetch_assoc();
         $poll_check->close();
         
-<<<<<<< HEAD
-        if (!$poll) {
-            apiResponse(['success' => false, 'message' => 'មិនរកឃើញការបោះឆ្នោតនេះទេ']);
-=======
         if (!$poll || ($poll['is_active'] != 1 && $poll['is_active'] !== null)) {
             apiResponse(['success' => false, 'message' => 'ការបោះឆ្នោតនេះមិនសកម្មទេ']);
->>>>>>> 4e3f602c6f42dc704361bb7f75e446fbe0eaeabe
             break;
         }
 
-        // Find candidate_id in poll_candidates if candidate_employee_id provided
-        if ($candidate_id <= 0 && $candidate_employee_id !== '') {
-            $cand_q = $mysqli->prepare("SELECT id FROM poll_candidates WHERE poll_id = ? AND employee_id = ? LIMIT 1");
-            if ($cand_q) {
-                $cand_q->bind_param('is', $poll_id, $candidate_employee_id);
-                $cand_q->execute();
-                $c_res = $cand_q->get_result()->fetch_assoc();
-                if ($c_res) {
-                    $candidate_id = (int)$c_res['id'];
+        // Find candidate_id in poll_candidates
+        $candidate_id = 0;
+        if ($candidate_id_param > 0) {
+            $candidate_id = $candidate_id_param;
+        } else if (!empty($candidate_employee_id)) {
+            $cand_find = $mysqli->prepare("SELECT id FROM poll_candidates WHERE poll_id = ? AND employee_id = ? LIMIT 1");
+            if ($cand_find) {
+                $cand_find->bind_param('is', $poll_id, $candidate_employee_id);
+                $cand_find->execute();
+                $c_row = $cand_find->get_result()->fetch_assoc();
+                if ($c_row) {
+                    $candidate_id = (int)$c_row['id'];
                 }
-                $cand_q->close();
+                $cand_find->close();
             }
         }
         
-<<<<<<< HEAD
         // Check allowed voters
         $allowed_raw = trim($poll['allowed_employee_ids'] ?? '');
         if ($allowed_raw !== '' && $allowed_raw !== '[]' && $allowed_raw !== 'null') {
             $allowed_ids = json_decode($allowed_raw, true);
             if (is_array($allowed_ids) && count($allowed_ids) > 0 && !in_array($eid, array_map('strval', $allowed_ids))) {
-=======
-        // Check if user is allowed to vote
-        $allowed_ids_arr = json_decode($poll['allowed_employee_ids'] ?? '[]', true);
-        if (is_array($allowed_ids_arr) && count($allowed_ids_arr) > 0 && !in_array($eid, array_map('strval', $allowed_ids_arr))) {
-            apiResponse(['success' => false, 'message' => 'អ្នកមិនមានសិទ្ធិបោះឆ្នោតសម្រាប់ការបោះឆ្នោតនេះទេ']);
-            break;
-        }
-        
-        // Check if user is excluded
-        if (!empty($poll['excluded_employee_ids'])) {
-            $excluded_ids = json_decode($poll['excluded_employee_ids'], true);
-            if (is_array($excluded_ids) && count($excluded_ids) > 0 && in_array($eid, array_map('strval', $excluded_ids))) {
->>>>>>> 4e3f602c6f42dc704361bb7f75e446fbe0eaeabe
                 apiResponse(['success' => false, 'message' => 'អ្នកមិនមានសិទ្ធិបោះឆ្នោតសម្រាប់ការបោះឆ្នោតនេះទេ']);
                 break;
             }
@@ -8071,50 +8044,13 @@ try {
             }
         }
         
-<<<<<<< HEAD
-        // Find candidate in poll_candidates
-        $candidate_id = 0;
-        if ($candidate_id_param > 0) {
-            $candidate_id = $candidate_id_param;
-        } else {
-            $cand_find = $mysqli->prepare("SELECT id FROM poll_candidates WHERE poll_id = ? AND employee_id = ? LIMIT 1");
-            if ($cand_find) {
-                $cand_find->bind_param('is', $poll_id, $candidate_employee_id);
-                $cand_find->execute();
-                $c_row = $cand_find->get_result()->fetch_assoc();
-                if ($c_row) {
-                    $candidate_id = (int)$c_row['id'];
-                }
-                $cand_find->close();
-            }
-        }
-        
         // Insert vote into poll_votes
         $vote_stmt = $mysqli->prepare("INSERT INTO poll_votes (poll_id, voter_employee_id, candidate_id) VALUES (?, ?, ?)");
-=======
-        // Insert vote
-        if ($candidate_id > 0) {
-            $vote_stmt = $mysqli->prepare("INSERT INTO poll_votes (poll_id, voter_employee_id, candidate_id) VALUES (?, ?, ?)");
-            if ($vote_stmt) {
-                $vote_stmt->bind_param('isi', $poll_id, $eid, $candidate_id);
-            }
-        } else {
-            // Fallback if candidate_id couldn't be resolved
-            $vote_stmt = $mysqli->prepare("INSERT INTO poll_votes (poll_id, voter_employee_id, candidate_id) VALUES (?, ?, 0)");
-            if ($vote_stmt) {
-                $vote_stmt->bind_param('is', $poll_id, $eid);
-            }
-        }
-
->>>>>>> 4e3f602c6f42dc704361bb7f75e446fbe0eaeabe
         if (!$vote_stmt) {
             apiResponse(['success' => false, 'message' => 'Database error: ' . $mysqli->error]);
             break;
         }
-<<<<<<< HEAD
         $vote_stmt->bind_param('isi', $poll_id, $eid, $candidate_id);
-=======
->>>>>>> 4e3f602c6f42dc704361bb7f75e446fbe0eaeabe
         
         if ($vote_stmt->execute()) {
             apiResponse(['success' => true, 'message' => 'បោះឆ្នោតបានជោគជ័យ!']);
