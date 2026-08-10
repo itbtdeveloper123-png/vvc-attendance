@@ -2814,12 +2814,6 @@ class _HomeContentState extends State<HomeContent> {
           const SectionHeader(title: "👥 HRM — ការគ្រប់គ្រងធនធានមនុស្ស"),
           const SizedBox(height: 14),
           _buildDynamicActions(user, '__hrm'),
-          _buildInfoBox(
-            icon: Icons.security_rounded,
-            color: const Color(0xFF6366F1),
-            message:
-                "អ្នកមានសិទ្ធិគ្រប់គ្រងបុគ្គលិក និងពិនិត្យសំណើទាំងអស់ក្នុងប្រព័ន្ធ។",
-          ),
         ],
       ),
     );
