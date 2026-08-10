@@ -174,17 +174,34 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
   }
 
   // Admin Panel 100% Matching Form Modal
-  void _showCreatePollDialog() {
-    final titleCtrl = TextEditingController();
-    final passcodeCtrl = TextEditingController();
+  void _showCreatePollDialog({Map<String, dynamic>? pollToEdit}) {
+    final isEditing = pollToEdit != null;
+    final pollIdRaw = pollToEdit?['id'] ?? pollToEdit?['doc_id'];
+    final pollIdInt = int.tryParse(pollIdRaw?.toString() ?? '');
 
-    String selectedQuarter = 'Q1';
-    String selectedWarehouse = 'Head Office';
+    final titleCtrl = TextEditingController(text: pollToEdit?['title']?.toString() ?? '');
+    final passcodeCtrl = TextEditingController(text: pollToEdit?['access_code']?.toString() ?? pollToEdit?['passcode']?.toString() ?? '');
 
-    DateTime startDate = DateTime.now();
-    DateTime endDate = DateTime.now().add(const Duration(days: 7));
+    String selectedQuarter = pollToEdit?['quarter']?.toString() ?? 'Q1';
+    String selectedWarehouse = pollToEdit?['location']?.toString() ?? 'Head Office';
+
+    DateTime startDate = pollToEdit?['start_date'] != null
+        ? DateTime.tryParse(pollToEdit!['start_date'].toString()) ?? DateTime.now()
+        : DateTime.now();
+    DateTime endDate = pollToEdit?['end_date'] != null
+        ? DateTime.tryParse(pollToEdit!['end_date'].toString()) ?? DateTime.now().add(const Duration(days: 7))
+        : DateTime.now().add(const Duration(days: 7));
 
     final List<String> selectedCandidates = [];
+    if (pollToEdit?['candidates'] != null && pollToEdit!['candidates'] is List) {
+      for (var c in pollToEdit!['candidates']) {
+        if (c is Map && c['employee_id'] != null) {
+          selectedCandidates.add(c['employee_id'].toString());
+        } else if (c is String) {
+          selectedCandidates.add(c);
+        }
+      }
+    }
     final List<String> excludedCandidates = [];
 
     showDialog(
@@ -206,7 +223,7 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Form Header (Matching Admin Panel Screenshot #1)
+                  // Form Header
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -215,14 +232,14 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
                           Container(
                             padding: const EdgeInsets.all(6),
                             decoration: BoxDecoration(
-                              color: AppTheme.primary,
+                              color: isEditing ? Colors.amber : AppTheme.primary,
                               shape: BoxShape.circle,
                             ),
-                            child: const Icon(Icons.add, color: Colors.white, size: 20),
+                            child: Icon(isEditing ? Icons.edit : Icons.add, color: isEditing ? Colors.black : Colors.white, size: 20),
                           ),
                           const SizedBox(width: 10),
                           Text(
-                            'បង្កើតការបោះឆ្នោតថ្មី',
+                            isEditing ? 'កែប្រែការបោះឆ្នោត' : 'បង្កើតការបោះឆ្នោតថ្មី',
                             style: GoogleFonts.kantumruyPro(
                               color: Colors.white,
                               fontSize: 18,
@@ -516,9 +533,10 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
                           };
 
                           try {
-                            // 1. Post to Backend API (so Admin Panel sees it!)
+                            // 1. Post/Update to Backend API (so Admin Panel sees it!)
                             try {
-                              await _api.createPoll(
+                              await _api.savePoll(
+                                id: pollIdInt,
                                 title: title,
                                 quarter: selectedQuarter,
                                 location: selectedWarehouse,
@@ -529,24 +547,35 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
                                 candidates: candidatesData,
                               );
                             } catch (e) {
-                              debugPrint('API createPoll error: $e');
+                              debugPrint('API savePoll error: $e');
                             }
 
-                            // 2. Save to Firestore
-                            try {
-                              final docRef = await _firestore.collection('polls').add(pollMap);
-                              pollMap['doc_id'] = docRef.id;
-                            } catch (e) {
-                              debugPrint('Firestore createPoll error: $e');
+                            // 2. Save/Update to Firestore
+                            if (pollToEdit?['doc_id'] != null) {
+                              try {
+                                await _firestore.collection('polls').doc(pollToEdit!['doc_id']).update(pollMap);
+                              } catch (e) {
+                                debugPrint('Firestore updatePoll error: $e');
+                              }
+                            } else {
+                              try {
+                                final docRef = await _firestore.collection('polls').add(pollMap);
+                                pollMap['doc_id'] = docRef.id;
+                              } catch (e) {
+                                debugPrint('Firestore createPoll error: $e');
+                              }
                             }
-
-                            setState(() {
-                              _polls.insert(0, pollMap);
-                            });
 
                             if (!ctx.mounted) return;
                             Navigator.pop(ctx);
-                            if (mounted) VvcAlert.showSuccess(context, title: 'ជោគជ័យ', message: 'បានបង្កើតការបោះឆ្នោតថ្មីត្រឹមត្រូវតាម Admin Panel រួចរាល់!');
+                            if (mounted) {
+                              VvcAlert.showSuccess(
+                                context,
+                                title: 'ជោគជ័យ',
+                                message: isEditing ? 'បានធ្វើបច្ចុប្បន្នភាពការបោះឆ្នោតជោគជ័យ!' : 'បានបង្កើតការបោះឆ្នោតថ្មីត្រឹមត្រូវតាម Admin Panel រួចរាល់!',
+                              );
+                              _loadInitialData();
+                            }
                           } catch (e) {
                             if (!ctx.mounted) return;
                             Navigator.pop(ctx);
@@ -735,6 +764,8 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
   }
 
   Widget _buildPollCard(Map<String, dynamic> poll) {
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    final isHrmOrAdmin = userProvider.isHRM || userProvider.isAdmin;
     final hasVoted = poll['has_voted'] == true;
     final candidates = poll['candidates'] as List<dynamic>? ?? [];
     final docId = (poll['doc_id'] ?? poll['id'] ?? '').toString();
@@ -786,20 +817,70 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
                       ],
                     ),
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: hasVoted ? Colors.green : AppTheme.primary,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      hasVoted ? 'បានបោះឆ្នោត' : 'សកម្ម',
-                      style: GoogleFonts.kantumruyPro(
-                        color: Colors.white,
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.bold,
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: hasVoted ? Colors.green : Colors.amber,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          hasVoted ? 'បានបោះឆ្នោត' : 'សកម្ម',
+                          style: GoogleFonts.kantumruyPro(
+                            color: Colors.black,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
-                    ),
+                      if (isHrmOrAdmin) ...[
+                        const SizedBox(width: 8),
+                        InkWell(
+                          onTap: () => _showCreatePollDialog(pollToEdit: poll),
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: const BoxDecoration(
+                              color: Colors.amber,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.edit, color: Colors.black, size: 16),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        InkWell(
+                          onTap: () async {
+                            final confirm = await VvcAlert.showConfirmDialog(
+                              context,
+                              title: 'លុបការបោះឆ្នោត',
+                              message: 'តើអ្នកប្រាកដជាចង់លុបការបោះឆ្នោតនេះមែនទេ?',
+                            );
+                            if (confirm == true) {
+                              final pollId = int.tryParse(docId) ?? 0;
+                              if (pollId > 0) {
+                                await _api.deletePoll(pollId);
+                              }
+                              if (poll['source'] == 'firestore') {
+                                try {
+                                  await _firestore.collection('polls').doc(docId).delete();
+                                } catch (e) {
+                                  debugPrint('Delete firestore poll error: $e');
+                                }
+                              }
+                              if (mounted) _loadInitialData();
+                            }
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: const BoxDecoration(
+                              color: Colors.redAccent,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.delete, color: Colors.white, size: 16),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ],
               ),
@@ -829,7 +910,7 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
                         });
                       },
                       title: Text(name, style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 14)),
-                      subtitle: Text('ផ្នែក: ${candidate['dept'] ?? 'បុគ្គលិក'}', style: GoogleFonts.kantumruyPro(color: Colors.white60, fontSize: 12)),
+                      subtitle: Text('ផ្នែក: ${candidate['department'] ?? candidate['dept'] ?? candidate['category'] ?? 'បុគ្គលិក'}', style: GoogleFonts.kantumruyPro(color: Colors.white60, fontSize: 12)),
                       controlAffinity: ListTileControlAffinity.leading,
                       activeColor: AppTheme.primary,
                     ),

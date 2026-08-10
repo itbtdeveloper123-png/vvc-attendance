@@ -491,7 +491,8 @@ class ApiService {
     );
   }
 
-  Future<Map<String, dynamic>> createPoll({
+  Future<Map<String, dynamic>> savePoll({
+    int? id,
     required String title,
     required String quarter,
     required String location,
@@ -502,18 +503,52 @@ class ApiService {
     required List<Map<String, dynamic>> candidates,
   }) async {
     final headers = await _authHeaders();
+    final body = <String, String>{
+      'title': title,
+      'quarter': quarter,
+      'location': location,
+      'start_date': startDate,
+      'end_date': endDate,
+      'access_code': passcode,
+      'passcode': passcode,
+      'excluded_candidates': jsonEncode(excludedCandidates),
+      'candidates': jsonEncode(candidates),
+    };
+    if (id != null && id > 0) {
+      body['id'] = id.toString();
+    }
+    return _processRequest('save_poll', headers: headers, body: body);
+  }
+
+  Future<Map<String, dynamic>> createPoll({
+    required String title,
+    required String quarter,
+    required String location,
+    required String startDate,
+    required String endDate,
+    required String passcode,
+    required List<String> excludedCandidates,
+    required List<Map<String, dynamic>> candidates,
+  }) async {
+    return savePoll(
+      title: title,
+      quarter: quarter,
+      location: location,
+      startDate: startDate,
+      endDate: endDate,
+      passcode: passcode,
+      excludedCandidates: excludedCandidates,
+      candidates: candidates,
+    );
+  }
+
+  Future<Map<String, dynamic>> deletePoll(int pollId) async {
+    final headers = await _authHeaders();
     return _processRequest(
-      'create_poll',
+      'delete_poll',
       headers: headers,
       body: {
-        'title': title,
-        'quarter': quarter,
-        'location': location,
-        'start_date': startDate,
-        'end_date': endDate,
-        'passcode': passcode,
-        'excluded_candidates': jsonEncode(excludedCandidates),
-        'candidates': jsonEncode(candidates),
+        'id': pollId.toString(),
       },
     );
   }

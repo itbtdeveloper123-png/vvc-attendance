@@ -7564,6 +7564,8 @@ try {
         break;
 
     case 'save_poll':
+    case 'create_poll':
+    case 'update_poll':
         try {
             $poll_id = (int)($_POST['id'] ?? 0);
             $title = trim($_POST['title'] ?? '');
@@ -7571,7 +7573,7 @@ try {
             $location = trim($_POST['location'] ?? '');
             $start_date = trim($_POST['start_date'] ?? '');
             $end_date = trim($_POST['end_date'] ?? '');
-            $access_code = trim($_POST['access_code'] ?? '');
+            $access_code = trim($_POST['access_code'] ?? $_POST['passcode'] ?? '');
             $allowed_employee_ids = $_POST['allowed_employee_ids'] ?? '[]';
             $excluded_employee_ids = $_POST['excluded_employee_ids'] ?? '[]';
             $is_active = (int)($_POST['is_active'] ?? 1);
@@ -7663,8 +7665,36 @@ try {
             }
 
             if ($stmt->execute()) {
-                error_log("SAVE_POLL: Successfully saved poll");
-                apiResponse(['success' => true, 'message' => 'រក្សាទុកការបោះឆ្នោតបានជោគជ័យ']);
+                $saved_poll_id = $poll_id > 0 ? $poll_id : $mysqli->insert_id;
+                
+                // Handle candidates saving to poll_candidates table
+                if (isset($_POST['candidates'])) {
+                    $cands_input = $_POST['candidates'];
+                    if (is_string($cands_input)) {
+                        $cands_input = json_decode($cands_input, true);
+                    }
+                    if (is_array($cands_input)) {
+                        $mysqli->query("DELETE FROM poll_candidates WHERE poll_id = $saved_poll_id");
+                        foreach ($cands_input as $cand) {
+                            $cand_emp_id = '';
+                            $cand_cat = $location;
+                            if (is_array($cand)) {
+                                $cand_emp_id = $cand['employee_id'] ?? $cand['id'] ?? '';
+                                $cand_cat = $cand['category'] ?? $location;
+                            } else {
+                                $cand_emp_id = (string)$cand;
+                            }
+                            $cand_emp_id = $mysqli->real_escape_string(trim($cand_emp_id));
+                            $cand_cat = $mysqli->real_escape_string(trim($cand_cat));
+                            if (!empty($cand_emp_id)) {
+                                $mysqli->query("INSERT INTO poll_candidates (poll_id, employee_id, category) VALUES ($saved_poll_id, '$cand_emp_id', '$cand_cat')");
+                            }
+                        }
+                    }
+                }
+                
+                error_log("SAVE_POLL: Successfully saved poll ID: $saved_poll_id");
+                apiResponse(['success' => true, 'message' => 'រក្សាទុកការបោះឆ្នោតបានជោគជ័យ', 'poll_id' => $saved_poll_id]);
             } else {
                 error_log("SAVE_POLL: Execute failed: " . $stmt->error);
                 apiResponse(['success' => false, 'message' => 'មិនអាចរក្សាទុកបានទេ: ' . $stmt->error]);
@@ -7794,62 +7824,171 @@ try {
             break;
         }
         
-        $eid = $user['employee_id'];
+        $eid = (string)($user['employee_id'] ?? '');
         $current_date = date('Y-m-d');
+        $user_role = strtolower($user['role'] ?? '');
+        $is_admin = in_array($user_role, ['admin', 'hrm', 'superadmin', 'manager']);
         
-        $stmt = $mysqli->prepare("
-            SELECT p.* 
-            FROM poll_events p 
-            WHERE p.is_active = 1 
-            AND p.start_date <= ? 
-            AND p.end_date >= ?
-            AND (p.allowed_employee_ids IS NULL OR p.allowed_employee_ids = '[]' OR JSON_CONTAINS(p.allowed_employee_ids, ?, '$'))
-            AND (p.excluded_employee_ids IS NULL OR p.excluded_employee_ids = '[]' OR NOT JSON_CONTAINS(p.excluded_employee_ids, ?, '$'))
-            ORDER BY p.created_at DESC
-        ");
+        // Fetch active polls (for admin fetch all active/created polls, for standard users fetch active within date range)
+        if ($is_admin) {
+            $stmt = $mysqli->prepare("
+                SELECT p.* 
+                FROM poll_events p 
+                ORDER BY p.created_at DESC
+            ");
+        } else {
+            $stmt = $mysqli->prepare("
+                SELECT p.* 
+                FROM poll_events p 
+                WHERE (p.is_active = 1 OR p.is_active IS NULL)
+                AND (p.start_date IS NULL OR DATE(p.start_date) <= ?) 
+                AND (p.end_date IS NULL OR DATE(p.end_date) >= ?)
+                ORDER BY p.created_at DESC
+            ");
+            if ($stmt) {
+                $stmt->bind_param('ss', $current_date, $current_date);
+            }
+        }
+
         if (!$stmt) {
             apiResponse(['success' => false, 'message' => 'Database error: ' . $mysqli->error]);
             break;
         }
-        $json_eid = json_encode((string)$eid);
-        $stmt->bind_param('ssss', $current_date, $current_date, $json_eid, $json_eid);
+
         $stmt->execute();
         $result = $stmt->get_result();
         $polls = [];
+
         while ($row = $result->fetch_assoc()) {
-            // Check if user has already voted
-            $poll_id = $row['id'];
-            $vote_check = $mysqli->prepare("SELECT COUNT(*) as voted FROM poll_votes WHERE poll_id = ? AND voter_employee_id = ?");
-            if ($vote_check) {
-                $vote_check->bind_param('is', $poll_id, $eid);
-                $vote_check->execute();
-                $vote_result = $vote_check->get_result()->fetch_assoc();
-                $row['has_voted'] = $vote_result['voted'] > 0;
-                $vote_check->close();
-            }
-            
-            // Build candidates from allowed_employee_ids (checked voters = candidates)
-            $allowed_ids_json = $row['allowed_employee_ids'] ?? '[]';
-            $allowed_ids_arr = json_decode($allowed_ids_json, true);
-            $candidates = [];
-            if (is_array($allowed_ids_arr) && count($allowed_ids_arr) > 0) {
-                foreach ($allowed_ids_arr as $idx => $emp_id) {
-                    $emp_id = (string)$emp_id;
-                    $name_stmt = $mysqli->prepare("SELECT name FROM users WHERE employee_id = ? LIMIT 1");
-                    if ($name_stmt) {
-                        $name_stmt->bind_param('s', $emp_id);
-                        $name_stmt->execute();
-                        $name_row = $name_stmt->get_result()->fetch_assoc();
-                        $name_stmt->close();
+            $poll_id = (int)$row['id'];
+
+            // Filter for allowed/excluded employees (for non-admin users)
+            if (!$is_admin && !empty($eid)) {
+                $allowed_raw = trim($row['allowed_employee_ids'] ?? '');
+                if ($allowed_raw !== '' && $allowed_raw !== '[]' && $allowed_raw !== 'null') {
+                    $allowed_arr = json_decode($allowed_raw, true);
+                    if (is_array($allowed_arr) && count($allowed_arr) > 0 && !in_array($eid, array_map('strval', $allowed_arr))) {
+                        continue;
                     }
-                    $candidates[] = [
-                        'id'          => $idx + 1, // virtual id for dropdown
-                        'employee_id' => $emp_id,
-                        'name'        => $name_row['name'] ?? $emp_id,
-                        'category'    => '',
-                    ];
+                }
+
+                $excluded_raw = trim($row['excluded_employee_ids'] ?? '');
+                if ($excluded_raw !== '' && $excluded_raw !== '[]' && $excluded_raw !== 'null') {
+                    $excluded_arr = json_decode($excluded_raw, true);
+                    if (is_array($excluded_arr) && count($excluded_arr) > 0 && in_array($eid, array_map('strval', $excluded_arr))) {
+                        continue;
+                    }
                 }
             }
+
+            // Check if current user has voted in this poll
+            $has_voted = false;
+            if (!empty($eid)) {
+                $vote_check = $mysqli->prepare("SELECT COUNT(*) as voted FROM poll_votes WHERE poll_id = ? AND voter_employee_id = ?");
+                if ($vote_check) {
+                    $vote_check->bind_param('is', $poll_id, $eid);
+                    $vote_check->execute();
+                    $vote_res = $vote_check->get_result()->fetch_assoc();
+                    $has_voted = ($vote_res['voted'] ?? 0) > 0;
+                    $vote_check->close();
+                }
+            }
+            $row['has_voted'] = $has_voted;
+
+            // Fetch candidates from `poll_candidates` joined with `users`
+            $candidates = [];
+            $cand_stmt = $mysqli->prepare("
+                SELECT c.id as candidate_db_id, c.employee_id, c.category, c.nomination_reason,
+                       u.name, u.department, u.profile_picture, u.photo, u.position
+                FROM poll_candidates c
+                LEFT JOIN users u ON c.employee_id = u.employee_id
+                WHERE c.poll_id = ?
+            ");
+            if ($cand_stmt) {
+                $cand_stmt->bind_param('i', $poll_id);
+                $cand_stmt->execute();
+                $cand_res = $cand_stmt->get_result();
+                while ($c_row = $cand_res->fetch_assoc()) {
+                    $c_id = (int)$c_row['candidate_db_id'];
+                    
+                    // Count votes for candidate
+                    $v_cnt_stmt = $mysqli->prepare("SELECT COUNT(*) as cnt FROM poll_votes WHERE poll_id = ? AND candidate_id = ?");
+                    $votes_cnt = 0;
+                    if ($v_cnt_stmt) {
+                        $v_cnt_stmt->bind_param('ii', $poll_id, $c_id);
+                        $v_cnt_stmt->execute();
+                        $v_res = $v_cnt_stmt->get_result()->fetch_assoc();
+                        $votes_cnt = (int)($v_res['cnt'] ?? 0);
+                        $v_cnt_stmt->close();
+                    }
+
+                    $candidates[] = [
+                        'id'              => $c_row['candidate_db_id'],
+                        'employee_id'     => $c_row['employee_id'],
+                        'name'            => !empty($c_row['name']) ? $c_row['name'] : $c_row['employee_id'],
+                        'category'        => $c_row['category'] ?? '',
+                        'department'      => $c_row['department'] ?? '',
+                        'position'        => $c_row['position'] ?? '',
+                        'profile_picture' => $c_row['profile_picture'] ?? $c_row['photo'] ?? '',
+                        'votes_count'     => $votes_cnt,
+                    ];
+                }
+                $cand_stmt->close();
+            }
+
+            // Fallback: If `poll_candidates` is empty, build candidates from `allowed_employee_ids` if present
+            if (empty($candidates)) {
+                $allowed_raw = trim($row['allowed_employee_ids'] ?? '');
+                if ($allowed_raw !== '' && $allowed_raw !== '[]' && $allowed_raw !== 'null') {
+                    $allowed_arr = json_decode($allowed_raw, true);
+                    if (is_array($allowed_arr) && count($allowed_arr) > 0) {
+                        foreach ($allowed_arr as $idx => $emp_id) {
+                            $emp_id = (string)$emp_id;
+                            $emp_name = $emp_id;
+                            $emp_dept = '';
+                            $emp_pos = '';
+                            $emp_pic = '';
+                            $name_stmt = $mysqli->prepare("SELECT name, department, position, profile_picture, photo FROM users WHERE employee_id = ? LIMIT 1");
+                            if ($name_stmt) {
+                                $name_stmt->bind_param('s', $emp_id);
+                                $name_stmt->execute();
+                                $n_row = $name_stmt->get_result()->fetch_assoc();
+                                if ($n_row) {
+                                    $emp_name = !empty($n_row['name']) ? $n_row['name'] : $emp_id;
+                                    $emp_dept = $n_row['department'] ?? '';
+                                    $emp_pos  = $n_row['position'] ?? '';
+                                    $emp_pic  = $n_row['profile_picture'] ?? $n_row['photo'] ?? '';
+                                }
+                                $name_stmt->close();
+                            }
+
+                            // Count votes for fallback candidate
+                            $v_cnt_stmt = $mysqli->prepare("SELECT COUNT(*) as cnt FROM poll_votes WHERE poll_id = ? AND (candidate_id = ? OR voter_employee_id = ?)");
+                            $votes_cnt = 0;
+                            if ($v_cnt_stmt) {
+                                $candidate_index = $idx + 1;
+                                $v_cnt_stmt->bind_param('iis', $poll_id, $candidate_index, $emp_id);
+                                $v_cnt_stmt->execute();
+                                $v_res = $v_cnt_stmt->get_result()->fetch_assoc();
+                                $votes_cnt = (int)($v_res['cnt'] ?? 0);
+                                $v_cnt_stmt->close();
+                            }
+
+                            $candidates[] = [
+                                'id'              => $idx + 1,
+                                'employee_id'     => $emp_id,
+                                'name'            => $emp_name,
+                                'category'        => '',
+                                'department'      => $emp_dept,
+                                'position'        => $emp_pos,
+                                'profile_picture' => $emp_pic,
+                                'votes_count'     => $votes_cnt,
+                            ];
+                        }
+                    }
+                }
+            }
+
             $row['candidates'] = $candidates;
             $polls[] = $row;
         }
@@ -7866,18 +8005,18 @@ try {
             break;
         }
         
-        $poll_id            = (int)($_POST['poll_id'] ?? 0);
-        // candidate_employee_id is the employee_id string of the person being voted for
+        $poll_id               = (int)($_POST['poll_id'] ?? 0);
         $candidate_employee_id = trim($_POST['candidate_employee_id'] ?? '');
-        $eid = $user['employee_id'];
+        $candidate_id_param    = (int)($_POST['candidate_id'] ?? 0);
+        $eid                   = (string)($user['employee_id'] ?? '');
         
-        if ($poll_id <= 0 || $candidate_employee_id === '') {
-            apiResponse(['success' => false, 'message' => 'Poll ID and Candidate Employee ID required']);
+        if ($poll_id <= 0 || ($candidate_employee_id === '' && $candidate_id_param <= 0)) {
+            apiResponse(['success' => false, 'message' => 'Poll ID and Candidate selection required']);
             break;
         }
         
-        // Check if poll is still active
-        $poll_check = $mysqli->prepare("SELECT * FROM poll_events WHERE id = ? AND is_active = 1 AND start_date <= CURDATE() AND end_date >= CURDATE()");
+        // Check if poll exists
+        $poll_check = $mysqli->prepare("SELECT * FROM poll_events WHERE id = ?");
         if (!$poll_check) {
             apiResponse(['success' => false, 'message' => 'Database error: ' . $mysqli->error]);
             break;
@@ -7888,33 +8027,31 @@ try {
         $poll_check->close();
         
         if (!$poll) {
-            apiResponse(['success' => false, 'message' => 'ការបោះឆ្នោតនេះមិនសកម្ម ឬមិនមានក្នុងរយៈពេលបោះឆ្នោតទេ']);
+            apiResponse(['success' => false, 'message' => 'មិនរកឃើញការបោះឆ្នោតនេះទេ']);
             break;
         }
         
-        // Validate that candidate is in the allowed list
-        $allowed_ids_arr = json_decode($poll['allowed_employee_ids'] ?? '[]', true);
-        if (!is_array($allowed_ids_arr) || !in_array($candidate_employee_id, array_map('strval', $allowed_ids_arr))) {
-            apiResponse(['success' => false, 'message' => 'បេក្ខជននេះមិនស្ថិតក្នុងបញ្ជីការបោះឆ្នោតទេ']);
-            break;
-        }
-        
-        // Check if user is allowed to vote (must be in allowed list)
-        if (!in_array($eid, array_map('strval', $allowed_ids_arr))) {
-            apiResponse(['success' => false, 'message' => 'អ្នកមិនមានសិទ្ធិបោះឆ្នោតសម្រាប់ការបោះឆ្នោតនេះទេ']);
-            break;
-        }
-        
-        // Check if user is excluded
-        if (!empty($poll['excluded_employee_ids'])) {
-            $excluded_ids = json_decode($poll['excluded_employee_ids'], true);
-            if (is_array($excluded_ids) && in_array($eid, array_map('strval', $excluded_ids))) {
+        // Check allowed voters
+        $allowed_raw = trim($poll['allowed_employee_ids'] ?? '');
+        if ($allowed_raw !== '' && $allowed_raw !== '[]' && $allowed_raw !== 'null') {
+            $allowed_ids = json_decode($allowed_raw, true);
+            if (is_array($allowed_ids) && count($allowed_ids) > 0 && !in_array($eid, array_map('strval', $allowed_ids))) {
                 apiResponse(['success' => false, 'message' => 'អ្នកមិនមានសិទ្ធិបោះឆ្នោតសម្រាប់ការបោះឆ្នោតនេះទេ']);
                 break;
             }
         }
         
-        // Check if already voted
+        // Check excluded voters
+        $excluded_raw = trim($poll['excluded_employee_ids'] ?? '');
+        if ($excluded_raw !== '' && $excluded_raw !== '[]' && $excluded_raw !== 'null') {
+            $excluded_ids = json_decode($excluded_raw, true);
+            if (is_array($excluded_ids) && count($excluded_ids) > 0 && in_array($eid, array_map('strval', $excluded_ids))) {
+                apiResponse(['success' => false, 'message' => 'អ្នកមិនមានសិទ្ធិបោះឆ្នោតសម្រាប់ការបោះឆ្នោតនេះទេ']);
+                break;
+            }
+        }
+        
+        // Check if user already voted in this poll
         $vote_check = $mysqli->prepare("SELECT COUNT(*) as voted FROM poll_votes WHERE poll_id = ? AND voter_employee_id = ?");
         if ($vote_check) {
             $vote_check->bind_param('is', $poll_id, $eid);
@@ -7922,29 +8059,41 @@ try {
             $vote_result = $vote_check->get_result()->fetch_assoc();
             $vote_check->close();
             
-            if ($vote_result['voted'] > 0) {
+            if (($vote_result['voted'] ?? 0) > 0) {
                 apiResponse(['success' => false, 'message' => 'អ្នកបានបោះឆ្នោតរួចហើយសម្រាប់ការបោះឆ្នោតនេះ']);
                 break;
             }
         }
         
-        // Store vote — use candidate_id=0 (virtual) since we track by employee_id
-        $vote_stmt = $mysqli->prepare("INSERT INTO poll_votes (poll_id, voter_employee_id, candidate_id) VALUES (?, ?, 0)");
-        if (!$vote_stmt) {
-            // Try without candidate_id if schema doesn't support 0
-            $vote_stmt = $mysqli->prepare("INSERT INTO poll_votes (poll_id, voter_employee_id, candidate_employee_id) VALUES (?, ?, ?)");
+        // Find candidate in poll_candidates
+        $candidate_id = 0;
+        if ($candidate_id_param > 0) {
+            $candidate_id = $candidate_id_param;
+        } else {
+            $cand_find = $mysqli->prepare("SELECT id FROM poll_candidates WHERE poll_id = ? AND employee_id = ? LIMIT 1");
+            if ($cand_find) {
+                $cand_find->bind_param('is', $poll_id, $candidate_employee_id);
+                $cand_find->execute();
+                $c_row = $cand_find->get_result()->fetch_assoc();
+                if ($c_row) {
+                    $candidate_id = (int)$c_row['id'];
+                }
+                $cand_find->close();
+            }
         }
+        
+        // Insert vote into poll_votes
+        $vote_stmt = $mysqli->prepare("INSERT INTO poll_votes (poll_id, voter_employee_id, candidate_id) VALUES (?, ?, ?)");
         if (!$vote_stmt) {
             apiResponse(['success' => false, 'message' => 'Database error: ' . $mysqli->error]);
             break;
         }
-        $vote_stmt->bind_param('is', $poll_id, $eid);
+        $vote_stmt->bind_param('isi', $poll_id, $eid, $candidate_id);
         
         if ($vote_stmt->execute()) {
-            // Update vote count on candidate (stored in allowed list, not poll_candidates)
-            apiResponse(['success' => true, 'message' => 'បោះឆ្នោតបានជោគជ័យ! អ្នកបានជ្រើសរើស ' . $candidate_employee_id]);
+            apiResponse(['success' => true, 'message' => 'បោះឆ្នោតបានជោគជ័យ!']);
         } else {
-            apiResponse(['success' => false, 'message' => 'មិនអាចបោះឆ្នោតបានទេ: ' . $mysqli->error]);
+            apiResponse(['success' => false, 'message' => 'មិនអាចបោះឆ្នោតបានទេ: ' . $vote_stmt->error]);
         }
         $vote_stmt->close();
         break;
