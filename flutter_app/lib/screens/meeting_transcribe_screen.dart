@@ -3,6 +3,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:path_provider/path_provider.dart';
 import '../services/whisper_service.dart';
 import '../utils/app_theme.dart';
 import '../widgets/vvc_global_alert.dart';
@@ -47,13 +48,26 @@ class _MeetingTranscribeScreenState extends State<MeetingTranscribeScreen> {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['mp3', 'wav', 'm4a', 'aac', 'ogg', 'flac', 'mp4'],
+        withData: true,
       );
 
-      if (result != null && result.files.single.path != null) {
-        setState(() {
-          _selectedFilePath = result.files.single.path;
-          _errorMessage = null;
-        });
+      if (result != null && result.files.isNotEmpty) {
+        final platformFile = result.files.first;
+        String? path = platformFile.path;
+
+        if ((path == null || path.isEmpty) && platformFile.bytes != null) {
+          final tempDir = await getTemporaryDirectory();
+          final tempFile = File('${tempDir.path}/${platformFile.name}');
+          await tempFile.writeAsBytes(platformFile.bytes!);
+          path = tempFile.path;
+        }
+
+        if (path != null && path.isNotEmpty) {
+          setState(() {
+            _selectedFilePath = path;
+            _errorMessage = null;
+          });
+        }
       }
     } catch (e) {
       if (mounted) {
