@@ -7806,7 +7806,13 @@ try {
         break;
 
     case 'delete_poll':
-        $poll_id = (int)($_POST['id'] ?? 0);
+        $poll_id = (int)($_POST['id'] ?? $_GET['id'] ?? $_POST['poll_id'] ?? $_GET['poll_id'] ?? 0);
+        if ($poll_id <= 0) {
+            $raw_input = json_decode(file_get_contents('php://input'), true);
+            if (is_array($raw_input)) {
+                $poll_id = (int)($raw_input['id'] ?? $raw_input['poll_id'] ?? 0);
+            }
+        }
         if ($poll_id <= 0) {
             apiResponse(['success' => false, 'message' => 'Poll ID required']);
             break;

@@ -17,8 +17,7 @@ class PollVotingScreen extends StatefulWidget {
   State<PollVotingScreen> createState() => _PollVotingScreenState();
 }
 
-class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+class _PollVotingScreenState extends State<PollVotingScreen> {
   final ApiService _api = ApiService();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
@@ -31,14 +30,7 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
     _loadInitialData();
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
   }
 
   Future<void> _loadInitialData() async {
@@ -718,29 +710,8 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
               onPressed: _showCreatePollDialog,
             ),
         ],
-        bottom: isHrmOrAdmin
-            ? TabBar(
-                controller: _tabController,
-                indicatorColor: Colors.amberAccent,
-                labelColor: Colors.amberAccent,
-                unselectedLabelColor: Colors.white70,
-                labelStyle: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold, fontSize: 13.5),
-                tabs: const [
-                  Tab(text: "🗳️ ការបោះឆ្នោត (Active)"),
-                  Tab(text: "📊 លទ្ធផល & អ្នកបោះឆ្នោត"),
-                ],
-              )
-            : null,
       ),
-      body: isHrmOrAdmin
-          ? TabBarView(
-              controller: _tabController,
-              children: [
-                _buildActivePollsTab(),
-                _buildPollResultsTab(),
-              ],
-            )
-          : _buildActivePollsTab(),
+      body: _buildActivePollsTab(),
     );
   }
 
@@ -936,50 +907,122 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
               ),
               const SizedBox(height: 14),
               if (candidates.isNotEmpty) ...[
-                Text('ជ្រើសរើសបេក្ខជន:', style: GoogleFonts.kantumruyPro(color: Colors.amberAccent, fontWeight: FontWeight.bold, fontSize: 13.5)),
+                Text(
+                  isHrmOrAdmin ? 'បញ្ជីឈ្មោះបេក្ខជន (${candidates.length}):' : 'ជ្រើសរើសបេក្ខជន:',
+                  style: GoogleFonts.kantumruyPro(
+                    color: Colors.amberAccent,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13.5,
+                  ),
+                ),
                 const SizedBox(height: 8),
-                ...candidates.map((candidate) {
-                  final empId = candidate['employee_id']?.toString() ?? '';
-                  final name = candidate['name']?.toString() ?? empId;
-                  final isSelected = selectedCandidateEmployeeId == empId;
+                if (isHrmOrAdmin)
+                  ...candidates.map((candidate) {
+                    final name = candidate['name']?.toString() ?? candidate['employee_id']?.toString() ?? '';
+                    final dept = candidate['department'] ?? candidate['dept'] ?? candidate['category'] ?? 'បុគ្គលិក';
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.04),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.person_outline_rounded, color: Colors.amberAccent, size: 20),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  name,
+                                  style: GoogleFonts.kantumruyPro(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                Text(
+                                  'ផ្នែក: $dept',
+                                  style: GoogleFonts.kantumruyPro(
+                                    color: Colors.white60,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  })
+                else ...[
+                  ...candidates.map((candidate) {
+                    final empId = candidate['employee_id']?.toString() ?? '';
+                    final name = candidate['name']?.toString() ?? empId;
+                    final isSelected = selectedCandidateEmployeeId == empId;
 
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    decoration: BoxDecoration(
-                      color: isSelected ? AppTheme.primary.withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.04),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: isSelected ? AppTheme.primary : Colors.white.withValues(alpha: 0.08),
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      decoration: BoxDecoration(
+                        color: isSelected ? AppTheme.primary.withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.04),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isSelected ? AppTheme.primary : Colors.white.withValues(alpha: 0.08),
+                        ),
+                      ),
+                      child: CheckboxListTile(
+                        value: isSelected,
+                        onChanged: hasVoted ? null : (value) {
+                          setState(() {
+                            selectedCandidateEmployeeId = value == true ? empId : null;
+                          });
+                        },
+                        title: Text(name, style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 14)),
+                        subtitle: Text('ផ្នែក: ${candidate['department'] ?? candidate['dept'] ?? candidate['category'] ?? 'បុគ្គលិក'}', style: GoogleFonts.kantumruyPro(color: Colors.white60, fontSize: 12)),
+                        controlAffinity: ListTileControlAffinity.leading,
+                        activeColor: AppTheme.primary,
+                      ),
+                    );
+                  }),
+                  const SizedBox(height: 12),
+                  if (!hasVoted && selectedCandidateEmployeeId != null)
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () => _castVote(docId, selectedCandidateEmployeeId!),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.primary,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        ),
+                        child: Text('បោះឆ្នោតឥឡូវនេះ', style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 15)),
                       ),
                     ),
-                    child: CheckboxListTile(
-                      value: isSelected,
-                      onChanged: hasVoted ? null : (value) {
-                        setState(() {
-                          selectedCandidateEmployeeId = value == true ? empId : null;
-                        });
-                      },
-                      title: Text(name, style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 14)),
-                      subtitle: Text('ផ្នែក: ${candidate['department'] ?? candidate['dept'] ?? candidate['category'] ?? 'បុគ្គលិក'}', style: GoogleFonts.kantumruyPro(color: Colors.white60, fontSize: 12)),
-                      controlAffinity: ListTileControlAffinity.leading,
-                      activeColor: AppTheme.primary,
-                    ),
-                  );
-                }),
-                const SizedBox(height: 12),
-                if (!hasVoted && selectedCandidateEmployeeId != null)
+                  const SizedBox(height: 12),
                   SizedBox(
                     width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () => _castVote(docId, selectedCandidateEmployeeId!),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.primary,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    child: OutlinedButton.icon(
+                      onPressed: () => _showPollResultsModal(poll),
+                      icon: const Icon(Icons.bar_chart_rounded, color: Colors.amberAccent, size: 18),
+                      label: Text(
+                        '📊 មើលលទ្ធផល & អ្នកបោះឆ្នោត',
+                        style: GoogleFonts.kantumruyPro(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.amberAccent,
+                          fontSize: 13.5,
+                        ),
                       ),
-                      child: Text('បោះឆ្នោតឥឡូវនេះ', style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 15)),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Colors.amberAccent),
+                        padding: const EdgeInsets.symmetric(vertical: 11),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
                     ),
                   ),
+                ],
               ],
             ],
           ),
@@ -988,321 +1031,339 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
     );
   }
 
-  Widget _buildPollResultsTab() {
-    if (_polls.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.bar_chart_rounded, size: 64, color: Colors.white30),
-            const SizedBox(height: 16),
-            Text('មិនទាន់មានទិន្នន័យបោះឆ្នោតទេ', style: GoogleFonts.kantumruyPro(color: Colors.white54, fontSize: 15)),
-          ],
-        ),
-      );
-    }
+  void _showPollResultsModal(Map<String, dynamic> poll) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final candidates = List<Map<String, dynamic>>.from(poll['candidates'] ?? []);
+            final auditList = List<Map<String, dynamic>>.from(poll['voter_audit_list'] ?? []);
 
-    final currentPoll = _polls.first;
-    final candidates = List<Map<String, dynamic>>.from(currentPoll['candidates'] ?? []);
-    final auditList = List<Map<String, dynamic>>.from(currentPoll['voter_audit_list'] ?? []);
+            int totalVotes = 0;
+            for (var c in candidates) {
+              totalVotes += (c['votes_count'] as int? ?? 0);
+            }
 
-    int totalVotes = 0;
-    for (var c in candidates) {
-      totalVotes += (c['votes_count'] as int? ?? 0);
-    }
+            candidates.sort((a, b) => (b['votes_count'] as int? ?? 0).compareTo(a['votes_count'] as int? ?? 0));
+            final bool isSkilledTab = _resultsCategory == 'skilled';
+            final topWinner = candidates.isNotEmpty ? candidates.first : <String, dynamic>{};
 
-    candidates.sort((a, b) => (b['votes_count'] as int? ?? 0).compareTo(a['votes_count'] as int? ?? 0));
-    final bool isSkilledTab = _resultsCategory == 'skilled';
-    final topWinner = candidates.isNotEmpty ? candidates.first : <String, dynamic>{};
-
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-      children: [
-        // Poll Title Summary Header
-        Container(
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            color: const Color(0xFF111E33),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.amberAccent.withValues(alpha: 0.2)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.25),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                currentPoll['title'] ?? 'បោះឆ្នោតបុគ្គលិកឆ្នើម',
-                style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 17),
-              ),
-              const SizedBox(height: 6),
-              Row(
-                children: [
-                  Text(
-                    'សរុបសំឡេងឆ្នោត ៖ ',
-                    style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 13),
-                  ),
-                  Text(
-                    '$totalVotes សំឡេង',
-                    style: GoogleFonts.kantumruyPro(color: Colors.amberAccent, fontSize: 14, fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-
-        const SizedBox(height: 16),
-
-        // Category Tab Switcher (👔 បុគ្គលិកជំនាញ vs 👷‍♂️ កម្មករ / ប្រតិបត្តិការ)
-        Container(
-          padding: const EdgeInsets.all(4),
-          decoration: BoxDecoration(
-            color: const Color(0xFF111E33),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => setState(() => _resultsCategory = 'skilled'),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.symmetric(vertical: 11),
-                    decoration: BoxDecoration(
-                      color: isSkilledTab ? Colors.amberAccent : Colors.transparent,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.badge_rounded,
-                          size: 18,
-                          color: isSkilledTab ? Colors.black : Colors.white70,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          '👔 បុគ្គលិកជំនាញ',
-                          style: GoogleFonts.kantumruyPro(
-                            color: isSkilledTab ? Colors.black : Colors.white70,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13.5,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => setState(() => _resultsCategory = 'worker'),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.symmetric(vertical: 11),
-                    decoration: BoxDecoration(
-                      color: !isSkilledTab ? Colors.cyanAccent : Colors.transparent,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.engineering_rounded,
-                          size: 18,
-                          color: !isSkilledTab ? Colors.black : Colors.white70,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          '👷‍♂️ កម្មករ / ប្រតិបត្តិការ',
-                          style: GoogleFonts.kantumruyPro(
-                            color: !isSkilledTab ? Colors.black : Colors.white70,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13.5,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        const SizedBox(height: 16),
-
-        // ONE Unified Prominent Certificate Button
-        if (candidates.isNotEmpty)
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF1E293B), Color(0xFF0F172A)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: Colors.amberAccent.withValues(alpha: 0.3)),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Colors.amberAccent.withValues(alpha: 0.15),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.workspace_premium_rounded, color: Colors.amberAccent, size: 28),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        isSkilledTab
-                            ? '🎓 បង្កើតប័ណ្ណសរសើរជំនាញ (២ សន្លឹក)'
-                            : '🎓 បង្កើតប័ណ្ណសរសើរកម្មករ (លេខ ១,២,៣)',
-                        style: GoogleFonts.kantumruyPro(
-                          color: Colors.amberAccent,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14.5,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'ជ័យលាភី៖ ${topWinner['name'] ?? 'បុគ្គលិកឆ្នើម'} (${topWinner['votes_count'] ?? 0} ឆ្នោត)',
-                        style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 12),
-                      ),
-                    ],
-                  ),
-                ),
-                ElevatedButton.icon(
-                  onPressed: () => _openCertificateEditor(
-                    topWinner,
-                    currentPoll,
-                    rankNumber: 1,
-                    category: _resultsCategory,
-                  ),
-                  icon: const Icon(Icons.print_rounded, size: 16, color: Colors.black),
-                  label: Text(
-                    'បង្កើត',
-                    style: GoogleFonts.kantumruyPro(color: Colors.black, fontWeight: FontWeight.bold),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.amberAccent,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-        const SizedBox(height: 18),
-
-        Row(
-          children: [
-            const Icon(Icons.bar_chart_rounded, color: Colors.amberAccent, size: 20),
-            const SizedBox(width: 8),
-            Text(
-              isSkilledTab
-                  ? '📊 លទ្ធផលបោះឆ្នោត (បុគ្គលិកជំនាញ):'
-                  : '📊 លទ្ធផលបោះឆ្នោត (កម្មករ - លេខ ១,២,៣):',
-              style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-
-        for (int i = 0; i < candidates.length; i++) ...[
-          _buildCandidateResultCard(
-            candidates[i],
-            totalVotes,
-            isWinner: i == 0 && totalVotes > 0,
-            poll: currentPoll,
-            rankNumber: i + 1,
-            category: _resultsCategory,
-          ),
-        ],
-
-        const SizedBox(height: 22),
-
-        // Voter Audit Breakdown: Who Voted for Whom
-        Row(
-          children: [
-            const Icon(Icons.format_list_bulleted_rounded, color: Colors.cyanAccent, size: 20),
-            const SizedBox(width: 8),
-            Text(
-              'បញ្ជីលម្អិត «បុគ្គលិកណាបោះទៅបុគ្គលិកណា»',
-              style: GoogleFonts.kantumruyPro(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 15,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-
-        if (auditList.isEmpty)
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: const Color(0xFF111E33),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Text(
-              'មិនទាន់មានកំណត់ត្រាអ្នកបោះឆ្នោតនៅឡើយទេ',
-              style: GoogleFonts.kantumruyPro(color: Colors.white54, fontSize: 13),
-            ),
-          )
-        else
-          ...auditList.map((audit) {
             return Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              height: MediaQuery.of(context).size.height * 0.85,
               decoration: BoxDecoration(
-                color: const Color(0xFF111E33),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+                color: AppTheme.bgDark,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
               ),
-              child: Row(
+              child: Column(
                 children: [
-                  const Icon(Icons.person_outline_rounded, color: Colors.white70, size: 18),
-                  const SizedBox(width: 8),
-                  Text(
-                    audit['voter_name'] ?? 'បុគ្គលិក',
-                    style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13.5),
+                  const SizedBox(height: 12),
+                  Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.white30,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                   ),
-                  const SizedBox(width: 8),
-                  const Icon(Icons.east_rounded, color: Colors.amberAccent, size: 16),
-                  const SizedBox(width: 8),
-                  Text(
-                    'បានបោះឆ្នោតជូន ',
-                    style: GoogleFonts.kantumruyPro(color: Colors.white60, fontSize: 12.5),
-                  ),
-                  Text(
-                    audit['candidate_name'] ?? 'បេក្ខជន',
-                    style: GoogleFonts.kantumruyPro(color: Colors.cyanAccent, fontWeight: FontWeight.bold, fontSize: 13.5),
-                  ),
-                  const Spacer(),
-                  Text(
-                    audit['time'] ?? '',
-                    style: GoogleFonts.inter(color: Colors.white38, fontSize: 10),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: ListView(
+                      padding: const EdgeInsets.all(20),
+                      children: [
+                        // Poll Title Summary Header
+                        Container(
+                          padding: const EdgeInsets.all(18),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF111E33),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: Colors.amberAccent.withValues(alpha: 0.2)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                poll['title'] ?? 'បោះឆ្នោតបុគ្គលិកឆ្នើម',
+                                style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 17),
+                              ),
+                              const SizedBox(height: 6),
+                              Row(
+                                children: [
+                                  Text(
+                                    'សរុបសំឡេងឆ្នោត ៖ ',
+                                    style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 13),
+                                  ),
+                                  Text(
+                                    '$totalVotes សំឡេង',
+                                    style: GoogleFonts.kantumruyPro(color: Colors.amberAccent, fontSize: 14, fontWeight: FontWeight.bold),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // Category Switcher
+                        Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF111E33),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: GestureDetector(
+                                  onTap: () {
+                                    setState(() => _resultsCategory = 'skilled');
+                                    setModalState(() {});
+                                  },
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 200),
+                                    padding: const EdgeInsets.symmetric(vertical: 11),
+                                    decoration: BoxDecoration(
+                                      color: isSkilledTab ? Colors.amberAccent : Colors.transparent,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          Icons.badge_rounded,
+                                          size: 18,
+                                          color: isSkilledTab ? Colors.black : Colors.white70,
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          '👔 បុគ្គលិកជំនាញ',
+                                          style: GoogleFonts.kantumruyPro(
+                                            color: isSkilledTab ? Colors.black : Colors.white70,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 13.5,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              Expanded(
+                                child: GestureDetector(
+                                  onTap: () {
+                                    setState(() => _resultsCategory = 'worker');
+                                    setModalState(() {});
+                                  },
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 200),
+                                    padding: const EdgeInsets.symmetric(vertical: 11),
+                                    decoration: BoxDecoration(
+                                      color: !isSkilledTab ? Colors.cyanAccent : Colors.transparent,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          Icons.engineering_rounded,
+                                          size: 18,
+                                          color: !isSkilledTab ? Colors.black : Colors.white70,
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          '👷‍♂️ កម្មករ / ប្រតិបត្តិការ',
+                                          style: GoogleFonts.kantumruyPro(
+                                            color: !isSkilledTab ? Colors.black : Colors.white70,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 13.5,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // Certificate generator button
+                        if (candidates.isNotEmpty)
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFF1E293B), Color(0xFF0F172A)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(color: Colors.amberAccent.withValues(alpha: 0.3)),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: Colors.amberAccent.withValues(alpha: 0.15),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(Icons.workspace_premium_rounded, color: Colors.amberAccent, size: 28),
+                                ),
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        isSkilledTab
+                                            ? '🎓 បង្កើតប័ណ្ណសរសើរជំនាញ (២ សន្លឹក)'
+                                            : '🎓 បង្កើតប័ណ្ណសរសើរកម្មករ (លេខ ១,២,៣)',
+                                        style: GoogleFonts.kantumruyPro(
+                                          color: Colors.amberAccent,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 14.5,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'ជ័យលាភី៖ ${topWinner['name'] ?? 'បុគ្គលិកឆ្នើម'} (${topWinner['votes_count'] ?? 0} ឆ្នោត)',
+                                        style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 12),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                ElevatedButton.icon(
+                                  onPressed: () => _openCertificateEditor(
+                                    topWinner,
+                                    poll,
+                                    rankNumber: 1,
+                                    category: _resultsCategory,
+                                  ),
+                                  icon: const Icon(Icons.print_rounded, size: 16, color: Colors.black),
+                                  label: Text(
+                                    'បង្កើត',
+                                    style: GoogleFonts.kantumruyPro(color: Colors.black, fontWeight: FontWeight.bold),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.amberAccent,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                        const SizedBox(height: 18),
+                        Row(
+                          children: [
+                            const Icon(Icons.bar_chart_rounded, color: Colors.amberAccent, size: 20),
+                            const SizedBox(width: 8),
+                            Text(
+                              isSkilledTab
+                                  ? '📊 លទ្ធផលបោះឆ្នោត (បុគ្គលិកជំនាញ):'
+                                  : '📊 លទ្ធផលបោះឆ្នោត (កម្មករ - លេខ ១,២,៣):',
+                              style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+
+                        for (int i = 0; i < candidates.length; i++) ...[
+                          _buildCandidateResultCard(
+                            candidates[i],
+                            totalVotes,
+                            isWinner: i == 0 && totalVotes > 0,
+                            poll: poll,
+                            rankNumber: i + 1,
+                            category: _resultsCategory,
+                          ),
+                        ],
+
+                        const SizedBox(height: 22),
+
+                        // Voter Audit Breakdown
+                        Row(
+                          children: [
+                            const Icon(Icons.format_list_bulleted_rounded, color: Colors.cyanAccent, size: 20),
+                            const SizedBox(width: 8),
+                            Text(
+                              'បញ្ជីលម្អិត «បុគ្គលិកណាបោះទៅបុគ្គលិកណា»',
+                              style: GoogleFonts.kantumruyPro(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+
+                        if (auditList.isEmpty)
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF111E33),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Text(
+                              'មិនទាន់មានកំណត់ត្រាអ្នកបោះឆ្នោតនៅឡើយទេ',
+                              style: GoogleFonts.kantumruyPro(color: Colors.white54, fontSize: 13),
+                            ),
+                          )
+                        else
+                          ...auditList.map((audit) {
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF111E33),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.person_outline_rounded, color: Colors.white70, size: 18),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    audit['voter_name'] ?? 'បុគ្គលិក',
+                                    style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13.5),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  const Icon(Icons.east_rounded, color: Colors.amberAccent, size: 16),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'បានបោះឆ្នោតជូន ',
+                                    style: GoogleFonts.kantumruyPro(color: Colors.white60, fontSize: 12.5),
+                                  ),
+                                  Text(
+                                    audit['candidate_name'] ?? 'បេក្ខជន',
+                                    style: GoogleFonts.kantumruyPro(color: Colors.cyanAccent, fontWeight: FontWeight.bold, fontSize: 13.5),
+                                  ),
+                                  const Spacer(),
+                                  Text(
+                                    audit['time'] ?? '',
+                                    style: GoogleFonts.inter(color: Colors.white38, fontSize: 10),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }),
+                      ],
+                    ),
                   ),
                 ],
               ),
             );
-          }),
-      ],
+          },
+        );
+      },
     );
   }
 
