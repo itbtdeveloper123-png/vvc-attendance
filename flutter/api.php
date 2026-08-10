@@ -5,6 +5,13 @@
  * Mobile app calls this URL: https://app.vvc.asia/flutter/api.php
  */
 
+if (ob_get_level() === 0) {
+    ob_start();
+}
+
+error_reporting(E_ALL);
+ini_set('display_errors', 0);
+
 // Resolve the root directory (one level up from flutter/)
 $ROOT = dirname(__DIR__);
 
@@ -13,6 +20,7 @@ $actionSource = $_POST['action'] ?? $_GET['action'] ?? $_POST['ajax_action'] ?? 
 $action = strtolower(trim($actionSource));
 
 if ($action === 'test' || $action === 'health') {
+    while (ob_get_level() > 0) { ob_end_clean(); }
     http_response_code(200);
     header('Content-Type: application/json; charset=UTF-8');
     echo json_encode([
@@ -32,6 +40,7 @@ if ($action === 'test' || $action === 'health') {
 $rootApi = $ROOT . '/api.php';
 
 if (!file_exists($rootApi)) {
+    while (ob_get_level() > 0) { ob_end_clean(); }
     http_response_code(500);
     header('Content-Type: application/json; charset=UTF-8');
     echo json_encode([
@@ -45,4 +54,5 @@ if (!file_exists($rootApi)) {
 chdir($ROOT);
 
 // Include root api.php — shares same request context ($_GET, $_POST, headers)
-require $rootApi;
+require_once $rootApi;
+
