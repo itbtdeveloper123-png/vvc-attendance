@@ -7543,6 +7543,48 @@ try {
                             }
                             $cand_q->free();
                         }
+
+                        // Fallback: If poll_candidates table has no explicit rows for this poll,
+                        // extract candidate names from allowed_employee_ids or target_employee_ids
+                        if (empty($candidates)) {
+                            $emp_ids = [];
+                            $allowed_json = json_decode($row['allowed_employee_ids'] ?? '[]', true);
+                            if (is_array($allowed_json) && !empty($allowed_json)) {
+                                $emp_ids = array_map('trim', array_map('strval', $allowed_json));
+                            } else if (!empty($row['target_employee_ids'])) {
+                                $emp_ids = array_map('trim', explode(',', $row['target_employee_ids']));
+                            }
+                            $emp_ids = array_values(array_filter($emp_ids));
+
+                            if (!empty($emp_ids)) {
+                                $id_list = implode("','", array_map(function($id) use ($mysqli) {
+                                    return $mysqli->real_escape_string($id);
+                                }, $emp_ids));
+
+                                $cand_fallback = $mysqli->query("
+                                    SELECT u.employee_id, u.name, u.department, u.position, u.profile_picture, u.photo 
+                                    FROM users u 
+                                    WHERE u.employee_id IN ('$id_list')
+                                ");
+                                if ($cand_fallback && $cand_fallback instanceof mysqli_result) {
+                                    while ($c_row = $cand_fallback->fetch_assoc()) {
+                                        $c_row['poll_id'] = $poll_id;
+                                        $cand_eid = $mysqli->real_escape_string($c_row['employee_id']);
+                                        $v_cnt_q = $mysqli->query("
+                                            SELECT COUNT(*) AS cnt FROM poll_votes v
+                                            LEFT JOIN poll_candidates pc ON v.candidate_id = pc.id
+                                            WHERE v.poll_id = $poll_id AND (pc.employee_id = '$cand_eid' OR v.candidate_id = '$cand_eid')
+                                        ");
+                                        $c_row['votes_count'] = 0;
+                                        if ($v_cnt_q && $v_cnt_row = $v_cnt_q->fetch_assoc()) {
+                                            $c_row['votes_count'] = (int)($v_cnt_row['cnt'] ?? 0);
+                                        }
+                                        $candidates[] = $c_row;
+                                    }
+                                    $cand_fallback->free();
+                                }
+                            }
+                        }
                     }
                     $row['candidates'] = $candidates;
                     
