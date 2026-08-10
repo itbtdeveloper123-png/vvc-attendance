@@ -24,9 +24,7 @@ RewriteRule ^homes\.php$ /HRM/homes.php [R=301,L]
   RewriteRule . /index.html [L]
 </IfModule>
 
-# php -- BEGIN cPanel-generated handler, do not edit
-# Set the “ea-php81” package as the default “PHP” programming language.
+# Ensure PHP files are executed by Apache
 <IfModule mime_module>
-  AddHandler application/x-httpd-ea-php81___lsphp .php .php8 .phtml
+  AddType application/x-httpd-php .php
 </IfModule>
-# php -- END cPanel-generated handler, do not edit
