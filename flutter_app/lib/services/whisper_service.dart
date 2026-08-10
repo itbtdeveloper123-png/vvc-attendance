@@ -1,0 +1,139 @@
+import 'dart:io';
+import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
+
+class WhisperSegment {
+  final double start;
+  final double end;
+  final String text;
+
+  WhisperSegment({
+    required this.start,
+    required this.end,
+    required this.text,
+  });
+
+  factory WhisperSegment.fromJson(Map<String, dynamic> json) {
+    return WhisperSegment(
+      start: (json['start'] as num?)?.toDouble() ?? 0.0,
+      end: (json['end'] as num?)?.toDouble() ?? 0.0,
+      text: (json['text'] as String?)?.trim() ?? '',
+    );
+  }
+
+  String get formattedTimestamp {
+    final startMin = (start ~/ 60).toString().padLeft(2, '0');
+    final startSec = (start % 60).toInt().toString().padLeft(2, '0');
+    final endMin = (end ~/ 60).toString().padLeft(2, '0');
+    final endSec = (end % 60).toInt().toString().padLeft(2, '0');
+    return '$startMin:$startSec -> $endMin:$endSec';
+  }
+}
+
+class WhisperTranscriptionResult {
+  final String status;
+  final String language;
+  final List<WhisperSegment> segments;
+
+  WhisperTranscriptionResult({
+    required this.status,
+    required this.language,
+    required this.segments,
+  });
+
+  factory WhisperTranscriptionResult.fromJson(Map<String, dynamic> json) {
+    final rawSegments = json['segments'] as List<dynamic>? ?? [];
+    return WhisperTranscriptionResult(
+      status: json['status'] as String? ?? 'success',
+      language: json['language'] as String? ?? 'km',
+      segments: rawSegments
+          .map((s) => WhisperSegment.fromJson(Map<String, dynamic>.from(s)))
+          .toList(),
+    );
+  }
+
+  String get fullText => segments.map((s) => s.text).join(' ');
+}
+
+class WhisperService {
+  final Dio _dio = Dio(
+    BaseOptions(
+      connectTimeout: const Duration(seconds: 30),
+      receiveTimeout: const Duration(minutes: 10),
+      sendTimeout: const Duration(minutes: 5),
+    ),
+  );
+
+  /// Transcribe audio file using FastAPI OpenAI Whisper Large-v3 backend
+  Future<WhisperTranscriptionResult> transcribeMeeting(
+    String filePath,
+    String apiUrl,
+  ) async {
+    final file = File(filePath);
+    if (!await file.exists()) {
+      throw Exception('មិនរកឃើញឯកសារសម្លេងនៅទីតាំងនេះទេ ($filePath)');
+    }
+
+    String formattedUrl = apiUrl.trim();
+    if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
+      formattedUrl = 'https://$formattedUrl';
+    }
+
+    // Ensure URL ends with /transcribe
+    final Uri uri = Uri.parse(formattedUrl);
+    String endpoint = formattedUrl;
+    if (!uri.path.endsWith('/transcribe')) {
+      endpoint = formattedUrl.endsWith('/')
+          ? '${formattedUrl}transcribe'
+          : '$formattedUrl/transcribe';
+    }
+
+    try {
+      final String fileName = filePath.split(Platform.pathSeparator).last;
+
+      final formData = FormData.fromMap({
+        'file': await MultipartFile.fromFile(
+          filePath,
+          filename: fileName,
+        ),
+      });
+
+      final response = await _dio.post(
+        endpoint,
+        data: formData,
+        options: Options(
+          headers: {
+            'ngrok-skip-browser-warning': 'true',
+            'Accept': 'application/json',
+          },
+          responseType: ResponseType.json,
+        ),
+      );
+
+      if (response.statusCode == 200 && response.data != null) {
+        final Map<String, dynamic> data = response.data is String
+            ? Map<String, dynamic>.from(Dio().options.responseType == ResponseType.json
+                ? (response.data as Map)
+                : {})
+            : Map<String, dynamic>.from(response.data as Map);
+        return WhisperTranscriptionResult.fromJson(data);
+      } else {
+        throw Exception('Server error: ${response.statusCode} - ${response.statusMessage}');
+      }
+    } on DioException catch (e) {
+      debugPrint('WhisperService DioError: ${e.message}');
+      if (e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.receiveTimeout ||
+          e.type == DioExceptionType.sendTimeout) {
+        throw Exception('ការតភ្ជាប់មានការយឺតយ៉ាវ (Timeout)។ សូមពិនិត្យមើលអ៊ីនធឺណិត ឬ Ngrok Server។');
+      } else if (e.response != null) {
+        throw Exception('Server ឆ្លើយតបមានបញ្ហា (${e.response?.statusCode}): ${e.response?.data}');
+      } else {
+        throw Exception('មិនអាចភ្ជាប់ទៅកាន់ Server បានទេ៖ ${e.message}');
+      }
+    } catch (e) {
+      debugPrint('WhisperService Exception: $e');
+      throw Exception('កំហុសបច្ចេកទេសក្នុងការបកប្រែសម្លេង៖ $e');
+    }
+  }
+}

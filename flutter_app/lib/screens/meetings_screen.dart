@@ -24,6 +24,7 @@ import '../services/gemini_meeting_service.dart';
 import '../utils/app_theme.dart';
 import '../providers/user_provider.dart';
 import '../widgets/app_widgets.dart';
+import 'meeting_transcribe_screen.dart';
 
 class MeetingsScreen extends StatefulWidget {
   const MeetingsScreen({super.key});
@@ -1157,6 +1158,22 @@ class _MeetingsScreenState extends State<MeetingsScreen>
             fontSize: 18,
           ),
         ),
+        actions: [
+          IconButton(
+            tooltip: 'បកប្រែសម្លេងប្រជុំ (Whisper STT)',
+            icon: const Icon(Icons.record_voice_over_rounded, color: Colors.amberAccent),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => MeetingTranscribeScreen(
+                    initialAudioPath: _recordedPath,
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: AppTheme.primary,
