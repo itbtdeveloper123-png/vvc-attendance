@@ -77,7 +77,12 @@ class _MeetingTranscribeScreenState extends State<MeetingTranscribeScreen> {
   }
 
   Future<void> _startTranscription() async {
-    final apiUrl = _urlController.text.trim();
+    var apiUrl = _urlController.text.trim();
+    if (apiUrl.endsWith('ngrok-free.de')) {
+      apiUrl = '${apiUrl}v';
+      _urlController.text = apiUrl;
+    }
+
     if (apiUrl.isEmpty || apiUrl.contains('your-ngrok-url')) {
       VvcAlert.showError(
         context,

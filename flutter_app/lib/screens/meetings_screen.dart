@@ -272,7 +272,7 @@ class _MeetingsScreenState extends State<MeetingsScreen>
     bool force = false,
   }) async {
     try {
-      final int meetingId = int.parse(meeting['id'].toString());
+      final int meetingId = int.tryParse(meeting['id']?.toString() ?? '0') ?? 0;
       final audioPath = (meeting['audio_path'] ?? meeting['audio_file_path'] ?? '')
           .toString();
       final topic = meeting['topic']?.toString();
@@ -282,7 +282,7 @@ class _MeetingsScreenState extends State<MeetingsScreen>
       modalSetState(() {
         _isSummarizing = true;
         _currentSummaryError = null;
-        _currentSummaryStatusMessage = "កំពុងចាប់ផ្តើមការសង្ខេបដោយ Gemini AI...";
+        _currentSummaryStatusMessage = "កំពុងចាប់ផ្តើមការសង្ខេបជាភាសាខ្មែរដោយ Gemini AI...";
       });
 
       String? apiKey = await GeminiMeetingService.getApiKey();
@@ -306,14 +306,19 @@ class _MeetingsScreenState extends State<MeetingsScreen>
       if (audioPath.isNotEmpty) {
         try {
           modalSetState(() {
-            _currentSummaryStatusMessage = "កំពុងទាញយកសំឡេង និងវិភាគដោយ Gemini File API...";
+            _currentSummaryStatusMessage = "កំពុងទាញយកសំឡេង និងវិភាគជាភាសាខ្មែរដោយ Gemini AI...";
           });
 
-          final fullAudioUrl = ApiService.getFullImageUrl(audioPath);
-          final tempAudioFile = await _downloadAudioFile(fullAudioUrl);
+          io.File targetAudioFile;
+          if (!kIsWeb && io.File(audioPath).existsSync()) {
+            targetAudioFile = io.File(audioPath);
+          } else {
+            final fullAudioUrl = ApiService.getFullImageUrl(audioPath);
+            targetAudioFile = await _downloadAudioFile(fullAudioUrl);
+          }
 
           summaryResult = await _geminiMeetingService.summarizeAudioFile(
-            audioFile: tempAudioFile,
+            audioFile: targetAudioFile,
             apiKey: apiKey,
             meetingTitle: topic,
             department: department,
@@ -327,7 +332,7 @@ class _MeetingsScreenState extends State<MeetingsScreen>
       if ((summaryResult == null || summaryResult.isEmpty) && description.trim().isNotEmpty) {
         try {
           modalSetState(() {
-            _currentSummaryStatusMessage = "កំពុងវិភាគអត្ថបទប្រជុំដោយ Gemini AI...";
+            _currentSummaryStatusMessage = "កំពុងវិភាគអត្ថបទប្រជុំជាភាសាខ្មែរដោយ Gemini AI...";
           });
 
           summaryResult = await _geminiMeetingService.summarizeTranscript(
@@ -348,8 +353,13 @@ class _MeetingsScreenState extends State<MeetingsScreen>
             modalSetState(() {
               _currentSummaryStatusMessage = "កំពុងបម្លែងសំឡេងតាមប្រព័ន្ធកណ្តាល...";
             });
-            final fullAudioUrl = ApiService.getFullImageUrl(audioPath);
-            final tempAudioFile = await _downloadAudioFile(fullAudioUrl);
+            io.File tempAudioFile;
+            if (!kIsWeb && io.File(audioPath).existsSync()) {
+              tempAudioFile = io.File(audioPath);
+            } else {
+              final fullAudioUrl = ApiService.getFullImageUrl(audioPath);
+              tempAudioFile = await _downloadAudioFile(fullAudioUrl);
+            }
 
             final resp = await _api.processMeetingAudio(
               audioPath: tempAudioFile.path,
@@ -367,11 +377,11 @@ class _MeetingsScreenState extends State<MeetingsScreen>
           }
         }
 
-        if (summaryResult == null || summaryResult.isEmpty) {
+        if ((summaryResult == null || summaryResult.isEmpty) && meetingId > 0) {
           Map<String, dynamic> resp = await _api.summarizeMeeting(meetingId, force: force);
           if ((resp['success'] == true) && (resp['processing'] == true)) {
             modalSetState(() {
-              _currentSummaryStatusMessage = "កំពុងបម្លែងសំឡេង និងសង្ខេបដោយ AI...\nសូមរង់ចាំបន្តិច";
+              _currentSummaryStatusMessage = "កំពុងបម្លែងសំឡេង និងសង្ខេបជាភាសាខ្មែរដោយ AI...\nសូមរង់ចាំបន្តិច";
             });
             resp = await _waitForAISummaryResult(meetingId, modalSetState);
           }
@@ -394,6 +404,17 @@ class _MeetingsScreenState extends State<MeetingsScreen>
           _currentSummaryStatusMessage = null;
           _isSummarizing = false;
         });
+
+        if (mounted) {
+          setState(() {
+            final index = _meetingsList.indexWhere(
+              (item) => item['id'].toString() == meeting['id'].toString(),
+            );
+            if (index != -1) {
+              _meetingsList[index]['summary'] = summaryResult;
+            }
+          });
+        }
       } else {
         throw 'មិនអាចសង្ខេបខ្លឹមសារបានទេ';
       }
@@ -407,6 +428,49 @@ class _MeetingsScreenState extends State<MeetingsScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendly)));
       }
+    }
+  }
+
+  /// Trigger background Khmer AI summarization automatically after meeting recording or submission
+  Future<void> _triggerBackgroundAISummary(Map<String, dynamic> meeting) async {
+    try {
+      final audioPath = (meeting['audio_path'] ?? meeting['audio_file_path'] ?? '').toString();
+      if (audioPath.isEmpty) return;
+
+      final apiKey = await GeminiMeetingService.getApiKey();
+      if (apiKey.isEmpty) return;
+
+      io.File targetAudioFile;
+      if (!kIsWeb && io.File(audioPath).existsSync()) {
+        targetAudioFile = io.File(audioPath);
+      } else {
+        final fullAudioUrl = ApiService.getFullImageUrl(audioPath);
+        targetAudioFile = await _downloadAudioFile(fullAudioUrl);
+      }
+
+      final topic = meeting['topic']?.toString();
+      final department = meeting['department']?.toString();
+
+      final summaryResult = await _geminiMeetingService.summarizeAudioFile(
+        audioFile: targetAudioFile,
+        apiKey: apiKey,
+        meetingTitle: topic,
+        department: department,
+      );
+
+      if (summaryResult.isNotEmpty && mounted) {
+        setState(() {
+          meeting['summary'] = summaryResult;
+          final index = _meetingsList.indexWhere(
+            (item) => item['id'].toString() == meeting['id'].toString(),
+          );
+          if (index != -1) {
+            _meetingsList[index]['summary'] = summaryResult;
+          }
+        });
+      }
+    } catch (e) {
+      if (kDebugMode) print('Background AI Khmer summarization error: $e');
     }
   }
 
@@ -1090,6 +1154,9 @@ class _MeetingsScreenState extends State<MeetingsScreen>
       );
 
       if (res['status'] == 'success') {
+        final newMeeting = (res['meeting'] ?? res['data']) is Map
+            ? Map<String, dynamic>.from(res['meeting'] ?? res['data'])
+            : <String, dynamic>{};
         if (draftIdToRemove != null) {
           await MeetingAudioDraftService.deleteDraftById(draftIdToRemove);
           await _loadAudioDrafts();
@@ -1097,11 +1164,15 @@ class _MeetingsScreenState extends State<MeetingsScreen>
         if (mounted) {
           ScaffoldMessenger.of(
             context,
-          ).showSnackBar(const SnackBar(content: Text('បង្ហោះជោគជ័យ')));
+          ).showSnackBar(const SnackBar(content: Text('បង្ហោះជោគជ័យ និងចាប់ផ្តើមសង្ខេបជាភាសាខ្មែរក្នុង Background')));
         }
         _resetForm();
         _tabController.animateTo(1);
         _loadMeetings();
+
+        if (newMeeting.isNotEmpty) {
+          unawaited(_triggerBackgroundAISummary(newMeeting));
+        }
       } else {
         if (mounted) {
           ScaffoldMessenger.of(
@@ -2170,6 +2241,17 @@ class _MeetingsScreenState extends State<MeetingsScreen>
 
         return StatefulBuilder(
           builder: (context, modalSetState) {
+            // Auto-trigger Khmer AI summary if not existing yet and audio is available
+            if ((_currentAISummary == null || _currentAISummary!.trim().isEmpty) &&
+                hasAudio &&
+                !_isSummarizing) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!_isSummarizing && mounted) {
+                  _generateAISummary(m, modalSetState);
+                }
+              });
+            }
+
             return Container(
               height: MediaQuery.of(context).size.height * 0.85,
               decoration: BoxDecoration(
