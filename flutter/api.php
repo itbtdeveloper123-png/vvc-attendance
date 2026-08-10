@@ -1,7 +1,7 @@
 <?php
 /**
  * VVC-HRM API Gateway — flutter/api.php
- * Self-contained entry point that loads all dependencies from the parent directory.
+ * Self-contained entry point that loads all dependencies from the parent directory or current directory.
  * Mobile app calls this URL: https://app.vvc.asia/flutter/api.php
  */
 
@@ -36,6 +36,14 @@ if ($action === 'test' || $action === 'health') {
     exit;
 }
 
+// ── Check if main api.php exists in same folder (if deployed directly inside flutter/) ──
+if (file_exists(__DIR__ . '/api.php') && __FILE__ !== (__DIR__ . '/api.php')) {
+    if (filesize(__DIR__ . '/api.php') > 5000) {
+        require_once __DIR__ . '/api.php';
+        exit;
+    }
+}
+
 // ── For all other actions: delegate to root api.php ──────────────────────────
 $rootApi = $ROOT . '/api.php';
 
@@ -55,4 +63,5 @@ chdir($ROOT);
 
 // Include root api.php — shares same request context ($_GET, $_POST, headers)
 require_once $rootApi;
+
 
