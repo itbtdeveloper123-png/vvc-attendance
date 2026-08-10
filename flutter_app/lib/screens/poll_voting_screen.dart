@@ -802,7 +802,7 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
   Widget _buildPollCard(Map<String, dynamic> poll) {
     final userProvider = Provider.of<UserProvider>(context, listen: false);
     final isHrmOrAdmin = userProvider.isHRM || userProvider.isAdmin;
-    final hasVoted = poll['has_voted'] == true;
+    final hasVoted = poll['has_voted'] == true || poll['has_voted'] == 1 || poll['has_voted'] == '1' || poll['has_voted'] == 'true';
     final candidates = poll['candidates'] as List<dynamic>? ?? [];
     final docId = (poll['doc_id'] ?? poll['id'] ?? '').toString();
     String? selectedCandidateEmployeeId;
@@ -858,13 +858,13 @@ class _PollVotingScreenState extends State<PollVotingScreen> with SingleTickerPr
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                         decoration: BoxDecoration(
-                          color: hasVoted ? Colors.green : Colors.amber,
+                          color: hasVoted ? const Color(0xFF10B981) : Colors.amber,
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
-                          hasVoted ? 'បានបោះឆ្នោត' : 'សកម្ម',
+                          hasVoted ? 'បានបោះរួចរាល់' : 'សកម្ម',
                           style: GoogleFonts.kantumruyPro(
-                            color: Colors.black,
+                            color: hasVoted ? Colors.white : Colors.black,
                             fontSize: 11.5,
                             fontWeight: FontWeight.bold,
                           ),

@@ -7548,8 +7548,9 @@ try {
                     
                     // Check if current user has voted in this poll
                     $has_voted = false;
-                    if ($user && !empty($user['employee_id'])) {
-                        $v_chk = $mysqli->query("SELECT 1 FROM poll_votes WHERE poll_id = $poll_id AND voter_employee_id = '" . $mysqli->real_escape_string($user['employee_id']) . "' LIMIT 1");
+                    $voter_eid = $user['employee_id'] ?? $_GET['employee_id'] ?? $_POST['employee_id'] ?? $_SERVER['HTTP_X_EMPLOYEE_ID'] ?? '';
+                    if (!empty($voter_eid)) {
+                        $v_chk = $mysqli->query("SELECT 1 FROM poll_votes WHERE poll_id = $poll_id AND voter_employee_id = '" . $mysqli->real_escape_string($voter_eid) . "' LIMIT 1");
                         if ($v_chk && $v_chk->num_rows > 0) {
                             $has_voted = true;
                         }
