@@ -949,7 +949,18 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
                   ...candidates.map((candidate) {
                     final empId = candidate['employee_id']?.toString() ?? '';
                     final candIdStr = candidate['id']?.toString() ?? '';
-                    final name = candidate['name']?.toString() ?? empId;
+                    String name = candidate['name']?.toString() ?? empId;
+
+                    if ((name.isEmpty || name == empId || RegExp(r'^\d+$').hasMatch(name)) && _allUsers.isNotEmpty) {
+                      final match = _allUsers.firstWhere(
+                        (u) => u['employee_id']?.toString() == empId || (empId.replaceAll(RegExp(r'^0+'), '').isNotEmpty && u['employee_id']?.toString().replaceAll(RegExp(r'^0+'), '') == empId.replaceAll(RegExp(r'^0+'), '')),
+                        orElse: () => null,
+                      );
+                      if (match != null && (match['name'] ?? '').toString().isNotEmpty) {
+                        name = match['name'];
+                      }
+                    }
+
                     final votedCandId = (poll['voted_candidate_id'] ?? '').toString();
                     final votedCandEmpId = (poll['voted_candidate_employee_id'] ?? '').toString();
 
