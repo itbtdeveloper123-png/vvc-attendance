@@ -26,30 +26,12 @@ class _ForgetScanScreenState extends State<ForgetScanScreen> {
 
   DateTime _selectedDate = DateTime.now();
   String _forgetType = 'Check-In';
-  String _selectedPosition = 'ព័ត៌មានវិទ្យា';
-  String _selectedDepartment = 'ព័ត៌មានវិទ្យា (IT)';
   final TextEditingController _branchController = TextEditingController();
+  final TextEditingController _positionController = TextEditingController();
+  final TextEditingController _departmentController = TextEditingController();
   final TextEditingController _deptHeadController = TextEditingController();
   String? _deptHeadSignature;
   bool _isLoading = false;
-
-  final List<String> _positions = [
-    'ព័ត៌មានវិទ្យា',
-    'គណនេយ្យ',
-    'រដ្ឋបាល',
-    'លក់',
-    'ទីផ្សារ',
-    'ដឹកញ្ជូន',
-  ];
-
-  final List<String> _departments = [
-    'ព័ត៌មានវិទ្យា (IT)',
-    'ស្ដុក (Stock)',
-    'គណនេយ្យ (Accountant)',
-    'រដ្ឋបាល (Admin)',
-    'ផ្នែកលក់ (Sale)',
-    'ផ្នែកផលិត/កម្មករ (Worker)',
-  ];
 
   @override
   void initState() {
@@ -58,6 +40,11 @@ class _ForgetScanScreenState extends State<ForgetScanScreen> {
       final user = Provider.of<UserProvider>(context, listen: false);
       _nameController.text = user.name ?? '';
       _emailController.text = "${user.employeeId ?? ''}@vvc.com";
+      applyUserPositionAndDepartment(
+        positionController: _positionController,
+        departmentController: _departmentController,
+        user: user,
+      );
       applyUserBranch(controller: _branchController, user: user);
       if (mounted) setState(() {});
     });
@@ -72,8 +59,8 @@ class _ForgetScanScreenState extends State<ForgetScanScreen> {
       'forgetType': _forgetType,
       'forget_reason': _reasonController.text,
       'reason': _reasonController.text,
-      'position': _selectedPosition,
-      'department': _selectedDepartment,
+      'position': _positionController.text.trim(),
+      'department': _departmentController.text.trim(),
       'branch': _branchController.text.trim(),
       'department_head_name': _deptHeadController.text,
       'department_head_signature': _deptHeadSignature,
@@ -272,21 +259,13 @@ class _ForgetScanScreenState extends State<ForgetScanScreen> {
                           ),
                           const SizedBox(height: 20),
                           _buildLabelField(
-                            "តួនាទី",
-                            _buildDropdown(
-                              _selectedPosition,
-                              _positions,
-                              (v) => setState(() => _selectedPosition = v!),
-                            ),
+                            "មុខតំណែង",
+                            buildReadOnlyUserField(_positionController),
                           ),
                           const SizedBox(height: 20),
                           _buildLabelField(
                             "ផ្នែក",
-                            _buildDropdown(
-                              _selectedDepartment,
-                              _departments,
-                              (v) => setState(() => _selectedDepartment = v!),
-                            ),
+                            buildReadOnlyUserField(_departmentController),
                           ),
                           const SizedBox(height: 20),
                           _buildLabelField(
@@ -403,46 +382,7 @@ class _ForgetScanScreenState extends State<ForgetScanScreen> {
     );
   }
 
-  Widget _buildDropdown(
-    String value,
-    List<String> items,
-    Function(String?) onChanged,
-  ) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: AppTheme.fieldFill,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.fieldBorder),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: value,
-          isExpanded: true,
-          dropdownColor: AppTheme.bgCard,
-          icon: Icon(
-            Icons.keyboard_arrow_down_rounded,
-            color: AppTheme.helperTextColor,
-          ),
-          items: items
-              .map(
-                (String v) => DropdownMenuItem(
-                  value: v,
-                  child: Text(
-                    v,
-                    style: GoogleFonts.kantumruyPro(
-                      color: AppTheme.textPrimary,
-                      fontSize: 13,
-                    ),
-                  ),
-                ),
-              )
-              .toList(),
-          onChanged: onChanged,
-        ),
-      ),
-    );
-  }
+
 
   Widget _buildDropdownKhmer(
     String value,

@@ -1586,13 +1586,51 @@ class _RequestListScreenState extends State<RequestListScreen> {
       'សម្រាកប្រចាំឆ្នាំ (Annual Leave)',
       'សម្រាកដោយជំងឺ (Sick Leave)',
       'ភ្លេចស្កេនមេដៃ (Forgot FP)',
-      'សម្រាកលំហែមាតុភាព (Maternity Leave)',
+      'សម្រាកលំហែបុត្រភាព (Maternity Leave)',
       'ថែមម៉ោង (OT)',
       'ចេញមុនម៉ោង (Early)',
       'ប្តូរថ្ងៃសម្រាក (Changing day off)',
       'សម្រាកពិសេស (Special Leave)',
       'មកយឺត (Late)',
     ];
+
+    bool isTypeSelected(String typeLabel) {
+      final req = requestType.toLowerCase().trim();
+      if (req.isEmpty) return false;
+
+      if (req.contains('leave') || req.contains('ច្បាប់') || req.contains('សម្រាក')) {
+        if (req.contains('annual') || req.contains('ប្រចាំឆ្នាំ')) return typeLabel.contains('Annual Leave');
+        if (req.contains('sick') || req.contains('ជំងឺ')) return typeLabel.contains('Sick Leave');
+        if (req.contains('maternity') || req.contains('បុត្រភាព') || req.contains('មាតុភាព')) return typeLabel.contains('Maternity Leave');
+        if (req.contains('special') || req.contains('ពិសេស')) return typeLabel.contains('Special Leave');
+      }
+      if (req.contains('forgot') || req.contains('ស្កេន') || req.contains('មេដៃ') || req.contains('fp')) {
+        return typeLabel.contains('Forgot FP');
+      }
+      if (req.contains('ot') || req.contains('ថែមម៉ោង')) {
+        return typeLabel.contains('OT');
+      }
+      if (req.contains('early') || req.contains('ចេញមុន')) {
+        return typeLabel.contains('Early');
+      }
+      if (req.contains('late') || req.contains('យឺត')) {
+        return typeLabel.contains('Late');
+      }
+      if (req.contains('change') || req.contains('ប្តូរ')) {
+        return typeLabel.contains('Changing day off');
+      }
+      final target = typeLabel.toLowerCase().trim();
+      return target.contains(req) || req.contains(target);
+    }
+
+    String formatBranch(String? raw) {
+      if (raw == null || raw.trim().isEmpty) return 'ការិយាល័យកណ្តាល';
+      final s = raw.trim().toUpperCase();
+      if (s == 'VVC_HQ' || s == 'VVC-HQ' || s == 'VVC HQ' || s == 'HQ' || s == 'HEAD OFFICE') {
+        return 'ការិយាល័យកណ្តាល';
+      }
+      return raw;
+    }
 
     String formatD(String? d) {
       if (d == null || d.isEmpty || d == 'N/A') return 'N/A';
@@ -1633,6 +1671,39 @@ class _RequestListScreenState extends State<RequestListScreen> {
       return p;
     }
 
+    // Detect SK brand keywords: SK, sk, អេសខេ, អេស ខេ
+    final deptStr = (item['department'] ?? '').toString().toLowerCase();
+    final posStr = (item['position'] ?? '').toString().toLowerCase();
+    final branchStr = (item['branch'] ?? '').toString().toLowerCase();
+    final roleStr = (item['role'] ?? item['user_role'] ?? '').toString().toLowerCase();
+    final reqNameStr = (item['requester_name'] ?? '').toString().toLowerCase();
+
+    bool isSkLogo = deptStr.contains('sk') || deptStr.contains('អេសខេ') || deptStr.contains('អេស ខេ') ||
+                    posStr.contains('sk') || posStr.contains('អេសខេ') || posStr.contains('អេស ខេ') ||
+                    branchStr.contains('sk') || branchStr.contains('អេសខេ') || branchStr.contains('អេស ខេ') ||
+                    roleStr.contains('sk') || roleStr.contains('អេសខេ') || roleStr.contains('អេស ខេ') ||
+                    reqNameStr.contains('sk') || reqNameStr.contains('អេសខេ') || reqNameStr.contains('អេស ខេ');
+
+    if (!isSkLogo) {
+      try {
+        final user = Provider.of<UserProvider>(context, listen: false);
+        final uDept = (user.department ?? '').toLowerCase();
+        final uPos = (user.position ?? '').toLowerCase();
+        final uBranch = (user.branch ?? '').toLowerCase();
+        if (uDept.contains('sk') || uDept.contains('អេសខេ') || uDept.contains('អេស ខេ') ||
+            uPos.contains('sk') || uPos.contains('អេសខេ') || uPos.contains('អេស ខេ') ||
+            uBranch.contains('sk') || uBranch.contains('អេសខេ') || uBranch.contains('អេស ខេ')) {
+          isSkLogo = true;
+        }
+      } catch (_) {}
+    }
+
+    final String primaryLogoUrl = isSkLogo
+        ? 'https://i.ibb.co/1JXccBzm/Your-paragraph-text-2.png'
+        : 'https://i.ibb.co/r2JWnd2x/Logo-Van-Van-1.png';
+    final String primaryAsset = isSkLogo ? 'assets/skLogo.png' : 'assets/images/logo.png';
+    final String secondaryAsset = isSkLogo ? 'assets/images/logo.png' : 'assets/skLogo.png';
+
     // Process signatures
     Uint8List? reqSigBytes;
     if (item['signature'] != null &&
@@ -1665,22 +1736,34 @@ class _RequestListScreenState extends State<RequestListScreen> {
               // Header
               Column(
                 children: [
-                  // Logo only
+                  // Logo with dynamic SK / VVC auto-switch & instant fallback chain
                   Image.network(
-                    'https://i.ibb.co/r2JWnd2x/Logo-Van-Van-1.png',
-                    width: 100,
-                    height: 100,
-                    errorBuilder: (_, _, _) =>
-                        const SizedBox(width: 100, height: 80),
+                    primaryLogoUrl,
+                    width: 140,
+                    height: 110,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, _, _) => Image.asset(
+                      primaryAsset,
+                      width: 140,
+                      height: 110,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, _, _) => Image.asset(
+                        secondaryAsset,
+                        width: 140,
+                        height: 110,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, _, _) => const SizedBox(width: 140, height: 90),
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 10),
-                  const Text(
+                  Text(
                     "សំណើសុំច្បាប់ឈប់សម្រាក ប្តូរវេន ចូលមុនម៉ោង មកយឺត និងភ្លេចស្កេនមេដៃផ្សេងៗ",
-                    style: TextStyle(
-                      fontSize: 16,
+                    style: GoogleFonts.koulen(
+                      fontSize: 17.5,
                       fontWeight: FontWeight.bold,
                       color: Colors.black,
-                      fontFamily: 'KhmerFont',
+                      letterSpacing: 0.5,
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -1688,7 +1771,7 @@ class _RequestListScreenState extends State<RequestListScreen> {
               ),
               const SizedBox(height: 25),
 
-              // Request Selection Area (Refined Chips Grid)
+              // Request Selection Area (Refined Checkboxes Grid)
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 15,
@@ -1704,8 +1787,7 @@ class _RequestListScreenState extends State<RequestListScreen> {
                   runSpacing: 10,
                   alignment: WrapAlignment.center,
                   children: types.map((t) {
-                    final isSelected =
-                        requestType.contains(t) || t.contains(requestType);
+                    final selected = isTypeSelected(t);
                     return Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -1715,20 +1797,16 @@ class _RequestListScreenState extends State<RequestListScreen> {
                           decoration: BoxDecoration(
                             shape: BoxShape.rectangle,
                             border: Border.all(
-                              color: isSelected
-                                  ? _brandOrange
-                                  : Colors.grey.shade500,
+                              color: selected ? _brandOrange : Colors.grey.shade600,
                               width: 1.2,
                             ),
-                            color: isSelected
-                                ? _brandOrange
-                                : Colors.transparent,
+                            color: selected ? _brandOrange : Colors.transparent,
                             borderRadius: BorderRadius.circular(3),
                           ),
-                          child: isSelected
+                          child: selected
                               ? Icon(
                                   Icons.check,
-                                  size: 10,
+                                  size: 11,
                                   color: AppTheme.textPrimary,
                                 )
                               : null,
@@ -1738,10 +1816,8 @@ class _RequestListScreenState extends State<RequestListScreen> {
                           t,
                           style: TextStyle(
                             fontSize: 10,
-                            color: isSelected ? Colors.black : Colors.black54,
-                            fontWeight: isSelected
-                                ? FontWeight.w600
-                                : FontWeight.normal,
+                            color: selected ? Colors.black : Colors.black87,
+                            fontWeight: selected ? FontWeight.bold : FontWeight.normal,
                             fontFamily: 'KhmerFont',
                           ),
                         ),
@@ -1774,7 +1850,7 @@ class _RequestListScreenState extends State<RequestListScreen> {
                     "ផ្នែក/មុខតំណែង/សាខា៖",
                     item['department'] ?? 'N/A',
                     item['position'] ?? 'N/A',
-                    item['branch'] ?? 'N/A',
+                    formatBranch(item['branch']?.toString()),
                     "",
                   ]),
                   _buildTablePremiumRow([

@@ -23,8 +23,43 @@ void applyUserBranch({
   controller.text = resolveRequestBranch(initialData: initialData, user: user);
 }
 
-Widget buildReadOnlyBranchField(
+String resolveRequestPosition({
+  Map<String, dynamic>? initialData,
+  required UserProvider user,
+}) {
+  if (initialData != null) {
+    final saved = (initialData['position'] ?? '').toString().trim();
+    if (saved.isNotEmpty) return saved;
+  }
+  final p = (user.position ?? '').trim();
+  return p.isNotEmpty ? p : 'ព័ត៌មានវិទ្យា (IT)';
+}
+
+String resolveRequestDepartment({
+  Map<String, dynamic>? initialData,
+  required UserProvider user,
+}) {
+  if (initialData != null) {
+    final saved = (initialData['department'] ?? '').toString().trim();
+    if (saved.isNotEmpty) return saved;
+  }
+  final d = (user.department ?? '').trim();
+  return d.isNotEmpty ? d : 'IT';
+}
+
+void applyUserPositionAndDepartment({
+  required TextEditingController positionController,
+  required TextEditingController departmentController,
+  Map<String, dynamic>? initialData,
+  required UserProvider user,
+}) {
+  positionController.text = resolveRequestPosition(initialData: initialData, user: user);
+  departmentController.text = resolveRequestDepartment(initialData: initialData, user: user);
+}
+
+Widget buildReadOnlyUserField(
   TextEditingController controller, {
+  String placeholder = 'មិនទាន់កំណត់ — សូមទាក់ទង Admin',
   InputDecoration? decoration,
 }) {
   return TextFormField(
@@ -38,9 +73,7 @@ Widget buildReadOnlyBranchField(
         InputDecoration(
           filled: true,
           fillColor: AppTheme.fieldFill,
-          hintText: controller.text.isEmpty
-              ? 'មិនទាន់កំណត់សាខា — សូមទាក់ទង Admin'
-              : null,
+          hintText: controller.text.isEmpty ? placeholder : null,
           hintStyle: GoogleFonts.kantumruyPro(
             color: AppTheme.helperTextColor,
             fontSize: 13,
@@ -62,8 +95,17 @@ Widget buildReadOnlyBranchField(
             borderSide: BorderSide(color: AppTheme.primary.withValues(alpha: 0.5)),
           ),
         ),
-    validator: (v) => (v == null || v.trim().isEmpty)
-        ? 'សូមទាក់ទង Admin ដើម្បីកំណត់សាខាក្នុងប្រព័ន្ធ'
-        : null,
+    validator: (v) => (v == null || v.trim().isEmpty) ? placeholder : null,
+  );
+}
+
+Widget buildReadOnlyBranchField(
+  TextEditingController controller, {
+  InputDecoration? decoration,
+}) {
+  return buildReadOnlyUserField(
+    controller,
+    placeholder: 'មិនទាន់កំណត់សាខា — សូមទាក់ទង Admin',
+    decoration: decoration,
   );
 }

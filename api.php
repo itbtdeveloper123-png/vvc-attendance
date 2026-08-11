@@ -7673,8 +7673,37 @@ try {
             $start_date = trim($_POST['start_date'] ?? '');
             $end_date = trim($_POST['end_date'] ?? '');
             $access_code = trim($_POST['access_code'] ?? $_POST['passcode'] ?? '');
-            $allowed_employee_ids = $_POST['allowed_employee_ids'] ?? '[]';
-            $excluded_employee_ids = $_POST['excluded_employee_ids'] ?? '[]';
+            $allowed_raw = $_POST['allowed_employee_ids'] ?? $_POST['candidates'] ?? '[]';
+            if (is_array($allowed_raw)) {
+                $allowed_employee_ids = json_encode($allowed_raw);
+            } else if (is_string($allowed_raw)) {
+                $dec = json_decode($allowed_raw, true);
+                if (is_array($dec)) {
+                    $extracted = [];
+                    foreach ($dec as $item) {
+                        if (is_array($item)) {
+                            $extracted[] = (string)($item['employee_id'] ?? $item['id'] ?? '');
+                        } else {
+                            $extracted[] = (string)$item;
+                        }
+                    }
+                    $allowed_employee_ids = json_encode(array_values(array_filter($extracted)));
+                } else {
+                    $allowed_employee_ids = $allowed_raw;
+                }
+            } else {
+                $allowed_employee_ids = '[]';
+            }
+
+            $excluded_raw = $_POST['excluded_employee_ids'] ?? $_POST['excluded_candidates'] ?? '[]';
+            if (is_array($excluded_raw)) {
+                $excluded_employee_ids = json_encode($excluded_raw);
+            } else if (is_string($excluded_raw)) {
+                $excluded_employee_ids = $excluded_raw;
+            } else {
+                $excluded_employee_ids = '[]';
+            }
+
             $is_active = (int)($_POST['is_active'] ?? 1);
 
             error_log("SAVE_POLL: Starting poll save with ID: $poll_id, Title: $title");
@@ -7959,9 +7988,22 @@ try {
                 }
 
                 // Check allowed employees (admins bypass allowed restriction)
-                $allowed_json = $row['allowed_employee_ids'] ?? '[]';
-                $allowed_arr = json_decode($allowed_json, true);
-                if (!$is_admin_or_hrm && is_array($allowed_arr) && count($allowed_arr) > 0) {
+                $allowed_arr = [];
+                if (!empty($row['allowed_employee_ids'])) {
+                    $raw_a = $row['allowed_employee_ids'];
+                    if (is_array($raw_a)) {
+                        $allowed_arr = $raw_a;
+                    } else if (is_string($raw_a)) {
+                        $dec = json_decode($raw_a, true);
+                        if (is_string($dec)) $dec = json_decode($dec, true);
+                        if (is_array($dec)) {
+                            $allowed_arr = $dec;
+                        } else {
+                            $allowed_arr = array_filter(array_map('trim', explode(',', $raw_a)));
+                        }
+                    }
+                }
+                if (!$is_admin_or_hrm && count($allowed_arr) > 0) {
                     $allowed_str_list = array_map('strval', $allowed_arr);
                     $eid_clean = ltrim($eid, '0');
                     $is_allowed = in_array($eid, $allowed_str_list) || ($eid_clean !== '' && in_array($eid_clean, $allowed_str_list));
@@ -7971,9 +8013,22 @@ try {
                 }
 
                 // Check excluded employees
-                $excluded_json = $row['excluded_employee_ids'] ?? '[]';
-                $excluded_arr = json_decode($excluded_json, true);
-                if (!$is_admin_or_hrm && is_array($excluded_arr) && count($excluded_arr) > 0) {
+                $excluded_arr = [];
+                if (!empty($row['excluded_employee_ids'])) {
+                    $raw_e = $row['excluded_employee_ids'];
+                    if (is_array($raw_e)) {
+                        $excluded_arr = $raw_e;
+                    } else if (is_string($raw_e)) {
+                        $dec_e = json_decode($raw_e, true);
+                        if (is_string($dec_e)) $dec_e = json_decode($dec_e, true);
+                        if (is_array($dec_e)) {
+                            $excluded_arr = $dec_e;
+                        } else {
+                            $excluded_arr = array_filter(array_map('trim', explode(',', $raw_e)));
+                        }
+                    }
+                }
+                if (!$is_admin_or_hrm && count($excluded_arr) > 0) {
                     $excluded_str_list = array_map('strval', $excluded_arr);
                     $eid_clean = ltrim($eid, '0');
                     $is_excluded = in_array($eid, $excluded_str_list) || ($eid_clean !== '' && in_array($eid_clean, $excluded_str_list));
@@ -7985,9 +8040,9 @@ try {
                 $poll_id = (int)$row['id'];
 
                 // Check if user has already voted
-                $vote_check = $mysqli->prepare("SELECT COUNT(*) as voted FROM poll_votes WHERE poll_id = ? AND voter_employee_id = ?");
+                $vote_check = $mysqli->prepare("SELECT COUNT(*) as voted FROM poll_votes WHERE poll_id = ? AND (voter_employee_id = ? OR LTRIM(voter_employee_id, '0') = LTRIM(?, '0'))");
                 if ($vote_check) {
-                    $vote_check->bind_param('is', $poll_id, $eid);
+                    $vote_check->bind_param('iss', $poll_id, $eid, $eid);
                     $vote_check->execute();
                     $vote_res = $vote_check->get_result()->fetch_assoc();
                     $row['has_voted'] = ($vote_res['voted'] ?? 0) > 0;
@@ -7997,7 +8052,6 @@ try {
                 }
 
                 $poll_title_esc = $mysqli->real_escape_string($row['title'] ?? '');
-                $poll_quarter_esc = $mysqli->real_escape_string($row['quarter'] ?? '');
 
                 // Fetch candidates from poll_candidates table along with votes count
                 $candidates = [];
@@ -8006,7 +8060,7 @@ try {
                     SELECT pc.id, pc.employee_id, pc.category, u.name, u.photo_url,
                            (SELECT COUNT(*) FROM poll_votes pv 
                             LEFT JOIN poll_events pe ON (pv.poll_id = pe.id OR CAST(pv.poll_id AS CHAR) = CAST(pe.id AS CHAR))
-                            WHERE (pv.poll_id = pc.poll_id OR pv.poll_id = pc.id OR (pe.title = ? AND pe.quarter = ? AND pe.title != '')) 
+                            WHERE (pv.poll_id = pc.poll_id OR pv.poll_id = pc.id OR (pe.title = ? AND pe.title != '')) 
                               AND (
                                 pv.candidate_id = pc.id 
                                 OR CAST(pv.candidate_id AS CHAR) = pc.employee_id
@@ -8016,11 +8070,11 @@ try {
                            ) AS votes_count
                     FROM poll_candidates pc 
                     LEFT JOIN users u ON (pc.employee_id = u.employee_id OR LTRIM(pc.employee_id, '0') = LTRIM(u.employee_id, '0')) 
-                    WHERE pc.poll_id = ? OR pc.poll_id IN (SELECT id FROM poll_events WHERE title = ? AND quarter = ? AND title != '')
+                    WHERE pc.poll_id = ? OR pc.poll_id IN (SELECT id FROM poll_events WHERE title = ? AND title != '')
                     ORDER BY votes_count DESC
                 ");
                 if ($cand_stmt) {
-                    $cand_stmt->bind_param('ssiss', $poll_title_esc, $poll_quarter_esc, $poll_id, $poll_title_esc, $poll_quarter_esc);
+                    $cand_stmt->bind_param('sis', $poll_title_esc, $poll_id, $poll_title_esc);
                     $cand_stmt->execute();
                     $cand_res = $cand_stmt->get_result();
                     while ($c_row = $cand_res->fetch_assoc()) {
@@ -8057,7 +8111,7 @@ try {
                             FROM poll_votes pv 
                             LEFT JOIN poll_events pe ON (pv.poll_id = pe.id OR CAST(pv.poll_id AS CHAR) = CAST(pe.id AS CHAR))
                             LEFT JOIN poll_candidates pc ON pv.candidate_id = pc.id 
-                            WHERE (pv.poll_id = $poll_id OR (pe.title = '$poll_title_esc' AND pe.quarter = '$poll_quarter_esc' AND pe.title != '')) 
+                            WHERE (pv.poll_id = $poll_id OR (pe.title = '$poll_title_esc' AND pe.title != '')) 
                               AND (
                                 pc.employee_id = '$cand_emp_id' 
                                 OR LTRIM(pc.employee_id, '0') = LTRIM('$cand_emp_id', '0')
@@ -8097,11 +8151,11 @@ try {
                     LEFT JOIN poll_candidates pc ON (pv.candidate_id = pc.id OR (pc.employee_id = CAST(pv.candidate_id AS CHAR) OR LTRIM(pc.employee_id, '0') = LTRIM(CAST(pv.candidate_id AS CHAR), '0')))
                     LEFT JOIN users uc ON (pc.employee_id = uc.employee_id OR LTRIM(pc.employee_id, '0') = LTRIM(uc.employee_id, '0'))
                     LEFT JOIN users uc2 ON (CAST(pv.candidate_id AS CHAR) = uc2.employee_id OR LTRIM(CAST(pv.candidate_id AS CHAR), '0') = LTRIM(uc2.employee_id, '0'))
-                    WHERE pv.poll_id = ? OR (pe.title = ? AND pe.quarter = ? AND pe.title != '')
+                    WHERE pv.poll_id = ? OR (pe.title = ? AND pe.title != '')
                     ORDER BY pv.id DESC
                 ");
                 if ($audit_stmt) {
-                    $audit_stmt->bind_param('iss', $poll_id, $poll_title_esc, $poll_quarter_esc);
+                    $audit_stmt->bind_param('is', $poll_id, $poll_title_esc);
                     $audit_stmt->execute();
                     $audit_res = $audit_stmt->get_result();
                     while ($a_row = $audit_res->fetch_assoc()) {

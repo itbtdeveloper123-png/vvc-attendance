@@ -503,6 +503,11 @@ class ApiService {
     required List<Map<String, dynamic>> candidates,
   }) async {
     final headers = await _authHeaders();
+    final candidateEmployeeIds = candidates
+        .map((c) => (c['employee_id'] ?? c['id'] ?? '').toString())
+        .where((empId) => empId.isNotEmpty)
+        .toList();
+
     final body = <String, String>{
       'title': title,
       'quarter': quarter,
@@ -512,6 +517,8 @@ class ApiService {
       'access_code': passcode,
       'passcode': passcode,
       'excluded_candidates': jsonEncode(excludedCandidates),
+      'excluded_employee_ids': jsonEncode(excludedCandidates),
+      'allowed_employee_ids': jsonEncode(candidateEmployeeIds),
       'candidates': jsonEncode(candidates),
     };
     if (id != null && id > 0) {

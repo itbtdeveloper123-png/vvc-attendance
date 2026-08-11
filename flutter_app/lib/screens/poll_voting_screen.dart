@@ -77,18 +77,23 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
     if (confirmed != true) return;
 
     try {
-      final pollIdInt = int.tryParse(pollDocId) ?? 0;
+      final cleanId = pollDocId.replaceAll(RegExp(r'\D'), '');
+      final pollIdInt = int.tryParse(cleanId) ?? int.tryParse(pollDocId) ?? 0;
       if (pollIdInt > 0) {
         final res = await _api.castVote(pollIdInt, candidateEmployeeId);
         if (res['success'] == true) {
           if (mounted) {
             VvcAlert.showSuccess(context, title: 'បោះឆ្នោតជោគជ័យ!', message: 'ការបោះឆ្នោតរបស់អ្នកត្រូវបានរក្សាទុកក្នុង DB');
-            _loadInitialData();
+            await _loadInitialData();
           }
         } else {
           if (mounted) {
             VvcAlert.showError(context, title: 'បរាជ័យ', message: res['message'] ?? 'មិនអាចបោះឆ្នោតបានទេ');
           }
+        }
+      } else {
+        if (mounted) {
+          VvcAlert.showError(context, title: 'បរាជ័យ', message: 'មិនអាចកំណត់ ID នៃការបោះឆ្នោតបានទេ ($pollDocId)');
         }
       }
     } catch (e) {
@@ -129,18 +134,64 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
     final List<String> selectedCandidates = [];
     final List<String> excludedCandidates = [];
 
-    if (isEditing && pollToEdit['candidates'] is List) {
-      for (var c in pollToEdit['candidates']) {
-        if (c is Map && c['employee_id'] != null) {
-          selectedCandidates.add(c['employee_id'].toString());
-        } else if (c is String) {
-          selectedCandidates.add(c);
-        }
+    bool containsEmpId(List<String> list, String targetId) {
+      if (targetId.isEmpty) return false;
+      final cleanTarget = targetId.replaceAll(RegExp(r'^0+'), '');
+      return list.any((e) => e == targetId || (cleanTarget.isNotEmpty && e.replaceAll(RegExp(r'^0+'), '') == cleanTarget));
+    }
+
+    void toggleEmpId(List<String> list, String targetId, bool add) {
+      if (targetId.isEmpty) return;
+      final cleanTarget = targetId.replaceAll(RegExp(r'^0+'), '');
+      list.removeWhere((e) => e == targetId || (cleanTarget.isNotEmpty && e.replaceAll(RegExp(r'^0+'), '') == cleanTarget));
+      if (add) {
+        list.add(targetId);
       }
     }
-    if (isEditing && pollToEdit['excluded_candidates'] is List) {
-      for (var e in pollToEdit['excluded_candidates']) {
-        excludedCandidates.add(e.toString());
+
+    if (isEditing) {
+      final rawAllowed = pollToEdit['allowed_employee_ids'] ?? pollToEdit['candidates'];
+      if (rawAllowed is List) {
+        for (var c in rawAllowed) {
+          if (c is Map && c['employee_id'] != null) {
+            selectedCandidates.add(c['employee_id'].toString());
+          } else if (c != null) {
+            selectedCandidates.add(c.toString());
+          }
+        }
+      } else if (rawAllowed is String && rawAllowed.trim().isNotEmpty) {
+        try {
+          final decoded = jsonDecode(rawAllowed);
+          if (decoded is List) {
+            for (var c in decoded) {
+              if (c is Map && c['employee_id'] != null) {
+                selectedCandidates.add(c['employee_id'].toString());
+              } else if (c != null) {
+                selectedCandidates.add(c.toString());
+              }
+            }
+          }
+        } catch (_) {
+          selectedCandidates.addAll(rawAllowed.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty));
+        }
+      }
+
+      final rawExcluded = pollToEdit['excluded_employee_ids'] ?? pollToEdit['excluded_candidates'];
+      if (rawExcluded is List) {
+        for (var e in rawExcluded) {
+          if (e != null) excludedCandidates.add(e.toString());
+        }
+      } else if (rawExcluded is String && rawExcluded.trim().isNotEmpty) {
+        try {
+          final decoded = jsonDecode(rawExcluded);
+          if (decoded is List) {
+            for (var e in decoded) {
+              if (e != null) excludedCandidates.add(e.toString());
+            }
+          }
+        } catch (_) {
+          excludedCandidates.addAll(rawExcluded.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty));
+        }
       }
     }
 
@@ -341,7 +392,7 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
                               final u = _allUsers[i];
                               final empId = u['employee_id']?.toString() ?? '';
                               final name = u['name']?.toString() ?? empId;
-                              final isChecked = excludedCandidates.contains(empId);
+                              final isChecked = containsEmpId(excludedCandidates, empId);
 
                               return CheckboxListTile(
                                 value: isChecked,
@@ -350,11 +401,9 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
                                 activeColor: Colors.redAccent,
                                 onChanged: (val) {
                                   setDialogState(() {
+                                    toggleEmpId(excludedCandidates, empId, val == true);
                                     if (val == true) {
-                                      excludedCandidates.add(empId);
-                                      selectedCandidates.remove(empId);
-                                    } else {
-                                      excludedCandidates.remove(empId);
+                                      toggleEmpId(selectedCandidates, empId, false);
                                     }
                                   });
                                 },
@@ -386,8 +435,8 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
                               final u = _allUsers[i];
                               final empId = u['employee_id']?.toString() ?? '';
                               final name = u['name']?.toString() ?? empId;
-                              final isChecked = selectedCandidates.contains(empId);
-                              final isExcluded = excludedCandidates.contains(empId);
+                              final isChecked = containsEmpId(selectedCandidates, empId);
+                              final isExcluded = containsEmpId(excludedCandidates, empId);
 
                               if (isExcluded) return const SizedBox.shrink();
 
@@ -869,7 +918,7 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
-                    onPressed: () => _showPollResultsModal(poll),
+                    onPressed: () => _verifyPasscodeAndShowResults(poll),
                     icon: const Icon(Icons.bar_chart_rounded, color: Colors.black, size: 18),
                     label: Text(
                       '📊 មើលលទ្ធផល & អ្នកបោះឆ្នោត',
@@ -972,6 +1021,105 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
         );
       },
     );
+  }
+
+  Future<void> _verifyPasscodeAndShowResults(Map<String, dynamic> poll) async {
+    final rawPasscode = (poll['access_code'] ?? poll['passcode'] ?? '').toString().trim();
+    if (rawPasscode.isEmpty) {
+      _showPollResultsModal(poll);
+      return;
+    }
+
+    final codeController = TextEditingController();
+    final verified = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF131D2E),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: Colors.amberAccent.withValues(alpha: 0.3)),
+        ),
+        title: Row(
+          children: [
+            const Icon(Icons.lock_rounded, color: Colors.amberAccent, size: 22),
+            const SizedBox(width: 8),
+            Text(
+              'ត្រូវការលេខកូដសម្ងាត់',
+              style: GoogleFonts.kantumruyPro(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'សូមបញ្ចូលលេខកូដសម្ងាត់ដើម្បីចូលមើលលទ្ធផលការបោះឆ្នោត៖',
+              style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: codeController,
+              autofocus: true,
+              keyboardType: TextInputType.number,
+              obscureText: true,
+              style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 16, letterSpacing: 3),
+              decoration: InputDecoration(
+                hintText: 'បញ្ចូលលេខកូដសម្ងាត់',
+                hintStyle: GoogleFonts.kantumruyPro(color: Colors.white38, fontSize: 13, letterSpacing: 0),
+                filled: true,
+                fillColor: Colors.white.withValues(alpha: 0.06),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.15)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Colors.amberAccent),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('បោះបង់', style: GoogleFonts.kantumruyPro(color: Colors.white60)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (codeController.text.trim() == rawPasscode) {
+                Navigator.pop(ctx, true);
+              } else {
+                VvcAlert.showError(
+                  ctx,
+                  title: 'លេខកូដមិនត្រឹមត្រូវ',
+                  message: 'លេខកូដសម្ងាត់ដែលអ្នកបញ្ចូលមិនត្រឹមត្រូវទេ!',
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.amberAccent,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: Text(
+              'ផ្ទៀងផ្ទាត់',
+              style: GoogleFonts.kantumruyPro(color: Colors.black, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (verified == true) {
+      _showPollResultsModal(poll);
+    }
   }
 
   void _showPollResultsModal(Map<String, dynamic> initialPoll) async {

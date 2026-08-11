@@ -8,7 +8,7 @@ import '../utils/request_form_helpers.dart';
 import '../providers/user_provider.dart';
 import '../widgets/dept_head_selector.dart';
 import '../widgets/app_widgets.dart';
-import '../widgets/vvc_dropdown.dart';
+
 
 class LeaveRequestScreen extends StatefulWidget {
   final Map<String, dynamic>? initialData;
@@ -35,29 +35,11 @@ class _LeaveRequestScreenState extends State<LeaveRequestScreen> {
     text: "1",
   );
   final TextEditingController _branchController = TextEditingController();
+  final TextEditingController _positionController = TextEditingController();
+  final TextEditingController _departmentController = TextEditingController();
 
-  String _selectedPosition = 'ព័ត៌មានវិទ្យា';
-  String _selectedDepartment = 'ព័ត៌មានវិទ្យា (IT)';
   String? _deptHeadSignature;
   bool _isLoading = false;
-
-  final List<String> _positions = [
-    'ព័ត៌មានវិទ្យា',
-    'គណនេយ្យ',
-    'រដ្ឋបាល',
-    'លក់',
-    'ទីផ្សារ',
-    'ដឹកញ្ជូន',
-  ];
-
-  final List<String> _departments = [
-    'ព័ត៌មានវិទ្យា (IT)',
-    'ស្ដុក (Stock)',
-    'គណនេយ្យ (Accountant)',
-    'រដ្ឋបាល (Admin)',
-    'ផ្នែកលក់ (Sale)',
-    'ផ្នែកផលិត/កម្មករ (Worker)',
-  ];
 
   @override
   void initState() {
@@ -85,12 +67,12 @@ class _LeaveRequestScreenState extends State<LeaveRequestScreen> {
           } catch (_) {}
         }
 
-        if (d['position'] != null && _positions.contains(d['position'])) {
-          _selectedPosition = d['position'];
-        }
-        if (d['department'] != null && _departments.contains(d['department'])) {
-          _selectedDepartment = d['department'];
-        }
+        applyUserPositionAndDepartment(
+          positionController: _positionController,
+          departmentController: _departmentController,
+          initialData: d,
+          user: user,
+        );
         applyUserBranch(
           controller: _branchController,
           initialData: d,
@@ -100,6 +82,11 @@ class _LeaveRequestScreenState extends State<LeaveRequestScreen> {
       } else {
         _nameController.text = user.name ?? '';
         _emailController.text = "${user.employeeId ?? ''}@vvc.com";
+        applyUserPositionAndDepartment(
+          positionController: _positionController,
+          departmentController: _departmentController,
+          user: user,
+        );
         applyUserBranch(
           controller: _branchController,
           user: user,
@@ -123,8 +110,8 @@ class _LeaveRequestScreenState extends State<LeaveRequestScreen> {
       'leave_total_hours': (double.tryParse(_daysController.text) ?? 1.0 * 8)
           .toString(),
       'number_of_days': _daysController.text,
-      'position': _selectedPosition,
-      'department': _selectedDepartment,
+      'position': _positionController.text.trim(),
+      'department': _departmentController.text.trim(),
       'branch': _branchController.text.trim(),
       'department_head_name': _deptHeadController.text,
       'department_head_signature': _deptHeadSignature,
@@ -339,22 +326,14 @@ class _LeaveRequestScreenState extends State<LeaveRequestScreen> {
                           const SizedBox(height: 20),
 
                           _buildLabelField(
-                            "តួនាទី",
-                            _buildDropdown(
-                              _selectedPosition,
-                              _positions,
-                              (v) => setState(() => _selectedPosition = v!),
-                            ),
+                            "មុខតំណែង",
+                            buildReadOnlyUserField(_positionController),
                           ),
                           const SizedBox(height: 20),
 
                           _buildLabelField(
                             "ផ្នែក",
-                            _buildDropdown(
-                              _selectedDepartment,
-                              _departments,
-                              (v) => setState(() => _selectedDepartment = v!),
-                            ),
+                            buildReadOnlyUserField(_departmentController),
                           ),
                           const SizedBox(height: 20),
 
@@ -529,20 +508,7 @@ class _LeaveRequestScreenState extends State<LeaveRequestScreen> {
     );
   }
 
-  Widget _buildDropdown(
-    String value,
-    List<String> items,
-    Function(String?) onChanged,
-  ) {
-    return VvcDropdown<String>(
-      value: value,
-      prefixIcon: Icons.category_rounded,
-      items: items
-          .map((v) => VvcDropdownItem<String>(value: v, label: v))
-          .toList(),
-      onChanged: onChanged,
-    );
-  }
+
 
   Widget _buildDatePicker(
     DateTime date,

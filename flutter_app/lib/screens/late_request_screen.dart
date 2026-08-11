@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../widgets/app_widgets.dart';
-import '../widgets/vvc_dropdown.dart';
+
 import 'package:provider/provider.dart';
 import '../services/api_service.dart';
 import '../utils/app_theme.dart';
@@ -28,30 +28,12 @@ class _LateRequestScreenState extends State<LateRequestScreen> {
 
   DateTime _selectedDate = DateTime.now();
   TimeOfDay _actualTime = TimeOfDay.now();
-  String _selectedPosition = 'ព័ត៌មានវិទ្យា';
-  String _selectedDepartment = 'ព័ត៌មានវិទ្យា (IT)';
   final TextEditingController _branchController = TextEditingController();
+  final TextEditingController _positionController = TextEditingController();
+  final TextEditingController _departmentController = TextEditingController();
   final TextEditingController _deptHeadController = TextEditingController();
   String? _deptHeadSignature;
   bool _isLoading = false;
-
-  final List<String> _positions = [
-    'ព័ត៌មានវិទ្យា',
-    'គណនេយ្យ',
-    'រដ្ឋបាល',
-    'លក់',
-    'ទីផ្សារ',
-    'ដឹកញ្ជូន',
-  ];
-
-  final List<String> _departments = [
-    'ព័ត៌មានវិទ្យា (IT)',
-    'ស្ដុក (Stock)',
-    'គណនេយ្យ (Accountant)',
-    'រដ្ឋបាល (Admin)',
-    'ផ្នែកលក់ (Sale)',
-    'ផ្នែកផលិត/កម្មករ (Worker)',
-  ];
 
   @override
   void initState() {
@@ -72,12 +54,12 @@ class _LateRequestScreenState extends State<LateRequestScreen> {
         }
         _actualTime = _parseTime(d['time_in']?.toString());
 
-        if (d['position'] != null && _positions.contains(d['position'])) {
-          _selectedPosition = d['position'];
-        }
-        if (d['department'] != null && _departments.contains(d['department'])) {
-          _selectedDepartment = d['department'];
-        }
+        applyUserPositionAndDepartment(
+          positionController: _positionController,
+          departmentController: _departmentController,
+          initialData: d,
+          user: user,
+        );
         applyUserBranch(
           controller: _branchController,
           initialData: d,
@@ -87,6 +69,11 @@ class _LateRequestScreenState extends State<LateRequestScreen> {
       } else {
         _nameController.text = user.name ?? '';
         _emailController.text = "${user.employeeId ?? ''}@vvc.com";
+        applyUserPositionAndDepartment(
+          positionController: _positionController,
+          departmentController: _departmentController,
+          user: user,
+        );
         applyUserBranch(controller: _branchController, user: user);
         if (mounted) setState(() {});
       }
@@ -125,8 +112,8 @@ class _LateRequestScreenState extends State<LateRequestScreen> {
           "${_actualTime.hour.toString().padLeft(2, '0')}:${_actualTime.minute.toString().padLeft(2, '0')}",
       'late_reason_text': _reasonController.text,
       'reason': _reasonController.text,
-      'position': _selectedPosition,
-      'department': _selectedDepartment,
+      'position': _positionController.text.trim(),
+      'department': _departmentController.text.trim(),
       'branch': _branchController.text.trim(),
       'department_head_name': _deptHeadController.text,
       'department_head_signature': _deptHeadSignature,
@@ -329,21 +316,13 @@ class _LateRequestScreenState extends State<LateRequestScreen> {
                           ),
                           const SizedBox(height: 20),
                           _buildLabelField(
-                            "តួនាទី",
-                            _buildDropdown(
-                              _selectedPosition,
-                              _positions,
-                              (v) => setState(() => _selectedPosition = v!),
-                            ),
+                            "មុខតំណែង",
+                            buildReadOnlyUserField(_positionController),
                           ),
                           const SizedBox(height: 20),
                           _buildLabelField(
                             "ផ្នែក",
-                            _buildDropdown(
-                              _selectedDepartment,
-                              _departments,
-                              (v) => setState(() => _selectedDepartment = v!),
-                            ),
+                            buildReadOnlyUserField(_departmentController),
                           ),
                           const SizedBox(height: 20),
                           _buildLabelField(
@@ -459,21 +438,6 @@ class _LateRequestScreenState extends State<LateRequestScreen> {
         ),
         field,
       ],
-    );
-  }
-
-  Widget _buildDropdown(
-    String value,
-    List<String> items,
-    Function(String?) onChanged,
-  ) {
-    return VvcDropdown<String>(
-      value: value,
-      prefixIcon: Icons.access_time_filled_rounded,
-      items: items
-          .map((v) => VvcDropdownItem<String>(value: v, label: v))
-          .toList(),
-      onChanged: onChanged,
     );
   }
 
