@@ -7766,14 +7766,13 @@ try {
             if ($stmt->execute()) {
                 $saved_poll_id = $poll_id > 0 ? $poll_id : $mysqli->insert_id;
                 
-                // Handle candidates saving to poll_candidates table
+                // Handle candidates saving to poll_candidates table without wiping existing votes via CASCADE
                 if (isset($_POST['candidates'])) {
                     $cands_input = $_POST['candidates'];
                     if (is_string($cands_input)) {
                         $cands_input = json_decode($cands_input, true);
                     }
                     if (is_array($cands_input)) {
-                        $mysqli->query("DELETE FROM poll_candidates WHERE poll_id = $saved_poll_id");
                         foreach ($cands_input as $cand) {
                             $cand_emp_id = '';
                             $cand_cat = $location;
@@ -7786,7 +7785,12 @@ try {
                             $cand_emp_id = $mysqli->real_escape_string(trim($cand_emp_id));
                             $cand_cat = $mysqli->real_escape_string(trim($cand_cat));
                             if (!empty($cand_emp_id)) {
-                                $mysqli->query("INSERT INTO poll_candidates (poll_id, employee_id, category) VALUES ($saved_poll_id, '$cand_emp_id', '$cand_cat')");
+                                $check_exist = $mysqli->query("SELECT id FROM poll_candidates WHERE poll_id = $saved_poll_id AND employee_id = '$cand_emp_id' LIMIT 1");
+                                if ($check_exist && $c_row = $check_exist->fetch_assoc()) {
+                                    $mysqli->query("UPDATE poll_candidates SET category = '$cand_cat' WHERE id = " . (int)$c_row['id']);
+                                } else {
+                                    $mysqli->query("INSERT INTO poll_candidates (poll_id, employee_id, category) VALUES ($saved_poll_id, '$cand_emp_id', '$cand_cat')");
+                                }
                             }
                         }
                     }
@@ -8048,19 +8052,20 @@ try {
 
                 $row['candidates'] = $candidates;
 
-                // Build voter audit list
+                // Build voter audit list with resilient joins
                 $voter_audit_list = [];
                 $audit_stmt = $mysqli->prepare("
                     SELECT 
                         pv.voter_employee_id,
-                        uv.name as voter_name,
-                        pc.employee_id as candidate_employee_id,
-                        uc.name as candidate_name,
+                        COALESCE(uv.name, pv.voter_employee_id) as voter_name,
+                        COALESCE(pc.employee_id, CAST(pv.candidate_id AS CHAR)) as candidate_employee_id,
+                        COALESCE(uc.name, uc2.name, pc.employee_id, CAST(pv.candidate_id AS CHAR), 'បេក្ខជន') as candidate_name,
                         pv.voted_at
                     FROM poll_votes pv
-                    LEFT JOIN users uv ON pv.voter_employee_id = uv.employee_id
-                    LEFT JOIN poll_candidates pc ON pv.candidate_id = pc.id
-                    LEFT JOIN users uc ON pc.employee_id = uc.employee_id
+                    LEFT JOIN users uv ON (pv.voter_employee_id = uv.employee_id OR LTRIM(pv.voter_employee_id, '0') = LTRIM(uv.employee_id, '0'))
+                    LEFT JOIN poll_candidates pc ON (pv.candidate_id = pc.id OR (pc.poll_id = pv.poll_id AND (pc.employee_id = CAST(pv.candidate_id AS CHAR) OR LTRIM(pc.employee_id, '0') = LTRIM(CAST(pv.candidate_id AS CHAR), '0'))))
+                    LEFT JOIN users uc ON (pc.employee_id = uc.employee_id OR LTRIM(pc.employee_id, '0') = LTRIM(uc.employee_id, '0'))
+                    LEFT JOIN users uc2 ON (CAST(pv.candidate_id AS CHAR) = uc2.employee_id OR LTRIM(CAST(pv.candidate_id AS CHAR), '0') = LTRIM(uc2.employee_id, '0'))
                     WHERE pv.poll_id = ?
                     ORDER BY pv.id DESC
                 ");

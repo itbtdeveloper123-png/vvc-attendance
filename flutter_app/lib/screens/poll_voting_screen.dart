@@ -940,7 +940,39 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setModalState) {
-            final candidates = List<Map<String, dynamic>>.from(poll['candidates'] ?? []);
+            List<Map<String, dynamic>> candidates = List<Map<String, dynamic>>.from(poll['candidates'] ?? []);
+            if (candidates.isEmpty && _allUsers.isNotEmpty) {
+              final List<String> empIds = [];
+              if (poll['allowed_employee_ids'] != null) {
+                final raw = poll['allowed_employee_ids'];
+                if (raw is List) {
+                  empIds.addAll(raw.map((e) => e.toString()));
+                } else if (raw is String && raw.trim().isNotEmpty) {
+                  try {
+                    final decoded = jsonDecode(raw);
+                    if (decoded is List) {
+                      empIds.addAll(decoded.map((e) => e.toString()));
+                    }
+                  } catch (_) {}
+                }
+              }
+              if (empIds.isEmpty && poll['target_employee_ids'] != null) {
+                final raw = poll['target_employee_ids'].toString();
+                empIds.addAll(raw.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty));
+              }
+
+              if (empIds.isNotEmpty) {
+                candidates = _allUsers
+                    .where((u) => empIds.contains(u['employee_id']?.toString()))
+                    .map((u) => {
+                          'employee_id': u['employee_id'],
+                          'name': u['name'] ?? u['employee_id'],
+                          'department': u['position'] ?? u['department'] ?? 'បុគ្គលិក',
+                          'votes_count': 0,
+                        })
+                    .toList();
+              }
+            }
             final auditList = List<Map<String, dynamic>>.from(poll['voter_audit_list'] ?? []);
 
             int totalVotes = 0;
