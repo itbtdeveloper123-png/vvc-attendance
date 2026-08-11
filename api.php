@@ -7992,25 +7992,30 @@ try {
                     $row['has_voted'] = false;
                 }
 
-                // Fetch candidates from poll_candidates table
+                // Fetch candidates from poll_candidates table along with votes count
                 $candidates = [];
                 $cand_stmt = $mysqli->prepare("
-                    SELECT pc.id, pc.employee_id, pc.category, u.name, u.photo_url 
+                    SELECT pc.id, pc.employee_id, pc.category, u.name, u.photo_url,
+                           (SELECT COUNT(*) FROM poll_votes pv WHERE pv.poll_id = pc.poll_id AND (pv.candidate_id = pc.id OR pv.candidate_id IN (SELECT id FROM poll_candidates WHERE poll_id = pc.poll_id AND employee_id = pc.employee_id))) AS votes_count
                     FROM poll_candidates pc 
                     LEFT JOIN users u ON pc.employee_id = u.employee_id 
                     WHERE pc.poll_id = ?
+                    ORDER BY votes_count DESC
                 ");
                 if ($cand_stmt) {
                     $cand_stmt->bind_param('i', $poll_id);
                     $cand_stmt->execute();
                     $cand_res = $cand_stmt->get_result();
                     while ($c_row = $cand_res->fetch_assoc()) {
+                        $v_cnt = (int)($c_row['votes_count'] ?? 0);
                         $candidates[] = [
                             'id'          => (int)$c_row['id'],
                             'employee_id' => (string)$c_row['employee_id'],
                             'name'        => !empty($c_row['name']) ? $c_row['name'] : (string)$c_row['employee_id'],
                             'category'    => $c_row['category'] ?? 'Head Office',
                             'photo_url'   => $c_row['photo_url'] ?? '',
+                            'votes_count' => $v_cnt,
+                            'votes'       => $v_cnt,
                         ];
                     }
                     $cand_stmt->close();
@@ -8023,18 +8028,58 @@ try {
                             $cand_emp_id = (string)$cand_emp_id;
                             $u_res = $mysqli->query("SELECT name, photo_url FROM users WHERE employee_id = '$cand_emp_id' LIMIT 1");
                             $u_row = $u_res ? $u_res->fetch_assoc() : null;
+
+                            $vc_res = $mysqli->query("SELECT COUNT(*) as cnt FROM poll_votes pv LEFT JOIN poll_candidates pc ON pv.candidate_id = pc.id WHERE pv.poll_id = $poll_id AND (pc.employee_id = '$cand_emp_id' OR pv.candidate_id = ".((int)$idx+1).")");
+                            $vc_row = $vc_res ? $vc_res->fetch_assoc() : null;
+                            $v_cnt = (int)($vc_row['cnt'] ?? 0);
+
                             $candidates[] = [
                                 'id'          => $idx + 1,
                                 'employee_id' => $cand_emp_id,
                                 'name'        => $u_row['name'] ?? $cand_emp_id,
                                 'category'    => 'Head Office',
                                 'photo_url'   => $u_row['photo_url'] ?? '',
+                                'votes_count' => $v_cnt,
+                                'votes'       => $v_cnt,
                             ];
                         }
                     }
                 }
 
                 $row['candidates'] = $candidates;
+
+                // Build voter audit list
+                $voter_audit_list = [];
+                $audit_stmt = $mysqli->prepare("
+                    SELECT 
+                        pv.voter_employee_id,
+                        uv.name as voter_name,
+                        pc.employee_id as candidate_employee_id,
+                        uc.name as candidate_name,
+                        pv.voted_at
+                    FROM poll_votes pv
+                    LEFT JOIN users uv ON pv.voter_employee_id = uv.employee_id
+                    LEFT JOIN poll_candidates pc ON pv.candidate_id = pc.id
+                    LEFT JOIN users uc ON pc.employee_id = uc.employee_id
+                    WHERE pv.poll_id = ?
+                    ORDER BY pv.id DESC
+                ");
+                if ($audit_stmt) {
+                    $audit_stmt->bind_param('i', $poll_id);
+                    $audit_stmt->execute();
+                    $audit_res = $audit_stmt->get_result();
+                    while ($a_row = $audit_res->fetch_assoc()) {
+                        $voter_audit_list[] = [
+                            'voter_id'       => (string)$a_row['voter_employee_id'],
+                            'voter_name'     => !empty($a_row['voter_name']) ? $a_row['voter_name'] : (string)$a_row['voter_employee_id'],
+                            'candidate_id'   => (string)($a_row['candidate_employee_id'] ?? ''),
+                            'candidate_name' => !empty($a_row['candidate_name']) ? $a_row['candidate_name'] : (string)($a_row['candidate_employee_id'] ?? 'បេក្ខជន'),
+                            'time'           => !empty($a_row['voted_at']) ? date('d/m/Y H:i', strtotime($a_row['voted_at'])) : '',
+                        ];
+                    }
+                    $audit_stmt->close();
+                }
+                $row['voter_audit_list'] = $voter_audit_list;
                 $polls[] = $row;
             }
         }

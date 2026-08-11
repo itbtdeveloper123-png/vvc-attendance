@@ -887,25 +887,28 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
                       ),
                     ),
                   if (hasVoted) ...[
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: () => _showPollResultsModal(poll),
-                        icon: const Icon(Icons.bar_chart_rounded, color: Colors.amberAccent, size: 18),
-                        label: Text(
-                          '📊 មើលលទ្ធផល & អ្នកបោះឆ្នោត',
-                          style: GoogleFonts.kantumruyPro(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.amberAccent,
-                            fontSize: 13.5,
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.check_circle_rounded, color: Colors.greenAccent, size: 20),
+                          const SizedBox(width: 8),
+                          Text(
+                            'អ្នកបានបោះឆ្នោតរួចរាល់ហើយ! (សូមអរគុណ)',
+                            style: GoogleFonts.kantumruyPro(
+                              color: Colors.greenAccent,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13.5,
+                            ),
                           ),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: Colors.amberAccent),
-                          padding: const EdgeInsets.symmetric(vertical: 11),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
+                        ],
                       ),
                     ),
                   ],
@@ -919,6 +922,17 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
   }
 
   void _showPollResultsModal(Map<String, dynamic> poll) {
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    final bool isHrmOrAdmin = userProvider.isHRM || userProvider.isAdmin;
+    if (!isHrmOrAdmin) {
+      VvcAlert.showError(
+        context,
+        title: 'គ្មានសិទ្ធិ',
+        message: 'មានតែផ្នែក HRM / Admin ប៉ុណ្ណោះដែលអាចមើលលទ្ធផល និងអ្នកបោះឆ្នោតបាន',
+      );
+      return;
+    }
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -931,10 +945,15 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
 
             int totalVotes = 0;
             for (var c in candidates) {
-              totalVotes += (c['votes_count'] as int? ?? 0);
+              final v = int.tryParse(c['votes_count']?.toString() ?? c['votes']?.toString() ?? '0') ?? 0;
+              totalVotes += v;
             }
 
-            candidates.sort((a, b) => (b['votes_count'] as int? ?? 0).compareTo(a['votes_count'] as int? ?? 0));
+            candidates.sort((a, b) {
+              final vA = int.tryParse(a['votes_count']?.toString() ?? a['votes']?.toString() ?? '0') ?? 0;
+              final vB = int.tryParse(b['votes_count']?.toString() ?? b['votes']?.toString() ?? '0') ?? 0;
+              return vB.compareTo(vA);
+            });
             final bool isSkilledTab = _resultsCategory == 'skilled';
             final topWinner = candidates.isNotEmpty ? candidates.first : <String, dynamic>{};
 
@@ -1262,7 +1281,7 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
     int rankNumber = 1,
     String category = 'skilled',
   }) {
-    final votes = c['votes_count'] as int? ?? 0;
+    final votes = int.tryParse(c['votes_count']?.toString() ?? c['votes']?.toString() ?? '0') ?? 0;
     final pct = totalVotes > 0 ? (votes / totalVotes) : 0.0;
     final bool isWorker = category == 'worker';
 
