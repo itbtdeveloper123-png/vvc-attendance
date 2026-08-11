@@ -8038,9 +8038,17 @@ try {
                 }
 
                 $poll_id = (int)$row['id'];
+                $poll_title_esc = $mysqli->real_escape_string($row['title'] ?? '');
 
-                // Check if user has already voted and get their voted candidate ID
-                $vote_check = $mysqli->prepare("SELECT candidate_id FROM poll_votes WHERE poll_id = ? AND (voter_employee_id = ? OR LTRIM(voter_employee_id, '0') = LTRIM(?, '0')) ORDER BY id DESC LIMIT 1");
+                // Check if user has already voted for THIS specific poll_id
+                $vote_check = $mysqli->prepare("
+                    SELECT pv.candidate_id, COALESCE(pc.employee_id, CAST(pv.candidate_id AS CHAR)) as cand_emp_id 
+                    FROM poll_votes pv 
+                    LEFT JOIN poll_candidates pc ON (pv.candidate_id = pc.id OR CAST(pv.candidate_id AS CHAR) = pc.employee_id)
+                    WHERE pv.poll_id = ? 
+                      AND (pv.voter_employee_id = ? OR LTRIM(pv.voter_employee_id, '0') = LTRIM(?, '0')) 
+                    ORDER BY pv.id DESC LIMIT 1
+                ");
                 if ($vote_check) {
                     $vote_check->bind_param('iss', $poll_id, $eid, $eid);
                     $vote_check->execute();
@@ -8048,17 +8056,18 @@ try {
                     if ($vote_res) {
                         $row['has_voted'] = true;
                         $row['voted_candidate_id'] = (string)$vote_res['candidate_id'];
+                        $row['voted_candidate_employee_id'] = (string)$vote_res['cand_emp_id'];
                     } else {
                         $row['has_voted'] = false;
                         $row['voted_candidate_id'] = '';
+                        $row['voted_candidate_employee_id'] = '';
                     }
                     $vote_check->close();
                 } else {
                     $row['has_voted'] = false;
                     $row['voted_candidate_id'] = '';
+                    $row['voted_candidate_employee_id'] = '';
                 }
-
-                $poll_title_esc = $mysqli->real_escape_string($row['title'] ?? '');
 
                 // Fetch candidates from poll_candidates table along with votes count
                 $candidates = [];

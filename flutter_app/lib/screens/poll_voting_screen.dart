@@ -951,11 +951,11 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
                     final candIdStr = candidate['id']?.toString() ?? '';
                     final name = candidate['name']?.toString() ?? empId;
                     final votedCandId = (poll['voted_candidate_id'] ?? '').toString();
+                    final votedCandEmpId = (poll['voted_candidate_employee_id'] ?? '').toString();
 
-                    final isUserVotedChoice = hasVoted && votedCandId.isNotEmpty && (
-                      votedCandId == empId ||
-                      votedCandId == candIdStr ||
-                      (empId.isNotEmpty && votedCandId.replaceAll(RegExp(r'^0+'), '') == empId.replaceAll(RegExp(r'^0+'), ''))
+                    final isUserVotedChoice = hasVoted && (
+                      (votedCandId.isNotEmpty && (votedCandId == empId || votedCandId == candIdStr)) ||
+                      (votedCandEmpId.isNotEmpty && (votedCandEmpId == empId || (empId.isNotEmpty && votedCandEmpId.replaceAll(RegExp(r'^0+'), '') == empId.replaceAll(RegExp(r'^0+'), ''))))
                     );
                     final isSelected = isUserVotedChoice || (selectedCandidateEmployeeId == empId);
 
@@ -1274,7 +1274,9 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
             }).toList();
 
             final bool isSkilledTab = _resultsCategory == 'skilled';
-            final topWinner = candidates.isNotEmpty ? candidates.first : <String, dynamic>{};
+            final bool hasVotes = votedCandidates.isNotEmpty;
+            final topWinner = hasVotes ? votedCandidates.first : <String, dynamic>{};
+            final int winnerVotes = int.tryParse(topWinner['votes_count']?.toString() ?? topWinner['votes']?.toString() ?? '0') ?? 0;
 
             return Container(
               height: MediaQuery.of(context).size.height * 0.85,
@@ -1322,7 +1324,7 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
                                   ),
                                   Text(
                                     '$totalVotes សំឡេង',
-                                    style: GoogleFonts.kantumruyPro(color: Colors.amberAccent, fontSize: 14, fontWeight: FontWeight.bold),
+                                    style: GoogleFonts.kantumruyPro(color: Colors.amberAccent, fontWeight: FontWeight.bold, fontSize: 14),
                                   ),
                                 ],
                               ),
@@ -1458,7 +1460,9 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
                                       ),
                                       const SizedBox(height: 2),
                                       Text(
-                                        'ជ័យលាភី៖ ${topWinner['name'] ?? 'បុគ្គលិកឆ្នើម'} (${topWinner['votes_count'] ?? 0} ឆ្នោត)',
+                                        winnerVotes > 0
+                                            ? 'ជ័យលាភី៖ ${topWinner['name'] ?? 'បុគ្គលិកឆ្នើម'} ($winnerVotes ឆ្នោត)'
+                                            : 'ជ័យលាភី៖ មិនទាន់មានសំឡេងឆ្នោត',
                                         style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 12),
                                       ),
                                     ],
@@ -1500,7 +1504,7 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
                         ),
                         const SizedBox(height: 10),
 
-                        if (votedCandidates.isEmpty)
+                        if (candidates.isEmpty)
                           Container(
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
@@ -1508,16 +1512,16 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
                               borderRadius: BorderRadius.circular(14),
                             ),
                             child: Text(
-                              'មិនទាន់មានសំឡេងឆ្នោតបោះឱ្យបេក្ខជននៅឡើយទេ',
+                              'មិនទាន់មានបេក្ខជនក្នុងបញ្ជីនៅឡើយទេ',
                               style: GoogleFonts.kantumruyPro(color: Colors.white54, fontSize: 13),
                             ),
                           )
                         else
-                          for (int i = 0; i < votedCandidates.length; i++) ...[
+                          for (int i = 0; i < candidates.length; i++) ...[
                             _buildCandidateResultCard(
-                              votedCandidates[i],
+                              candidates[i],
                               totalVotes,
-                              isWinner: i == 0 && totalVotes > 0,
+                              isWinner: i == 0 && totalVotes > 0 && (int.tryParse(candidates[i]['votes_count']?.toString() ?? candidates[i]['votes']?.toString() ?? '0') ?? 0) > 0,
                               poll: poll,
                               rankNumber: i + 1,
                               category: _resultsCategory,
