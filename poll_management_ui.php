@@ -349,17 +349,24 @@ if ($polls_result) {
                     <div style="max-height: 200px; overflow-y: auto;">
                         <?php 
                         $allowed_ids = [];
-                        if ($poll_data && $poll_data['allowed_employee_ids']) {
-                            $allowed_ids = json_decode($poll_data['allowed_employee_ids'], true);
-                            if (!is_array($allowed_ids)) $allowed_ids = [];
+                        if ($poll_data && !empty($poll_data['allowed_employee_ids'])) {
+                            $raw_a = $poll_data['allowed_employee_ids'];
+                            $dec_a = json_decode($raw_a, true);
+                            if (is_string($dec_a)) $dec_a = json_decode($dec_a, true);
+                            if (is_array($dec_a)) $allowed_ids = array_map('strval', $dec_a);
                         }
+                        $clean_allowed_ids = array_map(function($id) { return ltrim((string)$id, '0'); }, $allowed_ids);
                         ?>
-                        <?php foreach ($employees as $emp): ?>
+                        <?php foreach ($employees as $emp): 
+                            $emp_str = (string)$emp['employee_id'];
+                            $emp_clean = ltrim($emp_str, '0');
+                            $is_checked = in_array($emp_str, $allowed_ids) || ($emp_clean !== '' && in_array($emp_clean, $clean_allowed_ids));
+                        ?>
                             <div class="employee-checkbox">
                                 <label>
                                     <input type="checkbox" name="allowed_employees[]" 
                                            value="<?php echo $emp['employee_id']; ?>"
-                                           <?php echo in_array($emp['employee_id'], $allowed_ids) ? 'checked' : ''; ?>>
+                                           <?php echo $is_checked ? 'checked' : ''; ?>>
                                     <?php echo htmlspecialchars($emp['name']); ?> (<?php echo $emp['employee_id']; ?>)
                                 </label>
                             </div>

@@ -15213,21 +15213,53 @@ ob_end_flush();
                                             });
                                     };
 
-                                    window.loadEmployees = function() {
-                                        // Load employees for selection
-                                        fetch('api.php?action=get_employees')
+                                    window.loadEmployees = function(selectedAllowed = [], selectedExcluded = []) {
+                                        const allowedContainer = document.getElementById('allowed_employees_container');
+                                        const excludedContainer = document.getElementById('excluded_employees_container');
+
+                                        function parseIds(input) {
+                                            if (!input) return [];
+                                            let arr = [];
+                                            if (Array.isArray(input)) {
+                                                arr = input;
+                                            } else if (typeof input === 'string') {
+                                                try {
+                                                    let dec = JSON.parse(input);
+                                                    if (typeof dec === 'string') dec = JSON.parse(dec);
+                                                    if (Array.isArray(dec)) arr = dec;
+                                                    else arr = input.split(',').map(s => s.trim());
+                                                } catch (e) {
+                                                    arr = input.split(',').map(s => s.trim());
+                                                }
+                                            }
+                                            return arr.map(e => String(e).trim()).filter(e => e.length > 0);
+                                        }
+
+                                        const allowedSet = parseIds(selectedAllowed);
+                                        const excludedSet = parseIds(selectedExcluded);
+
+                                        function isMatch(empId, idList) {
+                                            if (!empId || !idList || idList.length === 0) return false;
+                                            const targetStr = String(empId).trim();
+                                            const cleanTarget = targetStr.replace(/^0+/, '');
+                                            return idList.some(id => {
+                                                const strId = String(id).trim();
+                                                const cleanId = strId.replace(/^0+/, '');
+                                                return strId === targetStr || (cleanTarget !== '' && cleanId === cleanTarget);
+                                            });
+                                        }
+
+                                        return fetch('api.php?action=get_employees')
                                             .then(res => res.json())
                                             .then(res => {
                                                 if (res.success && res.data) {
-                                                    const allowedContainer = document.getElementById('allowed_employees_container');
-                                                    const excludedContainer = document.getElementById('excluded_employees_container');
-                                                    
                                                     if (allowedContainer) {
                                                         let allowedHtml = '';
                                                         res.data.forEach(emp => {
+                                                            const checked = isMatch(emp.employee_id, allowedSet) ? 'checked' : '';
                                                             allowedHtml += `
                                                                 <label style="display:flex; align-items:center; gap:10px; padding:8px; border-bottom:1px solid #eee; cursor:pointer;">
-                                                                    <input type="checkbox" name="allowed_employees[]" value="${emp.employee_id}" 
+                                                                    <input type="checkbox" name="allowed_employees[]" value="${emp.employee_id}" ${checked}
                                                                         style="width:18px; height:18px;">
                                                                     <span>${emp.name} (${emp.employee_id})</span>
                                                                     <small style="color:#666; margin-left:auto;">${emp.branch || ''}</small>
@@ -15240,9 +15272,10 @@ ob_end_flush();
                                                     if (excludedContainer) {
                                                         let excludedHtml = '';
                                                         res.data.forEach(emp => {
+                                                            const checked = isMatch(emp.employee_id, excludedSet) ? 'checked' : '';
                                                             excludedHtml += `
                                                                 <label style="display:flex; align-items:center; gap:10px; padding:8px; border-bottom:1px solid #eee; cursor:pointer;">
-                                                                    <input type="checkbox" name="excluded_employees[]" value="${emp.employee_id}" 
+                                                                    <input type="checkbox" name="excluded_employees[]" value="${emp.employee_id}" ${checked}
                                                                         style="width:18px; height:18px;">
                                                                     <span>${emp.name} (${emp.employee_id})</span>
                                                                     <small style="color:#666; margin-left:auto;">${emp.branch || ''}</small>
@@ -15264,7 +15297,7 @@ ob_end_flush();
                                         document.getElementById('poll_id').value = '';
                                         document.getElementById('pollModalTitle').innerHTML = '<i class="fa-solid fa-plus-circle"></i> បង្កើតការបោះឆ្នោតថ្មី';
                                         document.getElementById('pollModal').style.display = 'block';
-                                        window.loadEmployees();
+                                        window.loadEmployees([], []);
                                     };
 
                                     window.closePollModal = function() {
@@ -15371,7 +15404,7 @@ ob_end_flush();
                                                 if (res.success && res.data) {
                                                     const poll = res.data;
                                                     document.getElementById('poll_id').value = poll.id;
-                                                    document.getElementById('poll_title').value = poll.title;
+                                                    document.getElementById('poll_title').value = poll.title || '';
                                                     document.getElementById('poll_quarter').value = poll.quarter || '';
                                                     document.getElementById('poll_location').value = poll.location || '';
                                                     document.getElementById('poll_start_date').value = poll.start_date || '';
@@ -15386,37 +15419,9 @@ ob_end_flush();
 
                                                     document.getElementById('pollModalTitle').innerHTML = '<i class="fa-solid fa-edit"></i> កែសម្រួលការបោះឆ្នោត';
                                                     document.getElementById('pollModal').style.display = 'block';
-                                                    window.loadEmployees();
 
-                                                    // Set selected employees after loading
-                                                    setTimeout(() => {
-                                                        try {
-                                                            if (poll.allowed_employee_ids) {
-                                                                const allowedIds = JSON.parse(poll.allowed_employee_ids);
-                                                                if (Array.isArray(allowedIds)) {
-                                                                    allowedIds.forEach(id => {
-                                                                        const cb = document.querySelector(`input[name="allowed_employees[]"][value="${id}"]`);
-                                                                        if (cb) cb.checked = true;
-                                                                    });
-                                                                }
-                                                            }
-                                                        } catch (e) {
-                                                            console.error('Error parsing allowed_employee_ids:', e);
-                                                        }
-                                                        try {
-                                                            if (poll.excluded_employee_ids) {
-                                                                const excludedIds = JSON.parse(poll.excluded_employee_ids);
-                                                                if (Array.isArray(excludedIds)) {
-                                                                    excludedIds.forEach(id => {
-                                                                        const cb = document.querySelector(`input[name="excluded_employees[]"][value="${id}"]`);
-                                                                        if (cb) cb.checked = true;
-                                                                    });
-                                                                }
-                                                            }
-                                                        } catch (e) {
-                                                            console.error('Error parsing excluded_employee_ids:', e);
-                                                        }
-                                                    }, 500);
+                                                    // Pass selected employee lists directly to loadEmployees
+                                                    window.loadEmployees(poll.allowed_employee_ids, poll.excluded_employee_ids);
                                                 } else {
                                                     window.showNotification('កំហុស: ' + (res.message || 'មិនអាចទាញយកទិន្នន័យបានទេ'), 'error');
                                                 }
