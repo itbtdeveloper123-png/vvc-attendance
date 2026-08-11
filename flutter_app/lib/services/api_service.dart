@@ -479,6 +479,11 @@ class ApiService {
     return _processRequest('get_active_polls', headers: headers);
   }
 
+  Future<Map<String, dynamic>> getPolls() async {
+    final headers = await _authHeaders();
+    return _processRequest('get_polls', headers: headers);
+  }
+
   Future<Map<String, dynamic>> castVote(int pollId, String candidateEmployeeId) async {
     final headers = await _authHeaders();
     return _processRequest(

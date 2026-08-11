@@ -7969,7 +7969,18 @@ try {
 
     case 'get_active_polls':
         // For mobile app - get active polls for employee voting
-        if (!$user) apiResponse(['success' => false, 'message' => 'Unauthorized']);
+        if (!$user) {
+            $req_eid = $_GET['employee_id'] ?? $_POST['employee_id'] ?? $_SERVER['HTTP_X_EMPLOYEE_ID'] ?? '';
+            if (!empty($req_eid)) {
+                $u_stmt = $mysqli->prepare("SELECT id, employee_id, name, user_role, system_role, position, department FROM users WHERE employee_id = ? OR TRIM(LEADING '0' FROM employee_id) = TRIM(LEADING '0' FROM ?) LIMIT 1");
+                if ($u_stmt) {
+                    $u_stmt->bind_param('ss', $req_eid, $req_eid);
+                    $u_stmt->execute();
+                    $user = $u_stmt->get_result()->fetch_assoc();
+                    $u_stmt->close();
+                }
+            }
+        }
         
         $table_check = $mysqli->query("SHOW TABLES LIKE 'poll_events'");
         if (!$table_check || $table_check->num_rows == 0) {

@@ -43,12 +43,19 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
         _allUsers = List<dynamic>.from(usersRes['data']);
       }
 
-      // Fetch polls exclusively from Backend API (MySQL DB in Admin Panel)
+      // Fetch polls from Backend API (MySQL DB in Admin Panel) with fallback
       final apiRes = await _api.fetchActivePolls();
-      if (apiRes['success'] == true && apiRes['data'] != null) {
+      if (apiRes['success'] == true && apiRes['data'] != null && (apiRes['data'] as List).isNotEmpty) {
         _polls = List<dynamic>.from(apiRes['data']);
       } else {
-        _polls = [];
+        final fallbackRes = await _api.getPolls();
+        if (fallbackRes['success'] == true && fallbackRes['data'] != null) {
+          _polls = List<dynamic>.from(fallbackRes['data']);
+        } else if (apiRes['data'] != null) {
+          _polls = List<dynamic>.from(apiRes['data']);
+        } else {
+          _polls = [];
+        }
       }
 
       if (mounted) {
