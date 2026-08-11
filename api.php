@@ -7816,11 +7816,24 @@ try {
                             $cand_emp_id = $mysqli->real_escape_string(trim($cand_emp_id));
                             $cand_cat = $mysqli->real_escape_string(trim($cand_cat));
                             if (!empty($cand_emp_id)) {
-                                $check_exist = $mysqli->query("SELECT id FROM poll_candidates WHERE poll_id = $saved_poll_id AND employee_id = '$cand_emp_id' LIMIT 1");
+                                $check_exist = $mysqli->query("SELECT id FROM poll_candidates WHERE poll_id = $saved_poll_id AND (employee_id = '$cand_emp_id' OR TRIM(LEADING '0' FROM employee_id) = TRIM(LEADING '0' FROM '$cand_emp_id')) LIMIT 1");
                                 if ($check_exist && $c_row = $check_exist->fetch_assoc()) {
                                     $mysqli->query("UPDATE poll_candidates SET category = '$cand_cat' WHERE id = " . (int)$c_row['id']);
                                 } else {
                                     $mysqli->query("INSERT INTO poll_candidates (poll_id, employee_id, category) VALUES ($saved_poll_id, '$cand_emp_id', '$cand_cat')");
+                                }
+                            }
+                        }
+                    }
+                } else if (!empty($allowed_employee_ids)) {
+                    $allowed_dec = json_decode($allowed_employee_ids, true);
+                    if (is_array($allowed_dec) && count($allowed_dec) > 0) {
+                        foreach ($allowed_dec as $cand_emp_id) {
+                            $cand_emp_id = $mysqli->real_escape_string(trim((string)$cand_emp_id));
+                            if (!empty($cand_emp_id)) {
+                                $check_exist = $mysqli->query("SELECT id FROM poll_candidates WHERE poll_id = $saved_poll_id AND (employee_id = '$cand_emp_id' OR TRIM(LEADING '0' FROM employee_id) = TRIM(LEADING '0' FROM '$cand_emp_id')) LIMIT 1");
+                                if (!$check_exist || $check_exist->num_rows == 0) {
+                                    $mysqli->query("INSERT INTO poll_candidates (poll_id, employee_id, category) VALUES ($saved_poll_id, '$cand_emp_id', '$location')");
                                 }
                             }
                         }
@@ -8007,9 +8020,15 @@ try {
                 }
                 if (!$is_admin_or_hrm && count($allowed_arr) > 0) {
                     $allowed_str_list = array_map('strval', $allowed_arr);
+                    $clean_allowed = array_map(function($id) { return ltrim((string)$id, '0'); }, $allowed_str_list);
                     $eid_clean = ltrim($eid, '0');
-                    $is_allowed = in_array($eid, $allowed_str_list) || ($eid_clean !== '' && in_array($eid_clean, $allowed_str_list));
-                    if (!$is_allowed) {
+                    $is_allowed = in_array($eid, $allowed_str_list) || ($eid_clean !== '' && in_array($eid_clean, $clean_allowed));
+                    
+                    // If poll_candidates has candidate entries, allow all non-excluded employees to view and vote
+                    $cand_chk = $mysqli->query("SELECT COUNT(*) as cnt FROM poll_candidates WHERE poll_id = $poll_id");
+                    $has_candidates = $cand_chk && ($c_row = $cand_chk->fetch_assoc()) && ((int)($c_row['cnt'] ?? 0) > 0);
+
+                    if (!$is_allowed && !$has_candidates) {
                         continue;
                     }
                 }
