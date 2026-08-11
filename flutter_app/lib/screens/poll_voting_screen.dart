@@ -1226,6 +1226,48 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
             }
             final auditList = List<Map<String, dynamic>>.from(poll['voter_audit_list'] ?? []);
 
+            // Enrich candidate names if missing or numeric ID
+            for (var c in candidates) {
+              final cEmpId = (c['employee_id'] ?? '').toString();
+              final cName = (c['name'] ?? '').toString().trim();
+              if ((cName.isEmpty || cName == cEmpId || RegExp(r'^\d+$').hasMatch(cName)) && _allUsers.isNotEmpty) {
+                final match = _allUsers.firstWhere(
+                  (u) => u['employee_id']?.toString() == cEmpId || (cEmpId.replaceAll(RegExp(r'^0+'), '').isNotEmpty && u['employee_id']?.toString().replaceAll(RegExp(r'^0+'), '') == cEmpId.replaceAll(RegExp(r'^0+'), '')),
+                  orElse: () => null,
+                );
+                if (match != null && (match['name'] ?? '').toString().isNotEmpty) {
+                  c['name'] = match['name'];
+                }
+              }
+            }
+
+            // Enrich audit list voter & candidate names if missing or numeric employee IDs
+            for (var audit in auditList) {
+              final vId = (audit['voter_id'] ?? '').toString();
+              final vName = (audit['voter_name'] ?? '').toString().trim();
+              if ((vName.isEmpty || vName == vId || RegExp(r'^\d+$').hasMatch(vName)) && _allUsers.isNotEmpty) {
+                final match = _allUsers.firstWhere(
+                  (u) => u['employee_id']?.toString() == vId || (vId.replaceAll(RegExp(r'^0+'), '').isNotEmpty && u['employee_id']?.toString().replaceAll(RegExp(r'^0+'), '') == vId.replaceAll(RegExp(r'^0+'), '')),
+                  orElse: () => null,
+                );
+                if (match != null && (match['name'] ?? '').toString().isNotEmpty) {
+                  audit['voter_name'] = match['name'];
+                }
+              }
+
+              final candId = (audit['candidate_id'] ?? '').toString();
+              final candName = (audit['candidate_name'] ?? '').toString().trim();
+              if ((candName.isEmpty || candName == candId || candName == 'បេក្ខជន' || RegExp(r'^\d+$').hasMatch(candName)) && _allUsers.isNotEmpty) {
+                final match = _allUsers.firstWhere(
+                  (u) => u['employee_id']?.toString() == candId || (candId.replaceAll(RegExp(r'^0+'), '').isNotEmpty && u['employee_id']?.toString().replaceAll(RegExp(r'^0+'), '') == candId.replaceAll(RegExp(r'^0+'), '')),
+                  orElse: () => null,
+                );
+                if (match != null && (match['name'] ?? '').toString().isNotEmpty) {
+                  audit['candidate_name'] = match['name'];
+                }
+              }
+            }
+
             // Calculate vote counts with fallback to auditList records if votes_count is 0
             for (var c in candidates) {
               int v = int.tryParse(c['votes_count']?.toString() ?? c['votes']?.toString() ?? '0') ?? 0;

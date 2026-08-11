@@ -7496,7 +7496,6 @@ try {
         break;
 
     case 'get_polls':
-    case 'get_active_polls':
         try {
             error_log("API: get_polls called");
             
@@ -7531,9 +7530,9 @@ try {
                     if ($poll_id > 0) {
                         $cand_q = $mysqli->query("
                             SELECT c.*, u.name, u.department, u.position, u.profile_picture, u.photo,
-                                   (SELECT COUNT(*) FROM poll_votes v WHERE v.candidate_id = c.id) AS votes_count 
+                                   (SELECT COUNT(*) FROM poll_votes v WHERE v.poll_id = $poll_id AND (v.candidate_id = c.id OR CAST(v.candidate_id AS CHAR) = c.employee_id OR LTRIM(CAST(v.candidate_id AS CHAR), '0') = LTRIM(c.employee_id, '0'))) AS votes_count 
                             FROM poll_candidates c 
-                            LEFT JOIN users u ON c.employee_id = u.employee_id 
+                            LEFT JOIN users u ON (c.employee_id = u.employee_id OR LTRIM(c.employee_id, '0') = LTRIM(u.employee_id, '0')) 
                             WHERE c.poll_id = $poll_id
                         ");
                         if ($cand_q && $cand_q instanceof mysqli_result) {
@@ -7602,13 +7601,16 @@ try {
                     // Fetch voter audit list for mobile app & admin panel results
                     $audit_list = [];
                     $audit_q = $mysqli->query("
-                        SELECT v.voter_employee_id AS voter_id, v.voted_at AS time,
+                        SELECT v.voter_employee_id AS voter_id, 
+                               v.candidate_id AS candidate_id,
+                               v.voted_at AS time,
                                COALESCE(uv.name, v.voter_employee_id) AS voter_name,
-                               COALESCE(uc.name, c.employee_id) AS candidate_name
+                               COALESCE(uc.name, uc2.name, c.employee_id, CAST(v.candidate_id AS CHAR), 'បេក្ខជន') AS candidate_name
                         FROM poll_votes v
-                        LEFT JOIN users uv ON v.voter_employee_id = uv.employee_id
-                        LEFT JOIN poll_candidates c ON v.candidate_id = c.id
-                        LEFT JOIN users uc ON c.employee_id = uc.employee_id
+                        LEFT JOIN users uv ON (v.voter_employee_id = uv.employee_id OR LTRIM(v.voter_employee_id, '0') = LTRIM(uv.employee_id, '0'))
+                        LEFT JOIN poll_candidates c ON (v.candidate_id = c.id OR (c.employee_id = CAST(v.candidate_id AS CHAR) OR LTRIM(c.employee_id, '0') = LTRIM(CAST(v.candidate_id AS CHAR), '0')))
+                        LEFT JOIN users uc ON (c.employee_id = uc.employee_id OR LTRIM(c.employee_id, '0') = LTRIM(uc.employee_id, '0'))
+                        LEFT JOIN users uc2 ON (CAST(v.candidate_id AS CHAR) = uc2.employee_id OR LTRIM(CAST(v.candidate_id AS CHAR), '0') = LTRIM(uc2.employee_id, '0'))
                         WHERE v.poll_id = $poll_id
                         ORDER BY v.voted_at DESC
                     ");
@@ -7894,10 +7896,10 @@ try {
             $poll_id = $row['id'];
             $candidate_stmt = $mysqli->prepare("
                 SELECT c.*, 
-                (SELECT COUNT(*) FROM poll_votes WHERE candidate_id = c.id) as votes,
+                (SELECT COUNT(*) FROM poll_votes v WHERE v.poll_id = c.poll_id AND (v.candidate_id = c.id OR CAST(v.candidate_id AS CHAR) = c.employee_id OR LTRIM(CAST(v.candidate_id AS CHAR), '0') = LTRIM(c.employee_id, '0'))) as votes,
                 u.name
                 FROM poll_candidates c
-                LEFT JOIN users u ON c.employee_id = u.employee_id
+                LEFT JOIN users u ON (c.employee_id = u.employee_id OR LTRIM(c.employee_id, '0') = LTRIM(u.employee_id, '0'))
                 WHERE c.poll_id = ?
                 ORDER BY votes DESC
             ");
@@ -8354,10 +8356,10 @@ try {
         // Get results
         $candidate_stmt = $mysqli->prepare("
             SELECT c.*, 
-            (SELECT COUNT(*) FROM poll_votes WHERE candidate_id = c.id) as votes,
+            (SELECT COUNT(*) FROM poll_votes v WHERE v.poll_id = c.poll_id AND (v.candidate_id = c.id OR CAST(v.candidate_id AS CHAR) = c.employee_id OR LTRIM(CAST(v.candidate_id AS CHAR), '0') = LTRIM(c.employee_id, '0'))) as votes,
             u.name
             FROM poll_candidates c
-            LEFT JOIN users u ON c.employee_id = u.employee_id
+            LEFT JOIN users u ON (c.employee_id = u.employee_id OR LTRIM(c.employee_id, '0') = LTRIM(u.employee_id, '0'))
             WHERE c.poll_id = ?
             ORDER BY votes DESC
         ");
