@@ -8039,16 +8039,23 @@ try {
 
                 $poll_id = (int)$row['id'];
 
-                // Check if user has already voted
-                $vote_check = $mysqli->prepare("SELECT COUNT(*) as voted FROM poll_votes WHERE poll_id = ? AND (voter_employee_id = ? OR LTRIM(voter_employee_id, '0') = LTRIM(?, '0'))");
+                // Check if user has already voted and get their voted candidate ID
+                $vote_check = $mysqli->prepare("SELECT candidate_id FROM poll_votes WHERE poll_id = ? AND (voter_employee_id = ? OR LTRIM(voter_employee_id, '0') = LTRIM(?, '0')) ORDER BY id DESC LIMIT 1");
                 if ($vote_check) {
                     $vote_check->bind_param('iss', $poll_id, $eid, $eid);
                     $vote_check->execute();
                     $vote_res = $vote_check->get_result()->fetch_assoc();
-                    $row['has_voted'] = ($vote_res['voted'] ?? 0) > 0;
+                    if ($vote_res) {
+                        $row['has_voted'] = true;
+                        $row['voted_candidate_id'] = (string)$vote_res['candidate_id'];
+                    } else {
+                        $row['has_voted'] = false;
+                        $row['voted_candidate_id'] = '';
+                    }
                     $vote_check->close();
                 } else {
                     $row['has_voted'] = false;
+                    $row['voted_candidate_id'] = '';
                 }
 
                 $poll_title_esc = $mysqli->real_escape_string($row['title'] ?? '');

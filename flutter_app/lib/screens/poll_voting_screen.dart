@@ -948,16 +948,28 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
                   const SizedBox(height: 8),
                   ...candidates.map((candidate) {
                     final empId = candidate['employee_id']?.toString() ?? '';
+                    final candIdStr = candidate['id']?.toString() ?? '';
                     final name = candidate['name']?.toString() ?? empId;
-                    final isSelected = selectedCandidateEmployeeId == empId;
+                    final votedCandId = (poll['voted_candidate_id'] ?? '').toString();
+
+                    final isUserVotedChoice = hasVoted && votedCandId.isNotEmpty && (
+                      votedCandId == empId ||
+                      votedCandId == candIdStr ||
+                      (empId.isNotEmpty && votedCandId.replaceAll(RegExp(r'^0+'), '') == empId.replaceAll(RegExp(r'^0+'), ''))
+                    );
+                    final isSelected = isUserVotedChoice || (selectedCandidateEmployeeId == empId);
 
                     return Container(
                       margin: const EdgeInsets.only(bottom: 8),
                       decoration: BoxDecoration(
-                        color: isSelected ? AppTheme.primary.withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.04),
+                        color: isUserVotedChoice
+                            ? const Color(0xFF10B981).withValues(alpha: 0.18)
+                            : (isSelected ? AppTheme.primary.withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.04)),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: isSelected ? AppTheme.primary : Colors.white.withValues(alpha: 0.08),
+                          color: isUserVotedChoice
+                              ? const Color(0xFF10B981)
+                              : (isSelected ? AppTheme.primary : Colors.white.withValues(alpha: 0.08)),
                         ),
                       ),
                       child: CheckboxListTile(
@@ -967,10 +979,28 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
                             selectedCandidateEmployeeId = value == true ? empId : null;
                           });
                         },
-                        title: Text(name, style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 14)),
+                        title: Row(
+                          children: [
+                            Expanded(
+                              child: Text(name, style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 14)),
+                            ),
+                            if (isUserVotedChoice)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF10B981),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  '✓ បានបោះឆ្នោតជូន',
+                                  style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                          ],
+                        ),
                         subtitle: Text('ផ្នែក: ${candidate['department'] ?? candidate['dept'] ?? candidate['category'] ?? 'បុគ្គលិក'}', style: GoogleFonts.kantumruyPro(color: Colors.white60, fontSize: 12)),
                         controlAffinity: ListTileControlAffinity.leading,
-                        activeColor: AppTheme.primary,
+                        activeColor: isUserVotedChoice ? const Color(0xFF10B981) : AppTheme.primary,
                       ),
                     );
                   }),
