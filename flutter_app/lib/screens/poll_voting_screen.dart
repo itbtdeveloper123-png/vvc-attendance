@@ -106,7 +106,17 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
     final titleCtrl = TextEditingController(text: pollToEdit?['title']?.toString() ?? '');
     final passcodeCtrl = TextEditingController(text: pollToEdit?['passcode']?.toString() ?? pollToEdit?['access_code']?.toString() ?? '');
 
-    String selectedQuarter = pollToEdit?['quarter']?.toString() ?? 'Q1';
+    String rawQ = pollToEdit?['quarter']?.toString() ?? 'ត្រីមាសទី ១';
+    if (rawQ == 'Q1') {
+      rawQ = 'ត្រីមាសទី ១';
+    } else if (rawQ == 'Q2') {
+      rawQ = 'ត្រីមាសទី ២';
+    } else if (rawQ == 'Q3') {
+      rawQ = 'ត្រីមាសទី ៣';
+    } else if (rawQ == 'Q4') {
+      rawQ = 'ត្រីមាសទី ៤';
+    }
+    String selectedQuarter = rawQ;
     String selectedWarehouse = pollToEdit?['location']?.toString() ?? 'Head Office';
 
     DateTime startDate = pollToEdit?['start_date'] != null
@@ -202,10 +212,10 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
                     value: selectedQuarter,
                     prefixIcon: Icons.calendar_today_rounded,
                     items: const [
-                      VvcDropdownItem(value: 'Q1', label: 'Q1 (ត្រីមាសទី ១)'),
-                      VvcDropdownItem(value: 'Q2', label: 'Q2 (ត្រីមាសទី ២)'),
-                      VvcDropdownItem(value: 'Q3', label: 'Q3 (ត្រីមាសទី ៣)'),
-                      VvcDropdownItem(value: 'Q4', label: 'Q4 (ត្រីមាសទី ៤)'),
+                      VvcDropdownItem(value: 'ត្រីមាសទី ១', label: 'ត្រីមាសទី ១'),
+                      VvcDropdownItem(value: 'ត្រីមាសទី ២', label: 'ត្រីមាសទី ២'),
+                      VvcDropdownItem(value: 'ត្រីមាសទី ៣', label: 'ត្រីមាសទី ៣'),
+                      VvcDropdownItem(value: 'ត្រីមាសទី ៤', label: 'ត្រីមាសទី ៤'),
                     ],
                     onChanged: (val) {
                       if (val != null) setDialogState(() => selectedQuarter = val);
@@ -545,16 +555,59 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
     int rankNumber = 1,
     String category = 'skilled',
   }) {
+    final String empId = (candidate['employee_id'] ?? candidate['voter_employee_id'] ?? '').toString();
+    final String candidateName = (candidate['name'] ?? candidate['voter_name'] ?? '').toString();
+
+    Map<String, dynamic>? foundUser;
+    if (_allUsers.isNotEmpty) {
+      foundUser = _allUsers.firstWhere(
+        (u) {
+          final uId = u['employee_id']?.toString() ?? '';
+          final uName = u['name']?.toString() ?? '';
+          if (empId.isNotEmpty && uId.isNotEmpty) {
+            final cleanUId = uId.replaceAll(RegExp(r'^0+'), '');
+            final cleanEmpId = empId.replaceAll(RegExp(r'^0+'), '');
+            if (uId == empId || cleanUId == cleanEmpId) return true;
+          }
+          if (candidateName.isNotEmpty && uName.isNotEmpty) {
+            if (uName.trim().toLowerCase() == candidateName.trim().toLowerCase()) return true;
+          }
+          return false;
+        },
+        orElse: () => <String, dynamic>{},
+      );
+    }
+
+    String? avatarUrl = candidate['photo_url']?.toString() ??
+        candidate['avatar']?.toString() ??
+        candidate['photo']?.toString() ??
+        candidate['image']?.toString();
+
+    if ((avatarUrl == null || avatarUrl.trim().isEmpty) && foundUser != null) {
+      avatarUrl = foundUser['photo_url']?.toString() ??
+          foundUser['avatar']?.toString() ??
+          foundUser['photo']?.toString() ??
+          foundUser['image']?.toString();
+    }
+
+    final String gender = candidate['gender']?.toString() ?? foundUser?['gender']?.toString() ?? 'ស្រី';
+    final String dept = candidate['dept']?.toString() ??
+        candidate['department']?.toString() ??
+        foundUser?['position']?.toString() ??
+        foundUser?['department']?.toString() ??
+        'បុគ្គលិក';
+    final String recipientName = candidateName.isNotEmpty ? candidateName : (foundUser?['name']?.toString() ?? 'លី ស៊ាងអ៊ី');
+
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => CertificateEditorScreen(
-          recipientName: candidate['name']?.toString() ?? 'លី ស៊ាងអ៊ី',
-          recipientGender: candidate['gender']?.toString() ?? 'ស្រី',
-          recipientDept: candidate['dept']?.toString() ?? 'គណនេយ្យករ',
+          recipientName: recipientName,
+          recipientGender: gender,
+          recipientDept: dept,
           recipientLocation: poll['location']?.toString() ?? 'ការិយាល័យកណ្តាល',
           quarterPeriod: poll['quarter']?.toString() ?? 'ត្រីមាសទី ២ នៃឆ្នាំ ២០២៦',
-          recipientAvatarUrl: candidate['avatar']?.toString(),
+          recipientAvatarUrl: avatarUrl,
           rankNumber: rankNumber,
           initialCategory: category,
         ),
@@ -732,7 +785,7 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
                         const SizedBox(height: 6),
                         Row(
                           children: [
-                            if (poll['quarter'] != null) _buildInfoChip('ត្រីមាស', poll['quarter'].toString()),
+                            if (poll['quarter'] != null) _buildInfoChip('ត្រីមាស', _formatQuarter(poll['quarter'].toString())),
                             if (poll['location'] != null) _buildInfoChip('ទីតាំង', poll['location'].toString()),
                           ],
                         ),
@@ -986,6 +1039,12 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
               final vB = int.tryParse(b['votes_count']?.toString() ?? b['votes']?.toString() ?? '0') ?? 0;
               return vB.compareTo(vA);
             });
+
+            final votedCandidates = candidates.where((c) {
+              final v = int.tryParse(c['votes_count']?.toString() ?? c['votes']?.toString() ?? '0') ?? 0;
+              return v > 0;
+            }).toList();
+
             final bool isSkilledTab = _resultsCategory == 'skilled';
             final topWinner = candidates.isNotEmpty ? candidates.first : <String, dynamic>{};
 
@@ -1213,16 +1272,29 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
                         ),
                         const SizedBox(height: 10),
 
-                        for (int i = 0; i < candidates.length; i++) ...[
-                          _buildCandidateResultCard(
-                            candidates[i],
-                            totalVotes,
-                            isWinner: i == 0 && totalVotes > 0,
-                            poll: poll,
-                            rankNumber: i + 1,
-                            category: _resultsCategory,
-                          ),
-                        ],
+                        if (votedCandidates.isEmpty)
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF111E33),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Text(
+                              'មិនទាន់មានសំឡេងឆ្នោតបោះឱ្យបេក្ខជននៅឡើយទេ',
+                              style: GoogleFonts.kantumruyPro(color: Colors.white54, fontSize: 13),
+                            ),
+                          )
+                        else
+                          for (int i = 0; i < votedCandidates.length; i++) ...[
+                            _buildCandidateResultCard(
+                              votedCandidates[i],
+                              totalVotes,
+                              isWinner: i == 0 && totalVotes > 0,
+                              poll: poll,
+                              rankNumber: i + 1,
+                              category: _resultsCategory,
+                            ),
+                          ],
 
                         const SizedBox(height: 22),
 
@@ -1409,5 +1481,13 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
         ),
       ),
     );
+  }
+
+  String _formatQuarter(String raw) {
+    if (raw == 'Q1') return 'ត្រីមាសទី ១';
+    if (raw == 'Q2') return 'ត្រីមាសទី ២';
+    if (raw == 'Q3') return 'ត្រីមាសទី ៣';
+    if (raw == 'Q4') return 'ត្រីមាសទី ៤';
+    return raw;
   }
 }

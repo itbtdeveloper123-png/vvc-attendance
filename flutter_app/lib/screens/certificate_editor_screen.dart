@@ -64,6 +64,7 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
   DateTime _selectedDate = DateTime(2026, 8, 5);
   bool _isGeneratingPdf = false;
   bool _showInlineControls = true;
+  String? _activeAvatarUrl;
 
   final List<Map<String, String>> _templates = [
     {'name': 'ទម្រង់ទី ១ (Classic Gold)', 'path': 'assets/certificate_template/frame_quarter1.jpg'},
@@ -85,13 +86,24 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
     _genderController = TextEditingController(text: widget.recipientGender);
     _deptController = TextEditingController(text: widget.recipientDept);
     _locationController = TextEditingController(text: widget.recipientLocation);
-    _quarterController = TextEditingController(text: widget.quarterPeriod);
+    String qText = widget.quarterPeriod;
+    if (qText == 'Q1') {
+      qText = 'ត្រីមាសទី ១';
+    } else if (qText == 'Q2') {
+      qText = 'ត្រីមាសទី ២';
+    } else if (qText == 'Q3') {
+      qText = 'ត្រីមាសទី ៣';
+    } else if (qText == 'Q4') {
+      qText = 'ត្រីមាសទី ៤';
+    }
+    _quarterController = TextEditingController(text: qText);
     _signatoryController = TextEditingController(text: 'នាត សុវណ្ណ');
     _titleController = TextEditingController(text: 'លិខិតសរសើរ');
     _companyController = TextEditingController(text: 'អគ្គនាយិកាក្រុមហ៊ុន វណ្ណ វណ្ណ ខេមបូឌា');
 
     _solarDateController = TextEditingController();
     _lunarDateController = TextEditingController();
+    _activeAvatarUrl = widget.recipientAvatarUrl;
 
     _updateKhmerDates(_selectedDate);
   }
@@ -726,195 +738,280 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
                   final baseWidth = constraints.maxWidth;
                   final scale = baseWidth / 700;
 
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
+                  return Stack(
                     children: [
-                      // Top Header & Recipient Photo Box
-                      Stack(
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          Align(
-                            alignment: Alignment.topCenter,
-                            child: Column(
-                              children: [
-                                const SizedBox(height: 6),
-                                Text(
-                                  pageIndex == 1 ? 'លិខិតសរសើរ & វាយតម្លៃ' : _titleController.text,
-                                  textAlign: TextAlign.center,
-                                  style: GoogleFonts.kantumruyPro(
-                                    color: const Color(0xFF1E3A8A),
-                                    fontSize: 26 * scale,
-                                    fontWeight: FontWeight.bold,
-                                    letterSpacing: 1.2,
+                          // Top Header & Recipient Photo Box
+                          Stack(
+                            children: [
+                              Align(
+                                alignment: Alignment.topCenter,
+                                child: Column(
+                                  children: [
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      pageIndex == 1 ? 'លិខិតសរសើរ & វាយតម្លៃ' : _titleController.text,
+                                      textAlign: TextAlign.center,
+                                      style: GoogleFonts.moul(
+                                        color: const Color(0xFF1E3A8A),
+                                        fontSize: 26 * scale,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: 1.2,
+                                      ),
+                                    ),
+                                    SizedBox(height: 4 * scale),
+                                    // Tacteing Ornate Divider Symbol Line (Tacteing Symbol #3 Style)
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Container(
+                                          width: 36 * scale,
+                                          height: 1,
+                                          color: const Color(0xFF1E3A8A).withValues(alpha: 0.4),
+                                        ),
+                                        Padding(
+                                          padding: EdgeInsets.symmetric(horizontal: 6 * scale),
+                                          child: Text(
+                                            '— ❖ ❖ ❖ —',
+                                            style: GoogleFonts.moul(
+                                              color: const Color(0xFF1E3A8A),
+                                              fontSize: 10 * scale,
+                                            ),
+                                          ),
+                                        ),
+                                        Container(
+                                          width: 36 * scale,
+                                          height: 1,
+                                          color: const Color(0xFF1E3A8A).withValues(alpha: 0.4),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              // Recipient Photo Placeholder Top Right
+                              Align(
+                                alignment: Alignment.topRight,
+                                child: Container(
+                                  width: 72 * scale,
+                                  height: 90 * scale,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(
+                                      color: const Color(0xFFD97706),
+                                      width: 2,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(alpha: 0.15),
+                                        blurRadius: 6,
+                                      ),
+                                    ],
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(4),
+                                    child: _activeAvatarUrl != null &&
+                                            _activeAvatarUrl!.trim().isNotEmpty
+                                        ? Image.network(
+                                            ApiService.getFullImageUrl(_activeAvatarUrl!),
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (_, __, ___) => _buildAvatarPlaceholder(scale),
+                                          )
+                                        : _buildAvatarPlaceholder(scale),
                                   ),
                                 ),
-                                SizedBox(height: 4 * scale),
-                                Container(
-                                  width: 130 * scale,
-                                  height: 2,
-                                  color: const Color(0xFF1E3A8A),
-                                ),
-                              ],
+                              ),
+                            ],
+                          ),
+
+                          SizedBox(height: 12 * scale),
+
+                          // Subtitle / Company Title (Khmer OS Muol Light Font)
+                          Text(
+                            _companyController.text,
+                            style: GoogleFonts.moul(
+                              color: const Color(0xFF1E293B),
+                              fontSize: 15 * scale,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
-                          // Recipient Photo Placeholder Top Right
-                          Align(
-                            alignment: Alignment.topRight,
-                            child: Container(
-                              width: 72 * scale,
-                              height: 90 * scale,
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(6),
-                                border: Border.all(
-                                  color: const Color(0xFFD97706),
-                                  width: 2,
+                          SizedBox(height: 4 * scale),
+                          Text(
+                            pageIndex == 1 ? 'លទ្ធផលការងារឆ្នើម' : 'សូមសរសើរចំពោះ ៖',
+                            style: GoogleFonts.moul(
+                              color: const Color(0xFF1E293B),
+                              fontSize: 15.5 * scale,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          SizedBox(height: 12 * scale),
+
+                          // Paragraph Main Body Text (Battambang Font)
+                          if (pageIndex == 0)
+                            RichText(
+                              textAlign: TextAlign.center,
+                              text: TextSpan(
+                                style: GoogleFonts.battambang(
+                                  color: const Color(0xFF1E293B),
+                                  fontSize: 13 * scale,
+                                  height: 1.6,
                                 ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.15),
-                                    blurRadius: 6,
+                                children: [
+                                  TextSpan(
+                                    text: isSkilled
+                                        ? 'បុគ្គលិកឈ្មោះ ៖ '
+                                        : 'កម្មករ/បុគ្គលិកប្រតិបត្តិការ ឈ្មោះ ៖ ',
+                                  ),
+                                  TextSpan(
+                                    text: _nameController.text,
+                                    style: GoogleFonts.battambang(
+                                      color: const Color(0xFF2563EB),
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14.5 * scale,
+                                    ),
+                                  ),
+                                  const TextSpan(text: ' ភេទ '),
+                                  TextSpan(
+                                    text: _genderController.text,
+                                    style: GoogleFonts.battambang(fontWeight: FontWeight.bold),
+                                  ),
+                                  TextSpan(
+                                    text: isSkilled ? ' ជាបុគ្គលិកផ្នែក ' : ' ផ្នែក ',
+                                  ),
+                                  TextSpan(
+                                    text: _deptController.text,
+                                    style: GoogleFonts.battambang(
+                                      color: const Color(0xFF2563EB),
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13.5 * scale,
+                                    ),
+                                  ),
+                                  TextSpan(
+                                    text: isSkilled
+                                        ? '\nដែលបានខិតខំក្នុងតួនាទីរបស់ខ្លួនបានយ៉ាងល្អក្នុងការបំពេញការងារជូនក្រុមហ៊ុន និងបានជាប់\nជាបុគ្គលិកឆ្នើមផ្នែក '
+                                        : '\nដែលបានខិតខំប្រឹងប្រែងធ្វើការងារយ៉ាងសកម្ម និងមានភាពស្មោះត្រង់ក្នុងការបំពេញភារកិច្ចជូនក្រុមហ៊ុន និងបានជាប់\nជាបុគ្គលិក/កម្មករឆ្នើមផ្នែក ',
+                                  ),
+                                  TextSpan(
+                                    text: _locationController.text,
+                                    style: GoogleFonts.battambang(
+                                      color: const Color(0xFF2563EB),
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13.5 * scale,
+                                    ),
+                                  ),
+                                  const TextSpan(text: ' ប្រចាំ '),
+                                  TextSpan(
+                                    text: _quarterController.text,
+                                    style: GoogleFonts.battambang(
+                                      color: const Color(0xFF2563EB),
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13.5 * scale,
+                                    ),
+                                  ),
+                                  const TextSpan(text: ' ៕'),
+                                ],
+                              ),
+                            )
+                          else
+                            RichText(
+                              textAlign: TextAlign.center,
+                              text: TextSpan(
+                                style: GoogleFonts.battambang(
+                                  color: const Color(0xFF1E293B),
+                                  fontSize: 13 * scale,
+                                  height: 1.6,
+                                ),
+                                children: [
+                                  const TextSpan(text: 'សម្រាប់ការខិតខំប្រឹងប្រែង និងលទ្ធផលការងារដ៏ឆ្នើមរបស់ '),
+                                  TextSpan(
+                                    text: _nameController.text,
+                                    style: GoogleFonts.battambang(
+                                      color: const Color(0xFF2563EB),
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14 * scale,
+                                    ),
+                                  ),
+                                  TextSpan(
+                                    text: ' ក្នុងការដឹកនាំ និងការសម្រេចបាននូវ KPI ខ្ពស់បំផុតប្រចាំ ${_quarterController.text} ជូនក្រុមហ៊ុន វណ្ណ វណ្ណ ខេមបូឌា ៕',
                                   ),
                                 ],
                               ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(4),
-                                child: widget.recipientAvatarUrl != null &&
-                                        widget.recipientAvatarUrl!.isNotEmpty
-                                    ? Image.network(
-                                        ApiService.getFullImageUrl(widget.recipientAvatarUrl!),
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (_, __, ___) => _buildAvatarPlaceholder(scale),
-                                      )
-                                    : _buildAvatarPlaceholder(scale),
-                              ),
                             ),
+
+                          const Spacer(),
+
+                          // Footer Section: Khmer Dates & Signatory block
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              // Bottom Right: Dual Dates (Lunar & Solar) and Signatory
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  // Line 1: Khmer Lunar Date (Battambang Font)
+                                  Text(
+                                    _lunarDateController.text,
+                                    style: GoogleFonts.battambang(
+                                      color: const Color(0xFF334155),
+                                      fontSize: 10 * scale,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  SizedBox(height: 2 * scale),
+                                  // Line 2: Khmer Solar Date (Battambang Font)
+                                  Text(
+                                    _solarDateController.text,
+                                    style: GoogleFonts.battambang(
+                                      color: const Color(0xFF475569),
+                                      fontSize: 10.5 * scale,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  SizedBox(height: 4 * scale),
+                                  Text(
+                                    'អគ្គនាយិកា',
+                                    style: GoogleFonts.moul(
+                                      color: const Color(0xFF0F172A),
+                                      fontSize: 13.5 * scale,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  SizedBox(height: 3 * scale),
+                                  // Signature Image from Assets
+                                  Image.asset(
+                                    'assets/certificate_template/sign.png',
+                                    height: 36 * scale,
+                                    errorBuilder: (_, __, ___) => SizedBox(height: 36 * scale),
+                                  ),
+                                  SizedBox(height: 2 * scale),
+                                  Text(
+                                    _signatoryController.text,
+                                    style: GoogleFonts.moul(
+                                      color: const Color(0xFF0F172A),
+                                      fontSize: 13.5 * scale,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
                           ),
                         ],
                       ),
 
-                      SizedBox(height: 12 * scale),
-
-                      // Subtitle / Company Title
-                      Text(
-                        _companyController.text,
-                        style: GoogleFonts.kantumruyPro(
-                          color: const Color(0xFF1E293B),
-                          fontSize: 15.5 * scale,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      SizedBox(height: 3 * scale),
-                      Text(
-                        pageIndex == 1 ? 'លទ្ធផលការងារឆ្នើម' : 'សូមសរសើរចំពោះ',
-                        style: GoogleFonts.kantumruyPro(
-                          color: const Color(0xFFD97706),
-                          fontSize: 16.5 * scale,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      SizedBox(height: 12 * scale),
-
-                      // Paragraph Main Body Text (Different Wording for Page 1 vs Page 2)
-                      if (pageIndex == 0)
-                        RichText(
-                          textAlign: TextAlign.center,
-                          text: TextSpan(
-                            style: GoogleFonts.kantumruyPro(
-                              color: const Color(0xFF1E293B),
-                              fontSize: 13 * scale,
-                              height: 1.55,
-                            ),
-                            children: [
-                              TextSpan(
-                                text: isSkilled
-                                    ? 'បុគ្គលិកជំនាញ ឈ្មោះ ៖ '
-                                    : 'កម្មករ/បុគ្គលិកប្រតិបត្តិការ ឈ្មោះ ៖ ',
-                              ),
-                              TextSpan(
-                                text: _nameController.text,
-                                style: GoogleFonts.kantumruyPro(
-                                  color: const Color(0xFF2563EB),
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14.5 * scale,
-                                ),
-                              ),
-                              const TextSpan(text: ' ភេទ '),
-                              TextSpan(
-                                text: _genderController.text,
-                                style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold),
-                              ),
-                              TextSpan(
-                                text: isSkilled ? ' ជាបុគ្គលិកផ្នែក ' : ' ផ្នែក ',
-                              ),
-                              TextSpan(
-                                text: _deptController.text,
-                                style: GoogleFonts.kantumruyPro(
-                                  color: const Color(0xFF2563EB),
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 13.5 * scale,
-                                ),
-                              ),
-                              TextSpan(
-                                text: isSkilled
-                                    ? '\nដែលបានខិតខំក្នុងតួនាទីរបស់ខ្លួនបានយ៉ាងល្អក្នុងការបំពេញការងារជូនក្រុមហ៊ុន និងបានជាប់\nជាបុគ្គលិកឆ្នើមផ្នែក '
-                                    : '\nដែលបានខិតខំប្រឹងប្រែងធ្វើការងារយ៉ាងសកម្ម និងមានភាពស្មោះត្រង់ក្នុងការបំពេញភារកិច្ចជូនក្រុមហ៊ុន និងបានជាប់\nជាបុគ្គលិក/កម្មករឆ្នើមផ្នែក ',
-                              ),
-                              TextSpan(
-                                text: _locationController.text,
-                                style: GoogleFonts.kantumruyPro(
-                                  color: const Color(0xFF2563EB),
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 13.5 * scale,
-                                ),
-                              ),
-                              const TextSpan(text: ' ប្រចាំ '),
-                              TextSpan(
-                                text: _quarterController.text,
-                                style: GoogleFonts.kantumruyPro(
-                                  color: const Color(0xFF2563EB),
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 13.5 * scale,
-                                ),
-                              ),
-                              const TextSpan(text: ' ៕'),
-                            ],
-                          ),
-                        )
-                      else
-                        RichText(
-                          textAlign: TextAlign.center,
-                          text: TextSpan(
-                            style: GoogleFonts.kantumruyPro(
-                              color: const Color(0xFF1E293B),
-                              fontSize: 13 * scale,
-                              height: 1.55,
-                            ),
-                            children: [
-                              const TextSpan(text: 'សម្រាប់ការខិតខំប្រឹងប្រែង និងលទ្ធផលការងារដ៏ឆ្នើមរបស់ '),
-                              TextSpan(
-                                text: _nameController.text,
-                                style: GoogleFonts.kantumruyPro(
-                                  color: const Color(0xFF2563EB),
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14 * scale,
-                                ),
-                              ),
-                              TextSpan(
-                                text: ' ក្នុងការដឹកនាំ និងការសម្រេចបាននូវ KPI ខ្ពស់បំផុតប្រចាំ ${_quarterController.text} ជូនក្រុមហ៊ុន វណ្ណ វណ្ណ ខេមបូឌា ៕',
-                              ),
-                            ],
-                          ),
-                        ),
-
-                      const Spacer(),
-
-                      // Center Award Seal (Trophy Icon for Skilled vs Rank Number 1,2,3 for Worker)
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            width: 62 * scale,
-                            height: 62 * scale,
+                      // Center Award Seal (Trophy Icon / Rank Number centered directly on top of the award ribbon background)
+                      Positioned(
+                        bottom: 44 * scale,
+                        left: 0,
+                        right: 0,
+                        child: Center(
+                          child: Container(
+                            width: 56 * scale,
+                            height: 56 * scale,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               gradient: const LinearGradient(
@@ -933,81 +1030,21 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
                             child: isSkilled
                                 ? Icon(
                                     Icons.emoji_events_rounded,
-                                    size: 36 * scale,
+                                    size: 32 * scale,
                                     color: Colors.white,
                                   )
                                 : Center(
                                     child: Text(
                                       _toKhmerDigits('$_workerRank'),
-                                      style: GoogleFonts.kantumruyPro(
+                                      style: GoogleFonts.moul(
                                         color: Colors.white,
-                                        fontSize: 26 * scale,
+                                        fontSize: 24 * scale,
                                         fontWeight: FontWeight.bold,
                                       ),
                                     ),
                                   ),
                           ),
-                        ],
-                      ),
-
-                      const Spacer(),
-
-                      // Footer Section: Khmer Dates & Signatory block (NO extra bottom-left icon!)
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          // Bottom Right: Dual Dates (Lunar & Solar) and Signatory
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              // Line 1: Khmer Lunar Date
-                              Text(
-                                _lunarDateController.text,
-                                style: GoogleFonts.kantumruyPro(
-                                  color: const Color(0xFF334155),
-                                  fontSize: 10 * scale,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              SizedBox(height: 2 * scale),
-                              // Line 2: Khmer Solar Date
-                              Text(
-                                _solarDateController.text,
-                                style: GoogleFonts.kantumruyPro(
-                                  color: const Color(0xFF475569),
-                                  fontSize: 10.5 * scale,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              SizedBox(height: 4 * scale),
-                              Text(
-                                'អគ្គនាយិកា',
-                                style: GoogleFonts.kantumruyPro(
-                                  color: const Color(0xFF0F172A),
-                                  fontSize: 13.5 * scale,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              SizedBox(height: 3 * scale),
-                              // Signature Image from Assets
-                              Image.asset(
-                                'assets/certificate_template/sign.png',
-                                height: 36 * scale,
-                                errorBuilder: (_, __, ___) => SizedBox(height: 36 * scale),
-                              ),
-                              SizedBox(height: 2 * scale),
-                              Text(
-                                _signatoryController.text,
-                                style: GoogleFonts.kantumruyPro(
-                                  color: const Color(0xFF0F172A),
-                                  fontSize: 13.5 * scale,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
+                        ),
                       ),
                     ],
                   );

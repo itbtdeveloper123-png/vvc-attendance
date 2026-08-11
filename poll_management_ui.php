@@ -245,7 +245,14 @@ if ($polls_result) {
                     <tr>
                         <td><?php echo $poll['id']; ?></td>
                         <td><?php echo htmlspecialchars($poll['title']); ?></td>
-                        <td><?php echo htmlspecialchars($poll['quarter'] ?? '-'); ?></td>
+                        <td><?php 
+                            $q_val = $poll['quarter'] ?? '-';
+                            if ($q_val === 'Q1') $q_val = 'ត្រីមាសទី ១';
+                            else if ($q_val === 'Q2') $q_val = 'ត្រីមាសទី ២';
+                            else if ($q_val === 'Q3') $q_val = 'ត្រីមាសទី ៣';
+                            else if ($q_val === 'Q4') $q_val = 'ត្រីមាសទី ៤';
+                            echo htmlspecialchars($q_val);
+                        ?></td>
                         <td><?php echo htmlspecialchars($poll['location'] ?? '-'); ?></td>
                         <td><?php echo $poll['start_date']; ?> ដល់ <?php echo $poll['end_date']; ?></td>
                         <td><?php echo $poll['candidate_count']; ?> នាក់</td>
@@ -295,10 +302,10 @@ if ($polls_result) {
                     <label>ត្រីមាស</label>
                     <select name="quarter">
                         <option value="">ជ្រើសរើសត្រីមាស</option>
-                        <option value="Q1" <?php echo ($poll_data['quarter'] ?? '') == 'Q1' ? 'selected' : ''; ?>>Q1</option>
-                        <option value="Q2" <?php echo ($poll_data['quarter'] ?? '') == 'Q2' ? 'selected' : ''; ?>>Q2</option>
-                        <option value="Q3" <?php echo ($poll_data['quarter'] ?? '') == 'Q3' ? 'selected' : ''; ?>>Q3</option>
-                        <option value="Q4" <?php echo ($poll_data['quarter'] ?? '') == 'Q4' ? 'selected' : ''; ?>>Q4</option>
+                        <option value="ត្រីមាសទី ១" <?php echo in_array($poll_data['quarter'] ?? '', ['Q1', 'ត្រីមាសទី ១']) ? 'selected' : ''; ?>>ត្រីមាសទី ១</option>
+                        <option value="ត្រីមាសទី ២" <?php echo in_array($poll_data['quarter'] ?? '', ['Q2', 'ត្រីមាសទី ២']) ? 'selected' : ''; ?>>ត្រីមាសទី ២</option>
+                        <option value="ត្រីមាសទី ៣" <?php echo in_array($poll_data['quarter'] ?? '', ['Q3', 'ត្រីមាសទី ៣']) ? 'selected' : ''; ?>>ត្រីមាសទី ៣</option>
+                        <option value="ត្រីមាសទី ៤" <?php echo in_array($poll_data['quarter'] ?? '', ['Q4', 'ត្រីមាសទី ៤']) ? 'selected' : ''; ?>>ត្រីមាសទី ៤</option>
                     </select>
                 </div>
                 
