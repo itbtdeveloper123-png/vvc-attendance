@@ -8240,33 +8240,29 @@ try {
             }
         }
         
-        // Check allowed voters
-        $allowed_raw = trim($poll['allowed_employee_ids'] ?? '');
-        if ($allowed_raw !== '' && $allowed_raw !== '[]' && $allowed_raw !== 'null') {
-            $allowed_ids = json_decode($allowed_raw, true);
-            if (is_array($allowed_ids) && count($allowed_ids) > 0) {
-                $allowed_str_list = array_map('strval', $allowed_ids);
-                $eid_clean = ltrim($eid, '0');
-                $is_allowed = in_array($eid, $allowed_str_list) || ($eid_clean !== '' && in_array($eid_clean, $allowed_str_list));
-                if (!$is_allowed) {
-                    apiResponse(['success' => false, 'message' => 'អ្នកមិនមានសិទ្ធិបោះឆ្នោតសម្រាប់ការបោះឆ្នោតនេះទេ']);
-                    break;
+        // Check excluded voters (only block if user is explicitly in excluded_employee_ids)
+        $excluded_arr = [];
+        if (!empty($poll['excluded_employee_ids'])) {
+            $raw_e = $poll['excluded_employee_ids'];
+            if (is_array($raw_e)) {
+                $excluded_arr = $raw_e;
+            } else if (is_string($raw_e)) {
+                $dec_e = json_decode($raw_e, true);
+                if (is_string($dec_e)) $dec_e = json_decode($dec_e, true);
+                if (is_array($dec_e)) {
+                    $excluded_arr = $dec_e;
+                } else {
+                    $excluded_arr = array_filter(array_map('trim', explode(',', $raw_e)));
                 }
             }
         }
-        
-        // Check excluded voters
-        $excluded_raw = trim($poll['excluded_employee_ids'] ?? '');
-        if ($excluded_raw !== '' && $excluded_raw !== '[]' && $excluded_raw !== 'null') {
-            $excluded_ids = json_decode($excluded_raw, true);
-            if (is_array($excluded_ids) && count($excluded_ids) > 0) {
-                $excluded_str_list = array_map('strval', $excluded_ids);
-                $eid_clean = ltrim($eid, '0');
-                $is_excluded = in_array($eid, $excluded_str_list) || ($eid_clean !== '' && in_array($eid_clean, $excluded_str_list));
-                if ($is_excluded) {
-                    apiResponse(['success' => false, 'message' => 'អ្នកមិនមានសិទ្ធិបោះឆ្នោតសម្រាប់ការបោះឆ្នោតនេះទេ']);
-                    break;
-                }
+        if (count($excluded_arr) > 0) {
+            $excluded_str_list = array_map('strval', $excluded_arr);
+            $eid_clean = ltrim($eid, '0');
+            $is_excluded = in_array($eid, $excluded_str_list) || ($eid_clean !== '' && in_array($eid_clean, $excluded_str_list));
+            if ($is_excluded) {
+                apiResponse(['success' => false, 'message' => 'អ្នកមិនមានសិទ្ធិបោះឆ្នោតសម្រាប់ការបោះឆ្នោតនេះទេ']);
+                break;
             }
         }
         
