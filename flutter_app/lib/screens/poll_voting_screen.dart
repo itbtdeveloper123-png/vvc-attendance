@@ -1028,10 +1028,40 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
             }
             final auditList = List<Map<String, dynamic>>.from(poll['voter_audit_list'] ?? []);
 
+            // Calculate vote counts with fallback to auditList records if votes_count is 0
+            for (var c in candidates) {
+              int v = int.tryParse(c['votes_count']?.toString() ?? c['votes']?.toString() ?? '0') ?? 0;
+              if (v == 0 && auditList.isNotEmpty) {
+                final cId = (c['employee_id'] ?? '').toString();
+                final cName = (c['name'] ?? '').toString().trim().toLowerCase();
+                final auditCount = auditList.where((a) {
+                  final aCandId = (a['candidate_id'] ?? '').toString();
+                  final aCandName = (a['candidate_name'] ?? '').toString().trim().toLowerCase();
+                  if (cId.isNotEmpty && aCandId.isNotEmpty) {
+                    if (cId == aCandId || cId.replaceAll(RegExp(r'^0+'), '') == aCandId.replaceAll(RegExp(r'^0+'), '')) {
+                      return true;
+                    }
+                  }
+                  if (cName.isNotEmpty && aCandName.isNotEmpty && cName == aCandName) {
+                    return true;
+                  }
+                  return false;
+                }).length;
+                if (auditCount > 0) {
+                  v = auditCount;
+                  c['votes_count'] = v;
+                  c['votes'] = v;
+                }
+              }
+            }
+
             int totalVotes = 0;
             for (var c in candidates) {
               final v = int.tryParse(c['votes_count']?.toString() ?? c['votes']?.toString() ?? '0') ?? 0;
               totalVotes += v;
+            }
+            if (totalVotes == 0 && auditList.isNotEmpty) {
+              totalVotes = auditList.length;
             }
 
             candidates.sort((a, b) {

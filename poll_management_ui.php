@@ -47,18 +47,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $poll_id = $mysqli->insert_id;
         }
         
-        // Handle candidates
+        // Handle candidates using UPSERT so ON DELETE CASCADE does NOT delete poll_votes
         if (isset($_POST['candidates']) && is_array($_POST['candidates'])) {
-            // Delete existing candidates for this poll
-            $mysqli->query("DELETE FROM poll_candidates WHERE poll_id = $poll_id");
-            
-            // Add new candidates
             foreach ($_POST['candidates'] as $emp_id) {
                 $category = $_POST['candidate_category'][$emp_id] ?? 'Head Office';
-                $emp_id = $mysqli->real_escape_string($emp_id);
-                $category = $mysqli->real_escape_string($category);
-                $mysqli->query("INSERT INTO poll_candidates (poll_id, employee_id, category) 
-                              VALUES ($poll_id, '$emp_id', '$category')");
+                $emp_id = $mysqli->real_escape_string(trim($emp_id));
+                $category = $mysqli->real_escape_string(trim($category));
+                if (!empty($emp_id)) {
+                    $check = $mysqli->query("SELECT id FROM poll_candidates WHERE poll_id = $poll_id AND (employee_id = '$emp_id' OR LTRIM(employee_id, '0') = LTRIM('$emp_id', '0')) LIMIT 1");
+                    if ($check && $c_row = $check->fetch_assoc()) {
+                        $mysqli->query("UPDATE poll_candidates SET category = '$category' WHERE id = " . (int)$c_row['id']);
+                    } else {
+                        $mysqli->query("INSERT INTO poll_candidates (poll_id, employee_id, category) VALUES ($poll_id, '$emp_id', '$category')");
+                    }
+                }
             }
         }
         
