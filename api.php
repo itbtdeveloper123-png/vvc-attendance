@@ -7996,27 +7996,31 @@ try {
                     $row['has_voted'] = false;
                 }
 
+                $poll_title_esc = $mysqli->real_escape_string($row['title'] ?? '');
+                $poll_quarter_esc = $mysqli->real_escape_string($row['quarter'] ?? '');
+
                 // Fetch candidates from poll_candidates table along with votes count
                 $candidates = [];
                 $existing_emp_ids = [];
                 $cand_stmt = $mysqli->prepare("
                     SELECT pc.id, pc.employee_id, pc.category, u.name, u.photo_url,
                            (SELECT COUNT(*) FROM poll_votes pv 
-                            WHERE pv.poll_id = pc.poll_id 
+                            LEFT JOIN poll_events pe ON (pv.poll_id = pe.id OR CAST(pv.poll_id AS CHAR) = CAST(pe.id AS CHAR))
+                            WHERE (pv.poll_id = pc.poll_id OR pv.poll_id = pc.id OR (pe.title = ? AND pe.quarter = ? AND pe.title != '')) 
                               AND (
                                 pv.candidate_id = pc.id 
                                 OR CAST(pv.candidate_id AS CHAR) = pc.employee_id
                                 OR LTRIM(CAST(pv.candidate_id AS CHAR), '0') = LTRIM(pc.employee_id, '0')
-                                OR pv.candidate_id IN (SELECT id FROM poll_candidates WHERE poll_id = pc.poll_id AND (employee_id = pc.employee_id OR LTRIM(employee_id, '0') = LTRIM(pc.employee_id, '0')))
+                                OR pv.candidate_id IN (SELECT id FROM poll_candidates WHERE (employee_id = pc.employee_id OR LTRIM(employee_id, '0') = LTRIM(pc.employee_id, '0')))
                               )
                            ) AS votes_count
                     FROM poll_candidates pc 
                     LEFT JOIN users u ON (pc.employee_id = u.employee_id OR LTRIM(pc.employee_id, '0') = LTRIM(u.employee_id, '0')) 
-                    WHERE pc.poll_id = ?
+                    WHERE pc.poll_id = ? OR pc.poll_id IN (SELECT id FROM poll_events WHERE title = ? AND quarter = ? AND title != '')
                     ORDER BY votes_count DESC
                 ");
                 if ($cand_stmt) {
-                    $cand_stmt->bind_param('i', $poll_id);
+                    $cand_stmt->bind_param('ssiss', $poll_title_esc, $poll_quarter_esc, $poll_id, $poll_title_esc, $poll_quarter_esc);
                     $cand_stmt->execute();
                     $cand_res = $cand_stmt->get_result();
                     while ($c_row = $cand_res->fetch_assoc()) {
@@ -8051,8 +8055,9 @@ try {
                         $vc_res = $mysqli->query("
                             SELECT COUNT(*) as cnt 
                             FROM poll_votes pv 
+                            LEFT JOIN poll_events pe ON (pv.poll_id = pe.id OR CAST(pv.poll_id AS CHAR) = CAST(pe.id AS CHAR))
                             LEFT JOIN poll_candidates pc ON pv.candidate_id = pc.id 
-                            WHERE pv.poll_id = $poll_id 
+                            WHERE (pv.poll_id = $poll_id OR (pe.title = '$poll_title_esc' AND pe.quarter = '$poll_quarter_esc' AND pe.title != '')) 
                               AND (
                                 pc.employee_id = '$cand_emp_id' 
                                 OR LTRIM(pc.employee_id, '0') = LTRIM('$cand_emp_id', '0')
@@ -8087,15 +8092,16 @@ try {
                         COALESCE(uc.name, uc2.name, pc.employee_id, CAST(pv.candidate_id AS CHAR), 'បេក្ខជន') as candidate_name,
                         pv.voted_at
                     FROM poll_votes pv
+                    LEFT JOIN poll_events pe ON (pv.poll_id = pe.id OR CAST(pv.poll_id AS CHAR) = CAST(pe.id AS CHAR))
                     LEFT JOIN users uv ON (pv.voter_employee_id = uv.employee_id OR LTRIM(pv.voter_employee_id, '0') = LTRIM(uv.employee_id, '0'))
-                    LEFT JOIN poll_candidates pc ON (pv.candidate_id = pc.id OR (pc.poll_id = pv.poll_id AND (pc.employee_id = CAST(pv.candidate_id AS CHAR) OR LTRIM(pc.employee_id, '0') = LTRIM(CAST(pv.candidate_id AS CHAR), '0'))))
+                    LEFT JOIN poll_candidates pc ON (pv.candidate_id = pc.id OR (pc.employee_id = CAST(pv.candidate_id AS CHAR) OR LTRIM(pc.employee_id, '0') = LTRIM(CAST(pv.candidate_id AS CHAR), '0')))
                     LEFT JOIN users uc ON (pc.employee_id = uc.employee_id OR LTRIM(pc.employee_id, '0') = LTRIM(uc.employee_id, '0'))
                     LEFT JOIN users uc2 ON (CAST(pv.candidate_id AS CHAR) = uc2.employee_id OR LTRIM(CAST(pv.candidate_id AS CHAR), '0') = LTRIM(uc2.employee_id, '0'))
-                    WHERE pv.poll_id = ?
+                    WHERE pv.poll_id = ? OR (pe.title = ? AND pe.quarter = ? AND pe.title != '')
                     ORDER BY pv.id DESC
                 ");
                 if ($audit_stmt) {
-                    $audit_stmt->bind_param('i', $poll_id);
+                    $audit_stmt->bind_param('iss', $poll_id, $poll_title_esc, $poll_quarter_esc);
                     $audit_stmt->execute();
                     $audit_res = $audit_stmt->get_result();
                     while ($a_row = $audit_res->fetch_assoc()) {

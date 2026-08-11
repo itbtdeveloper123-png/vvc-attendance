@@ -974,7 +974,7 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
     );
   }
 
-  void _showPollResultsModal(Map<String, dynamic> poll) {
+  void _showPollResultsModal(Map<String, dynamic> initialPoll) async {
     final userProvider = Provider.of<UserProvider>(context, listen: false);
     final bool isHrmOrAdmin = userProvider.isHRM || userProvider.isAdmin;
     if (!isHrmOrAdmin) {
@@ -985,6 +985,26 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
       );
       return;
     }
+
+    // Refresh active polls first so we have the newest DB data
+    Map<String, dynamic> poll = initialPoll;
+    try {
+      final freshRes = await _api.fetchActivePolls();
+      if (freshRes['success'] == true && freshRes['data'] != null) {
+        final List<dynamic> freshList = List<dynamic>.from(freshRes['data']);
+        final targetId = (initialPoll['id'] ?? initialPoll['doc_id'])?.toString();
+        final targetTitle = initialPoll['title']?.toString();
+        final found = freshList.firstWhere(
+          (p) => (p['id'] ?? p['doc_id'])?.toString() == targetId || (targetTitle != null && p['title']?.toString() == targetTitle),
+          orElse: () => initialPoll,
+        );
+        if (found is Map<String, dynamic>) {
+          poll = found;
+        }
+      }
+    } catch (_) {}
+
+    if (!mounted) return;
 
     showModalBottomSheet(
       context: context,
