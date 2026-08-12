@@ -15527,146 +15527,193 @@ ob_end_flush();
                                         const container = document.getElementById('poll-results-content');
                                         if (!container) return;
 
-                                        fetch('api.php?action=get_poll_results')
-                                            .then(res => res.json())
-                                            .then(res => {
-                                                if (res.success && res.data && res.data.length > 0) {
-                                                    let html = '';
-                                                    res.data.forEach(result => {
-                                                        const pollId = result.id;
-                                                        const activeCat = window._currentFilterCategory[pollId] || 'all';
-                                                        const totalVotes = parseInt(result.total_votes || 0);
-                                                        const auditList = result.voter_audit_list || [];
-                                                        const allCandidates = result.results || result.candidates || [];
+                                        Promise.all([
+                                            fetch('api.php?action=get_employees').then(r => r.json()).catch(() => ({ data: [] })),
+                                            fetch('api.php?action=get_poll_results').then(r => r.json())
+                                        ]).then(([empRes, res]) => {
+                                            const empMap = {};
+                                            if (empRes && empRes.data && Array.isArray(empRes.data)) {
+                                                empRes.data.forEach(e => {
+                                                    const eid = (e.employee_id || '').toString().trim();
+                                                    const clean = eid.replace(/^0+/, '');
+                                                    if (eid) empMap[eid] = e;
+                                                    if (clean) empMap[clean] = e;
+                                                });
+                                            }
 
-                                                        // Categorize candidates
-                                                        let displayCandidates = allCandidates;
-                                                        if (activeCat === 'skilled') {
-                                                            displayCandidates = allCandidates.filter(c => {
-                                                                const cat = (c.category || '').toLowerCase();
-                                                                const dept = (c.department || '').toLowerCase();
-                                                                return !cat.includes('warehouse') && !cat.includes('store') && !cat.includes('worker') && !cat.includes('ឃ្លាំង') && !cat.includes('កម្មករ') && !dept.includes('កម្មករ') && !dept.includes('ឃ្លាំង') && !dept.includes('driver');
-                                                            });
-                                                        } else if (activeCat === 'worker') {
-                                                            displayCandidates = allCandidates.filter(c => {
-                                                                const cat = (c.category || '').toLowerCase();
-                                                                const dept = (c.department || '').toLowerCase();
-                                                                return cat.includes('warehouse') || cat.includes('store') || cat.includes('worker') || cat.includes('ឃ្លាំង') || cat.includes('កម្មករ') || dept.includes('កម្មករ') || dept.includes('ឃ្លាំង') || dept.includes('driver') || dept.includes('cleaner');
-                                                            });
-                                                        }
+                                            const resolveEmpName = (idOrName, fallbackId) => {
+                                                const str = (idOrName || '').toString().trim();
+                                                const fb = (fallbackId || '').toString().trim();
+                                                const cleanStr = str.replace(/^0+/, '');
+                                                const cleanFb = fb.replace(/^0+/, '');
 
-                                                        html += `
-                                                            <div style="margin-bottom:35px; padding:24px; border:1px solid #e2e8f0; border-radius:18px; background:#f8fafc;">
-                                                                <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px; margin-bottom:18px; border-bottom:1px solid #e2e8f0; padding-bottom:14px;">
-                                                                    <div>
-                                                                        <h3 style="margin:0 0 6px 0; color:#0f172a; font-size:18px; font-weight:800;">
-                                                                            <i class="fa-solid fa-square-poll-vertical" style="color:#6366f1;"></i> ${result.title}
-                                                                        </h3>
-                                                                        <div style="color:#64748b; font-size:13px; display:flex; gap:15px; flex-wrap:wrap;">
-                                                                            <span><strong>ត្រីមាស:</strong> ${result.quarter || '-'}</span>
-                                                                            <span><strong>ទីតាំង:</strong> ${result.location || 'Head Office'}</span>
-                                                                            <span><strong>កាលបរិច្ឆេទ:</strong> ${result.start_date || '-'} ដល់ ${result.end_date || '-'}</span>
-                                                                            <span><strong>ស្ថានភាព:</strong> ${result.is_active == 1 ? '<span style="color:#10b981; font-weight:bold;">សកម្ម</span>' : '<span style="color:#ef4444; font-weight:bold;">មិនសកម្ម</span>'}</span>
-                                                                        </div>
-                                                                    </div>
-                                                                    <div style="text-align:right;">
-                                                                        <span style="background:#dbeafe; color:#1e40af; border:1px solid #93c5fd; padding:6px 16px; border-radius:20px; font-weight:800; font-size:14px;">
-                                                                            <i class="fa-solid fa-check-to-slot"></i> សរុប៖ ${totalVotes} សំឡេង
-                                                                        </span>
+                                                if (empMap[fb] && empMap[fb].name) return empMap[fb].name;
+                                                if (cleanFb && empMap[cleanFb] && empMap[cleanFb].name) return empMap[cleanFb].name;
+                                                if (empMap[str] && empMap[str].name) return empMap[str].name;
+                                                if (cleanStr && empMap[cleanStr] && empMap[cleanStr].name) return empMap[cleanStr].name;
+
+                                                if (str && !str.startsWith('បេក្ខជន') && !/^\d+$/.test(str) && str !== fb && str !== cleanFb) {
+                                                    return str;
+                                                }
+                                                return str || fb || 'បុគ្គលិក';
+                                            };
+
+                                            const resolveEmpDept = (dept, idOrEid) => {
+                                                const str = (idOrEid || '').toString().trim();
+                                                const clean = str.replace(/^0+/, '');
+                                                if (empMap[str] && (empMap[str].department || empMap[str].branch || empMap[str].position)) {
+                                                    return empMap[str].department || empMap[str].branch || empMap[str].position;
+                                                }
+                                                if (clean && empMap[clean] && (empMap[clean].department || empMap[clean].branch || empMap[clean].position)) {
+                                                    return empMap[clean].department || empMap[clean].branch || empMap[clean].position;
+                                                }
+                                                return dept || 'Head Office';
+                                            };
+
+                                            if (res.success && res.data && res.data.length > 0) {
+                                                let html = '';
+                                                res.data.forEach(result => {
+                                                    const pollId = result.id;
+                                                    const activeCat = window._currentFilterCategory[pollId] || 'all';
+                                                    const auditList = result.voter_audit_list || [];
+                                                    const allCandidates = result.results || result.candidates || [];
+                                                    const totalVotes = Math.max(parseInt(result.total_votes || 0), auditList.length, allCandidates.reduce((s, c) => s + parseInt(c.votes || 0), 0));
+
+                                                    // Categorize candidates
+                                                    let displayCandidates = allCandidates;
+                                                    if (activeCat === 'skilled') {
+                                                        displayCandidates = allCandidates.filter(c => {
+                                                            const cat = (c.category || '').toLowerCase();
+                                                            const dept = (c.department || '').toLowerCase();
+                                                            return !cat.includes('warehouse') && !cat.includes('store') && !cat.includes('worker') && !cat.includes('ឃ្លាំង') && !cat.includes('កម្មករ') && !dept.includes('កម្មករ') && !dept.includes('ឃ្លាំង') && !dept.includes('driver');
+                                                        });
+                                                    } else if (activeCat === 'worker') {
+                                                        displayCandidates = allCandidates.filter(c => {
+                                                            const cat = (c.category || '').toLowerCase();
+                                                            const dept = (c.department || '').toLowerCase();
+                                                            return cat.includes('warehouse') || cat.includes('store') || cat.includes('worker') || cat.includes('ឃ្លាំង') || cat.includes('កម្មករ') || dept.includes('កម្មករ') || dept.includes('ឃ្លាំង') || dept.includes('driver') || dept.includes('cleaner');
+                                                        });
+                                                    }
+
+                                                    html += `
+                                                        <div style="margin-bottom:35px; padding:24px; border:1px solid #e2e8f0; border-radius:18px; background:#f8fafc;">
+                                                            <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px; margin-bottom:18px; border-bottom:1px solid #e2e8f0; padding-bottom:14px;">
+                                                                <div>
+                                                                    <h3 style="margin:0 0 6px 0; color:#0f172a; font-size:18px; font-weight:800;">
+                                                                        <i class="fa-solid fa-square-poll-vertical" style="color:#6366f1;"></i> ${result.title}
+                                                                    </h3>
+                                                                    <div style="color:#64748b; font-size:13px; display:flex; gap:15px; flex-wrap:wrap;">
+                                                                        <span><strong>ត្រីមាស:</strong> ${result.quarter || '-'}</span>
+                                                                        <span><strong>ទីតាំង:</strong> ${result.location || 'Head Office'}</span>
+                                                                        <span><strong>កាលបរិច្ឆេទ:</strong> ${result.start_date || '-'} ដល់ ${result.end_date || '-'}</span>
+                                                                        <span><strong>ស្ថានភាព:</strong> ${result.is_active == 1 ? '<span style="color:#10b981; font-weight:bold;">សកម្ម</span>' : '<span style="color:#ef4444; font-weight:bold;">មិនសកម្ម</span>'}</span>
                                                                     </div>
                                                                 </div>
-
-                                                                <!-- Category Filter Switcher -->
-                                                                <div style="display:flex; gap:8px; margin-bottom:20px;">
-                                                                    <button onclick="window.switchPollCategory(${pollId}, 'all')"
-                                                                        style="padding:8px 16px; border-radius:10px; border:none; cursor:pointer; font-weight:bold; font-size:13px; ${activeCat === 'all' ? 'background:#0f172a; color:#fff;' : 'background:#e2e8f0; color:#475569;'}">
-                                                                        📋 ទាំងអស់ (${allCandidates.length})
-                                                                    </button>
-                                                                    <button onclick="window.switchPollCategory(${pollId}, 'skilled')"
-                                                                        style="padding:8px 16px; border-radius:10px; border:none; cursor:pointer; font-weight:bold; font-size:13px; ${activeCat === 'skilled' ? 'background:#f59e0b; color:#fff;' : 'background:#e2e8f0; color:#475569;'}">
-                                                                        👔 បុគ្គលិកជំនាញ / Office
-                                                                    </button>
-                                                                    <button onclick="window.switchPollCategory(${pollId}, 'worker')"
-                                                                        style="padding:8px 16px; border-radius:10px; border:none; cursor:pointer; font-weight:bold; font-size:13px; ${activeCat === 'worker' ? 'background:#06b6d4; color:#fff;' : 'background:#e2e8f0; color:#475569;'}">
-                                                                        👷‍♂️ កម្មករ / ឃ្លាំង
-                                                                    </button>
+                                                                <div style="text-align:right;">
+                                                                    <span style="background:#dbeafe; color:#1e40af; border:1px solid #93c5fd; padding:6px 16px; border-radius:20px; font-weight:800; font-size:14px;">
+                                                                        <i class="fa-solid fa-check-to-slot"></i> សរុប៖ ${totalVotes} សំឡេង
+                                                                    </span>
                                                                 </div>
+                                                            </div>
 
-                                                                <!-- Candidate Ranking Bars -->
-                                                                <div style="background:#fff; border-radius:14px; padding:18px; border:1px solid #e2e8f0; margin-bottom:22px;">
-                                                                    <h4 style="margin:0 0 14px 0; color:#1e293b; font-size:15px; font-weight:700;">
-                                                                        <i class="fa-solid fa-trophy" style="color:#f59e0b;"></i> ចំណាត់ថ្នាក់លទ្ធផលបោះឆ្នោត:
-                                                                    </h4>
-                                                                    ${displayCandidates && displayCandidates.length > 0 ? displayCandidates.map((r, idx) => {
-                                                                        const rankBadge = idx === 0 && r.votes > 0 ? '🥇 លេខ ១' : (idx === 1 && r.votes > 0 ? '🥈 លេខ ២' : (idx === 2 && r.votes > 0 ? '🥉 លេខ ៣' : `#${idx + 1}`));
-                                                                        const barColor = idx === 0 && r.votes > 0 ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'linear-gradient(135deg, #6366f1, #4f46e5)';
-                                                                        return `
-                                                                            <div style="margin:12px 0;">
-                                                                                <div style="display:flex; justify-content:space-between; margin-bottom:6px; align-items:center;">
-                                                                                    <div>
-                                                                                        <span style="font-weight:700; color:#0f172a; font-size:14.5px;">${r.name}</span>
-                                                                                        <small style="color:#64748b; margin-left:6px;">(${r.employee_id} - ${r.category || r.department || 'បុគ្គលិក'})</small>
-                                                                                        <span style="margin-left:8px; font-size:12px; font-weight:700; color:#d97706;">${rankBadge}</span>
-                                                                                    </div>
-                                                                                    <div style="font-weight:800; color:#0f172a; font-size:14px;">
-                                                                                        <span>${r.votes} សំឡេង</span>
-                                                                                        <span style="color:#6366f1; margin-left:4px;">(${r.percentage}%)</span>
-                                                                                    </div>
+                                                            <!-- Category Filter Switcher -->
+                                                            <div style="display:flex; gap:8px; margin-bottom:20px;">
+                                                                <button onclick="window.switchPollCategory(${pollId}, 'all')"
+                                                                    style="padding:8px 16px; border-radius:10px; border:none; cursor:pointer; font-weight:bold; font-size:13px; ${activeCat === 'all' ? 'background:#0f172a; color:#fff;' : 'background:#e2e8f0; color:#475569;'}">
+                                                                    📋 ទាំងអស់ (${allCandidates.length})
+                                                                </button>
+                                                                <button onclick="window.switchPollCategory(${pollId}, 'skilled')"
+                                                                    style="padding:8px 16px; border-radius:10px; border:none; cursor:pointer; font-weight:bold; font-size:13px; ${activeCat === 'skilled' ? 'background:#f59e0b; color:#fff;' : 'background:#e2e8f0; color:#475569;'}">
+                                                                    👔 បុគ្គលិកជំនាញ / Office
+                                                                </button>
+                                                                <button onclick="window.switchPollCategory(${pollId}, 'worker')"
+                                                                    style="padding:8px 16px; border-radius:10px; border:none; cursor:pointer; font-weight:bold; font-size:13px; ${activeCat === 'worker' ? 'background:#06b6d4; color:#fff;' : 'background:#e2e8f0; color:#475569;'}">
+                                                                    👷‍♂️ កម្មករ / ឃ្លាំង
+                                                                </button>
+                                                            </div>
+
+                                                            <!-- Candidate Ranking Bars -->
+                                                            <div style="background:#fff; border-radius:14px; padding:18px; border:1px solid #e2e8f0; margin-bottom:22px;">
+                                                                <h4 style="margin:0 0 14px 0; color:#1e293b; font-size:15px; font-weight:700;">
+                                                                    <i class="fa-solid fa-trophy" style="color:#f59e0b;"></i> ចំណាត់ថ្នាក់លទ្ធផលបោះឆ្នោត:
+                                                                </h4>
+                                                                ${displayCandidates && displayCandidates.length > 0 ? displayCandidates.map((r, idx) => {
+                                                                    const candName = resolveEmpName(r.name, r.employee_id);
+                                                                    const candDept = resolveEmpDept(r.category || r.department, r.employee_id);
+                                                                    const rankBadge = idx === 0 && r.votes > 0 ? '🥇 លេខ ១' : (idx === 1 && r.votes > 0 ? '🥈 លេខ ២' : (idx === 2 && r.votes > 0 ? '🥉 លេខ ៣' : `#${idx + 1}`));
+                                                                    const barColor = idx === 0 && r.votes > 0 ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'linear-gradient(135deg, #6366f1, #4f46e5)';
+                                                                    return `
+                                                                        <div style="margin:12px 0;">
+                                                                            <div style="display:flex; justify-content:space-between; margin-bottom:6px; align-items:center;">
+                                                                                <div>
+                                                                                    <span style="font-weight:700; color:#0f172a; font-size:14.5px;">${candName}</span>
+                                                                                    <small style="color:#64748b; margin-left:6px;">(${r.employee_id} - ${candDept})</small>
+                                                                                    <span style="margin-left:8px; font-size:12px; font-weight:700; color:#d97706;">${rankBadge}</span>
                                                                                 </div>
-                                                                                <div style="width:100%; background:#e2e8f0; border-radius:10px; overflow:hidden; height:18px;">
-                                                                                    <div style="width:${Math.max(r.percentage, r.votes > 0 ? 5 : 0)}%; background:${barColor}; height:100%; border-radius:10px; transition:width 0.5s ease;"></div>
+                                                                                <div style="font-weight:800; color:#0f172a; font-size:14px;">
+                                                                                    <span>${r.votes} សំឡេង</span>
+                                                                                    <span style="color:#6366f1; margin-left:4px;">(${r.percentage}%)</span>
                                                                                 </div>
                                                                             </div>
-                                                                        `;
-                                                                    }).join('') : '<p style="color:#94a3b8; margin:0; text-align:center; padding:15px;">មិនទាន់មានបេក្ខជនក្នុងប្រភេទនេះទេ</p>'}
-                                                                </div>
+                                                                            <div style="width:100%; background:#e2e8f0; border-radius:10px; overflow:hidden; height:18px;">
+                                                                                <div style="width:${Math.max(r.percentage, r.votes > 0 ? 5 : 0)}%; background:${barColor}; height:100%; border-radius:10px; transition:width 0.5s ease;"></div>
+                                                                            </div>
+                                                                        </div>
+                                                                    `;
+                                                                }).join('') : '<p style="color:#94a3b8; margin:0; text-align:center; padding:15px;">មិនទាន់មានបេក្ខជនក្នុងប្រភេទនេះទេ</p>'}
+                                                            </div>
 
-                                                                <!-- Detailed Voter Audit Log Table -->
-                                                                <div style="background:#fff; border-radius:14px; padding:18px; border:1px solid #e2e8f0;">
-                                                                    <h4 style="margin:0 0 14px 0; color:#1e293b; font-size:15px; font-weight:700;">
-                                                                        <i class="fa-solid fa-list-check" style="color:#10b981;"></i> កំណត់ត្រាបោះឆ្នោតលម្អិត «បុគ្គលិកណា បោះឆ្នោតជូនបេក្ខជនណា» (${auditList.length} នាក់):
-                                                                    </h4>
-                                                                    ${auditList.length > 0 ? `
-                                                                        <div style="overflow-x:auto;">
-                                                                            <table style="width:100%; border-collapse:collapse; font-size:13px;">
-                                                                                <thead>
-                                                                                    <tr style="background:#f8fafc; border-bottom:2px solid #e2e8f0; text-align:left;">
-                                                                                        <th style="padding:10px 12px;">#</th>
-                                                                                        <th style="padding:10px 12px;">កាលបរិច្ឆេទ & ម៉ោង</th>
-                                                                                        <th style="padding:10px 12px;">អត្តលេខ & ឈ្មោះអ្នកបោះ</th>
-                                                                                        <th style="padding:10px 12px;">ផ្នែកអ្នកបោះ</th>
-                                                                                        <th style="padding:10px 12px; color:#4f46e5;">បោះឆ្នោតជូនបេក្ខជន</th>
-                                                                                    </tr>
-                                                                                </thead>
-                                                                                <tbody>
-                                                                                    ${auditList.map((a, i) => `
+                                                            <!-- Detailed Voter Audit Log Table -->
+                                                            <div style="background:#fff; border-radius:14px; padding:18px; border:1px solid #e2e8f0;">
+                                                                <h4 style="margin:0 0 14px 0; color:#1e293b; font-size:15px; font-weight:700;">
+                                                                    <i class="fa-solid fa-list-check" style="color:#10b981;"></i> កំណត់ត្រាបោះឆ្នោតលម្អិត «បុគ្គលិកណា បោះឆ្នោតជូនបេក្ខជនណា» (${auditList.length} នាក់):
+                                                                </h4>
+                                                                ${auditList.length > 0 ? `
+                                                                    <div style="overflow-x:auto;">
+                                                                        <table style="width:100%; border-collapse:collapse; font-size:13px;">
+                                                                            <thead>
+                                                                                <tr style="background:#f8fafc; border-bottom:2px solid #e2e8f0; text-align:left;">
+                                                                                    <th style="padding:10px 12px;">#</th>
+                                                                                    <th style="padding:10px 12px;">កាលបរិច្ឆេទ & ម៉ោង</th>
+                                                                                    <th style="padding:10px 12px;">អត្តលេខ & ឈ្មោះអ្នកបោះ</th>
+                                                                                    <th style="padding:10px 12px;">ផ្នែកអ្នកបោះ</th>
+                                                                                    <th style="padding:10px 12px; color:#4f46e5;">បោះឆ្នោតជូនបេក្ខជន</th>
+                                                                                </tr>
+                                                                            </thead>
+                                                                            <tbody>
+                                                                                ${auditList.map((a, i) => {
+                                                                                    const voterName = resolveEmpName(a.voter_name, a.voter_id);
+                                                                                    const voterDept = resolveEmpDept(a.voter_department, a.voter_id);
+                                                                                    const candAuditName = resolveEmpName(a.candidate_name, a.candidate_id);
+                                                                                    return `
                                                                                         <tr style="border-bottom:1px solid #f1f5f9;">
                                                                                             <td style="padding:10px 12px; color:#64748b;">${i + 1}</td>
                                                                                             <td style="padding:10px 12px; color:#475569;">${a.time || '-'}</td>
-                                                                                            <td style="padding:10px 12px; font-weight:700; color:#0f172a;">${a.voter_name} <small style="color:#64748b;">(${a.voter_id})</small></td>
-                                                                                            <td style="padding:10px 12px; color:#64748b;">${a.voter_department || 'បុគ្គលិក'}</td>
+                                                                                            <td style="padding:10px 12px; font-weight:700; color:#0f172a;">${voterName} <small style="color:#64748b;">(${a.voter_id})</small></td>
+                                                                                            <td style="padding:10px 12px; color:#64748b;">${voterDept}</td>
                                                                                             <td style="padding:10px 12px; font-weight:800; color:#059669;">
-                                                                                                <i class="fa-solid fa-check-circle" style="color:#10b981;"></i> ${a.candidate_name} <small style="color:#059669;">(${a.candidate_id})</small>
+                                                                                                <i class="fa-solid fa-check-circle" style="color:#10b981;"></i> ${candAuditName} <small style="color:#059669;">(${a.candidate_id})</small>
                                                                                             </td>
                                                                                         </tr>
-                                                                                    `).join('')}
-                                                                                </tbody>
-                                                                            </table>
-                                                                        </div>
-                                                                    ` : '<p style="color:#94a3b8; margin:0; text-align:center; padding:15px;">មិនទាន់មានកំណត់ត្រាអ្នកបោះឆ្នោតនៅឡើយទេ</p>'}
-                                                                </div>
+                                                                                    `;
+                                                                                }).join('')}
+                                                                            </tbody>
+                                                                        </table>
+                                                                    </div>
+                                                                ` : '<p style="color:#94a3b8; margin:0; text-align:center; padding:15px;">មិនទាន់មានកំណត់ត្រាអ្នកបោះឆ្នោតនៅឡើយទេ</p>'}
                                                             </div>
-                                                        `;
-                                                    });
-                                                    container.innerHTML = html;
-                                                } else {
-                                                    container.innerHTML = '<div style="text-align:center; padding:40px; color:#64748b;"><i class="fa-solid fa-box-open" style="font-size:36px; margin-bottom:10px;"></i><br>មិនទាន់មានទិន្នន័យការបោះឆ្នោតនៅឡើយទេ។</div>';
-                                                }
-                                            })
-                                            .catch(err => {
-                                                console.error('Load poll results error:', err);
-                                                container.innerHTML = '<div style="text-align:center; padding:40px; color:#ef4444;">កំហុសបច្ចេកទេស (Network Error)។ សូមព្យាយាម Refresh ម្តងទៀត។</div>';
-                                            });
+                                                        </div>
+                                                    `;
+                                                });
+                                                container.innerHTML = html;
+                                            } else {
+                                                container.innerHTML = '<div style="text-align:center; padding:40px; color:#64748b;"><i class="fa-solid fa-box-open" style="font-size:36px; margin-bottom:10px;"></i><br>មិនទាន់មានទិន្នន័យការបោះឆ្នោតនៅឡើយទេ។</div>';
+                                            }
+                                        })
+                                        .catch(err => {
+                                            console.error('Load poll results error:', err);
+                                            container.innerHTML = '<div style="text-align:center; padding:40px; color:#ef4444;">កំហុសបច្ចេកទេស (Network Error)។ សូមព្យាយាម Refresh ម្តងទៀត។</div>';
+                                        });
                                     };
 
                                     if (document.readyState === 'complete') {
