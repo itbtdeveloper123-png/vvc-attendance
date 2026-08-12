@@ -8249,8 +8249,13 @@ try {
         }
         $stmt->execute();
         $result = $stmt->get_result();
-        $employees = [];
+        $employees_map = [];
         while ($row = $result->fetch_assoc()) {
+            $eid = trim((string)($row['employee_id'] ?? ''));
+            if ($eid === '') continue;
+            $clean_key = ltrim($eid, '0');
+            if ($clean_key === '') $clean_key = $eid;
+
             $u_name = '';
             foreach (['khmer_name', 'name_kh', 'full_name', 'khmer', 'display_name', 'name', 'latin_name', 'username'] as $k) {
                 if (!empty($row[$k])) {
@@ -8273,10 +8278,21 @@ try {
                 }
             }
             $row['name'] = $u_name;
-            $employees[] = $row;
+
+            // Deduplicate: If key already exists, prefer entry with Khmer Unicode name
+            if (isset($employees_map[$clean_key])) {
+                $existing = $employees_map[$clean_key];
+                $existing_is_khmer = preg_match('/[\x{1780}-\x{17FF}]/u', $existing['name'] ?? '');
+                $current_is_khmer  = preg_match('/[\x{1780}-\x{17FF}]/u', $row['name'] ?? '');
+                if (!$existing_is_khmer && $current_is_khmer) {
+                    $employees_map[$clean_key] = $row;
+                }
+            } else {
+                $employees_map[$clean_key] = $row;
+            }
         }
         $stmt->close();
-        apiResponse(['success' => true, 'data' => $employees]);
+        apiResponse(['success' => true, 'data' => array_values($employees_map)]);
         break;
 
     case 'get_active_polls':
