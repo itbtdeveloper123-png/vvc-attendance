@@ -61,27 +61,39 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
         }
       }
 
-      // Format candidate details with user database records
+      // Format candidate details with user database records (preserve server Khmer names)
+      final khmerRegex = RegExp(r'[\u1780-\u17FF]');
       for (var poll in _polls) {
         if (poll['candidates'] != null && poll['candidates'] is List) {
           for (var c in poll['candidates']) {
             final empId = c['employee_id']?.toString() ?? '';
+            final existingName = (c['name'] ?? '').toString().trim();
+
+            // If name from server already has Khmer characters, preserve it!
+            if (existingName.isNotEmpty && khmerRegex.hasMatch(existingName)) {
+              continue;
+            }
+
             if (_allUsers.isNotEmpty && empId.isNotEmpty) {
-              final match = _allUsers.firstWhere(
+              final matches = _allUsers.where(
                 (u) =>
                     u['employee_id']?.toString() == empId ||
                     (empId.replaceAll(RegExp(r'^0+'), '').isNotEmpty &&
                         u['employee_id']?.toString().replaceAll(RegExp(r'^0+'), '') ==
                             empId.replaceAll(RegExp(r'^0+'), '')),
-                orElse: () => null,
-              );
-              if (match != null) {
-                final mName = (match['name'] ?? '').toString().trim();
+              ).toList();
+
+              if (matches.isNotEmpty) {
+                final khmerMatch = matches.firstWhere(
+                  (u) => khmerRegex.hasMatch((u['name'] ?? u['full_name'] ?? u['khmer_name'] ?? '').toString()),
+                  orElse: () => matches.first,
+                );
+                final mName = (khmerMatch['khmer_name'] ?? khmerMatch['full_name'] ?? khmerMatch['name'] ?? '').toString().trim();
                 if (mName.isNotEmpty) {
                   c['name'] = mName;
                 }
-                c['department'] = match['department'] ?? match['position'] ?? c['department'];
-                c['photo_url'] = match['photo_url'] ?? match['photo'] ?? match['avatar'] ?? c['photo_url'];
+                c['department'] = khmerMatch['department'] ?? khmerMatch['position'] ?? c['department'];
+                c['photo_url'] = khmerMatch['photo_url'] ?? khmerMatch['photo'] ?? khmerMatch['avatar'] ?? c['photo_url'];
               }
             }
           }
@@ -582,19 +594,24 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
                 ...candidates.map((candidate) {
                   final empId = candidate['employee_id']?.toString() ?? '';
                   final candIdStr = candidate['id']?.toString() ?? '';
-                  String name = candidate['name']?.toString() ?? empId;
+                  final khmerRegex = RegExp(r'[\u1780-\u17FF]');
+                  String name = (candidate['name'] ?? '').toString().trim();
+                  if (name.isEmpty) name = empId;
 
-                  if (_allUsers.isNotEmpty && empId.isNotEmpty) {
-                    final match = _allUsers.firstWhere(
+                  if (!khmerRegex.hasMatch(name) && _allUsers.isNotEmpty && empId.isNotEmpty) {
+                    final matches = _allUsers.where(
                       (u) =>
                           u['employee_id']?.toString() == empId ||
                           (empId.replaceAll(RegExp(r'^0+'), '').isNotEmpty &&
                               u['employee_id']?.toString().replaceAll(RegExp(r'^0+'), '') ==
                                   empId.replaceAll(RegExp(r'^0+'), '')),
-                      orElse: () => null,
-                    );
-                    if (match != null) {
-                      final mName = (match['name'] ?? '').toString().trim();
+                    ).toList();
+                    if (matches.isNotEmpty) {
+                      final khmerMatch = matches.firstWhere(
+                        (u) => khmerRegex.hasMatch((u['name'] ?? u['full_name'] ?? u['khmer_name'] ?? '').toString()),
+                        orElse: () => matches.first,
+                      );
+                      final mName = (khmerMatch['khmer_name'] ?? khmerMatch['full_name'] ?? khmerMatch['name'] ?? '').toString().trim();
                       if (mName.isNotEmpty) {
                         name = mName;
                       }
