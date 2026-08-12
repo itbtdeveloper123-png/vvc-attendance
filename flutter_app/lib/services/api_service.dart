@@ -500,6 +500,18 @@ class ApiService {
     );
   }
 
+  Future<Map<String, dynamic>> getPollResults(int pollId) async {
+    final headers = await _authHeaders();
+    return _processRequest(
+      'get_poll_results',
+      headers: headers,
+      body: {
+        'id': pollId.toString(),
+        'poll_id': pollId.toString(),
+      },
+    );
+  }
+
   Future<Map<String, dynamic>> castVote(int pollId, String candidateEmployeeId) async {
     final headers = await _authHeaders();
     final prefs = await SharedPreferences.getInstance();

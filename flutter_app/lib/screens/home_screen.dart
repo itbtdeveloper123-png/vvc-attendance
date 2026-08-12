@@ -46,6 +46,7 @@ import 'ai_chat_screen.dart';
 import '../services/voice_command_service.dart';
 import 'product_analyzer_screen.dart';
 import 'poll_voting_screen.dart';
+import 'hrm_poll_management_screen.dart';
 import 'document_scanner_screen.dart';
 import 'app_settings_screen.dart';
 import 'kpi_performance_screen.dart';
@@ -2230,15 +2231,24 @@ class _HomeContentState extends State<HomeContent> {
             isList: isList,
             key: 'show_poll_voting_card$suffix',
             user: user,
-            label: "បោះឆ្នោតបុគ្គលិក",
-            subtitle: "ចូលរួមបោះឆ្នោតបុគ្គលិកល្អ",
+            label: (user.isHRM || user.isAdmin) ? "គ្រប់គ្រងការបោះឆ្នោត" : "បោះឆ្នោតបុគ្គលិក",
+            subtitle: (user.isHRM || user.isAdmin) ? "គ្រប់គ្រង និងមើលលទ្ធផលបោះឆ្នោត" : "ចូលរួមបោះឆ្នោតបុគ្គលិកល្អ",
             icon: Icons.how_to_vote_rounded,
             color: AppTheme.primary,
-            onTap:
-                () => Navigator.push(
+            onTap: () {
+              _hapticLight();
+              if (user.isHRM || user.isAdmin) {
+                Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const PollVotingScreen()),
-                ),
+                  _slideRoute(const HrmPollManagementScreen()),
+                );
+              } else {
+                Navigator.push(
+                  context,
+                  _slideRoute(const PollVotingScreen()),
+                );
+              }
+            },
           ),
 
       'announcements':
