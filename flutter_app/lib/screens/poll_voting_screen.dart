@@ -90,6 +90,15 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
         final res = await _api.castVote(pollIdInt, candidateEmployeeId);
         if (res['success'] == true) {
           if (mounted) {
+            setState(() {
+              for (var p in _polls) {
+                if ((p['doc_id'] ?? p['id'] ?? '').toString() == pollDocId || (p['id'] ?? '').toString() == pollIdInt.toString()) {
+                  p['has_voted'] = true;
+                  p['voted_candidate_employee_id'] = candidateEmployeeId;
+                  p['voted_candidate_id'] = candidateEmployeeId;
+                }
+              }
+            });
             VvcAlert.showSuccess(context, title: 'បោះឆ្នោតជោគជ័យ!', message: 'ការបោះឆ្នោតរបស់អ្នកត្រូវបានរក្សាទុកក្នុង DB');
             await _loadInitialData();
           }

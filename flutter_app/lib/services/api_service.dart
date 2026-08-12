@@ -476,12 +476,28 @@ class ApiService {
 
   Future<Map<String, dynamic>> fetchActivePolls() async {
     final headers = await _authHeaders();
-    return _processRequest('get_active_polls', headers: headers);
+    final prefs = await SharedPreferences.getInstance();
+    final currentEid = prefs.getString('employee_id') ?? '';
+    return _processRequest(
+      'get_active_polls',
+      headers: headers,
+      body: {
+        if (currentEid.isNotEmpty) 'employee_id': currentEid,
+      },
+    );
   }
 
   Future<Map<String, dynamic>> getPolls() async {
     final headers = await _authHeaders();
-    return _processRequest('get_polls', headers: headers);
+    final prefs = await SharedPreferences.getInstance();
+    final currentEid = prefs.getString('employee_id') ?? '';
+    return _processRequest(
+      'get_polls',
+      headers: headers,
+      body: {
+        if (currentEid.isNotEmpty) 'employee_id': currentEid,
+      },
+    );
   }
 
   Future<Map<String, dynamic>> castVote(int pollId, String candidateEmployeeId) async {

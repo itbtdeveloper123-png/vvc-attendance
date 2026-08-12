@@ -7589,14 +7589,28 @@ try {
                     
                     // Check if current user has voted in this poll
                     $has_voted = false;
-                    $voter_eid = $user['employee_id'] ?? $_GET['employee_id'] ?? $_POST['employee_id'] ?? $_SERVER['HTTP_X_EMPLOYEE_ID'] ?? '';
+                    $voter_eid = (string)($user['employee_id'] ?? $_GET['employee_id'] ?? $_POST['employee_id'] ?? $_SERVER['HTTP_X_EMPLOYEE_ID'] ?? '');
+                    $voted_cand_id = '';
+                    $voted_cand_emp_id = '';
                     if (!empty($voter_eid)) {
-                        $v_chk = $mysqli->query("SELECT 1 FROM poll_votes WHERE poll_id = $poll_id AND voter_employee_id = '" . $mysqli->real_escape_string($voter_eid) . "' LIMIT 1");
-                        if ($v_chk && $v_chk->num_rows > 0) {
+                        $voter_eid_clean = ltrim($voter_eid, '0');
+                        $v_chk = $mysqli->query("SELECT pv.candidate_id, COALESCE(pc.employee_id, CAST(pv.candidate_id AS CHAR)) as cand_emp_id 
+                                                 FROM poll_votes pv 
+                                                 LEFT JOIN poll_candidates pc ON (pv.candidate_id = pc.id OR CAST(pv.candidate_id AS CHAR) = pc.employee_id OR LTRIM(CAST(pv.candidate_id AS CHAR), '0') = LTRIM(pc.employee_id, '0'))
+                                                 WHERE pv.poll_id = $poll_id 
+                                                   AND (pv.voter_employee_id = '" . $mysqli->real_escape_string($voter_eid) . "' 
+                                                        OR LTRIM(pv.voter_employee_id, '0') = '" . $mysqli->real_escape_string($voter_eid_clean) . "' 
+                                                        OR TRIM(LEADING '0' FROM pv.voter_employee_id) = '" . $mysqli->real_escape_string($voter_eid_clean) . "') 
+                                                 ORDER BY pv.id DESC LIMIT 1");
+                        if ($v_chk && $v_row = $v_chk->fetch_assoc()) {
                             $has_voted = true;
+                            $voted_cand_id = (string)$v_row['candidate_id'];
+                            $voted_cand_emp_id = (string)$v_row['cand_emp_id'];
                         }
                     }
                     $row['has_voted'] = $has_voted;
+                    $row['voted_candidate_id'] = $voted_cand_id;
+                    $row['voted_candidate_employee_id'] = $voted_cand_emp_id;
 
                     // Fetch voter audit list for mobile app & admin panel results
                     $audit_list = [];
@@ -8118,9 +8132,9 @@ try {
             break;
         }
         
-        $eid = (string)$user['employee_id'];
+        $eid = (string)($user['employee_id'] ?? $req_eid ?? '');
         $current_date = date('Y-m-d');
-        $user_role = strtolower($user['role'] ?? '');
+        $user_role = strtolower($user['role'] ?? $user['user_role'] ?? $user['system_role'] ?? '');
         $is_admin_or_hrm = in_array($user_role, ['admin', 'hrm', 'superadmin', 'manager', 'director']) || ($user['is_admin'] ?? 0) == 1;
         
         // Fetch all poll events
@@ -8128,6 +8142,9 @@ try {
         $polls = [];
         if ($res) {
             while ($row = $res->fetch_assoc()) {
+                $poll_id = (int)$row['id'];
+                $poll_title_esc = $mysqli->real_escape_string($row['title'] ?? '');
+
                 // If not admin/HRM, check active status
                 if (!$is_admin_or_hrm && isset($row['is_active']) && (int)$row['is_active'] === 0) {
                     continue;
@@ -8199,20 +8216,17 @@ try {
                     }
                 }
 
-                $poll_id = (int)$row['id'];
-                $poll_title_esc = $mysqli->real_escape_string($row['title'] ?? '');
-
                 // Check if user has already voted for THIS specific poll_id
                 $vote_check = $mysqli->prepare("
                     SELECT pv.candidate_id, COALESCE(pc.employee_id, CAST(pv.candidate_id AS CHAR)) as cand_emp_id 
                     FROM poll_votes pv 
-                    LEFT JOIN poll_candidates pc ON (pv.candidate_id = pc.id OR CAST(pv.candidate_id AS CHAR) = pc.employee_id)
+                    LEFT JOIN poll_candidates pc ON (pv.candidate_id = pc.id OR CAST(pv.candidate_id AS CHAR) = pc.employee_id OR LTRIM(CAST(pv.candidate_id AS CHAR), '0') = LTRIM(pc.employee_id, '0'))
                     WHERE pv.poll_id = ? 
-                      AND (pv.voter_employee_id = ? OR LTRIM(pv.voter_employee_id, '0') = LTRIM(?, '0')) 
+                      AND (pv.voter_employee_id = ? OR LTRIM(pv.voter_employee_id, '0') = LTRIM(?, '0') OR TRIM(LEADING '0' FROM pv.voter_employee_id) = TRIM(LEADING '0' FROM ?)) 
                     ORDER BY pv.id DESC LIMIT 1
                 ");
                 if ($vote_check) {
-                    $vote_check->bind_param('iss', $poll_id, $eid, $eid);
+                    $vote_check->bind_param('isss', $poll_id, $eid, $eid, $eid);
                     $vote_check->execute();
                     $vote_res = $vote_check->get_result()->fetch_assoc();
                     if ($vote_res) {
@@ -8224,6 +8238,12 @@ try {
                         $row['voted_candidate_id'] = '';
                         $row['voted_candidate_employee_id'] = '';
                     }
+                    $vote_check->close();
+                } else {
+                    $row['has_voted'] = false;
+                    $row['voted_candidate_id'] = '';
+                    $row['voted_candidate_employee_id'] = '';
+                }
                     $vote_check->close();
                 } else {
                     $row['has_voted'] = false;
@@ -8379,7 +8399,7 @@ try {
         $poll_id               = (int)($_POST['poll_id'] ?? 0);
         $candidate_employee_id = trim($_POST['candidate_employee_id'] ?? '');
         $candidate_id_param    = (int)($_POST['candidate_id'] ?? 0);
-        $eid                   = (string)($user['employee_id'] ?? '');
+        $eid                   = (string)($user['employee_id'] ?? $req_eid ?? '');
         
         if ($poll_id <= 0 || ($candidate_employee_id === '' && $candidate_id_param <= 0)) {
             apiResponse(['success' => false, 'message' => 'Poll ID and Candidate selection required']);
