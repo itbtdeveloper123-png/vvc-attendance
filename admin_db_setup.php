@@ -528,22 +528,25 @@ if (!function_exists('ensure_staff_poll_tables')) {
             id INT AUTO_INCREMENT PRIMARY KEY,
             poll_id INT NOT NULL,
             voter_employee_id VARCHAR(50) NOT NULL,
-            candidate_id INT NOT NULL,
+            candidate_id INT NOT NULL DEFAULT 0,
+            candidate_employee_id VARCHAR(50) DEFAULT NULL,
             voted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE KEY unique_poll_voter (poll_id, voter_employee_id), -- One person, one vote per event
-            FOREIGN KEY (poll_id) REFERENCES poll_events(id) ON DELETE CASCADE,
-            FOREIGN KEY (candidate_id) REFERENCES poll_candidates(id) ON DELETE CASCADE
+            KEY idx_poll_candidate (poll_id, candidate_id),
+            KEY idx_poll_cand_eid (poll_id, candidate_employee_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
         if (!$q3) {
             error_log("DB_SETUP: poll_votes creation failed: " . $mysqli->error);
         } else {
             error_log("DB_SETUP: poll_votes creation checked/ok");
         }
-        if (!$q3) {
-            error_log("DB_SETUP: poll_votes creation failed: " . $mysqli->error);
-        } else {
-            error_log("DB_SETUP: poll_votes creation checked/ok");
+
+        // Migration check for candidate_employee_id column
+        $check_c_eid = $mysqli->query("SHOW COLUMNS FROM poll_votes LIKE 'candidate_employee_id'");
+        if ($check_c_eid && $check_c_eid->num_rows == 0) {
+            $mysqli->query("ALTER TABLE poll_votes ADD COLUMN candidate_employee_id VARCHAR(50) DEFAULT NULL AFTER candidate_id");
         }
+
         error_log("DB_SETUP: ensure_staff_poll_tables finished");
     }
 }

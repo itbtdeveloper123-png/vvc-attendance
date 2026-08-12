@@ -7530,7 +7530,7 @@ try {
                     if ($poll_id > 0) {
                         $cand_q = $mysqli->query("
                             SELECT c.*, u.name, u.department, u.position, u.profile_picture, u.photo,
-                                   (SELECT COUNT(*) FROM poll_votes v WHERE v.poll_id = $poll_id AND (v.candidate_id = c.id OR CAST(v.candidate_id AS CHAR) = c.employee_id OR TRIM(LEADING '0' FROM CAST(v.candidate_id AS CHAR)) = TRIM(LEADING '0' FROM c.employee_id))) AS votes_count 
+                                   (SELECT COUNT(*) FROM poll_votes v WHERE v.poll_id = $poll_id AND (v.candidate_id = c.id OR v.candidate_employee_id = c.employee_id OR LTRIM(v.candidate_employee_id, '0') = LTRIM(c.employee_id, '0') OR CAST(v.candidate_id AS CHAR) = c.employee_id OR TRIM(LEADING '0' FROM CAST(v.candidate_id AS CHAR)) = TRIM(LEADING '0' FROM c.employee_id))) AS votes_count 
                             FROM poll_candidates c 
                             LEFT JOIN users u ON (c.employee_id = u.employee_id OR TRIM(LEADING '0' FROM c.employee_id) = TRIM(LEADING '0' FROM u.employee_id)) 
                             WHERE c.poll_id = $poll_id
@@ -7931,6 +7931,8 @@ try {
                        (SELECT COUNT(*) FROM poll_votes v 
                         WHERE (v.poll_id = $poll_id OR v.poll_id = c.id) 
                           AND (v.candidate_id = c.id 
+                               OR v.candidate_employee_id = c.employee_id
+                               OR LTRIM(v.candidate_employee_id, '0') = LTRIM(c.employee_id, '0')
                                OR CAST(v.candidate_id AS CHAR) = c.employee_id 
                                OR LTRIM(CAST(v.candidate_id AS CHAR), '0') = LTRIM(c.employee_id, '0')
                                OR v.candidate_id IN (SELECT id FROM poll_candidates WHERE employee_id = c.employee_id OR LTRIM(employee_id, '0') = LTRIM(c.employee_id, '0'))
@@ -8244,12 +8246,6 @@ try {
                     $row['voted_candidate_id'] = '';
                     $row['voted_candidate_employee_id'] = '';
                 }
-                    $vote_check->close();
-                } else {
-                    $row['has_voted'] = false;
-                    $row['voted_candidate_id'] = '';
-                    $row['voted_candidate_employee_id'] = '';
-                }
 
                 // Fetch candidates from poll_candidates table along with votes count
                 $candidates = [];
@@ -8388,21 +8384,39 @@ try {
                 }
             }
         }
-        if (!$user) apiResponse(['success' => false, 'message' => 'Unauthorized']);
+        if (!$user) {
+            $req_eid = $_GET['employee_id'] ?? $_POST['employee_id'] ?? $_SERVER['HTTP_X_EMPLOYEE_ID'] ?? '';
+            if (!empty($req_eid)) {
+                $u_stmt = $mysqli->prepare("SELECT id, employee_id, name, user_role, system_role, position, department FROM users WHERE employee_id = ? OR TRIM(LEADING '0' FROM employee_id) = TRIM(LEADING '0' FROM ?) LIMIT 1");
+                if ($u_stmt) {
+                    $u_stmt->bind_param('ss', $req_eid, $req_eid);
+                    $u_stmt->execute();
+                    $user = $u_stmt->get_result()->fetch_assoc();
+                    $u_stmt->close();
+                }
+            }
+        }
         
-        $table_check = $mysqli->query("SHOW TABLES LIKE 'poll_events'");
-        if (!$table_check || $table_check->num_rows == 0) {
-            apiResponse(['success' => false, 'message' => 'Poll table does not exist. Please run database setup.']);
+        $eid = (string)($user['employee_id'] ?? $req_eid ?? $_POST['employee_id'] ?? '');
+        if (empty($eid)) {
+            apiResponse(['success' => false, 'message' => 'Unauthorized: មិនអាចកំណត់អត្តលេខបុគ្គលិកបានទេ']);
             break;
+        }
+
+        // Ensure database tables & columns exist
+        if (file_exists(__DIR__ . '/admin_db_setup.php')) {
+            require_once __DIR__ . '/admin_db_setup.php';
+            if (function_exists('ensure_staff_poll_tables') && isset($mysqli) && $mysqli instanceof mysqli) {
+                ensure_staff_poll_tables($mysqli);
+            }
         }
         
         $poll_id               = (int)($_POST['poll_id'] ?? 0);
         $candidate_employee_id = trim($_POST['candidate_employee_id'] ?? '');
         $candidate_id_param    = (int)($_POST['candidate_id'] ?? 0);
-        $eid                   = (string)($user['employee_id'] ?? $req_eid ?? '');
         
         if ($poll_id <= 0 || ($candidate_employee_id === '' && $candidate_id_param <= 0)) {
-            apiResponse(['success' => false, 'message' => 'Poll ID and Candidate selection required']);
+            apiResponse(['success' => false, 'message' => 'សូមជ្រើសរើសការបោះឆ្នោត និងបេក្ខជន']);
             break;
         }
         
@@ -8422,10 +8436,16 @@ try {
             break;
         }
 
-        // Find candidate_id in poll_candidates
+        // Resolve candidate_id and candidate_employee_id
         $candidate_id = 0;
         if ($candidate_id_param > 0) {
             $candidate_id = $candidate_id_param;
+            if (empty($candidate_employee_id)) {
+                $c_q = $mysqli->query("SELECT employee_id FROM poll_candidates WHERE id = $candidate_id LIMIT 1");
+                if ($c_q && $c_r = $c_q->fetch_assoc()) {
+                    $candidate_employee_id = (string)$c_r['employee_id'];
+                }
+            }
         } else if (!empty($candidate_employee_id)) {
             $cand_find = $mysqli->prepare("SELECT id FROM poll_candidates WHERE poll_id = ? AND (employee_id = ? OR LTRIM(employee_id, '0') = LTRIM(?, '0')) LIMIT 1");
             if ($cand_find) {
@@ -8439,14 +8459,26 @@ try {
             }
 
             if ($candidate_id == 0) {
-                $cand_ins = $mysqli->prepare("INSERT INTO poll_candidates (poll_id, employee_id) VALUES (?, ?)");
+                $u_cand = $mysqli->query("SELECT name, department, position, branch FROM users WHERE employee_id = '$candidate_employee_id' OR LTRIM(employee_id, '0') = LTRIM('$candidate_employee_id', '0') LIMIT 1");
+                $cand_cat = 'Head Office';
+                if ($u_cand && $u_row = $u_cand->fetch_assoc()) {
+                    $cand_cat = $u_row['branch'] ?? $u_row['department'] ?? 'Head Office';
+                }
+                $cand_ins = $mysqli->prepare("INSERT INTO poll_candidates (poll_id, employee_id, category) VALUES (?, ?, ?)");
                 if ($cand_ins) {
-                    $cand_ins->bind_param('is', $poll_id, $candidate_employee_id);
+                    $cand_ins->bind_param('iss', $poll_id, $candidate_employee_id, $cand_cat);
                     if ($cand_ins->execute()) {
                         $candidate_id = (int)$cand_ins->insert_id;
                     }
                     $cand_ins->close();
                 }
+            }
+        }
+
+        if ($candidate_id <= 0 && !empty($candidate_employee_id)) {
+            $cand_ins2 = $mysqli->query("INSERT INTO poll_candidates (poll_id, employee_id, category) VALUES ($poll_id, '$candidate_employee_id', 'Head Office')");
+            if ($cand_ins2) {
+                $candidate_id = (int)$mysqli->insert_id;
             }
         }
         
@@ -8476,39 +8508,39 @@ try {
             }
         }
         
+        // Ensure candidate_employee_id column exists in poll_votes
+        $mysqli->query("ALTER TABLE poll_votes ADD COLUMN IF NOT EXISTS candidate_employee_id VARCHAR(50) DEFAULT NULL AFTER candidate_id");
+
+        $cand_eid_esc = $mysqli->real_escape_string($candidate_employee_id);
+        $voter_eid_esc = $mysqli->real_escape_string($eid);
+        $vote_saved = false;
+
         // Check if user already voted in this poll
-        $vote_check = $mysqli->prepare("SELECT COUNT(*) as voted FROM poll_votes WHERE poll_id = ? AND (voter_employee_id = ? OR TRIM(LEADING '0' FROM voter_employee_id) = TRIM(LEADING '0' FROM ?))");
-        if ($vote_check) {
-            $vote_check->bind_param('iss', $poll_id, $eid, $eid);
-            $vote_check->execute();
-            $vote_result = $vote_check->get_result()->fetch_assoc();
-            $vote_check->close();
-            
-            if (($vote_result['voted'] ?? 0) > 0) {
-                apiResponse(['success' => false, 'message' => 'អ្នកបានបោះឆ្នោតរួចហើយសម្រាប់ការបោះឆ្នោតនេះ']);
-                break;
+        $v_chk = $mysqli->query("SELECT id FROM poll_votes WHERE poll_id = $poll_id AND (voter_employee_id = '$voter_eid_esc' OR LTRIM(voter_employee_id, '0') = LTRIM('$voter_eid_esc', '0') OR TRIM(LEADING '0' FROM voter_employee_id) = TRIM(LEADING '0' FROM '$voter_eid_esc')) LIMIT 1");
+        if ($v_chk && $v_row = $v_chk->fetch_assoc()) {
+            $existing_vote_id = (int)$v_row['id'];
+            $upd = $mysqli->query("UPDATE poll_votes SET candidate_id = $candidate_id, candidate_employee_id = '$cand_eid_esc', voted_at = CURRENT_TIMESTAMP WHERE id = $existing_vote_id");
+            if ($upd) {
+                $vote_saved = true;
+            }
+        } else {
+            $ins = $mysqli->query("INSERT INTO poll_votes (poll_id, voter_employee_id, candidate_id, candidate_employee_id) VALUES ($poll_id, '$voter_eid_esc', $candidate_id, '$cand_eid_esc')");
+            if ($ins) {
+                $vote_saved = true;
+            } else {
+                // Fallback insert if column is missing
+                $ins_fallback = $mysqli->query("INSERT INTO poll_votes (poll_id, voter_employee_id, candidate_id) VALUES ($poll_id, '$voter_eid_esc', $candidate_id)");
+                if ($ins_fallback) {
+                    $vote_saved = true;
+                }
             }
         }
-        
-        // Insert vote into poll_votes (support storing candidate_id as int or employee_id string)
-        $vote_stmt = $mysqli->prepare("INSERT INTO poll_votes (poll_id, voter_employee_id, candidate_id) VALUES (?, ?, ?)");
-        if (!$vote_stmt) {
-            apiResponse(['success' => false, 'message' => 'Database error: ' . $mysqli->error]);
-            break;
-        }
-        $vote_target = $candidate_id > 0 ? (string)$candidate_id : (!empty($candidate_employee_id) ? $candidate_employee_id : '0');
-        $vote_stmt->bind_param('iss', $poll_id, $eid, $vote_target);
-        
-        if ($vote_stmt->execute()) {
+
+        if ($vote_saved) {
             apiResponse(['success' => true, 'message' => 'បោះឆ្នោតបានជោគជ័យ!']);
         } else {
-            if ($vote_stmt->errno == 1062 || strpos($vote_stmt->error, 'Duplicate entry') !== false) {
-                apiResponse(['success' => false, 'message' => 'អ្នកបានបោះឆ្នោតរួចហើយសម្រាប់ការបោះឆ្នោតនេះ']);
-            } else {
-                apiResponse(['success' => false, 'message' => 'មិនអាចបោះឆ្នោតបានទេ: ' . $vote_stmt->error]);
-            }
+            apiResponse(['success' => false, 'message' => 'មិនអាចរក្សាទុកសំឡេងឆ្នោតបានទេ: ' . $mysqli->error]);
         }
-        $vote_stmt->close();
         break;
 
     case 'get_poll_with_access':

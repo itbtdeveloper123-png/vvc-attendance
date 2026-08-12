@@ -38,7 +38,7 @@ class _HrmPollManagementScreenState extends State<HrmPollManagementScreen> {
 
     try {
       final results = await Future.wait([
-        _api.fetchActivePolls(),
+        _api.getPolls(),
         _api.fetchUsers(),
       ]);
 
@@ -52,7 +52,7 @@ class _HrmPollManagementScreenState extends State<HrmPollManagementScreen> {
       if (apiRes['success'] == true && apiRes['data'] != null && (apiRes['data'] as List).isNotEmpty) {
         _polls = List<dynamic>.from(apiRes['data']);
       } else {
-        final fallbackRes = await _api.getPolls();
+        final fallbackRes = await _api.fetchActivePolls();
         if (fallbackRes['success'] == true && fallbackRes['data'] != null) {
           _polls = List<dynamic>.from(fallbackRes['data']);
         } else if (apiRes['data'] != null) {
