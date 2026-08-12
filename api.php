@@ -8242,13 +8242,11 @@ try {
             break;
         }
         
-        $stmt = $mysqli->prepare("SELECT * FROM users WHERE employment_status = 'Active' ORDER BY id ASC");
-        if (!$stmt) {
+        $result = $mysqli->query("SELECT * FROM users ORDER BY id ASC");
+        if (!$result || !($result instanceof mysqli_result)) {
             apiResponse(['success' => false, 'message' => 'Database error: ' . $mysqli->error]);
             break;
         }
-        $stmt->execute();
-        $result = $stmt->get_result();
         $employees_map = [];
         while ($row = $result->fetch_assoc()) {
             $eid = trim((string)($row['employee_id'] ?? ''));
@@ -8291,7 +8289,7 @@ try {
                 $employees_map[$clean_key] = $row;
             }
         }
-        $stmt->close();
+        $result->free();
         apiResponse(['success' => true, 'data' => array_values($employees_map)]);
         break;
 
