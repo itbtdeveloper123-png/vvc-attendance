@@ -15,13 +15,13 @@ class PollVotingScreen extends StatefulWidget {
 }
 
 class _PollVotingScreenState extends State<PollVotingScreen> {
+  static final RegExp _khmerRegex = RegExp(r'[\u1780-\u17FF]');
   final ApiService _api = ApiService();
 
   List<dynamic> _polls = [];
   List<dynamic> _allUsers = [];
   bool _isLoading = true;
   String? _errorMessage;
-  String _selectedCategoryFilter = 'all'; // 'all', 'skilled', or 'worker'
 
   @override
   void initState() {
@@ -62,7 +62,6 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
       }
 
       // Format candidate details with user database records (preserve server Khmer names)
-      final khmerRegex = RegExp(r'[\u1780-\u17FF]');
       for (var poll in _polls) {
         if (poll['candidates'] != null && poll['candidates'] is List) {
           for (var c in poll['candidates']) {
@@ -70,7 +69,7 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
             final existingName = (c['name'] ?? '').toString().trim();
 
             // If name from server already has Khmer characters, preserve it!
-            if (existingName.isNotEmpty && khmerRegex.hasMatch(existingName)) {
+            if (existingName.isNotEmpty && _khmerRegex.hasMatch(existingName)) {
               continue;
             }
 
@@ -85,7 +84,7 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
 
               if (matches.isNotEmpty) {
                 final khmerMatch = matches.firstWhere(
-                  (u) => khmerRegex.hasMatch((u['name'] ?? u['full_name'] ?? u['khmer_name'] ?? '').toString()),
+                  (u) => _khmerRegex.hasMatch((u['name'] ?? u['full_name'] ?? u['khmer_name'] ?? '').toString()),
                   orElse: () => matches.first,
                 );
                 final mName = (khmerMatch['khmer_name'] ?? khmerMatch['full_name'] ?? khmerMatch['name'] ?? '').toString().trim();
@@ -156,21 +155,6 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
     }
   }
 
-  bool _isWorkerCandidate(Map<String, dynamic> c) {
-    final cat = (c['category'] ?? '').toString().toLowerCase();
-    final dept = (c['department'] ?? c['position'] ?? '').toString().toLowerCase();
-    return cat.contains('warehouse') ||
-        cat.contains('store') ||
-        cat.contains('worker') ||
-        cat.contains('ឃ្លាំង') ||
-        cat.contains('កម្មករ') ||
-        dept.contains('កម្មករ') ||
-        dept.contains('ឃ្លាំង') ||
-        dept.contains('driver') ||
-        dept.contains('cleaner') ||
-        dept.contains('security') ||
-        dept.contains('ដឹកជញ្ជូន');
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -355,31 +339,6 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
 
           const SizedBox(height: 18),
 
-          // Category Filter Tabs: 📋 ទាំងអស់ | 👔 បុគ្គលិកជំនាញ | 👷‍♂️ កម្មករ
-          Container(
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              color: const Color(0xFF111E33),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _buildCategoryFilterButton('all', '📋 ទាំងអស់', _selectedCategoryFilter == 'all'),
-                ),
-                Expanded(
-                  child: _buildCategoryFilterButton('skilled', '👔 បុគ្គលិកជំនាញ', _selectedCategoryFilter == 'skilled'),
-                ),
-                Expanded(
-                  child: _buildCategoryFilterButton('worker', '👷‍♂️ កម្មករ / ឃ្លាំង', _selectedCategoryFilter == 'worker'),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 18),
-
           if (_polls.isEmpty)
             Container(
               padding: const EdgeInsets.all(32),
@@ -407,30 +366,6 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
     );
   }
 
-  Widget _buildCategoryFilterButton(String key, String label, bool isSelected) {
-    return GestureDetector(
-      onTap: () => setState(() => _selectedCategoryFilter = key),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        decoration: BoxDecoration(
-          color: isSelected ? AppTheme.primary : Colors.transparent,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Center(
-          child: Text(
-            label,
-            style: GoogleFonts.kantumruyPro(
-              color: isSelected ? Colors.white : Colors.white70,
-              fontWeight: FontWeight.bold,
-              fontSize: 12,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildEmployeeVotingCard(Map<String, dynamic> poll) {
     final title = poll['title'] ?? 'បោះឆ្នោតបុគ្គលិកឆ្នើម';
     final quarter = poll['quarter'] ?? '';
@@ -448,15 +383,7 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
       }
     }
 
-    // Filter candidates by active category filter
-    List<Map<String, dynamic>> candidates;
-    if (_selectedCategoryFilter == 'skilled') {
-      candidates = allCandidates.where((c) => !_isWorkerCandidate(c)).toList();
-    } else if (_selectedCategoryFilter == 'worker') {
-      candidates = allCandidates.where((c) => _isWorkerCandidate(c)).toList();
-    } else {
-      candidates = List.from(allCandidates);
-    }
+    final candidates = List<Map<String, dynamic>>.from(allCandidates);
 
     String? selectedCandidateEmployeeId;
 
@@ -594,11 +521,10 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
                 ...candidates.map((candidate) {
                   final empId = candidate['employee_id']?.toString() ?? '';
                   final candIdStr = candidate['id']?.toString() ?? '';
-                  final khmerRegex = RegExp(r'[\u1780-\u17FF]');
                   String name = (candidate['name'] ?? '').toString().trim();
                   if (name.isEmpty) name = empId;
 
-                  if (!khmerRegex.hasMatch(name) && _allUsers.isNotEmpty && empId.isNotEmpty) {
+                  if (!_khmerRegex.hasMatch(name) && _allUsers.isNotEmpty && empId.isNotEmpty) {
                     final matches = _allUsers.where(
                       (u) =>
                           u['employee_id']?.toString() == empId ||
@@ -608,7 +534,7 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
                     ).toList();
                     if (matches.isNotEmpty) {
                       final khmerMatch = matches.firstWhere(
-                        (u) => khmerRegex.hasMatch((u['name'] ?? u['full_name'] ?? u['khmer_name'] ?? '').toString()),
+                        (u) => _khmerRegex.hasMatch((u['name'] ?? u['full_name'] ?? u['khmer_name'] ?? '').toString()),
                         orElse: () => matches.first,
                       );
                       final mName = (khmerMatch['khmer_name'] ?? khmerMatch['full_name'] ?? khmerMatch['name'] ?? '').toString().trim();
