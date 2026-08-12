@@ -1154,7 +1154,7 @@ class _HrmPollManagementScreenState extends State<HrmPollManagementScreen> {
           for (var c in candidates) {
             final empId = c['employee_id']?.toString() ?? '';
             final cName = c['name']?.toString() ?? '';
-            if ((cName.isEmpty || cName == empId || RegExp(r'^\d+$').hasMatch(cName)) && _allUsers.isNotEmpty) {
+            if ((cName.isEmpty || cName == empId || RegExp(r'^\d+$').hasMatch(cName) || cName.startsWith('បេក្ខជន')) && _allUsers.isNotEmpty) {
               final match = _allUsers.firstWhere(
                 (u) =>
                     u['employee_id']?.toString() == empId ||
@@ -1167,6 +1167,43 @@ class _HrmPollManagementScreenState extends State<HrmPollManagementScreen> {
                 c['name'] = match['name'];
                 c['department'] = match['department'] ?? match['position'] ?? c['department'];
                 c['photo_url'] = match['photo_url'] ?? match['photo'] ?? match['avatar'] ?? c['photo_url'];
+              }
+            }
+          }
+
+          // Format audit list names with _allUsers
+          for (var a in auditList) {
+            final vId = (a['voter_id'] ?? a['voter_employee_id'] ?? '').toString();
+            final cId = (a['candidate_id'] ?? a['candidate_employee_id'] ?? '').toString();
+            final vName = (a['voter_name'] ?? '').toString();
+            final cName = (a['candidate_name'] ?? '').toString();
+
+            if ((vName.isEmpty || vName == vId || RegExp(r'^\d+$').hasMatch(vName)) && _allUsers.isNotEmpty) {
+              final matchV = _allUsers.firstWhere(
+                (u) =>
+                    u['employee_id']?.toString() == vId ||
+                    (vId.replaceAll(RegExp(r'^0+'), '').isNotEmpty &&
+                        u['employee_id']?.toString().replaceAll(RegExp(r'^0+'), '') ==
+                            vId.replaceAll(RegExp(r'^0+'), '')),
+                orElse: () => null,
+              );
+              if (matchV != null && (matchV['name'] ?? '').toString().isNotEmpty) {
+                a['voter_name'] = matchV['name'];
+                a['voter_department'] = matchV['department'] ?? matchV['position'] ?? a['voter_department'];
+              }
+            }
+
+            if ((cName.isEmpty || cName == cId || RegExp(r'^\d+$').hasMatch(cName) || cName.startsWith('បេក្ខជន')) && _allUsers.isNotEmpty) {
+              final matchC = _allUsers.firstWhere(
+                (u) =>
+                    u['employee_id']?.toString() == cId ||
+                    (cId.replaceAll(RegExp(r'^0+'), '').isNotEmpty &&
+                        u['employee_id']?.toString().replaceAll(RegExp(r'^0+'), '') ==
+                            cId.replaceAll(RegExp(r'^0+'), '')),
+                orElse: () => null,
+              );
+              if (matchC != null && (matchC['name'] ?? '').toString().isNotEmpty) {
+                a['candidate_name'] = matchC['name'];
               }
             }
           }

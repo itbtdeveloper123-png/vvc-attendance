@@ -7906,6 +7906,31 @@ try {
             apiResponse(['success' => false, 'message' => 'Poll table does not exist. Please run database setup.']);
             break;
         }
+
+        // Build in-memory user lookup map
+        $users_map = [];
+        $u_all = $mysqli->query("SELECT id, employee_id, name, department, position, branch, photo_url, avatar, photo, profile_picture FROM users");
+        if ($u_all && $u_all instanceof mysqli_result) {
+            while ($u = $u_all->fetch_assoc()) {
+                $u_eid = trim((string)($u['employee_id'] ?? ''));
+                $u_id = trim((string)($u['id'] ?? ''));
+                $u_clean = ltrim($u_eid, '0');
+                if ($u_eid !== '') $users_map[$u_eid] = $u;
+                if ($u_clean !== '') $users_map[$u_clean] = $u;
+                if ($u_id !== '') $users_map['id_' . $u_id] = $u;
+            }
+            $u_all->free();
+        }
+
+        $findUser = function($idOrEid) use (&$users_map) {
+            $str = trim((string)$idOrEid);
+            if ($str === '') return null;
+            $clean = ltrim($str, '0');
+            if (isset($users_map[$str])) return $users_map[$str];
+            if ($clean !== '' && isset($users_map[$clean])) return $users_map[$clean];
+            if (isset($users_map['id_' . $str])) return $users_map['id_' . $str];
+            return null;
+        };
         
         $stmt = $mysqli->prepare("SELECT p.*, 
             (SELECT COUNT(*) FROM poll_votes WHERE poll_id = p.id) as total_votes
@@ -7932,14 +7957,14 @@ try {
                         WHERE (v.poll_id = $poll_id OR v.poll_id = c.id) 
                           AND (v.candidate_id = c.id 
                                OR v.candidate_employee_id = c.employee_id
-                               OR LTRIM(v.candidate_employee_id, '0') = LTRIM(c.employee_id, '0')
+                               OR TRIM(LEADING '0' FROM v.candidate_employee_id) = TRIM(LEADING '0' FROM c.employee_id)
                                OR CAST(v.candidate_id AS CHAR) = c.employee_id 
-                               OR LTRIM(CAST(v.candidate_id AS CHAR), '0') = LTRIM(c.employee_id, '0')
-                               OR v.candidate_id IN (SELECT id FROM poll_candidates WHERE employee_id = c.employee_id OR LTRIM(employee_id, '0') = LTRIM(c.employee_id, '0'))
+                               OR TRIM(LEADING '0' FROM CAST(v.candidate_id AS CHAR)) = TRIM(LEADING '0' FROM c.employee_id)
+                               OR v.candidate_id IN (SELECT id FROM poll_candidates WHERE employee_id = c.employee_id OR TRIM(LEADING '0' FROM employee_id) = TRIM(LEADING '0' FROM c.employee_id))
                               )
                        ) as votes
                 FROM poll_candidates c
-                LEFT JOIN users u ON (c.employee_id = u.employee_id OR LTRIM(c.employee_id, '0') = LTRIM(u.employee_id, '0'))
+                LEFT JOIN users u ON (c.employee_id = u.employee_id OR TRIM(LEADING '0' FROM c.employee_id) = TRIM(LEADING '0' FROM u.employee_id))
                 WHERE c.poll_id = $poll_id
                 ORDER BY votes DESC, c.id ASC
             ");
@@ -7950,12 +7975,24 @@ try {
                     $c_eid = (string)$c_row['employee_id'];
                     $existing_emp_ids[] = $c_eid;
                     $existing_emp_ids[] = ltrim($c_eid, '0');
+
+                    $c_name = !empty($c_row['name']) ? $c_row['name'] : $c_eid;
+                    $c_dept = $c_row['department'] ?? $c_row['position'] ?? 'បុគ្គលិក';
+                    $c_cat = $c_row['category'] ?? $row['location'] ?? 'Head Office';
+
+                    $u_info = $findUser($c_eid);
+                    if ($u_info && !empty($u_info['name'])) {
+                        $c_name = $u_info['name'];
+                        $c_dept = $u_info['department'] ?? $u_info['position'] ?? $c_dept;
+                        $c_cat = $u_info['branch'] ?? $u_info['department'] ?? $c_cat;
+                    }
+
                     $candidates[] = [
                         'id'          => (int)$c_row['id'],
-                        'name'        => !empty($c_row['name']) ? $c_row['name'] : $c_eid,
+                        'name'        => $c_name,
                         'employee_id' => $c_eid,
-                        'category'    => $c_row['category'] ?? $row['location'] ?? 'Head Office',
-                        'department'  => $c_row['department'] ?? $c_row['position'] ?? 'បុគ្គលិក',
+                        'category'    => $c_cat,
+                        'department'  => $c_dept,
                         'votes'       => $votes,
                         'votes_count' => $votes,
                         'percentage'  => $percentage,
@@ -7983,19 +8020,18 @@ try {
                     if (in_array($cand_eid, $existing_emp_ids) || ($cand_clean !== '' && in_array($cand_clean, $existing_emp_ids))) {
                         continue;
                     }
-                    $u_res = $mysqli->query("SELECT name, department, position FROM users WHERE (employee_id = '$cand_eid' OR LTRIM(employee_id, '0') = LTRIM('$cand_eid', '0')) LIMIT 1");
-                    $u_row = $u_res ? $u_res->fetch_assoc() : null;
+                    $u_info = $findUser($cand_eid);
                     
-                    $v_cnt_res = $mysqli->query("SELECT COUNT(*) as cnt FROM poll_votes WHERE poll_id = $poll_id AND (candidate_id = '$cand_eid' OR LTRIM(candidate_id, '0') = LTRIM('$cand_eid', '0'))");
+                    $v_cnt_res = $mysqli->query("SELECT COUNT(*) as cnt FROM poll_votes WHERE poll_id = $poll_id AND (candidate_id = '$cand_eid' OR candidate_employee_id = '$cand_eid' OR TRIM(LEADING '0' FROM candidate_employee_id) = TRIM(LEADING '0' FROM '$cand_eid') OR TRIM(LEADING '0' FROM CAST(candidate_id AS CHAR)) = TRIM(LEADING '0' FROM '$cand_eid'))");
                     $v_cnt = $v_cnt_res ? (int)($v_cnt_res->fetch_assoc()['cnt'] ?? 0) : 0;
                     $percentage = $total_votes > 0 ? round(($v_cnt / $total_votes) * 100, 1) : 0;
 
                     $candidates[] = [
                         'id'          => 0,
-                        'name'        => $u_row['name'] ?? $cand_eid,
+                        'name'        => $u_info['name'] ?? $cand_eid,
                         'employee_id' => $cand_eid,
                         'category'    => $row['location'] ?? 'Head Office',
-                        'department'  => $u_row['department'] ?? $u_row['position'] ?? 'បុគ្គលិក',
+                        'department'  => $u_info['department'] ?? $u_info['position'] ?? 'បុគ្គលិក',
                         'votes'       => $v_cnt,
                         'votes_count' => $v_cnt,
                         'percentage'  => $percentage,
@@ -8005,15 +8041,17 @@ try {
 
             // Also check any votes in poll_votes for candidate_ids that weren't captured
             $extra_votes_q = $mysqli->query("
-                SELECT pv.candidate_id, COUNT(*) as cnt 
+                SELECT pv.candidate_id, pv.candidate_employee_id, COUNT(*) as cnt 
                 FROM poll_votes pv 
                 WHERE pv.poll_id = $poll_id 
-                GROUP BY pv.candidate_id
+                GROUP BY pv.candidate_id, pv.candidate_employee_id
             ");
             if ($extra_votes_q) {
                 while ($ev = $extra_votes_q->fetch_assoc()) {
-                    $cand_target = (string)$ev['candidate_id'];
+                    $cand_target = trim((string)($ev['candidate_employee_id'] ?? $ev['candidate_id'] ?? ''));
                     $v_cnt = (int)$ev['cnt'];
+                    if ($cand_target === '' || $v_cnt <= 0) continue;
+
                     $matched = false;
                     foreach ($candidates as &$c) {
                         if ((string)$c['id'] === $cand_target || (string)$c['employee_id'] === $cand_target || ltrim((string)$c['employee_id'], '0') === ltrim($cand_target, '0')) {
@@ -8028,15 +8066,14 @@ try {
                     }
                     unset($c);
                     if (!$matched && $v_cnt > 0) {
-                        $u_res = $mysqli->query("SELECT name, department, position FROM users WHERE (employee_id = '$cand_target' OR LTRIM(employee_id, '0') = LTRIM('$cand_target', '0')) LIMIT 1");
-                        $u_row = $u_res ? $u_res->fetch_assoc() : null;
+                        $u_info = $findUser($cand_target);
                         $percentage = $total_votes > 0 ? round(($v_cnt / $total_votes) * 100, 1) : 0;
                         $candidates[] = [
                             'id'          => (int)$cand_target,
-                            'name'        => $u_row['name'] ?? "បេក្ខជន $cand_target",
+                            'name'        => $u_info['name'] ?? $cand_target,
                             'employee_id' => $cand_target,
                             'category'    => $row['location'] ?? 'Head Office',
-                            'department'  => $u_row['department'] ?? $u_row['position'] ?? 'បុគ្គលិក',
+                            'department'  => $u_info['department'] ?? $u_info['position'] ?? 'បុគ្គលិក',
                             'votes'       => $v_cnt,
                             'votes_count' => $v_cnt,
                             'percentage'  => $percentage,
@@ -8054,27 +8091,44 @@ try {
             $audit_q = $mysqli->query("
                 SELECT pv.voter_employee_id, 
                        pv.candidate_id, 
+                       pv.candidate_employee_id,
                        pv.voted_at,
-                       COALESCE(uv.name, pv.voter_employee_id) AS voter_name,
-                       COALESCE(uv.department, uv.position, 'បុគ្គលិក') AS voter_department,
-                       COALESCE(uc.name, uc2.name, pc.employee_id, CAST(pv.candidate_id AS CHAR), 'បេក្ខជន') AS candidate_name,
-                       COALESCE(pc.employee_id, uc2.employee_id, CAST(pv.candidate_id AS CHAR)) AS candidate_employee_id
+                       uv.name AS voter_name,
+                       uv.department AS voter_department,
+                       COALESCE(uc.name, uc2.name, pc.employee_id, pv.candidate_employee_id, CAST(pv.candidate_id AS CHAR)) AS candidate_name
                 FROM poll_votes pv
-                LEFT JOIN users uv ON (pv.voter_employee_id = uv.employee_id OR LTRIM(pv.voter_employee_id, '0') = LTRIM(uv.employee_id, '0'))
-                LEFT JOIN poll_candidates pc ON (pv.candidate_id = pc.id OR (pc.employee_id = CAST(pv.candidate_id AS CHAR) OR LTRIM(pc.employee_id, '0') = LTRIM(CAST(pv.candidate_id AS CHAR), '0')))
-                LEFT JOIN users uc ON (pc.employee_id = uc.employee_id OR LTRIM(pc.employee_id, '0') = LTRIM(uc.employee_id, '0'))
-                LEFT JOIN users uc2 ON (CAST(pv.candidate_id AS CHAR) = uc2.employee_id OR LTRIM(CAST(pv.candidate_id AS CHAR), '0') = LTRIM(uc2.employee_id, '0'))
+                LEFT JOIN users uv ON (pv.voter_employee_id = uv.employee_id OR TRIM(LEADING '0' FROM pv.voter_employee_id) = TRIM(LEADING '0' FROM uv.employee_id))
+                LEFT JOIN poll_candidates pc ON (pv.candidate_id = pc.id OR (pc.employee_id = CAST(pv.candidate_id AS CHAR) OR TRIM(LEADING '0' FROM pc.employee_id) = TRIM(LEADING '0' FROM CAST(pv.candidate_id AS CHAR))))
+                LEFT JOIN users uc ON (pc.employee_id = uc.employee_id OR TRIM(LEADING '0' FROM pc.employee_id) = TRIM(LEADING '0' FROM uc.employee_id))
+                LEFT JOIN users uc2 ON (CAST(pv.candidate_id AS CHAR) = uc2.employee_id OR TRIM(LEADING '0' FROM CAST(pv.candidate_id AS CHAR)) = TRIM(LEADING '0' FROM uc2.employee_id))
                 WHERE pv.poll_id = $poll_id
                 ORDER BY pv.id DESC
             ");
             if ($audit_q && $audit_q instanceof mysqli_result) {
                 while ($a_row = $audit_q->fetch_assoc()) {
+                    $v_id = (string)$a_row['voter_employee_id'];
+                    $c_id = (string)($a_row['candidate_employee_id'] ?? $a_row['candidate_id']);
+                    $v_name = (string)($a_row['voter_name'] ?? '');
+                    $c_name = (string)($a_row['candidate_name'] ?? '');
+                    $v_dept = $a_row['voter_department'] ?? 'បុគ្គលិក';
+
+                    $u_v = $findUser($v_id);
+                    if ($u_v && !empty($u_v['name'])) {
+                        $v_name = $u_v['name'];
+                        $v_dept = $u_v['department'] ?? $u_v['position'] ?? $v_dept;
+                    }
+
+                    $u_c = $findUser($c_id);
+                    if ($u_c && !empty($u_c['name'])) {
+                        $c_name = $u_c['name'];
+                    }
+
                     $audit_list[] = [
-                        'voter_id'           => (string)$a_row['voter_employee_id'],
-                        'voter_name'         => !empty($a_row['voter_name']) ? $a_row['voter_name'] : (string)$a_row['voter_employee_id'],
-                        'voter_department'   => $a_row['voter_department'] ?? 'បុគ្គលិក',
-                        'candidate_id'       => (string)($a_row['candidate_employee_id'] ?? ''),
-                        'candidate_name'     => !empty($a_row['candidate_name']) ? $a_row['candidate_name'] : (string)($a_row['candidate_employee_id'] ?? 'បេក្ខជន'),
+                        'voter_id'           => $v_id,
+                        'voter_name'         => !empty($v_name) ? $v_name : $v_id,
+                        'voter_department'   => $v_dept,
+                        'candidate_id'       => $c_id,
+                        'candidate_name'     => !empty($c_name) ? $c_name : $c_id,
                         'time'               => !empty($a_row['voted_at']) ? date('d/m/Y H:i', strtotime($a_row['voted_at'])) : '',
                     ];
                 }
@@ -8085,6 +8139,7 @@ try {
             $row['candidates'] = $candidates;
             $row['candidate_count'] = count($candidates);
             $row['voter_audit_list'] = $audit_list;
+            $row['total_votes'] = count($audit_list);
             $polls[] = $row;
         }
         $stmt->close();
@@ -8133,6 +8188,31 @@ try {
             apiResponse(['success' => false, 'message' => 'Poll table does not exist. Please run database setup.']);
             break;
         }
+
+        // Build in-memory user lookup map
+        $users_map = [];
+        $u_all = $mysqli->query("SELECT id, employee_id, name, department, position, branch, photo_url, avatar, photo, profile_picture FROM users");
+        if ($u_all && $u_all instanceof mysqli_result) {
+            while ($u = $u_all->fetch_assoc()) {
+                $u_eid = trim((string)($u['employee_id'] ?? ''));
+                $u_id = trim((string)($u['id'] ?? ''));
+                $u_clean = ltrim($u_eid, '0');
+                if ($u_eid !== '') $users_map[$u_eid] = $u;
+                if ($u_clean !== '') $users_map[$u_clean] = $u;
+                if ($u_id !== '') $users_map['id_' . $u_id] = $u;
+            }
+            $u_all->free();
+        }
+
+        $findUser = function($idOrEid) use (&$users_map) {
+            $str = trim((string)$idOrEid);
+            if ($str === '') return null;
+            $clean = ltrim($str, '0');
+            if (isset($users_map[$str])) return $users_map[$str];
+            if ($clean !== '' && isset($users_map[$clean])) return $users_map[$clean];
+            if (isset($users_map['id_' . $str])) return $users_map['id_' . $str];
+            return null;
+        };
         
         $eid = (string)($user['employee_id'] ?? $req_eid ?? '');
         $current_date = date('Y-m-d');
@@ -8219,28 +8299,21 @@ try {
                 }
 
                 // Check if user has already voted for THIS specific poll_id
-                $vote_check = $mysqli->prepare("
-                    SELECT pv.candidate_id, COALESCE(pc.employee_id, CAST(pv.candidate_id AS CHAR)) as cand_emp_id 
+                $voter_eid_esc = $mysqli->real_escape_string($eid);
+                $voter_eid_clean = ltrim($eid, '0');
+                $vote_check_sql = "
+                    SELECT pv.candidate_id, COALESCE(pc.employee_id, pv.candidate_employee_id, CAST(pv.candidate_id AS CHAR)) as cand_emp_id 
                     FROM poll_votes pv 
-                    LEFT JOIN poll_candidates pc ON (pv.candidate_id = pc.id OR CAST(pv.candidate_id AS CHAR) = pc.employee_id OR LTRIM(CAST(pv.candidate_id AS CHAR), '0') = LTRIM(pc.employee_id, '0'))
-                    WHERE pv.poll_id = ? 
-                      AND (pv.voter_employee_id = ? OR LTRIM(pv.voter_employee_id, '0') = LTRIM(?, '0') OR TRIM(LEADING '0' FROM pv.voter_employee_id) = TRIM(LEADING '0' FROM ?)) 
+                    LEFT JOIN poll_candidates pc ON (pv.candidate_id = pc.id OR CAST(pv.candidate_id AS CHAR) = pc.employee_id OR TRIM(LEADING '0' FROM CAST(pv.candidate_id AS CHAR)) = TRIM(LEADING '0' FROM pc.employee_id))
+                    WHERE pv.poll_id = $poll_id 
+                      AND (pv.voter_employee_id = '$voter_eid_esc' OR TRIM(LEADING '0' FROM pv.voter_employee_id) = '$voter_eid_clean') 
                     ORDER BY pv.id DESC LIMIT 1
-                ");
-                if ($vote_check) {
-                    $vote_check->bind_param('isss', $poll_id, $eid, $eid, $eid);
-                    $vote_check->execute();
-                    $vote_res = $vote_check->get_result()->fetch_assoc();
-                    if ($vote_res) {
-                        $row['has_voted'] = true;
-                        $row['voted_candidate_id'] = (string)$vote_res['candidate_id'];
-                        $row['voted_candidate_employee_id'] = (string)$vote_res['cand_emp_id'];
-                    } else {
-                        $row['has_voted'] = false;
-                        $row['voted_candidate_id'] = '';
-                        $row['voted_candidate_employee_id'] = '';
-                    }
-                    $vote_check->close();
+                ";
+                $v_chk_q = $mysqli->query($vote_check_sql);
+                if ($v_chk_q && $vote_res = $v_chk_q->fetch_assoc()) {
+                    $row['has_voted'] = true;
+                    $row['voted_candidate_id'] = (string)$vote_res['candidate_id'];
+                    $row['voted_candidate_employee_id'] = (string)$vote_res['cand_emp_id'];
                 } else {
                     $row['has_voted'] = false;
                     $row['voted_candidate_id'] = '';
@@ -8250,43 +8323,53 @@ try {
                 // Fetch candidates from poll_candidates table along with votes count
                 $candidates = [];
                 $existing_emp_ids = [];
-                $cand_stmt = $mysqli->prepare("
+                $cand_q = $mysqli->query("
                     SELECT pc.id, pc.employee_id, pc.category, u.name, u.photo_url,
                            (SELECT COUNT(*) FROM poll_votes pv 
-                            LEFT JOIN poll_events pe ON (pv.poll_id = pe.id OR CAST(pv.poll_id AS CHAR) = CAST(pe.id AS CHAR))
-                            WHERE (pv.poll_id = pc.poll_id OR pv.poll_id = pc.id OR (pe.title = ? AND pe.title != '')) 
+                            WHERE pv.poll_id = pc.poll_id 
                               AND (
                                 pv.candidate_id = pc.id 
+                                OR pv.candidate_employee_id = pc.employee_id
+                                OR TRIM(LEADING '0' FROM pv.candidate_employee_id) = TRIM(LEADING '0' FROM pc.employee_id)
                                 OR CAST(pv.candidate_id AS CHAR) = pc.employee_id
-                                OR LTRIM(CAST(pv.candidate_id AS CHAR), '0') = LTRIM(pc.employee_id, '0')
-                                OR pv.candidate_id IN (SELECT id FROM poll_candidates WHERE (employee_id = pc.employee_id OR LTRIM(employee_id, '0') = LTRIM(pc.employee_id, '0')))
+                                OR TRIM(LEADING '0' FROM CAST(pv.candidate_id AS CHAR)) = TRIM(LEADING '0' FROM pc.employee_id)
+                                OR pv.candidate_id IN (SELECT id FROM poll_candidates WHERE (employee_id = pc.employee_id OR TRIM(LEADING '0' FROM employee_id) = TRIM(LEADING '0' FROM pc.employee_id)))
                               )
                            ) AS votes_count
                     FROM poll_candidates pc 
-                    LEFT JOIN users u ON (pc.employee_id = u.employee_id OR LTRIM(pc.employee_id, '0') = LTRIM(u.employee_id, '0')) 
-                    WHERE pc.poll_id = ? OR pc.poll_id IN (SELECT id FROM poll_events WHERE title = ? AND title != '')
+                    LEFT JOIN users u ON (pc.employee_id = u.employee_id OR TRIM(LEADING '0' FROM pc.employee_id) = TRIM(LEADING '0' FROM u.employee_id)) 
+                    WHERE pc.poll_id = $poll_id
                     ORDER BY votes_count DESC
                 ");
-                if ($cand_stmt) {
-                    $cand_stmt->bind_param('sis', $poll_title_esc, $poll_id, $poll_title_esc);
-                    $cand_stmt->execute();
-                    $cand_res = $cand_stmt->get_result();
-                    while ($c_row = $cand_res->fetch_assoc()) {
+                if ($cand_q && $cand_q instanceof mysqli_result) {
+                    while ($c_row = $cand_q->fetch_assoc()) {
                         $v_cnt = (int)($c_row['votes_count'] ?? 0);
                         $c_emp_id = (string)$c_row['employee_id'];
                         $existing_emp_ids[] = $c_emp_id;
                         $existing_emp_ids[] = ltrim($c_emp_id, '0');
+
+                        $c_name = !empty($c_row['name']) ? $c_row['name'] : $c_emp_id;
+                        $c_dept = $c_row['category'] ?? 'Head Office';
+                        $c_photo = $c_row['photo_url'] ?? '';
+
+                        $u_info = $findUser($c_emp_id);
+                        if ($u_info && !empty($u_info['name'])) {
+                            $c_name = $u_info['name'];
+                            $c_dept = $u_info['branch'] ?? $u_info['department'] ?? $c_dept;
+                            $c_photo = $u_info['photo_url'] ?? $u_info['avatar'] ?? $c_photo;
+                        }
+
                         $candidates[] = [
                             'id'          => (int)$c_row['id'],
                             'employee_id' => $c_emp_id,
-                            'name'        => !empty($c_row['name']) ? $c_row['name'] : $c_emp_id,
-                            'category'    => $c_row['category'] ?? 'Head Office',
-                            'photo_url'   => $c_row['photo_url'] ?? '',
+                            'name'        => $c_name,
+                            'category'    => $c_dept,
+                            'photo_url'   => $c_photo,
                             'votes_count' => $v_cnt,
                             'votes'       => $v_cnt,
                         ];
                     }
-                    $cand_stmt->close();
+                    $cand_q->free();
                 }
 
                 // Also include candidates from allowed_employee_ids who are not yet in poll_candidates table
@@ -8297,20 +8380,17 @@ try {
                         if (in_array($cand_emp_id, $existing_emp_ids) || ($cand_clean !== '' && in_array($cand_clean, $existing_emp_ids))) {
                             continue;
                         }
-                        $u_res = $mysqli->query("SELECT name, photo_url FROM users WHERE (employee_id = '$cand_emp_id' OR LTRIM(employee_id, '0') = LTRIM('$cand_emp_id', '0')) LIMIT 1");
-                        $u_row = $u_res ? $u_res->fetch_assoc() : null;
+                        $u_info = $findUser($cand_emp_id);
 
                         $vc_res = $mysqli->query("
                             SELECT COUNT(*) as cnt 
                             FROM poll_votes pv 
-                            LEFT JOIN poll_events pe ON (pv.poll_id = pe.id OR CAST(pv.poll_id AS CHAR) = CAST(pe.id AS CHAR))
-                            LEFT JOIN poll_candidates pc ON pv.candidate_id = pc.id 
-                            WHERE (pv.poll_id = $poll_id OR (pe.title = '$poll_title_esc' AND pe.title != '')) 
+                            WHERE pv.poll_id = $poll_id 
                               AND (
-                                pc.employee_id = '$cand_emp_id' 
-                                OR LTRIM(pc.employee_id, '0') = LTRIM('$cand_emp_id', '0')
+                                pv.candidate_employee_id = '$cand_emp_id'
+                                OR TRIM(LEADING '0' FROM pv.candidate_employee_id) = TRIM(LEADING '0' FROM '$cand_emp_id')
                                 OR CAST(pv.candidate_id AS CHAR) = '$cand_emp_id'
-                                OR LTRIM(CAST(pv.candidate_id AS CHAR), '0') = LTRIM('$cand_emp_id', '0')
+                                OR TRIM(LEADING '0' FROM CAST(pv.candidate_id AS CHAR)) = TRIM(LEADING '0' FROM '$cand_emp_id')
                               )
                         ");
                         $vc_row = $vc_res ? $vc_res->fetch_assoc() : null;
@@ -8319,9 +8399,9 @@ try {
                         $candidates[] = [
                             'id'          => $idx + 1000,
                             'employee_id' => $cand_emp_id,
-                            'name'        => $u_row['name'] ?? $cand_emp_id,
-                            'category'    => 'Head Office',
-                            'photo_url'   => $u_row['photo_url'] ?? '',
+                            'name'        => $u_info['name'] ?? $cand_emp_id,
+                            'category'    => $u_info['branch'] ?? $row['location'] ?? 'Head Office',
+                            'photo_url'   => $u_info['photo_url'] ?? $u_info['avatar'] ?? '',
                             'votes_count' => $v_cnt,
                             'votes'       => $v_cnt,
                         ];
@@ -8330,40 +8410,54 @@ try {
 
                 $row['candidates'] = $candidates;
 
-                // Build voter audit list with resilient joins
+                // Build voter audit list
                 $voter_audit_list = [];
-                $audit_stmt = $mysqli->prepare("
+                $audit_q = $mysqli->query("
                     SELECT 
                         pv.voter_employee_id,
-                        COALESCE(uv.name, pv.voter_employee_id) as voter_name,
-                        COALESCE(pc.employee_id, uc2.employee_id, CAST(pv.candidate_id AS CHAR)) as candidate_employee_id,
-                        COALESCE(uc.name, uc2.name, pc.employee_id, CAST(pv.candidate_id AS CHAR), 'បេក្ខជន') as candidate_name,
+                        pv.candidate_id,
+                        pv.candidate_employee_id,
+                        uv.name as voter_name,
+                        uv.department as voter_department,
+                        COALESCE(uc.name, uc2.name, pc.employee_id, pv.candidate_employee_id, CAST(pv.candidate_id AS CHAR)) as candidate_name,
                         pv.voted_at
                     FROM poll_votes pv
-                    LEFT JOIN poll_events pe ON (pv.poll_id = pe.id OR CAST(pv.poll_id AS CHAR) = CAST(pe.id AS CHAR))
-                    LEFT JOIN users uv ON (pv.voter_employee_id = uv.employee_id OR LTRIM(pv.voter_employee_id, '0') = LTRIM(uv.employee_id, '0'))
-                    LEFT JOIN poll_candidates pc ON (pv.candidate_id = pc.id OR (pc.employee_id = CAST(pv.candidate_id AS CHAR) OR LTRIM(pc.employee_id, '0') = LTRIM(CAST(pv.candidate_id AS CHAR), '0')))
-                    LEFT JOIN users uc ON (pc.employee_id = uc.employee_id OR LTRIM(pc.employee_id, '0') = LTRIM(uc.employee_id, '0'))
-                    LEFT JOIN users uc2 ON (CAST(pv.candidate_id AS CHAR) = uc2.employee_id OR LTRIM(CAST(pv.candidate_id AS CHAR), '0') = LTRIM(uc2.employee_id, '0'))
-                    WHERE pv.poll_id = ? OR (pe.title = ? AND pe.title != '')
+                    LEFT JOIN users uv ON (pv.voter_employee_id = uv.employee_id OR TRIM(LEADING '0' FROM pv.voter_employee_id) = TRIM(LEADING '0' FROM uv.employee_id))
+                    LEFT JOIN poll_candidates pc ON (pv.candidate_id = pc.id OR (pc.employee_id = CAST(pv.candidate_id AS CHAR) OR TRIM(LEADING '0' FROM pc.employee_id) = TRIM(LEADING '0' FROM CAST(pv.candidate_id AS CHAR))))
+                    LEFT JOIN users uc ON (pc.employee_id = uc.employee_id OR TRIM(LEADING '0' FROM pc.employee_id) = TRIM(LEADING '0' FROM uc.employee_id))
+                    LEFT JOIN users uc2 ON (CAST(pv.candidate_id AS CHAR) = uc2.employee_id OR TRIM(LEADING '0' FROM CAST(pv.candidate_id AS CHAR)) = TRIM(LEADING '0' FROM uc2.employee_id))
+                    WHERE pv.poll_id = $poll_id
                     ORDER BY pv.id DESC
                 ");
-                if ($audit_stmt) {
-                    $audit_stmt->bind_param('is', $poll_id, $poll_title_esc);
-                    $audit_stmt->execute();
-                    $audit_res = $audit_stmt->get_result();
-                    while ($a_row = $audit_res->fetch_assoc()) {
+                if ($audit_q && $audit_q instanceof mysqli_result) {
+                    while ($a_row = $audit_q->fetch_assoc()) {
+                        $v_id = (string)$a_row['voter_employee_id'];
+                        $c_id = (string)($a_row['candidate_employee_id'] ?? $a_row['candidate_id']);
+                        $v_name = (string)($a_row['voter_name'] ?? '');
+                        $c_name = (string)($a_row['candidate_name'] ?? '');
+
+                        $u_v = $findUser($v_id);
+                        if ($u_v && !empty($u_v['name'])) {
+                            $v_name = $u_v['name'];
+                        }
+
+                        $u_c = $findUser($c_id);
+                        if ($u_c && !empty($u_c['name'])) {
+                            $c_name = $u_c['name'];
+                        }
+
                         $voter_audit_list[] = [
-                            'voter_id'       => (string)$a_row['voter_employee_id'],
-                            'voter_name'     => !empty($a_row['voter_name']) ? $a_row['voter_name'] : (string)$a_row['voter_employee_id'],
-                            'candidate_id'   => (string)($a_row['candidate_employee_id'] ?? ''),
-                            'candidate_name' => !empty($a_row['candidate_name']) ? $a_row['candidate_name'] : (string)($a_row['candidate_employee_id'] ?? 'បេក្ខជន'),
+                            'voter_id'       => $v_id,
+                            'voter_name'     => !empty($v_name) ? $v_name : $v_id,
+                            'candidate_id'   => $c_id,
+                            'candidate_name' => !empty($c_name) ? $c_name : $c_id,
                             'time'           => !empty($a_row['voted_at']) ? date('d/m/Y H:i', strtotime($a_row['voted_at'])) : '',
                         ];
                     }
-                    $audit_stmt->close();
+                    $audit_q->free();
                 }
                 $row['voter_audit_list'] = $voter_audit_list;
+                $row['total_votes'] = count($voter_audit_list);
                 $polls[] = $row;
             }
         }
