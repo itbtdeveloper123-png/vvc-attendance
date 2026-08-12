@@ -67,8 +67,7 @@ class _HrmPollManagementScreenState extends State<HrmPollManagementScreen> {
         if (poll['candidates'] != null && poll['candidates'] is List) {
           for (var c in poll['candidates']) {
             final empId = c['employee_id']?.toString() ?? '';
-            final cName = c['name']?.toString() ?? '';
-            if ((cName.isEmpty || cName == empId || RegExp(r'^\d+$').hasMatch(cName)) && _allUsers.isNotEmpty) {
+            if (_allUsers.isNotEmpty && empId.isNotEmpty) {
               final match = _allUsers.firstWhere(
                 (u) =>
                     u['employee_id']?.toString() == empId ||
@@ -77,8 +76,11 @@ class _HrmPollManagementScreenState extends State<HrmPollManagementScreen> {
                             empId.replaceAll(RegExp(r'^0+'), '')),
                 orElse: () => null,
               );
-              if (match != null && (match['name'] ?? '').toString().isNotEmpty) {
-                c['name'] = match['name'];
+              if (match != null) {
+                final mName = (match['name'] ?? '').toString().trim();
+                if (mName.isNotEmpty) {
+                  c['name'] = mName;
+                }
                 c['department'] = match['department'] ?? match['position'] ?? c['department'];
                 c['photo_url'] = match['photo_url'] ?? match['photo'] ?? match['avatar'] ?? c['photo_url'];
               }
@@ -199,30 +201,16 @@ class _HrmPollManagementScreenState extends State<HrmPollManagementScreen> {
       appBar: AppBar(
         backgroundColor: AppTheme.bgDark,
         elevation: 0,
+        centerTitle: true,
         title: Text(
-          'គ្រប់គ្រងការបោះឆ្នោត (HRM)',
+          'គ្រប់គ្រងការបោះឆ្នោត HRM',
           style: GoogleFonts.kantumruyPro(
             fontWeight: FontWeight.bold,
             color: Colors.white,
-            fontSize: 18,
+            fontSize: 17,
           ),
         ),
         actions: [
-          IconButton(
-            tooltip: 'បង្កើត Poll ថ្មី',
-            icon: const Icon(Icons.add_circle_outline_rounded, color: Colors.amberAccent, size: 26),
-            onPressed: () => _showCreatePollDialog(),
-          ),
-          IconButton(
-            tooltip: 'ទៅកាន់ទំព័របោះឆ្នោតបុគ្គលិក',
-            icon: const Icon(Icons.how_to_vote_rounded, color: Colors.cyanAccent, size: 24),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const PollVotingScreen()),
-              );
-            },
-          ),
           IconButton(
             tooltip: 'Refresh',
             icon: const Icon(Icons.refresh_rounded, color: Colors.white70),
@@ -295,11 +283,11 @@ class _HrmPollManagementScreenState extends State<HrmPollManagementScreen> {
       onRefresh: _loadInitialData,
       color: Colors.amberAccent,
       child: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         children: [
-          // Top Summary Banner
+          // Top Summary Banner Card
           Container(
-            padding: const EdgeInsets.all(18),
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
                 colors: [
@@ -309,11 +297,11 @@ class _HrmPollManagementScreenState extends State<HrmPollManagementScreen> {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.amberAccent.withValues(alpha: 0.3)),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.3),
+                  color: Colors.black.withValues(alpha: 0.25),
                   blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),
@@ -325,14 +313,14 @@ class _HrmPollManagementScreenState extends State<HrmPollManagementScreen> {
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(10),
+                      padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
                         color: Colors.amberAccent.withValues(alpha: 0.15),
-                        shape: BoxShape.circle,
+                        borderRadius: BorderRadius.circular(10),
                       ),
-                      child: const Icon(Icons.admin_panel_settings_rounded, color: Colors.amberAccent, size: 24),
+                      child: const Icon(Icons.admin_panel_settings_rounded, color: Colors.amberAccent, size: 22),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -342,47 +330,47 @@ class _HrmPollManagementScreenState extends State<HrmPollManagementScreen> {
                             style: GoogleFonts.kantumruyPro(
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
-                              fontSize: 16,
+                              fontSize: 15,
                             ),
                           ),
                           Text(
                             'គ្រប់គ្រង បង្កើត មើលលទ្ធផល & ចេញប័ណ្ណសរសើរ',
-                            style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 12),
+                            style: GoogleFonts.kantumruyPro(color: Colors.white60, fontSize: 11.5),
                           ),
                         ],
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 14),
                 Row(
                   children: [
                     _buildStatCard('ការបោះឆ្នោតសរុប', '$totalPollsCount', Icons.ballot_rounded, Colors.amberAccent),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: 8),
                     _buildStatCard('កំពុងដំណើរការ', '$activePollsCount', Icons.play_circle_fill_rounded, Colors.greenAccent),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: 8),
                     _buildStatCard('សំឡេងឆ្នោតសរុប', '$totalVotesCast', Icons.how_to_vote_rounded, Colors.cyanAccent),
                   ],
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 12),
                 Row(
                   children: [
                     Expanded(
                       child: ElevatedButton.icon(
                         onPressed: () => _showCreatePollDialog(),
-                        icon: const Icon(Icons.add_circle_outline_rounded, color: Colors.black, size: 18),
+                        icon: const Icon(Icons.add_rounded, color: Colors.black, size: 18),
                         label: Text(
-                          '➕ បង្កើត Poll ថ្មី',
-                          style: GoogleFonts.kantumruyPro(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 13),
+                          'បង្កើត Poll ថ្មី',
+                          style: GoogleFonts.kantumruyPro(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 12.5),
                         ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.amberAccent,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          padding: const EdgeInsets.symmetric(vertical: 11),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                         ),
                       ),
                     ),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: OutlinedButton.icon(
                         onPressed: () {
@@ -391,15 +379,15 @@ class _HrmPollManagementScreenState extends State<HrmPollManagementScreen> {
                             MaterialPageRoute(builder: (_) => const PollVotingScreen()),
                           );
                         },
-                        icon: const Icon(Icons.how_to_vote_rounded, color: Colors.cyanAccent, size: 18),
+                        icon: const Icon(Icons.how_to_vote_rounded, color: Colors.cyanAccent, size: 17),
                         label: Text(
-                          '🗳️ ទំព័របោះឆ្នោត',
-                          style: GoogleFonts.kantumruyPro(color: Colors.cyanAccent, fontWeight: FontWeight.bold, fontSize: 13),
+                          'ទំព័របោះឆ្នោត',
+                          style: GoogleFonts.kantumruyPro(color: Colors.cyanAccent, fontWeight: FontWeight.bold, fontSize: 12.5),
                         ),
                         style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: Colors.cyanAccent),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          side: BorderSide(color: Colors.cyanAccent.withValues(alpha: 0.6)),
+                          padding: const EdgeInsets.symmetric(vertical: 11),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                         ),
                       ),
                     ),
@@ -409,18 +397,18 @@ class _HrmPollManagementScreenState extends State<HrmPollManagementScreen> {
             ),
           ),
 
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
 
           Row(
             children: [
-              const Icon(Icons.format_list_bulleted_rounded, color: Colors.amberAccent, size: 20),
+              const Icon(Icons.format_list_bulleted_rounded, color: Colors.amberAccent, size: 18),
               const SizedBox(width: 8),
               Text(
                 'បញ្ជីការបោះឆ្នោតទាំងអស់ (${_polls.length})',
                 style: GoogleFonts.kantumruyPro(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
-                  fontSize: 16,
+                  fontSize: 15,
                 ),
               ),
             ],
@@ -490,9 +478,9 @@ class _HrmPollManagementScreenState extends State<HrmPollManagementScreen> {
   }
 
   Widget _buildHrmPollCard(Map<String, dynamic> poll) {
-    final title = poll['title'] ?? 'បោះឆ្នោតបុគ្គលិកឆ្នើម';
-    final quarter = poll['quarter'] ?? '';
-    final location = poll['location'] ?? 'Head Office';
+    final title = (poll['title'] ?? 'បោះឆ្នោតបុគ្គលិកឆ្នើម').toString();
+    final quarter = (poll['quarter'] ?? '').toString();
+    final location = (poll['location'] ?? 'Head Office').toString();
     final bool isActive = (poll['is_active'] == 1 || poll['is_active'] == '1' || poll['is_active'] == true);
 
     final candidates = (poll['candidates'] as List<dynamic>?) ?? [];
@@ -507,13 +495,13 @@ class _HrmPollManagementScreenState extends State<HrmPollManagementScreen> {
     }
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(18),
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF111E33),
-        borderRadius: BorderRadius.circular(20),
+        color: const Color(0xFF1E293B),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isActive ? Colors.amberAccent.withValues(alpha: 0.3) : Colors.white.withValues(alpha: 0.1),
+          color: isActive ? Colors.amberAccent.withValues(alpha: 0.35) : Colors.white.withValues(alpha: 0.08),
         ),
         boxShadow: [
           BoxShadow(
@@ -526,152 +514,205 @@ class _HrmPollManagementScreenState extends State<HrmPollManagementScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header
+          // 1. Top Header: Title & Action Buttons (Edit, Delete)
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
+              Container(
+                padding: const EdgeInsets.all(7),
+                decoration: BoxDecoration(
+                  color: isActive ? Colors.amberAccent.withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.poll_rounded, color: isActive ? Colors.amberAccent : Colors.white60, size: 18),
+              ),
+              const SizedBox(width: 10),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: GoogleFonts.kantumruyPro(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        if (quarter.isNotEmpty) ...[
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: AppTheme.primary.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              quarter,
-                              style: GoogleFonts.kantumruyPro(color: Colors.cyanAccent, fontSize: 11.5, fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                        ],
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.08),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            location,
-                            style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 11.5),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                child: Text(
+                  title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.kantumruyPro(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15.5,
+                  ),
                 ),
               ),
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: isActive ? Colors.green.withValues(alpha: 0.2) : Colors.red.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: isActive ? Colors.greenAccent : Colors.redAccent),
+              const SizedBox(width: 6),
+              // Action Buttons
+              InkWell(
+                onTap: () => _showCreatePollDialog(pollToEdit: poll),
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(
+                    color: Colors.amberAccent.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.edit_rounded, color: Colors.amberAccent, size: 17),
+                ),
+              ),
+              const SizedBox(width: 6),
+              InkWell(
+                onTap: () => _deletePoll(poll),
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(
+                    color: Colors.redAccent.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 17),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+
+          // 2. Meta Tags Row (Quarter, Location, Status)
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              if (quarter.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.cyanAccent.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: Colors.cyanAccent.withValues(alpha: 0.3)),
+                  ),
+                  child: Text(
+                    quarter,
+                    style: GoogleFonts.kantumruyPro(color: Colors.cyanAccent, fontSize: 11, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  location,
+                  style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 11),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: isActive ? Colors.green.withValues(alpha: 0.15) : Colors.red.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: isActive ? Colors.greenAccent.withValues(alpha: 0.4) : Colors.redAccent.withValues(alpha: 0.4)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: isActive ? Colors.greenAccent : Colors.redAccent,
+                        shape: BoxShape.circle,
+                      ),
                     ),
-                    child: Text(
-                      isActive ? '🟢 កំពុងដំណើរការ' : '🔴 បានបញ្ចប់',
+                    const SizedBox(width: 5),
+                    Text(
+                      isActive ? 'កំពុងដំណើរការ' : 'បានបញ្ចប់',
                       style: GoogleFonts.kantumruyPro(
                         color: isActive ? Colors.greenAccent : Colors.redAccent,
                         fontSize: 11,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    icon: const Icon(Icons.edit_rounded, color: Colors.amberAccent, size: 20),
-                    onPressed: () => _showCreatePollDialog(pollToEdit: poll),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.delete_rounded, color: Colors.redAccent, size: 20),
-                    onPressed: () => _deletePoll(poll),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),
 
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
+          const Divider(color: Colors.white10, height: 1),
+          const SizedBox(height: 12),
 
-          // Badges
+          // 3. Stats Pill Row
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.06),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.people_rounded, color: Colors.amberAccent, size: 16),
-                    const SizedBox(width: 6),
-                    Text(
-                      'បេក្ខជន៖ ${candidates.length} នាក់',
-                      style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.bold),
-                    ),
-                  ],
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.04),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.people_alt_rounded, color: Colors.amberAccent, size: 16),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          'បេក្ខជន៖ ${candidates.length} នាក់',
+                          style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              const SizedBox(width: 10),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.green.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.check_circle_rounded, color: Colors.greenAccent, size: 16),
-                    const SizedBox(width: 6),
-                    Text(
-                      'បោះឆ្នោត៖ $totalVotes សំឡេង',
-                      style: GoogleFonts.kantumruyPro(color: Colors.greenAccent, fontSize: 12.5, fontWeight: FontWeight.bold),
-                    ),
-                  ],
+              const SizedBox(width: 8),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF10B981).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.25)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.how_to_vote_rounded, color: Color(0xFF10B981), size: 16),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          'បោះឆ្នោត៖ $totalVotes សំឡេង',
+                          style: GoogleFonts.kantumruyPro(color: const Color(0xFF10B981), fontSize: 12, fontWeight: FontWeight.bold),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
           ),
 
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
 
-          // Main Action Button: Open Results Modal
+          // 4. Main Action Button: Open Results Modal
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
               onPressed: () => _showPollResultsModal(poll),
-              icon: const Icon(Icons.bar_chart_rounded, color: Colors.black, size: 20),
+              icon: const Icon(Icons.analytics_rounded, color: Colors.black, size: 18),
               label: Text(
-                '📊 មើលលទ្ធផល & Audit អ្នកបោះឆ្នោត (Live Dashboard)',
+                'មើលលទ្ធផល & កំណត់ត្រាបោះឆ្នោត',
                 style: GoogleFonts.kantumruyPro(
                   fontWeight: FontWeight.bold,
                   color: Colors.black,
-                  fontSize: 14,
+                  fontSize: 13,
                 ),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.amberAccent,
-                padding: const EdgeInsets.symmetric(vertical: 13),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                padding: const EdgeInsets.symmetric(vertical: 11),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                elevation: 0,
               ),
             ),
           ),
@@ -1153,8 +1194,7 @@ class _HrmPollManagementScreenState extends State<HrmPollManagementScreen> {
           // Format candidate names with _allUsers
           for (var c in candidates) {
             final empId = c['employee_id']?.toString() ?? '';
-            final cName = c['name']?.toString() ?? '';
-            if ((cName.isEmpty || cName == empId || RegExp(r'^\d+$').hasMatch(cName) || cName.startsWith('បេក្ខជន')) && _allUsers.isNotEmpty) {
+            if (_allUsers.isNotEmpty && empId.isNotEmpty) {
               final match = _allUsers.firstWhere(
                 (u) =>
                     u['employee_id']?.toString() == empId ||
@@ -1163,8 +1203,11 @@ class _HrmPollManagementScreenState extends State<HrmPollManagementScreen> {
                             empId.replaceAll(RegExp(r'^0+'), '')),
                 orElse: () => null,
               );
-              if (match != null && (match['name'] ?? '').toString().isNotEmpty) {
-                c['name'] = match['name'];
+              if (match != null) {
+                final mName = (match['name'] ?? '').toString().trim();
+                if (mName.isNotEmpty) {
+                  c['name'] = mName;
+                }
                 c['department'] = match['department'] ?? match['position'] ?? c['department'];
                 c['photo_url'] = match['photo_url'] ?? match['photo'] ?? match['avatar'] ?? c['photo_url'];
               }
@@ -1175,10 +1218,8 @@ class _HrmPollManagementScreenState extends State<HrmPollManagementScreen> {
           for (var a in auditList) {
             final vId = (a['voter_id'] ?? a['voter_employee_id'] ?? '').toString();
             final cId = (a['candidate_id'] ?? a['candidate_employee_id'] ?? '').toString();
-            final vName = (a['voter_name'] ?? '').toString();
-            final cName = (a['candidate_name'] ?? '').toString();
 
-            if ((vName.isEmpty || vName == vId || RegExp(r'^\d+$').hasMatch(vName)) && _allUsers.isNotEmpty) {
+            if (_allUsers.isNotEmpty && vId.isNotEmpty) {
               final matchV = _allUsers.firstWhere(
                 (u) =>
                     u['employee_id']?.toString() == vId ||
@@ -1187,13 +1228,16 @@ class _HrmPollManagementScreenState extends State<HrmPollManagementScreen> {
                             vId.replaceAll(RegExp(r'^0+'), '')),
                 orElse: () => null,
               );
-              if (matchV != null && (matchV['name'] ?? '').toString().isNotEmpty) {
-                a['voter_name'] = matchV['name'];
+              if (matchV != null) {
+                final mVName = (matchV['name'] ?? '').toString().trim();
+                if (mVName.isNotEmpty) {
+                  a['voter_name'] = mVName;
+                }
                 a['voter_department'] = matchV['department'] ?? matchV['position'] ?? a['voter_department'];
               }
             }
 
-            if ((cName.isEmpty || cName == cId || RegExp(r'^\d+$').hasMatch(cName) || cName.startsWith('បេក្ខជន')) && _allUsers.isNotEmpty) {
+            if (_allUsers.isNotEmpty && cId.isNotEmpty) {
               final matchC = _allUsers.firstWhere(
                 (u) =>
                     u['employee_id']?.toString() == cId ||
@@ -1202,8 +1246,11 @@ class _HrmPollManagementScreenState extends State<HrmPollManagementScreen> {
                             cId.replaceAll(RegExp(r'^0+'), '')),
                 orElse: () => null,
               );
-              if (matchC != null && (matchC['name'] ?? '').toString().isNotEmpty) {
-                a['candidate_name'] = matchC['name'];
+              if (matchC != null) {
+                final mCName = (matchC['name'] ?? '').toString().trim();
+                if (mCName.isNotEmpty) {
+                  a['candidate_name'] = mCName;
+                }
               }
             }
           }

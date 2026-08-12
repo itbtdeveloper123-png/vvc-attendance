@@ -7530,7 +7530,7 @@ try {
                     if ($poll_id > 0) {
                         $cand_q = $mysqli->query("
                             SELECT c.*, u.name, u.department, u.position, u.profile_picture, u.photo,
-                                   (SELECT COUNT(*) FROM poll_votes v WHERE v.poll_id = $poll_id AND (v.candidate_id = c.id OR v.candidate_employee_id = c.employee_id OR LTRIM(v.candidate_employee_id, '0') = LTRIM(c.employee_id, '0') OR CAST(v.candidate_id AS CHAR) = c.employee_id OR TRIM(LEADING '0' FROM CAST(v.candidate_id AS CHAR)) = TRIM(LEADING '0' FROM c.employee_id))) AS votes_count 
+                                   (SELECT COUNT(*) FROM poll_votes v WHERE v.poll_id = $poll_id AND (v.candidate_id = c.id OR v.candidate_employee_id = c.employee_id OR TRIM(LEADING '0' FROM v.candidate_employee_id) = TRIM(LEADING '0' FROM c.employee_id) OR CAST(v.candidate_id AS CHAR) = c.employee_id OR TRIM(LEADING '0' FROM CAST(v.candidate_id AS CHAR)) = TRIM(LEADING '0' FROM c.employee_id))) AS votes_count 
                             FROM poll_candidates c 
                             LEFT JOIN users u ON (c.employee_id = u.employee_id OR TRIM(LEADING '0' FROM c.employee_id) = TRIM(LEADING '0' FROM u.employee_id)) 
                             WHERE c.poll_id = $poll_id
@@ -7596,10 +7596,9 @@ try {
                         $voter_eid_clean = ltrim($voter_eid, '0');
                         $v_chk = $mysqli->query("SELECT pv.candidate_id, COALESCE(pc.employee_id, CAST(pv.candidate_id AS CHAR)) as cand_emp_id 
                                                  FROM poll_votes pv 
-                                                 LEFT JOIN poll_candidates pc ON (pv.candidate_id = pc.id OR CAST(pv.candidate_id AS CHAR) = pc.employee_id OR LTRIM(CAST(pv.candidate_id AS CHAR), '0') = LTRIM(pc.employee_id, '0'))
+                                                 LEFT JOIN poll_candidates pc ON (pv.candidate_id = pc.id OR CAST(pv.candidate_id AS CHAR) = pc.employee_id OR TRIM(LEADING '0' FROM CAST(pv.candidate_id AS CHAR)) = TRIM(LEADING '0' FROM pc.employee_id))
                                                  WHERE pv.poll_id = $poll_id 
                                                    AND (pv.voter_employee_id = '" . $mysqli->real_escape_string($voter_eid) . "' 
-                                                        OR LTRIM(pv.voter_employee_id, '0') = '" . $mysqli->real_escape_string($voter_eid_clean) . "' 
                                                         OR TRIM(LEADING '0' FROM pv.voter_employee_id) = '" . $mysqli->real_escape_string($voter_eid_clean) . "') 
                                                  ORDER BY pv.id DESC LIMIT 1");
                         if ($v_chk && $v_row = $v_chk->fetch_assoc()) {
@@ -8215,15 +8214,24 @@ try {
 
         // Build in-memory user lookup map
         $users_map = [];
-        $u_all = $mysqli->query("SELECT id, employee_id, name, department, position, branch, photo_url, avatar, photo, profile_picture FROM users");
+        $u_all = $mysqli->query("SELECT id, employee_id, name, latin_name, username, department, position, branch, photo_url, avatar, photo, profile_picture FROM users");
         if ($u_all && $u_all instanceof mysqli_result) {
             while ($u = $u_all->fetch_assoc()) {
                 $u_eid = trim((string)($u['employee_id'] ?? ''));
                 $u_id = trim((string)($u['id'] ?? ''));
                 $u_clean = ltrim($u_eid, '0');
+                $u_name = trim((string)($u['name'] ?? ''));
+                if ($u_name === '') $u_name = trim((string)($u['latin_name'] ?? ''));
+                if ($u_name === '') $u_name = trim((string)($u['username'] ?? ''));
+                $u['name'] = $u_name;
+
                 if ($u_eid !== '') $users_map[$u_eid] = $u;
                 if ($u_clean !== '') $users_map[$u_clean] = $u;
                 if ($u_id !== '') $users_map['id_' . $u_id] = $u;
+                if ($u_clean !== '') {
+                    $users_map[str_pad($u_clean, 4, '0', STR_PAD_LEFT)] = $u;
+                    $users_map[str_pad($u_clean, 3, '0', STR_PAD_LEFT)] = $u;
+                }
             }
             $u_all->free();
         }
@@ -8234,6 +8242,8 @@ try {
             $clean = ltrim($str, '0');
             if (isset($users_map[$str])) return $users_map[$str];
             if ($clean !== '' && isset($users_map[$clean])) return $users_map[$clean];
+            if ($clean !== '' && isset($users_map[str_pad($clean, 4, '0', STR_PAD_LEFT)])) return $users_map[str_pad($clean, 4, '0', STR_PAD_LEFT)];
+            if ($clean !== '' && isset($users_map[str_pad($clean, 3, '0', STR_PAD_LEFT)])) return $users_map[str_pad($clean, 3, '0', STR_PAD_LEFT)];
             if (isset($users_map['id_' . $str])) return $users_map['id_' . $str];
             return null;
         };
@@ -8565,7 +8575,7 @@ try {
                 }
             }
         } else if (!empty($candidate_employee_id)) {
-            $cand_find = $mysqli->prepare("SELECT id FROM poll_candidates WHERE poll_id = ? AND (employee_id = ? OR LTRIM(employee_id, '0') = LTRIM(?, '0')) LIMIT 1");
+            $cand_find = $mysqli->prepare("SELECT id FROM poll_candidates WHERE poll_id = ? AND (employee_id = ? OR TRIM(LEADING '0' FROM employee_id) = TRIM(LEADING '0' FROM ?)) LIMIT 1");
             if ($cand_find) {
                 $cand_find->bind_param('iss', $poll_id, $candidate_employee_id, $candidate_employee_id);
                 $cand_find->execute();
@@ -8577,7 +8587,8 @@ try {
             }
 
             if ($candidate_id == 0) {
-                $u_cand = $mysqli->query("SELECT name, department, position, branch FROM users WHERE employee_id = '$candidate_employee_id' OR LTRIM(employee_id, '0') = LTRIM('$candidate_employee_id', '0') LIMIT 1");
+                $cand_eid_esc_chk = $mysqli->real_escape_string($candidate_employee_id);
+                $u_cand = $mysqli->query("SELECT name, department, position, branch FROM users WHERE employee_id = '$cand_eid_esc_chk' OR TRIM(LEADING '0' FROM employee_id) = TRIM(LEADING '0' FROM '$cand_eid_esc_chk') LIMIT 1");
                 $cand_cat = 'Head Office';
                 if ($u_cand && $u_row = $u_cand->fetch_assoc()) {
                     $cand_cat = $u_row['branch'] ?? $u_row['department'] ?? 'Head Office';
@@ -8634,7 +8645,7 @@ try {
         $vote_saved = false;
 
         // Check if user already voted in this poll
-        $v_chk = $mysqli->query("SELECT id FROM poll_votes WHERE poll_id = $poll_id AND (voter_employee_id = '$voter_eid_esc' OR LTRIM(voter_employee_id, '0') = LTRIM('$voter_eid_esc', '0') OR TRIM(LEADING '0' FROM voter_employee_id) = TRIM(LEADING '0' FROM '$voter_eid_esc')) LIMIT 1");
+        $v_chk = $mysqli->query("SELECT id FROM poll_votes WHERE poll_id = $poll_id AND (voter_employee_id = '$voter_eid_esc' OR TRIM(LEADING '0' FROM voter_employee_id) = TRIM(LEADING '0' FROM '$voter_eid_esc')) LIMIT 1");
         if ($v_chk && $v_row = $v_chk->fetch_assoc()) {
             $existing_vote_id = (int)$v_row['id'];
             $upd = $mysqli->query("UPDATE poll_votes SET candidate_id = $candidate_id, candidate_employee_id = '$cand_eid_esc', voted_at = CURRENT_TIMESTAMP WHERE id = $existing_vote_id");

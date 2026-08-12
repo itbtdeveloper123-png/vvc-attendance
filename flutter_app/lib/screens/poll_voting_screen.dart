@@ -66,8 +66,7 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
         if (poll['candidates'] != null && poll['candidates'] is List) {
           for (var c in poll['candidates']) {
             final empId = c['employee_id']?.toString() ?? '';
-            final cName = c['name']?.toString() ?? '';
-            if ((cName.isEmpty || cName == empId || RegExp(r'^\d+$').hasMatch(cName)) && _allUsers.isNotEmpty) {
+            if (_allUsers.isNotEmpty && empId.isNotEmpty) {
               final match = _allUsers.firstWhere(
                 (u) =>
                     u['employee_id']?.toString() == empId ||
@@ -76,8 +75,11 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
                             empId.replaceAll(RegExp(r'^0+'), '')),
                 orElse: () => null,
               );
-              if (match != null && (match['name'] ?? '').toString().isNotEmpty) {
-                c['name'] = match['name'];
+              if (match != null) {
+                final mName = (match['name'] ?? '').toString().trim();
+                if (mName.isNotEmpty) {
+                  c['name'] = mName;
+                }
                 c['department'] = match['department'] ?? match['position'] ?? c['department'];
                 c['photo_url'] = match['photo_url'] ?? match['photo'] ?? match['avatar'] ?? c['photo_url'];
               }
@@ -97,7 +99,7 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
     }
   }
 
-  Future<void> _castVote(String pollDocId, String candidateEmployeeId) async {
+  Future<void> _castVote(String pollDocId, String candidateEmployeeId, {int? candidateId}) async {
     final confirmed = await VvcAlert.showConfirmDialog(
       context,
       title: 'បោះឆ្នោតបុគ្គលិកឆ្នើម',
@@ -110,7 +112,7 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
       final cleanId = pollDocId.replaceAll(RegExp(r'\D'), '');
       final pollIdInt = int.tryParse(cleanId) ?? int.tryParse(pollDocId) ?? 0;
       if (pollIdInt > 0) {
-        final res = await _api.castVote(pollIdInt, candidateEmployeeId);
+        final res = await _api.castVote(pollIdInt, candidateEmployeeId, candidateId: candidateId);
         if (res['success'] == true) {
           if (mounted) {
             setState(() {
@@ -582,7 +584,7 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
                   final candIdStr = candidate['id']?.toString() ?? '';
                   String name = candidate['name']?.toString() ?? empId;
 
-                  if ((name.isEmpty || name == empId || RegExp(r'^\d+$').hasMatch(name)) && _allUsers.isNotEmpty) {
+                  if (_allUsers.isNotEmpty && empId.isNotEmpty) {
                     final match = _allUsers.firstWhere(
                       (u) =>
                           u['employee_id']?.toString() == empId ||
@@ -591,8 +593,11 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
                                   empId.replaceAll(RegExp(r'^0+'), '')),
                       orElse: () => null,
                     );
-                    if (match != null && (match['name'] ?? '').toString().isNotEmpty) {
-                      name = match['name'];
+                    if (match != null) {
+                      final mName = (match['name'] ?? '').toString().trim();
+                      if (mName.isNotEmpty) {
+                        name = mName;
+                      }
                     }
                   }
 

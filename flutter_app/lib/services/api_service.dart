@@ -512,7 +512,7 @@ class ApiService {
     );
   }
 
-  Future<Map<String, dynamic>> castVote(int pollId, String candidateEmployeeId) async {
+  Future<Map<String, dynamic>> castVote(int pollId, String candidateEmployeeId, {int? candidateId}) async {
     final headers = await _authHeaders();
     final prefs = await SharedPreferences.getInstance();
     final currentEid = prefs.getString('employee_id') ?? '';
@@ -522,6 +522,7 @@ class ApiService {
       body: {
         'poll_id': pollId.toString(),
         'candidate_employee_id': candidateEmployeeId,
+        if (candidateId != null && candidateId > 0) 'candidate_id': candidateId.toString(),
         if (currentEid.isNotEmpty) 'employee_id': currentEid,
       },
     );
