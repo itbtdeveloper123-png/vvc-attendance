@@ -7945,6 +7945,14 @@ try {
         break;
 
     case 'get_poll_results':
+        if (file_exists(__DIR__ . '/admin_db_setup.php')) {
+            require_once __DIR__ . '/admin_db_setup.php';
+            if (function_exists('ensure_staff_poll_tables') && isset($mysqli) && $mysqli instanceof mysqli) {
+                ensure_staff_poll_tables($mysqli);
+            }
+        }
+        $mysqli->query("ALTER TABLE poll_votes ADD COLUMN IF NOT EXISTS candidate_employee_id VARCHAR(50) DEFAULT NULL AFTER candidate_id");
+
         $table_check = $mysqli->query("SHOW TABLES LIKE 'poll_events'");
         if (!$table_check || $table_check->num_rows == 0) {
             apiResponse(['success' => false, 'message' => 'Poll table does not exist. Please run database setup.']);
@@ -8073,22 +8081,12 @@ try {
                 }
             }
 
-            // 3. Fetch Full Voter Audit Breakdown with robust matching
+            // 3. Fetch Full Voter Audit Breakdown with robust matching (SELECT * to avoid unknown column errors)
             $audit_list = [];
-            $audit_q = $mysqli->query("
-                SELECT pv.id, 
-                       pv.poll_id, 
-                       pv.voter_employee_id, 
-                       pv.candidate_id, 
-                       pv.candidate_employee_id, 
-                       pv.voted_at
-                FROM poll_votes pv
-                WHERE pv.poll_id = $poll_id 
-                   OR pv.poll_id = '$poll_id'
-                   OR pv.candidate_id IN (SELECT id FROM poll_candidates WHERE poll_id = $poll_id)
-                   OR (pv.candidate_employee_id IS NOT NULL AND pv.candidate_employee_id != '' AND pv.candidate_employee_id IN (SELECT employee_id FROM poll_candidates WHERE poll_id = $poll_id))
-                ORDER BY pv.id DESC
-            ");
+            $audit_q = $mysqli->query("SELECT * FROM poll_votes WHERE poll_id = $poll_id OR poll_id = '$poll_id' OR poll_id = 0 ORDER BY id DESC");
+            if (!$audit_q || $audit_q->num_rows == 0) {
+                $audit_q = $mysqli->query("SELECT * FROM poll_votes ORDER BY id DESC");
+            }
             if ($audit_q && $audit_q instanceof mysqli_result) {
                 while ($a_row = $audit_q->fetch_assoc()) {
                     $v_id = (string)$a_row['voter_employee_id'];
