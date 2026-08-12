@@ -7527,7 +7527,29 @@ try {
                     $u_eid = trim((string)($u['employee_id'] ?? ''));
                     $u_id = trim((string)($u['id'] ?? ''));
                     $u_clean = ltrim($u_eid, '0');
-                    $u_name = trim((string)($u['name'] ?? $u['full_name'] ?? $u['khmer_name'] ?? $u['username'] ?? $u['latin_name'] ?? ''));
+                    
+                    // Prioritize Khmer Unicode name if present in any field
+                    $u_name = '';
+                    foreach (['khmer_name', 'name_kh', 'full_name', 'khmer', 'display_name', 'name', 'latin_name', 'username'] as $k) {
+                        if (!empty($u[$k])) {
+                            $val = trim((string)$u[$k]);
+                            if (preg_match('/[\x{1780}-\x{17FF}]/u', $val)) {
+                                $u_name = $val;
+                                break;
+                            }
+                        }
+                    }
+                    if ($u_name === '') {
+                        foreach (['full_name', 'khmer_name', 'name_kh', 'display_name', 'name', 'latin_name', 'username'] as $k) {
+                            if (!empty($u[$k])) {
+                                $val = trim((string)$u[$k]);
+                                if ($val !== '') {
+                                    $u_name = $val;
+                                    break;
+                                }
+                            }
+                        }
+                    }
                     $u['name'] = $u_name;
 
                     if ($u_eid !== '') $users_map[$u_eid] = $u;
@@ -7964,7 +7986,27 @@ try {
         $u_all = $mysqli->query("SELECT * FROM users");
         if ($u_all && $u_all instanceof mysqli_result) {
             while ($u = $u_all->fetch_assoc()) {
-                $u_name = trim((string)($u['name'] ?? $u['full_name'] ?? $u['khmer_name'] ?? $u['username'] ?? $u['latin_name'] ?? ''));
+                $u_name = '';
+                foreach (['khmer_name', 'name_kh', 'full_name', 'khmer', 'display_name', 'name', 'latin_name', 'username'] as $k) {
+                    if (!empty($u[$k])) {
+                        $val = trim((string)$u[$k]);
+                        if (preg_match('/[\x{1780}-\x{17FF}]/u', $val)) {
+                            $u_name = $val;
+                            break;
+                        }
+                    }
+                }
+                if ($u_name === '') {
+                    foreach (['full_name', 'khmer_name', 'name_kh', 'display_name', 'name', 'latin_name', 'username'] as $k) {
+                        if (!empty($u[$k])) {
+                            $val = trim((string)$u[$k]);
+                            if ($val !== '') {
+                                $u_name = $val;
+                                break;
+                            }
+                        }
+                    }
+                }
                 $u['name'] = $u_name;
 
                 $u_eid = trim((string)($u['employee_id'] ?? ''));
@@ -8200,7 +8242,7 @@ try {
             break;
         }
         
-        $stmt = $mysqli->prepare("SELECT employee_id, name, branch FROM users WHERE employment_status = 'Active' ORDER BY name ASC");
+        $stmt = $mysqli->prepare("SELECT * FROM users WHERE employment_status = 'Active' ORDER BY id ASC");
         if (!$stmt) {
             apiResponse(['success' => false, 'message' => 'Database error: ' . $mysqli->error]);
             break;
@@ -8209,6 +8251,28 @@ try {
         $result = $stmt->get_result();
         $employees = [];
         while ($row = $result->fetch_assoc()) {
+            $u_name = '';
+            foreach (['khmer_name', 'name_kh', 'full_name', 'khmer', 'display_name', 'name', 'latin_name', 'username'] as $k) {
+                if (!empty($row[$k])) {
+                    $val = trim((string)$row[$k]);
+                    if (preg_match('/[\x{1780}-\x{17FF}]/u', $val)) {
+                        $u_name = $val;
+                        break;
+                    }
+                }
+            }
+            if ($u_name === '') {
+                foreach (['full_name', 'khmer_name', 'name_kh', 'display_name', 'name', 'latin_name', 'username'] as $k) {
+                    if (!empty($row[$k])) {
+                        $val = trim((string)$row[$k]);
+                        if ($val !== '') {
+                            $u_name = $val;
+                            break;
+                        }
+                    }
+                }
+            }
+            $row['name'] = $u_name;
             $employees[] = $row;
         }
         $stmt->close();
@@ -8244,7 +8308,28 @@ try {
                 $u_eid = trim((string)($u['employee_id'] ?? ''));
                 $u_id = trim((string)($u['id'] ?? ''));
                 $u_clean = ltrim($u_eid, '0');
-                $u_name = trim((string)($u['name'] ?? $u['full_name'] ?? $u['khmer_name'] ?? $u['username'] ?? $u['latin_name'] ?? ''));
+                
+                $u_name = '';
+                foreach (['khmer_name', 'name_kh', 'full_name', 'khmer', 'display_name', 'name', 'latin_name', 'username'] as $k) {
+                    if (!empty($u[$k])) {
+                        $val = trim((string)$u[$k]);
+                        if (preg_match('/[\x{1780}-\x{17FF}]/u', $val)) {
+                            $u_name = $val;
+                            break;
+                        }
+                    }
+                }
+                if ($u_name === '') {
+                    foreach (['full_name', 'khmer_name', 'name_kh', 'display_name', 'name', 'latin_name', 'username'] as $k) {
+                        if (!empty($u[$k])) {
+                            $val = trim((string)$u[$k]);
+                            if ($val !== '') {
+                                $u_name = $val;
+                                break;
+                            }
+                        }
+                    }
+                }
                 $u['name'] = $u_name;
 
                 if ($u_eid !== '') $users_map[$u_eid] = $u;
