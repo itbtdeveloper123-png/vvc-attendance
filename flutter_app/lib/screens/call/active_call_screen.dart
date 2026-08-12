@@ -283,8 +283,9 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
   String _getStatusText() {
     if (_callStatus == 'ringing') return 'Ringing...';
     if (_callStatus == 'connecting') return 'Connecting...';
-    if (_callStatus == 'connected')
+    if (_callStatus == 'connected') {
       return '00:00'; // Could implement a timer here
+    }
     if (_callStatus == 'ended') return 'Call Ended';
     if (_callStatus == 'rejected') return 'Call Declined';
     return _callStatus;

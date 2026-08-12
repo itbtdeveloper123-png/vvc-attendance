@@ -928,7 +928,7 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
                     onPressed: () => _verifyPasscodeAndShowResults(poll),
                     icon: const Icon(Icons.bar_chart_rounded, color: Colors.black, size: 18),
                     label: Text(
-                      '📊 មើលលទ្ធផល & អ្នកបោះឆ្នោត',
+                      '📊 មើលលទ្ធផល & អ្នកបោះឆ្នោត (Live HRM)',
                       style: GoogleFonts.kantumruyPro(
                         fontWeight: FontWeight.bold,
                         color: Colors.black,
@@ -942,126 +942,155 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
                     ),
                   ),
                 ),
-              ] else ...[
-                if (candidates.isNotEmpty) ...[
-                  Text(
-                    'ជ្រើសរើសបេក្ខជន:',
-                    style: GoogleFonts.kantumruyPro(
-                      color: Colors.amberAccent,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13.5,
+                const SizedBox(height: 14),
+              ],
+              if (candidates.isNotEmpty) ...[
+                Row(
+                  children: [
+                    Text(
+                      'ជ្រើសរើសបេក្ខជនដើម្បីបោះឆ្នោត:',
+                      style: GoogleFonts.kantumruyPro(
+                        color: Colors.amberAccent,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13.5,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  ...candidates.map((candidate) {
-                    final empId = candidate['employee_id']?.toString() ?? '';
-                    final candIdStr = candidate['id']?.toString() ?? '';
-                    String name = candidate['name']?.toString() ?? empId;
+                    const Spacer(),
+                    Text(
+                      '(${candidates.length} នាក់)',
+                      style: GoogleFonts.kantumruyPro(color: Colors.white54, fontSize: 12),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                ...candidates.map((candidate) {
+                  final empId = candidate['employee_id']?.toString() ?? '';
+                  final candIdStr = candidate['id']?.toString() ?? '';
+                  String name = candidate['name']?.toString() ?? empId;
 
-                    if ((name.isEmpty || name == empId || RegExp(r'^\d+$').hasMatch(name)) && _allUsers.isNotEmpty) {
-                      final match = _allUsers.firstWhere(
-                        (u) => u['employee_id']?.toString() == empId || (empId.replaceAll(RegExp(r'^0+'), '').isNotEmpty && u['employee_id']?.toString().replaceAll(RegExp(r'^0+'), '') == empId.replaceAll(RegExp(r'^0+'), '')),
-                        orElse: () => null,
-                      );
-                      if (match != null && (match['name'] ?? '').toString().isNotEmpty) {
-                        name = match['name'];
-                      }
+                  if ((name.isEmpty || name == empId || RegExp(r'^\d+$').hasMatch(name)) && _allUsers.isNotEmpty) {
+                    final match = _allUsers.firstWhere(
+                      (u) => u['employee_id']?.toString() == empId || (empId.replaceAll(RegExp(r'^0+'), '').isNotEmpty && u['employee_id']?.toString().replaceAll(RegExp(r'^0+'), '') == empId.replaceAll(RegExp(r'^0+'), '')),
+                      orElse: () => null,
+                    );
+                    if (match != null && (match['name'] ?? '').toString().isNotEmpty) {
+                      name = match['name'];
                     }
+                  }
 
-                    final votedCandId = (poll['voted_candidate_id'] ?? '').toString();
-                    final votedCandEmpId = (poll['voted_candidate_employee_id'] ?? '').toString();
+                  final votedCandId = (poll['voted_candidate_id'] ?? '').toString();
+                  final votedCandEmpId = (poll['voted_candidate_employee_id'] ?? '').toString();
 
-                    final isUserVotedChoice = hasVoted && (
-                      (votedCandId.isNotEmpty && (votedCandId == empId || votedCandId == candIdStr)) ||
-                      (votedCandEmpId.isNotEmpty && (votedCandEmpId == empId || (empId.isNotEmpty && votedCandEmpId.replaceAll(RegExp(r'^0+'), '') == empId.replaceAll(RegExp(r'^0+'), ''))))
-                    );
-                    final isSelected = isUserVotedChoice || (selectedCandidateEmployeeId == empId);
+                  final isUserVotedChoice = hasVoted && (
+                    (votedCandId.isNotEmpty && (votedCandId == empId || votedCandId == candIdStr)) ||
+                    (votedCandEmpId.isNotEmpty && (votedCandEmpId == empId || (empId.isNotEmpty && votedCandEmpId.replaceAll(RegExp(r'^0+'), '') == empId.replaceAll(RegExp(r'^0+'), ''))))
+                  );
+                  final isSelected = isUserVotedChoice || (selectedCandidateEmployeeId == empId);
 
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      decoration: BoxDecoration(
+                  final dept = candidate['department'] ?? candidate['dept'] ?? candidate['position'] ?? 'បុគ្គលិក';
+                  final cat = candidate['category'] ?? (poll['location'] ?? 'Head Office');
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    decoration: BoxDecoration(
+                      color: isUserVotedChoice
+                          ? const Color(0xFF10B981).withValues(alpha: 0.18)
+                          : (isSelected ? AppTheme.primary.withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.04)),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
                         color: isUserVotedChoice
-                            ? const Color(0xFF10B981).withValues(alpha: 0.18)
-                            : (isSelected ? AppTheme.primary.withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.04)),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: isUserVotedChoice
-                              ? const Color(0xFF10B981)
-                              : (isSelected ? AppTheme.primary : Colors.white.withValues(alpha: 0.08)),
-                        ),
-                      ),
-                      child: CheckboxListTile(
-                        value: isSelected,
-                        onChanged: hasVoted ? null : (value) {
-                          setState(() {
-                            selectedCandidateEmployeeId = value == true ? empId : null;
-                          });
-                        },
-                        title: Row(
-                          children: [
-                            Expanded(
-                              child: Text(name, style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 14)),
-                            ),
-                            if (isUserVotedChoice)
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF10B981),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Text(
-                                  '✓ បានបោះឆ្នោតជូន',
-                                  style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                          ],
-                        ),
-                        subtitle: Text('ផ្នែក: ${candidate['department'] ?? candidate['dept'] ?? candidate['category'] ?? 'បុគ្គលិក'}', style: GoogleFonts.kantumruyPro(color: Colors.white60, fontSize: 12)),
-                        controlAffinity: ListTileControlAffinity.leading,
-                        activeColor: isUserVotedChoice ? const Color(0xFF10B981) : AppTheme.primary,
-                      ),
-                    );
-                  }),
-                  const SizedBox(height: 12),
-                  if (!hasVoted && selectedCandidateEmployeeId != null)
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () => _castVote(docId, selectedCandidateEmployeeId!),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.primary,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                        ),
-                        child: Text('បោះឆ្នោតឥឡូវនេះ', style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 15)),
+                            ? const Color(0xFF10B981)
+                            : (isSelected ? AppTheme.primary : Colors.white.withValues(alpha: 0.08)),
                       ),
                     ),
-                  if (hasVoted) ...[
-                    const SizedBox(height: 10),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: Colors.green.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                    child: CheckboxListTile(
+                      value: isSelected,
+                      onChanged: hasVoted ? null : (value) {
+                        setState(() {
+                          selectedCandidateEmployeeId = value == true ? empId : null;
+                        });
+                      },
+                      title: Row(
                         children: [
-                          const Icon(Icons.check_circle_rounded, color: Colors.greenAccent, size: 20),
-                          const SizedBox(width: 8),
-                          Text(
-                            'អ្នកបានបោះឆ្នោតរួចរាល់ហើយ! (សូមអរគុណ)',
-                            style: GoogleFonts.kantumruyPro(
-                              color: Colors.greenAccent,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13.5,
+                          Expanded(
+                            child: Text(name, style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 14)),
+                          ),
+                          if (isUserVotedChoice)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF10B981),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                '✓ បានបោះឆ្នោតជូន',
+                                style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                        ],
+                      ),
+                      subtitle: Row(
+                        children: [
+                          Expanded(
+                            child: Text('ផ្នែក: $dept', style: GoogleFonts.kantumruyPro(color: Colors.white60, fontSize: 12)),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              cat.toString(),
+                              style: GoogleFonts.kantumruyPro(color: Colors.amberAccent, fontSize: 10.5, fontWeight: FontWeight.w600),
                             ),
                           ),
                         ],
                       ),
+                      controlAffinity: ListTileControlAffinity.leading,
+                      activeColor: isUserVotedChoice ? const Color(0xFF10B981) : AppTheme.primary,
                     ),
-                  ],
+                  );
+                }),
+                const SizedBox(height: 12),
+                if (!hasVoted && selectedCandidateEmployeeId != null)
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () => _castVote(docId, selectedCandidateEmployeeId!),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primary,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                      child: Text('បោះឆ្នោតឥឡូវនេះ', style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 15)),
+                    ),
+                  ),
+                if (hasVoted) ...[
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.check_circle_rounded, color: Colors.greenAccent, size: 20),
+                        const SizedBox(width: 8),
+                        Text(
+                          'អ្នកបានបោះឆ្នោតរួចរាល់ហើយ! (សូមអរគុណ)',
+                          style: GoogleFonts.kantumruyPro(
+                            color: Colors.greenAccent,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ],
             ],
@@ -1072,8 +1101,10 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
   }
 
   Future<void> _verifyPasscodeAndShowResults(Map<String, dynamic> poll) async {
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    final bool isHrmOrAdmin = userProvider.isHRM || userProvider.isAdmin;
     final rawPasscode = (poll['access_code'] ?? poll['passcode'] ?? '').toString().trim();
-    if (rawPasscode.isEmpty) {
+    if (isHrmOrAdmin || rawPasscode.isEmpty) {
       _showPollResultsModal(poll);
       return;
     }
@@ -1328,14 +1359,37 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
               return vB.compareTo(vA);
             });
 
-            final votedCandidates = candidates.where((c) {
+            bool isWorkerCandidate(Map<String, dynamic> c) {
+              final cat = (c['category'] ?? '').toString().toLowerCase();
+              final dept = (c['department'] ?? c['position'] ?? '').toString().toLowerCase();
+              return cat.contains('warehouse') ||
+                     cat.contains('store') ||
+                     cat.contains('worker') ||
+                     cat.contains('ឃ្លាំង') ||
+                     cat.contains('កម្មករ') ||
+                     dept.contains('កម្មករ') ||
+                     dept.contains('ឃ្លាំង') ||
+                     dept.contains('driver') ||
+                     dept.contains('cleaner') ||
+                     dept.contains('security') ||
+                     dept.contains('ដឹកជញ្ជូន');
+            }
+
+            final bool isSkilledTab = _resultsCategory == 'skilled';
+            final List<Map<String, dynamic>> categoryCandidates = candidates.where((c) {
+              final isWorker = isWorkerCandidate(c);
+              return isSkilledTab ? !isWorker : isWorker;
+            }).toList();
+
+            final List<Map<String, dynamic>> displayCandidates = categoryCandidates.isNotEmpty ? categoryCandidates : candidates;
+
+            final votedCandidates = displayCandidates.where((c) {
               final v = int.tryParse(c['votes_count']?.toString() ?? c['votes']?.toString() ?? '0') ?? 0;
               return v > 0;
             }).toList();
 
-            final bool isSkilledTab = _resultsCategory == 'skilled';
             final bool hasVotes = votedCandidates.isNotEmpty;
-            final topWinner = hasVotes ? votedCandidates.first : <String, dynamic>{};
+            final topWinner = hasVotes ? votedCandidates.first : (displayCandidates.isNotEmpty ? displayCandidates.first : <String, dynamic>{});
             final int winnerVotes = int.tryParse(topWinner['votes_count']?.toString() ?? topWinner['votes']?.toString() ?? '0') ?? 0;
 
             return Container(
@@ -1564,7 +1618,7 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
                         ),
                         const SizedBox(height: 10),
 
-                        if (candidates.isEmpty)
+                        if (displayCandidates.isEmpty)
                           Container(
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
@@ -1572,16 +1626,16 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
                               borderRadius: BorderRadius.circular(14),
                             ),
                             child: Text(
-                              'មិនទាន់មានបេក្ខជនក្នុងបញ្ជីនៅឡើយទេ',
+                              'មិនទាន់មានបេក្ខជនក្នុងប្រភេទនេះនៅឡើយទេ',
                               style: GoogleFonts.kantumruyPro(color: Colors.white54, fontSize: 13),
                             ),
                           )
                         else
-                          for (int i = 0; i < candidates.length; i++) ...[
+                          for (int i = 0; i < displayCandidates.length; i++) ...[
                             _buildCandidateResultCard(
-                              candidates[i],
+                              displayCandidates[i],
                               totalVotes,
-                              isWinner: i == 0 && totalVotes > 0 && (int.tryParse(candidates[i]['votes_count']?.toString() ?? candidates[i]['votes']?.toString() ?? '0') ?? 0) > 0,
+                              isWinner: i == 0 && totalVotes > 0 && (int.tryParse(displayCandidates[i]['votes_count']?.toString() ?? displayCandidates[i]['votes']?.toString() ?? '0') ?? 0) > 0,
                               poll: poll,
                               rankNumber: i + 1,
                               category: _resultsCategory,

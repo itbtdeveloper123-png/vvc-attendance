@@ -287,8 +287,9 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                                 ? null
                                 : () async {
                                   final text = textController.text.trim();
-                                  if (text.isEmpty && selectedImage == null)
+                                  if (text.isEmpty && selectedImage == null) {
                                     return;
+                                  }
 
                                   setModalState(() => isPosting = true);
 
@@ -1715,9 +1716,11 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                                     borderRadius: BorderRadius.circular(16),
                                   ),
                                   onSelected: (val) {
-                                    if (val == 'edit') _showEditPostModal(doc);
-                                    if (val == 'delete')
+                                    if (val == 'edit') {
+                                      _showEditPostModal(doc);
+                                    } else if (val == 'delete') {
                                       _confirmDeletePost(doc);
+                                    }
                                   },
                                   itemBuilder:
                                       (context) => [

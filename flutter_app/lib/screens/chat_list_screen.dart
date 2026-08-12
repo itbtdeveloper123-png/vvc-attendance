@@ -985,10 +985,6 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
       return const SizedBox.shrink();
     }
 
-    final List<String> ids = [currentUserId, targetId];
-    ids.sort();
-    final String roomId = "PRIVATE_${ids[0]}_${ids[1]}";
-
     final chatData = activeChatsData[targetId];
     String lastMsg = position;
     String timeStr = '';

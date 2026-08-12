@@ -486,12 +486,15 @@ class ApiService {
 
   Future<Map<String, dynamic>> castVote(int pollId, String candidateEmployeeId) async {
     final headers = await _authHeaders();
+    final prefs = await SharedPreferences.getInstance();
+    final currentEid = prefs.getString('employee_id') ?? '';
     return _processRequest(
       'cast_vote',
       headers: headers,
       body: {
         'poll_id': pollId.toString(),
         'candidate_employee_id': candidateEmployeeId,
+        if (currentEid.isNotEmpty) 'employee_id': currentEid,
       },
     );
   }

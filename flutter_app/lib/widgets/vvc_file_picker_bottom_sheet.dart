@@ -51,7 +51,6 @@ class VvcFilePickerBottomSheet extends StatefulWidget {
 }
 
 class _VvcFilePickerBottomSheetState extends State<VvcFilePickerBottomSheet> {
-  final String _activeTab = 'File';
   final TextEditingController _searchController = TextEditingController();
   bool _isSearchActive = false;
 
@@ -61,50 +60,6 @@ class _VvcFilePickerBottomSheetState extends State<VvcFilePickerBottomSheet> {
   static const Color _accentColor = Color(0xFF3388FF);
   static const Color _dividerColor = Color(0x1FFFFFFF);
   static const Color _mutedColor = Color(0xFF8E8E93);
-
-  // Sample recent files data
-  final List<Map<String, dynamic>> _recentFiles = [
-    {
-      'name': 'Project_Presentation_v2_Final_Export.pdf',
-      'extension': 'PDF',
-      'color': const Color(0xFFFF453A),
-      'size': '14.2 MB',
-      'date': 'Yesterday at 16:45',
-      'path': '/storage/emulated/0/Download/Project_Presentation.pdf',
-    },
-    {
-      'name': 'Attendance_Database_Backup_2026.zip',
-      'extension': 'ZIP',
-      'color': const Color(0xFFFF9F0A),
-      'size': '45.8 MB',
-      'date': '05 Aug at 10:20',
-      'path': '/storage/emulated/0/Download/Attendance_Backup.zip',
-    },
-    {
-      'name': 'Setup_Installer_v4.2_Build108.exe',
-      'extension': 'EXE',
-      'color': const Color(0xFF0A84FF),
-      'size': '128.0 MB',
-      'date': '03 Aug at 11:05',
-      'path': '/storage/emulated/0/Download/Setup_Installer.exe',
-    },
-    {
-      'name': 'Staff_Monthly_Report_July_2026.xlsx',
-      'extension': 'XLS',
-      'color': const Color(0xFF30D158),
-      'size': '2.4 MB',
-      'date': '01 Aug at 09:30',
-      'path': '/storage/emulated/0/Download/Staff_Report.xlsx',
-    },
-    {
-      'name': 'Company_Design_Assets_Pack.rar',
-      'extension': 'RAR',
-      'color': const Color(0xFFBF5AF2),
-      'size': '88.5 MB',
-      'date': '28 Jul at 18:12',
-      'path': '/storage/emulated/0/Download/Assets_Pack.rar',
-    },
-  ];
 
   @override
   void dispose() {

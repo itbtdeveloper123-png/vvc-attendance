@@ -100,8 +100,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   String _currentWallpaper = '';
   List<DocumentSnapshot> _messageDocs = [];
   StreamSubscription<QuerySnapshot>? _messageSubscription;
-  StreamSubscription<Duration>? _positionSub;
-  StreamSubscription<Duration>? _durationSub;
 
   bool _isLoadingHistory = true;
 
@@ -158,8 +156,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   String? _currentlyPlayingAudio;
   bool _isPlayingAudio = false;
   double _playbackSpeed = 1.0;
-  Duration _currentAudioPosition = Duration.zero;
-  Duration _currentAudioDuration = Duration.zero;
 
   // Reply & Pin State
   String? _replyingToMessage;
@@ -191,18 +187,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
     _scrollController.addListener(_onScroll);
 
-    _positionSub = _audioPlayer.onPositionChanged.listen((p) {
-      if (mounted) setState(() => _currentAudioPosition = p);
-    });
-    _durationSub = _audioPlayer.onDurationChanged.listen((d) {
-      if (mounted) setState(() => _currentAudioDuration = d);
-    });
     _audioPlayer.onPlayerComplete.listen((_) {
       if (mounted) {
         setState(() {
           _isPlayingAudio = false;
           _currentlyPlayingAudio = null;
-          _currentAudioPosition = Duration.zero;
         });
       }
     });
@@ -297,16 +286,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         'isRead': true,
       }, SetOptions(merge: true));
       await batch.commit();
-    }
-  }
-
-  void _scrollToBottom() {
-    if (_scrollController.hasClients) {
-      _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-      );
     }
   }
 
@@ -439,8 +418,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     _messageSubscription?.cancel();
     _presenceSubscription?.cancel();
     _roomStateSubscription?.cancel();
-    _positionSub?.cancel();
-    _durationSub?.cancel();
     _recordingTimer?.cancel();
     _typingDebounceTimer?.cancel();
     _msgController.dispose();
@@ -1170,7 +1147,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               _buildLocationCardBubble(docId: doc.id, text: rawText, isMine: isMine, time: msgTime, isRead: isRead, senderName: senderName),
             if (rawType == 'sticker' || rawText == '👍')
               _buildStickerBubble(docId: doc.id, text: rawText.isNotEmpty ? rawText : '👍', stickerType: (data['stickerType'] ?? '').toString(), isMine: isMine, senderName: senderName),
-            if (rawType != 'callMissed' && rawType != 'callVideo' && !imageUrl.isNotEmpty && rawType != 'image' && !audioUrl.isNotEmpty && rawType != 'audio' && rawType != 'voice' && rawType != 'file' && rawType != 'location' && rawType != 'sticker' && rawText != '👍' && rawText.isNotEmpty)
+            if (rawType == 'groupInvite' || rawText.startsWith('vvc://group/'))
+              _buildGroupInviteCard(
+                docId: doc.id,
+                groupId: (data['groupId'] ?? rawText.split('/').last).toString(),
+                fullLink: rawText,
+                senderName: senderName,
+                isMine: isMine,
+                time: msgTime,
+                isRead: isRead,
+              ),
+            if (rawType != 'callMissed' && rawType != 'callVideo' && !imageUrl.isNotEmpty && rawType != 'image' && !audioUrl.isNotEmpty && rawType != 'audio' && rawType != 'voice' && rawType != 'file' && rawType != 'location' && rawType != 'sticker' && rawType != 'groupInvite' && !rawText.startsWith('vvc://group/') && rawText != '👍' && rawText.isNotEmpty)
               _buildTextBubble(docId: doc.id, text: rawText, replyTo: replyTo, forwardedFrom: forwardedFrom, senderName: senderName, isMine: isMine, time: msgTime, isRead: isRead),
           ],
         );

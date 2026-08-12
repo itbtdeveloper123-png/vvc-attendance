@@ -46,12 +46,9 @@ class _VvcNewMessageContactListScreenState extends State<VvcNewMessageContactLis
   String _searchQuery = '';
   String _selectedLetter = '';
 
-  late List<Map<String, dynamic>> _allContacts;
-
   @override
   void initState() {
     super.initState();
-    _allContacts = widget.contacts ?? _getMockContacts();
     _searchController.addListener(() {
       setState(() {
         _searchQuery = _searchController.text.trim().toLowerCase();
@@ -63,42 +60,6 @@ class _VvcNewMessageContactListScreenState extends State<VvcNewMessageContactLis
   void dispose() {
     _searchController.dispose();
     super.dispose();
-  }
-
-  List<Map<String, dynamic>> _getMockContacts() {
-    return [
-      {'name': 'Alex Rivers', 'subtitle': 'last seen recently', 'avatar': '', 'isOnline': true},
-      {'name': 'Andrew Vance', 'subtitle': 'last seen 5 minutes ago', 'avatar': '', 'isOnline': false},
-      {'name': 'Bob Ross', 'subtitle': 'online', 'avatar': '', 'isOnline': true},
-      {'name': 'Brandon Lee', 'subtitle': 'last seen yesterday at 14:20', 'avatar': '', 'isOnline': false},
-      {'name': 'Catherine Bell', 'subtitle': 'last seen 10 minutes ago', 'avatar': '', 'isOnline': false},
-      {'name': 'David Miller', 'subtitle': 'last seen recently', 'avatar': '', 'isOnline': false},
-      {'name': 'Daniel Craig', 'subtitle': 'online', 'avatar': '', 'isOnline': true},
-      {'name': 'Elena Rostova', 'subtitle': 'last seen 1 hour ago', 'avatar': '', 'isOnline': false},
-      {'name': 'Frank Castle', 'subtitle': 'last seen recently', 'avatar': '', 'isOnline': false},
-      {'name': 'Grace Hopper', 'subtitle': 'online', 'avatar': '', 'isOnline': true},
-      {'name': 'Henry Cavill', 'subtitle': 'last seen 3 hours ago', 'avatar': '', 'isOnline': false},
-      {'name': 'Ian McKellen', 'subtitle': 'last seen yesterday', 'avatar': '', 'isOnline': false},
-      {'name': 'Julia Roberts', 'subtitle': 'last seen recently', 'avatar': '', 'isOnline': false},
-    ];
-  }
-
-  List<Map<String, dynamic>> get _filteredContacts {
-    if (_searchQuery.isEmpty) return _allContacts;
-    return _allContacts.where((c) {
-      final name = (c['name'] ?? '').toString().toLowerCase();
-      return name.contains(_searchQuery);
-    }).toList();
-  }
-
-  Map<String, List<Map<String, dynamic>>> get _groupedContacts {
-    final Map<String, List<Map<String, dynamic>>> grouped = {};
-    for (var c in _filteredContacts) {
-      final name = (c['name'] ?? '').toString();
-      final letter = name.isNotEmpty ? name[0].toUpperCase() : '#';
-      grouped.putIfAbsent(letter, () => []).add(c);
-    }
-    return grouped;
   }
 
   @override
@@ -461,11 +422,6 @@ class _VvcNewGroupMemberSelectionScreenState extends State<VvcNewGroupMemberSele
   void dispose() {
     _searchController.dispose();
     super.dispose();
-  }
-
-  List<Map<String, dynamic>> get _filtered {
-    if (_searchQuery.isEmpty) return _contacts;
-    return _contacts.where((c) => (c['name'] ?? '').toString().toLowerCase().contains(_searchQuery)).toList();
   }
 
   void _toggleSelect(String name) {

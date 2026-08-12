@@ -15006,18 +15006,20 @@ ob_end_flush();
                                                 <table class="table table-hover" id="polls-table">
                                                     <thead>
                                                         <tr>
-                                                            <th width="80">ID</th>
+                                                            <th width="70">ID</th>
                                                             <th>ចំណងជើង</th>
                                                             <th>ត្រីមាស</th>
                                                             <th>ទីតាំង/ឃ្លាំង</th>
+                                                            <th style="text-align:center;">បេក្ខជន</th>
+                                                            <th style="text-align:center;">សំឡេងឆ្នោត</th>
                                                             <th>កាលបរិច្ឆេទ</th>
                                                             <th>ស្ថានភាព</th>
-                                                            <th width="150" style="text-align:center;">សកម្មភាព</th>
+                                                            <th width="180" style="text-align:center;">សកម្មភាព</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody id="polls-list">
                                                         <tr>
-                                                            <td colspan="7" style="text-align:center; padding:50px;"><i
+                                                            <td colspan="9" style="text-align:center; padding:50px;"><i
                                                                     class="fa-solid fa-spinner fa-spin"></i>
                                                                 កំពុងផ្ទុក...
                                                             </td>
@@ -15175,27 +15177,44 @@ ob_end_flush();
                                                     let html = '';
                                                     res.data.forEach(poll => {
                                                         const statusBadge = poll.is_active == 1 
-                                                            ? '<span style="background:#10b981; color:#fff; padding:4px 12px; border-radius:20px; font-size:12px;">សកម្ម</span>'
-                                                            : '<span style="background:#ef4444; color:#fff; padding:4px 12px; border-radius:20px; font-size:12px;">មិនសកម្ម</span>';
+                                                            ? '<span style="background:#10b981; color:#fff; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:bold;">សកម្ម</span>'
+                                                            : '<span style="background:#ef4444; color:#fff; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:bold;">មិនសកម្ម</span>';
                                                         
+                                                        const candidateCount = poll.candidates ? poll.candidates.length : (poll.candidate_count || 0);
+                                                        const voteCount = poll.voter_audit_list ? poll.voter_audit_list.length : (poll.total_votes || 0);
+
                                                         html += `
                                                             <tr>
-                                                                <td>${poll.id}</td>
-                                                                <td><strong>${poll.title}</strong></td>
+                                                                <td><strong>#${poll.id}</strong></td>
+                                                                <td><strong style="color:#1e293b; font-size:14.5px;">${poll.title}</strong></td>
                                                                 <td>${poll.quarter || '-'}</td>
-                                                                <td>${poll.location || '-'}</td>
+                                                                <td><span style="background:#e0e7ff; color:#3730a3; padding:3px 8px; border-radius:8px; font-size:12px; font-weight:600;">${poll.location || 'Head Office'}</span></td>
+                                                                <td style="text-align:center;">
+                                                                    <span style="background:#f1f5f9; color:#475569; padding:4px 10px; border-radius:20px; font-weight:bold; font-size:12.5px;">
+                                                                        <i class="fa-solid fa-users"></i> ${candidateCount} នាក់
+                                                                    </span>
+                                                                </td>
+                                                                <td style="text-align:center;">
+                                                                    <span style="background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; padding:4px 12px; border-radius:20px; font-weight:800; font-size:13px;">
+                                                                        <i class="fa-solid fa-check-to-slot"></i> ${voteCount} សំឡេង
+                                                                    </span>
+                                                                </td>
                                                                 <td>
-                                                                    <small style="display:block;">ចាប់ផ្ដើម: ${poll.start_date || '-'}</small>
-                                                                    <small style="display:block;">បញ្ចប់: ${poll.end_date || '-'}</small>
+                                                                    <small style="display:block; color:#64748b;">ចាប់ផ្ដើម: ${poll.start_date || '-'}</small>
+                                                                    <small style="display:block; color:#64748b;">បញ្ចប់: ${poll.end_date || '-'}</small>
                                                                 </td>
                                                                 <td>${statusBadge}</td>
                                                                 <td style="text-align:center;">
-                                                                    <button onclick="window.editPoll(${poll.id})" 
-                                                                        style="padding:6px 12px; border:none; border-radius:8px; background:#3b82f6; color:#fff; cursor:pointer; margin-right:5px;">
+                                                                    <a href="?page=polls&action=poll_results" title="មើលលទ្ធផល"
+                                                                        style="padding:6px 10px; border:none; border-radius:8px; background:#10b981; color:#fff; cursor:pointer; margin-right:4px; text-decoration:none; display:inline-block; font-size:12px; font-weight:bold;">
+                                                                        <i class="fa-solid fa-chart-bar"></i> លទ្ធផល
+                                                                    </a>
+                                                                    <button onclick="window.editPoll(${poll.id})" title="កែប្រែ"
+                                                                        style="padding:6px 10px; border:none; border-radius:8px; background:#3b82f6; color:#fff; cursor:pointer; margin-right:4px;">
                                                                         <i class="fa-solid fa-edit"></i>
                                                                     </button>
-                                                                    <button onclick="window.deletePoll(${poll.id})" 
-                                                                        style="padding:6px 12px; border:none; border-radius:8px; background:#ef4444; color:#fff; cursor:pointer;">
+                                                                    <button onclick="window.deletePoll(${poll.id})" title="លុប"
+                                                                        style="padding:6px 10px; border:none; border-radius:8px; background:#ef4444; color:#fff; cursor:pointer;">
                                                                         <i class="fa-solid fa-trash"></i>
                                                                     </button>
                                                                 </td>
@@ -15204,12 +15223,12 @@ ob_end_flush();
                                                     });
                                                     list.innerHTML = html;
                                                 } else {
-                                                    list.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:40px; color:#ef4444;">' + (res.message || 'កំហុសក្នុងការទាញយកទិន្នន័យ។') + '</td></tr>';
+                                                    list.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:40px; color:#ef4444;">' + (res.message || 'កំហុសក្នុងការទាញយកទិន្នន័យ។') + '</td></tr>';
                                                 }
                                             })
                                             .catch(err => {
                                                 console.error('Load polls error:', err);
-                                                list.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:40px; color:#ef4444;">កំហុសបច្ចេកទេស (Network Error)។ សូមព្យាយាម Refresh ម្តងទៀត។</td></tr>';
+                                                list.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:40px; color:#ef4444;">កំហុសបច្ចេកទេស (Network Error)។ សូមព្យាយាម Refresh ម្តងទៀត។</td></tr>';
                                             });
                                     };
 
@@ -15477,20 +15496,33 @@ ob_end_flush();
                             <?php elseif ($current_action == 'poll_results'): ?>
                                 <div id="poll-results-module" class="action-section">
                                     <div class="section-container">
-                                        <div class="section-header">
-                                            <h2 class="section-title"><i class="fa-solid fa-chart-bar"></i>
-                                                លទ្ធផលការបោះឆ្នោត</h2>
+                                        <div class="section-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:15px; margin-bottom:20px;">
+                                            <h2 class="section-title"><i class="fa-solid fa-chart-pie"></i>
+                                                ផ្ទាំងគ្រប់គ្រង និងលទ្ធផលបោះឆ្នោត HRM</h2>
+                                            <div>
+                                                <button onclick="window.loadPollResults()" class="btn btn-primary" style="border-radius:12px; padding:10px 18px; font-weight:600;">
+                                                    <i class="fa-solid fa-rotate"></i> Refresh ទិន្នន័យ
+                                                </button>
+                                            </div>
                                         </div>
-                                        <div class="hrm-card" style="padding:20px;">
+                                        <div class="hrm-card" style="padding:24px; border-radius:20px; box-shadow:0 10px 30px rgba(0,0,0,0.05); background:#fff;">
                                             <div id="poll-results-content">
                                                 <div style="text-align:center; padding:50px;">
-                                                    <i class="fa-solid fa-spinner fa-spin"></i> កំពុងផ្ទុក...
+                                                    <i class="fa-solid fa-spinner fa-spin" style="font-size:32px; color:#6366f1;"></i>
+                                                    <p style="margin-top:12px; color:#64748b; font-weight:600;">កំពុងទាញយកលទ្ធផល និងទិន្នន័យបោះឆ្នោតចុងក្រោយ...</p>
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                                 <script>
+                                    window._currentFilterCategory = {};
+
+                                    window.switchPollCategory = function(pollId, cat) {
+                                        window._currentFilterCategory[pollId] = cat;
+                                        window.loadPollResults();
+                                    };
+
                                     window.loadPollResults = function() {
                                         const container = document.getElementById('poll-results-content');
                                         if (!container) return;
@@ -15498,37 +15530,137 @@ ob_end_flush();
                                         fetch('api.php?action=get_poll_results')
                                             .then(res => res.json())
                                             .then(res => {
-                                                if (res.success && res.data) {
+                                                if (res.success && res.data && res.data.length > 0) {
                                                     let html = '';
                                                     res.data.forEach(result => {
+                                                        const pollId = result.id;
+                                                        const activeCat = window._currentFilterCategory[pollId] || 'all';
+                                                        const totalVotes = parseInt(result.total_votes || 0);
+                                                        const auditList = result.voter_audit_list || [];
+                                                        const allCandidates = result.results || result.candidates || [];
+
+                                                        // Categorize candidates
+                                                        let displayCandidates = allCandidates;
+                                                        if (activeCat === 'skilled') {
+                                                            displayCandidates = allCandidates.filter(c => {
+                                                                const cat = (c.category || '').toLowerCase();
+                                                                const dept = (c.department || '').toLowerCase();
+                                                                return !cat.includes('warehouse') && !cat.includes('store') && !cat.includes('worker') && !cat.includes('ឃ្លាំង') && !cat.includes('កម្មករ') && !dept.includes('កម្មករ') && !dept.includes('ឃ្លាំង') && !dept.includes('driver');
+                                                            });
+                                                        } else if (activeCat === 'worker') {
+                                                            displayCandidates = allCandidates.filter(c => {
+                                                                const cat = (c.category || '').toLowerCase();
+                                                                const dept = (c.department || '').toLowerCase();
+                                                                return cat.includes('warehouse') || cat.includes('store') || cat.includes('worker') || cat.includes('ឃ្លាំង') || cat.includes('កម្មករ') || dept.includes('កម្មករ') || dept.includes('ឃ្លាំង') || dept.includes('driver') || dept.includes('cleaner');
+                                                            });
+                                                        }
+
                                                         html += `
-                                                            <div style="margin-bottom:30px; padding:20px; border:1px solid #eee; border-radius:12px;">
-                                                                <h3 style="margin-bottom:15px;">${result.title}</h3>
-                                                                <p style="color:#666; margin-bottom:15px;">
-                                                                    <strong>ត្រីមាស:</strong> ${result.quarter || '-'} | 
-                                                                    <strong>ទីតាំង:</strong> ${result.location || '-'} |
-                                                                    <strong>ស្ថានភាព:</strong> ${result.is_active == 1 ? 'សកម្ម' : 'មិនសកម្ម'}
-                                                                </p>
-                                                                <div style="margin-top:20px;">
-                                                                    <h4>លទ្ធផលបោះឆ្នោត:</h4>
-                                                                    ${result.results ? result.results.map(r => `
-                                                                        <div style="margin:10px 0;">
-                                                                            <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
-                                                                                <span>${r.name}</span>
-                                                                                <span>${r.votes} សំឡេង (${r.percentage}%)</span>
-                                                                            </div>
-                                                                            <div style="width:100%; background:#eee; border-radius:10px; overflow:hidden;">
-                                                                                <div style="width:${r.percentage}%; background:linear-gradient(135deg, #6366f1, #4f46e5); height:20px;"></div>
-                                                                            </div>
+                                                            <div style="margin-bottom:35px; padding:24px; border:1px solid #e2e8f0; border-radius:18px; background:#f8fafc;">
+                                                                <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px; margin-bottom:18px; border-bottom:1px solid #e2e8f0; padding-bottom:14px;">
+                                                                    <div>
+                                                                        <h3 style="margin:0 0 6px 0; color:#0f172a; font-size:18px; font-weight:800;">
+                                                                            <i class="fa-solid fa-square-poll-vertical" style="color:#6366f1;"></i> ${result.title}
+                                                                        </h3>
+                                                                        <div style="color:#64748b; font-size:13px; display:flex; gap:15px; flex-wrap:wrap;">
+                                                                            <span><strong>ត្រីមាស:</strong> ${result.quarter || '-'}</span>
+                                                                            <span><strong>ទីតាំង:</strong> ${result.location || 'Head Office'}</span>
+                                                                            <span><strong>កាលបរិច្ឆេទ:</strong> ${result.start_date || '-'} ដល់ ${result.end_date || '-'}</span>
+                                                                            <span><strong>ស្ថានភាព:</strong> ${result.is_active == 1 ? '<span style="color:#10b981; font-weight:bold;">សកម្ម</span>' : '<span style="color:#ef4444; font-weight:bold;">មិនសកម្ម</span>'}</span>
                                                                         </div>
-                                                                    `).join('') : '<p style="color:#999;">មិនទាន់មានសំឡេងបោះឆ្នោតទេ</p>'}
+                                                                    </div>
+                                                                    <div style="text-align:right;">
+                                                                        <span style="background:#dbeafe; color:#1e40af; border:1px solid #93c5fd; padding:6px 16px; border-radius:20px; font-weight:800; font-size:14px;">
+                                                                            <i class="fa-solid fa-check-to-slot"></i> សរុប៖ ${totalVotes} សំឡេង
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+
+                                                                <!-- Category Filter Switcher -->
+                                                                <div style="display:flex; gap:8px; margin-bottom:20px;">
+                                                                    <button onclick="window.switchPollCategory(${pollId}, 'all')"
+                                                                        style="padding:8px 16px; border-radius:10px; border:none; cursor:pointer; font-weight:bold; font-size:13px; ${activeCat === 'all' ? 'background:#0f172a; color:#fff;' : 'background:#e2e8f0; color:#475569;'}">
+                                                                        📋 ទាំងអស់ (${allCandidates.length})
+                                                                    </button>
+                                                                    <button onclick="window.switchPollCategory(${pollId}, 'skilled')"
+                                                                        style="padding:8px 16px; border-radius:10px; border:none; cursor:pointer; font-weight:bold; font-size:13px; ${activeCat === 'skilled' ? 'background:#f59e0b; color:#fff;' : 'background:#e2e8f0; color:#475569;'}">
+                                                                        👔 បុគ្គលិកជំនាញ / Office
+                                                                    </button>
+                                                                    <button onclick="window.switchPollCategory(${pollId}, 'worker')"
+                                                                        style="padding:8px 16px; border-radius:10px; border:none; cursor:pointer; font-weight:bold; font-size:13px; ${activeCat === 'worker' ? 'background:#06b6d4; color:#fff;' : 'background:#e2e8f0; color:#475569;'}">
+                                                                        👷‍♂️ កម្មករ / ឃ្លាំង
+                                                                    </button>
+                                                                </div>
+
+                                                                <!-- Candidate Ranking Bars -->
+                                                                <div style="background:#fff; border-radius:14px; padding:18px; border:1px solid #e2e8f0; margin-bottom:22px;">
+                                                                    <h4 style="margin:0 0 14px 0; color:#1e293b; font-size:15px; font-weight:700;">
+                                                                        <i class="fa-solid fa-trophy" style="color:#f59e0b;"></i> ចំណាត់ថ្នាក់លទ្ធផលបោះឆ្នោត:
+                                                                    </h4>
+                                                                    ${displayCandidates && displayCandidates.length > 0 ? displayCandidates.map((r, idx) => {
+                                                                        const rankBadge = idx === 0 && r.votes > 0 ? '🥇 លេខ ១' : (idx === 1 && r.votes > 0 ? '🥈 លេខ ២' : (idx === 2 && r.votes > 0 ? '🥉 លេខ ៣' : `#${idx + 1}`));
+                                                                        const barColor = idx === 0 && r.votes > 0 ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'linear-gradient(135deg, #6366f1, #4f46e5)';
+                                                                        return `
+                                                                            <div style="margin:12px 0;">
+                                                                                <div style="display:flex; justify-content:space-between; margin-bottom:6px; align-items:center;">
+                                                                                    <div>
+                                                                                        <span style="font-weight:700; color:#0f172a; font-size:14.5px;">${r.name}</span>
+                                                                                        <small style="color:#64748b; margin-left:6px;">(${r.employee_id} - ${r.category || r.department || 'បុគ្គលិក'})</small>
+                                                                                        <span style="margin-left:8px; font-size:12px; font-weight:700; color:#d97706;">${rankBadge}</span>
+                                                                                    </div>
+                                                                                    <div style="font-weight:800; color:#0f172a; font-size:14px;">
+                                                                                        <span>${r.votes} សំឡេង</span>
+                                                                                        <span style="color:#6366f1; margin-left:4px;">(${r.percentage}%)</span>
+                                                                                    </div>
+                                                                                </div>
+                                                                                <div style="width:100%; background:#e2e8f0; border-radius:10px; overflow:hidden; height:18px;">
+                                                                                    <div style="width:${Math.max(r.percentage, r.votes > 0 ? 5 : 0)}%; background:${barColor}; height:100%; border-radius:10px; transition:width 0.5s ease;"></div>
+                                                                                </div>
+                                                                            </div>
+                                                                        `;
+                                                                    }).join('') : '<p style="color:#94a3b8; margin:0; text-align:center; padding:15px;">មិនទាន់មានបេក្ខជនក្នុងប្រភេទនេះទេ</p>'}
+                                                                </div>
+
+                                                                <!-- Detailed Voter Audit Log Table -->
+                                                                <div style="background:#fff; border-radius:14px; padding:18px; border:1px solid #e2e8f0;">
+                                                                    <h4 style="margin:0 0 14px 0; color:#1e293b; font-size:15px; font-weight:700;">
+                                                                        <i class="fa-solid fa-list-check" style="color:#10b981;"></i> កំណត់ត្រាបោះឆ្នោតលម្អិត «បុគ្គលិកណា បោះឆ្នោតជូនបេក្ខជនណា» (${auditList.length} នាក់):
+                                                                    </h4>
+                                                                    ${auditList.length > 0 ? `
+                                                                        <div style="overflow-x:auto;">
+                                                                            <table style="width:100%; border-collapse:collapse; font-size:13px;">
+                                                                                <thead>
+                                                                                    <tr style="background:#f8fafc; border-bottom:2px solid #e2e8f0; text-align:left;">
+                                                                                        <th style="padding:10px 12px;">#</th>
+                                                                                        <th style="padding:10px 12px;">កាលបរិច្ឆេទ & ម៉ោង</th>
+                                                                                        <th style="padding:10px 12px;">អត្តលេខ & ឈ្មោះអ្នកបោះ</th>
+                                                                                        <th style="padding:10px 12px;">ផ្នែកអ្នកបោះ</th>
+                                                                                        <th style="padding:10px 12px; color:#4f46e5;">បោះឆ្នោតជូនបេក្ខជន</th>
+                                                                                    </tr>
+                                                                                </thead>
+                                                                                <tbody>
+                                                                                    ${auditList.map((a, i) => `
+                                                                                        <tr style="border-bottom:1px solid #f1f5f9;">
+                                                                                            <td style="padding:10px 12px; color:#64748b;">${i + 1}</td>
+                                                                                            <td style="padding:10px 12px; color:#475569;">${a.time || '-'}</td>
+                                                                                            <td style="padding:10px 12px; font-weight:700; color:#0f172a;">${a.voter_name} <small style="color:#64748b;">(${a.voter_id})</small></td>
+                                                                                            <td style="padding:10px 12px; color:#64748b;">${a.voter_department || 'បុគ្គលិក'}</td>
+                                                                                            <td style="padding:10px 12px; font-weight:800; color:#059669;">
+                                                                                                <i class="fa-solid fa-check-circle" style="color:#10b981;"></i> ${a.candidate_name} <small style="color:#059669;">(${a.candidate_id})</small>
+                                                                                            </td>
+                                                                                        </tr>
+                                                                                    `).join('')}
+                                                                                </tbody>
+                                                                            </table>
+                                                                        </div>
+                                                                    ` : '<p style="color:#94a3b8; margin:0; text-align:center; padding:15px;">មិនទាន់មានកំណត់ត្រាអ្នកបោះឆ្នោតនៅឡើយទេ</p>'}
                                                                 </div>
                                                             </div>
                                                         `;
                                                     });
                                                     container.innerHTML = html;
                                                 } else {
-                                                    container.innerHTML = '<div style="text-align:center; padding:40px; color:#ef4444;">' + (res.message || 'កំហុសក្នុងការទាញយកទិន្នន័យ។') + '</div>';
+                                                    container.innerHTML = '<div style="text-align:center; padding:40px; color:#64748b;"><i class="fa-solid fa-box-open" style="font-size:36px; margin-bottom:10px;"></i><br>មិនទាន់មានទិន្នន័យការបោះឆ្នោតនៅឡើយទេ។</div>';
                                                 }
                                             })
                                             .catch(err => {

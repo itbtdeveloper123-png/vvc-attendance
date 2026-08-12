@@ -35,7 +35,6 @@ class VvcLocationPickerBottomSheet extends StatefulWidget {
 }
 
 class _VvcLocationPickerBottomSheetState extends State<VvcLocationPickerBottomSheet> {
-  final String _activeTab = 'Location';
   final TextEditingController _searchController = TextEditingController();
   bool _isSearchActive = false;
 
@@ -304,20 +303,22 @@ class _VvcLocationPickerBottomSheetState extends State<VvcLocationPickerBottomSh
                   ),
                   const SizedBox(height: 8),
                   _buildFloatingMapButton(
-                    icon: Icons.my_location_rounded,
+                    icon: _isLoadingGps ? Icons.sync_rounded : Icons.my_location_rounded,
                     iconColor: _accentColor,
-                    onTap: () async {
-                      setState(() => _isLoadingGps = true);
-                      await _fetchRealGpsLocation();
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('បានចាប់ទីតាំង GPS ថ្មី ៖ $_currentLat, $_currentLng', style: GoogleFonts.kantumruyPro()),
-                            duration: const Duration(seconds: 2),
-                          ),
-                        );
-                      }
-                    },
+                    onTap: _isLoadingGps
+                        ? () {}
+                        : () async {
+                            setState(() => _isLoadingGps = true);
+                            await _fetchRealGpsLocation();
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('បានចាប់ទីតាំង GPS ថ្មី ៖ $_currentLat, $_currentLng', style: GoogleFonts.kantumruyPro()),
+                                  duration: const Duration(seconds: 2),
+                                ),
+                              );
+                            }
+                          },
                   ),
                 ],
               ),
@@ -694,52 +695,4 @@ class _VvcLocationPickerBottomSheetState extends State<VvcLocationPickerBottomSh
       ),
     );
   }
-}
-
-class _DarkMapPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final bgPaint = Paint()..color = const Color(0xFF151D2A);
-    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), bgPaint);
-
-    final roadPaint = Paint()
-      ..color = const Color(0xFF263248)
-      ..strokeWidth = 4.0
-      ..style = PaintingStyle.stroke;
-
-    final mainRoadPaint = Paint()
-      ..color = const Color(0xFF334155)
-      ..strokeWidth = 7.0
-      ..style = PaintingStyle.stroke;
-
-    final riverPaint = Paint()
-      ..color = const Color(0xFF0F2B48)
-      ..strokeWidth = 14.0
-      ..style = PaintingStyle.stroke;
-
-    final riverPath = Path()
-      ..moveTo(0, size.height * 0.2)
-      ..quadraticBezierTo(size.width * 0.4, size.height * 0.5, size.width, size.height * 0.3);
-    canvas.drawPath(riverPath, riverPaint);
-
-    final roadPath1 = Path()
-      ..moveTo(0, size.height * 0.6)
-      ..lineTo(size.width, size.height * 0.4);
-    canvas.drawPath(roadPath1, mainRoadPaint);
-
-    final roadPath2 = Path()
-      ..moveTo(size.width * 0.5, 0)
-      ..lineTo(size.width * 0.4, size.height);
-    canvas.drawPath(roadPath2, mainRoadPaint);
-
-    for (double i = 20; i < size.width; i += 40) {
-      canvas.drawLine(Offset(i, 0), Offset(i + 30, size.height), roadPaint);
-    }
-    for (double i = 20; i < size.height; i += 40) {
-      canvas.drawLine(Offset(0, i), Offset(size.width, i + 20), roadPaint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

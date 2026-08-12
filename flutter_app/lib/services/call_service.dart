@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
 class CallService {
@@ -35,7 +36,7 @@ class CallService {
       
       return callId;
     } catch (e) {
-      print('Error starting call: $e');
+      debugPrint('Error starting call: $e');
       return null;
     }
   }
@@ -47,7 +48,7 @@ class CallService {
         'status': 'accepted',
       });
     } catch (e) {
-      print('Error accepting call: $e');
+      debugPrint('Error accepting call: $e');
     }
   }
 
@@ -58,7 +59,7 @@ class CallService {
         'status': 'ended',
       });
     } catch (e) {
-      print('Error ending call: $e');
+      debugPrint('Error ending call: $e');
     }
   }
 

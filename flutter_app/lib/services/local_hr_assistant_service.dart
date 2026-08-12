@@ -1,10 +1,10 @@
-/// ========================================================
-/// LocalHrAssistantService
-/// ========================================================
-/// Offline-first AI HR Assistant Engine for VVC Attendance App.
-/// Provides instant, 100% free, offline HR policy knowledge,
-/// guidance, small talk, and intent classification in Khmer.
-/// ========================================================
+// ========================================================
+// LocalHrAssistantService
+// ========================================================
+// Offline-first AI HR Assistant Engine for VVC Attendance App.
+// Provides instant, 100% free, offline HR policy knowledge,
+// guidance, small talk, and intent classification in Khmer.
+// ========================================================
 
 class LocalHrResponse {
   final String text;

@@ -462,6 +462,9 @@ class _VvcContextMenuOverlayState extends State<_VvcContextMenuOverlay>
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: isMineRight ? CrossAxisAlignment.end : CrossAxisAlignment.start,
                         children: [
+                          // 0. Quick Reaction Bar
+                          _buildReactionPillBar(_defaultEmojis),
+                          const SizedBox(height: 8.0),
                           // 1. Focused Target Message Bubble Preview
                           constrainedChild,
                           const SizedBox(height: 8.0),
