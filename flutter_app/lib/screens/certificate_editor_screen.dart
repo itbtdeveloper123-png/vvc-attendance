@@ -81,6 +81,43 @@ class CertItem {
   }
 }
 
+/// Canvas State Controller for 120 FPS high-performance isolated rendering
+class CertCanvasController extends ChangeNotifier {
+  final Map<String, CertItem> items = {};
+  String? selectedItemId;
+
+  void selectItem(String? id) {
+    if (selectedItemId != id) {
+      selectedItemId = id;
+      notifyListeners();
+    }
+  }
+
+  void moveItem(String id, double deltaDx, double deltaDy) {
+    final item = items[id];
+    if (item != null) {
+      item.x += deltaDx;
+      item.y += deltaDy;
+      notifyListeners();
+    }
+  }
+
+  void updateItem(String id, CertItem updated) {
+    items[id] = updated;
+    notifyListeners();
+  }
+
+  void setItems(Map<String, CertItem> newItems) {
+    items.clear();
+    items.addAll(newItems);
+    notifyListeners();
+  }
+
+  void requestRebuild() {
+    notifyListeners();
+  }
+}
+
 class CertificateEditorScreen extends StatefulWidget {
   final String recipientName;
   final String recipientGender;
@@ -109,6 +146,7 @@ class CertificateEditorScreen extends StatefulWidget {
 
 class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
   final GlobalKey _previewContainerKey = GlobalKey();
+  final CertCanvasController _canvasController = CertCanvasController();
 
   // Basic Info Form Controllers
   late TextEditingController _nameController;
@@ -136,9 +174,6 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
   bool _showInlineControls = true;
   String _activeTab = 'info'; // 'info', 'style', 'layout', 'text', 'photo'
 
-  // Selected item ID on canvas ('title', 'symbol', 'company', 'praise', 'body', 'lunar_date', 'solar_date', 'sign_role', 'signature', 'sign_name', 'seal', 'photo')
-  String? _selectedItemId;
-
   // Photo state
   String? _activeAvatarUrl;
   File? _pickedAvatarFile;
@@ -149,8 +184,8 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
   // Highlight color for structured body spans
   Color _highlightColor = const Color(0xFF2563EB);
 
-  // All Canvas Elements Map
-  final Map<String, CertItem> _items = {};
+  // Cached TextStyle map for ultra-smooth rendering
+  final Map<String, TextStyle> _textStyleCache = {};
 
   final List<String> _availableFonts = [
     'Tacteing',
@@ -279,12 +314,15 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
     _companyController.dispose();
     _praiseTitleController.dispose();
     _customBodyTextController.dispose();
+    _canvasController.dispose();
     super.dispose();
   }
 
   /// Initialize all individually styleable, draggable elements on the 700x495 canvas.
   void _initCanvasElements() {
-    _items['title'] = CertItem(
+    final Map<String, CertItem> items = {};
+
+    items['title'] = CertItem(
       id: 'title',
       type: 'text',
       title: 'ចំណងជើងធំ',
@@ -298,7 +336,7 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
       width: 400.0,
     );
 
-    _items['symbol'] = CertItem(
+    items['symbol'] = CertItem(
       id: 'symbol',
       type: 'symbol',
       title: 'ក្បាច់ Divider',
@@ -311,7 +349,7 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
       width: 200.0,
     );
 
-    _items['company'] = CertItem(
+    items['company'] = CertItem(
       id: 'company',
       type: 'text',
       title: 'ចំណងជើងក្រុមហ៊ុន',
@@ -325,7 +363,7 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
       width: 520.0,
     );
 
-    _items['praise'] = CertItem(
+    items['praise'] = CertItem(
       id: 'praise',
       type: 'text',
       title: 'ពាក្យលើកសរសើរ',
@@ -339,7 +377,7 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
       width: 400.0,
     );
 
-    _items['body'] = CertItem(
+    items['body'] = CertItem(
       id: 'body',
       type: 'body',
       title: 'អត្ថបទតួសេចក្តី',
@@ -353,7 +391,7 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
       height: 85.0,
     );
 
-    _items['lunar_date'] = CertItem(
+    items['lunar_date'] = CertItem(
       id: 'lunar_date',
       type: 'text',
       title: 'កាលបរិច្ឆេទចន្ទគតិ',
@@ -367,7 +405,7 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
       width: 280.0,
     );
 
-    _items['solar_date'] = CertItem(
+    items['solar_date'] = CertItem(
       id: 'solar_date',
       type: 'text',
       title: 'កាលបរិច្ឆេទសុរិយគតិ',
@@ -381,7 +419,7 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
       width: 280.0,
     );
 
-    _items['sign_role'] = CertItem(
+    items['sign_role'] = CertItem(
       id: 'sign_role',
       type: 'text',
       title: 'តួនាទីអ្នកចុះហត្ថលេខា',
@@ -395,7 +433,7 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
       width: 200.0,
     );
 
-    _items['signature'] = CertItem(
+    items['signature'] = CertItem(
       id: 'signature',
       type: 'signature',
       title: 'រូបហត្ថលេខា',
@@ -406,7 +444,7 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
       height: 38.0,
     );
 
-    _items['sign_name'] = CertItem(
+    items['sign_name'] = CertItem(
       id: 'sign_name',
       type: 'text',
       title: 'ឈ្មោះអ្នកចុះហត្ថលេខា',
@@ -420,7 +458,7 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
       width: 200.0,
     );
 
-    _items['seal'] = CertItem(
+    items['seal'] = CertItem(
       id: 'seal',
       type: 'seal',
       title: 'មេដាយ/Seal កណ្តាល',
@@ -433,7 +471,7 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
       height: 62.0,
     );
 
-    _items['photo'] = CertItem(
+    items['photo'] = CertItem(
       id: 'photo',
       type: 'photo',
       title: 'រូបថតបុគ្គលិក',
@@ -443,18 +481,21 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
       width: 68.0,
       height: 86.0,
     );
+
+    _canvasController.setItems(items);
   }
 
   void _syncControllersToItems() {
-    if (_items.containsKey('title')) _items['title']!.text = _titleController.text;
-    if (_items.containsKey('company')) _items['company']!.text = _companyController.text;
-    if (_items.containsKey('praise')) _items['praise']!.text = _praiseTitleController.text;
-    if (_items.containsKey('body')) _items['body']!.text = _customBodyTextController.text;
-    if (_items.containsKey('lunar_date')) _items['lunar_date']!.text = _lunarDateController.text;
-    if (_items.containsKey('solar_date')) _items['solar_date']!.text = _solarDateController.text;
-    if (_items.containsKey('sign_role')) _items['sign_role']!.text = _signatoryRoleController.text;
-    if (_items.containsKey('sign_name')) _items['sign_name']!.text = _signatoryController.text;
-    if (_items.containsKey('seal')) _items['seal']!.text = _toKhmerDigits('$_workerRank');
+    if (_canvasController.items.containsKey('title')) _canvasController.items['title']!.text = _titleController.text;
+    if (_canvasController.items.containsKey('company')) _canvasController.items['company']!.text = _companyController.text;
+    if (_canvasController.items.containsKey('praise')) _canvasController.items['praise']!.text = _praiseTitleController.text;
+    if (_canvasController.items.containsKey('body')) _canvasController.items['body']!.text = _customBodyTextController.text;
+    if (_canvasController.items.containsKey('lunar_date')) _canvasController.items['lunar_date']!.text = _lunarDateController.text;
+    if (_canvasController.items.containsKey('solar_date')) _canvasController.items['solar_date']!.text = _solarDateController.text;
+    if (_canvasController.items.containsKey('sign_role')) _canvasController.items['sign_role']!.text = _signatoryRoleController.text;
+    if (_canvasController.items.containsKey('sign_name')) _canvasController.items['sign_name']!.text = _signatoryController.text;
+    if (_canvasController.items.containsKey('seal')) _canvasController.items['seal']!.text = _toKhmerDigits('$_workerRank');
+    _canvasController.requestRebuild();
   }
 
   void _onCategoryChanged(String newCat) {
@@ -541,8 +582,8 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
       _customBodyTextController.text =
           'បុគ្គលិកឈ្មោះ $name$gender ជាបុគ្គលិកផ្នែក $dept\nដែលបានខិតខំក្នុងតួនាទីរបស់ខ្លួនបានយ៉ាងល្អក្នុងការបំពេញការងារជូនក្រុមហ៊ុន និងបានជាប់\nជាបុគ្គលិកឆ្នើម លេខ $rankStr នៅឃ្លាំង $location ប្រចាំ $quarter នៃឆ្នាំ $year ៕';
     }
-    if (_items.containsKey('body')) {
-      _items['body']!.text = _customBodyTextController.text;
+    if (_canvasController.items.containsKey('body')) {
+      _canvasController.items['body']!.text = _customBodyTextController.text;
     }
   }
 
@@ -600,98 +641,115 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
     double height = 1.4,
     double? letterSpacing,
   }) {
+    final cacheKey = '$fontFamily-$fontSize-${fontWeight.value}-${color.toARGB32()}-$height-$letterSpacing';
+    if (_textStyleCache.containsKey(cacheKey)) {
+      return _textStyleCache[cacheKey]!;
+    }
+
+    TextStyle style;
     switch (fontFamily.toLowerCase()) {
       case 'moul':
-        return GoogleFonts.moul(
+        style = GoogleFonts.moul(
           fontSize: fontSize,
           fontWeight: fontWeight,
           color: color,
           height: height,
           letterSpacing: letterSpacing,
         );
+        break;
       case 'kantumruy pro':
       case 'kantumruypro':
-        return GoogleFonts.kantumruyPro(
+        style = GoogleFonts.kantumruyPro(
           fontSize: fontSize,
           fontWeight: fontWeight,
           color: color,
           height: height,
           letterSpacing: letterSpacing,
         );
+        break;
       case 'siemreap':
-        return GoogleFonts.siemreap(
+        style = GoogleFonts.siemreap(
           fontSize: fontSize,
           fontWeight: fontWeight,
           color: color,
           height: height,
           letterSpacing: letterSpacing,
         );
+        break;
       case 'bayon':
-        return GoogleFonts.bayon(
+        style = GoogleFonts.bayon(
           fontSize: fontSize,
           fontWeight: fontWeight,
           color: color,
           height: height,
           letterSpacing: letterSpacing,
         );
+        break;
       case 'hanuman':
-        return GoogleFonts.hanuman(
+        style = GoogleFonts.hanuman(
           fontSize: fontSize,
           fontWeight: fontWeight,
           color: color,
           height: height,
           letterSpacing: letterSpacing,
         );
+        break;
       case 'koulen':
-        return GoogleFonts.koulen(
+        style = GoogleFonts.koulen(
           fontSize: fontSize,
           fontWeight: fontWeight,
           color: color,
           height: height,
           letterSpacing: letterSpacing,
         );
+        break;
       case 'bokor':
-        return GoogleFonts.bokor(
+        style = GoogleFonts.bokor(
           fontSize: fontSize,
           fontWeight: fontWeight,
           color: color,
           height: height,
           letterSpacing: letterSpacing,
         );
+        break;
       case 'dangrek':
-        return GoogleFonts.dangrek(
+        style = GoogleFonts.dangrek(
           fontSize: fontSize,
           fontWeight: fontWeight,
           color: color,
           height: height,
           letterSpacing: letterSpacing,
         );
+        break;
       case 'suwannaphum':
-        return GoogleFonts.suwannaphum(
+        style = GoogleFonts.suwannaphum(
           fontSize: fontSize,
           fontWeight: fontWeight,
           color: color,
           height: height,
           letterSpacing: letterSpacing,
         );
+        break;
       case 'chenla':
-        return GoogleFonts.chenla(
+        style = GoogleFonts.chenla(
           fontSize: fontSize,
           fontWeight: fontWeight,
           color: color,
           height: height,
           letterSpacing: letterSpacing,
         );
+        break;
       case 'preahvihear':
-        return GoogleFonts.preahvihear(
+        style = GoogleFonts.preahvihear(
           fontSize: fontSize,
           fontWeight: fontWeight,
           color: color,
           height: height,
           letterSpacing: letterSpacing,
         );
+        break;
       case 'tacteing':
-        return TextStyle(
+        style = TextStyle(
           fontFamily: 'Tacteing',
           fontSize: fontSize,
           fontWeight: fontWeight,
@@ -699,8 +757,9 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
           height: height,
           letterSpacing: letterSpacing,
         );
+        break;
       case 'khmerfont':
-        return TextStyle(
+        style = TextStyle(
           fontFamily: 'KhmerFont',
           fontSize: fontSize,
           fontWeight: fontWeight,
@@ -708,16 +767,21 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
           height: height,
           letterSpacing: letterSpacing,
         );
+        break;
       case 'battambang':
       default:
-        return GoogleFonts.battambang(
+        style = GoogleFonts.battambang(
           fontSize: fontSize,
           fontWeight: fontWeight,
           color: color,
           height: height,
           letterSpacing: letterSpacing,
         );
+        break;
     }
+
+    _textStyleCache[cacheKey] = style;
+    return style;
   }
 
   Future<Uint8List?> _capturePngBytes() async {
@@ -1058,6 +1122,7 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
                             if (item.id == 'sign_role') _signatoryRoleController.text = item.text;
                             if (item.id == 'sign_name') _signatoryController.text = item.text;
                           });
+                          _canvasController.updateItem(item.id, item);
                           Navigator.pop(ctx);
                         },
                         icon: const Icon(Icons.check_circle_rounded, color: Colors.black),
@@ -1123,6 +1188,7 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
                         setState(() {
                           item.fontFamily = f;
                         });
+                        _canvasController.updateItem(item.id, item);
                         Navigator.pop(ctx);
                       },
                     );
@@ -1142,45 +1208,52 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
       context: context,
       barrierColor: Colors.black87,
       builder: (ctx) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return Scaffold(
-              backgroundColor: Colors.black,
-              appBar: AppBar(
-                backgroundColor: Colors.black,
-                elevation: 0,
-                title: Text(
-                  '🔍 កែប្រែពេញអេក្រង់ (Full-Screen Live Editor)',
-                  style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 14.5, fontWeight: FontWeight.bold),
-                ),
-                leading: IconButton(
-                  icon: const Icon(Icons.close_rounded, color: Colors.white),
-                  onPressed: () => Navigator.pop(ctx),
-                ),
-                actions: [
-                  IconButton(
-                    tooltip: 'Share',
-                    icon: const Icon(Icons.share_rounded, color: Colors.cyanAccent),
-                    onPressed: _shareCertificate,
-                  ),
-                  IconButton(
-                    tooltip: 'Print',
-                    icon: const Icon(Icons.print_rounded, color: Colors.amberAccent),
-                    onPressed: _printCertificate,
-                  ),
-                ],
+        return Scaffold(
+          backgroundColor: Colors.black,
+          appBar: AppBar(
+            backgroundColor: Colors.black,
+            elevation: 0,
+            title: Text(
+              '🔍 កែប្រែពេញអេក្រង់ (Full-Screen Live Editor)',
+              style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 14.5, fontWeight: FontWeight.bold),
+            ),
+            leading: IconButton(
+              icon: const Icon(Icons.close_rounded, color: Colors.white),
+              onPressed: () => Navigator.pop(ctx),
+            ),
+            actions: [
+              IconButton(
+                tooltip: 'Share',
+                icon: const Icon(Icons.share_rounded, color: Colors.cyanAccent),
+                onPressed: _shareCertificate,
               ),
-              body: Column(
-                children: [
-                  // Selected item option toolbar inside full screen
-                  if (_selectedItemId != null && _items.containsKey(_selectedItemId))
-                    _buildFloatingToolbar(isFullScreen: true),
-
-                  Expanded(
-                    child: Center(
-                      child: InteractiveViewer(
-                        panEnabled: true,
-                        scaleEnabled: true,
+              IconButton(
+                tooltip: 'Print',
+                icon: const Icon(Icons.print_rounded, color: Colors.amberAccent),
+                onPressed: _printCertificate,
+              ),
+            ],
+          ),
+          body: Column(
+            children: [
+              ListenableBuilder(
+                listenable: _canvasController,
+                builder: (context, _) {
+                  if (_canvasController.selectedItemId != null &&
+                      _canvasController.items.containsKey(_canvasController.selectedItemId)) {
+                    return _buildFloatingToolbar(isFullScreen: true);
+                  }
+                  return const SizedBox.shrink();
+                },
+              ),
+              Expanded(
+                child: Center(
+                  child: ListenableBuilder(
+                    listenable: _canvasController,
+                    builder: (context, _) {
+                      return InteractiveViewer(
+                        panEnabled: _canvasController.selectedItemId == null,
+                        scaleEnabled: _canvasController.selectedItemId == null,
                         minScale: 0.7,
                         maxScale: 3.0,
                         child: Padding(
@@ -1190,13 +1263,13 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
                             child: _buildInteractiveCanvas(isFullScreen: true),
                           ),
                         ),
-                      ),
-                    ),
+                      );
+                    },
                   ),
-                ],
+                ),
               ),
-            );
-          },
+            ],
+          ),
         );
       },
     );
@@ -1381,14 +1454,14 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
 
             const SizedBox(height: 10),
 
-            // Preview Header Bar (With Interactive Quick Tools)
+            // Preview Header Bar
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 14),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    '👆 ចុច ឬអូសលើអក្សរផ្ទាល់ដើម្បីកែប្រែ (Live Canvas Editor)',
+                    '👆 ចុច ឬអូសលើអក្សរផ្ទាល់ដើម្បីកែប្រែ (Live Smooth Drag)',
                     style: GoogleFonts.kantumruyPro(
                       color: Colors.white70,
                       fontSize: 12.0,
@@ -1425,9 +1498,17 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
             ),
             const SizedBox(height: 8),
 
-            // Live Floating Context Toolbar for Selected Element
-            if (_selectedItemId != null && _items.containsKey(_selectedItemId))
-              _buildFloatingToolbar(isFullScreen: false),
+            // Floating Context Toolbar for Selected Element
+            ListenableBuilder(
+              listenable: _canvasController,
+              builder: (context, _) {
+                if (_canvasController.selectedItemId != null &&
+                    _canvasController.items.containsKey(_canvasController.selectedItemId)) {
+                  return _buildFloatingToolbar(isFullScreen: false);
+                }
+                return const SizedBox.shrink();
+              },
+            ),
 
             // Live Interactive Certificate Canvas Box (A4 Aspect Ratio: 1.414)
             Padding(
@@ -1539,7 +1620,8 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
 
   /// Floating Context Toolbar displayed above the canvas when an element is selected
   Widget _buildFloatingToolbar({required bool isFullScreen}) {
-    final item = _items[_selectedItemId];
+    final selectedId = _canvasController.selectedItemId;
+    final item = selectedId != null ? _canvasController.items[selectedId] : null;
     if (item == null) return const SizedBox.shrink();
 
     return Container(
@@ -1607,9 +1689,10 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
             if (item.type != 'photo' && item.type != 'signature') ...[
               InkWell(
                 onTap: () {
-                  setState(() {
-                    if (item.fontSize > 7) item.fontSize -= 1;
-                  });
+                  if (item.fontSize > 7) {
+                    item.fontSize -= 1;
+                    _canvasController.updateItem(item.id, item);
+                  }
                 },
                 child: Container(
                   padding: const EdgeInsets.all(6),
@@ -1620,9 +1703,10 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
               const SizedBox(width: 4),
               InkWell(
                 onTap: () {
-                  setState(() {
-                    if (item.fontSize < 50) item.fontSize += 1;
-                  });
+                  if (item.fontSize < 50) {
+                    item.fontSize += 1;
+                    _canvasController.updateItem(item.id, item);
+                  }
                 },
                 child: Container(
                   padding: const EdgeInsets.all(6),
@@ -1638,9 +1722,8 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
               tooltip: 'តម្រឹមចំកណ្តាល',
               icon: const Icon(Icons.align_horizontal_center_rounded, color: Colors.amberAccent, size: 18),
               onPressed: () {
-                setState(() {
-                  item.x = 350.0;
-                });
+                item.x = 350.0;
+                _canvasController.updateItem(item.id, item);
               },
             ),
 
@@ -1657,7 +1740,7 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
             IconButton(
               tooltip: 'បិទ',
               icon: const Icon(Icons.close_rounded, color: Colors.white54, size: 16),
-              onPressed: () => setState(() => _selectedItemId = null),
+              onPressed: () => _canvasController.selectItem(null),
             ),
           ],
         ),
@@ -1684,109 +1767,111 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            // 1. Background Frame Template
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.asset(
-                _selectedTemplateAsset,
-                fit: BoxFit.fill,
-                errorBuilder: (ctx, err, stack) => Container(
-                  color: Colors.white,
-                  child: const Center(
-                    child: Icon(Icons.workspace_premium_rounded, size: 80, color: Colors.amber),
+            // 1. Background Frame Template (Cached in GPU layer)
+            RepaintBoundary(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.asset(
+                  _selectedTemplateAsset,
+                  fit: BoxFit.fill,
+                  gaplessPlayback: true,
+                  errorBuilder: (ctx, err, stack) => Container(
+                    color: Colors.white,
+                    child: const Center(
+                      child: Icon(Icons.workspace_premium_rounded, size: 80, color: Colors.amber),
+                    ),
                   ),
                 ),
               ),
             ),
 
-            // 2. Individual Draggable, Tappable, Stylable Canvas Elements
+            // 2. Isolated Canvas Layer - updates smoothly at 120 FPS
             LayoutBuilder(
               builder: (context, constraints) {
                 final baseWidth = constraints.maxWidth;
                 final scale = baseWidth / 700.0;
 
                 return GestureDetector(
-                  onTap: () => setState(() => _selectedItemId = null),
+                  onTap: () => _canvasController.selectItem(null),
                   behavior: HitTestBehavior.translucent,
-                  child: Stack(
-                    children: _items.values.map((item) {
-                      if (!item.isVisible) return const SizedBox.shrink();
+                  child: ListenableBuilder(
+                    listenable: _canvasController,
+                    builder: (context, _) {
+                      return Stack(
+                        children: _canvasController.items.values.map((item) {
+                          if (!item.isVisible) return const SizedBox.shrink();
 
-                      final bool isSelected = _selectedItemId == item.id;
-                      final double renderX = item.x * scale;
-                      final double renderY = item.y * scale;
+                          final bool isSelected = _canvasController.selectedItemId == item.id;
+                          final double renderX = item.x * scale;
+                          final double renderY = item.y * scale;
 
-                      Widget elementWidget;
+                          Widget elementWidget;
 
-                      switch (item.type) {
-                        case 'body':
-                          elementWidget = _buildBodyElementWidget(item, scale);
-                          break;
-                        case 'seal':
-                          elementWidget = _buildSealElementWidget(item, scale, isSelected);
-                          break;
-                        case 'photo':
-                          elementWidget = _buildPhotoElementWidget(item, scale, isSelected);
-                          break;
-                        case 'signature':
-                          elementWidget = Image.asset(
-                            item.text,
+                          switch (item.type) {
+                            case 'body':
+                              elementWidget = _buildBodyElementWidget(item, scale);
+                              break;
+                            case 'seal':
+                              elementWidget = _buildSealElementWidget(item, scale, isSelected);
+                              break;
+                            case 'photo':
+                              elementWidget = _buildPhotoElementWidget(item, scale, isSelected);
+                              break;
+                            case 'signature':
+                              elementWidget = Image.asset(
+                                item.text,
+                                width: item.width * scale,
+                                height: item.height * scale,
+                                fit: BoxFit.contain,
+                                gaplessPlayback: true,
+                                errorBuilder: (_, __, ___) => SizedBox(width: item.width * scale, height: item.height * scale),
+                              );
+                              break;
+                            case 'symbol':
+                            case 'text':
+                            default:
+                              elementWidget = Text(
+                                item.text,
+                                textAlign: item.textAlign,
+                                style: _getKhmerTextStyle(
+                                  fontFamily: item.fontFamily,
+                                  fontSize: item.fontSize * scale,
+                                  fontWeight: item.fontWeight,
+                                  color: item.color,
+                                ),
+                              );
+                              break;
+                          }
+
+                          return Positioned(
+                            left: renderX - (item.width * scale) / 2,
+                            top: renderY - (item.height * scale) / 2,
                             width: item.width * scale,
-                            height: item.height * scale,
-                            fit: BoxFit.contain,
-                            errorBuilder: (_, __, ___) => SizedBox(width: item.width * scale, height: item.height * scale),
-                          );
-                          break;
-                        case 'symbol':
-                        case 'text':
-                        default:
-                          elementWidget = Text(
-                            item.text,
-                            textAlign: item.textAlign,
-                            style: _getKhmerTextStyle(
-                              fontFamily: item.fontFamily,
-                              fontSize: item.fontSize * scale,
-                              fontWeight: item.fontWeight,
-                              color: item.color,
+                            child: GestureDetector(
+                              onTap: () => _canvasController.selectItem(item.id),
+                              onDoubleTap: () => _openElementEditForm(item),
+                              onPanStart: (_) => _canvasController.selectItem(item.id),
+                              onPanUpdate: (details) {
+                                _canvasController.moveItem(item.id, details.delta.dx / scale, details.delta.dy / scale);
+                              },
+                              child: Container(
+                                alignment: item.textAlign == TextAlign.left
+                                    ? Alignment.centerLeft
+                                    : (item.textAlign == TextAlign.right ? Alignment.centerRight : Alignment.center),
+                                decoration: isSelected
+                                    ? BoxDecoration(
+                                        border: Border.all(color: Colors.amberAccent, width: 2),
+                                        borderRadius: BorderRadius.circular(6),
+                                        color: Colors.amberAccent.withValues(alpha: 0.08),
+                                      )
+                                    : null,
+                                child: elementWidget,
+                              ),
                             ),
                           );
-                          break;
-                      }
-
-                      return Positioned(
-                        left: renderX - (item.width * scale) / 2,
-                        top: renderY - (item.height * scale) / 2,
-                        width: item.width * scale,
-                        child: GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              _selectedItemId = item.id;
-                            });
-                          },
-                          onDoubleTap: () => _openElementEditForm(item),
-                          onPanUpdate: (details) {
-                            setState(() {
-                              _selectedItemId = item.id;
-                              item.x += details.delta.dx / scale;
-                              item.y += details.delta.dy / scale;
-                            });
-                          },
-                          child: Container(
-                            alignment: item.textAlign == TextAlign.left
-                                ? Alignment.centerLeft
-                                : (item.textAlign == TextAlign.right ? Alignment.centerRight : Alignment.center),
-                            decoration: isSelected
-                                ? BoxDecoration(
-                                    border: Border.all(color: Colors.amberAccent, width: 2),
-                                    borderRadius: BorderRadius.circular(6),
-                                    color: Colors.amberAccent.withValues(alpha: 0.08),
-                                  )
-                                : null,
-                            child: elementWidget,
-                          ),
-                        ),
+                        }).toList(),
                       );
-                    }).toList(),
+                    },
                   ),
                 );
               },
@@ -2305,14 +2390,14 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
         Wrap(
           spacing: 8,
           runSpacing: 8,
-          children: _items.values.map((item) {
-            final isSel = _selectedItemId == item.id;
+          children: _canvasController.items.values.map((item) {
+            final isSel = _canvasController.selectedItemId == item.id;
             return ActionChip(
               avatar: Icon(Icons.edit_note_rounded, size: 14, color: isSel ? Colors.black : Colors.amberAccent),
               label: Text(item.title, style: GoogleFonts.kantumruyPro(fontSize: 11.5, color: isSel ? Colors.black : Colors.white)),
               backgroundColor: isSel ? Colors.amberAccent : Colors.white10,
               onPressed: () {
-                setState(() => _selectedItemId = item.id);
+                _canvasController.selectItem(item.id);
                 _openElementEditForm(item);
               },
             );
@@ -2354,8 +2439,8 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
   }
 
   Widget _buildLayoutTabContent() {
-    final sealItem = _items['seal'];
-    final signItem = _items['sign_name'];
+    final sealItem = _canvasController.items['seal'];
+    final signItem = _canvasController.items['sign_name'];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2382,7 +2467,10 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
             min: 200.0,
             max: 460.0,
             activeColor: Colors.amberAccent,
-            onChanged: (v) => setState(() => sealItem.y = v),
+            onChanged: (v) {
+              sealItem.y = v;
+              _canvasController.updateItem('seal', sealItem);
+            },
           ),
         ],
 
@@ -2400,14 +2488,25 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
             max: 470.0,
             activeColor: Colors.amberAccent,
             onChanged: (v) {
-              setState(() {
-                final diff = v - signItem.y;
-                signItem.y = v;
-                if (_items.containsKey('signature')) _items['signature']!.y += diff;
-                if (_items.containsKey('sign_role')) _items['sign_role']!.y += diff;
-                if (_items.containsKey('solar_date')) _items['solar_date']!.y += diff;
-                if (_items.containsKey('lunar_date')) _items['lunar_date']!.y += diff;
-              });
+              final diff = v - signItem.y;
+              signItem.y = v;
+              _canvasController.updateItem('sign_name', signItem);
+              if (_canvasController.items.containsKey('signature')) {
+                _canvasController.items['signature']!.y += diff;
+                _canvasController.updateItem('signature', _canvasController.items['signature']!);
+              }
+              if (_canvasController.items.containsKey('sign_role')) {
+                _canvasController.items['sign_role']!.y += diff;
+                _canvasController.updateItem('sign_role', _canvasController.items['sign_role']!);
+              }
+              if (_canvasController.items.containsKey('solar_date')) {
+                _canvasController.items['solar_date']!.y += diff;
+                _canvasController.updateItem('solar_date', _canvasController.items['solar_date']!);
+              }
+              if (_canvasController.items.containsKey('lunar_date')) {
+                _canvasController.items['lunar_date']!.y += diff;
+                _canvasController.updateItem('lunar_date', _canvasController.items['lunar_date']!);
+              }
             },
           ),
         ],
