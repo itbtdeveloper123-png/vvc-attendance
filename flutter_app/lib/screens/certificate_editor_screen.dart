@@ -1,9 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_khmer_chankitec/flutter_khmer_chankitec.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
@@ -219,6 +220,8 @@ class CertificateEditorScreen extends StatefulWidget {
 class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
   final GlobalKey _previewContainerKey = GlobalKey();
   final CertCanvasController _canvasController = CertCanvasController();
+  final FocusNode _keyboardFocusNode = FocusNode();
+  Timer? _autoSaveDebounceTimer;
 
   // Basic Info Form Controllers
   late TextEditingController _nameController;
@@ -305,9 +308,68 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
     {'key': 'warehouse_psp', 'name': 'ឃ្លាំង PSP', 'type': 'worker'},
   ];
 
+  void _onCanvasChanged() {
+    _scheduleAutoSave();
+  }
+
+  void _scheduleAutoSave() {
+    _autoSaveDebounceTimer?.cancel();
+    _autoSaveDebounceTimer = Timer(const Duration(milliseconds: 500), () {
+      _saveCertificateToStorage(showToast: false);
+    });
+  }
+
+  KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is KeyDownEvent || event is KeyRepeatEvent) {
+      final bool isShiftPressed = HardwareKeyboard.instance.isShiftPressed;
+      final double step = isShiftPressed ? 10.0 : 2.0;
+      final selectedId = _canvasController.selectedItemId;
+
+      if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+        if (selectedId != null) {
+          _canvasController.nudge(selectedId, 0, -step);
+          return KeyEventResult.handled;
+        } else if (_canvasController.layerOrder.isNotEmpty) {
+          _canvasController.selectItem(_canvasController.layerOrder.last);
+          return KeyEventResult.handled;
+        }
+      } else if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+        if (selectedId != null) {
+          _canvasController.nudge(selectedId, 0, step);
+          return KeyEventResult.handled;
+        } else if (_canvasController.layerOrder.isNotEmpty) {
+          _canvasController.selectItem(_canvasController.layerOrder.first);
+          return KeyEventResult.handled;
+        }
+      } else if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+        if (selectedId != null) {
+          _canvasController.nudge(selectedId, -step, 0);
+          return KeyEventResult.handled;
+        }
+      } else if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+        if (selectedId != null) {
+          _canvasController.nudge(selectedId, step, 0);
+          return KeyEventResult.handled;
+        }
+      } else if (event.logicalKey == LogicalKeyboardKey.tab) {
+        if (_canvasController.layerOrder.isNotEmpty) {
+          final currentIdx = selectedId == null ? -1 : _canvasController.layerOrder.indexOf(selectedId);
+          final nextIdx = (currentIdx + 1) % _canvasController.layerOrder.length;
+          _canvasController.selectItem(_canvasController.layerOrder[nextIdx]);
+          return KeyEventResult.handled;
+        }
+      } else if (event.logicalKey == LogicalKeyboardKey.escape) {
+        _canvasController.selectItem(null);
+        return KeyEventResult.handled;
+      }
+    }
+    return KeyEventResult.ignored;
+  }
+
   @override
   void initState() {
     super.initState();
+    _canvasController.addListener(_onCanvasChanged);
     _workerRank = widget.rankNumber;
 
     final initCat = widget.initialCategory.toLowerCase();
@@ -372,6 +434,9 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
 
   @override
   void dispose() {
+    _autoSaveDebounceTimer?.cancel();
+    _canvasController.removeListener(_onCanvasChanged);
+    _keyboardFocusNode.dispose();
     _nameController.dispose();
     _genderController.dispose();
     _deptController.dispose();
@@ -1502,39 +1567,59 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
                       ),
                       const SizedBox(height: 10),
 
-                      // Live Rendered Preview Card
+                      // Live Rendered Preview Card (White background like real certificate)
                       Container(
                         width: double.infinity,
-                        padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF0F172A),
+                          color: Colors.cyanAccent.withValues(alpha: 0.08),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.white12),
+                          border: Border.all(color: Colors.cyanAccent.withValues(alpha: 0.4)),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Row(
-                              children: [
-                                const Icon(Icons.visibility_rounded, color: Colors.cyanAccent, size: 14),
-                                const SizedBox(width: 6),
-                                Text(
-                                  'គំរូអត្ថបទជាក់ស្តែង (Live Rendered Preview):',
-                                  style: GoogleFonts.kantumruyPro(color: Colors.cyanAccent, fontSize: 11, fontWeight: FontWeight.bold),
-                                ),
-                              ],
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.visibility_rounded, color: Colors.cyanAccent, size: 14),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'គំរូអត្ថបទជាក់ស្តែង (Live Preview on Certificate):',
+                                    style: GoogleFonts.kantumruyPro(color: Colors.cyanAccent, fontSize: 11, fontWeight: FontWeight.bold),
+                                  ),
+                                ],
+                              ),
                             ),
-                            const SizedBox(height: 8),
-                            RichText(
-                              textAlign: currentAlign,
-                              text: TextSpan(
-                                children: _parseRichTextSpans(
-                                  rawText: textEditCtrl.text,
-                                  baseFontFamily: selectedFont,
-                                  baseFontSize: currentFontSize,
-                                  baseColor: currentColor == Colors.black ? Colors.white : currentColor,
-                                  baseFontWeight: currentWeight,
-                                  scale: 1.0,
+                            // White card simulating real certificate background
+                            Container(
+                              width: double.infinity,
+                              margin: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(8),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.2),
+                                    blurRadius: 6,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: RichText(
+                                textAlign: currentAlign,
+                                text: TextSpan(
+                                  children: _parseRichTextSpans(
+                                    rawText: textEditCtrl.text,
+                                    baseFontFamily: selectedFont,
+                                    baseFontSize: currentFontSize.clamp(10.0, 18.0),
+                                    baseColor: (currentColor == Colors.white || currentColor == const Color(0xFFFFFFFF))
+                                        ? Colors.black87
+                                        : currentColor,
+                                    baseFontWeight: currentWeight,
+                                    scale: 1.0,
+                                  ),
                                 ),
                               ),
                             ),
@@ -1886,10 +1971,20 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (Responsive.isDesktop(context) || Responsive.isTablet(context)) {
-      return _buildDesktopStudioLayout();
-    }
-    return _buildMobileLayout();
+    return PopScope(
+      canPop: true,
+      onPopInvokedWithResult: (didPop, result) async {
+        await _saveCertificateToStorage(showToast: false);
+      },
+      child: Focus(
+        focusNode: _keyboardFocusNode,
+        autofocus: true,
+        onKeyEvent: _handleKeyEvent,
+        child: (Responsive.isDesktop(context) || Responsive.isTablet(context))
+            ? _buildDesktopStudioLayout()
+            : _buildMobileLayout(),
+      ),
+    );
   }
 
   Widget _buildDesktopStudioLayout() {
@@ -1923,7 +2018,10 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
         ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () async {
+            await _saveCertificateToStorage(showToast: false);
+            if (mounted) Navigator.pop(context);
+          },
         ),
         actions: [
           IconButton(
@@ -2220,7 +2318,10 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
         ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () async {
+            await _saveCertificateToStorage(showToast: false);
+            if (mounted) Navigator.pop(context);
+          },
         ),
         actions: [
           IconButton(
@@ -2775,7 +2876,10 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
                 final scale = baseWidth / 700.0;
 
                 return GestureDetector(
-                  onTap: () => _canvasController.selectItem(null),
+                  onTap: () {
+                    _keyboardFocusNode.requestFocus();
+                    _canvasController.selectItem(null);
+                  },
                   behavior: HitTestBehavior.translucent,
                   child: ListenableBuilder(
                     listenable: _canvasController,
@@ -2835,9 +2939,15 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
                             top: renderY - (item.height * scale) / 2,
                             width: item.width * scale,
                             child: GestureDetector(
-                              onTap: () => _canvasController.selectItem(item.id),
+                              onTap: () {
+                                _keyboardFocusNode.requestFocus();
+                                _canvasController.selectItem(item.id);
+                              },
                               onDoubleTap: () => _openElementEditForm(item),
-                              onPanStart: (_) => _canvasController.selectItem(item.id),
+                              onPanStart: (_) {
+                                _keyboardFocusNode.requestFocus();
+                                _canvasController.selectItem(item.id);
+                              },
                               onPanUpdate: (details) {
                                 _canvasController.moveItem(item.id, details.delta.dx / scale, details.delta.dy / scale);
                               },
