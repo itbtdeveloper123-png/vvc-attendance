@@ -13,6 +13,7 @@ import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
 import '../services/api_service.dart';
 import '../utils/app_theme.dart';
+import '../widgets/responsive_layout.dart';
 import '../widgets/vvc_global_alert.dart';
 
 /// Class representing an individually editable, styleable, and draggable element on the Certificate Canvas.
@@ -81,10 +82,12 @@ class CertItem {
   }
 }
 
-/// Canvas State Controller for 120 FPS high-performance isolated rendering
+/// Canvas State Controller for 120 FPS high-performance isolated rendering & Photoshop-style Layers
 class CertCanvasController extends ChangeNotifier {
   final Map<String, CertItem> items = {};
+  final List<String> layerOrder = [];
   String? selectedItemId;
+  double nudgeStep = 2.0; // 1.0, 2.0, 5.0, 10.0
 
   void selectItem(String? id) {
     if (selectedItemId != id) {
@@ -102,6 +105,32 @@ class CertCanvasController extends ChangeNotifier {
     }
   }
 
+  void nudge(String id, double dx, double dy) {
+    final item = items[id];
+    if (item != null) {
+      item.x += dx;
+      item.y += dy;
+      notifyListeners();
+    }
+  }
+
+  void toggleVisibility(String id) {
+    final item = items[id];
+    if (item != null) {
+      item.isVisible = !item.isVisible;
+      notifyListeners();
+    }
+  }
+
+  void reorderLayers(int oldIndex, int newIndex) {
+    if (oldIndex < newIndex) {
+      newIndex -= 1;
+    }
+    final id = layerOrder.removeAt(oldIndex);
+    layerOrder.insert(newIndex, id);
+    notifyListeners();
+  }
+
   void updateItem(String id, CertItem updated) {
     items[id] = updated;
     notifyListeners();
@@ -110,6 +139,8 @@ class CertCanvasController extends ChangeNotifier {
   void setItems(Map<String, CertItem> newItems) {
     items.clear();
     items.addAll(newItems);
+    layerOrder.clear();
+    layerOrder.addAll(newItems.keys);
     notifyListeners();
   }
 
@@ -172,7 +203,7 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
   DateTime _selectedDate = DateTime(2026, 8, 5);
   bool _isGeneratingPdf = false;
   bool _showInlineControls = true;
-  String _activeTab = 'info'; // 'info', 'style', 'layout', 'text', 'photo'
+  String _activeTab = 'layers'; // 'layers', 'nudge', 'info', 'style', 'text', 'photo'
 
   // Photo state
   String? _activeAvatarUrl;
@@ -784,6 +815,37 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
     return style;
   }
 
+  IconData _getLayerIcon(String type) {
+    switch (type) {
+      case 'title':
+        return Icons.title_rounded;
+      case 'symbol':
+        return Icons.auto_awesome_rounded;
+      case 'company':
+        return Icons.business_rounded;
+      case 'praise':
+        return Icons.military_tech_rounded;
+      case 'body':
+        return Icons.article_rounded;
+      case 'lunar_date':
+        return Icons.nights_stay_rounded;
+      case 'solar_date':
+        return Icons.wb_sunny_rounded;
+      case 'sign_role':
+        return Icons.badge_rounded;
+      case 'signature':
+        return Icons.draw_rounded;
+      case 'sign_name':
+        return Icons.person_pin_rounded;
+      case 'seal':
+        return Icons.workspace_premium_rounded;
+      case 'photo':
+        return Icons.image_rounded;
+      default:
+        return Icons.layers_rounded;
+    }
+  }
+
   Future<Uint8List?> _capturePngBytes() async {
     try {
       final RenderRepaintBoundary boundary =
@@ -1277,6 +1339,316 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (Responsive.isDesktop(context) || Responsive.isTablet(context)) {
+      return _buildDesktopStudioLayout();
+    }
+    return _buildMobileLayout();
+  }
+
+  Widget _buildDesktopStudioLayout() {
+    return Scaffold(
+      backgroundColor: const Color(0xFF090D16),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF0F172A),
+        elevation: 1,
+        title: Row(
+          children: [
+            const Icon(Icons.workspace_premium_rounded, color: Colors.amberAccent, size: 24),
+            const SizedBox(width: 10),
+            Text(
+              'Certificate Studio Pro (Desktop Enterprise)',
+              style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 16),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.amberAccent.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: Colors.amberAccent.withValues(alpha: 0.4)),
+              ),
+              child: Text(
+                'A4 LANDSCAPE',
+                style: GoogleFonts.outfit(color: Colors.amberAccent, fontSize: 10, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+        actions: [
+          IconButton(
+            tooltip: 'ពេញអេក្រង់ (Full Screen)',
+            icon: const Icon(Icons.fullscreen_rounded, color: Colors.amberAccent, size: 24),
+            onPressed: _openFullScreenViewer,
+          ),
+          IconButton(
+            tooltip: 'ចែករំលែក (Share)',
+            icon: const Icon(Icons.share_rounded, color: Colors.cyanAccent),
+            onPressed: _isGeneratingPdf ? null : _shareCertificate,
+          ),
+          const SizedBox(width: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+            child: ElevatedButton.icon(
+              onPressed: _isGeneratingPdf ? null : _printCertificate,
+              icon: _isGeneratingPdf
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
+                  : const Icon(Icons.print_rounded, size: 18, color: Colors.black),
+              label: Text(
+                _isGeneratingPdf ? 'កំពុងរៀបចំ...' : '🖨️ បោះពុម្ព A4 PDF',
+                style: GoogleFonts.kantumruyPro(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.amberAccent,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+        ],
+      ),
+      body: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Left Studio Stage (Canvas + Quick Bar + Template Bar)
+          Expanded(
+            flex: 3,
+            child: Container(
+              color: const Color(0xFF090D16),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Top Category & Location Chips Row
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF111E33),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.white10),
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: _buildCategoryHeaderTab(
+                                    key: 'head_office',
+                                    label: '🏢 ការិយាល័យកណ្តាល',
+                                    isSelected: _selectedCategory == 'head_office',
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: _buildCategoryHeaderTab(
+                                    key: 'warehouse',
+                                    label: '🏬 ឃ្លាំង',
+                                    isSelected: _selectedCategory == 'warehouse',
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: _buildCategoryHeaderTab(
+                                    key: 'worker',
+                                    label: '👷‍♂️ កម្មករ (PSP/PRV)',
+                                    isSelected: _selectedCategory == 'worker',
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Quick Location Filter Chips
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0F1A2E),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.white10),
+                      ),
+                      child: Row(
+                        children: [
+                          Text('ទីតាំង/ឃ្លាំង: ', style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Row(
+                                children: _standardLocations.map((loc) {
+                                  final bool isLocActive = _locationController.text == loc['name'] ||
+                                      (_locationController.text == 'ព្រៃស្ពឺ(PSP)' && loc['name'] == 'ឃ្លាំង PSP') ||
+                                      (_locationController.text == 'ការិយាល័យកណ្តាល' && loc['name'] == 'ការិយាល័យកណ្តាល');
+                                  return Padding(
+                                    padding: const EdgeInsets.only(right: 6),
+                                    child: FilterChip(
+                                      label: Text(loc['name']!, style: GoogleFonts.kantumruyPro(color: isLocActive ? Colors.black : Colors.white, fontSize: 11.5, fontWeight: isLocActive ? FontWeight.bold : FontWeight.normal)),
+                                      selected: isLocActive,
+                                      selectedColor: Colors.amberAccent,
+                                      backgroundColor: Colors.white.withValues(alpha: 0.07),
+                                      checkmarkColor: Colors.black,
+                                      onSelected: (_) => _selectStandardLocation(loc),
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+
+                    // Floating Context Toolbar for Selected Element
+                    ListenableBuilder(
+                      listenable: _canvasController,
+                      builder: (context, _) {
+                        if (_canvasController.selectedItemId != null &&
+                            _canvasController.items.containsKey(_canvasController.selectedItemId)) {
+                          return _buildFloatingToolbar(isFullScreen: false);
+                        }
+                        return const SizedBox.shrink();
+                      },
+                    ),
+
+                    // Live Certificate Canvas (A4 Aspect Ratio: 1.414)
+                    Center(
+                      child: Container(
+                        constraints: const BoxConstraints(maxWidth: 820),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.7),
+                              blurRadius: 28,
+                              offset: const Offset(0, 10),
+                            ),
+                          ],
+                        ),
+                        child: AspectRatio(
+                          aspectRatio: 1.414,
+                          child: _buildInteractiveCanvas(isFullScreen: false),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Frame Template Carousel at the bottom of the canvas stage
+                    Text('🖼️ ជ្រើសរើសស៊ុមគំរូ (Certificate Frame Templates):', style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 12.5, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      height: 72,
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: _templates.length,
+                        itemBuilder: (context, idx) {
+                          final t = _templates[idx];
+                          final isSelected = _selectedTemplateAsset == t['path'];
+                          return GestureDetector(
+                            onTap: () => setState(() => _selectedTemplateAsset = t['path']!),
+                            child: Container(
+                              margin: const EdgeInsets.only(right: 10),
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF111E33),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: isSelected ? Colors.amberAccent : Colors.white12, width: isSelected ? 2 : 1),
+                              ),
+                              child: Row(
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(6),
+                                    child: Image.asset(t['path']!, width: 62, height: 48, fit: BoxFit.cover),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(t['name']!, style: GoogleFonts.kantumruyPro(color: isSelected ? Colors.amberAccent : Colors.white70, fontSize: 11.5, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+                                  if (isSelected) ...[
+                                    const SizedBox(width: 6),
+                                    const Icon(Icons.check_circle_rounded, color: Colors.amberAccent, size: 16),
+                                  ],
+                                  const SizedBox(width: 4),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // Right Inspector Sidebar (Tools, Layers, D-Pad, Form)
+          Expanded(
+            flex: 2,
+            child: Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F172A),
+                border: Border(
+                  left: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+                ),
+              ),
+              child: Column(
+                children: [
+                  // Tab Navigation Header
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0A101D),
+                      border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.06))),
+                    ),
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          _buildSubNavTab('layers', '📚 ស្រទាប់', Icons.layers_rounded),
+                          _buildSubNavTab('nudge', '🕹️ D-Pad', Icons.control_camera_rounded),
+                          _buildSubNavTab('info', '📝 ទិន្នន័យ', Icons.badge_outlined),
+                          _buildSubNavTab('style', '🎨 Font & ពណ៌', Icons.text_fields_rounded),
+                          _buildSubNavTab('text', '✍️ អត្ថបទ', Icons.edit_note_rounded),
+                          _buildSubNavTab('photo', '🖼️ រូបថត', Icons.photo_library_outlined),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // Scrollable Inspector Body
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(18),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (_activeTab == 'layers') _buildLayersTabContent(),
+                          if (_activeTab == 'nudge') _buildNudgeTabContent(),
+                          if (_activeTab == 'info') _buildInfoTabContent(),
+                          if (_activeTab == 'style') _buildStyleTabContent(),
+                          if (_activeTab == 'text') _buildTextTabContent(),
+                          if (_activeTab == 'photo') _buildPhotoTabContent(),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMobileLayout() {
     return Scaffold(
       backgroundColor: AppTheme.bgDark,
       appBar: AppBar(
@@ -1461,7 +1833,7 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    '👆 ចុច ឬអូសលើអក្សរផ្ទាល់ដើម្បីកែប្រែ (Live Smooth Drag)',
+                    '👆 ចុច ឬសារ៉េលើអក្សរផ្ទាល់ (Photoshop Canvas & Layers)',
                     style: GoogleFonts.kantumruyPro(
                       color: Colors.white70,
                       fontSize: 12.0,
@@ -1521,7 +1893,7 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
 
             const SizedBox(height: 14),
 
-            // Customization Control Center (Tabs: Info, Style, Layout, Text, Photo)
+            // Customization Control Center (Tabs: Layers, Nudge/D-Pad, Info, Style, Text, Photo)
             if (_showInlineControls)
               Container(
                 margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -1540,21 +1912,26 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
                         color: Colors.black.withValues(alpha: 0.25),
                         borderRadius: BorderRadius.circular(14),
                       ),
-                      child: Row(
-                        children: [
-                          _buildSubNavTab('info', '📝 ទិន្នន័យ', Icons.badge_outlined),
-                          _buildSubNavTab('style', '🎨 Font & ពណ៌', Icons.text_fields_rounded),
-                          _buildSubNavTab('layout', '📐 ទីតាំង/Seal', Icons.open_with_rounded),
-                          _buildSubNavTab('text', '✍️ អត្ថបទសេរី', Icons.edit_note_rounded),
-                          _buildSubNavTab('photo', '🖼️ រូបថត', Icons.photo_library_outlined),
-                        ],
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            _buildSubNavTab('layers', '📚 ស្រទាប់ Layers', Icons.layers_rounded),
+                            _buildSubNavTab('nudge', '🕹️ ប៊ូតុងសារ៉េ D-Pad', Icons.control_camera_rounded),
+                            _buildSubNavTab('info', '📝 ទិន្នន័យ', Icons.badge_outlined),
+                            _buildSubNavTab('style', '🎨 Font & ពណ៌', Icons.text_fields_rounded),
+                            _buildSubNavTab('text', '✍️ អត្ថបទសេរី', Icons.edit_note_rounded),
+                            _buildSubNavTab('photo', '🖼️ រូបថត', Icons.photo_library_outlined),
+                          ],
+                        ),
                       ),
                     ),
                     const SizedBox(height: 16),
 
+                    if (_activeTab == 'layers') _buildLayersTabContent(),
+                    if (_activeTab == 'nudge') _buildNudgeTabContent(),
                     if (_activeTab == 'info') _buildInfoTabContent(),
                     if (_activeTab == 'style') _buildStyleTabContent(),
-                    if (_activeTab == 'layout') _buildLayoutTabContent(),
                     if (_activeTab == 'text') _buildTextTabContent(),
                     if (_activeTab == 'photo') _buildPhotoTabContent(),
                   ],
@@ -1650,9 +2027,15 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
                 color: Colors.amberAccent,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Text(
-                item.title,
-                style: GoogleFonts.kantumruyPro(color: Colors.black, fontSize: 11, fontWeight: FontWeight.bold),
+              child: Row(
+                children: [
+                  Icon(_getLayerIcon(item.type), color: Colors.black, size: 14),
+                  const SizedBox(width: 4),
+                  Text(
+                    item.title,
+                    style: GoogleFonts.kantumruyPro(color: Colors.black, fontSize: 11, fontWeight: FontWeight.bold),
+                  ),
+                ],
               ),
             ),
             const SizedBox(width: 8),
@@ -1714,10 +2097,53 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
                   child: const Text('A+', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
                 ),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 8),
             ],
 
-            // 4. Center Align Horizontal Button
+            // 4. Directional D-Pad Navigation Buttons (⬅️ ⬆️ ⬇️ ➡️)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.white12),
+              ),
+              child: Row(
+                children: [
+                  IconButton(
+                    tooltip: 'ទៅឆ្វេង (Left)',
+                    icon: const Icon(Icons.arrow_left_rounded, color: Colors.amberAccent, size: 22),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                    onPressed: () => _canvasController.nudge(item.id, -_canvasController.nudgeStep, 0),
+                  ),
+                  IconButton(
+                    tooltip: 'ឡើងលើ (Up)',
+                    icon: const Icon(Icons.arrow_drop_up_rounded, color: Colors.amberAccent, size: 22),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                    onPressed: () => _canvasController.nudge(item.id, 0, -_canvasController.nudgeStep),
+                  ),
+                  IconButton(
+                    tooltip: 'ចុះក្រោម (Down)',
+                    icon: const Icon(Icons.arrow_drop_down_rounded, color: Colors.amberAccent, size: 22),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                    onPressed: () => _canvasController.nudge(item.id, 0, _canvasController.nudgeStep),
+                  ),
+                  IconButton(
+                    tooltip: 'ទៅស្តាំ (Right)',
+                    icon: const Icon(Icons.arrow_right_rounded, color: Colors.amberAccent, size: 22),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                    onPressed: () => _canvasController.nudge(item.id, _canvasController.nudgeStep, 0),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 6),
+
+            // 5. Center Align Horizontal Button
             IconButton(
               tooltip: 'តម្រឹមចំកណ្តាល',
               icon: const Icon(Icons.align_horizontal_center_rounded, color: Colors.amberAccent, size: 18),
@@ -1727,7 +2153,7 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
               },
             ),
 
-            // 5. Change photo button if item is photo
+            // 6. Change photo button if item is photo
             if (item.type == 'photo')
               ElevatedButton.icon(
                 onPressed: _pickAvatarImage,
@@ -1785,7 +2211,7 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
               ),
             ),
 
-            // 2. Isolated Canvas Layer - updates smoothly at 120 FPS
+            // 2. Isolated Canvas Layer - Renders items in exact Photoshop Layer Order
             LayoutBuilder(
               builder: (context, constraints) {
                 final baseWidth = constraints.maxWidth;
@@ -1798,8 +2224,9 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
                     listenable: _canvasController,
                     builder: (context, _) {
                       return Stack(
-                        children: _canvasController.items.values.map((item) {
-                          if (!item.isVisible) return const SizedBox.shrink();
+                        children: _canvasController.layerOrder.map((id) {
+                          final item = _canvasController.items[id];
+                          if (item == null || !item.isVisible) return const SizedBox.shrink();
 
                           final bool isSelected = _canvasController.selectedItemId == item.id;
                           final double renderX = item.x * scale;
@@ -2243,38 +2670,300 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
 
   Widget _buildSubNavTab(String tabKey, String label, IconData icon) {
     final bool isSelected = _activeTab == tabKey;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => setState(() => _activeTab = tabKey),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          decoration: BoxDecoration(
-            color: isSelected ? const Color(0xFF1E293B) : Colors.transparent,
-            borderRadius: BorderRadius.circular(10),
-            border: isSelected ? Border.all(color: Colors.amberAccent.withValues(alpha: 0.4)) : null,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                icon,
-                size: 15,
+    return GestureDetector(
+      onTap: () => setState(() => _activeTab = tabKey),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+        margin: const EdgeInsets.only(right: 4),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF1E293B) : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+          border: isSelected ? Border.all(color: Colors.amberAccent.withValues(alpha: 0.5)) : null,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 15,
+              color: isSelected ? Colors.amberAccent : Colors.white60,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: GoogleFonts.kantumruyPro(
                 color: isSelected ? Colors.amberAccent : Colors.white60,
+                fontSize: 11,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
               ),
-              const SizedBox(height: 3),
-              Text(
-                label,
-                style: GoogleFonts.kantumruyPro(
-                  color: isSelected ? Colors.amberAccent : Colors.white60,
-                  fontSize: 10,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Photoshop-Style Layers Panel with Visibility, Selection & Drag-to-Reorder
+  Widget _buildLayersTabContent() {
+    return ListenableBuilder(
+      listenable: _canvasController,
+      builder: (context, _) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '📚 ស្រទាប់ (Photoshop Layers)',
+                  style: GoogleFonts.kantumruyPro(color: Colors.amberAccent, fontSize: 13, fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  'អូស ≡ ដើម្បីតម្រៀបលំដាប់ Z-Index',
+                  style: GoogleFonts.kantumruyPro(color: Colors.white60, fontSize: 11),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Container(
+              height: 280,
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F172A),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.white12),
+              ),
+              child: ReorderableListView(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                onReorder: (oldIdx, newIdx) => _canvasController.reorderLayers(oldIdx, newIdx),
+                children: _canvasController.layerOrder.map((id) {
+                  final item = _canvasController.items[id];
+                  if (item == null) return SizedBox.shrink(key: ValueKey(id));
+                  final isSel = _canvasController.selectedItemId == id;
+
+                  return Container(
+                    key: ValueKey(id),
+                    margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: isSel ? Colors.amberAccent.withValues(alpha: 0.18) : Colors.white.withValues(alpha: 0.04),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: isSel ? Colors.amberAccent : Colors.white12,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        // Drag Reorder Handle
+                        const Icon(Icons.drag_handle_rounded, color: Colors.white38, size: 20),
+                        const SizedBox(width: 4),
+                        // Visibility Eye Toggle
+                        IconButton(
+                          icon: Icon(
+                            item.isVisible ? Icons.visibility_rounded : Icons.visibility_off_rounded,
+                            color: item.isVisible ? Colors.amberAccent : Colors.white24,
+                            size: 18,
+                          ),
+                          onPressed: () => _canvasController.toggleVisibility(id),
+                        ),
+                        // Type Icon
+                        Icon(_getLayerIcon(item.type), color: isSel ? Colors.amberAccent : Colors.white70, size: 16),
+                        const SizedBox(width: 8),
+                        // Item Title
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => _canvasController.selectItem(id),
+                            child: Text(
+                              item.title,
+                              style: GoogleFonts.kantumruyPro(
+                                color: isSel ? Colors.amberAccent : (item.isVisible ? Colors.white : Colors.white38),
+                                fontSize: 12,
+                                fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
+                              ),
+                            ),
+                          ),
+                        ),
+                        // Edit Button
+                        IconButton(
+                          icon: const Icon(Icons.edit_rounded, color: Colors.white70, size: 16),
+                          onPressed: () {
+                            _canvasController.selectItem(id);
+                            _openElementEditForm(item);
+                          },
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// Directional Nudge Pad Tab for pixel-precision adjustment without dragging
+  Widget _buildNudgeTabContent() {
+    return ListenableBuilder(
+      listenable: _canvasController,
+      builder: (context, _) {
+        final selectedId = _canvasController.selectedItemId;
+        final item = selectedId != null ? _canvasController.items[selectedId] : null;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '🕹️ ប៊ូតុងសារ៉េទីតាំង (Precision D-Pad)',
+                  style: GoogleFonts.kantumruyPro(color: Colors.amberAccent, fontSize: 13, fontWeight: FontWeight.bold),
+                ),
+                if (item != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(color: Colors.amberAccent, borderRadius: BorderRadius.circular(8)),
+                    child: Text(
+                      item.title,
+                      style: GoogleFonts.kantumruyPro(color: Colors.black, fontSize: 11, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 10),
+
+            if (item == null)
+              Container(
+                padding: const EdgeInsets.all(20),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: Colors.black26,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white12),
+                ),
+                child: Text(
+                  'សូមចុចជ្រើសរើសអត្ថបទ ឬ Symbol ណាមួយនៅលើ Canvas ឬ Tab ស្រទាប់ជាមុនសិន!',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.kantumruyPro(color: Colors.white60, fontSize: 12),
+                ),
+              )
+            else ...[
+              // Step Size Chooser
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('ចម្ងាយសារ៉េ (Step Size):', style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 12)),
+                  Row(
+                    children: [1.0, 2.0, 5.0, 10.0].map((s) {
+                      final isStep = _canvasController.nudgeStep == s;
+                      return Padding(
+                        padding: const EdgeInsets.only(left: 6),
+                        child: ChoiceChip(
+                          label: Text('${s.toInt()}px', style: TextStyle(color: isStep ? Colors.black : Colors.white, fontSize: 11)),
+                          selected: isStep,
+                          selectedColor: Colors.amberAccent,
+                          backgroundColor: Colors.white10,
+                          onSelected: (_) => setState(() => _canvasController.nudgeStep = s),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+
+              // Directional Cross Controller
+              Center(
+                child: Container(
+                  width: 170,
+                  height: 170,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0F172A),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.amberAccent.withValues(alpha: 0.4), width: 2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.5),
+                        blurRadius: 12,
+                      ),
+                    ],
+                  ),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      // UP
+                      Positioned(
+                        top: 6,
+                        child: IconButton(
+                          tooltip: 'ឡើងលើ',
+                          icon: const Icon(Icons.keyboard_arrow_up_rounded, color: Colors.amberAccent, size: 36),
+                          onPressed: () => _canvasController.nudge(item.id, 0, -_canvasController.nudgeStep),
+                        ),
+                      ),
+                      // DOWN
+                      Positioned(
+                        bottom: 6,
+                        child: IconButton(
+                          tooltip: 'ចុះក្រោម',
+                          icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.amberAccent, size: 36),
+                          onPressed: () => _canvasController.nudge(item.id, 0, _canvasController.nudgeStep),
+                        ),
+                      ),
+                      // LEFT
+                      Positioned(
+                        left: 6,
+                        child: IconButton(
+                          tooltip: 'ទៅឆ្វេង',
+                          icon: const Icon(Icons.keyboard_arrow_left_rounded, color: Colors.amberAccent, size: 36),
+                          onPressed: () => _canvasController.nudge(item.id, -_canvasController.nudgeStep, 0),
+                        ),
+                      ),
+                      // RIGHT
+                      Positioned(
+                        right: 6,
+                        child: IconButton(
+                          tooltip: 'ទៅស្តាំ',
+                          icon: const Icon(Icons.keyboard_arrow_right_rounded, color: Colors.amberAccent, size: 36),
+                          onPressed: () => _canvasController.nudge(item.id, _canvasController.nudgeStep, 0),
+                        ),
+                      ),
+                      // CENTER HORIZONTALLY BUTTON
+                      Center(
+                        child: InkWell(
+                          onTap: () {
+                            item.x = 350.0;
+                            _canvasController.updateItem(item.id, item);
+                          },
+                          child: Container(
+                            width: 44,
+                            height: 44,
+                            decoration: const BoxDecoration(
+                              color: Colors.amberAccent,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Center(
+                              child: Icon(Icons.align_horizontal_center_rounded, color: Colors.black, size: 20),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Center(
+                child: Text(
+                  'កូអរដោនេ: X = ${item.x.toStringAsFixed(1)}, Y = ${item.y.toStringAsFixed(1)}',
+                  style: GoogleFonts.kantumruyPro(color: Colors.amberAccent, fontSize: 12, fontWeight: FontWeight.bold),
                 ),
               ),
             ],
-          ),
-        ),
-      ),
+          ],
+        );
+      },
     );
   }
 
@@ -2393,7 +3082,7 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
           children: _canvasController.items.values.map((item) {
             final isSel = _canvasController.selectedItemId == item.id;
             return ActionChip(
-              avatar: Icon(Icons.edit_note_rounded, size: 14, color: isSel ? Colors.black : Colors.amberAccent),
+              avatar: Icon(_getLayerIcon(item.type), size: 14, color: isSel ? Colors.black : Colors.amberAccent),
               label: Text(item.title, style: GoogleFonts.kantumruyPro(fontSize: 11.5, color: isSel ? Colors.black : Colors.white)),
               backgroundColor: isSel ? Colors.amberAccent : Colors.white10,
               onPressed: () {
@@ -2432,96 +3121,6 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
                 ),
               );
             }).toList(),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildLayoutTabContent() {
-    final sealItem = _canvasController.items['seal'];
-    final signItem = _canvasController.items['sign_name'];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('📐 កែសម្រួលទីតាំងធាតុលើ Canvas (Draggable Layout)',
-            style: GoogleFonts.kantumruyPro(color: Colors.amberAccent, fontSize: 13, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 6),
-        Text(
-          'លោកអ្នកអាចចុច និងអូស (Drag) ធាតុណាមួយដោយផ្ទាល់នៅលើអេក្រង់ ឬរំកិលតាម Slider ខាងក្រោម៖',
-          style: GoogleFonts.kantumruyPro(color: Colors.white60, fontSize: 11.5),
-        ),
-        const SizedBox(height: 14),
-
-        if (sealItem != null) ...[
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('ទីតាំងមេដាយ Y (Seal Vertical):', style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 12)),
-              Text(sealItem.y.toStringAsFixed(1), style: const TextStyle(color: Colors.amberAccent, fontWeight: FontWeight.bold)),
-            ],
-          ),
-          Slider(
-            value: sealItem.y,
-            min: 200.0,
-            max: 460.0,
-            activeColor: Colors.amberAccent,
-            onChanged: (v) {
-              sealItem.y = v;
-              _canvasController.updateItem('seal', sealItem);
-            },
-          ),
-        ],
-
-        if (signItem != null) ...[
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('ទីតាំងហត្ថលេខា Y (Signature Block Y):', style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 12)),
-              Text(signItem.y.toStringAsFixed(1), style: const TextStyle(color: Colors.amberAccent, fontWeight: FontWeight.bold)),
-            ],
-          ),
-          Slider(
-            value: signItem.y,
-            min: 350.0,
-            max: 470.0,
-            activeColor: Colors.amberAccent,
-            onChanged: (v) {
-              final diff = v - signItem.y;
-              signItem.y = v;
-              _canvasController.updateItem('sign_name', signItem);
-              if (_canvasController.items.containsKey('signature')) {
-                _canvasController.items['signature']!.y += diff;
-                _canvasController.updateItem('signature', _canvasController.items['signature']!);
-              }
-              if (_canvasController.items.containsKey('sign_role')) {
-                _canvasController.items['sign_role']!.y += diff;
-                _canvasController.updateItem('sign_role', _canvasController.items['sign_role']!);
-              }
-              if (_canvasController.items.containsKey('solar_date')) {
-                _canvasController.items['solar_date']!.y += diff;
-                _canvasController.updateItem('solar_date', _canvasController.items['solar_date']!);
-              }
-              if (_canvasController.items.containsKey('lunar_date')) {
-                _canvasController.items['lunar_date']!.y += diff;
-                _canvasController.updateItem('lunar_date', _canvasController.items['lunar_date']!);
-              }
-            },
-          ),
-        ],
-
-        const SizedBox(height: 10),
-        Center(
-          child: ElevatedButton.icon(
-            onPressed: () {
-              setState(() {
-                _initCanvasElements();
-              });
-            },
-            icon: const Icon(Icons.restart_alt_rounded, size: 16, color: Colors.black),
-            label: Text('កំណត់ទីតាំងឡើងវិញតាមដើម (Reset Layout)', style: GoogleFonts.kantumruyPro(color: Colors.black, fontSize: 12, fontWeight: FontWeight.bold)),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.amberAccent),
           ),
         ),
       ],

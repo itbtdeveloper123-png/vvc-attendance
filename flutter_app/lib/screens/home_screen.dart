@@ -50,6 +50,9 @@ import 'hrm_poll_management_screen.dart';
 import 'document_scanner_screen.dart';
 import 'app_settings_screen.dart';
 import 'kpi_performance_screen.dart';
+import 'certificate_editor_screen.dart';
+import '../widgets/responsive_layout.dart';
+import '../widgets/desktop_navigation_shell.dart';
 
 // ========== SLIDE PAGE ROUTE (Feature #9) ==========
 PageRouteBuilder _slideRoute(Widget page) {
@@ -267,6 +270,63 @@ class HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final userProvider = Provider.of<UserProvider>(context);
     if (!userProvider.isLoggedIn) return const LoginScreen();
+
+    if (Responsive.isDesktop(context) || Responsive.isTablet(context)) {
+      return DesktopNavigationShell(
+        items: [
+          DesktopNavigationItem(
+            title: 'ផ្ទាំងដើម (Dashboard)',
+            icon: Icons.dashboard_outlined,
+            selectedIcon: Icons.dashboard_rounded,
+            screen: HomeContent(onProfileTap: () {}),
+          ),
+          const DesktopNavigationItem(
+            title: 'ស្ទូឌីយោលិខិតសរសើរ A4',
+            icon: Icons.workspace_premium_outlined,
+            selectedIcon: Icons.workspace_premium_rounded,
+            screen: CertificateEditorScreen(),
+            badge: 'Studio',
+          ),
+          const DesktopNavigationItem(
+            title: 'បោះឆ្នោតបុគ្គលិកឆ្នើម',
+            icon: Icons.how_to_vote_outlined,
+            selectedIcon: Icons.how_to_vote_rounded,
+            screen: PollVotingScreen(),
+          ),
+          DesktopNavigationItem(
+            title: userProvider.isHRM ? 'សំណើសុំច្បាប់ & អនុម័ត' : 'ស្នើសុំច្បាប់ (Requests)',
+            icon: Icons.assignment_outlined,
+            selectedIcon: Icons.assignment_rounded,
+            screen: userProvider.isHRM ? const RequestListScreen() : const RequestsScreen(),
+          ),
+          if (userProvider.isHRM)
+            const DesktopNavigationItem(
+              title: 'គ្រប់គ្រងបុគ្គលិក (HRM)',
+              icon: Icons.people_alt_outlined,
+              selectedIcon: Icons.people_alt_rounded,
+              screen: UserManagementScreen(),
+            ),
+          const DesktopNavigationItem(
+            title: 'របាយការណ៍វត្តមាន',
+            icon: Icons.assessment_outlined,
+            selectedIcon: Icons.assessment_rounded,
+            screen: AttendanceReportScreen(),
+          ),
+          const DesktopNavigationItem(
+            title: 'ជំនួយការ AI Chat',
+            icon: Icons.smart_toy_outlined,
+            selectedIcon: Icons.smart_toy_rounded,
+            screen: AiChatScreen(),
+          ),
+          const DesktopNavigationItem(
+            title: 'គណនី (My Profile)',
+            icon: Icons.person_outline_rounded,
+            selectedIcon: Icons.person_rounded,
+            screen: ProfileScreen(),
+          ),
+        ],
+      );
+    }
 
     final screens = _getScreens(userProvider);
 

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../providers/user_provider.dart';
 import '../services/api_service.dart';
 import '../utils/app_theme.dart';
+import '../widgets/responsive_layout.dart';
 import '../widgets/vvc_global_alert.dart';
 import 'hrm_poll_management_screen.dart';
 
@@ -237,9 +238,12 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
     return RefreshIndicator(
       onRefresh: _loadInitialData,
       color: AppTheme.primary,
-      child: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
+      child: DesktopContainer(
+        maxWidth: 1100,
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
           // HRM Banner if user is Admin / HRM
           if (isHrmOrAdmin) ...[
             Container(
@@ -363,8 +367,9 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
             ..._polls.map((poll) => _buildEmployeeVotingCard(poll)),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildEmployeeVotingCard(Map<String, dynamic> poll) {
     final title = poll['title'] ?? 'បោះឆ្នោតបុគ្គលិកឆ្នើម';
@@ -527,123 +532,47 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
                 ),
                 const SizedBox(height: 8),
 
-                ...candidates.map((candidate) {
-                  final empId = candidate['employee_id']?.toString() ?? '';
-                  final candIdStr = candidate['id']?.toString() ?? '';
-                  String name = (candidate['name'] ?? '').toString().trim();
-                  if (name.isEmpty) name = empId;
-
-                  if (!_khmerRegex.hasMatch(name) && _allUsers.isNotEmpty && empId.isNotEmpty) {
-                    final matches = _allUsers.where(
-                      (u) =>
-                          u['employee_id']?.toString() == empId ||
-                          (empId.replaceAll(RegExp(r'^0+'), '').isNotEmpty &&
-                              u['employee_id']?.toString().replaceAll(RegExp(r'^0+'), '') ==
-                                  empId.replaceAll(RegExp(r'^0+'), '')),
-                    ).toList();
-                    if (matches.isNotEmpty) {
-                      final khmerMatch = matches.firstWhere(
-                        (u) => _khmerRegex.hasMatch((u['name'] ?? u['full_name'] ?? u['khmer_name'] ?? '').toString()),
-                        orElse: () => matches.first,
+                if (Responsive.isDesktop(context) || Responsive.isTablet(context)) ...[
+                  GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      childAspectRatio: 3.4,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 10,
+                    ),
+                    itemCount: candidates.length,
+                    itemBuilder: (context, idx) {
+                      final candidate = candidates[idx];
+                      return _buildCandidateTile(
+                        candidate: candidate,
+                        poll: poll,
+                        hasVoted: hasVoted,
+                        selectedCandidateEmployeeId: selectedCandidateEmployeeId,
+                        onSelect: (empId) {
+                          setCardState(() {
+                            selectedCandidateEmployeeId = empId;
+                          });
+                        },
                       );
-                      final mName = (khmerMatch['khmer_name'] ?? khmerMatch['full_name'] ?? khmerMatch['name'] ?? '').toString().trim();
-                      if (mName.isNotEmpty) {
-                        name = mName;
-                      }
-                    }
-                  }
-
-                  final votedCandId = (poll['voted_candidate_id'] ?? '').toString();
-                  final votedCandEmpId = (poll['voted_candidate_employee_id'] ?? '').toString();
-
-                  final isUserVotedChoice = hasVoted &&
-                      ((votedCandId.isNotEmpty &&
-                              (votedCandId == empId ||
-                                  votedCandId == candIdStr ||
-                                  (empId.isNotEmpty &&
-                                      votedCandId.replaceAll(RegExp(r'^0+'), '') ==
-                                          empId.replaceAll(RegExp(r'^0+'), '')))) ||
-                          (votedCandEmpId.isNotEmpty &&
-                              (votedCandEmpId == empId ||
-                                  (empId.isNotEmpty &&
-                                      votedCandEmpId.replaceAll(RegExp(r'^0+'), '') ==
-                                          empId.replaceAll(RegExp(r'^0+'), '')))));
-
-                  final isSelected = isUserVotedChoice || (selectedCandidateEmployeeId == empId);
-                  final dept = candidate['department'] ?? candidate['dept'] ?? candidate['position'] ?? 'បុគ្គលិក';
-                  final cat = candidate['category'] ?? (poll['location'] ?? 'Head Office');
-
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    decoration: BoxDecoration(
-                      color: isUserVotedChoice
-                          ? const Color(0xFF10B981).withValues(alpha: 0.18)
-                          : (isSelected ? AppTheme.primary.withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.04)),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: isUserVotedChoice
-                            ? const Color(0xFF10B981)
-                            : (isSelected ? AppTheme.primary : Colors.white.withValues(alpha: 0.08)),
-                      ),
-                    ),
-                    child: CheckboxListTile(
-                      value: isSelected,
-                      onChanged: hasVoted
-                          ? null
-                          : (value) {
-                              setCardState(() {
-                                selectedCandidateEmployeeId = value == true ? empId : null;
-                              });
-                            },
-                      title: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              name,
-                              style: GoogleFonts.kantumruyPro(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ),
-                          if (isUserVotedChoice)
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF10B981),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                '✓ បានបោះឆ្នោតជូន',
-                                style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                        ],
-                      ),
-                      subtitle: Row(
-                        children: [
-                          Expanded(
-                            child: Text('ផ្នែក: $dept', style: GoogleFonts.kantumruyPro(color: Colors.white60, fontSize: 12)),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.08),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              cat.toString(),
-                              style: GoogleFonts.kantumruyPro(color: Colors.amberAccent, fontSize: 10.5, fontWeight: FontWeight.w600),
-                            ),
-                          ),
-                        ],
-                      ),
-                      controlAffinity: ListTileControlAffinity.leading,
-                      activeColor: isUserVotedChoice ? const Color(0xFF10B981) : AppTheme.primary,
-                    ),
-                  );
-                }),
+                    },
+                  ),
+                ] else ...[
+                  ...candidates.map((candidate) {
+                    return _buildCandidateTile(
+                      candidate: candidate,
+                      poll: poll,
+                      hasVoted: hasVoted,
+                      selectedCandidateEmployeeId: selectedCandidateEmployeeId,
+                      onSelect: (empId) {
+                        setCardState(() {
+                          selectedCandidateEmployeeId = empId;
+                        });
+                      },
+                    );
+                  }),
+                ],
 
                 const SizedBox(height: 12),
 
@@ -696,6 +625,130 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildCandidateTile({
+    required Map<String, dynamic> candidate,
+    required Map<String, dynamic> poll,
+    required bool hasVoted,
+    required String? selectedCandidateEmployeeId,
+    required Function(String empId) onSelect,
+  }) {
+    final empId = candidate['employee_id']?.toString() ?? '';
+    final candIdStr = candidate['id']?.toString() ?? '';
+    String name = (candidate['name'] ?? '').toString().trim();
+    if (name.isEmpty) name = empId;
+
+    if (!_khmerRegex.hasMatch(name) && _allUsers.isNotEmpty && empId.isNotEmpty) {
+      final matches = _allUsers.where(
+        (u) =>
+            u['employee_id']?.toString() == empId ||
+            (empId.replaceAll(RegExp(r'^0+'), '').isNotEmpty &&
+                u['employee_id']?.toString().replaceAll(RegExp(r'^0+'), '') ==
+                    empId.replaceAll(RegExp(r'^0+'), '')),
+      ).toList();
+      if (matches.isNotEmpty) {
+        final khmerMatch = matches.firstWhere(
+          (u) => _khmerRegex.hasMatch((u['name'] ?? u['full_name'] ?? u['khmer_name'] ?? '').toString()),
+          orElse: () => matches.first,
+        );
+        final mName = (khmerMatch['khmer_name'] ?? khmerMatch['full_name'] ?? khmerMatch['name'] ?? '').toString().trim();
+        if (mName.isNotEmpty) {
+          name = mName;
+        }
+      }
+    }
+
+    final votedCandId = (poll['voted_candidate_id'] ?? '').toString();
+    final votedCandEmpId = (poll['voted_candidate_employee_id'] ?? '').toString();
+
+    final isUserVotedChoice = hasVoted &&
+        ((votedCandId.isNotEmpty &&
+                (votedCandId == empId ||
+                    votedCandId == candIdStr ||
+                    (empId.isNotEmpty &&
+                        votedCandId.replaceAll(RegExp(r'^0+'), '') ==
+                            empId.replaceAll(RegExp(r'^0+'), '')))) ||
+            (votedCandEmpId.isNotEmpty &&
+                (votedCandEmpId == empId ||
+                    (empId.isNotEmpty &&
+                        votedCandEmpId.replaceAll(RegExp(r'^0+'), '') ==
+                            empId.replaceAll(RegExp(r'^0+'), '')))));
+
+    final isSelected = isUserVotedChoice || (selectedCandidateEmployeeId == empId);
+    final dept = candidate['department'] ?? candidate['dept'] ?? candidate['position'] ?? 'បុគ្គលិក';
+    final cat = candidate['category'] ?? (poll['location'] ?? 'Head Office');
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: isUserVotedChoice
+            ? const Color(0xFF10B981).withValues(alpha: 0.18)
+            : (isSelected ? AppTheme.primary.withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.04)),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isUserVotedChoice
+              ? const Color(0xFF10B981)
+              : (isSelected ? AppTheme.primary : Colors.white.withValues(alpha: 0.08)),
+        ),
+      ),
+      child: CheckboxListTile(
+        value: isSelected,
+        onChanged: hasVoted
+            ? null
+            : (value) {
+                if (value == true) {
+                  onSelect(empId);
+                }
+              },
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                name,
+                style: GoogleFonts.kantumruyPro(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+            if (isUserVotedChoice)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF10B981),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '✓ បានបោះឆ្នោតជូន',
+                  style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.bold),
+                ),
+              ),
+          ],
+        ),
+        subtitle: Row(
+          children: [
+            Expanded(
+              child: Text('ផ្នែក: $dept', style: GoogleFonts.kantumruyPro(color: Colors.white60, fontSize: 12)),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                cat.toString(),
+                style: GoogleFonts.kantumruyPro(color: Colors.amberAccent, fontSize: 10.5, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
+        controlAffinity: ListTileControlAffinity.leading,
+        activeColor: isUserVotedChoice ? const Color(0xFF10B981) : AppTheme.primary,
+      ),
     );
   }
 }
