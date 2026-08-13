@@ -10,6 +10,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../providers/user_provider.dart';
 import '../utils/app_theme.dart';
 import '../widgets/app_widgets.dart';
+import '../widgets/responsive_layout.dart';
 import '../services/api_service.dart';
 import 'home_screen.dart';
 import 'login_screen.dart';
@@ -147,25 +148,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return DynamicAppBarWrapper(
       title: isMe ? "ប្រវត្តិរូបសង្ខេប" : "ព័ត៌មានបុគ្គលិក",
       body: AppBackgroundShell(
-        child: CustomScrollView(
-          physics: const BouncingScrollPhysics(),
-          slivers: [
-            SliverToBoxAdapter(
-              child: SafeArea(
-                bottom: false,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 10,
-                  ),
-                  child: AnimationLimiter(
-                    child: Column(
-                      children: AnimationConfiguration.toStaggeredList(
-                        duration: const Duration(milliseconds: 600),
-                        childAnimationBuilder: (widget) => SlideAnimation(
-                          verticalOffset: 50.0,
-                          child: FadeInAnimation(child: widget),
-                        ),
+        child: (Responsive.isDesktop(context) || Responsive.isTablet(context))
+            ? SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                physics: const BouncingScrollPhysics(),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Left Column (380px)
+                    SizedBox(
+                      width: 380,
+                      child: Column(
                         children: [
                           _buildAvatarSection(
                             context,
@@ -175,7 +168,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             isMe,
                             currentUser,
                           ),
-                          const SizedBox(height: 28),
+                          const SizedBox(height: 24),
                           _buildInfoCard(
                             displayId,
                             displayName,
@@ -185,18 +178,71 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                           const SizedBox(height: 20),
                           _buildBadgeSection(displayId),
-                          const SizedBox(height: 20),
-                          if (isMe) _buildMenuSection(context, currentUser),
-                          const SizedBox(height: 100),
                         ],
                       ),
                     ),
-                  ),
+                    const SizedBox(width: 24),
+                    // Right Column (Expanded)
+                    Expanded(
+                      child: Column(
+                        children: [
+                          if (isMe) _buildMenuSection(context, currentUser),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
+              )
+            : CustomScrollView(
+                physics: const BouncingScrollPhysics(),
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: SafeArea(
+                      bottom: false,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 10,
+                        ),
+                        child: AnimationLimiter(
+                          child: Column(
+                            children: AnimationConfiguration.toStaggeredList(
+                              duration: const Duration(milliseconds: 600),
+                              childAnimationBuilder: (widget) => SlideAnimation(
+                                verticalOffset: 50.0,
+                                child: FadeInAnimation(child: widget),
+                              ),
+                              children: [
+                                _buildAvatarSection(
+                                  context,
+                                  displayName,
+                                  displayAvatar,
+                                  displayType,
+                                  isMe,
+                                  currentUser,
+                                ),
+                                const SizedBox(height: 28),
+                                _buildInfoCard(
+                                  displayId,
+                                  displayName,
+                                  displayType,
+                                  displayDept,
+                                  displayPos,
+                                ),
+                                const SizedBox(height: 20),
+                                _buildBadgeSection(displayId),
+                                const SizedBox(height: 20),
+                                if (isMe) _buildMenuSection(context, currentUser),
+                                const SizedBox(height: 100),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ],
-        ),
       ),
     );
   }

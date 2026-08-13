@@ -368,11 +368,19 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   }).toList(),
                 );
               } else {
-                final double cardWidth = (constraints.maxWidth - 12) / 2;
+                int cols = 2;
+                if (constraints.maxWidth > 1400) {
+                  cols = 5;
+                } else if (constraints.maxWidth > 1050) {
+                  cols = 4;
+                } else if (constraints.maxWidth > 700) {
+                  cols = 3;
+                }
+                final double cardWidth = (constraints.maxWidth - (cols - 1) * 12) / cols;
                 return Wrap(
                   spacing: 12,
                   runSpacing: 12,
-                  alignment: WrapAlignment.center,
+                  alignment: WrapAlignment.start,
                   children: grouped[key]!.map((user) {
                     return SizedBox(
                       width: cardWidth,

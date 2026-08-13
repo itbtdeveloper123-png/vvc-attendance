@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -11,6 +12,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
 import '../utils/app_theme.dart';
 import '../widgets/responsive_layout.dart';
@@ -49,6 +51,45 @@ class CertItem {
     this.textAlign = TextAlign.center,
     this.isVisible = true,
   });
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'type': type,
+    'title': title,
+    'text': text,
+    'fontFamily': fontFamily,
+    'fontSize': fontSize,
+    'fontWeight': fontWeight.value,
+    'color': color.toARGB32(),
+    'x': x,
+    'y': y,
+    'width': width,
+    'height': height,
+    'textAlign': textAlign.index,
+    'isVisible': isVisible,
+  };
+
+  factory CertItem.fromJson(Map<String, dynamic> json) => CertItem(
+    id: json['id'] ?? '',
+    type: json['type'] ?? 'text',
+    title: json['title'] ?? '',
+    text: json['text'] ?? '',
+    fontFamily: json['fontFamily'] ?? 'Battambang',
+    fontSize: (json['fontSize'] as num?)?.toDouble() ?? 14.0,
+    fontWeight: FontWeight.values.firstWhere(
+      (w) => w.value == json['fontWeight'],
+      orElse: () => FontWeight.normal,
+    ),
+    color: Color(json['color'] ?? 0xFF000000),
+    x: (json['x'] as num?)?.toDouble() ?? 350.0,
+    y: (json['y'] as num?)?.toDouble() ?? 200.0,
+    width: (json['width'] as num?)?.toDouble() ?? 300.0,
+    height: (json['height'] as num?)?.toDouble() ?? 40.0,
+    textAlign: (json['textAlign'] != null && json['textAlign'] < TextAlign.values.length)
+        ? TextAlign.values[json['textAlign']]
+        : TextAlign.center,
+    isVisible: json['isVisible'] ?? true,
+  );
 
   CertItem copyWith({
     String? text,
@@ -326,7 +367,7 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
 
     _updateKhmerDates(_selectedDate);
     _syncCustomBodyText();
-    _initCanvasElements();
+    _loadCertificateFromStorage();
   }
 
   @override
@@ -815,6 +856,335 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
     return style;
   }
 
+  Color _parseHexColor(String hexString, {Color fallback = Colors.black}) {
+    try {
+      String hex = hexString.replaceAll('#', '').trim();
+      if (hex.length == 6) {
+        hex = 'FF$hex';
+      }
+      if (hex.length == 8) {
+        return Color(int.parse('0x$hex'));
+      }
+    } catch (_) {}
+    return fallback;
+  }
+
+  /// Parses rich formatting markup such as [font=Moul]...[/font], [b]...[/b], **...**, [color=#HEX]...[/color], [size=N]...[/size]
+  List<InlineSpan> _parseRichTextSpans({
+    required String rawText,
+    required String baseFontFamily,
+    required double baseFontSize,
+    required Color baseColor,
+    required FontWeight baseFontWeight,
+    required double scale,
+    double height = 1.5,
+  }) {
+    if (!rawText.contains('[') && !rawText.contains('*')) {
+      return [
+        TextSpan(
+          text: rawText,
+          style: _getKhmerTextStyle(
+            fontFamily: baseFontFamily,
+            fontSize: baseFontSize * scale,
+            color: baseColor,
+            fontWeight: baseFontWeight,
+            height: height,
+          ),
+        ),
+      ];
+    }
+
+    final List<InlineSpan> spans = [];
+    final RegExp tagRegex = RegExp(
+      r'\[font=([^\]]+)\](.*?)\[\/font\]|\[color=([^\]]+)\](.*?)\[\/color\]|\[size=([^\]]+)\](.*?)\[\/size\]|\[b\](.*?)\[\/b\]|\*\*(.*?)\*\*',
+      dotAll: true,
+      caseSensitive: false,
+    );
+
+    int lastIndex = 0;
+    for (final Match match in tagRegex.allMatches(rawText)) {
+      if (match.start > lastIndex) {
+        final preText = rawText.substring(lastIndex, match.start);
+        spans.add(TextSpan(
+          text: preText,
+          style: _getKhmerTextStyle(
+            fontFamily: baseFontFamily,
+            fontSize: baseFontSize * scale,
+            color: baseColor,
+            fontWeight: baseFontWeight,
+            height: height,
+          ),
+        ));
+      }
+
+      String spanText = '';
+      String currentFont = baseFontFamily;
+      Color currentColor = baseColor;
+      double currentSize = baseFontSize;
+      FontWeight currentWeight = baseFontWeight;
+
+      if (match.group(1) != null) {
+        currentFont = match.group(1)!.trim();
+        spanText = match.group(2) ?? '';
+      } else if (match.group(3) != null) {
+        currentColor = _parseHexColor(match.group(3)!.trim(), fallback: baseColor);
+        spanText = match.group(4) ?? '';
+      } else if (match.group(5) != null) {
+        final sz = double.tryParse(match.group(5)!.trim());
+        if (sz != null) currentSize = sz;
+        spanText = match.group(6) ?? '';
+      } else if (match.group(7) != null) {
+        currentWeight = FontWeight.bold;
+        spanText = match.group(7) ?? '';
+      } else if (match.group(8) != null) {
+        currentWeight = FontWeight.bold;
+        spanText = match.group(8) ?? '';
+      }
+
+      spans.add(TextSpan(
+        text: spanText,
+        style: _getKhmerTextStyle(
+          fontFamily: currentFont,
+          fontSize: currentSize * scale,
+          color: currentColor,
+          fontWeight: currentWeight,
+          height: height,
+        ),
+      ));
+
+      lastIndex = match.end;
+    }
+
+    if (lastIndex < rawText.length) {
+      final postText = rawText.substring(lastIndex);
+      spans.add(TextSpan(
+        text: postText,
+        style: _getKhmerTextStyle(
+          fontFamily: baseFontFamily,
+          fontSize: baseFontSize * scale,
+          color: baseColor,
+          fontWeight: baseFontWeight,
+          height: height,
+        ),
+      ));
+    }
+
+    return spans;
+  }
+
+  /// Persistent Database Save: saves all custom certificate items, template, and texts to SharedPreferences
+  Future<void> _saveCertificateToStorage({bool showToast = true}) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final Map<String, dynamic> itemsJson = {};
+      _canvasController.items.forEach((key, item) {
+        itemsJson[key] = item.toJson();
+      });
+
+      final keyPrefix = 'vvc_cert_$_selectedCategory';
+      await prefs.setString('${keyPrefix}_items', jsonEncode(itemsJson));
+      await prefs.setStringList('${keyPrefix}_order', _canvasController.layerOrder);
+      await prefs.setString('${keyPrefix}_template', _selectedTemplateAsset);
+      await prefs.setBool('${keyPrefix}_custom_body_enabled', _isCustomBodyTextEnabled);
+
+      // Save form controller texts
+      final Map<String, String> formsMap = {
+        'title': _titleController.text,
+        'company': _companyController.text,
+        'praise': _praiseTitleController.text,
+        'custom_body': _customBodyTextController.text,
+        'signatory': _signatoryController.text,
+        'signatory_role': _signatoryRoleController.text,
+        'location': _locationController.text,
+        'quarter': _quarterController.text,
+        'year': _yearController.text,
+      };
+      await prefs.setString('${keyPrefix}_forms', jsonEncode(formsMap));
+
+      // Sync to Central Server Cloud Database (so other computers & devices can sync)
+      try {
+        final cloudPayload = {
+          'items': itemsJson,
+          'order': _canvasController.layerOrder,
+          'template': _selectedTemplateAsset,
+          'custom_body_enabled': _isCustomBodyTextEnabled,
+          'forms': formsMap,
+          'updated_at': DateTime.now().toIso8601String(),
+        };
+        await ApiService().saveCertificateTemplate(
+          category: _selectedCategory,
+          templateData: jsonEncode(cloudPayload),
+        );
+      } catch (cloudErr) {
+        debugPrint('Cloud sync notice: $cloudErr');
+      }
+
+      if (showToast && mounted) {
+        VvcAlert.showSuccess(
+          context,
+          title: 'ជោគជ័យ',
+          message: 'បានរក្សាទុកទិន្នន័យក្នុង Server Database និង Local Storage រួចរាល់!',
+        );
+      }
+    } catch (e) {
+      debugPrint('Error saving certificate: $e');
+      if (showToast && mounted) {
+        VvcAlert.showError(context, title: 'កំហុស', message: 'មិនអាចរក្សាទុកទិន្នន័យបានទេ: $e');
+      }
+    }
+  }
+
+  /// Persistent Database Load: loads from local cache and syncs with Server Cloud Database
+  Future<void> _loadCertificateFromStorage() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final keyPrefix = 'vvc_cert_$_selectedCategory';
+      final String? itemsRaw = prefs.getString('${keyPrefix}_items');
+
+      bool loadedFromLocal = false;
+      if (itemsRaw != null && itemsRaw.isNotEmpty) {
+        final Map<String, dynamic> decoded = jsonDecode(itemsRaw);
+        final Map<String, CertItem> loadedItems = {};
+        decoded.forEach((key, val) {
+          loadedItems[key] = CertItem.fromJson(Map<String, dynamic>.from(val));
+        });
+
+        final List<String>? savedOrder = prefs.getStringList('${keyPrefix}_order');
+        final String? savedTemplate = prefs.getString('${keyPrefix}_template');
+        final bool? savedBodyEnabled = prefs.getBool('${keyPrefix}_custom_body_enabled');
+        final String? formsRaw = prefs.getString('${keyPrefix}_forms');
+
+        if (formsRaw != null && formsRaw.isNotEmpty) {
+          final Map<String, dynamic> formsDecoded = jsonDecode(formsRaw);
+          if (formsDecoded['title'] != null) _titleController.text = formsDecoded['title'];
+          if (formsDecoded['company'] != null) _companyController.text = formsDecoded['company'];
+          if (formsDecoded['praise'] != null) _praiseTitleController.text = formsDecoded['praise'];
+          if (formsDecoded['custom_body'] != null) _customBodyTextController.text = formsDecoded['custom_body'];
+          if (formsDecoded['signatory'] != null) _signatoryController.text = formsDecoded['signatory'];
+          if (formsDecoded['signatory_role'] != null) _signatoryRoleController.text = formsDecoded['signatory_role'];
+          if (formsDecoded['location'] != null && _locationController.text.isEmpty) _locationController.text = formsDecoded['location'];
+        }
+
+        if (savedTemplate != null) _selectedTemplateAsset = savedTemplate;
+        if (savedBodyEnabled != null) _isCustomBodyTextEnabled = savedBodyEnabled;
+
+        _canvasController.setItems(loadedItems);
+        if (savedOrder != null && savedOrder.isNotEmpty) {
+          _canvasController.layerOrder.clear();
+          _canvasController.layerOrder.addAll(savedOrder);
+        }
+        _canvasController.requestRebuild();
+        if (mounted) setState(() {});
+        loadedFromLocal = true;
+      }
+
+      if (!loadedFromLocal) {
+        _initCanvasElements();
+      }
+
+      // Fetch latest from Central Cloud Database (for syncing across different computers)
+      _syncFromCloudDatabase();
+    } catch (e) {
+      debugPrint('Error loading saved certificate: $e');
+      _initCanvasElements();
+    }
+  }
+
+  Future<void> _syncFromCloudDatabase() async {
+    try {
+      final res = await ApiService().getCertificateTemplate(_selectedCategory);
+      if (res['success'] == true && res['data'] != null) {
+        final Map<String, dynamic> cloudData = Map<String, dynamic>.from(res['data']);
+        if (cloudData['items'] != null) {
+          final Map<String, dynamic> itemsMap = Map<String, dynamic>.from(cloudData['items']);
+          final Map<String, CertItem> cloudItems = {};
+          itemsMap.forEach((k, v) {
+            cloudItems[k] = CertItem.fromJson(Map<String, dynamic>.from(v));
+          });
+
+          if (cloudData['forms'] != null) {
+            final forms = Map<String, dynamic>.from(cloudData['forms']);
+            if (forms['title'] != null) _titleController.text = forms['title'];
+            if (forms['company'] != null) _companyController.text = forms['company'];
+            if (forms['praise'] != null) _praiseTitleController.text = forms['praise'];
+            if (forms['custom_body'] != null) _customBodyTextController.text = forms['custom_body'];
+            if (forms['signatory'] != null) _signatoryController.text = forms['signatory'];
+            if (forms['signatory_role'] != null) _signatoryRoleController.text = forms['signatory_role'];
+            if (forms['location'] != null && _locationController.text.isEmpty) _locationController.text = forms['location'];
+          }
+
+          if (cloudData['template'] != null) _selectedTemplateAsset = cloudData['template'];
+          if (cloudData['custom_body_enabled'] != null) _isCustomBodyTextEnabled = cloudData['custom_body_enabled'] == true;
+
+          _canvasController.setItems(cloudItems);
+          if (cloudData['order'] != null) {
+            final List<dynamic> orderList = cloudData['order'];
+            _canvasController.layerOrder.clear();
+            _canvasController.layerOrder.addAll(orderList.map((e) => e.toString()));
+          }
+          _canvasController.requestRebuild();
+          if (mounted) setState(() {});
+        }
+      }
+    } catch (e) {
+      debugPrint('Cloud fetch notice: $e');
+    }
+  }
+
+  /// Reset to standard default template
+  Future<void> _resetCertificateToDefault() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.refresh_rounded, color: Colors.amberAccent),
+            const SizedBox(width: 8),
+            Text('កំណត់ឡើងវិញ', style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+          ],
+        ),
+        content: Text(
+          'តើលោកអ្នកចង់កំណត់ទម្រង់ និងទីតាំងធាតុទាំងអស់ទៅជាលំនាំដើមវិញដែរឬទេ?',
+          style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('បោះបង់', style: GoogleFonts.kantumruyPro(color: Colors.white60)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.amberAccent),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('កំណត់ឡើងវិញ', style: GoogleFonts.kantumruyPro(color: Colors.black, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      final prefs = await SharedPreferences.getInstance();
+      final keyPrefix = 'vvc_cert_$_selectedCategory';
+      await prefs.remove('${keyPrefix}_items');
+      await prefs.remove('${keyPrefix}_order');
+      await prefs.remove('${keyPrefix}_template');
+      await prefs.remove('${keyPrefix}_forms');
+      await prefs.remove('${keyPrefix}_custom_body_enabled');
+
+      setState(() {
+        _isCustomBodyTextEnabled = false;
+        _initCanvasElements();
+        _syncCustomBodyText();
+        _syncControllersToItems();
+      });
+
+      if (mounted) {
+        VvcAlert.showSuccess(context, title: 'ជោគជ័យ', message: 'បានកំណត់ទម្រង់ទៅជាលំនាំដើមវិញរួចរាល់');
+      }
+    }
+  }
+
   IconData _getLayerIcon(String type) {
     switch (type) {
       case 'title':
@@ -941,6 +1311,61 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (modalCtx, setModalState) {
+            // Helper to apply formatting to selected text or whole element
+            void applyFormattingToSelection({
+              String? font,
+              bool? bold,
+              Color? color,
+              double? size,
+              bool clearTags = false,
+            }) {
+              final selection = textEditCtrl.selection;
+              final text = textEditCtrl.text;
+
+              if (clearTags) {
+                final cleaned = text
+                    .replaceAll(RegExp(r'\[\/?(font|color|size|b)[^\]]*\]'), '')
+                    .replaceAll('**', '');
+                textEditCtrl.text = cleaned;
+                setModalState(() {});
+                return;
+              }
+
+              if (!selection.isValid || selection.isCollapsed || selection.start == selection.end) {
+                // No text selected -> Apply as default for the whole element
+                if (font != null) setModalState(() => selectedFont = font);
+                if (bold != null) setModalState(() => currentWeight = bold ? FontWeight.bold : FontWeight.normal);
+                if (color != null) setModalState(() => currentColor = color);
+                if (size != null) setModalState(() => currentFontSize = size);
+                return;
+              }
+
+              final selectedText = text.substring(selection.start, selection.end);
+              String formattedText = selectedText;
+
+              if (font != null) {
+                formattedText = '[font=$font]$formattedText[/font]';
+              }
+              if (bold == true) {
+                formattedText = '[b]$formattedText[/b]';
+              }
+              if (color != null) {
+                final hexStr = '#${color.toARGB32().toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}';
+                formattedText = '[color=$hexStr]$formattedText[/color]';
+              }
+              if (size != null) {
+                formattedText = '[size=${size.toInt()}]$formattedText[/size]';
+              }
+
+              final newText = text.replaceRange(selection.start, selection.end, formattedText);
+              final newSelectionIndex = selection.start + formattedText.length;
+              textEditCtrl.value = TextEditingValue(
+                text: newText,
+                selection: TextSelection.collapsed(offset: newSelectionIndex),
+              );
+              setModalState(() {});
+            }
+
             return Padding(
               padding: EdgeInsets.only(
                 left: 20,
@@ -977,10 +1402,76 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 12),
 
-                    // Text Input
+                    // Rich Text Selection Formatting Bar
                     if (item.type != 'photo' && item.type != 'signature') ...[
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0F172A),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: Colors.amberAccent.withValues(alpha: 0.3)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.text_format_rounded, color: Colors.amberAccent, size: 16),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Select ពាក្យ រួចចុច Font ដើម្បីប្តូរតែពាក្យនោះ ៖',
+                                  style: GoogleFonts.kantumruyPro(color: Colors.amberAccent, fontSize: 11.5, fontWeight: FontWeight.bold),
+                                ),
+                                const Spacer(),
+                                InkWell(
+                                  onTap: () => applyFormattingToSelection(clearTags: true),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white10,
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text('សម្អាត Tag', style: GoogleFonts.kantumruyPro(color: Colors.white60, fontSize: 10)),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            // Quick Font Selection Chips
+                            SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              physics: const BouncingScrollPhysics(),
+                              child: Row(
+                                children: _availableFonts.map((font) {
+                                  return Padding(
+                                    padding: const EdgeInsets.only(right: 6),
+                                    child: ActionChip(
+                                      backgroundColor: selectedFont == font ? Colors.amberAccent : const Color(0xFF1E293B),
+                                      side: BorderSide(color: selectedFont == font ? Colors.amberAccent : Colors.white24),
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      label: Text(
+                                        font,
+                                        style: _getKhmerTextStyle(
+                                          fontFamily: font,
+                                          fontSize: 11,
+                                          color: selectedFont == font ? Colors.black : Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      onPressed: () => applyFormattingToSelection(font: font),
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Text Input Field
                       Text(
                         'ខ្លឹមសារអត្ថបទ (Text Content):',
                         style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 12.5),
@@ -988,7 +1479,8 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
                       const SizedBox(height: 6),
                       TextField(
                         controller: textEditCtrl,
-                        maxLines: item.type == 'body' ? 4 : 2,
+                        maxLines: item.type == 'body' ? 5 : 2,
+                        onChanged: (_) => setModalState(() {}),
                         style: _getKhmerTextStyle(
                           fontFamily: selectedFont,
                           fontSize: 14,
@@ -1008,13 +1500,54 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
                           ),
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 10),
+
+                      // Live Rendered Preview Card
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0F172A),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.white12),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.visibility_rounded, color: Colors.cyanAccent, size: 14),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'គំរូអត្ថបទជាក់ស្តែង (Live Rendered Preview):',
+                                  style: GoogleFonts.kantumruyPro(color: Colors.cyanAccent, fontSize: 11, fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            RichText(
+                              textAlign: currentAlign,
+                              text: TextSpan(
+                                children: _parseRichTextSpans(
+                                  rawText: textEditCtrl.text,
+                                  baseFontFamily: selectedFont,
+                                  baseFontSize: currentFontSize,
+                                  baseColor: currentColor == Colors.black ? Colors.white : currentColor,
+                                  baseFontWeight: currentWeight,
+                                  scale: 1.0,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 14),
                     ],
 
-                    // Font Selection Dropdown
+                    // Font Selection Dropdown (Base Font)
                     if (item.type != 'photo' && item.type != 'signature') ...[
                       Text(
-                        'ម៉ូតអក្សរសម្រាប់ធាតុនេះ (Font Family):',
+                        'ម៉ូតអក្សរគោលសម្រាប់ធាតុនេះ (Base Font Family):',
                         style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 12.5),
                       ),
                       const SizedBox(height: 6),
@@ -1057,7 +1590,7 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
                           ),
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 14),
 
                       // Font Size Slider
                       Row(
@@ -1090,7 +1623,7 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
 
                       // Text Color Palette
                       Text(
-                        'ពណ៌អក្សរ (Text Color):',
+                        'ពណ៌អក្សរ (Text Color / Apply to Selection):',
                         style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 12.5),
                       ),
                       const SizedBox(height: 8),
@@ -1100,7 +1633,13 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
                           children: _availableColors.map((c) {
                             final bool isSel = currentColor == c;
                             return GestureDetector(
-                              onTap: () => setModalState(() => currentColor = c),
+                              onTap: () {
+                                if (textEditCtrl.selection.isValid && !textEditCtrl.selection.isCollapsed) {
+                                  applyFormattingToSelection(color: c);
+                                } else {
+                                  setModalState(() => currentColor = c);
+                                }
+                              },
                               child: Container(
                                 margin: const EdgeInsets.only(right: 8),
                                 width: 32,
@@ -1119,7 +1658,7 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
                           }).toList(),
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 14),
 
                       // Alignment and Bold Stepper
                       Row(
@@ -1141,9 +1680,13 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
                           const Spacer(),
                           TextButton.icon(
                             onPressed: () {
-                              setModalState(() {
-                                currentWeight = currentWeight == FontWeight.bold ? FontWeight.normal : FontWeight.bold;
-                              });
+                              if (textEditCtrl.selection.isValid && !textEditCtrl.selection.isCollapsed) {
+                                applyFormattingToSelection(bold: true);
+                              } else {
+                                setModalState(() {
+                                  currentWeight = currentWeight == FontWeight.bold ? FontWeight.normal : FontWeight.bold;
+                                });
+                              }
                             },
                             icon: Icon(Icons.format_bold_rounded, color: currentWeight == FontWeight.bold ? Colors.amberAccent : Colors.white54),
                             label: Text(
@@ -1162,7 +1705,7 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
                       width: double.infinity,
                       height: 48,
                       child: ElevatedButton.icon(
-                        onPressed: () {
+                        onPressed: () async {
                           setState(() {
                             item.text = textEditCtrl.text;
                             item.fontFamily = selectedFont;
@@ -1185,7 +1728,11 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
                             if (item.id == 'sign_name') _signatoryController.text = item.text;
                           });
                           _canvasController.updateItem(item.id, item);
-                          Navigator.pop(ctx);
+
+                          // Persistent Auto-Save to Database
+                          await _saveCertificateToStorage(showToast: false);
+
+                          if (ctx.mounted) Navigator.pop(ctx);
                         },
                         icon: const Icon(Icons.check_circle_rounded, color: Colors.black),
                         label: Text(
@@ -1379,6 +1926,16 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
+          IconButton(
+            tooltip: 'រក្សាទុកក្នុង Database (Save Design)',
+            icon: const Icon(Icons.save_rounded, color: Colors.greenAccent, size: 22),
+            onPressed: () => _saveCertificateToStorage(showToast: true),
+          ),
+          IconButton(
+            tooltip: 'កំណត់ឡើងវិញ (Reset to Default)',
+            icon: const Icon(Icons.restore_rounded, color: Colors.orangeAccent, size: 22),
+            onPressed: _resetCertificateToDefault,
+          ),
           IconButton(
             tooltip: 'ពេញអេក្រង់ (Full Screen)',
             icon: const Icon(Icons.fullscreen_rounded, color: Colors.amberAccent, size: 24),
@@ -2257,14 +2814,17 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
                             case 'symbol':
                             case 'text':
                             default:
-                              elementWidget = Text(
-                                item.text,
+                              elementWidget = RichText(
                                 textAlign: item.textAlign,
-                                style: _getKhmerTextStyle(
-                                  fontFamily: item.fontFamily,
-                                  fontSize: item.fontSize * scale,
-                                  fontWeight: item.fontWeight,
-                                  color: item.color,
+                                text: TextSpan(
+                                  children: _parseRichTextSpans(
+                                    rawText: item.text,
+                                    baseFontFamily: item.fontFamily,
+                                    baseFontSize: item.fontSize,
+                                    baseColor: item.color,
+                                    baseFontWeight: item.fontWeight,
+                                    scale: scale,
+                                  ),
                                 ),
                               );
                               break;
@@ -2311,14 +2871,18 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
 
   Widget _buildBodyElementWidget(CertItem item, double scale) {
     if (_isCustomBodyTextEnabled && item.text.trim().isNotEmpty) {
-      return Text(
-        item.text,
+      return RichText(
         textAlign: item.textAlign,
-        style: _getKhmerTextStyle(
-          fontFamily: item.fontFamily,
-          fontSize: item.fontSize * scale,
-          color: item.color,
-          height: 1.6,
+        text: TextSpan(
+          children: _parseRichTextSpans(
+            rawText: item.text,
+            baseFontFamily: item.fontFamily,
+            baseFontSize: item.fontSize,
+            baseColor: item.color,
+            baseFontWeight: item.fontWeight,
+            scale: scale,
+            height: 1.6,
+          ),
         ),
       );
     }

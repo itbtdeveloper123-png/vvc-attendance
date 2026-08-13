@@ -4,6 +4,7 @@ import 'package:animate_do/animate_do.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import '../utils/app_theme.dart';
 import '../widgets/app_widgets.dart';
+import '../widgets/responsive_layout.dart';
 import 'leave_request_screen.dart';
 import 'ot_request_screen.dart';
 import 'forget_scan_screen.dart';
@@ -89,11 +90,37 @@ class RequestsScreen extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 24),
-                    AnimationLimiter(
-                      child: Column(
-                        children: _buildRequestList(context),
+                    if (Responsive.isDesktop(context) || Responsive.isTablet(context))
+                      GridView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: MediaQuery.of(context).size.width > 1200 ? 3 : 2,
+                          childAspectRatio: 2.8,
+                          crossAxisSpacing: 16,
+                          mainAxisSpacing: 16,
+                        ),
+                        itemCount: _requestItems.length,
+                        itemBuilder: (context, i) {
+                          final item = _requestItems[i];
+                          return AppActionButton(
+                            title: item.title,
+                            subtitle: item.subtitle,
+                            icon: item.icon,
+                            iconColor: item.color,
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => item.screen),
+                            ),
+                          );
+                        },
+                      )
+                    else
+                      AnimationLimiter(
+                        child: Column(
+                          children: _buildRequestList(context),
+                        ),
                       ),
-                    ),
                     const SizedBox(height: 110),
                   ],
                 ),
@@ -105,47 +132,47 @@ class RequestsScreen extends StatelessWidget {
     );
   }
 
-  List<Widget> _buildRequestList(BuildContext context) {
-    final items = [
-      _RequestItem(
-        title: "ច្បាប់ឈប់សម្រាក",
-        subtitle: "ស្នើសំណើច្បាប់ប្រចាំឆ្នាំ, ឈប់ជំងឺ ឬឈប់ផ្ទាល់",
-        icon: Icons.beach_access_rounded,
-        color: Colors.pinkAccent,
-        screen: const LeaveRequestScreen(),
-      ),
-      _RequestItem(
-        title: "ថែមម៉ោង (OT)",
-        subtitle: "ស្នើសំណើថែមម៉ោងធ្វើការ",
-        icon: Icons.bolt_rounded,
-        color: Colors.amberAccent,
-        screen: const OtRequestScreen(),
-      ),
-      _RequestItem(
-        title: "ភ្លេចស្កេន",
-        subtitle: "ដាក់ពាក្យស្នើ Check-In/Out ដែលភ្លេច",
-        icon: Icons.history_rounded,
-        color: Colors.purpleAccent,
-        screen: const ForgetScanScreen(),
-      ),
-      _RequestItem(
-        title: "មកថ្ងៃត្រូវវែ (Late)",
-        subtitle: "ស្នើបញ្ជាក់ហេតុផលមកយឺត",
-        icon: Icons.access_time_rounded,
-        color: Colors.orangeAccent,
-        screen: const LateRequestScreen(),
-      ),
-      _RequestItem(
-        title: "ប្តូរថ្ងៃ OFF",
-        subtitle: "ស្នើប្តូរថ្ងៃឈប់សម្រាក",
-        icon: Icons.swap_horiz_rounded,
-        color: Colors.tealAccent,
-        screen: const ChangeDayOffScreen(),
-      ),
-    ];
+  static final List<_RequestItem> _requestItems = [
+    _RequestItem(
+      title: "ច្បាប់ឈប់សម្រាក",
+      subtitle: "ស្នើសំណើច្បាប់ប្រចាំឆ្នាំ, ឈប់ជំងឺ ឬឈប់ផ្ទាល់",
+      icon: Icons.beach_access_rounded,
+      color: Colors.pinkAccent,
+      screen: const LeaveRequestScreen(),
+    ),
+    _RequestItem(
+      title: "ថែមម៉ោង (OT)",
+      subtitle: "ស្នើសំណើថែមម៉ោងធ្វើការ",
+      icon: Icons.bolt_rounded,
+      color: Colors.amberAccent,
+      screen: const OtRequestScreen(),
+    ),
+    _RequestItem(
+      title: "ភ្លេចស្កេន",
+      subtitle: "ដាក់ពាក្យស្នើ Check-In/Out ដែលភ្លេច",
+      icon: Icons.history_rounded,
+      color: Colors.purpleAccent,
+      screen: const ForgetScanScreen(),
+    ),
+    _RequestItem(
+      title: "មកថ្ងៃត្រូវវែ (Late)",
+      subtitle: "ស្នើបញ្ជាក់ហេតុផលមកយឺត",
+      icon: Icons.access_time_rounded,
+      color: Colors.orangeAccent,
+      screen: const LateRequestScreen(),
+    ),
+    _RequestItem(
+      title: "ប្តូរថ្ងៃ OFF",
+      subtitle: "ស្នើប្តូរថ្ងៃឈប់សម្រាក",
+      icon: Icons.swap_horiz_rounded,
+      color: Colors.tealAccent,
+      screen: const ChangeDayOffScreen(),
+    ),
+  ];
 
-    return List.generate(items.length, (i) {
-      final item = items[i];
+  List<Widget> _buildRequestList(BuildContext context) {
+    return List.generate(_requestItems.length, (i) {
+      final item = _requestItems[i];
       return AnimationConfiguration.staggeredList(
         position: i,
         duration: const Duration(milliseconds: 500),

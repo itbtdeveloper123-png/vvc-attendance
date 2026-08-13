@@ -16,6 +16,7 @@ import '../services/api_service.dart';
 import '../utils/app_theme.dart';
 import '../providers/user_provider.dart';
 import '../widgets/app_widgets.dart';
+import '../widgets/responsive_layout.dart';
 import 'leave_request_screen.dart';
 import 'ot_request_screen.dart';
 import 'late_request_screen.dart';
@@ -354,42 +355,56 @@ class _RequestListScreenState extends State<RequestListScreen> {
                           color: AppTheme.primary,
                           child: _filtered.isEmpty
                               ? _buildEmptyState()
-                              : AnimationLimiter(
-                                  child: ListView.builder(
-                                    padding: EdgeInsets.fromLTRB(
-                                      AppResponsive.horizontalPadding(context),
-                                      0,
-                                      AppResponsive.horizontalPadding(context),
-                                      AppResponsive.bottomPadding(
-                                        context,
-                                        hasBottomNav:
-                                            ModalRoute.of(context)?.isFirst ??
-                                            false,
+                              : ((Responsive.isDesktop(context) || Responsive.isTablet(context))
+                                  ? GridView.builder(
+                                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                        crossAxisCount: MediaQuery.of(context).size.width > 1200 ? 3 : 2,
+                                        childAspectRatio: 2.1,
+                                        crossAxisSpacing: 16,
+                                        mainAxisSpacing: 14,
                                       ),
-                                    ),
-                                    physics: const BouncingScrollPhysics(),
-                                    itemCount: _filtered.length,
-                                    itemBuilder: (context, index) =>
-                                        AnimationConfiguration.staggeredList(
-                                          position: index,
-                                          duration: const Duration(
-                                            milliseconds: 400,
+                                      physics: const BouncingScrollPhysics(),
+                                      itemCount: _filtered.length,
+                                      itemBuilder: (context, index) =>
+                                          _buildRequestCard(_filtered[index], index),
+                                    )
+                                  : AnimationLimiter(
+                                      child: ListView.builder(
+                                        padding: EdgeInsets.fromLTRB(
+                                          AppResponsive.horizontalPadding(context),
+                                          0,
+                                          AppResponsive.horizontalPadding(context),
+                                          AppResponsive.bottomPadding(
+                                            context,
+                                            hasBottomNav:
+                                                ModalRoute.of(context)?.isFirst ??
+                                                false,
                                           ),
-                                          child: SlideAnimation(
-                                            verticalOffset: 50.0,
-                                            child: FadeInAnimation(
-                                              child: AppResponsive.maxWidth(
-                                                context: context,
-                                                child: _buildRequestCard(
-                                                  _filtered[index],
-                                                  index,
+                                        ),
+                                        physics: const BouncingScrollPhysics(),
+                                        itemCount: _filtered.length,
+                                        itemBuilder: (context, index) =>
+                                            AnimationConfiguration.staggeredList(
+                                              position: index,
+                                              duration: const Duration(
+                                                milliseconds: 400,
+                                              ),
+                                              child: SlideAnimation(
+                                                verticalOffset: 50.0,
+                                                child: FadeInAnimation(
+                                                  child: AppResponsive.maxWidth(
+                                                    context: context,
+                                                    child: _buildRequestCard(
+                                                      _filtered[index],
+                                                      index,
+                                                    ),
+                                                  ),
                                                 ),
                                               ),
                                             ),
-                                          ),
-                                        ),
-                                  ),
-                                ),
+                                      ),
+                                    )),
                         ),
                 ),
               ],

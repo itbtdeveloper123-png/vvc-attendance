@@ -6,6 +6,7 @@ import '../services/api_service.dart';
 import '../models/notification_model.dart';
 import '../utils/app_theme.dart';
 import '../widgets/app_widgets.dart';
+import '../widgets/responsive_layout.dart';
 import 'notification_detail_screen.dart';
 
 class NotificationScreen extends StatefulWidget {
@@ -330,6 +331,21 @@ class _NotificationScreenState extends State<NotificationScreen> {
   }
 
   Widget _buildList(List<NotificationModel> notifications) {
+    if (Responsive.isDesktop(context) || Responsive.isTablet(context)) {
+      return GridView.builder(
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+        physics: const BouncingScrollPhysics(),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: MediaQuery.of(context).size.width > 1200 ? 3 : 2,
+          childAspectRatio: 2.6,
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+        ),
+        itemCount: notifications.length,
+        itemBuilder: (context, index) => _buildNotificationCard(notifications[index]),
+      );
+    }
+
     final hPad = AppResponsive.horizontalPadding(context);
     return AnimationLimiter(
       child: ListView.builder(

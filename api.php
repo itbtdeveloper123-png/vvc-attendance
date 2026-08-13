@@ -3370,6 +3370,48 @@ try {
         ]);
         break;
 
+    case 'save_certificate_template':
+        $category = trim($_POST['category'] ?? 'head_office');
+        $template_data = $_POST['template_data'] ?? '';
+        if (empty($template_data)) {
+            apiResponse(['success' => false, 'message' => 'Missing template data']);
+        }
+        $key = 'cert_template_' . $category;
+        $admin_id = 'SYSTEM_WIDE';
+        
+        $stmt = $mysqli->prepare("INSERT INTO app_settings (admin_id, setting_key, setting_value) VALUES (?, ?, ?)
+                                 ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
+        if ($stmt) {
+            $stmt->bind_param("sss", $admin_id, $key, $template_data);
+            $stmt->execute();
+            $stmt->close();
+            apiResponse(['success' => true, 'message' => 'Certificate template saved to Cloud Database']);
+        } else {
+            apiResponse(['success' => false, 'message' => 'Database error: ' . $mysqli->error]);
+        }
+        break;
+
+    case 'get_certificate_template':
+        $category = trim($_GET['category'] ?? $_POST['category'] ?? 'head_office');
+        $key = 'cert_template_' . $category;
+        $admin_id = 'SYSTEM_WIDE';
+
+        $stmt = $mysqli->prepare("SELECT setting_value FROM app_settings WHERE admin_id = ? AND setting_key = ? LIMIT 1");
+        if ($stmt) {
+            $stmt->bind_param("ss", $admin_id, $key);
+            $stmt->execute();
+            $res = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+            if ($res && !empty($res['setting_value'])) {
+                apiResponse(['success' => true, 'data' => json_decode($res['setting_value'], true), 'raw' => $res['setting_value']]);
+            } else {
+                apiResponse(['success' => false, 'message' => 'No saved template found']);
+            }
+        } else {
+            apiResponse(['success' => false, 'message' => 'Database error: ' . $mysqli->error]);
+        }
+        break;
+
     case 'save_meeting':
         if (!$user) apiResponse(['success' => false, 'status' => 'error', 'message' => 'Unauthorized']);
 

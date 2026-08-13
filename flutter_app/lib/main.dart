@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:provider/provider.dart';
@@ -86,35 +87,33 @@ Future<void> _initFirebaseInBackground() async {
     return; // Stop here — no point setting up FCM if Firebase failed
   }
 
-  try {
-    // Request Firebase permission (Android 13+ & iOS)
-    FirebaseMessaging messaging = FirebaseMessaging.instance;
-    await messaging.requestPermission(alert: true, badge: true, sound: true);
+  final bool isMobile = !kIsWeb && (Platform.isAndroid || Platform.isIOS);
+  if (isMobile) {
     try {
-      await NotificationService().init();
-    } catch (e) {
-      debugPrint("NotificationService init error: $e");
-    }
+      FirebaseMessaging messaging = FirebaseMessaging.instance;
+      await messaging.requestPermission(alert: true, badge: true, sound: true);
+      try {
+        await NotificationService().init();
+      } catch (e) {
+        debugPrint("NotificationService init error: $e");
+      }
 
-    // Schedule Khmer calendar holiday & sila notifications for the year
-    try {
-      await KhmerCalendarNotificationService().scheduleForYear();
-    } catch (e) {
-      debugPrint("KhmerCalendarNotif scheduleForYear error: $e");
-    }
+      // Schedule Khmer calendar holiday & sila notifications for the year
+      try {
+        await KhmerCalendarNotificationService().scheduleForYear();
+      } catch (e) {
+        debugPrint("KhmerCalendarNotif scheduleForYear error: $e");
+      }
 
-    // Subscribe to Global Topic — NOT supported on web
-    if (!kIsWeb) {
+      // Subscribe to Global Topic
       await messaging
           .subscribeToTopic('all_users')
           .catchError((e) => debugPrint("FCM subscribeToTopic error: $e"));
       FirebaseMessaging.onBackgroundMessage(
         _firebaseMessagingBackgroundHandler,
       );
-    }
 
-    // Define Android notification channels
-    if (!kIsWeb) {
+      // Define Android notification channels
       const AndroidNotificationChannel channel = AndroidNotificationChannel(
         'vvc_hrm_channel',
         'VVC HRM Notifications',
@@ -169,33 +168,25 @@ Future<void> _initFirebaseInBackground() async {
 
         if (notification != null) {
           String activeChannel = message.data['channel_id'] ?? channel.id;
-
-          if (kIsWeb) {
-            debugPrint(
-              "Web Notif Title: ${notification.title}, Body: ${notification.body}",
-            );
-          } else {
-            await NotificationService().showNotification(
-              id: notification.hashCode,
-              title: notification.title ?? 'VVC HRM',
-              body: notification.body ?? '',
-              channelId: activeChannel,
-            );
-          }
+          await NotificationService().showNotification(
+            id: notification.hashCode,
+            title: notification.title ?? 'VVC HRM',
+            body: notification.body ?? '',
+            channelId: activeChannel,
+          );
         }
       });
+    } catch (e) {
+      debugPrint("Mobile Notification setup error: $e");
     }
-
-    // Web foreground messages
-    if (kIsWeb) {
-      FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-        debugPrint('Got a foreground message on Web!');
-      });
-    }
-  } catch (e) {
-    debugPrint("Firebase messaging setup error: $e");
   }
 
+  // Web foreground messages
+  if (kIsWeb) {
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      debugPrint('Got a foreground message on Web!');
+    });
+  }
 }
 
 class VvcHrmApp extends StatelessWidget {

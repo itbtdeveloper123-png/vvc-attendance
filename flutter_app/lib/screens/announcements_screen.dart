@@ -5,6 +5,7 @@ import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import '../services/api_service.dart';
 import '../utils/app_theme.dart';
 import '../widgets/app_widgets.dart';
+import '../widgets/responsive_layout.dart';
 
 class AnnouncementsScreen extends StatefulWidget {
   const AnnouncementsScreen({super.key});
@@ -71,10 +72,12 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
   Widget build(BuildContext context) {
     return DynamicAppBarWrapper(
       title: "ការជូនដំណឹង",
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back_ios_new_rounded),
-        onPressed: () => Navigator.pop(context),
-      ),
+      leading: Navigator.canPop(context)
+          ? IconButton(
+              icon: const Icon(Icons.arrow_back_ios_new_rounded),
+              onPressed: () => Navigator.pop(context),
+            )
+          : null,
       body: AppBackgroundShell(
         child: _isLoading
             ? _buildShimmerList()
@@ -129,6 +132,21 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
   }
 
   Widget _buildList() {
+    if (Responsive.isDesktop(context) || Responsive.isTablet(context)) {
+      return GridView.builder(
+        padding: const EdgeInsets.fromLTRB(24, 110, 24, 24),
+        physics: const BouncingScrollPhysics(),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: MediaQuery.of(context).size.width > 1200 ? 3 : 2,
+          childAspectRatio: 2.2,
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+        ),
+        itemCount: _items.length,
+        itemBuilder: (context, index) => _buildAnnouncementCard(_items[index]),
+      );
+    }
+
     return AnimationLimiter(
       child: ListView.builder(
         padding: const EdgeInsets.fromLTRB(20, 110, 20, 20),

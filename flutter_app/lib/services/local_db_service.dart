@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 
@@ -8,7 +10,10 @@ class LocalDbService {
 
   Database? _database;
 
-  Future<Database> get database async {
+  bool get _isSupportedPlatform => !kIsWeb && (Platform.isAndroid || Platform.isIOS || Platform.isMacOS);
+
+  Future<Database?> get database async {
+    if (!_isSupportedPlatform) return null;
     if (_database != null) return _database!;
     _database = await _initDb();
     return _database!;
@@ -76,22 +81,26 @@ class LocalDbService {
   // ─── Offline Punches ────────────────────────────────────────────────────────
 
   Future<int> insertPunch(Map<String, dynamic> punchData) async {
-    Database db = await database;
+    Database? db = await database;
+    if (db == null) return 0;
     return await db.insert('offline_punches', punchData);
   }
 
   Future<List<Map<String, dynamic>>> getUnsyncedPunches() async {
-    Database db = await database;
+    Database? db = await database;
+    if (db == null) return [];
     return await db.query('offline_punches', where: 'synced = 0');
   }
 
   Future<int> markAsSynced(int id) async {
-    Database db = await database;
+    Database? db = await database;
+    if (db == null) return 0;
     return await db.update('offline_punches', {'synced': 1}, where: 'id = ?', whereArgs: [id]);
   }
 
   Future<int> clearSyncedPunches() async {
-    Database db = await database;
+    Database? db = await database;
+    if (db == null) return 0;
     return await db.delete('offline_punches', where: 'synced = 1');
   }
 
@@ -105,6 +114,7 @@ class LocalDbService {
     double accuracy = 0,
   }) async {
     final db = await database;
+    if (db == null) return 0;
     return await db.insert('offline_trip_points', {
       'trip_id': tripId,
       'latitude': latitude,
@@ -118,6 +128,7 @@ class LocalDbService {
 
   Future<List<Map<String, dynamic>>> getUnsyncedTripPoints() async {
     final db = await database;
+    if (db == null) return [];
     return await db.query(
       'offline_trip_points',
       where: 'synced = 0',
@@ -127,6 +138,7 @@ class LocalDbService {
 
   Future<int> markTripPointSynced(int id) async {
     final db = await database;
+    if (db == null) return 0;
     return await db.update(
       'offline_trip_points',
       {'synced': 1},
@@ -137,6 +149,7 @@ class LocalDbService {
 
   Future<int> clearSyncedTripPoints() async {
     final db = await database;
+    if (db == null) return 0;
     return await db.delete('offline_trip_points', where: 'synced = 1');
   }
 }

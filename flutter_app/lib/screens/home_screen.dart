@@ -53,6 +53,7 @@ import 'kpi_performance_screen.dart';
 import 'certificate_editor_screen.dart';
 import '../widgets/responsive_layout.dart';
 import '../widgets/desktop_navigation_shell.dart';
+import '../widgets/desktop_dashboard_view.dart';
 
 // ========== SLIDE PAGE ROUTE (Feature #9) ==========
 PageRouteBuilder _slideRoute(Widget page) {
@@ -274,18 +275,18 @@ class HomeScreenState extends State<HomeScreen> {
     if (Responsive.isDesktop(context) || Responsive.isTablet(context)) {
       return DesktopNavigationShell(
         items: [
-          DesktopNavigationItem(
-            title: 'ផ្ទាំងដើម (Dashboard)',
+          const DesktopNavigationItem(
+            title: 'ផ្ទាំងគ្រប់គ្រងទូទៅ (Dashboard)',
             icon: Icons.dashboard_outlined,
             selectedIcon: Icons.dashboard_rounded,
-            screen: HomeContent(onProfileTap: () {}),
+            screen: DesktopDashboardView(),
           ),
           const DesktopNavigationItem(
             title: 'ស្ទូឌីយោលិខិតសរសើរ A4',
             icon: Icons.workspace_premium_outlined,
             selectedIcon: Icons.workspace_premium_rounded,
             screen: CertificateEditorScreen(),
-            badge: 'Studio',
+            badge: 'Pro Studio',
           ),
           const DesktopNavigationItem(
             title: 'បោះឆ្នោតបុគ្គលិកឆ្នើម',
@@ -299,27 +300,47 @@ class HomeScreenState extends State<HomeScreen> {
             selectedIcon: Icons.assignment_rounded,
             screen: userProvider.isHRM ? const RequestListScreen() : const RequestsScreen(),
           ),
-          if (userProvider.isHRM)
+          const DesktopNavigationItem(
+            title: 'របាយការណ៍វត្តមាន & ស្ថិតិ',
+            icon: Icons.assessment_outlined,
+            selectedIcon: Icons.assessment_rounded,
+            screen: AttendanceReportScreen(),
+          ),
+          const DesktopNavigationItem(
+            title: 'ជំនួយការ AI Chat HR',
+            icon: Icons.smart_toy_outlined,
+            selectedIcon: Icons.smart_toy_rounded,
+            screen: AiChatScreen(),
+            badge: 'AI Gen',
+          ),
+          const DesktopNavigationItem(
+            title: 'ស្កេនឯកសារ & Passport',
+            icon: Icons.document_scanner_outlined,
+            selectedIcon: Icons.document_scanner_rounded,
+            screen: DocumentScannerScreen(),
+          ),
+          const DesktopNavigationItem(
+            title: 'កត់ត្រាកិច្ចប្រជុំ & សំឡេង',
+            icon: Icons.mic_none_outlined,
+            selectedIcon: Icons.mic_rounded,
+            screen: MeetingsScreen(),
+          ),
+          if (userProvider.isHRM) ...[
             const DesktopNavigationItem(
               title: 'គ្រប់គ្រងបុគ្គលិក (HRM)',
               icon: Icons.people_alt_outlined,
               selectedIcon: Icons.people_alt_rounded,
               screen: UserManagementScreen(),
             ),
+            const DesktopNavigationItem(
+              title: 'បើកប្រាក់បៀវត្ស (Payroll)',
+              icon: Icons.payments_outlined,
+              selectedIcon: Icons.payments_rounded,
+              screen: PayrollAdminScreen(),
+            ),
+          ],
           const DesktopNavigationItem(
-            title: 'របាយការណ៍វត្តមាន',
-            icon: Icons.assessment_outlined,
-            selectedIcon: Icons.assessment_rounded,
-            screen: AttendanceReportScreen(),
-          ),
-          const DesktopNavigationItem(
-            title: 'ជំនួយការ AI Chat',
-            icon: Icons.smart_toy_outlined,
-            selectedIcon: Icons.smart_toy_rounded,
-            screen: AiChatScreen(),
-          ),
-          const DesktopNavigationItem(
-            title: 'គណនី (My Profile)',
+            title: 'គណនីរបស់ខ្ញុំ (My Profile)',
             icon: Icons.person_outline_rounded,
             selectedIcon: Icons.person_rounded,
             screen: ProfileScreen(),

@@ -500,6 +500,32 @@ class ApiService {
     );
   }
 
+  Future<Map<String, dynamic>> saveCertificateTemplate({
+    required String category,
+    required String templateData,
+  }) async {
+    final headers = await _authHeaders();
+    return _processRequest(
+      'save_certificate_template',
+      headers: headers,
+      body: {
+        'category': category,
+        'template_data': templateData,
+      },
+    );
+  }
+
+  Future<Map<String, dynamic>> getCertificateTemplate(String category) async {
+    final headers = await _authHeaders();
+    return _processRequest(
+      'get_certificate_template',
+      headers: headers,
+      body: {
+        'category': category,
+      },
+    );
+  }
+
   Future<Map<String, dynamic>> getPollResults(int pollId) async {
     final headers = await _authHeaders();
     return _processRequest(

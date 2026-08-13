@@ -1,9 +1,13 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../providers/user_provider.dart';
-import '../utils/app_theme.dart';
 import 'responsive_layout.dart';
+import '../screens/notification_screen.dart';
+import '../screens/ai_chat_screen.dart';
+import '../screens/login_screen.dart';
 
 class DesktopNavigationItem {
   final String title;
@@ -40,11 +44,88 @@ class DesktopNavigationShell extends StatefulWidget {
 class _DesktopNavigationShellState extends State<DesktopNavigationShell> {
   late int _selectedIndex;
   bool _isCollapsed = false;
+  DateTime _currentTime = DateTime.now();
+  Timer? _clockTimer;
 
   @override
   void initState() {
     super.initState();
     _selectedIndex = widget.initialIndex;
+    _clockTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) {
+        setState(() => _currentTime = DateTime.now());
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _clockTimer?.cancel();
+    super.dispose();
+  }
+
+  void _showLogoutConfirmDialog(BuildContext context, UserProvider userProvider) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Row(
+          children: [
+            const Icon(Icons.logout_rounded, color: Color(0xFFEF4444), size: 24),
+            const SizedBox(width: 10),
+            Text(
+              'ចាកចេញពីគណនី',
+              style: GoogleFonts.kantumruyPro(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          'តើអ្នកប្រាកដជាចង់ចាកចេញពីប្រព័ន្ធ VVC HRM មែនទេ?',
+          style: GoogleFonts.kantumruyPro(
+            color: Colors.white70,
+            fontSize: 13.5,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(
+              'បោះបង់',
+              style: GoogleFonts.kantumruyPro(color: Colors.white60),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await userProvider.logout();
+              if (context.mounted) {
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+                  (route) => false,
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: Text(
+              'ចាកចេញ (Logout)',
+              style: GoogleFonts.kantumruyPro(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -60,15 +141,16 @@ class _DesktopNavigationShellState extends State<DesktopNavigationShell> {
     final userRole = userProvider.systemRoleLabel.isNotEmpty
         ? userProvider.systemRoleLabel
         : 'បុគ្គលិក';
+    final currentItem = widget.items[_selectedIndex];
 
     return Scaffold(
-      backgroundColor: AppTheme.bgDark,
+      backgroundColor: const Color(0xFF0B1120),
       body: Row(
         children: [
-          // Collapsible Left Desktop Sidebar
+          // 1. Collapsible Left Desktop Sidebar
           AnimatedContainer(
             duration: const Duration(milliseconds: 200),
-            width: _isCollapsed ? 80 : 260,
+            width: _isCollapsed ? 80 : 270,
             decoration: BoxDecoration(
               color: const Color(0xFF0F172A),
               border: Border(
@@ -79,14 +161,15 @@ class _DesktopNavigationShellState extends State<DesktopNavigationShell> {
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.25),
-                  blurRadius: 10,
+                  color: Colors.black.withValues(alpha: 0.3),
+                  blurRadius: 16,
+                  offset: const Offset(2, 0),
                 ),
               ],
             ),
             child: Column(
               children: [
-                // Top Brand Header
+                // Brand Header with Toggle Button
                 Container(
                   padding: EdgeInsets.symmetric(
                     horizontal: _isCollapsed ? 12 : 20,
@@ -107,27 +190,27 @@ class _DesktopNavigationShellState extends State<DesktopNavigationShell> {
                       Row(
                         children: [
                           Container(
-                            width: 40,
-                            height: 40,
+                            width: 42,
+                            height: 42,
                             decoration: BoxDecoration(
                               gradient: const LinearGradient(
-                                colors: [Color(0xFF2563EB), Color(0xFF1D4ED8)],
+                                colors: [Color(0xFFD4AF37), Color(0xFFB8860B)],
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
                               ),
-                              borderRadius: BorderRadius.circular(10),
+                              borderRadius: BorderRadius.circular(12),
                               boxShadow: [
                                 BoxShadow(
-                                  color: const Color(0xFF2563EB).withValues(alpha: 0.4),
+                                  color: const Color(0xFFD4AF37).withValues(alpha: 0.35),
                                   blurRadius: 8,
-                                  offset: const Offset(0, 2),
+                                  offset: const Offset(0, 3),
                                 ),
                               ],
                             ),
                             child: const Center(
                               child: Icon(
                                 Icons.workspace_premium_rounded,
-                                color: Colors.white,
+                                color: Colors.black,
                                 size: 24,
                               ),
                             ),
@@ -143,14 +226,15 @@ class _DesktopNavigationShellState extends State<DesktopNavigationShell> {
                                     color: Colors.white,
                                     fontSize: 16,
                                     fontWeight: FontWeight.w800,
-                                    letterSpacing: 1.1,
+                                    letterSpacing: 1.2,
                                   ),
                                 ),
                                 Text(
-                                  'HR & Studio Enterprise',
+                                  'HRM & Studio Enterprise',
                                   style: GoogleFonts.kantumruyPro(
-                                    color: Colors.white54,
-                                    fontSize: 11,
+                                    color: const Color(0xFFD4AF37),
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
                               ],
@@ -209,12 +293,12 @@ class _DesktopNavigationShellState extends State<DesktopNavigationShell> {
                           ),
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? const Color(0xFF2563EB).withValues(alpha: 0.2)
+                                ? const Color(0xFF2563EB).withValues(alpha: 0.22)
                                 : Colors.transparent,
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
                               color: isSelected
-                                  ? const Color(0xFF2563EB).withValues(alpha: 0.5)
+                                  ? const Color(0xFF3B82F6).withValues(alpha: 0.6)
                                   : Colors.transparent,
                             ),
                           ),
@@ -226,7 +310,7 @@ class _DesktopNavigationShellState extends State<DesktopNavigationShell> {
                               Icon(
                                 isSelected ? item.selectedIcon : item.icon,
                                 color: isSelected
-                                    ? Colors.amberAccent
+                                    ? const Color(0xFFD4AF37)
                                     : Colors.white70,
                                 size: 22,
                               ),
@@ -242,7 +326,7 @@ class _DesktopNavigationShellState extends State<DesktopNavigationShell> {
                                       fontWeight: isSelected
                                           ? FontWeight.bold
                                           : FontWeight.w500,
-                                      fontSize: 13.5,
+                                      fontSize: 13,
                                     ),
                                     overflow: TextOverflow.ellipsis,
                                   ),
@@ -250,18 +334,18 @@ class _DesktopNavigationShellState extends State<DesktopNavigationShell> {
                                 if (item.badge != null)
                                   Container(
                                     padding: const EdgeInsets.symmetric(
-                                      horizontal: 7,
-                                      vertical: 2,
+                                      horizontal: 8,
+                                      vertical: 2.5,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: Colors.amberAccent,
-                                      borderRadius: BorderRadius.circular(8),
+                                      color: const Color(0xFFD4AF37),
+                                      borderRadius: BorderRadius.circular(6),
                                     ),
                                     child: Text(
                                       item.badge!,
                                       style: GoogleFonts.outfit(
                                         color: Colors.black,
-                                        fontSize: 10.5,
+                                        fontSize: 10,
                                         fontWeight: FontWeight.bold,
                                       ),
                                     ),
@@ -275,7 +359,7 @@ class _DesktopNavigationShellState extends State<DesktopNavigationShell> {
                   ),
                 ),
 
-                // Bottom Profile Area
+                // Bottom User Profile & Logout Area
                 Container(
                   padding: EdgeInsets.all(_isCollapsed ? 10 : 14),
                   decoration: BoxDecoration(
@@ -289,50 +373,79 @@ class _DesktopNavigationShellState extends State<DesktopNavigationShell> {
                   child: Row(
                     mainAxisAlignment: _isCollapsed
                         ? MainAxisAlignment.center
-                        : MainAxisAlignment.start,
+                        : MainAxisAlignment.spaceBetween,
                     children: [
-                      CircleAvatar(
-                        radius: 18,
-                        backgroundColor: const Color(0xFF2563EB),
-                        backgroundImage: (userProvider.avatarUrl != null && userProvider.avatarUrl!.isNotEmpty)
-                            ? NetworkImage(userProvider.avatarUrl!)
-                            : null,
-                        child: (userProvider.avatarUrl == null || userProvider.avatarUrl!.isEmpty)
-                            ? Text(
-                                userName.isNotEmpty ? userName.substring(0, 1).toUpperCase() : 'U',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              )
-                            : null,
-                      ),
-                      if (!_isCollapsed) ...[
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                      Row(
+                        children: [
+                          Stack(
                             children: [
-                              Text(
-                                userName,
-                                style: GoogleFonts.kantumruyPro(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 12.5,
-                                ),
-                                overflow: TextOverflow.ellipsis,
+                              CircleAvatar(
+                                radius: 18,
+                                backgroundColor: const Color(0xFF2563EB),
+                                backgroundImage: (userProvider.avatarUrl != null && userProvider.avatarUrl!.isNotEmpty)
+                                    ? NetworkImage(userProvider.avatarUrl!)
+                                    : null,
+                                child: (userProvider.avatarUrl == null || userProvider.avatarUrl!.isEmpty)
+                                    ? Text(
+                                        userName.isNotEmpty ? userName.substring(0, 1).toUpperCase() : 'U',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      )
+                                    : null,
                               ),
-                              Text(
-                                userRole,
-                                style: GoogleFonts.kantumruyPro(
-                                  color: Colors.white54,
-                                  fontSize: 11,
+                              Positioned(
+                                right: 0,
+                                bottom: 0,
+                                child: Container(
+                                  width: 10,
+                                  height: 10,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF10B981),
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: const Color(0xFF0A101D), width: 1.5),
+                                  ),
                                 ),
                               ),
                             ],
                           ),
+                          if (!_isCollapsed) ...[
+                            const SizedBox(width: 10),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  userName,
+                                  style: GoogleFonts.kantumruyPro(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12.5,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                Text(
+                                  userRole,
+                                  style: GoogleFonts.kantumruyPro(
+                                    color: Colors.white54,
+                                    fontSize: 10.5,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ],
+                      ),
+                      if (!_isCollapsed)
+                        IconButton(
+                          icon: const Icon(
+                            Icons.power_settings_new_rounded,
+                            color: Color(0xFFEF4444),
+                            size: 20,
+                          ),
+                          onPressed: () => _showLogoutConfirmDialog(context, userProvider),
+                          tooltip: 'ចាកចេញពីគណនី (Logout)',
                         ),
-                      ],
                     ],
                   ),
                 ),
@@ -340,9 +453,131 @@ class _DesktopNavigationShellState extends State<DesktopNavigationShell> {
             ),
           ),
 
-          // Main Screen Area with smooth transitions
+          // 2. Main Screen Area with Top Windows Navigation Header
           Expanded(
-            child: widget.items[_selectedIndex].screen,
+            child: Column(
+              children: [
+                // Top Windows Command & Header Bar
+                _buildTopWindowsHeader(currentItem, userProvider),
+
+                // Main Selected Screen Canvas
+                Expanded(
+                  child: currentItem.screen,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ===== Top Windows Header & Command Bar =====
+  Widget _buildTopWindowsHeader(DesktopNavigationItem currentItem, UserProvider userProvider) {
+    final String timeStr = DateFormat('HH:mm:ss').format(_currentTime);
+    final String dateStr = DateFormat('dd MMM yyyy').format(_currentTime);
+
+    return Container(
+      height: 64,
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F172A),
+        border: Border(
+          bottom: BorderSide(
+            color: Colors.white.withValues(alpha: 0.08),
+            width: 1,
+          ),
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          // Left: Current Page Title & Icon
+          Row(
+            children: [
+              Icon(
+                currentItem.selectedIcon,
+                color: const Color(0xFF60A5FA),
+                size: 22,
+              ),
+              const SizedBox(width: 10),
+              Text(
+                currentItem.title,
+                style: GoogleFonts.kantumruyPro(
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+
+          // Right: Live Clock, AI Quick Button, Notification Bell
+          Row(
+            children: [
+              // Live Digital Clock Pill
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E293B),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.schedule_rounded, color: Color(0xFF60A5FA), size: 16),
+                    const SizedBox(width: 8),
+                    Text(
+                      timeStr,
+                      style: GoogleFonts.outfit(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '• $dateStr',
+                      style: GoogleFonts.outfit(
+                        color: Colors.white54,
+                        fontSize: 11.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+
+              // AI Chat Quick Launcher Button
+              IconButton(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const AiChatScreen()),
+                ),
+                icon: const Icon(Icons.auto_awesome, color: Color(0xFFA5B4FC), size: 20),
+                tooltip: 'ជំនួយការ AI Chat Assistant',
+                style: IconButton.styleFrom(
+                  backgroundColor: const Color(0xFF1E293B),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+              const SizedBox(width: 8),
+
+              // Notification Bell Button
+              IconButton(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const NotificationScreen()),
+                ),
+                icon: const Icon(Icons.notifications_outlined, color: Colors.white70, size: 20),
+                tooltip: 'ការជូនដំណឹង & សារថ្មី',
+                style: IconButton.styleFrom(
+                  backgroundColor: const Color(0xFF1E293B),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+            ],
           ),
         ],
       ),

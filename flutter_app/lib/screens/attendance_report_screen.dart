@@ -6,6 +6,7 @@ import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import '../services/api_service.dart';
 import '../utils/app_theme.dart';
 import '../widgets/app_widgets.dart';
+import '../widgets/responsive_layout.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class AttendanceReportScreen extends StatefulWidget {
@@ -119,10 +120,12 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
           centerTitle: true,
           backgroundColor: Colors.transparent,
           elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new_rounded),
-            onPressed: () => Navigator.pop(context),
-          ),
+          leading: Navigator.canPop(context)
+              ? IconButton(
+                  icon: const Icon(Icons.arrow_back_ios_new_rounded),
+                  onPressed: () => Navigator.pop(context),
+                )
+              : null,
           actions: [
             IconButton(
               icon: const Icon(Icons.refresh_rounded),
@@ -259,6 +262,20 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
         title: "មិនទាន់មានទិន្នន័យ",
         message: "សាកល្បងប្តូរថ្ងៃ ឬ refresh ម្តងទៀត",
         color: AppTheme.primary,
+      );
+    }
+
+    if (Responsive.isDesktop(context) || Responsive.isTablet(context)) {
+      return GridView.builder(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: MediaQuery.of(context).size.width > 1200 ? 3 : 2,
+          childAspectRatio: 2.4,
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 14,
+        ),
+        itemCount: logs.length,
+        itemBuilder: (context, index) => _buildLogCard(logs[index], index),
       );
     }
 

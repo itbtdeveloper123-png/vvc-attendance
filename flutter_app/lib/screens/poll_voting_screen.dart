@@ -536,11 +536,11 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
                   GridView.builder(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      childAspectRatio: 3.4,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 10,
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: MediaQuery.of(context).size.width > 1200 ? 3 : 2,
+                      childAspectRatio: MediaQuery.of(context).size.width > 1200 ? 2.8 : 3.2,
+                      crossAxisSpacing: 14,
+                      mainAxisSpacing: 12,
                     ),
                     itemCount: candidates.length,
                     itemBuilder: (context, idx) {

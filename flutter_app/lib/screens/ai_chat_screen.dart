@@ -13,6 +13,7 @@ import '../services/api_service.dart';
 import '../services/local_hr_assistant_service.dart';
 import '../utils/app_theme.dart';
 import '../widgets/app_widgets.dart';
+import '../widgets/responsive_layout.dart';
 
 class AiChatScreen extends StatefulWidget {
   const AiChatScreen({super.key});
@@ -1502,32 +1503,219 @@ class _AiChatScreenState extends State<AiChatScreen>
       body: AppBackgroundShell(
         child: SafeArea(
           top: false,
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
-                child: _buildHeaderCard(user),
-              ),
-              Expanded(
-                child: Stack(
+          child: (Responsive.isDesktop(context) || Responsive.isTablet(context))
+              ? Row(
                   children: [
-                    _isBootstrapping || _isLoadingHistory
-                        ? const Center(child: CircularProgressIndicator())
-                        : _buildMessageArea(prompts),
-                    if (_showScrollToBottomButton && !_isBootstrapping)
-                      Positioned(
-                        right: 16,
-                        bottom: 12,
-                        child: _buildScrollToBottomButton(),
+                    // Desktop Left Chat Sessions Panel (280px)
+                    Container(
+                      width: 280,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF111E33).withValues(alpha: 0.95),
+                        border: Border(
+                          right: BorderSide(
+                            color: Colors.white.withValues(alpha: 0.08),
+                          ),
+                        ),
                       ),
+                      child: _buildDesktopSessionsSidebar(),
+                    ),
+                    // Desktop Right Chat Workspace
+                    Expanded(
+                      child: Column(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(20, 10, 20, 6),
+                            child: _buildHeaderCard(user),
+                          ),
+                          Expanded(
+                            child: Stack(
+                              children: [
+                                _isBootstrapping || _isLoadingHistory
+                                    ? const Center(child: CircularProgressIndicator())
+                                    : _buildMessageArea(prompts),
+                                if (_showScrollToBottomButton && !_isBootstrapping)
+                                  Positioned(
+                                    right: 24,
+                                    bottom: 12,
+                                    child: _buildScrollToBottomButton(),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          _buildComposer(),
+                        ],
+                      ),
+                    ),
+                  ],
+                )
+              : Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
+                      child: _buildHeaderCard(user),
+                    ),
+                    Expanded(
+                      child: Stack(
+                        children: [
+                          _isBootstrapping || _isLoadingHistory
+                              ? const Center(child: CircularProgressIndicator())
+                              : _buildMessageArea(prompts),
+                          if (_showScrollToBottomButton && !_isBootstrapping)
+                            Positioned(
+                              right: 16,
+                              bottom: 12,
+                              child: _buildScrollToBottomButton(),
+                            ),
+                        ],
+                      ),
+                    ),
+                    _buildComposer(),
                   ],
                 ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDesktopSessionsSidebar() {
+    return Column(
+      children: [
+        // Sidebar Top Actions
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _isCreatingSession ? null : _createNewSession,
+                  icon: const Icon(Icons.add_rounded, color: Colors.white, size: 20),
+                  label: Text(
+                    'ការជជែកថ្មី (New Chat)',
+                    style: GoogleFonts.kantumruyPro(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primary,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
               ),
-              _buildComposer(),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'ប្រវត្តិការជជែក (${_sessions.length})',
+                      style: GoogleFonts.kantumruyPro(
+                        color: Colors.white70,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  if (_sessions.isNotEmpty)
+                    IconButton(
+                      tooltip: 'លុបទាំងអស់',
+                      visualDensity: VisualDensity.compact,
+                      onPressed: _deleteAllSessions,
+                      icon: const Icon(Icons.delete_sweep_rounded, color: Colors.redAccent, size: 18),
+                    ),
+                ],
+              ),
             ],
           ),
         ),
-      ),
+        const Divider(height: 1, color: Colors.white12),
+        // Sessions List
+        Expanded(
+          child: _sessions.isEmpty
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Text(
+                      'មិនទាន់មានប្រវត្តិជជែកទេ',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.kantumruyPro(color: Colors.white38, fontSize: 13),
+                    ),
+                  ),
+                )
+              : ListView.separated(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  itemCount: _sessions.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 4),
+                  itemBuilder: (context, index) {
+                    final item = _sessions[index];
+                    final sessionId = item.id;
+                    final title = _displaySessionTitle(item);
+                    final isActive = sessionId != null && sessionId == _activeSessionId;
+
+                    return Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(10),
+                        onTap: sessionId == null ? null : () => _loadSession(sessionId, title: title),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: isActive ? AppTheme.primary.withValues(alpha: 0.25) : Colors.transparent,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: isActive ? AppTheme.primary.withValues(alpha: 0.5) : Colors.transparent,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.chat_bubble_outline_rounded,
+                                color: isActive ? Colors.amberAccent : Colors.white54,
+                                size: 16,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.kantumruyPro(
+                                    color: isActive ? Colors.white : Colors.white70,
+                                    fontSize: 12.5,
+                                    fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                                  ),
+                                ),
+                              ),
+                              if (isActive) ...[
+                                IconButton(
+                                  tooltip: 'កែឈ្មោះ',
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                  visualDensity: VisualDensity.compact,
+                                  onPressed: () => _renameSession(item),
+                                  icon: const Icon(Icons.edit_outlined, color: Colors.white54, size: 15),
+                                ),
+                                const SizedBox(width: 6),
+                                IconButton(
+                                  tooltip: 'លុប',
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                  visualDensity: VisualDensity.compact,
+                                  onPressed: () => _deleteSessionById(sessionId, title: title),
+                                  icon: const Icon(Icons.close_rounded, color: Colors.redAccent, size: 15),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ],
     );
   }
 
