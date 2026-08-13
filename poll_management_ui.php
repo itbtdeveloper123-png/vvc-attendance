@@ -312,13 +312,13 @@ if ($polls_result) {
                 </div>
                 
                 <div class="form-group">
-                    <label>ទីតាំង</label>
+                    <label>ទីតាំង/ឃ្លាំង</label>
                     <select name="location">
-                        <option value="">ជ្រើសរើសទីតាំង</option>
-                        <option value="Head Office" <?php echo ($poll_data['location'] ?? '') == 'Head Office' ? 'selected' : ''; ?>>ការិយាល័យកណ្តាល</option>
-                        <option value="Store 318" <?php echo ($poll_data['location'] ?? '') == 'Store 318' ? 'selected' : ''; ?>>ហាងទំនិញ 318</option>
-                        <option value="Warehouse PSP" <?php echo ($poll_data['location'] ?? '') == 'Warehouse PSP' ? 'selected' : ''; ?>>ឃ្លាំង PSP</option>
-                        <option value="Warehouse PRV" <?php echo ($poll_data['location'] ?? '') == 'Warehouse PRV' ? 'selected' : ''; ?>>ឃ្លាំង PRV</option>
+                        <option value="">ជ្រើសរើសទីតាំង/ឃ្លាំង</option>
+                        <option value="ការិយាល័យកណ្តាល" <?php echo in_array($poll_data['location'] ?? '', ['Head Office', 'ការិយាល័យកណ្តាល']) ? 'selected' : ''; ?>>ការិយាល័យកណ្តាល</option>
+                        <option value="ឃ្លាំង" <?php echo in_array($poll_data['location'] ?? '', ['Warehouse', 'Store 318', 'ឃ្លាំង']) ? 'selected' : ''; ?>>ឃ្លាំង</option>
+                        <option value="ឃ្លាំង PRV" <?php echo in_array($poll_data['location'] ?? '', ['Warehouse PRV', 'ឃ្លាំង PRV']) ? 'selected' : ''; ?>>ឃ្លាំង PRV</option>
+                        <option value="ឃ្លាំង PSP" <?php echo in_array($poll_data['location'] ?? '', ['Warehouse PSP', 'ឃ្លាំង PSP']) ? 'selected' : ''; ?>>ឃ្លាំង PSP</option>
                     </select>
                 </div>
                 
@@ -391,10 +391,10 @@ if ($polls_result) {
                                        <?php echo isset($candidate_ids[$emp['employee_id']]) ? 'checked' : ''; ?>>
                                 <span><?php echo htmlspecialchars($emp['name']); ?> (<?php echo $emp['employee_id']; ?>)</span>
                                 <select name="candidate_category[<?php echo $emp['employee_id']; ?>]" style="width: auto;">
-                                    <option value="Head Office" <?php echo ($candidate_ids[$emp['employee_id']] ?? '') == 'Head Office' ? 'selected' : ''; ?>>Head Office</option>
-                                    <option value="Store 318" <?php echo ($candidate_ids[$emp['employee_id']] ?? '') == 'Store 318' ? 'selected' : ''; ?>>Store 318</option>
-                                    <option value="Warehouse PSP" <?php echo ($candidate_ids[$emp['employee_id']] ?? '') == 'Warehouse PSP' ? 'selected' : ''; ?>>Warehouse PSP</option>
-                                    <option value="Warehouse PRV" <?php echo ($candidate_ids[$emp['employee_id']] ?? '') == 'Warehouse PRV' ? 'selected' : ''; ?>>Warehouse PRV</option>
+                                    <option value="ការិយាល័យកណ្តាល" <?php echo in_array($candidate_ids[$emp['employee_id']] ?? '', ['Head Office', 'ការិយាល័យកណ្តាល']) ? 'selected' : ''; ?>>ការិយាល័យកណ្តាល</option>
+                                    <option value="ឃ្លាំង" <?php echo in_array($candidate_ids[$emp['employee_id']] ?? '', ['Warehouse', 'Store 318', 'ឃ្លាំង']) ? 'selected' : ''; ?>>ឃ្លាំង</option>
+                                    <option value="ឃ្លាំង PRV" <?php echo in_array($candidate_ids[$emp['employee_id']] ?? '', ['Warehouse PRV', 'ឃ្លាំង PRV']) ? 'selected' : ''; ?>>ឃ្លាំង PRV</option>
+                                    <option value="ឃ្លាំង PSP" <?php echo in_array($candidate_ids[$emp['employee_id']] ?? '', ['Warehouse PSP', 'ឃ្លាំង PSP']) ? 'selected' : ''; ?>>ឃ្លាំង PSP</option>
                                 </select>
                             </div>
                         <?php endforeach; ?>

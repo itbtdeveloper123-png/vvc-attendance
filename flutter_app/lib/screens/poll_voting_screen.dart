@@ -369,7 +369,16 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
   Widget _buildEmployeeVotingCard(Map<String, dynamic> poll) {
     final title = poll['title'] ?? 'បោះឆ្នោតបុគ្គលិកឆ្នើម';
     final quarter = poll['quarter'] ?? '';
-    final location = poll['location'] ?? 'Head Office';
+    String location = poll['location'] ?? 'ការិយាល័យកណ្តាល';
+    if (location == 'Head Office') {
+      location = 'ការិយាល័យកណ្តាល';
+    } else if (location == 'Warehouse') {
+      location = 'ឃ្លាំង';
+    } else if (location == 'Warehouse PSP') {
+      location = 'ឃ្លាំង PSP';
+    } else if (location == 'Warehouse PRV') {
+      location = 'ឃ្លាំង PRV';
+    }
     final bool hasVoted = poll['has_voted'] == true || poll['has_voted'] == 1 || poll['has_voted'] == '1' || poll['has_voted'] == 'true';
     final docId = (poll['doc_id'] ?? poll['id'] ?? '').toString();
 

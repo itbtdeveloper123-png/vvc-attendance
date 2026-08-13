@@ -15078,11 +15078,11 @@ ob_end_flush();
                                                 </label>
                                                 <select name="location" id="poll_location" class="form-control"
                                                     style="border-radius:12px; padding:12px;">
-                                                    <option value="">ជ្រើសរើសទីតាំង</option>
-                                                    <option value="Head Office">ការិយាល័យកណ្តាល</option>
-                                                    <option value="Store 318">ហាងទំនិញ ៣១៨</option>
-                                                    <option value="Warehouse PSP">ឃ្លាំង PSP</option>
-                                                    <option value="Warehouse PRV">ឃ្លាំង PRV</option>
+                                                    <option value="">ជ្រើសរើសទីតាំង/ឃ្លាំង</option>
+                                                    <option value="ការិយាល័យកណ្តាល">ការិយាល័យកណ្តាល</option>
+                                                    <option value="ឃ្លាំង">ឃ្លាំង</option>
+                                                    <option value="ឃ្លាំង PRV">ឃ្លាំង PRV</option>
+                                                    <option value="ឃ្លាំង PSP">ឃ្លាំង PSP</option>
                                                 </select>
                                             </div>
 
@@ -15424,8 +15424,12 @@ ob_end_flush();
                                                     const poll = res.data;
                                                     document.getElementById('poll_id').value = poll.id;
                                                     document.getElementById('poll_title').value = poll.title || '';
-                                                    document.getElementById('poll_quarter').value = poll.quarter || '';
-                                                    document.getElementById('poll_location').value = poll.location || '';
+                                                    let locVal = poll.location || '';
+                                                    if (locVal === 'Head Office') locVal = 'ការិយាល័យកណ្តាល';
+                                                    else if (locVal === 'Warehouse' || locVal === 'Store 318') locVal = 'ឃ្លាំង';
+                                                    else if (locVal === 'Warehouse PRV') locVal = 'ឃ្លាំង PRV';
+                                                    else if (locVal === 'Warehouse PSP') locVal = 'ឃ្លាំង PSP';
+                                                    document.getElementById('poll_location').value = locVal;
                                                     document.getElementById('poll_start_date').value = poll.start_date || '';
                                                     document.getElementById('poll_end_date').value = poll.end_date || '';
                                                     document.getElementById('poll_access_code').value = poll.access_code || '';

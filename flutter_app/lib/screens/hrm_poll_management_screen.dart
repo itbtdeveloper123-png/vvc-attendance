@@ -177,6 +177,29 @@ class _HrmPollManagementScreenState extends State<HrmPollManagementScreen> {
     final String recipientName =
         candidateName.isNotEmpty ? candidateName : (foundUser?['name']?.toString() ?? 'លី ស៊ាងអ៊ី');
 
+    String detectedCategory = category;
+    final pollLoc = (poll['location'] ?? '').toString().toLowerCase();
+    final cCat = (candidate['category'] ?? '').toString().toLowerCase();
+    final cDept = (candidate['department'] ?? candidate['position'] ?? dept).toString().toLowerCase();
+
+    if (category == 'all' || category.isEmpty) {
+      if (pollLoc.contains('psp') ||
+          pollLoc.contains('prv') ||
+          cCat.contains('worker') ||
+          cDept.contains('កម្មករ') ||
+          cDept.contains('driver') ||
+          cDept.contains('បើកបរ')) {
+        detectedCategory = 'worker';
+      } else if (pollLoc.contains('ឃ្លាំង') ||
+          pollLoc.contains('warehouse') ||
+          cDept.contains('ឃ្លាំង') ||
+          cDept.contains('warehouse')) {
+        detectedCategory = 'warehouse';
+      } else {
+        detectedCategory = 'head_office';
+      }
+    }
+
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -185,10 +208,10 @@ class _HrmPollManagementScreenState extends State<HrmPollManagementScreen> {
           recipientGender: gender,
           recipientDept: dept,
           recipientLocation: poll['location']?.toString() ?? 'ការិយាល័យកណ្តាល',
-          quarterPeriod: poll['quarter']?.toString() ?? 'ត្រីមាសទី ២ នៃឆ្នាំ ២០២៦',
+          quarterPeriod: poll['quarter']?.toString() ?? 'ត្រីមាសទី ២',
           recipientAvatarUrl: avatarUrl,
           rankNumber: rankNumber,
-          initialCategory: category,
+          initialCategory: detectedCategory,
         ),
       ),
     );
@@ -821,12 +844,47 @@ class _HrmPollManagementScreenState extends State<HrmPollManagementScreen> {
                       },
                     ),
                     const SizedBox(height: 14),
-                    _buildFormLabel('ទីតាំង / ផ្នែក:'),
+                    _buildFormLabel('ទីតាំង / ឃ្លាំង / សាខា:'),
+                    const SizedBox(height: 6),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          'ការិយាល័យកណ្តាល',
+                          'ឃ្លាំង',
+                          'ឃ្លាំង PRV',
+                          'ឃ្លាំង PSP',
+                        ].map((loc) {
+                          final isSel = locationController.text == loc;
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 6),
+                            child: FilterChip(
+                              label: Text(
+                                loc,
+                                style: GoogleFonts.kantumruyPro(
+                                  color: isSel ? Colors.black : Colors.white,
+                                  fontSize: 11.5,
+                                  fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
+                                ),
+                              ),
+                              selected: isSel,
+                              selectedColor: Colors.amberAccent,
+                              backgroundColor: Colors.white.withValues(alpha: 0.07),
+                              checkmarkColor: Colors.black,
+                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                              onSelected: (_) {
+                                setModalState(() => locationController.text = loc);
+                              },
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
                     const SizedBox(height: 6),
                     TextField(
                       controller: locationController,
                       style: GoogleFonts.kantumruyPro(color: Colors.white),
-                      decoration: _inputDecoration('ឧ. Head Office ឬ All Branches'),
+                      decoration: _inputDecoration('ឧ. ការិយាល័យកណ្តាល, ឃ្លាំង, ឃ្លាំង PSP, ឃ្លាំង PRV'),
                     ),
                     const SizedBox(height: 14),
                     Row(
