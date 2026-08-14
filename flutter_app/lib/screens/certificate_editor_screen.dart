@@ -222,6 +222,7 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
   final CertCanvasController _canvasController = CertCanvasController();
   final FocusNode _keyboardFocusNode = FocusNode();
   Timer? _autoSaveDebounceTimer;
+  bool _isInitialLoading = true;
 
   // Basic Info Form Controllers
   late TextEditingController _nameController;
@@ -309,6 +310,7 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
   ];
 
   void _onCanvasChanged() {
+    if (_isInitialLoading) return;
     _scheduleAutoSave();
   }
 
@@ -626,7 +628,7 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
     if (_canvasController.items.containsKey('title')) _canvasController.items['title']!.text = _titleController.text;
     if (_canvasController.items.containsKey('company')) _canvasController.items['company']!.text = _companyController.text;
     if (_canvasController.items.containsKey('praise')) _canvasController.items['praise']!.text = _praiseTitleController.text;
-    if (_canvasController.items.containsKey('body')) _canvasController.items['body']!.text = _customBodyTextController.text;
+    if (_canvasController.items.containsKey('body') && !_isCustomBodyTextEnabled) _canvasController.items['body']!.text = _customBodyTextController.text;
     if (_canvasController.items.containsKey('lunar_date')) _canvasController.items['lunar_date']!.text = _lunarDateController.text;
     if (_canvasController.items.containsKey('solar_date')) _canvasController.items['solar_date']!.text = _solarDateController.text;
     if (_canvasController.items.containsKey('sign_role')) _canvasController.items['sign_role']!.text = _signatoryRoleController.text;
@@ -636,6 +638,7 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
   }
 
   void _onCategoryChanged(String newCat) {
+    if (_selectedCategory == newCat) return;
     setState(() {
       _selectedCategory = newCat;
       if (newCat == 'head_office') {
@@ -648,8 +651,8 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
         }
       }
       _syncCustomBodyText();
-      _syncControllersToItems();
     });
+    _loadCertificateFromStorage();
   }
 
   void _selectStandardLocation(Map<String, String> loc) {
@@ -660,8 +663,8 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
         _locationController.text = 'ព្រៃស្ពឺ(PSP)';
       }
       _syncCustomBodyText();
-      _syncControllersToItems();
     });
+    _loadCertificateFromStorage();
   }
 
   String _toKhmerDigits(String input) {
@@ -1101,6 +1104,7 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
 
   /// Persistent Database Load: loads from local cache and syncs with Server Cloud Database
   Future<void> _loadCertificateFromStorage() async {
+    _isInitialLoading = true;
     try {
       final prefs = await SharedPreferences.getInstance();
       final keyPrefix = 'vvc_cert_$_selectedCategory';
@@ -1145,22 +1149,24 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
 
       if (!loadedFromLocal) {
         _initCanvasElements();
+        await _syncFromCloudDatabase(forceApply: true);
+      } else {
+        _syncFromCloudDatabase(forceApply: false);
       }
-
-      // Fetch latest from Central Cloud Database (for syncing across different computers)
-      _syncFromCloudDatabase();
     } catch (e) {
       debugPrint('Error loading saved certificate: $e');
       _initCanvasElements();
+    } finally {
+      _isInitialLoading = false;
     }
   }
 
-  Future<void> _syncFromCloudDatabase() async {
+  Future<void> _syncFromCloudDatabase({bool forceApply = false}) async {
     try {
       final res = await ApiService().getCertificateTemplate(_selectedCategory);
       if (res['success'] == true && res['data'] != null) {
         final Map<String, dynamic> cloudData = Map<String, dynamic>.from(res['data']);
-        if (cloudData['items'] != null) {
+        if (cloudData['items'] != null && (forceApply || _canvasController.items.isEmpty)) {
           final Map<String, dynamic> itemsMap = Map<String, dynamic>.from(cloudData['items']);
           final Map<String, CertItem> cloudItems = {};
           itemsMap.forEach((k, v) {

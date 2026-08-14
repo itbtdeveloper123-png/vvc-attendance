@@ -866,6 +866,7 @@ class DynamicAppBarWrapper extends StatefulWidget {
   final List<Widget>? actions;
   final Widget? leading;
   final Widget body;
+  final bool extendBodyBehindAppBar;
 
   const DynamicAppBarWrapper({
     super.key,
@@ -873,6 +874,7 @@ class DynamicAppBarWrapper extends StatefulWidget {
     required this.body,
     this.actions,
     this.leading,
+    this.extendBodyBehindAppBar = true,
   });
 
   @override
@@ -893,7 +895,7 @@ class _DynamicAppBarWrapperState extends State<DynamicAppBarWrapper> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.bgDark,
-      extendBodyBehindAppBar: true,
+      extendBodyBehindAppBar: widget.extendBodyBehindAppBar,
       appBar: AppBar(
         title: Text(
           widget.title,

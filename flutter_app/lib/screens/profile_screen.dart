@@ -145,104 +145,147 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
     }
 
-    return DynamicAppBarWrapper(
-      title: isMe ? "ប្រវត្តិរូបសង្ខេប" : "ព័ត៌មានបុគ្គលិក",
-      body: AppBackgroundShell(
-        child: (Responsive.isDesktop(context) || Responsive.isTablet(context))
-            ? SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                physics: const BouncingScrollPhysics(),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Left Column (380px)
-                    SizedBox(
-                      width: 380,
-                      child: Column(
-                        children: [
-                          _buildAvatarSection(
-                            context,
-                            displayName,
-                            displayAvatar,
-                            displayType,
-                            isMe,
-                            currentUser,
-                          ),
-                          const SizedBox(height: 24),
-                          _buildInfoCard(
-                            displayId,
-                            displayName,
-                            displayType,
-                            displayDept,
-                            displayPos,
-                          ),
-                          const SizedBox(height: 20),
-                          _buildBadgeSection(displayId),
-                        ],
+    final bool isDesktopOrTablet =
+        Responsive.isDesktop(context) || Responsive.isTablet(context);
+    final bool canPop = Navigator.canPop(context);
+
+    if (isDesktopOrTablet) {
+      return AppBackgroundShell(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+          physics: const BouncingScrollPhysics(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (canPop) ...[
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(
+                          Icons.arrow_back_ios_new_rounded,
+                          color: Colors.white,
+                        ),
+                        onPressed: () => Navigator.pop(context),
                       ),
-                    ),
-                    const SizedBox(width: 24),
-                    // Right Column (Expanded)
-                    Expanded(
-                      child: Column(
-                        children: [
-                          if (isMe) _buildMenuSection(context, currentUser),
-                        ],
+                      const SizedBox(width: 8),
+                      Text(
+                        isMe ? "ប្រវត្តិរូបសង្ខេប" : "ព័ត៌មានបុគ្គលិក",
+                        style: GoogleFonts.kantumruyPro(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              )
-            : CustomScrollView(
-                physics: const BouncingScrollPhysics(),
-                slivers: [
-                  SliverToBoxAdapter(
-                    child: SafeArea(
-                      bottom: false,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 10,
+              ],
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Left Column (380px)
+                  SizedBox(
+                    width: 380,
+                    child: Column(
+                      children: [
+                        _buildAvatarSection(
+                          context,
+                          displayName,
+                          displayAvatar,
+                          displayType,
+                          isMe,
+                          currentUser,
                         ),
-                        child: AnimationLimiter(
-                          child: Column(
-                            children: AnimationConfiguration.toStaggeredList(
-                              duration: const Duration(milliseconds: 600),
-                              childAnimationBuilder: (widget) => SlideAnimation(
-                                verticalOffset: 50.0,
-                                child: FadeInAnimation(child: widget),
-                              ),
-                              children: [
-                                _buildAvatarSection(
-                                  context,
-                                  displayName,
-                                  displayAvatar,
-                                  displayType,
-                                  isMe,
-                                  currentUser,
-                                ),
-                                const SizedBox(height: 28),
-                                _buildInfoCard(
-                                  displayId,
-                                  displayName,
-                                  displayType,
-                                  displayDept,
-                                  displayPos,
-                                ),
-                                const SizedBox(height: 20),
-                                _buildBadgeSection(displayId),
-                                const SizedBox(height: 20),
-                                if (isMe) _buildMenuSection(context, currentUser),
-                                const SizedBox(height: 100),
-                              ],
-                            ),
-                          ),
+                        const SizedBox(height: 24),
+                        _buildInfoCard(
+                          displayId,
+                          displayName,
+                          displayType,
+                          displayDept,
+                          displayPos,
                         ),
-                      ),
+                        const SizedBox(height: 20),
+                        _buildBadgeSection(displayId),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 24),
+                  // Right Column (Expanded)
+                  Expanded(
+                    child: Column(
+                      children: [
+                        if (isMe) _buildMenuSection(context, currentUser),
+                      ],
                     ),
                   ),
                 ],
               ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return DynamicAppBarWrapper(
+      title: isMe ? "ប្រវត្តិរូបសង្ខេប" : "ព័ត៌មានបុគ្គលិក",
+      leading: canPop
+          ? IconButton(
+              icon: const Icon(Icons.arrow_back_ios_new_rounded),
+              onPressed: () => Navigator.pop(context),
+            )
+          : null,
+      body: AppBackgroundShell(
+        child: CustomScrollView(
+          physics: const BouncingScrollPhysics(),
+          slivers: [
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.only(
+                  top: MediaQuery.paddingOf(context).top + kToolbarHeight + 12,
+                  left: 20,
+                  right: 20,
+                  bottom: 100,
+                ),
+                child: AnimationLimiter(
+                  child: Column(
+                    children: AnimationConfiguration.toStaggeredList(
+                      duration: const Duration(milliseconds: 600),
+                      childAnimationBuilder: (widget) => SlideAnimation(
+                        verticalOffset: 50.0,
+                        child: FadeInAnimation(child: widget),
+                      ),
+                      children: [
+                        _buildAvatarSection(
+                          context,
+                          displayName,
+                          displayAvatar,
+                          displayType,
+                          isMe,
+                          currentUser,
+                        ),
+                        const SizedBox(height: 28),
+                        _buildInfoCard(
+                          displayId,
+                          displayName,
+                          displayType,
+                          displayDept,
+                          displayPos,
+                        ),
+                        const SizedBox(height: 20),
+                        _buildBadgeSection(displayId),
+                        const SizedBox(height: 20),
+                        if (isMe) _buildMenuSection(context, currentUser),
+                        const SizedBox(height: 100),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
