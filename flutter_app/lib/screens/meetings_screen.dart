@@ -4,7 +4,6 @@ import 'dart:io' as io;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:http/http.dart' as http;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:animate_do/animate_do.dart';
@@ -20,11 +19,9 @@ import '../services/api_service.dart';
 import '../services/meeting_audio_draft_service.dart';
 import '../services/meeting_audio_player_service.dart';
 import '../services/meeting_recording_service.dart';
-import '../services/gemini_meeting_service.dart';
 import '../utils/app_theme.dart';
 import '../providers/user_provider.dart';
 import '../widgets/app_widgets.dart';
-import 'meeting_transcribe_screen.dart';
 
 class MeetingsScreen extends StatefulWidget {
   const MeetingsScreen({super.key});
@@ -91,85 +88,7 @@ class _MeetingsScreenState extends State<MeetingsScreen>
   StreamSubscription<void>? _playerCompleteSub;
   VoidCallback? _playerServiceListener;
 
-  // AI Summary State
-  final GeminiMeetingService _geminiMeetingService = GeminiMeetingService();
-  bool _isSummarizing = false;
-  String? _currentAISummary;
-  String? _currentTranscript;
-  Map<String, dynamic>? _currentAIAnalysis;
-  String? _currentSummaryError;
-  String? _currentSummaryStatusMessage;
 
-  Future<void> _showGeminiKeyDialog() async {
-    final currentKey = await GeminiMeetingService.getApiKey();
-    final keyController = TextEditingController(text: currentKey);
-
-    if (!mounted) return;
-
-    await showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1E293B),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            const Icon(Icons.key_rounded, color: Colors.amber, size: 22),
-            const SizedBox(width: 8),
-            Text(
-              'កំណត់ Gemini API Key',
-              style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'បញ្ចូល Gemini API Key ដើម្បីប្រើប្រាស់ google_generative_ai វិភាគសំឡេងប្រជុំផ្ទាល់៖',
-              style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 12),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: keyController,
-              obscureText: true,
-              style: GoogleFonts.inter(color: Colors.white, fontSize: 13),
-              decoration: InputDecoration(
-                hintText: 'AIzaSy...',
-                hintStyle: GoogleFonts.inter(color: Colors.white24),
-                filled: true,
-                fillColor: Colors.white.withAlpha(15),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text('បោះបង់', style: GoogleFonts.kantumruyPro(color: Colors.grey)),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final newKey = keyController.text.trim();
-              await GeminiMeetingService.saveApiKey(newKey);
-              if (ctx.mounted) Navigator.pop(ctx);
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('បានរក្សាទុក Gemini API Key រួចរាល់', style: GoogleFonts.kantumruyPro()),
-                    backgroundColor: Colors.teal,
-                  ),
-                );
-              }
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D9488)),
-            child: Text('រក្សាទុក', style: GoogleFonts.kantumruyPro(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-  }
 
   @override
   void initState() {
@@ -266,319 +185,6 @@ class _MeetingsScreenState extends State<MeetingsScreen>
     }
   }
 
-  Future<void> _generateAISummary(
-    Map<String, dynamic> meeting,
-    StateSetter modalSetState, {
-    bool force = false,
-  }) async {
-    try {
-      final int meetingId = int.tryParse(meeting['id']?.toString() ?? '0') ?? 0;
-      final audioPath = (meeting['audio_path'] ?? meeting['audio_file_path'] ?? '')
-          .toString();
-      final topic = meeting['topic']?.toString();
-      final department = meeting['department']?.toString();
-      final description = meeting['description']?.toString() ?? '';
-
-      modalSetState(() {
-        _isSummarizing = true;
-        _currentSummaryError = null;
-        _currentSummaryStatusMessage = "កំពុងចាប់ផ្តើមការសង្ខេបជាភាសាខ្មែរដោយ Gemini AI...";
-      });
-
-      String? apiKey = await GeminiMeetingService.getApiKey();
-      if (apiKey.isEmpty) {
-        modalSetState(() {
-          _isSummarizing = false;
-        });
-        await _showGeminiKeyDialog();
-        apiKey = await GeminiMeetingService.getApiKey();
-        if (apiKey.isEmpty) {
-          throw Exception('មិនទាន់បានបញ្ចូល Gemini API Key ទេ។');
-        }
-        modalSetState(() {
-          _isSummarizing = true;
-        });
-      }
-
-      String? summaryResult;
-
-      // 1. Try Gemini File API via google_generative_ai if audio file is available
-      if (audioPath.isNotEmpty) {
-        try {
-          modalSetState(() {
-            _currentSummaryStatusMessage = "កំពុងទាញយកសំឡេង និងវិភាគជាភាសាខ្មែរដោយ Gemini AI...";
-          });
-
-          io.File targetAudioFile;
-          if (!kIsWeb && io.File(audioPath).existsSync()) {
-            targetAudioFile = io.File(audioPath);
-          } else {
-            final fullAudioUrl = ApiService.getFullImageUrl(audioPath);
-            targetAudioFile = await _downloadAudioFile(fullAudioUrl);
-          }
-
-          summaryResult = await _geminiMeetingService.summarizeAudioFile(
-            audioFile: targetAudioFile,
-            apiKey: apiKey,
-            meetingTitle: topic,
-            department: department,
-          );
-        } catch (e) {
-          if (kDebugMode) print('Gemini direct audio error: $e');
-        }
-      }
-
-      // 2. Try Gemini text summarization if description/text exists and audio failed/missing
-      if ((summaryResult == null || summaryResult.isEmpty) && description.trim().isNotEmpty) {
-        try {
-          modalSetState(() {
-            _currentSummaryStatusMessage = "កំពុងវិភាគអត្ថបទប្រជុំជាភាសាខ្មែរដោយ Gemini AI...";
-          });
-
-          summaryResult = await _geminiMeetingService.summarizeTranscript(
-            transcriptText: description,
-            apiKey: apiKey,
-            meetingTitle: topic,
-            department: department,
-          );
-        } catch (e) {
-          if (kDebugMode) print('Gemini direct text error: $e');
-        }
-      }
-
-      // 3. Fallback to PHP backend endpoints if direct Gemini calls failed
-      if (summaryResult == null || summaryResult.isEmpty) {
-        if (audioPath.isNotEmpty) {
-          try {
-            modalSetState(() {
-              _currentSummaryStatusMessage = "កំពុងបម្លែងសំឡេងតាមប្រព័ន្ធកណ្តាល...";
-            });
-            io.File tempAudioFile;
-            if (!kIsWeb && io.File(audioPath).existsSync()) {
-              tempAudioFile = io.File(audioPath);
-            } else {
-              final fullAudioUrl = ApiService.getFullImageUrl(audioPath);
-              tempAudioFile = await _downloadAudioFile(fullAudioUrl);
-            }
-
-            final resp = await _api.processMeetingAudio(
-              audioPath: tempAudioFile.path,
-              meetingId: meetingId.toString(),
-              meetingTitle: topic,
-              department: department,
-            );
-
-            if (resp['status'] == 'success') {
-              summaryResult = resp['summary']?.toString();
-              _currentTranscript = resp['transcript']?.toString();
-            }
-          } catch (e) {
-            if (kDebugMode) print('PHP audio processing failed: $e');
-          }
-        }
-
-        if ((summaryResult == null || summaryResult.isEmpty) && meetingId > 0) {
-          Map<String, dynamic> resp = await _api.summarizeMeeting(meetingId, force: force);
-          if ((resp['success'] == true) && (resp['processing'] == true)) {
-            modalSetState(() {
-              _currentSummaryStatusMessage = "កំពុងបម្លែងសំឡេង និងសង្ខេបជាភាសាខ្មែរដោយ AI...\nសូមរង់ចាំបន្តិច";
-            });
-            resp = await _waitForAISummaryResult(meetingId, modalSetState);
-          }
-          if (resp['success'] == true) {
-            summaryResult = resp['summary']?.toString();
-            _currentTranscript = resp['transcript']?.toString();
-            _currentAIAnalysis = _parseAnalysisData(resp['analysis']);
-          } else {
-            throw resp['message'] ?? 'មិនអាចសង្ខេបបានទេ';
-          }
-        }
-      }
-
-      if (summaryResult != null && summaryResult.isNotEmpty) {
-        modalSetState(() {
-          _currentAISummary = summaryResult;
-          meeting['summary'] = summaryResult;
-          meeting['transcript_text'] = _currentTranscript;
-          _currentSummaryError = null;
-          _currentSummaryStatusMessage = null;
-          _isSummarizing = false;
-        });
-
-        if (mounted) {
-          setState(() {
-            final index = _meetingsList.indexWhere(
-              (item) => item['id'].toString() == meeting['id'].toString(),
-            );
-            if (index != -1) {
-              _meetingsList[index]['summary'] = summaryResult;
-            }
-          });
-        }
-      } else {
-        throw 'មិនអាចសង្ខេបខ្លឹមសារបានទេ';
-      }
-    } catch (e) {
-      final friendly = _friendlySummaryError(e.toString());
-      modalSetState(() {
-        _isSummarizing = false;
-        _currentSummaryError = friendly;
-        _currentSummaryStatusMessage = null;
-      });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendly)));
-      }
-    }
-  }
-
-  /// Trigger background Khmer AI summarization automatically after meeting recording or submission
-  Future<void> _triggerBackgroundAISummary(Map<String, dynamic> meeting) async {
-    try {
-      final audioPath = (meeting['audio_path'] ?? meeting['audio_file_path'] ?? '').toString();
-      if (audioPath.isEmpty) return;
-
-      final apiKey = await GeminiMeetingService.getApiKey();
-      if (apiKey.isEmpty) return;
-
-      io.File targetAudioFile;
-      if (!kIsWeb && io.File(audioPath).existsSync()) {
-        targetAudioFile = io.File(audioPath);
-      } else {
-        final fullAudioUrl = ApiService.getFullImageUrl(audioPath);
-        targetAudioFile = await _downloadAudioFile(fullAudioUrl);
-      }
-
-      final topic = meeting['topic']?.toString();
-      final department = meeting['department']?.toString();
-
-      final summaryResult = await _geminiMeetingService.summarizeAudioFile(
-        audioFile: targetAudioFile,
-        apiKey: apiKey,
-        meetingTitle: topic,
-        department: department,
-      );
-
-      if (summaryResult.isNotEmpty && mounted) {
-        setState(() {
-          meeting['summary'] = summaryResult;
-          final index = _meetingsList.indexWhere(
-            (item) => item['id'].toString() == meeting['id'].toString(),
-          );
-          if (index != -1) {
-            _meetingsList[index]['summary'] = summaryResult;
-          }
-        });
-      }
-    } catch (e) {
-      if (kDebugMode) print('Background AI Khmer summarization error: $e');
-    }
-  }
-
-  /// Download audio file from URL to local temp file
-  Future<io.File> _downloadAudioFile(String url) async {
-    final response = await http.get(Uri.parse(url));
-    final tempDir = await getTemporaryDirectory();
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final tempFile = io.File('${tempDir.path}/audio_$timestamp.m4a');
-    await tempFile.writeAsBytes(response.bodyBytes);
-    return tempFile;
-  }
-
-  Future<Map<String, dynamic>> _waitForAISummaryResult(
-    int meetingId,
-    StateSetter modalSetState,
-  ) async {
-    const deadline = Duration(hours: 2);
-    final startedAt = DateTime.now();
-
-    while (DateTime.now().difference(startedAt) < deadline) {
-      await Future.delayed(const Duration(seconds: 4));
-      final statusResp = await _api.getMeetingSummaryStatus(meetingId);
-
-      if ((statusResp['success'] == true) &&
-          (statusResp['processing'] == true)) {
-        modalSetState(() {
-          _currentSummaryStatusMessage =
-              statusResp['message']?.toString().trim().isNotEmpty == true
-              ? statusResp['message']!.toString()
-              : "កំពុងបម្លែងសំឡេង និងសង្ខេបដោយ AI...\nសូមរង់ចាំបន្តិច";
-        });
-        continue;
-      }
-
-      return statusResp;
-    }
-
-    return {
-      'success': false,
-      'message':
-          'ការសង្ខេបដោយ AI កំពុងដំណើរការយូរ។ អ្នកអាចបិទផ្ទាំងនេះសិន ហើយត្រឡប់មកពិនិត្យម្តងទៀតក្រោយបន្តិច។',
-    };
-  }
-
-  void _copyToClipboard(String text) {
-    Clipboard.setData(ClipboardData(text: text));
-    if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("ចម្លងអត្ថបទបានជោគជ័យ!")));
-    }
-  }
-
-  Map<String, dynamic>? _parseAnalysisData(dynamic raw) {
-    if (raw is Map<String, dynamic>) {
-      return raw;
-    }
-    if (raw is Map) {
-      return Map<String, dynamic>.from(raw);
-    }
-    if (raw is String && raw.trim().isNotEmpty) {
-      try {
-        final decoded = jsonDecode(raw);
-        if (decoded is Map<String, dynamic>) {
-          return decoded;
-        }
-        if (decoded is Map) {
-          return Map<String, dynamic>.from(decoded);
-        }
-      } catch (_) {}
-    }
-    return null;
-  }
-
-  String _friendlySummaryError(String raw) {
-    final text = raw.replaceFirst('Exception: ', '').trim();
-    if (text.contains('Request Entity Too Large') ||
-        text.contains('ឯកសារសំឡេងធំពេក')) {
-      return 'ឯកសារសំឡេងធំពេកសម្រាប់ AI សង្ខេប។ សូមបង្រួមជា MP3/M4A ឬបំបែកសំឡេងជាផ្នែកតូចៗ មុនសិន។';
-    }
-    if (text.contains('Compressed audio is still too large')) {
-      return 'ប្រព័ន្ធបានព្យាយាមបង្រួមសំឡេងរួចហើយ ប៉ុន្តែឯកសារនៅតែធំពេក។ សូមកាត់សម្លេងជាផ្នែកតូចៗ មុនសិន។';
-    }
-    if (text.contains('Audio compression failed')) {
-      return 'ប្រព័ន្ធមិនអាចបង្រួមសំឡេងដោយស្វ័យប្រវត្តិបានទេ។ សូមបម្លែងជា MP3/M4A ឬទាក់ទងឲ្យ server ដំឡើង ffmpeg។';
-    }
-    if (text.contains('Audio transcription provider is not configured')) {
-      return 'Server មិនទាន់កំណត់ transcription provider សម្រាប់មុខងារនេះទេ។';
-    }
-    if (text.contains('Meeting audio file not found on server')) {
-      return 'រកមិនឃើញឯកសារសំឡេងលើ server ទេ។ សូម upload សារជាថ្មី។';
-    }
-    if (text.contains('No transcript text could be created')) {
-      return 'មិនអាចបម្លែងសំឡេងទៅជាអត្ថបទបានទេ។';
-    }
-    return text;
-  }
-
-  List<String> _analysisList(dynamic value) {
-    if (value is! List) {
-      return const [];
-    }
-    return value
-        .map((item) => item.toString().trim())
-        .where((item) => item.isNotEmpty)
-        .toList();
-  }
 
   Future<void> _pickAudioFile() async {
     if (_isSubmitting || _isRecording || _isRecordingPaused) {
@@ -1154,9 +760,6 @@ class _MeetingsScreenState extends State<MeetingsScreen>
       );
 
       if (res['status'] == 'success') {
-        final newMeeting = (res['meeting'] ?? res['data']) is Map
-            ? Map<String, dynamic>.from(res['meeting'] ?? res['data'])
-            : <String, dynamic>{};
         if (draftIdToRemove != null) {
           await MeetingAudioDraftService.deleteDraftById(draftIdToRemove);
           await _loadAudioDrafts();
@@ -1164,15 +767,11 @@ class _MeetingsScreenState extends State<MeetingsScreen>
         if (mounted) {
           ScaffoldMessenger.of(
             context,
-          ).showSnackBar(const SnackBar(content: Text('បង្ហោះជោគជ័យ និងចាប់ផ្តើមសង្ខេបជាភាសាខ្មែរក្នុង Background')));
+          ).showSnackBar(const SnackBar(content: Text('បង្ហោះជោគជ័យ')));
         }
         _resetForm();
         _tabController.animateTo(1);
         _loadMeetings();
-
-        if (newMeeting.isNotEmpty) {
-          unawaited(_triggerBackgroundAISummary(newMeeting));
-        }
       } else {
         if (mounted) {
           ScaffoldMessenger.of(
@@ -1229,22 +828,7 @@ class _MeetingsScreenState extends State<MeetingsScreen>
             fontSize: 18,
           ),
         ),
-        actions: [
-          IconButton(
-            tooltip: 'បកប្រែសម្លេងប្រជុំ (Whisper STT)',
-            icon: const Icon(Icons.record_voice_over_rounded, color: Colors.amberAccent),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => MeetingTranscribeScreen(
-                    initialAudioPath: _recordedPath,
-                  ),
-                ),
-              );
-            },
-          ),
-        ],
+
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: AppTheme.primary,
@@ -2232,604 +1816,205 @@ class _MeetingsScreenState extends State<MeetingsScreen>
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) {
-        // Initialize states for the modal
-        _currentAISummary = m['summary']?.toString();
-        _currentTranscript = m['transcript_text']?.toString();
-        _currentAIAnalysis = _parseAnalysisData(m['summary_json']);
-        _currentSummaryError = null;
-        _currentSummaryStatusMessage = null;
-
-        return StatefulBuilder(
-          builder: (context, modalSetState) {
-            // Auto-trigger Khmer AI summary if not existing yet and audio is available
-            if ((_currentAISummary == null || _currentAISummary!.trim().isEmpty) &&
-                hasAudio &&
-                !_isSummarizing) {
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (!_isSummarizing && mounted) {
-                  _generateAISummary(m, modalSetState);
-                }
-              });
-            }
-
-            return Container(
-              height: MediaQuery.of(context).size.height * 0.85,
-              decoration: BoxDecoration(
-                color: AppTheme.bgDark,
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(30),
+        return Container(
+          height: MediaQuery.of(context).size.height * 0.85,
+          decoration: BoxDecoration(
+            color: AppTheme.bgDark,
+            borderRadius: const BorderRadius.vertical(
+              top: Radius.circular(30),
+            ),
+          ),
+          child: Column(
+            children: [
+              const SizedBox(height: 15),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(10),
                 ),
               ),
-              child: Column(
-                children: [
-                  const SizedBox(height: 15),
-                  Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.white24,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(25),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+              const SizedBox(height: 20),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(25),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
                         children: [
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color: AppTheme.primary.withAlpha(30),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(
-                                  Icons.mic_rounded,
-                                  color: AppTheme.primary,
-                                ),
-                              ),
-                              const SizedBox(width: 15),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      m['topic'] ?? 'Untitled',
-                                      style: GoogleFonts.kantumruyPro(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 18,
-                                        color: AppTheme.textPrimary,
-                                      ),
-                                    ),
-                                    Text(
-                                      m['meeting_date'] ?? '',
-                                      style: GoogleFonts.inter(
-                                        color: AppTheme.textSecondary,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 30),
-
-                          _buildDetailRow(
-                            Icons.folder_open_rounded,
-                            "ផ្នែក / ថតឯកសារ",
-                            m['department'] ?? 'ថតឯកសារទូទៅ',
-                          ),
-                          const SizedBox(height: 20),
-
-                          if (m['description'] != null &&
-                              m['description'].toString().isNotEmpty) ...[
-                            Text(
-                              "សេចក្ដីពិពណ៌នា",
-                              style: GoogleFonts.kantumruyPro(
-                                fontWeight: FontWeight.bold,
-                                color: AppTheme.textPrimary,
-                                fontSize: 15,
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(15),
-                              decoration: BoxDecoration(
-                                color: AppTheme.bgCard,
-                                borderRadius: BorderRadius.circular(15),
-                                border: Border.all(color: AppTheme.borderColor),
-                              ),
-                              child: Text(
-                                m['description'],
-                                style: GoogleFonts.kantumruyPro(
-                                  color: AppTheme.textSecondary,
-                                  fontSize: 14,
-                                  height: 1.6,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 30),
-                          ],
-
-                          // AI SUMMARY SECTION
                           Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(20),
+                            padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
-                              color: AppTheme.primary.withAlpha(32),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: AppTheme.primary.withAlpha(100),
-                              ),
+                              color: AppTheme.primary.withAlpha(30),
+                              shape: BoxShape.circle,
                             ),
+                            child: Icon(
+                              Icons.mic_rounded,
+                              color: AppTheme.primary,
+                            ),
+                          ),
+                          const SizedBox(width: 15),
+                          Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        const Icon(
-                                          Icons.auto_awesome_rounded,
-                                          color: Colors.amber,
-                                          size: 20,
-                                        ),
-                                        const SizedBox(width: 10),
-                                        Text(
-                                          "សេចក្តីសង្ខេបដោយ AI",
-                                          style: GoogleFonts.kantumruyPro(
-                                            fontWeight: FontWeight.bold,
-                                            color: AppTheme.textPrimary,
-                                            fontSize: 15,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    Row(
-                                      children: [
-                                        if (_currentAISummary != null)
-                                          IconButton(
-                                            icon: const Icon(
-                                              Icons.copy_rounded,
-                                              color: Colors.amber,
-                                              size: 20,
-                                            ),
-                                            onPressed: () => _copyToClipboard(
-                                              _currentAISummary!,
-                                            ),
-                                            tooltip: "ចម្លងអត្ថបទ",
-                                          ),
-                                        IconButton(
-                                          icon: const Icon(
-                                            Icons.refresh_rounded,
-                                            color: Colors.amber,
-                                            size: 20,
-                                          ),
-                                          onPressed: () => _generateAISummary(
-                                            m,
-                                            modalSetState,
-                                            force: true,
-                                          ),
-                                          tooltip: "សង្ខេបម្ដងទៀត",
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 15),
-                                if (_isSummarizing)
-                                  Padding(
-                                    padding: const EdgeInsets.all(20),
-                                    child: Column(
-                                      children: [
-                                        const CircularProgressIndicator(
-                                          valueColor: AlwaysStoppedAnimation<Color>(Colors.amber),
-                                        ),
-                                        const SizedBox(height: 12),
-                                        if ((_currentSummaryStatusMessage ?? '')
-                                            .trim()
-                                            .isNotEmpty) ...[
-                                          Text(
-                                            _currentSummaryStatusMessage!,
-                                            textAlign: TextAlign.center,
-                                            style: GoogleFonts.kantumruyPro(
-                                              color: AppTheme.textSecondary,
-                                              fontSize: 13,
-                                              height: 1.5,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 10),
-                                        ],
-                                        Text(
-                                          "កំពុងដំណើរការសង្ខេបដោយ AI...",
-                                          textAlign: TextAlign.center,
-                                          style: GoogleFonts.kantumruyPro(
-                                            color: AppTheme.textSecondary,
-                                            fontSize: 13,
-                                            height: 1.5,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  )
-                                else if ((_currentSummaryError ?? '')
-                                    .trim()
-                                    .isNotEmpty)
-                                  Container(
-                                    width: double.infinity,
-                                    padding: const EdgeInsets.all(14),
-                                    decoration: BoxDecoration(
-                                      color: Colors.red.withAlpha(18),
-                                      borderRadius: BorderRadius.circular(14),
-                                      border: Border.all(
-                                        color: Colors.redAccent.withAlpha(100),
-                                      ),
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          "មិនអាចសង្ខេបបានទេ",
-                                          style: GoogleFonts.kantumruyPro(
-                                            color: Colors.redAccent,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 8),
-                                        Text(
-                                          _currentSummaryError!,
-                                          style: GoogleFonts.kantumruyPro(
-                                            color: AppTheme.textPrimary,
-                                            fontSize: 12,
-                                            height: 1.5,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  )
-                                else if (_currentAISummary != null)
-                                  Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        _currentAISummary!,
-                                        style: GoogleFonts.kantumruyPro(
-                                          color: AppTheme.textPrimary.withAlpha(
-                                            230,
-                                          ),
-                                          fontSize: 13,
-                                          height: 1.6,
-                                        ),
-                                      ),
-                                    ],
-                                  )
-                                else
-                                  Center(
-                                    child: TextButton.icon(
-                                      onPressed: () => _generateAISummary(
-                                        m,
-                                        modalSetState,
-                                        force: true,
-                                      ),
-                                      icon: const Icon(
-                                        Icons.bolt_rounded,
-                                        color: Colors.amber,
-                                      ),
-                                      label: Text(
-                                        "ចុចដើម្បីសង្ខេបដោយ AI",
-                                        style: GoogleFonts.kantumruyPro(
-                                          color: Colors.amber,
-                                        ),
-                                      ),
-                                    ),
+                                Text(
+                                  m['topic'] ?? 'Untitled',
+                                  style: GoogleFonts.kantumruyPro(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 18,
+                                    color: AppTheme.textPrimary,
                                   ),
+                                ),
+                                Text(
+                                  m['meeting_date'] ?? '',
+                                  style: GoogleFonts.inter(
+                                    color: AppTheme.textSecondary,
+                                    fontSize: 13,
+                                  ),
+                                ),
                               ],
                             ),
                           ),
-                          const SizedBox(height: 30),
-
-                          if ((_currentAIAnalysis != null &&
-                                  _currentAIAnalysis!.isNotEmpty) ||
-                              ((_currentTranscript ?? '')
-                                  .trim()
-                                  .isNotEmpty)) ...[
-                            _buildMeetingAnalysisCards(),
-                            const SizedBox(height: 30),
-                          ],
-
-                          if (photos.isNotEmpty) ...[
-                            Text(
-                              "រូបភាពពាក់ព័ន្ធ (${photos.length})",
-                              style: GoogleFonts.kantumruyPro(
-                                fontWeight: FontWeight.bold,
-                                color: AppTheme.textPrimary,
-                                fontSize: 15,
-                              ),
-                            ),
-                            const SizedBox(height: 15),
-                            SizedBox(
-                              height: 180,
-                              child: ListView.builder(
-                                scrollDirection: Axis.horizontal,
-                                itemCount: photos.length,
-                                itemBuilder: (context, index) {
-                                  final imgUrl = ApiService.getFullImageUrl(
-                                    photos[index].toString(),
-                                  );
-                                  return Container(
-                                    margin: const EdgeInsets.only(right: 15),
-                                    width: 250,
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(20),
-                                      border: Border.all(
-                                        color: AppTheme.borderColor,
-                                      ),
-                                      image: DecorationImage(
-                                        image: NetworkImage(imgUrl),
-                                        fit: BoxFit.cover,
-                                      ),
-                                    ),
-                                    child: InkWell(
-                                      onTap: () => _viewFullPhoto(imgUrl),
-                                      borderRadius: BorderRadius.circular(20),
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                            const SizedBox(height: 30),
-                          ],
-
-                          if (m['external_url'] != null &&
-                              m['external_url'].toString().isNotEmpty) ...[
-                            _buildDetailRow(
-                              Icons.link_rounded,
-                              "តំណភ្ជាប់ខាងក្រៅ",
-                              m['external_url'],
-                              isLink: true,
-                            ),
-                            const SizedBox(height: 30),
-                          ],
-
-                          const SizedBox(height: 20),
-                          if (hasAudio)
-                            SizedBox(
-                              width: double.infinity,
-                              height: 55,
-                              child: ElevatedButton.icon(
-                                onPressed: () {
-                                  Navigator.pop(context);
-                                  _playAudio(
-                                    audioPath,
-                                    title: m['topic']?.toString(),
-                                  );
-                                },
-                                icon: const Icon(
-                                  Icons.play_circle_fill_rounded,
-                                  color: Colors.white,
-                                ),
-                                label: Text(
-                                  "ស្តាប់សំឡេងកិច្ចប្រជុំ",
-                                  style: GoogleFonts.kantumruyPro(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.green.shade600,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(15),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          const SizedBox(height: 50),
                         ],
                       ),
-                    ),
+                      const SizedBox(height: 30),
+
+                      _buildDetailRow(
+                        Icons.folder_open_rounded,
+                        "ផ្នែក / ថតឯកសារ",
+                        m['department'] ?? 'ថតឯកសារទូទៅ',
+                      ),
+                      const SizedBox(height: 20),
+
+                      if (m['description'] != null &&
+                          m['description'].toString().isNotEmpty) ...[
+                        Text(
+                          "សេចក្ដីពិពណ៌នា",
+                          style: GoogleFonts.kantumruyPro(
+                            fontWeight: FontWeight.bold,
+                            color: AppTheme.textPrimary,
+                            fontSize: 15,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(15),
+                          decoration: BoxDecoration(
+                            color: AppTheme.bgCard,
+                            borderRadius: BorderRadius.circular(15),
+                            border: Border.all(color: AppTheme.borderColor),
+                          ),
+                          child: Text(
+                            m['description'],
+                            style: GoogleFonts.kantumruyPro(
+                              color: AppTheme.textSecondary,
+                              fontSize: 14,
+                              height: 1.6,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 30),
+                      ],
+
+                      if (photos.isNotEmpty) ...[
+                        Text(
+                          "រូបភាពពាក់ព័ន្ធ (${photos.length})",
+                          style: GoogleFonts.kantumruyPro(
+                            fontWeight: FontWeight.bold,
+                            color: AppTheme.textPrimary,
+                            fontSize: 15,
+                          ),
+                        ),
+                        const SizedBox(height: 15),
+                        SizedBox(
+                          height: 180,
+                          child: ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: photos.length,
+                            itemBuilder: (context, index) {
+                              final imgUrl = ApiService.getFullImageUrl(
+                                photos[index].toString(),
+                              );
+                              return Container(
+                                margin: const EdgeInsets.only(right: 15),
+                                width: 250,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                    color: AppTheme.borderColor,
+                                  ),
+                                  image: DecorationImage(
+                                    image: NetworkImage(imgUrl),
+                                    fit: BoxFit.cover,
+                                  ),
+                                ),
+                                child: InkWell(
+                                  onTap: () => _viewFullPhoto(imgUrl),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                        const SizedBox(height: 30),
+                      ],
+
+                      if (m['external_url'] != null &&
+                          m['external_url'].toString().isNotEmpty) ...[
+                        _buildDetailRow(
+                          Icons.link_rounded,
+                          "តំណភ្ជាប់ខាងក្រៅ",
+                          m['external_url'],
+                          isLink: true,
+                        ),
+                        const SizedBox(height: 30),
+                      ],
+
+                      const SizedBox(height: 20),
+                      if (hasAudio)
+                        SizedBox(
+                          width: double.infinity,
+                          height: 55,
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              Navigator.pop(context);
+                              _playAudio(
+                                audioPath,
+                                title: m['topic']?.toString(),
+                              );
+                            },
+                            icon: const Icon(
+                              Icons.play_circle_fill_rounded,
+                              color: Colors.white,
+                            ),
+                            label: Text(
+                              "ស្តាប់សំឡេងកិច្ចប្រជុំ",
+                              style: GoogleFonts.kantumruyPro(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green.shade600,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(15),
+                              ),
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 50),
+                    ],
                   ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildMeetingAnalysisCards() {
-    final analysis = _currentAIAnalysis ?? const <String, dynamic>{};
-    final overview = (analysis['overview'] ?? '').toString().trim();
-    final headline = (analysis['headline'] ?? '').toString().trim();
-    final keyPoints = _analysisList(analysis['key_points']);
-    final decisions = _analysisList(analysis['decisions']);
-    final actionItems = _analysisList(analysis['action_items']);
-    final nextSteps = _analysisList(analysis['next_steps']);
-    final keywords = _analysisList(analysis['keywords']);
-    final transcript = (_currentTranscript ?? '').trim();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (headline.isNotEmpty || overview.isNotEmpty)
-          _buildInsightCard(
-            title: headline.isNotEmpty ? headline : 'AI Summary',
-            icon: Icons.lightbulb_rounded,
-            accent: Colors.amber,
-            child: Text(
-              overview.isNotEmpty ? overview : (_currentAISummary ?? ''),
-              style: GoogleFonts.kantumruyPro(
-                color: AppTheme.textPrimary,
-                fontSize: 14,
-                height: 1.6,
-              ),
-            ),
-          ),
-        if (headline.isNotEmpty || overview.isNotEmpty)
-          const SizedBox(height: 16),
-        if (keyPoints.isNotEmpty)
-          _buildInsightCard(
-            title: 'Key Points',
-            icon: Icons.format_list_bulleted_rounded,
-            accent: AppTheme.primaryLight,
-            child: _buildInsightList(keyPoints),
-          ),
-        if (keyPoints.isNotEmpty) const SizedBox(height: 16),
-        if (decisions.isNotEmpty)
-          _buildInsightCard(
-            title: 'Decisions',
-            icon: Icons.rule_folder_rounded,
-            accent: Colors.cyanAccent,
-            child: _buildInsightList(decisions),
-          ),
-        if (decisions.isNotEmpty) const SizedBox(height: 16),
-        if (actionItems.isNotEmpty)
-          _buildInsightCard(
-            title: 'Action Items',
-            icon: Icons.task_alt_rounded,
-            accent: Colors.greenAccent,
-            child: _buildInsightList(actionItems),
-          ),
-        if (actionItems.isNotEmpty) const SizedBox(height: 16),
-        if (nextSteps.isNotEmpty)
-          _buildInsightCard(
-            title: 'Next Steps',
-            icon: Icons.trending_flat_rounded,
-            accent: Colors.orangeAccent,
-            child: _buildInsightList(nextSteps),
-          ),
-        if (nextSteps.isNotEmpty) const SizedBox(height: 16),
-        if (keywords.isNotEmpty)
-          _buildInsightCard(
-            title: 'Keywords',
-            icon: Icons.sell_rounded,
-            accent: AppTheme.secondary,
-            child: Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: keywords
-                  .map(
-                    (item) => Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 7,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppTheme.secondary.withAlpha(28),
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(
-                          color: AppTheme.secondary.withAlpha(80),
-                        ),
-                      ),
-                      child: Text(
-                        item,
-                        style: GoogleFonts.kantumruyPro(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  )
-                  .toList(),
-            ),
-          ),
-        if (keywords.isNotEmpty) const SizedBox(height: 16),
-        if (transcript.isNotEmpty)
-          _buildInsightCard(
-            title: 'Transcript',
-            icon: Icons.notes_rounded,
-            accent: AppTheme.textSecondary,
-            child: SelectableText(
-              transcript,
-              style: GoogleFonts.kantumruyPro(
-                color: AppTheme.textPrimary.withAlpha(220),
-                fontSize: 13,
-                height: 1.65,
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildInsightCard({
-    required String title,
-    required IconData icon,
-    required Widget child,
-    required Color accent,
-  }) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: AppTheme.bgCard,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: accent.withAlpha(80)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, color: accent, size: 18),
-              const SizedBox(width: 10),
-              Text(
-                title,
-                style: GoogleFonts.kantumruyPro(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 14,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          child,
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInsightList(List<String> items) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: items
-          .map(
-            (item) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Padding(
-                    padding: EdgeInsets.only(top: 8),
-                    child: Icon(Icons.circle, size: 6, color: Colors.white70),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      item,
-                      style: GoogleFonts.kantumruyPro(
-                        color: AppTheme.textPrimary.withAlpha(220),
-                        fontSize: 13,
-                        height: 1.55,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          )
-          .toList(),
+        );
+      },
     );
   }
 
