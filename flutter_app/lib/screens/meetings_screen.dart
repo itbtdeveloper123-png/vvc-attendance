@@ -10,7 +10,6 @@ import 'package:animate_do/animate_do.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:record/record.dart' as record_pkg;
-import 'package:audioplayers/audioplayers.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:intl/intl.dart';
@@ -38,8 +37,6 @@ class _MeetingsScreenState extends State<MeetingsScreen>
   final MeetingAudioPlayerService _audioPlayerService =
       MeetingAudioPlayerService.instance;
   final ImagePicker _picker = ImagePicker();
-
-  AudioPlayer get _audioPlayer => _audioPlayerService.player;
 
   // Form states
   final _formKey = GlobalKey<FormState>();
@@ -74,22 +71,6 @@ class _MeetingsScreenState extends State<MeetingsScreen>
   String _fileSize = "";
   DateTime? _recordingStartTime;
 
-  // Audio Player state
-  Duration _duration = Duration.zero;
-  Duration _position = Duration.zero;
-  double _playbackSpeed = 1.0;
-  bool _isPlaying = false;
-  bool _isPlayerLoading = false;
-  String? _currentlyPlayingPath;
-
-  StreamSubscription<Duration>? _durationSub;
-  StreamSubscription<Duration>? _positionSub;
-  StreamSubscription<PlayerState>? _playerStateSub;
-  StreamSubscription<void>? _playerCompleteSub;
-  VoidCallback? _playerServiceListener;
-
-
-
   @override
   void initState() {
     super.initState();
@@ -104,47 +85,6 @@ class _MeetingsScreenState extends State<MeetingsScreen>
     _loadAudioDrafts();
 
     unawaited(_audioPlayerService.initialize());
-    _playerServiceListener = () {
-      if (!mounted) return;
-      setState(() {
-        _currentlyPlayingPath = _audioPlayerService.currentPath;
-        _isPlayerLoading = _audioPlayerService.isLoading;
-        _playbackSpeed = _audioPlayerService.playbackSpeed;
-        _duration = _audioPlayerService.duration;
-        _position = _audioPlayerService.position;
-        _isPlaying = _audioPlayerService.isPlaying;
-      });
-    };
-    _audioPlayerService.addListener(_playerServiceListener!);
-    _currentlyPlayingPath = _audioPlayerService.currentPath;
-    _isPlayerLoading = _audioPlayerService.isLoading;
-    _playbackSpeed = _audioPlayerService.playbackSpeed;
-    _duration = _audioPlayerService.duration;
-    _position = _audioPlayerService.position;
-    _isPlaying = _audioPlayerService.isPlaying;
-
-    // Setup player listeners
-    _durationSub = _audioPlayer.onDurationChanged.listen((d) {
-      if (mounted) setState(() => _duration = d);
-    });
-    _positionSub = _audioPlayer.onPositionChanged.listen((p) {
-      if (mounted) setState(() => _position = p);
-    });
-    _playerStateSub = _audioPlayer.onPlayerStateChanged.listen((s) {
-      if (mounted) {
-        setState(() {
-          _isPlaying = s == PlayerState.playing;
-        });
-      }
-    });
-    _playerCompleteSub = _audioPlayer.onPlayerComplete.listen((_) {
-      if (mounted) {
-        setState(() {
-          _isPlaying = false;
-          _position = Duration.zero;
-        });
-      }
-    });
 
     _syncRecordingState();
 
@@ -161,13 +101,6 @@ class _MeetingsScreenState extends State<MeetingsScreen>
     WidgetsBinding.instance.removeObserver(this);
     _recordingStateTimer?.cancel();
     _pollingTimer?.cancel();
-    _durationSub?.cancel();
-    _positionSub?.cancel();
-    _playerStateSub?.cancel();
-    _playerCompleteSub?.cancel();
-    if (_playerServiceListener != null) {
-      _audioPlayerService.removeListener(_playerServiceListener!);
-    }
     _tabController.dispose();
     _topicController.dispose();
     _deptController.dispose();
@@ -1256,23 +1189,11 @@ class _MeetingsScreenState extends State<MeetingsScreen>
                         "Listen",
                         Colors.green,
                         () async {
-                          // Immediate UI feedback
-                          setState(() {
-                            _isPlayerLoading = true;
-                            _isPlaying = true;
-                          });
-                          
+                          _showAudioPlayerModal();
                           await _audioPlayerService.playPath(
                             draft.path,
                             title: "Draft ${_formatDraftDate(draft.createdAt)}",
                           );
-                          
-                          if (mounted) {
-                            setState(() {
-                              _isPlayerLoading = false;
-                            });
-                            _showAudioPlayerModal();
-                          }
                         },
                       ),
                       _buildActionBtn(
@@ -2112,86 +2033,61 @@ class _MeetingsScreenState extends State<MeetingsScreen>
     );
   }
 
+  bool _isAudioModalOpen = false;
+
   Future<void> _playAudio(String path, {String? title}) async {
     try {
       final String fullUrl = ApiService.getFullImageUrl(path);
-      debugPrint("PLAY_REQ: $fullUrl");
+      debugPrint("PLAY_REQ: $fullUrl (display: $path)");
 
-      if (_currentlyPlayingPath == path) {
-        // Immediate UI feedback for toggle
-        setState(() {
-          _isPlaying = !_isPlaying;
-        });
-        
-        // Use unawaited to avoid blocking UI
-        unawaited(
-          (() async {
-            if (_isPlaying) {
-              await _audioPlayerService.resume();
-            } else {
-              await _audioPlayerService.pause();
-            }
+      _showAudioPlayerModal();
 
-            // Sync with actual state after operation
-            if (mounted) {
-              setState(() {
-                _isPlaying = _audioPlayerService.isPlaying;
-              });
-            }
-          })()
-        );
-      } else {
-        // Immediate UI feedback for new audio - update state synchronously
-        if (mounted) {
-          setState(() {
-            _isPlayerLoading = true;
-            _currentlyPlayingPath = path;
-            _position = Duration.zero;
-            _duration = Duration.zero;
-            _isPlaying = true; // Assume it will play
-          });
+      if (_audioPlayerService.currentPath == path) {
+        if (_audioPlayerService.isPlaying) {
+          await _audioPlayerService.pause();
+        } else {
+          await _audioPlayerService.resume();
         }
-        
-        // Play audio asynchronously without blocking UI
-        unawaited(
-          (() async {
-            await _audioPlayerService.playPath(
-              fullUrl,
-              title: title,
-              forceRemote: true,
-              displayPath: path,
-            );
-
-            if (mounted) {
-              setState(() => _isPlayerLoading = false);
-            }
-          })()
+      } else {
+        await _audioPlayerService.playPath(
+          fullUrl,
+          title: title,
+          forceRemote: true,
+          displayPath: path,
         );
       }
     } catch (e) {
+      debugPrint("Audio playback error: $e");
       if (mounted) {
-        setState(() {
-          _isPlayerLoading = false;
-          _currentlyPlayingPath = null;
-        });
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Playback Error: $e')));
+        ).showSnackBar(SnackBar(content: Text('កំហុសចាក់សំឡេង: $e')));
       }
-    } finally {
-      if (mounted) _showAudioPlayerModal();
     }
   }
 
   void _showAudioPlayerModal() {
-    if (!mounted) return;
+    if (!mounted || _isAudioModalOpen) return;
+    _isAudioModalOpen = true;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) {
-        return StatefulBuilder(
-          builder: (context, modalSetState) {
+        return ListenableBuilder(
+          listenable: _audioPlayerService,
+          builder: (context, _) {
+            final isLoading = _audioPlayerService.isLoading;
+            final isPlaying = _audioPlayerService.isPlaying;
+            final currentTitle = _audioPlayerService.currentTitle ?? 'កិច្ចប្រជុំ';
+            final position = _audioPlayerService.position;
+            final duration = _audioPlayerService.duration;
+            final speed = _audioPlayerService.playbackSpeed;
+            final currentPos = position.inMilliseconds.toDouble();
+            final totalDur =
+                duration.inMilliseconds.toDouble().clamp(1.0, double.infinity);
+            final safeVal = currentPos.clamp(0.0, totalDur);
+
             return Container(
               padding: const EdgeInsets.all(25),
               decoration: BoxDecoration(
@@ -2220,108 +2116,86 @@ class _MeetingsScreenState extends State<MeetingsScreen>
                   ),
                   const SizedBox(height: 25),
 
-                  if (_isPlayerLoading)
+                  if (isLoading)
                     const Column(
                       children: [
-                        CircularProgressIndicator(),
-                        SizedBox(height: 10),
+                        CircularProgressIndicator(
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(Color(0xFFF59E0B)),
+                        ),
+                        SizedBox(height: 12),
                         Text(
                           "កំពុងទាញយកសំឡេង...",
                           style: TextStyle(color: Colors.white70),
                         ),
                       ],
                     )
-                  else if (_currentlyPlayingPath != null) ...[
+                  else ...[
                     Text(
-                      "កំពុងចាក់សំឡេង",
+                      isPlaying ? "កំពុងចាក់សំឡេង" : "ផ្អាកសំឡេង",
                       style: GoogleFonts.kantumruyPro(
-                        color: AppTheme.primary,
+                        color:
+                            isPlaying ? AppTheme.primary : AppTheme.textSecondary,
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
                       ),
                     ),
                   ],
                   const SizedBox(height: 10),
-                  if (_currentlyPlayingPath != null)
-                    Text(
-                      _audioPlayerService.currentTitle ??
-                          ((_meetingsList.isEmpty)
-                              ? 'កិច្ចប្រជុំ'
-                              : _meetingsList.whereType<Map>().firstWhere(
-                                      (m) {
-                                        final map = m as Map<String, dynamic>;
-                                        return (map['audio_path'] ??
-                                                map['audio_file_path'] ??
-                                                '') ==
-                                            _currentlyPlayingPath;
-                                      },
-                                      orElse: () => {'topic': 'កិច្ចប្រជុំ'},
-                                    )['topic'] ??
-                                    ''),
-                      style: GoogleFonts.kantumruyPro(
-                        color: AppTheme.textPrimary,
-                        fontSize: 14,
-                      ),
-                      textAlign: TextAlign.center,
+                  Text(
+                    currentTitle,
+                    style: GoogleFonts.kantumruyPro(
+                      color: AppTheme.textPrimary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
                     ),
-                  const SizedBox(height: 30),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 25),
 
-                  Builder(
-                    builder: (context) {
-                      final position = _position;
-                      final currentPos = position.inMilliseconds.toDouble();
-                      final totalDur = _duration.inMilliseconds
-                          .toDouble()
-                          .clamp(1.0, double.infinity);
-                      final safeVal = currentPos.clamp(0.0, totalDur);
-
-                      return Column(
-                        children: [
-                          SliderTheme(
-                            data: SliderTheme.of(context).copyWith(
-                              trackHeight: 4,
-                              thumbShape: const RoundSliderThumbShape(
-                                enabledThumbRadius: 8,
-                              ),
-                              activeTrackColor: AppTheme.primary,
-                              thumbColor: AppTheme.primary,
-                            ),
-                            child: Slider(
-                              min: 0,
-                              max: totalDur,
-                              value: safeVal,
-                              onChanged: (v) {
-                                _audioPlayerService.seek(
-                                  Duration(milliseconds: v.toInt()),
-                                );
-                              },
-                            ),
+                  SliderTheme(
+                    data: SliderTheme.of(context).copyWith(
+                      trackHeight: 4,
+                      thumbShape: const RoundSliderThumbShape(
+                        enabledThumbRadius: 8,
+                      ),
+                      activeTrackColor: AppTheme.primary,
+                      thumbColor: AppTheme.primary,
+                    ),
+                    child: Slider(
+                      min: 0,
+                      max: totalDur,
+                      value: safeVal,
+                      onChanged: isLoading
+                          ? null
+                          : (v) {
+                              _audioPlayerService.seek(
+                                Duration(milliseconds: v.toInt()),
+                              );
+                            },
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          _formatDuration(position),
+                          style: GoogleFonts.inter(
+                            color: AppTheme.textSecondary,
+                            fontSize: 12,
                           ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 20),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  _formatDuration(position),
-                                  style: GoogleFonts.inter(
-                                    color: AppTheme.textSecondary,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                                Text(
-                                  _formatDuration(_duration),
-                                  style: GoogleFonts.inter(
-                                    color: AppTheme.textSecondary,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
-                            ),
+                        ),
+                        Text(
+                          _formatDuration(duration),
+                          style: GoogleFonts.inter(
+                            color: AppTheme.textSecondary,
+                            fontSize: 12,
                           ),
-                        ],
-                      );
-                    },
+                        ),
+                      ],
+                    ),
                   ),
 
                   const SizedBox(height: 20),
@@ -2331,11 +2205,9 @@ class _MeetingsScreenState extends State<MeetingsScreen>
                     children: [
                       // Speed Control
                       PopupMenuButton<double>(
-                        initialValue: _playbackSpeed,
-                        onSelected: (speed) async {
-                          setState(() => _playbackSpeed = speed);
-                          await _audioPlayerService.setPlaybackSpeed(speed);
-                          modalSetState(() {});
+                        initialValue: speed,
+                        onSelected: (newSpeed) async {
+                          await _audioPlayerService.setPlaybackSpeed(newSpeed);
                         },
                         child: Container(
                           padding: const EdgeInsets.symmetric(
@@ -2347,7 +2219,7 @@ class _MeetingsScreenState extends State<MeetingsScreen>
                             borderRadius: BorderRadius.circular(15),
                           ),
                           child: Text(
-                            "${_playbackSpeed}x",
+                            "${speed}x",
                             style: GoogleFonts.inter(
                               color: AppTheme.primary,
                               fontWeight: FontWeight.bold,
@@ -2358,7 +2230,7 @@ class _MeetingsScreenState extends State<MeetingsScreen>
                           const PopupMenuItem(value: 0.5, child: Text("0.5x")),
                           const PopupMenuItem(
                             value: 1.0,
-                            child: Text("1.0x (Normal)"),
+                            child: Text("1.0x (ធម្មតា)"),
                           ),
                           const PopupMenuItem(
                             value: 1.25,
@@ -2372,31 +2244,20 @@ class _MeetingsScreenState extends State<MeetingsScreen>
                       IconButton(
                         iconSize: 64,
                         icon: Icon(
-                          _isPlaying
+                          isPlaying
                               ? Icons.pause_circle_filled_rounded
                               : Icons.play_circle_filled_rounded,
                           color: AppTheme.primary,
                         ),
-                        onPressed: () async {
-                          // Immediate UI feedback
-                          setState(() {
-                            _isPlaying = !_isPlaying;
-                          });
-                          
-                          // Execute the actual audio operation
-                          if (_isPlaying) {
-                            await _audioPlayerService.resume();
-                          } else {
-                            await _audioPlayerService.pause();
-                          }
-                          
-                          // Sync state with actual player state
-                          if (mounted) {
-                            setState(() {
-                              _isPlaying = _audioPlayerService.isPlaying;
-                            });
-                          }
-                        },
+                        onPressed: isLoading
+                            ? null
+                            : () async {
+                                if (isPlaying) {
+                                  await _audioPlayerService.pause();
+                                } else {
+                                  await _audioPlayerService.resume();
+                                }
+                              },
                       ),
 
                       IconButton(
@@ -2419,7 +2280,9 @@ class _MeetingsScreenState extends State<MeetingsScreen>
           },
         );
       },
-    );
+    ).whenComplete(() {
+      _isAudioModalOpen = false;
+    });
   }
 
   String _formatDuration(Duration d) {

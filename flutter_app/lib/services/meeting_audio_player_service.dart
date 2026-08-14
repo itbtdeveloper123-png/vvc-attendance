@@ -50,13 +50,21 @@ class MeetingAudioPlayerService extends ChangeNotifier {
       return;
     }
 
-    await player.setPlayerMode(PlayerMode.mediaPlayer);
-    await player.setReleaseMode(ReleaseMode.stop);
-    await player.setAudioContext(
-      AudioContextConfig(
-        stayAwake: true,
-      ).build(),
-    );
+    try {
+      await player.setPlayerMode(PlayerMode.mediaPlayer);
+    } catch (_) {}
+
+    try {
+      await player.setReleaseMode(ReleaseMode.stop);
+    } catch (_) {}
+
+    try {
+      await player.setAudioContext(
+        AudioContextConfig(
+          stayAwake: true,
+        ).build(),
+      );
+    } catch (_) {}
 
     player.onPlayerComplete.listen((_) {
       _isPlaying = false;
@@ -119,7 +127,9 @@ class MeetingAudioPlayerService extends ChangeNotifier {
 
       final source = _resolveSource(path, forceRemote: forceRemote);
       await player.setSource(source);
-      await player.setPlaybackRate(_playbackSpeed);
+      try {
+        await player.setPlaybackRate(_playbackSpeed);
+      } catch (_) {}
       await player.resume();
       _isPlaying = true;
       _isActive = true;

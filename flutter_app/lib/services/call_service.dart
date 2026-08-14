@@ -3,7 +3,9 @@ import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
 class CallService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  FirebaseFirestore get _firestore => FirebaseFirestore.instance;
+
+  static String? lastErrorMessage;
   
   // Start a new call
   Future<String?> startCall({
@@ -15,8 +17,18 @@ class CallService {
     required String callerName,
     required String callerPhoto,
   }) async {
+    lastErrorMessage = null;
     try {
-      if (callerId.isEmpty) return null;
+      if (callerId.isEmpty) {
+        lastErrorMessage = 'Missing Caller ID';
+        debugPrint('startCall: callerId is empty!');
+        return null;
+      }
+      if (receiverId.isEmpty) {
+        lastErrorMessage = 'Missing Receiver ID';
+        debugPrint('startCall: receiverId is empty!');
+        return null;
+      }
 
       final callId = const Uuid().v4();
       
@@ -35,8 +47,9 @@ class CallService {
       });
       
       return callId;
-    } catch (e) {
-      debugPrint('Error starting call: $e');
+    } catch (e, stack) {
+      lastErrorMessage = e.toString();
+      debugPrint('Error starting call: $e\n$stack');
       return null;
     }
   }
@@ -66,11 +79,16 @@ class CallService {
   // Listen to incoming calls for current user
   Stream<QuerySnapshot> getIncomingCalls(String currentUserId) {
     if (currentUserId.isEmpty) return const Stream.empty();
-    return _firestore
-        .collection('calls')
-        .where('receiverId', isEqualTo: currentUserId)
-        .where('status', isEqualTo: 'ringing')
-        .snapshots();
+    try {
+      return _firestore
+          .collection('calls')
+          .where('receiverId', isEqualTo: currentUserId)
+          .where('status', isEqualTo: 'ringing')
+          .snapshots();
+    } catch (e) {
+      debugPrint('Error listening to incoming calls: $e');
+      return const Stream.empty();
+    }
   }
 
   // Listen to specific call state (e.g. to know if receiver accepted)

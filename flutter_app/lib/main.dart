@@ -31,15 +31,23 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   debugPrint("Handling a background message: ${message.messageId}");
 }
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   initializeDateFormatting();
+
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    ).timeout(const Duration(milliseconds: 3500));
+  } catch (e) {
+    debugPrint("Firebase init completed with fallback/error: $e");
+  }
 
   // Instant local providers
   final userProvider = UserProvider();
   final themeProvider = SeasonalThemeProvider();
 
-  // STEP 1: Run the app immediately! First frame paints in <30ms without native launch screen freeze
+  // STEP 1: Run the app with initialized Firebase & providers
   runApp(
     MultiProvider(
       providers: [
@@ -71,21 +79,12 @@ Future<void> _runBackgroundBootstrap(UserProvider userProvider) async {
     }
   }
 
-  // 4. Initialize Firebase & push notifications in background
+  // 4. Initialize push notifications in background
   _initFirebaseInBackground();
 }
 
-/// Initialize Firebase and push notifications in the background.
-/// This runs AFTER the app is shown so offline users are never blocked.
+/// Initialize Firebase push notifications in the background.
 Future<void> _initFirebaseInBackground() async {
-  try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-  } catch (e) {
-    debugPrint("Firebase init failed (offline?): $e");
-    return; // Stop here — no point setting up FCM if Firebase failed
-  }
 
   final bool isMobile = !kIsWeb && (Platform.isAndroid || Platform.isIOS);
   if (isMobile) {

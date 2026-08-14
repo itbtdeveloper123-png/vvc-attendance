@@ -119,31 +119,66 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   int _recordingSeconds = 0;
 
   void _initiateCall(String type) async {
-    final prefs = await SharedPreferences.getInstance();
-    final callerName = prefs.getString('name') ?? prefs.getString('username') ?? 'Caller';
-    
-    final callId = await CallService().startCall(
-      callerId: currentUserId,
-      receiverId: widget.targetUserId,
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    final String myId = (userProvider.employeeId ?? currentUserId).trim();
+    final String myName = (userProvider.name ?? '').trim().isNotEmpty
+        ? userProvider.name!
+        : 'Caller';
+    final String myPhoto = userProvider.avatar ?? currentUserPhoto;
+
+    if (myId.isEmpty) {
+      if (mounted) {
+        VvcAlert.showError(
+          context,
+          title: 'បរាជ័យ',
+          message: 'មិនស្គាល់អត្តសញ្ញាណអ្នកហៅ (Missing User ID)។ សូម Logout ហើយ Login ម្តងទៀត។',
+        );
+      }
+      return;
+    }
+
+    if (widget.targetUserId.trim().isEmpty) {
+      if (mounted) {
+        VvcAlert.showError(
+          context,
+          title: 'បរាជ័យ',
+          message: 'មិនស្គាល់អត្តសញ្ញាណអ្នកទទួល (Missing Receiver ID)។',
+        );
+      }
+      return;
+    }
+
+    final callService = CallService();
+    final callId = await callService.startCall(
+      callerId: myId,
+      receiverId: widget.targetUserId.trim(),
       receiverName: widget.targetUserName,
       receiverPhoto: widget.targetUserPhoto,
       type: type,
-      callerName: callerName,
-      callerPhoto: currentUserPhoto,
+      callerName: myName,
+      callerPhoto: myPhoto,
     );
+
     if (callId != null && mounted) {
-      Navigator.push(context, MaterialPageRoute(builder: (_) => ActiveCallScreen(
-        callId: callId,
-        channelId: callId,
-        targetName: widget.targetUserName,
-        isVideoCall: type == 'video',
-        isCaller: true,
-      )));
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ActiveCallScreen(
+            callId: callId,
+            channelId: callId,
+            targetName: widget.targetUserName,
+            targetPhoto: widget.targetUserPhoto,
+            isVideoCall: type == 'video',
+            isCaller: true,
+          ),
+        ),
+      );
     } else if (mounted) {
+      final err = CallService.lastErrorMessage ?? 'Connection error';
       VvcAlert.showError(
         context,
         title: 'បរាជ័យ',
-        message: 'មិនអាចតភ្ជាប់ការហៅបានទេ។ សូមសាកល្បងម្ដងទៀត។ (Check Firestore Rules or connection)',
+        message: 'មិនអាចតភ្ជាប់ការហៅបានទេ។ ($err)\nសូមពិនិត្យ Firestore Rules ឬការតភ្ជាប់អ៊ីនធឺណិត។',
       );
     }
   }
