@@ -48,6 +48,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
   bool _faceScanAttempted = false;
   bool _faceCaptured = false;
   bool _faceProcessing = false;
+  bool _isFaceDetected = false;
   bool _isFaceRegistered = false; // true = user already completed face setup before
   int _consecutiveFaceFrames = 0;
   int _consecutiveErrorFrames = 0;
@@ -326,6 +327,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
       _useQrScanner = true;
       _isScanning = true;
       _isLoading = false;
+      _isFaceDetected = false;
     });
 
     // បើក QR Scanner ក្រោយ Face camera ត្រូវបានទម្លាក់ចោលរួច
@@ -424,6 +426,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
       _useQrScanner = false;
       _isLoading = false;
       _isScanning = false;
+      _isFaceDetected = false;
     });
     await _tryFaceScanOrFallback();
   }
@@ -453,6 +456,11 @@ class _AttendanceScreenState extends State<AttendanceScreen>
       if (inputImage == null) return;
       final faces = await _faceDetector?.processImage(inputImage) ?? [];
       _consecutiveErrorFrames = 0;
+
+      final bool detected = faces.isNotEmpty;
+      if (detected != _isFaceDetected && mounted) {
+        setState(() => _isFaceDetected = detected);
+      }
 
       if (faces.isNotEmpty) {
         _consecutiveFaceFrames += 1;
@@ -488,260 +496,169 @@ class _AttendanceScreenState extends State<AttendanceScreen>
 
   Widget _buildFaceScannerPreview() {
     if (_cameraController == null || !_cameraController!.value.isInitialized) {
-      return Container(color: Colors.black);
+      return Container(
+        color: const Color(0xFF0A0F1D),
+        child: const Center(
+          child: CircularProgressIndicator(color: Color(0xFF00E5FF)),
+        ),
+      );
     }
 
     final size = MediaQuery.of(context).size;
-    final double reticleWidth = (size.width * 0.7).clamp(240.0, 280.0);
-    final double reticleHeight = reticleWidth * 1.25;
+    final double reticleWidth = (size.width * 0.72).clamp(240.0, 300.0);
+    final double reticleHeight = reticleWidth * 1.32;
+    final double topOffset = (size.height * 0.20).clamp(110.0, 190.0);
+    final double leftOffset = (size.width - reticleWidth) / 2;
+    final Rect cutoutRect = Rect.fromLTWH(leftOffset, topOffset, reticleWidth, reticleHeight);
+
+    final activeColor = _isFaceDetected ? const Color(0xFF10B981) : const Color(0xFF00E5FF);
 
     return Stack(
       fit: StackFit.expand,
       children: [
-        // Camera Preview
-        CameraPreview(_cameraController!),
-
-        // Dark Vignette Backdrop with Oval Cutout
-        Positioned.fill(
-          child: Container(
-            color: Colors.black.withAlpha(90),
-          ),
-        ),
-
-        // Centered Scanner Reticle with Animated Laser
-        Center(
-          child: SizedBox(
-            width: reticleWidth,
-            height: reticleHeight,
-            child: Stack(
-              children: [
-                // Glowing Rounded Border
-                Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(32),
-                    border: Border.all(
-                      color: const Color(0xFF00E5FF).withAlpha(140),
-                      width: 2.5,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF00E5FF).withAlpha(60),
-                        blurRadius: 24,
-                        spreadRadius: 2,
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Corner Brackets
-                ..._buildCornerBrackets(reticleWidth, reticleHeight),
-
-                // Animated Laser Line
-                AnimatedBuilder(
-                  animation: _laserAnimation,
-                  builder: (context, child) {
-                    return Positioned(
-                      top: _laserAnimation.value * (reticleHeight - 10),
-                      left: 12,
-                      right: 12,
-                      child: Container(
-                        height: 3,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(2),
-                          gradient: const LinearGradient(
-                            colors: [
-                              Colors.transparent,
-                              Color(0xFF00E5FF),
-                              Color(0xFF10B981),
-                              Colors.transparent,
-                            ],
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF00E5FF).withAlpha(200),
-                              blurRadius: 12,
-                              spreadRadius: 2,
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ],
+        // 1. Full-bleed Camera Preview (No distortion, fills screen smoothly)
+        SizedBox.expand(
+          child: FittedBox(
+            fit: BoxFit.cover,
+            child: SizedBox(
+              width: _cameraController!.value.previewSize?.height ?? size.width,
+              height: _cameraController!.value.previewSize?.width ?? size.height,
+              child: CameraPreview(_cameraController!),
             ),
           ),
         ),
 
-        // Top Header
-        SafeArea(
-          child: Align(
-            alignment: Alignment.topCenter,
-            child: Padding(
-              padding: const EdgeInsets.only(top: 16, left: 20, right: 20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withAlpha(160),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: const Color(0xFF00E5FF).withAlpha(100)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: const BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Color(0xFF10B981),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'FACE SCANNER',
-                          style: GoogleFonts.inter(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 1.2,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ],
-                    ),
+        // 2. Custom Mask & Biometric Viewfinder Painter
+        CustomPaint(
+          size: size,
+          painter: FaceScannerOverlayPainter(
+            cutoutRect: cutoutRect,
+            borderRadius: 36.0,
+            borderColor: activeColor,
+            isFaceDetected: _isFaceDetected,
+          ),
+        ),
+
+        // 3. Subtle Center Watermark Icon inside cutout
+        Positioned(
+          left: cutoutRect.left,
+          top: cutoutRect.top,
+          width: cutoutRect.width,
+          height: cutoutRect.height,
+          child: Center(
+            child: Icon(
+              Icons.face_unlock_rounded,
+              color: Colors.white.withValues(alpha: _isFaceDetected ? 0.08 : 0.16),
+              size: 90,
+            ),
+          ),
+        ),
+
+        // 4. Animated Laser Beam with Soft Glow
+        AnimatedBuilder(
+          animation: _laserAnimation,
+          builder: (context, child) {
+            return Positioned(
+              top: cutoutRect.top + 12 + _laserAnimation.value * (cutoutRect.height - 24),
+              left: cutoutRect.left + 16,
+              width: cutoutRect.width - 32,
+              child: Container(
+                height: 3,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(2),
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.transparent,
+                      activeColor,
+                      Colors.white,
+                      activeColor,
+                      Colors.transparent,
+                    ],
                   ),
-                  const SizedBox(height: 10),
-                  Text(
-                    'សូមដាក់ផ្ទៃមុខឱ្យចំកណ្តាលក្របខ័ណ្ឌ',
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.kantumruyPro(
-                      color: Colors.white.withAlpha(220),
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      shadows: [
-                        const Shadow(color: Colors.black87, blurRadius: 8),
-                      ],
+                  boxShadow: [
+                    BoxShadow(
+                      color: activeColor.withValues(alpha: 0.8),
+                      blurRadius: 14,
+                      spreadRadius: 2,
                     ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+
+        // 5. High-Tech Glassmorphic Guidance Card (Positioned Cleanly Below Reticle)
+        Positioned(
+          top: cutoutRect.bottom + 22,
+          left: 24,
+          right: 24,
+          child: Center(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.45),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(
+                      color: activeColor.withValues(alpha: _isFaceDetected ? 0.5 : 0.2),
+                      width: 1.2,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: activeColor.withValues(alpha: _isFaceDetected ? 0.15 : 0.05),
+                        blurRadius: 16,
+                      ),
+                    ],
                   ),
-                ],
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            _isFaceDetected
+                                ? Icons.check_circle_rounded
+                                : Icons.face_retouching_natural_rounded,
+                            color: activeColor,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            _isFaceDetected
+                                ? 'រកឃើញផ្ទៃមុខហើយ កំពុងផ្ទៀងផ្ទាត់...'
+                                : 'សូមដាក់ផ្ទៃមុខឱ្យចំកណ្តាលក្របខ័ណ្ឌ',
+                            style: GoogleFonts.kantumruyPro(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'សូមរក្សាផ្ទៃមុខឱ្យត្រង់ និងស្ថិតក្នុងពន្លឺគ្រប់គ្រាន់',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.kantumruyPro(
+                          color: Colors.white.withValues(alpha: 0.65),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
         ),
       ],
     );
-  }
-
-  List<Widget> _buildCornerBrackets(double w, double h) {
-    const double len = 24.0;
-    const double thick = 4.0;
-    const Color col = Color(0xFF10B981);
-
-    return [
-      // Top Left
-      Positioned(
-        top: 0,
-        left: 0,
-        child: Container(
-          width: len,
-          height: thick,
-          decoration: const BoxDecoration(
-            color: col,
-            borderRadius: BorderRadius.only(topLeft: Radius.circular(32)),
-          ),
-        ),
-      ),
-      Positioned(
-        top: 0,
-        left: 0,
-        child: Container(
-          width: thick,
-          height: len,
-          decoration: const BoxDecoration(
-            color: col,
-            borderRadius: BorderRadius.only(topLeft: Radius.circular(32)),
-          ),
-        ),
-      ),
-      // Top Right
-      Positioned(
-        top: 0,
-        right: 0,
-        child: Container(
-          width: len,
-          height: thick,
-          decoration: const BoxDecoration(
-            color: col,
-            borderRadius: BorderRadius.only(topRight: Radius.circular(32)),
-          ),
-        ),
-      ),
-      Positioned(
-        top: 0,
-        right: 0,
-        child: Container(
-          width: thick,
-          height: len,
-          decoration: const BoxDecoration(
-            color: col,
-            borderRadius: BorderRadius.only(topRight: Radius.circular(32)),
-          ),
-        ),
-      ),
-      // Bottom Left
-      Positioned(
-        bottom: 0,
-        left: 0,
-        child: Container(
-          width: len,
-          height: thick,
-          decoration: const BoxDecoration(
-            color: col,
-            borderRadius: BorderRadius.only(bottomLeft: Radius.circular(32)),
-          ),
-        ),
-      ),
-      Positioned(
-        bottom: 0,
-        left: 0,
-        child: Container(
-          width: thick,
-          height: len,
-          decoration: const BoxDecoration(
-            color: col,
-            borderRadius: BorderRadius.only(bottomLeft: Radius.circular(32)),
-          ),
-        ),
-      ),
-      // Bottom Right
-      Positioned(
-        bottom: 0,
-        right: 0,
-        child: Container(
-          width: len,
-          height: thick,
-          decoration: const BoxDecoration(
-            color: col,
-            borderRadius: BorderRadius.only(bottomRight: Radius.circular(32)),
-          ),
-        ),
-      ),
-      Positioned(
-        bottom: 0,
-        right: 0,
-        child: Container(
-          width: thick,
-          height: len,
-          decoration: const BoxDecoration(
-            color: col,
-            borderRadius: BorderRadius.only(bottomRight: Radius.circular(32)),
-          ),
-        ),
-      ),
-    ];
   }
 
   InputImage? _convertCameraImage(CameraImage image, int rotation) {
@@ -1326,10 +1243,10 @@ class _AttendanceScreenState extends State<AttendanceScreen>
   Widget build(BuildContext context) {
     final bool faceScanEnabled = Provider.of<UserProvider>(context).faceScanEnabled;
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: const Color(0xFF0A0F1D),
       body: Stack(
         children: [
-          // 1. Background Scanner
+          // 1. Background Scanner (QR or Face)
           if (_isScanning)
             _useQrScanner
                 ? MobileScanner(
@@ -1342,9 +1259,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                           children: [
                             Icon(
                               Icons.videocam_off_rounded,
-                              color: AppTheme.textPrimary.withValues(
-                                alpha: 0.24,
-                              ),
+                              color: AppTheme.textPrimary.withValues(alpha: 0.24),
                               size: 80,
                             ),
                             const SizedBox(height: 20),
@@ -1361,7 +1276,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                   )
                 : _buildFaceScannerPreview(),
 
-          // 2. Scanner Overlay Mask with Corner Borders
+          // 2. QR Scanner Overlay (When in QR mode only)
           if (_isScanning && _useQrScanner)
             Container(
               decoration: ShapeDecoration(
@@ -1376,148 +1291,262 @@ class _AttendanceScreenState extends State<AttendanceScreen>
               ),
             ),
 
-          // 4. Top Info Panel (Clean & Minimal)
+          // 3. Unified Top Navigation Bar (Single Layer, Zero Overlap!)
           SafeArea(
-            bottom: false,
             child: Align(
               alignment: Alignment.topCenter,
               child: Padding(
-                padding: const EdgeInsets.only(top: 32),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                 child: FadeInDown(
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(30),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 12,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.3),
-                          borderRadius: BorderRadius.circular(30),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.15),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              _useQrScanner
-                                  ? Icons.qr_code_scanner_rounded
-                                  : Icons.face_retouching_natural_rounded,
-                              color: Colors.cyanAccent,
-                              size: 18,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              _useQrScanner ? "SCAN QR CODE" : "FACE SCAN",
-                              style: GoogleFonts.inter(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 1.5,
-                                fontSize: 13,
+                  duration: const Duration(milliseconds: 500),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // Back Button
+                      ClipOval(
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                          child: Container(
+                            width: 42,
+                            height: 42,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.black.withValues(alpha: 0.35),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.15),
                               ),
                             ),
-                          ],
+                            child: IconButton(
+                              icon: const Icon(
+                                Icons.arrow_back_ios_new_rounded,
+                                color: Colors.white,
+                                size: 18,
+                              ),
+                              onPressed: () => Navigator.pop(context),
+                              tooltip: "ត្រឡប់ក្រោយ",
+                            ),
+                          ),
                         ),
                       ),
-                    ),
+
+                      // Mode Badge Pill
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(30),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 18,
+                              vertical: 9,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.4),
+                              borderRadius: BorderRadius.circular(30),
+                              border: Border.all(
+                                color: (_useQrScanner
+                                        ? Colors.cyanAccent
+                                        : const Color(0xFF10B981))
+                                    .withValues(alpha: 0.35),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 8,
+                                  height: 8,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: _useQrScanner
+                                        ? Colors.cyanAccent
+                                        : const Color(0xFF10B981),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: (_useQrScanner
+                                                ? Colors.cyanAccent
+                                                : const Color(0xFF10B981))
+                                            .withValues(alpha: 0.7),
+                                        blurRadius: 8,
+                                        spreadRadius: 1,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  _useQrScanner
+                                      ? "QR CODE SCANNER"
+                                      : "AI FACE SCAN",
+                                  style: GoogleFonts.inter(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 1.2,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      // Quick Switch Icon Button
+                      ClipOval(
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                          child: Container(
+                            width: 42,
+                            height: 42,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.black.withValues(alpha: 0.35),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.15),
+                              ),
+                            ),
+                            child: IconButton(
+                              icon: Icon(
+                                _useQrScanner
+                                    ? Icons.face_rounded
+                                    : Icons.qr_code_2_rounded,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                              onPressed: () {
+                                if (_useQrScanner) {
+                                  _switchToFaceScanner();
+                                } else {
+                                  _switchToQrScanner();
+                                }
+                              },
+                              tooltip: _useQrScanner
+                                  ? "ប្ដូរទៅ Face Scan"
+                                  : "ប្ដូរទៅ QR Code",
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
             ),
           ),
 
-          // 5. Minimal Bottom Icon (Optional visual cue)
-          if (_isScanning)
-            Positioned(
-              bottom: 40,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: FadeInUp(
-                  duration: const Duration(milliseconds: 1000),
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.black.withValues(alpha: 0.3),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.1),
+          // 4. Modern Bottom Mode Switcher Dock
+          if (_isScanning && !_isLoading)
+            SafeArea(
+              child: Align(
+                alignment: Alignment.bottomCenter,
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 28, left: 24, right: 24),
+                  child: FadeInUp(
+                    duration: const Duration(milliseconds: 600),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(28),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: (_useQrScanner && !faceScanEnabled)
+                              ? Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                    vertical: 12,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withValues(alpha: 0.5),
+                                    borderRadius: BorderRadius.circular(28),
+                                    border: Border.all(
+                                      color: Colors.white.withValues(alpha: 0.15),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(
+                                        Icons.qr_code_2_rounded,
+                                        color: Colors.cyanAccent,
+                                        size: 18,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        'គណនីនេះកំណត់ប្រើប្រាស់ QR Code',
+                                        style: GoogleFonts.kantumruyPro(
+                                          color: Colors.white70,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              : InkWell(
+                                  onTap: () {
+                                    if (_useQrScanner) {
+                                      _switchToFaceScanner();
+                                    } else {
+                                      _switchToQrScanner();
+                                    }
+                                  },
+                                  borderRadius: BorderRadius.circular(28),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 24,
+                                      vertical: 14,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withValues(alpha: 0.5),
+                                      borderRadius: BorderRadius.circular(28),
+                                      border: Border.all(
+                                        color: Colors.white.withValues(alpha: 0.18),
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withValues(alpha: 0.3),
+                                          blurRadius: 20,
+                                          offset: const Offset(0, 8),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          _useQrScanner
+                                              ? Icons.face_retouching_natural_rounded
+                                              : Icons.qr_code_scanner_rounded,
+                                          color: _useQrScanner
+                                              ? const Color(0xFF10B981)
+                                              : Colors.cyanAccent,
+                                          size: 22,
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Text(
+                                          _useQrScanner
+                                              ? 'ប្ដូរទៅស្កេនផ្ទៃមុខ (Face Scan)'
+                                              : 'ប្ដូរទៅស្កេន QR Code',
+                                          style: GoogleFonts.kantumruyPro(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                        ),
                       ),
-                    ),
-                    child: Icon(
-                      Icons.camera_alt_outlined,
-                      color: Colors.white.withValues(alpha: 0.6),
-                      size: 28,
                     ),
                   ),
                 ),
               ),
             ),
 
-          if (_isScanning && _useQrScanner && !_isLoading)
-            Positioned(
-              bottom: 110,
-              left: 24,
-              right: 24,
-              child: faceScanEnabled
-                  ? FadeInUp(
-                      duration: const Duration(milliseconds: 600),
-                      child: ElevatedButton(
-                        onPressed: _switchToFaceScanner,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.black.withValues(alpha: 0.5),
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            side: BorderSide(
-                              color: Colors.cyanAccent.withValues(alpha: 0.3),
-                            ),
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                        ),
-                        child: Text(
-                          'សាកល្បងស្កេនមុខម្ដងទៀត',
-                          style: GoogleFonts.kantumruyPro(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ),
-                    )
-                  : FadeInUp(
-                      duration: const Duration(milliseconds: 600),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 16,
-                          horizontal: 20,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.6),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.12),
-                          ),
-                        ),
-                        child: Text(
-                          'Face Scan មិនត្រូវបានកំណត់សម្រាប់គណនីនេះទេ។ សូមប្រើ QR Code ដើម្បីបញ្ចូលវត្តមាន។',
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.kantumruyPro(
-                            color: Colors.white,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ),
-                    ),
-            ),
-
-          // Setup guide: visible ONLY for first-time users (NOT yet registered)
+          // 5. Setup guide: visible ONLY for first-time users (NOT yet registered)
           if (!_useQrScanner && !_isLoading && !_isFaceRegistered)
             Positioned(
-              bottom: 140,
+              bottom: 110,
               left: 24,
               right: 24,
               child: FadeInUp(
@@ -1528,7 +1557,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                     horizontal: 20,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.55),
+                    color: Colors.black.withValues(alpha: 0.6),
                     borderRadius: BorderRadius.circular(24),
                     border: Border.all(
                       color: Colors.cyanAccent.withValues(alpha: 0.35),
@@ -1601,64 +1630,62 @@ class _AttendanceScreenState extends State<AttendanceScreen>
               ),
             ),
 
-          // 7. Loading Overlay
+          // 6. Loading / Processing Glass Overlay
           if (_isLoading)
-            Container(
-              color: Colors.black.withValues(alpha: 0.7),
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const CircularProgressIndicator(color: Colors.cyanAccent),
-                    const SizedBox(height: 20),
-                    Text(
-                      "កំពុងដំណើរការ...",
-                      style: GoogleFonts.kantumruyPro(
-                        color: AppTheme.textPrimary,
-                        fontSize: 16,
+            BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+              child: Container(
+                color: Colors.black.withValues(alpha: 0.65),
+                child: Center(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(24),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 32,
+                        vertical: 28,
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      "សូមរង់ចាំការចាប់យកទីតាំង GPS",
-                      style: GoogleFonts.kantumruyPro(
-                        color: AppTheme.textPrimary.withValues(alpha: 0.54),
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-          // 8. Back Button (Crucial for routing back correctly)
-          SafeArea(
-            child: Align(
-              alignment: Alignment.topLeft,
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: FadeInDown(
-                  child: IconButton(
-                    style: IconButton.styleFrom(
-                      backgroundColor: Colors.black.withValues(alpha: 0.4),
-                      shape: CircleBorder(
-                        side: BorderSide(
-                          color: Colors.white.withValues(alpha: 0.1),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1E293B).withValues(alpha: 0.85),
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(
+                          color: Colors.cyanAccent.withValues(alpha: 0.3),
                         ),
                       ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const SizedBox(
+                            width: 46,
+                            height: 46,
+                            child: CircularProgressIndicator(
+                              color: Colors.cyanAccent,
+                              strokeWidth: 3.5,
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          Text(
+                            "កំពុងដំណើរការ...",
+                            style: GoogleFonts.kantumruyPro(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            "សូមរង់ចាំការចាប់យកទីតាំង GPS",
+                            style: GoogleFonts.kantumruyPro(
+                              color: Colors.white60,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    icon: const Icon(
-                      Icons.arrow_back_ios_new_rounded,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                    onPressed: () => Navigator.pop(context),
-                    tooltip: "ត្រឡប់ក្រោយ",
                   ),
                 ),
               ),
             ),
-          ),
         ],
       ),
     );
@@ -1822,5 +1849,112 @@ class _FadeInScaleState extends State<FadeInScale>
       opacity: _opacity,
       child: ScaleTransition(scale: _scale, child: widget.child),
     );
+  }
+}
+
+/// Custom Face Scanner Overlay Painter with Cutout and Glowing Biometric Frame
+class FaceScannerOverlayPainter extends CustomPainter {
+  final Rect cutoutRect;
+  final double borderRadius;
+  final Color borderColor;
+  final bool isFaceDetected;
+
+  FaceScannerOverlayPainter({
+    required this.cutoutRect,
+    this.borderRadius = 36.0,
+    required this.borderColor,
+    this.isFaceDetected = false,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // 1. Dark Vignette Background with Cutout
+    final backgroundPaint = Paint()
+      ..color = Colors.black.withValues(alpha: 0.65)
+      ..style = PaintingStyle.fill;
+
+    final rrect = RRect.fromRectAndRadius(cutoutRect, Radius.circular(borderRadius));
+    final backgroundPath = Path()
+      ..addRect(Rect.fromLTWH(0, 0, size.width, size.height))
+      ..addRRect(rrect)
+      ..fillType = PathFillType.evenOdd;
+
+    canvas.drawPath(backgroundPath, backgroundPaint);
+
+    // 2. Soft Outer Glowing Border
+    final borderGlowPaint = Paint()
+      ..color = borderColor.withValues(alpha: isFaceDetected ? 0.40 : 0.22)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 6.0
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
+    canvas.drawRRect(rrect, borderGlowPaint);
+
+    // 3. Crisp Inner Border
+    final borderPaint = Paint()
+      ..color = borderColor.withValues(alpha: 0.85)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0;
+    canvas.drawRRect(rrect, borderPaint);
+
+    // 4. Cyberpunk Corner Brackets
+    final bracketPaint = Paint()
+      ..color = isFaceDetected ? const Color(0xFF10B981) : const Color(0xFF00E5FF)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4.0
+      ..strokeCap = StrokeCap.round;
+
+    const double cornerLen = 28.0;
+    final double rad = borderRadius;
+
+    // Top-Left Corner
+    final tlPath = Path()
+      ..moveTo(cutoutRect.left, cutoutRect.top + cornerLen)
+      ..lineTo(cutoutRect.left, cutoutRect.top + rad)
+      ..arcToPoint(
+        Offset(cutoutRect.left + rad, cutoutRect.top),
+        radius: Radius.circular(rad),
+      )
+      ..lineTo(cutoutRect.left + cornerLen, cutoutRect.top);
+    canvas.drawPath(tlPath, bracketPaint);
+
+    // Top-Right Corner
+    final trPath = Path()
+      ..moveTo(cutoutRect.right - cornerLen, cutoutRect.top)
+      ..lineTo(cutoutRect.right - rad, cutoutRect.top)
+      ..arcToPoint(
+        Offset(cutoutRect.right, cutoutRect.top + rad),
+        radius: Radius.circular(rad),
+      )
+      ..lineTo(cutoutRect.right, cutoutRect.top + cornerLen);
+    canvas.drawPath(trPath, bracketPaint);
+
+    // Bottom-Left Corner
+    final blPath = Path()
+      ..moveTo(cutoutRect.left, cutoutRect.bottom - cornerLen)
+      ..lineTo(cutoutRect.left, cutoutRect.bottom - rad)
+      ..arcToPoint(
+        Offset(cutoutRect.left + rad, cutoutRect.bottom),
+        radius: Radius.circular(rad),
+      )
+      ..lineTo(cutoutRect.left + cornerLen, cutoutRect.bottom);
+    canvas.drawPath(blPath, bracketPaint);
+
+    // Bottom-Right Corner
+    final brPath = Path()
+      ..moveTo(cutoutRect.right - cornerLen, cutoutRect.bottom)
+      ..lineTo(cutoutRect.right - rad, cutoutRect.bottom)
+      ..arcToPoint(
+        Offset(cutoutRect.right, cutoutRect.bottom - rad),
+        radius: Radius.circular(rad),
+      )
+      ..lineTo(cutoutRect.right, cutoutRect.bottom - cornerLen);
+    canvas.drawPath(brPath, bracketPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant FaceScannerOverlayPainter oldDelegate) {
+    return oldDelegate.cutoutRect != cutoutRect ||
+        oldDelegate.borderColor != borderColor ||
+        oldDelegate.isFaceDetected != isFaceDetected;
   }
 }
