@@ -24,6 +24,12 @@ if ($action === 'test' || $action === 'health') {
     exit;
 }
 
+// Enable output compression (Gzip) for faster mobile network transfer
+if (!ini_get('zlib.output_compression') && extension_loaded('zlib')) {
+    @ini_set('zlib.output_compression', 'On');
+    @ini_set('zlib.output_compression_level', '5');
+}
+
 // Ensure clean output buffering for JSON responses
 if (ob_get_level() === 0) {
     ob_start();

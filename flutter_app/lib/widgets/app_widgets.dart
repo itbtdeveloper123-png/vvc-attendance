@@ -1631,52 +1631,64 @@ class _VvcAppSplashScreenState extends State<VvcAppSplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
-      body: SafeArea(
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Spacer(flex: 2),
+      backgroundColor: const Color(0xFF070B14),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment(0, -0.15),
+            radius: 0.9,
+            colors: [
+              Color(0xFF162035),
+              Color(0xFF0A0F1C),
+              Color(0xFF050811),
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Spacer(flex: 2),
 
-              // Animated Glowing Logo
-              AnimatedBuilder(
-                animation: _animController,
-                builder: (context, child) {
-                  return Transform.scale(
-                    scale: _scaleAnimation.value,
-                    child: Opacity(
-                      opacity: _fadeAnimation.value,
-                      child: child,
-                    ),
-                  );
-                },
-                child: Container(
-                  width: 104,
-                  height: 104,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1E293B),
-                    borderRadius: BorderRadius.circular(28),
-                    border: Border.all(
-                      color: const Color(0xFFF59E0B).withAlpha(100),
-                      width: 1.5,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFFF59E0B).withAlpha(60),
-                        blurRadius: 36,
-                        spreadRadius: 6,
+                // Animated Glowing Logo
+                AnimatedBuilder(
+                  animation: _animController,
+                  builder: (context, child) {
+                    return Transform.scale(
+                      scale: _scaleAnimation.value,
+                      child: Opacity(
+                        opacity: _fadeAnimation.value,
+                        child: child,
                       ),
-                      BoxShadow(
-                        color: Colors.black.withAlpha(120),
-                        blurRadius: 20,
-                        offset: const Offset(0, 8),
+                    );
+                  },
+                  child: Container(
+                    width: 104,
+                    height: 104,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0D1527),
+                      borderRadius: BorderRadius.circular(26),
+                      border: Border.all(
+                        color: const Color(0xFFF59E0B).withAlpha(120),
+                        width: 1.5,
                       ),
-                    ],
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(26),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFF59E0B).withAlpha(60),
+                          blurRadius: 36,
+                          spreadRadius: 4,
+                        ),
+                        BoxShadow(
+                          color: Colors.black.withAlpha(160),
+                          blurRadius: 20,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(24),
                     child: Image.asset(
                       'assets/icons/launcher_icon.png',
                       width: 104,
@@ -1746,7 +1758,8 @@ class _VvcAppSplashScreenState extends State<VvcAppSplashScreen>
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }
 

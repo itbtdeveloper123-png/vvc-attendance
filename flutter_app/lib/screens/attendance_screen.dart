@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui';
 import 'package:camera/camera.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -30,7 +30,8 @@ class AttendanceScreen extends StatefulWidget {
   State<AttendanceScreen> createState() => _AttendanceScreenState();
 }
 
-class _AttendanceScreenState extends State<AttendanceScreen> {
+class _AttendanceScreenState extends State<AttendanceScreen>
+    with SingleTickerProviderStateMixin {
   late final MobileScannerController controller = MobileScannerController(
     formats: [BarcodeFormat.qrCode],
     detectionTimeoutMs: 1000,
@@ -51,6 +52,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   int _consecutiveFaceFrames = 0;
   int _consecutiveErrorFrames = 0;
   Timer? _faceScanTimeout;
+  DateTime _lastFaceProcessTime = DateTime.now();
+
+  late AnimationController _laserController;
+  late Animation<double> _laserAnimation;
 
   /// Load whether this user has already registered their face
   Future<void> _loadFaceRegistrationStatus() async {
@@ -61,6 +66,14 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   @override
   void initState() {
     super.initState();
+    _laserController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1800),
+    )..repeat(reverse: true);
+    _laserAnimation = Tween<double>(begin: 0.05, end: 0.95).animate(
+      CurvedAnimation(parent: _laserController, curve: Curves.easeInOut),
+    );
+
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _loadFaceRegistrationStatus();
       _tryFaceScanOrFallback();
@@ -78,6 +91,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
   @override
   void dispose() {
+    _laserController.dispose();
     controller.dispose();
     _faceScanTimeout?.cancel();
     _cameraController?.dispose();
@@ -416,19 +430,27 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
 
   void _processCameraImage(CameraImage image) async {
+    final now = DateTime.now();
+    // Throttle to 120ms to eliminate CPU lag and battery drain
+    if (now.difference(_lastFaceProcessTime).inMilliseconds < 120) {
+      return;
+    }
     if (_faceProcessing ||
         _faceCaptured ||
         _useQrScanner ||
-        _cameraController == null) {
+        _cameraController == null ||
+        !mounted) {
       return;
     }
     _faceProcessing = true;
+    _lastFaceProcessTime = now;
 
     try {
       final inputImage = _convertCameraImage(
         image,
         _cameraController!.description.sensorOrientation,
       );
+      if (inputImage == null) return;
       final faces = await _faceDetector?.processImage(inputImage) ?? [];
       _consecutiveErrorFrames = 0;
 
@@ -469,37 +491,143 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       return Container(color: Colors.black);
     }
 
+    final size = MediaQuery.of(context).size;
+    final double reticleWidth = (size.width * 0.7).clamp(240.0, 280.0);
+    final double reticleHeight = reticleWidth * 1.25;
+
     return Stack(
       fit: StackFit.expand,
       children: [
+        // Camera Preview
         CameraPreview(_cameraController!),
-        Container(color: Colors.black.withValues(alpha: 0.2)),
-        Align(
-          alignment: Alignment.topCenter,
-          child: Padding(
-            padding: const EdgeInsets.only(top: 40, left: 24, right: 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+
+        // Dark Vignette Backdrop with Oval Cutout
+        Positioned.fill(
+          child: Container(
+            color: Colors.black.withAlpha(90),
+          ),
+        ),
+
+        // Centered Scanner Reticle with Animated Laser
+        Center(
+          child: SizedBox(
+            width: reticleWidth,
+            height: reticleHeight,
+            child: Stack(
               children: [
-                Text(
-                  'FACE SCAN',
-                  style: GoogleFonts.inter(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.5,
-                    fontSize: 16,
+                // Glowing Rounded Border
+                Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(32),
+                    border: Border.all(
+                      color: const Color(0xFF00E5FF).withAlpha(140),
+                      width: 2.5,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF00E5FF).withAlpha(60),
+                        blurRadius: 24,
+                        spreadRadius: 2,
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 12),
-                Text(
-                  'សូមកាន់កាមេរ៉ាមុខអ្នកជិតមុខ និងមិនដកពីផ្ទៃមុខ',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.kantumruyPro(
-                    color: Colors.white.withValues(alpha: 0.85),
-                    fontSize: 13,
-                  ),
+
+                // Corner Brackets
+                ..._buildCornerBrackets(reticleWidth, reticleHeight),
+
+                // Animated Laser Line
+                AnimatedBuilder(
+                  animation: _laserAnimation,
+                  builder: (context, child) {
+                    return Positioned(
+                      top: _laserAnimation.value * (reticleHeight - 10),
+                      left: 12,
+                      right: 12,
+                      child: Container(
+                        height: 3,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(2),
+                          gradient: const LinearGradient(
+                            colors: [
+                              Colors.transparent,
+                              Color(0xFF00E5FF),
+                              Color(0xFF10B981),
+                              Colors.transparent,
+                            ],
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF00E5FF).withAlpha(200),
+                              blurRadius: 12,
+                              spreadRadius: 2,
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ],
+            ),
+          ),
+        ),
+
+        // Top Header
+        SafeArea(
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 16, left: 20, right: 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withAlpha(160),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: const Color(0xFF00E5FF).withAlpha(100)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Color(0xFF10B981),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'FACE SCANNER',
+                          style: GoogleFonts.inter(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.2,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'សូមដាក់ផ្ទៃមុខឱ្យចំកណ្តាលក្របខ័ណ្ឌ',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.kantumruyPro(
+                      color: Colors.white.withAlpha(220),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      shadows: [
+                        const Shadow(color: Colors.black87, blurRadius: 8),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -507,25 +635,153 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     );
   }
 
-  InputImage _convertCameraImage(CameraImage image, int rotation) {
-    final inputImageFormat = Platform.isIOS
-        ? InputImageFormat.bgra8888
-        : (InputImageFormatValue.fromRawValue(image.format.raw) ?? InputImageFormat.nv21);
-    final imageRotation =
-        InputImageRotationValue.fromRawValue(rotation) ??
-        InputImageRotation.rotation0deg;
+  List<Widget> _buildCornerBrackets(double w, double h) {
+    const double len = 24.0;
+    const double thick = 4.0;
+    const Color col = Color(0xFF10B981);
 
-    return InputImage.fromBytes(
-      bytes: Uint8List.fromList(
-        image.planes.map((plane) => plane.bytes).expand((x) => x).toList(),
+    return [
+      // Top Left
+      Positioned(
+        top: 0,
+        left: 0,
+        child: Container(
+          width: len,
+          height: thick,
+          decoration: const BoxDecoration(
+            color: col,
+            borderRadius: BorderRadius.only(topLeft: Radius.circular(32)),
+          ),
+        ),
       ),
-      metadata: InputImageMetadata(
-        size: Size(image.width.toDouble(), image.height.toDouble()),
-        rotation: imageRotation,
-        format: inputImageFormat,
-        bytesPerRow: image.planes.first.bytesPerRow,
+      Positioned(
+        top: 0,
+        left: 0,
+        child: Container(
+          width: thick,
+          height: len,
+          decoration: const BoxDecoration(
+            color: col,
+            borderRadius: BorderRadius.only(topLeft: Radius.circular(32)),
+          ),
+        ),
       ),
-    );
+      // Top Right
+      Positioned(
+        top: 0,
+        right: 0,
+        child: Container(
+          width: len,
+          height: thick,
+          decoration: const BoxDecoration(
+            color: col,
+            borderRadius: BorderRadius.only(topRight: Radius.circular(32)),
+          ),
+        ),
+      ),
+      Positioned(
+        top: 0,
+        right: 0,
+        child: Container(
+          width: thick,
+          height: len,
+          decoration: const BoxDecoration(
+            color: col,
+            borderRadius: BorderRadius.only(topRight: Radius.circular(32)),
+          ),
+        ),
+      ),
+      // Bottom Left
+      Positioned(
+        bottom: 0,
+        left: 0,
+        child: Container(
+          width: len,
+          height: thick,
+          decoration: const BoxDecoration(
+            color: col,
+            borderRadius: BorderRadius.only(bottomLeft: Radius.circular(32)),
+          ),
+        ),
+      ),
+      Positioned(
+        bottom: 0,
+        left: 0,
+        child: Container(
+          width: thick,
+          height: len,
+          decoration: const BoxDecoration(
+            color: col,
+            borderRadius: BorderRadius.only(bottomLeft: Radius.circular(32)),
+          ),
+        ),
+      ),
+      // Bottom Right
+      Positioned(
+        bottom: 0,
+        right: 0,
+        child: Container(
+          width: len,
+          height: thick,
+          decoration: const BoxDecoration(
+            color: col,
+            borderRadius: BorderRadius.only(bottomRight: Radius.circular(32)),
+          ),
+        ),
+      ),
+      Positioned(
+        bottom: 0,
+        right: 0,
+        child: Container(
+          width: thick,
+          height: len,
+          decoration: const BoxDecoration(
+            color: col,
+            borderRadius: BorderRadius.only(bottomRight: Radius.circular(32)),
+          ),
+        ),
+      ),
+    ];
+  }
+
+  InputImage? _convertCameraImage(CameraImage image, int rotation) {
+    try {
+      final imageRotation =
+          InputImageRotationValue.fromRawValue(rotation) ??
+          InputImageRotation.rotation0deg;
+
+      if (Platform.isIOS) {
+        return InputImage.fromBytes(
+          bytes: image.planes.first.bytes,
+          metadata: InputImageMetadata(
+            size: Size(image.width.toDouble(), image.height.toDouble()),
+            rotation: imageRotation,
+            format: InputImageFormat.bgra8888,
+            bytesPerRow: image.planes.first.bytesPerRow,
+          ),
+        );
+      } else {
+        final WriteBuffer allBytes = WriteBuffer();
+        for (final Plane plane in image.planes) {
+          allBytes.putUint8List(plane.bytes);
+        }
+        final bytes = allBytes.done().buffer.asUint8List();
+        final fmt = InputImageFormatValue.fromRawValue(image.format.raw) ??
+            InputImageFormat.nv21;
+
+        return InputImage.fromBytes(
+          bytes: bytes,
+          metadata: InputImageMetadata(
+            size: Size(image.width.toDouble(), image.height.toDouble()),
+            rotation: imageRotation,
+            format: fmt,
+            bytesPerRow: image.planes.first.bytesPerRow,
+          ),
+        );
+      }
+    } catch (e) {
+      return null;
+    }
   }
 
   Future<void> _submitFaceAttendance() async {

@@ -33,9 +33,24 @@ class ApiService {
     return _preferIPv4 ? _fallbackV4BaseUrl : _primaryBaseUrl;
   }
 
+  static http.Client? _sharedClient;
+  static http.Client? _sharedIPv4Client;
+
+  static http.Client _getHttpClient({bool forceIPv4 = false}) {
+    if (kIsWeb) return http.Client();
+    if (forceIPv4 || _preferIPv4) {
+      return _sharedIPv4Client ??= _buildHttpClient(forceIPv4: true);
+    }
+    return _sharedClient ??= _buildHttpClient(forceIPv4: false);
+  }
+
   static http.Client _buildHttpClient({bool forceIPv4 = false}) {
     if (kIsWeb) return http.Client();
     final ioClient = HttpClient();
+    
+    // Optimize connection pooling & Keep-Alive
+    ioClient.idleTimeout = const Duration(seconds: 60);
+    ioClient.maxConnectionsPerHost = 20;
     
     // Enable modern TLS protocols
     ioClient.badCertificateCallback =
@@ -57,12 +72,31 @@ class ApiService {
     
     // Set connection timeout
     if (forceIPv4 || _preferIPv4) {
-      ioClient.connectionTimeout = const Duration(seconds: 12);
+      ioClient.connectionTimeout = const Duration(seconds: 8);
     } else {
-      ioClient.connectionTimeout = const Duration(seconds: 15);
+      ioClient.connectionTimeout = const Duration(seconds: 10);
     }
     
     return IOClient(ioClient);
+  }
+
+  // In-Memory Fast Cache for Read-heavy requests
+  static final Map<String, _ApiCacheItem> _cache = {};
+
+  static void clearCache() {
+    _cache.clear();
+  }
+
+  static bool _isCacheable(String action) {
+    const cacheableActions = {
+      'fetch_app_config',
+      'fetch_holidays',
+      'fetch_leave_types',
+      'get_user_stats',
+      'fetch_roles',
+      'fetch_announcements',
+    };
+    return cacheableActions.contains(action);
   }
 
   static bool _isSocketBindError(Object e) {
@@ -120,12 +154,11 @@ class ApiService {
         
         if (sslFail) {
           debugPrint('SSL Handshake failure — retrying with different configuration. Attempt $attempt/$maxAttempts');
-          // Force IPv4 on SSL failures as well
           _preferIPv4 = true;
         }
         
         if (attempt < maxAttempts) {
-          final delayMs = (bindFail || sslFail) ? 500 : 400 * attempt;
+          final delayMs = (bindFail || sslFail) ? 300 : 250 * attempt;
           await Future<void>.delayed(Duration(milliseconds: delayMs));
           continue;
         }
@@ -162,19 +195,16 @@ class ApiService {
   Future<http.Response> postPublicReport(Map<String, String> body) async {
     return _withRetry<http.Response>(
         ({required bool forceIPv4}) async {
-      final client = _buildHttpClient(forceIPv4: forceIPv4);
-      try {
-        final hdrs = <String, String>{
-          'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-          if (forceIPv4 || _preferIPv4) 'Host': 'app.vvc.asia',
-        };
-        return await client
-            .post(Uri.parse(effectivePublicReportUrl),
-                headers: hdrs, body: body)
-            .timeout(const Duration(seconds: 20));
-      } finally {
-        client.close();
-      }
+      final client = _getHttpClient(forceIPv4: forceIPv4);
+      final hdrs = <String, String>{
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+        'Accept-Encoding': 'gzip, deflate',
+        if (forceIPv4 || _preferIPv4) 'Host': 'app.vvc.asia',
+      };
+      return await client
+          .post(Uri.parse(effectivePublicReportUrl),
+              headers: hdrs, body: body)
+          .timeout(const Duration(seconds: 15));
     });
   }
 
@@ -189,7 +219,11 @@ class ApiService {
       final prefs = await SharedPreferences.getInstance();
       token = prefs.getString('auth_token') ?? '';
     }
-    return {'Authorization': 'Bearer $token', 'Accept': 'application/json'};
+    return {
+      'Authorization': 'Bearer $token',
+      'Accept': 'application/json',
+      'Accept-Encoding': 'gzip, deflate',
+    };
   }
 
   /// Public method to get auth headers (used by OCR service)
@@ -201,37 +235,56 @@ class ApiService {
     String action, {
     Map<String, String>? body,
     Map<String, String>? headers,
-    Duration timeout = const Duration(seconds: 30),
+    Duration timeout = const Duration(seconds: 20),
+    bool useCache = true,
   }) async {
+    // Fast cache check for read operations
+    final cacheKey = '$action:${body?.toString() ?? ""}';
+    if (useCache && _isCacheable(action)) {
+      final cached = _cache[cacheKey];
+      if (cached != null && !cached.isExpired) {
+        return cached.data;
+      }
+    }
+
     try {
-      return await _withRetry<Map<String, dynamic>>(
+      final result = await _withRetry<Map<String, dynamic>>(
           ({required bool forceIPv4}) async {
-        final client = _buildHttpClient(forceIPv4: forceIPv4);
-        try {
-          final finalBody = body != null
-              ? Map<String, String>.from(body)
-              : <String, String>{};
-          finalBody['action'] = action;
+        final client = _getHttpClient(forceIPv4: forceIPv4);
+        
+        final finalBody = body != null
+            ? Map<String, String>.from(body)
+            : <String, String>{};
+        finalBody['action'] = action;
 
-          final requestHeaders = headers != null
-              ? Map<String, String>.from(headers)
-              : <String, String>{};
-          requestHeaders['Content-Type'] =
-              'application/x-www-form-urlencoded; charset=UTF-8';
-          if (forceIPv4 || _preferIPv4) {
-            requestHeaders['Host'] = 'app.vvc.asia';
-          }
-
-          final uri = Uri.parse(effectiveBaseUrl);
-          final response = await client
-              .post(uri, headers: requestHeaders, body: finalBody)
-              .timeout(timeout);
-
-          return await _handleResponse(response);
-        } finally {
-          client.close();
+        final requestHeaders = headers != null
+            ? Map<String, String>.from(headers)
+            : <String, String>{};
+        requestHeaders['Content-Type'] =
+            'application/x-www-form-urlencoded; charset=UTF-8';
+        requestHeaders['Accept-Encoding'] = 'gzip, deflate';
+        
+        if (forceIPv4 || _preferIPv4) {
+          requestHeaders['Host'] = 'app.vvc.asia';
         }
+
+        final uri = Uri.parse(effectiveBaseUrl);
+        final response = await client
+            .post(uri, headers: requestHeaders, body: finalBody)
+            .timeout(timeout);
+
+        return await _handleResponse(response);
       });
+
+      // Cache successful response if cacheable
+      if (result['success'] == true && _isCacheable(action)) {
+        _cache[cacheKey] = _ApiCacheItem(
+          data: result,
+          expiry: DateTime.now().add(const Duration(seconds: 30)),
+        );
+      }
+
+      return result;
     } catch (e) {
       return {
         'success': false,
@@ -1789,4 +1842,13 @@ class ApiService {
       body: {'theme_id': themeId},
     );
   }
+}
+
+class _ApiCacheItem {
+  final Map<String, dynamic> data;
+  final DateTime expiry;
+
+  _ApiCacheItem({required this.data, required this.expiry});
+
+  bool get isExpired => DateTime.now().isAfter(expiry);
 }
