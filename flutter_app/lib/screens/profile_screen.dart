@@ -76,9 +76,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final bool isMe = widget.targetEmployeeId == null ||
             widget.targetEmployeeId == currentUser.employeeId;
         if (isMe) {
-          final faceReg = (res['user']['face_registered'] ?? 0).toString() == '1' ||
+          final serverFaceReg = (res['user']['face_registered'] ?? 0).toString() == '1' ||
               res['user']['face_registered'] == true;
-          currentUser.setFaceRegistered(faceReg);
+          final localFaceReg = await FaceRecognizerService().isFaceRegistered(currentUser.employeeId ?? '');
+          currentUser.setFaceRegistered(serverFaceReg || localFaceReg);
         }
       }
     } catch (_) {}
@@ -99,9 +100,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final bool isMe = widget.targetEmployeeId == null ||
             widget.targetEmployeeId == currentUser.employeeId;
         if (isMe) {
-          final faceReg = (res['user']['face_registered'] ?? 0).toString() == '1' ||
+          final serverFaceReg = (res['user']['face_registered'] ?? 0).toString() == '1' ||
               res['user']['face_registered'] == true;
-          currentUser.setFaceRegistered(faceReg);
+          final localFaceReg = await FaceRecognizerService().isFaceRegistered(currentUser.employeeId ?? '');
+          currentUser.setFaceRegistered(serverFaceReg || localFaceReg);
         }
       }
     } else {
@@ -899,13 +901,43 @@ class _ProfileScreenState extends State<ProfileScreen> {
           if (widget.targetEmployeeId == null) ...[
             _buildMenuItem(
               icon: Icons.face_retouching_natural_rounded,
-              label: "ចុះឈ្មោះផ្ទៃមុខ (Face Scan)",
+              label: user.faceRegistered
+                  ? "កំណត់ Face ID (បានចុះឈ្មោះ)"
+                  : "ចុះឈ្មោះផ្ទៃមុខ (Face Scan)",
               color: AppTheme.success,
-              onTap: () {
-                Navigator.push(
+              trailingWidget: user.faceRegistered
+                  ? Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppTheme.success.withAlpha(35),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppTheme.success.withAlpha(90)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.check_circle_rounded, size: 13, color: AppTheme.success),
+                          const SizedBox(width: 4),
+                          Text(
+                            'បានចុះឈ្មោះ',
+                            style: GoogleFonts.kantumruyPro(
+                              fontSize: 11,
+                              color: AppTheme.success,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : null,
+              onTap: () async {
+                final res = await Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const FaceSetupScreen()),
                 );
+                if (res == true && mounted) {
+                  _fetchTargetUserSilently();
+                }
               },
             ),
             Divider(
