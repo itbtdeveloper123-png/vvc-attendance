@@ -16,6 +16,7 @@ import 'home_screen.dart';
 import 'login_screen.dart';
 import 'face_setup_screen.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import '../services/face_recognizer_service.dart';
 
 import '../widgets/khmer_lunar_calendar_card.dart';
 import 'package:flutter_khmer_chankitec/flutter_khmer_chankitec.dart';
