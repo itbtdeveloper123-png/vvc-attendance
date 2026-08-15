@@ -11,11 +11,11 @@ import '../services/api_service.dart';
 import '../services/r2_storage_service.dart';
 
 class _GSDark {
-  static const Color bg = Color(0xFF1C1C1E);
-  static const Color card = Color(0xFF2C2C2E);
-  static const Color textMuted = Color(0xFF8E8E93);
-  static const Color accent = Color(0xFF3388FF);
-  static const Color danger = Color(0xFFFF453A);
+  static const Color bg = Color(0xFF0F172A);
+  static const Color card = Color(0xFF1E293B);
+  static const Color textMuted = Color(0xFF94A3B8);
+  static const Color accent = Color(0xFFD4AF37);
+  static const Color danger = Color(0xFFEF4444);
   static const Color divider = Color(0x1AFFFFFF);
 }
 

@@ -221,15 +221,20 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
         ),
       );
 
-      // 4. Configure Audio
+      // 4. Configure Audio for Clear Full-Duplex VoIP Call
       await _engine.enableAudio();
       await _engine.enableLocalAudio(true);
       await _engine.setClientRole(role: ClientRoleType.clientRoleBroadcaster);
       await _engine.setAudioProfile(
-        profile: AudioProfileType.audioProfileSpeechStandard,
-        scenario: AudioScenarioType.audioScenarioDefault,
+        profile: AudioProfileType.audioProfileDefault,
+        scenario: AudioScenarioType.audioScenarioMeeting,
       );
+      await _engine.setDefaultAudioRouteToSpeakerphone(_isSpeakerOn);
       await _engine.setEnableSpeakerphone(_isSpeakerOn);
+      await _engine.adjustRecordingSignalVolume(100);
+      await _engine.adjustPlaybackSignalVolume(100);
+      await _engine.muteLocalAudioStream(false);
+      await _engine.muteAllRemoteAudioStreams(false);
 
       // 5. Configure Video if video call
       if (_isVideoEnabled) {
@@ -240,9 +245,23 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
         await _engine.disableVideo();
       }
 
-      // 6. Join Channel
+      // 6. Fetch Dynamic Agora RTC Token from Backend
+      String token = '';
+      try {
+        final tokenRes = await ApiService().fetchAgoraToken(widget.channelId);
+        if (tokenRes['success'] == true && tokenRes['token'] != null) {
+          token = tokenRes['token'].toString();
+          debugPrint("Agora: Successfully retrieved RTC Token from server!");
+        } else {
+          debugPrint("Agora Token fetch notice: ${tokenRes['message']}");
+        }
+      } catch (e) {
+        debugPrint("Agora Token fetch error: $e");
+      }
+
+      // 7. Join Channel with Token
       await _engine.joinChannel(
-        token: '',
+        token: token,
         channelId: widget.channelId,
         uid: 0,
         options: ChannelMediaOptions(

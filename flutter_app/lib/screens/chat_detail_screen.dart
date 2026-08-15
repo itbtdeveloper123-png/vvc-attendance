@@ -62,11 +62,11 @@ MemoryImage _getMemoryImage(String base64Str) {
 // MESSENGER DARK THEME TOKENS
 // ==========================================
 class _MsgDark {
-  static const Color card = Color(0xFF242526);
-  static const Color sentBubble = Color(0xFF0084FF);
+  static const Color card = Color(0xFF1E293B);
+  static const Color sentBubble = Color(0xFFD4AF37);
   static const Color textPrimary = Color(0xFFFFFFFF);
-  static const Color textMuted = Color(0xFFB0B3B8);
-  static const Color iconColor = Color(0xFF0084FF);
+  static const Color textMuted = Color(0xFF94A3B8);
+  static const Color iconColor = Color(0xFFD4AF37);
 }
 
 class ChatDetailScreen extends StatefulWidget {

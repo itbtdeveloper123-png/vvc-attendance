@@ -379,6 +379,18 @@ class ApiService {
     );
   }
 
+  Future<Map<String, dynamic>> fetchAgoraToken(String channelName, {int uid = 0}) async {
+    final headers = await _authHeaders();
+    return _processRequest(
+      'get_agora_token',
+      headers: headers,
+      body: {
+        'channel_name': channelName,
+        'uid': uid.toString(),
+      },
+    );
+  }
+
   Future<Map<String, dynamic>> fetchDashboardStats() async {
     final headers = await _authHeaders();
     return _processRequest('get_dashboard_stats', headers: headers);

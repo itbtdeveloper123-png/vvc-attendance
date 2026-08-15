@@ -1,31 +1,20 @@
-  import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../utils/app_theme.dart';
 import '../services/api_service.dart';
 
-// ==========================================
-// DARK THEME TOKENS (Matching Messenger)
-// ==========================================
-class _GPDark {
-  static const Color bg = Color(0xFF1C1C1E);
-  static const Color card = Color(0xFF2C2C2E);
-  static const Color textPrimary = Color(0xFFFFFFFF);
-  static const Color textMuted = Color(0xFFB0B3B8);
-  static const Color accent = Color(0xFF0084FF);
-  static const Color divider = Color(0xFF38383A);
-  static const Color onlineGreen = Color(0xFF44B700);
-}
-
 Color _getAvatarBgColor(String name) {
-  if (name.isEmpty) return const Color(0xFF0084FF);
+  if (name.isEmpty) return const Color(0xFFD4AF37);
   const colors = [
-    Color(0xFF0084FF),
-    Color(0xFFFFB300),
-    Color(0xFFAB47BC),
-    Color(0xFF26A69A),
-    Color(0xFFFF7043),
-    Color(0xFF66BB6A),
-    Color(0xFFEC407A),
+    Color(0xFFD4AF37),
+    Color(0xFF38BDF8),
+    Color(0xFFA855F7),
+    Color(0xFF10B981),
+    Color(0xFFF59E0B),
+    Color(0xFFEC4899),
+    Color(0xFF6366F1),
   ];
   return colors[name.codeUnitAt(0) % colors.length];
 }
@@ -88,6 +77,8 @@ class _ChatCreateGroupScreenState extends State<ChatCreateGroupScreen> {
     super.dispose();
   }
 
+  void _hapticLight() => HapticFeedback.lightImpact();
+
   Future<void> _createGroup() async {
     final name = _groupNameController.text.trim();
     if (name.isEmpty) {
@@ -117,31 +108,36 @@ class _ChatCreateGroupScreenState extends State<ChatCreateGroupScreen> {
         Navigator.pop(context, true);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('បានបង្កើតក្រុម "$name" ដោយជោគជ័យ!', style: GoogleFonts.kantumruyPro()),
-            backgroundColor: _GPDark.accent,
+            content: Text(
+              'បានបង្កើតក្រុម "$name" ដោយជោគជ័យ!',
+              style: GoogleFonts.kantumruyPro(color: Colors.white),
+            ),
+            backgroundColor: const Color(0xFF10B981),
           ),
         );
       }
     } on FirebaseException catch (e) {
       if (mounted) {
         setState(() => _isCreating = false);
-        if (e.code == 'permission-denied') {
-          _showPermissionDeniedDialog();
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('បរាជ័យក្នុងការបង្កើតក្រុម: ${e.message}', style: GoogleFonts.kantumruyPro()),
-              backgroundColor: Colors.redAccent,
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'បរាជ័យក្នុងការបង្កើតក្រុម: ${e.message}',
+              style: GoogleFonts.kantumruyPro(),
             ),
-          );
-        }
+            backgroundColor: Colors.redAccent,
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isCreating = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('កំហុសមិនរំពឹងទុក: $e', style: GoogleFonts.kantumruyPro()),
+            content: Text(
+              'កំហុសមិនរំពឹងទុក: $e',
+              style: GoogleFonts.kantumruyPro(),
+            ),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -149,82 +145,40 @@ class _ChatCreateGroupScreenState extends State<ChatCreateGroupScreen> {
     }
   }
 
-  void _showPermissionDeniedDialog() {
+  void _showNameInputDialog() {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF2C2C2E),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        backgroundColor: AppTheme.bgCard,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
-            const Icon(Icons.lock_rounded, color: Colors.orangeAccent, size: 24),
+            const Icon(Icons.edit_rounded, color: Color(0xFFD4AF37), size: 22),
             const SizedBox(width: 10),
             Text(
-              'សិទ្ធិ Firebase ត្រូវបានបដិសេធ',
-              style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+              'បញ្ចូលឈ្មោះក្រុម',
+              style: GoogleFonts.kantumruyPro(
+                color: AppTheme.textPrimary,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ],
         ),
         content: Text(
-          'ប្រព័ន្ធ Firebase Firestore Security Rules មិនទាន់បានអនុញ្ញាតសិទ្ធិបង្កើត/រក្សាទុកក្រុម (groups) ឡើយ។\n\n'
-          '📌 ដំណោះស្រាយនៅលើ Firebase Console:\n'
-          '1. ចូលទៅ Firebase Console -> Firestore Database\n'
-          '2. ជ្រើសរើស Tab "Rules"\n'
-          '3. កែប្រែ Rule ទៅជា:\n'
-          '   allow read, write: if true;\n'
-          '4. ចុចប៊ូតុង "Publish"',
-          style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 13.5, height: 1.5),
+          'សូមបញ្ចូលឈ្មោះសម្រាប់ក្រុមការងារថ្មីរបស់អ្នកមុននឹងបន្ត។',
+          style: GoogleFonts.kantumruyPro(color: AppTheme.textSecondary, fontSize: 13),
         ),
         actions: [
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: _GPDark.accent),
+          TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('យល់ព្រម', style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold)),
+            child: Text(
+              'យល់ព្រម',
+              style: GoogleFonts.kantumruyPro(color: const Color(0xFFD4AF37), fontWeight: FontWeight.bold),
+            ),
           ),
         ],
       ),
-    );
-  }
-
-  void _showNameInputDialog() {
-    showDialog(
-      context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF2C2C2E),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.0)),
-          title: Text(
-            'បញ្ចូលឈ្មោះក្រុម (Group Name)',
-            style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 17.0, fontWeight: FontWeight.bold),
-          ),
-          content: TextField(
-            controller: _groupNameController,
-            autofocus: true,
-            style: GoogleFonts.kantumruyPro(color: Colors.white),
-            cursorColor: _GPDark.accent,
-            decoration: InputDecoration(
-              hintText: 'ឧ. ក្រុមការងារ VVC...',
-              hintStyle: GoogleFonts.kantumruyPro(color: _GPDark.textMuted),
-              enabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: _GPDark.accent)),
-              focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: _GPDark.accent, width: 2.0)),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text('បោះបង់', style: GoogleFonts.kantumruyPro(color: _GPDark.textMuted)),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(ctx);
-                _createGroup();
-              },
-              style: ElevatedButton.styleFrom(backgroundColor: _GPDark.accent),
-              child: Text('បង្កើត (Create)', style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold)),
-            ),
-          ],
-        );
-      },
     );
   }
 
@@ -233,76 +187,86 @@ class _ChatCreateGroupScreenState extends State<ChatCreateGroupScreen> {
     final bool canCreate = _selectedUserIds.isNotEmpty && !_isCreating;
 
     return Scaffold(
-      backgroundColor: _GPDark.bg,
+      backgroundColor: AppTheme.bgDark,
       body: SafeArea(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // A. Top Bar Header
+            // 1. Top Bar Header
             _buildTopHeader(canCreate),
 
-            const Divider(height: 1.0, color: _GPDark.divider),
+            // 2. Group Name & Search Inputs
+            _buildInputsSection(),
 
-            // B. Group Name + Search Row Input
-            _buildSearchAndNameSection(),
+            // 3. Selected Users Horizontal Chips (if any)
+            if (_selectedUserIds.isNotEmpty) _buildSelectedChipsBar(),
 
-            const Divider(height: 1.0, color: _GPDark.divider),
+            const SizedBox(height: 8),
 
-            // C. Suggested Contacts Header
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16.0, 12.0, 16.0, 6.0),
-              child: Row(
-                children: [
-                  Text(
-                    _searchQuery.isEmpty ? 'Suggested' : 'Results',
-                    style: GoogleFonts.inter(
-                      color: _GPDark.textMuted,
-                      fontSize: 14.0,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const Spacer(),
-                  if (_selectedUserIds.isNotEmpty)
-                    Text(
-                      'ជ្រើសរើស ${_selectedUserIds.length} នាក់',
-                      style: GoogleFonts.kantumruyPro(
-                        color: _GPDark.accent,
-                        fontSize: 13.0,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-
-            // D. Contacts List with Radio Checkbox
+            // 4. Users List
             Expanded(
-              child: ListView.builder(
-                physics: const BouncingScrollPhysics(),
-                itemCount: _filteredUsers.length,
-                itemBuilder: (context, index) {
-                  final user = _filteredUsers[index];
-                  final String targetId = (user['employee_id'] ?? '').toString();
-                  if (targetId == widget.currentUserId) {
-                    return const SizedBox.shrink();
+              child: StreamBuilder<QuerySnapshot>(
+                stream: _firestore.collection('users').snapshots(),
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) {
+                    return Center(
+                      child: CircularProgressIndicator(color: AppTheme.primary),
+                    );
                   }
 
-                  final String name = (user['name'] ?? 'Unknown').toString();
-                  final String avatar = (user['avatar'] ?? '').toString();
-                  final bool isSelected = _selectedUserIds.contains(targetId);
-                  final bool isVerified = (user['role'] ?? '').toString().toLowerCase() == 'admin';
+                  final usersDocs = snapshot.data!.docs.where((doc) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    final uid = doc.id;
+                    if (uid == widget.currentUserId) return false;
+                    final role = (data['role'] ?? '').toString().toLowerCase();
+                    if (role == 'admin_panel' || data['isAdminPanel'] == true) return false;
 
-                  return StreamBuilder<DocumentSnapshot>(
-                    stream: _firestore.collection('users').doc(targetId).snapshots(),
-                    builder: (context, snap) {
-                      bool isOnline = false;
-                      if (snap.hasData && snap.data!.exists) {
-                        final data = snap.data!.data() as Map<String, dynamic>?;
-                        isOnline = data?['isOnline'] == true;
-                      }
+                    if (_searchQuery.isNotEmpty) {
+                      final name = (data['name'] ?? data['username'] ?? '').toString().toLowerCase();
+                      final pos = (data['position'] ?? data['department'] ?? '').toString().toLowerCase();
+                      final empId = (data['employee_id'] ?? '').toString().toLowerCase();
+                      final q = _searchQuery.toLowerCase();
+                      return name.contains(q) || pos.contains(q) || empId.contains(q);
+                    }
+                    return true;
+                  }).toList();
 
-                      return InkWell(
+                  if (usersDocs.isEmpty) {
+                    return Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.person_search_rounded, color: AppTheme.textMuted, size: 48),
+                          const SizedBox(height: 12),
+                          Text(
+                            'រកមិនឃើញបុគ្គលិកឡើយ',
+                            style: GoogleFonts.kantumruyPro(color: AppTheme.textMuted, fontSize: 14),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
+                  return ListView.builder(
+                    physics: const BouncingScrollPhysics(),
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 6.0),
+                    itemCount: usersDocs.length,
+                    itemBuilder: (context, index) {
+                      final doc = usersDocs[index];
+                      final data = doc.data() as Map<String, dynamic>;
+                      final String targetId = doc.id;
+                      final String name = (data['name'] ?? data['username'] ?? data['employee_id'] ?? 'User').toString();
+                      final String avatar = (data['avatar'] ?? data['photoUrl'] ?? data['photo'] ?? '').toString();
+                      final String position = (data['position'] ?? data['department'] ?? data['role'] ?? '').toString();
+                      final bool isSelected = _selectedUserIds.contains(targetId);
+
+                      return _buildUserSelectCard(
+                        id: targetId,
+                        name: name,
+                        avatarUrl: avatar,
+                        position: position,
+                        isSelected: isSelected,
                         onTap: () {
+                          _hapticLight();
                           setState(() {
                             if (isSelected) {
                               _selectedUserIds.remove(targetId);
@@ -311,87 +275,6 @@ class _ChatCreateGroupScreenState extends State<ChatCreateGroupScreen> {
                             }
                           });
                         },
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
-                          child: Row(
-                            children: [
-                              // Avatar + Online badge
-                              Stack(
-                                children: [
-                                  CircleAvatar(
-                                    radius: 28.0,
-                                    backgroundImage: avatar.isNotEmpty ? NetworkImage(ApiService.getFullImageUrl(avatar)) : null,
-                                    backgroundColor: _getAvatarBgColor(name),
-                                    child: avatar.isEmpty
-                                        ? Text(
-                                            name.isNotEmpty ? name[0].toUpperCase() : 'U',
-                                            style: GoogleFonts.inter(
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 18.0,
-                                            ),
-                                          )
-                                        : null,
-                                  ),
-                                  if (isOnline)
-                                    Positioned(
-                                      right: 0.0,
-                                      bottom: 0.0,
-                                      child: Container(
-                                        width: 14.0,
-                                        height: 14.0,
-                                        decoration: const BoxDecoration(
-                                          color: _GPDark.onlineGreen,
-                                          shape: BoxShape.circle,
-                                          border: Border.fromBorderSide(
-                                            BorderSide(color: _GPDark.bg, width: 2.0),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                              const SizedBox(width: 14.0),
-
-                              // Name + verified checkmark
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Flexible(
-                                          child: Text(
-                                            name,
-                                            style: GoogleFonts.kantumruyPro(
-                                              color: _GPDark.textPrimary,
-                                              fontSize: 16.0,
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                        if (isVerified) ...[
-                                          const SizedBox(width: 4.0),
-                                          const Icon(Icons.verified_rounded, color: _GPDark.accent, size: 16.0),
-                                        ],
-                                      ],
-                                    ),
-                                    const Divider(height: 16.0, color: _GPDark.divider),
-                                  ],
-                                ),
-                              ),
-
-                              // Radio / Checkbox Circle
-                              Icon(
-                                isSelected ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
-                                color: isSelected ? _GPDark.accent : const Color(0xFF65676B),
-                                size: 24.0,
-                              ),
-                            ],
-                          ),
-                        ),
                       );
                     },
                   );
@@ -409,60 +292,88 @@ class _ChatCreateGroupScreenState extends State<ChatCreateGroupScreen> {
   // ==========================================
   Widget _buildTopHeader(bool canCreate) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 12.0),
-      child: Stack(
-        alignment: Alignment.center,
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      child: Row(
         children: [
-          // Cancel button left
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton(
-              onPressed: () => Navigator.pop(context),
-              style: TextButton.styleFrom(
-                foregroundColor: _GPDark.accent,
-                padding: const EdgeInsets.symmetric(horizontal: 8.0),
+          // Back Button
+          GestureDetector(
+            onTap: () {
+              _hapticLight();
+              Navigator.pop(context);
+            },
+            child: Container(
+              padding: const EdgeInsets.all(9),
+              decoration: BoxDecoration(
+                color: AppTheme.bgCard,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
               ),
-              child: Text(
-                'Cancel',
-                style: GoogleFonts.inter(
-                  fontSize: 16.0,
-                  fontWeight: FontWeight.w500,
-                  color: _GPDark.accent,
+              child: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 17),
+            ),
+          ),
+          const SizedBox(width: 14),
+
+          // Title
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'បង្កើតក្រុមការងារ (New Group)',
+                  style: GoogleFonts.kantumruyPro(
+                    color: AppTheme.textPrimary,
+                    fontSize: 16.0,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-              ),
+                Text(
+                  'បានជ្រើសរើស ${_selectedUserIds.length} នាក់',
+                  style: GoogleFonts.kantumruyPro(
+                    color: AppTheme.textMuted,
+                    fontSize: 11.5,
+                  ),
+                ),
+              ],
             ),
           ),
 
-          // Centered title "New group"
-          Text(
-            'New group',
-            style: GoogleFonts.inter(
-              color: _GPDark.textPrimary,
-              fontSize: 17.0,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-
-          // Next / Create button right
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton(
-              onPressed: canCreate ? _createGroup : null,
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 8.0),
+          // Create CTA Button
+          GestureDetector(
+            onTap: canCreate ? _createGroup : null,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                gradient: canCreate
+                    ? const LinearGradient(
+                        colors: [Color(0xFFD4AF37), Color(0xFFB8860B)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      )
+                    : null,
+                color: canCreate ? null : Colors.white.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: canCreate
+                    ? [
+                        BoxShadow(
+                          color: const Color(0xFFD4AF37).withValues(alpha: 0.35),
+                          blurRadius: 10,
+                          offset: const Offset(0, 3),
+                        ),
+                      ]
+                    : null,
               ),
               child: _isCreating
                   ? const SizedBox(
-                      width: 18.0,
-                      height: 18.0,
-                      child: CircularProgressIndicator(color: _GPDark.accent, strokeWidth: 2.0),
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                     )
                   : Text(
-                      'Create',
-                      style: GoogleFonts.inter(
-                        fontSize: 16.0,
+                      'បង្កើតក្រុម',
+                      style: GoogleFonts.kantumruyPro(
+                        color: canCreate ? Colors.white : Colors.white38,
+                        fontSize: 12.5,
                         fontWeight: FontWeight.bold,
-                        color: canCreate ? _GPDark.accent : const Color(0xFF65676B),
                       ),
                     ),
             ),
@@ -472,75 +383,256 @@ class _ChatCreateGroupScreenState extends State<ChatCreateGroupScreen> {
     );
   }
 
-  // Group Name & Search Input Section
-  Widget _buildSearchAndNameSection() {
+  // ==========================================
+  // INPUTS SECTION (NAME + SEARCH)
+  // ==========================================
+  Widget _buildInputsSection() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 6.0),
       child: Column(
         children: [
-          // Group Name Input (Single Pill Capsule)
-          SizedBox(
-            height: 42.0,
-            child: TextField(
-              controller: _groupNameController,
-              style: GoogleFonts.kantumruyPro(color: _GPDark.textPrimary, fontSize: 15.0),
-              cursorColor: _GPDark.accent,
-              decoration: InputDecoration(
-                hintText: 'ឈ្មោះក្រុម...',
-                hintStyle: GoogleFonts.kantumruyPro(color: _GPDark.textMuted, fontSize: 14.5),
-                prefixIcon: const Icon(Icons.group_add_rounded, color: _GPDark.accent, size: 20.0),
-                filled: true,
-                fillColor: _GPDark.card,
-                isDense: true,
-                contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(20.0),
-                  borderSide: BorderSide.none,
+          // Group Name Box
+          Container(
+            height: 46.0,
+            decoration: BoxDecoration(
+              color: AppTheme.bgCard,
+              borderRadius: BorderRadius.circular(14.0),
+              border: Border.all(color: const Color(0xFFD4AF37).withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              children: [
+                const SizedBox(width: 12),
+                const Icon(Icons.group_work_rounded, color: Color(0xFFD4AF37), size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: TextField(
+                    controller: _groupNameController,
+                    style: GoogleFonts.kantumruyPro(color: AppTheme.textPrimary, fontSize: 13.5),
+                    cursorColor: AppTheme.primary,
+                    decoration: InputDecoration(
+                      hintText: 'ដាក់ឈ្មោះក្រុមការងារ (ឧ. ក្រុម IT Support)...',
+                      hintStyle: GoogleFonts.kantumruyPro(color: AppTheme.textMuted, fontSize: 12.5),
+                      border: InputBorder.none,
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                    ),
+                  ),
                 ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(20.0),
-                  borderSide: BorderSide.none,
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(20.0),
-                  borderSide: const BorderSide(color: _GPDark.accent, width: 1.0),
-                ),
-              ),
+              ],
             ),
           ),
-          const SizedBox(height: 10.0),
+          const SizedBox(height: 8.0),
 
-          // Search Field (Single Pill Capsule)
-          SizedBox(
+          // Search Field
+          Container(
             height: 42.0,
-            child: TextField(
-              controller: _searchController,
-              style: GoogleFonts.kantumruyPro(color: _GPDark.textPrimary, fontSize: 15.0),
-              cursorColor: _GPDark.accent,
-              decoration: InputDecoration(
-                hintText: 'Search',
-                hintStyle: GoogleFonts.inter(color: _GPDark.textMuted, fontSize: 15.0),
-                prefixIcon: const Icon(Icons.search_rounded, color: _GPDark.textMuted, size: 20.0),
-                filled: true,
-                fillColor: _GPDark.card,
-                isDense: true,
-                contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(20.0),
-                  borderSide: BorderSide.none,
+            decoration: BoxDecoration(
+              color: AppTheme.bgCard,
+              borderRadius: BorderRadius.circular(14.0),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            ),
+            child: Row(
+              children: [
+                const SizedBox(width: 12),
+                const Icon(Icons.search_rounded, color: Colors.white38, size: 18),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    style: GoogleFonts.kantumruyPro(color: AppTheme.textPrimary, fontSize: 13.0),
+                    cursorColor: AppTheme.primary,
+                    decoration: InputDecoration(
+                      hintText: 'ស្វែងរកបុគ្គលិកដើម្បីបញ្ចូល...',
+                      hintStyle: GoogleFonts.kantumruyPro(color: AppTheme.textMuted, fontSize: 12.5),
+                      border: InputBorder.none,
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                    ),
+                  ),
                 ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(20.0),
-                  borderSide: BorderSide.none,
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(20.0),
-                  borderSide: const BorderSide(color: _GPDark.accent, width: 1.0),
-                ),
-              ),
+              ],
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // ==========================================
+  // SELECTED USERS CAROUSEL
+  // ==========================================
+  Widget _buildSelectedChipsBar() {
+    return Container(
+      height: 42.0,
+      margin: const EdgeInsets.symmetric(vertical: 6.0),
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+        children: _selectedUserIds.map((id) {
+          final user = widget.allUsers.firstWhere(
+            (u) => (u['id'] ?? u['employee_id'] ?? '').toString() == id,
+            orElse: () => {'name': id},
+          );
+          final name = (user['name'] ?? id).toString();
+
+          return Container(
+            margin: const EdgeInsets.only(right: 8.0),
+            padding: const EdgeInsets.fromLTRB(10, 4, 6, 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFFD4AF37).withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(20.0),
+              border: Border.all(color: const Color(0xFFD4AF37).withValues(alpha: 0.4)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  name,
+                  style: GoogleFonts.kantumruyPro(
+                    color: const Color(0xFFD4AF37),
+                    fontSize: 12.0,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(width: 4.0),
+                GestureDetector(
+                  onTap: () {
+                    _hapticLight();
+                    setState(() => _selectedUserIds.remove(id));
+                  },
+                  child: const Icon(Icons.cancel_rounded, color: Color(0xFFD4AF37), size: 16.0),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  // ==========================================
+  // USER SELECT CARD
+  // ==========================================
+  Widget _buildUserSelectCard({
+    required String id,
+    required String name,
+    required String avatarUrl,
+    required String position,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    final fullAvatar = avatarUrl.isNotEmpty ? ApiService.getFullImageUrl(avatarUrl) : '';
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? const Color(0xFFD4AF37).withValues(alpha: 0.1)
+                : AppTheme.bgCard,
+            borderRadius: BorderRadius.circular(16.0),
+            border: Border.all(
+              color: isSelected
+                  ? const Color(0xFFD4AF37).withValues(alpha: 0.5)
+                  : Colors.white.withValues(alpha: 0.05),
+            ),
+          ),
+          child: Row(
+            children: [
+              // Avatar
+              Container(
+                width: 44.0,
+                height: 44.0,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: isSelected
+                        ? const Color(0xFFD4AF37)
+                        : Colors.white.withValues(alpha: 0.15),
+                    width: 1.5,
+                  ),
+                ),
+                child: ClipOval(
+                  child: fullAvatar.isNotEmpty
+                      ? Image.network(
+                          fullAvatar,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _buildInitials(name),
+                        )
+                      : _buildInitials(name),
+                ),
+              ),
+              const SizedBox(width: 12.0),
+
+              // Name & Position
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: GoogleFonts.kantumruyPro(
+                        color: AppTheme.textPrimary,
+                        fontSize: 14.0,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (position.isNotEmpty) ...[
+                      const SizedBox(height: 2.0),
+                      Text(
+                        position,
+                        style: GoogleFonts.kantumruyPro(
+                          color: AppTheme.textSecondary,
+                          fontSize: 11.5,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+
+              // Selection Radio / Check Indicator
+              Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: isSelected ? const Color(0xFFD4AF37) : Colors.transparent,
+                  border: Border.all(
+                    color: isSelected ? const Color(0xFFD4AF37) : Colors.white38,
+                    width: 1.8,
+                  ),
+                ),
+                child: isSelected
+                    ? const Icon(Icons.check_rounded, color: Colors.white, size: 16)
+                    : null,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInitials(String name) {
+    return Container(
+      color: _getAvatarBgColor(name),
+      alignment: Alignment.center,
+      child: Text(
+        name.isNotEmpty ? name[0].toUpperCase() : 'U',
+        style: GoogleFonts.inter(
+          color: Colors.white,
+          fontWeight: FontWeight.bold,
+          fontSize: 16.0,
+        ),
       ),
     );
   }

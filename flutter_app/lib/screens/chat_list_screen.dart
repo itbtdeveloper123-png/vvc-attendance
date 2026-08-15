@@ -23,11 +23,11 @@ class MessengerTheme {
   static const Color bg = Color(0xFF0F172A);
   static const Color textPrimary = Color(0xFFFFFFFF);
   static const Color textSecondary = Color(0xFF94A3B8);
-  static const Color activeBlue = Color(0xFF007AFF);
+  static const Color activeBlue = Color(0xFFD4AF37);
   static const Color onlineGreen = Color(0xFF10B981);
   static const Color actionBtnBg = Color(0xFF1E293B);
   static const Color adBadgeBg = Color(0xFF334155);
-  static const Color unreadDot = Color(0xFF007AFF);
+  static const Color unreadDot = Color(0xFFD4AF37);
 }
 
 Color _getAvatarBgColor(String name) {
@@ -228,9 +228,8 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
                 final eid = (u['employee_id'] ?? '').toString().toLowerCase();
 
                 bool isTechnical =
-                    role.contains('admin') ||
-                    eid.contains('admin') ||
-                    name.contains('demo') ||
+                    role == 'admin_panel' ||
+                    eid == 'admin_panel' ||
                     name.contains('it-by-vvc') ||
                     name.isEmpty;
 

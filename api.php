@@ -4252,6 +4252,26 @@ try {
         ]);
         break;
 
+    case 'get_agora_token':
+        $channel = trim($_POST['channel_name'] ?? $_GET['channel_name'] ?? '');
+        if (empty($channel)) {
+            apiResponse(['success' => false, 'message' => 'Missing channel_name']);
+        }
+        $uid = intval($_POST['uid'] ?? $_GET['uid'] ?? 0);
+        $appId = "0170fac7ff8444fcb7f09528e18b27bf";
+        $appCert = "eb8cac5cb57c482ebc2667d34fa0d5fd";
+
+        require_once __DIR__ . '/agora_token_service.php';
+        $token = AgoraTokenBuilder::buildTokenWithUid($appId, $appCert, $channel, $uid, 1, 86400);
+
+        apiResponse([
+            'success' => true,
+            'token' => $token,
+            'app_id' => $appId,
+            'channel_name' => $channel,
+        ]);
+        break;
+
     case 'get_dashboard_stats':
         if (!$user) apiResponse(['success' => false, 'message' => 'Unauthorized']);
 

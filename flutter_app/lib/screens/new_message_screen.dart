@@ -1,190 +1,28 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../utils/app_theme.dart';
 import '../services/api_service.dart';
 import 'chat_detail_screen.dart';
 import 'chat_create_group_screen.dart';
 import 'add_story_screen.dart';
+import 'community_channel_screen.dart';
+import 'ai_chat_screen.dart';
 
 Color _getAvatarBgColor(String name) {
-  if (name.isEmpty) return const Color(0xFF3388FF);
+  if (name.isEmpty) return const Color(0xFFD4AF37);
   const colors = [
-    Color(0xFF3388FF),
-    Color(0xFFFFB300),
-    Color(0xFFAB47BC),
-    Color(0xFF26A69A),
-    Color(0xFFFF7043),
-    Color(0xFF66BB6A),
-    Color(0xFFEC407A),
+    Color(0xFFD4AF37),
+    Color(0xFF38BDF8),
+    Color(0xFFA855F7),
+    Color(0xFF10B981),
+    Color(0xFFF59E0B),
+    Color(0xFFEC4899),
+    Color(0xFF6366F1),
   ];
   return colors[name.codeUnitAt(0) % colors.length];
-}
-
-class _NMDark {
-  static const Color bg = Color(0xFF1C1C1E);
-  static const Color cardBg = Color(0xFF2C2C2E);
-  static const Color textPrimary = Color(0xFFFFFFFF);
-  static const Color textMuted = Color(0xFF8E8E93);
-  static const Color accent = Color(0xFF3388FF);
-  static const Color iconBg = Color(0xFF2C2C2E);
-  static const Color divider = Color(0x1AFFFFFF);
-  static const Color onlineGreen = Color(0xFF10B981);
-}
-
-class _QuickAction {
-  final IconData icon;
-  final String label;
-
-  const _QuickAction({required this.icon, required this.label});
-}
-
-class _QuickActionTile extends StatelessWidget {
-  final _QuickAction action;
-  final VoidCallback? onTap;
-
-  const _QuickActionTile({required this.action, this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-        child: Row(
-          children: [
-            Container(
-              width: 44.0,
-              height: 44.0,
-              decoration: const BoxDecoration(
-                color: _NMDark.iconBg,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(action.icon, color: _NMDark.accent, size: 22.0),
-            ),
-            const SizedBox(width: 14.0),
-            Expanded(
-              child: Text(
-                action.label,
-                style: GoogleFonts.inter(
-                  color: _NMDark.textPrimary,
-                  fontSize: 15.5,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-            const Icon(Icons.chevron_right_rounded, color: _NMDark.textMuted, size: 20.0),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class ContactTile extends StatelessWidget {
-  final String name;
-  final String avatarUrl;
-  final String subtitle;
-  final bool isOnline;
-  final bool isVerified;
-  final VoidCallback? onTap;
-
-  const ContactTile({
-    super.key,
-    required this.name,
-    required this.avatarUrl,
-    this.subtitle = '',
-    this.isOnline = false,
-    this.isVerified = false,
-    this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final fullAvatar = avatarUrl.isNotEmpty ? ApiService.getFullImageUrl(avatarUrl) : '';
-
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
-        child: Row(
-          children: [
-            Stack(
-              children: [
-                CircleAvatar(
-                  radius: 24.0,
-                  backgroundImage: fullAvatar.isNotEmpty ? NetworkImage(fullAvatar) : null,
-                  backgroundColor: _getAvatarBgColor(name),
-                  child: fullAvatar.isEmpty
-                      ? Text(
-                          name.isNotEmpty ? name[0].toUpperCase() : 'U',
-                          style: GoogleFonts.inter(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16.0,
-                          ),
-                        )
-                      : null,
-                ),
-                if (isOnline)
-                  Positioned(
-                    right: 0.0,
-                    bottom: 0.0,
-                    child: Container(
-                      width: 12.0,
-                      height: 12.0,
-                      decoration: BoxDecoration(
-                        color: _NMDark.onlineGreen,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: _NMDark.bg, width: 2.0),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(width: 14.0),
-
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Flexible(
-                        child: Text(
-                          name,
-                          style: GoogleFonts.inter(
-                            color: _NMDark.textPrimary,
-                            fontSize: 15.0,
-                            fontWeight: FontWeight.w600,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      if (isVerified) ...[
-                        const SizedBox(width: 4.0),
-                        const Icon(Icons.verified_rounded, color: _NMDark.accent, size: 16.0),
-                      ],
-                    ],
-                  ),
-                  const SizedBox(height: 3.0),
-                  Text(
-                    subtitle.isNotEmpty ? subtitle : (isOnline ? 'online' : 'last seen recently'),
-                    style: GoogleFonts.inter(
-                      color: isOnline ? _NMDark.accent : _NMDark.textMuted,
-                      fontSize: 12.5,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 class NewMessageScreen extends StatefulWidget {
@@ -193,8 +31,8 @@ class NewMessageScreen extends StatefulWidget {
 
   const NewMessageScreen({
     super.key,
-    required this.allUsers,
-    required this.currentUserId,
+    this.allUsers = const [],
+    this.currentUserId = '',
   });
 
   @override
@@ -203,24 +41,119 @@ class NewMessageScreen extends StatefulWidget {
 
 class _NewMessageScreenState extends State<NewMessageScreen> {
   final TextEditingController _searchController = TextEditingController();
+  final ApiService _api = ApiService();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
+  String _myId = '';
+  List<dynamic> _usersList = [];
+  List<dynamic> _filteredUsers = [];
+  bool _isLoading = true;
   String _searchQuery = '';
 
-  final List<_QuickAction> _quickActions = const [
-    _QuickAction(icon: Icons.chat_bubble_outline_rounded, label: 'New note'),
-    _QuickAction(icon: Icons.face_retouching_natural_rounded, label: 'Send an instant'),
-    _QuickAction(icon: Icons.add_to_photos_rounded, label: 'New story'),
-    _QuickAction(icon: Icons.people_alt_rounded, label: 'Group chat'),
-  ];
+  // Realtime Presence Map: employee_id -> isOnline
+  Map<String, bool> _onlineStatusMap = {};
 
   @override
   void initState() {
     super.initState();
-    _searchController.addListener(() {
+    _myId = widget.currentUserId;
+    _initData();
+    _searchController.addListener(_onSearchChanged);
+    _listenToPresence();
+  }
+
+  Future<void> _initData() async {
+    if (_myId.isEmpty) {
+      final prefs = await SharedPreferences.getInstance();
+      _myId = prefs.getString('employee_id') ?? '';
+    }
+
+    if (widget.allUsers.isNotEmpty) {
+      _processUsers(widget.allUsers);
+    } else {
+      await _fetchUsersFromApi();
+    }
+  }
+
+  Future<void> _fetchUsersFromApi() async {
+    try {
+      final res = await _api.fetchUsers();
+      if (res['success'] == true) {
+        final List<dynamic> fetched = res['users'] ?? [];
+        _processUsers(fetched);
+      } else {
+        if (mounted) setState(() => _isLoading = false);
+      }
+    } catch (e) {
+      debugPrint('Error fetching users in NewMessageScreen: $e');
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _processUsers(List<dynamic> rawList) {
+    final List<dynamic> filtered = rawList.where((u) {
+      final String eid = (u['employee_id'] ?? u['id'] ?? '').toString();
+      if (eid == _myId && _myId.isNotEmpty) return false;
+
+      final role = (u['role'] ?? '').toString().toLowerCase();
+      final name = (u['name'] ?? '').toString().toLowerCase();
+
+      bool isTechnical =
+          role == 'admin_panel' ||
+          eid == 'admin_panel' ||
+          name.contains('it-by-vvc') ||
+          name.isEmpty;
+
+      return !isTechnical;
+    }).toList();
+
+    if (mounted) {
       setState(() {
-        _searchQuery = _searchController.text.trim();
+        _usersList = filtered;
+        _filteredUsers = filtered;
+        _isLoading = false;
       });
+    }
+  }
+
+  void _listenToPresence() {
+    _firestore.collection('users').snapshots().listen((snapshot) {
+      final Map<String, bool> statusMap = {};
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        final bool isOnline = data['isOnline'] == true;
+        // Map both doc.id and employee_id
+        statusMap[doc.id] = isOnline;
+        if (data['employee_id'] != null) {
+          statusMap[data['employee_id'].toString()] = isOnline;
+        }
+      }
+      if (mounted) {
+        setState(() {
+          _onlineStatusMap = statusMap;
+        });
+      }
+    });
+  }
+
+  void _onSearchChanged() {
+    final query = _searchController.text.trim().toLowerCase();
+    setState(() {
+      _searchQuery = query;
+      if (query.isEmpty) {
+        _filteredUsers = _usersList;
+      } else {
+        _filteredUsers = _usersList.where((u) {
+          final name = (u['name'] ?? '').toString().toLowerCase();
+          final eid = (u['employee_id'] ?? u['id'] ?? '').toString().toLowerCase();
+          final dept = (u['department'] ?? '').toString().toLowerCase();
+          final pos = (u['position'] ?? '').toString().toLowerCase();
+          return name.contains(query) ||
+              eid.contains(query) ||
+              dept.contains(query) ||
+              pos.contains(query);
+        }).toList();
+      }
     });
   }
 
@@ -230,149 +163,132 @@ class _NewMessageScreenState extends State<NewMessageScreen> {
     super.dispose();
   }
 
+  void _hapticLight() => HapticFeedback.lightImpact();
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _NMDark.bg,
+      backgroundColor: AppTheme.bgDark,
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildHeader(),
-            const Divider(height: 1.0, color: _NMDark.divider),
-            _buildToSearchRow(),
-            const Divider(height: 1.0, color: _NMDark.divider),
+            // 1. Top VVC Header
+            _buildTopHeader(),
 
+            // 2. Search Box
+            _buildSearchRow(),
+
+            const SizedBox(height: 8),
+
+            // 3. Main Body: Actions + Contacts
             Expanded(
-              child: StreamBuilder<QuerySnapshot>(
-                stream: _firestore.collection('users').snapshots(),
-                builder: (context, snapshot) {
-                  if (!snapshot.hasData) {
-                    return const Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(24),
-                        child: CircularProgressIndicator(color: _NMDark.accent),
+              child: _isLoading
+                  ? Center(
+                      child: CircularProgressIndicator(
+                        color: AppTheme.primary,
                       ),
-                    );
-                  }
+                    )
+                  : ListView(
+                      physics: const BouncingScrollPhysics(),
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                      children: [
+                        // Quick Action Bento Cards (Only shown when not searching)
+                        if (_searchQuery.isEmpty) ...[
+                          _buildQuickActionsSection(),
+                          const SizedBox(height: 16.0),
+                        ],
 
-                  final usersDocs = snapshot.data!.docs.where((doc) {
-                    final data = doc.data() as Map<String, dynamic>;
-                    final uid = doc.id;
-                    if (uid == widget.currentUserId) return false;
-                    final role = (data['role'] ?? '').toString().toLowerCase();
-                    if (role == 'admin_panel' || data['isAdminPanel'] == true) return false;
-
-                    if (_searchQuery.isNotEmpty) {
-                      final name = (data['name'] ?? data['username'] ?? '').toString().toLowerCase();
-                      final pos = (data['position'] ?? data['department'] ?? '').toString().toLowerCase();
-                      final empId = (data['employee_id'] ?? '').toString().toLowerCase();
-                      final q = _searchQuery.toLowerCase();
-                      return name.contains(q) || pos.contains(q) || empId.contains(q);
-                    }
-                    return true;
-                  }).toList();
-
-                  return ListView(
-                    physics: const BouncingScrollPhysics(),
-                    children: [
-                      if (_searchQuery.isEmpty) ...[
-                        const SizedBox(height: 8.0),
-                        ..._quickActions.map(
-                          (action) => _QuickActionTile(
-                            action: action,
-                            onTap: () {
-                              if (action.label == 'Group chat') {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => ChatCreateGroupScreen(
-                                      allUsers: widget.allUsers,
-                                      currentUserId: widget.currentUserId,
-                                    ),
-                                  ),
-                                );
-                              } else if (action.label == 'New story') {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => const AddStoryScreen(),
-                                  ),
-                                );
-                              } else {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    backgroundColor: _NMDark.cardBg,
-                                    content: Text(
-                                      'មុខងារ "${action.label}" ត្រូវបានជ្រើសរើស',
-                                      style: GoogleFonts.kantumruyPro(color: Colors.white),
-                                    ),
-                                    duration: const Duration(seconds: 2),
-                                  ),
-                                );
-                              }
-                            },
-                          ),
-                        ),
-                        const SizedBox(height: 8.0),
-                      ],
-
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16.0, 12.0, 16.0, 6.0),
-                        child: Text(
-                          _searchQuery.isEmpty ? 'Suggested Contacts' : 'Search Results (${usersDocs.length})',
-                          style: GoogleFonts.inter(
-                            color: _NMDark.textMuted,
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-
-                      if (usersDocs.isEmpty)
-                        Padding(
-                          padding: const EdgeInsets.all(32.0),
-                          child: Center(
-                            child: Text(
-                              'រកមិនឃើញបុគ្គលិកឡើយ',
-                              style: GoogleFonts.kantumruyPro(color: _NMDark.textMuted, fontSize: 14),
+                        // Contacts Section Header
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              _searchQuery.isEmpty
+                                  ? '👥 បុគ្គលិក និងទំនាក់ទំនង'
+                                  : 'លទ្ធផលស្វែងរក (${_filteredUsers.length})',
+                              style: GoogleFonts.kantumruyPro(
+                                color: AppTheme.textSecondary,
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
-                          ),
-                        )
-                      else
-                        ...usersDocs.map((doc) {
-                          final data = doc.data() as Map<String, dynamic>;
-                          final String targetId = doc.id;
-                          final String name = (data['name'] ?? data['username'] ?? data['employee_id'] ?? 'User').toString();
-                          final String avatar = (data['avatar'] ?? data['photoUrl'] ?? data['photo'] ?? '').toString();
-                          final String position = (data['position'] ?? data['department'] ?? data['role'] ?? '').toString();
-                          final bool isOnline = data['isOnline'] == true;
-                          final bool isVerified = (data['role'] ?? '').toString().toLowerCase() == 'admin';
-
-                          return ContactTile(
-                            name: name,
-                            avatarUrl: avatar,
-                            subtitle: position,
-                            isOnline: isOnline,
-                            isVerified: isVerified,
-                            onTap: () {
-                              Navigator.pushReplacement(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => ChatDetailScreen(
-                                    targetUserId: targetId,
-                                    targetUserName: name,
-                                    targetUserPhoto: avatar,
-                                  ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.06),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                '${_filteredUsers.length} នាក់',
+                                style: GoogleFonts.inter(
+                                  color: AppTheme.primary,
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.bold,
                                 ),
-                              );
-                            },
-                          );
-                        }),
-                    ],
-                  );
-                },
-              ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10.0),
+
+                        if (_filteredUsers.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.all(40.0),
+                            child: Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.person_search_rounded,
+                                    color: AppTheme.textMuted,
+                                    size: 48,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    'រកមិនឃើញបុគ្គលិកឡើយ',
+                                    style: GoogleFonts.kantumruyPro(
+                                      color: AppTheme.textMuted,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                        else
+                          ..._filteredUsers.map((u) {
+                            final String targetId = (u['employee_id'] ?? u['id'] ?? '').toString();
+                            final String name = (u['name'] ?? u['username'] ?? 'User').toString();
+                            final String avatar = (u['avatar'] ?? u['photoUrl'] ?? u['photo'] ?? '').toString();
+                            final String position = (u['position'] ?? u['department'] ?? '').toString();
+                            final bool isOnline = _onlineStatusMap[targetId] == true;
+                            final bool isVerified = (u['role'] ?? '').toString().toLowerCase() == 'admin' ||
+                                (u['system_role'] ?? '').toString().toLowerCase() == 'admin';
+
+                            return _buildContactCard(
+                              name: name,
+                              avatarUrl: avatar,
+                              position: position,
+                              isOnline: isOnline,
+                              isVerified: isVerified,
+                              onTap: () {
+                                _hapticLight();
+                                Navigator.pushReplacement(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => ChatDetailScreen(
+                                      targetUserId: targetId,
+                                      targetUserName: name,
+                                      targetUserPhoto: avatar,
+                                    ),
+                                  ),
+                                );
+                              },
+                            );
+                          }),
+                      ],
+                    ),
             ),
           ],
         ),
@@ -380,36 +296,59 @@ class _NewMessageScreenState extends State<NewMessageScreen> {
     );
   }
 
-  Widget _buildHeader() {
+  // ==========================================
+  // TOP HEADER (VVC ENTERPRISE STYLE)
+  // ==========================================
+  Widget _buildTopHeader() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 12.0),
-      child: Stack(
-        alignment: Alignment.center,
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      child: Row(
         children: [
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton(
-              onPressed: () => Navigator.pop(context),
-              style: TextButton.styleFrom(
-                foregroundColor: _NMDark.accent,
-                padding: const EdgeInsets.symmetric(horizontal: 8.0),
-              ),
-              child: Text(
-                'Cancel',
-                style: GoogleFonts.inter(
-                  fontSize: 16.0,
-                  fontWeight: FontWeight.w500,
-                  color: _NMDark.accent,
+          // Back Button
+          GestureDetector(
+            onTap: () {
+              _hapticLight();
+              Navigator.pop(context);
+            },
+            child: Container(
+              padding: const EdgeInsets.all(9),
+              decoration: BoxDecoration(
+                color: AppTheme.bgCard,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.1),
                 ),
+              ),
+              child: const Icon(
+                Icons.arrow_back_ios_new_rounded,
+                color: Colors.white,
+                size: 17,
               ),
             ),
           ),
-          Text(
-            'New message',
-            style: GoogleFonts.inter(
-              color: _NMDark.textPrimary,
-              fontSize: 17.0,
-              fontWeight: FontWeight.bold,
+          const SizedBox(width: 14),
+
+          // Title & Subtitle
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'ផ្ញើសារថ្មី (New Message)',
+                  style: GoogleFonts.kantumruyPro(
+                    color: AppTheme.textPrimary,
+                    fontSize: 16.5,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  'ជ្រើសរើសបុគ្គលិក ឬបង្កើតក្រុមការងារ',
+                  style: GoogleFonts.kantumruyPro(
+                    color: AppTheme.textMuted,
+                    fontSize: 11.5,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -417,53 +356,406 @@ class _NewMessageScreenState extends State<NewMessageScreen> {
     );
   }
 
-  Widget _buildToSearchRow() {
+  // ==========================================
+  // SEARCH INPUT (GLASSMORPHIC VVC STYLE)
+  // ==========================================
+  Widget _buildSearchRow() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-      child: Row(
-        children: [
-          Text(
-            'To:',
-            style: GoogleFonts.inter(
-              color: _NMDark.textMuted,
-              fontSize: 16.0,
-              fontWeight: FontWeight.w500,
-            ),
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 6.0),
+      child: Container(
+        height: 44.0,
+        decoration: BoxDecoration(
+          color: AppTheme.bgCard,
+          borderRadius: BorderRadius.circular(14.0),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.08),
           ),
-          const SizedBox(width: 10.0),
-          Expanded(
-            child: SizedBox(
-              height: 40.0,
+        ),
+        child: Row(
+          children: [
+            const SizedBox(width: 12),
+            const Icon(
+              Icons.search_rounded,
+              color: Color(0xFFD4AF37),
+              size: 20,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
               child: TextField(
                 controller: _searchController,
-                autofocus: false,
-                cursorColor: _NMDark.accent,
-                style: GoogleFonts.inter(color: _NMDark.textPrimary, fontSize: 15.0),
+                style: GoogleFonts.kantumruyPro(
+                  color: AppTheme.textPrimary,
+                  fontSize: 13.5,
+                ),
+                cursorColor: AppTheme.primary,
                 decoration: InputDecoration(
-                  hintText: 'ស្វែងរកឈ្មោះបុគ្គលិក ឬ ផ្នែក...',
-                  hintStyle: GoogleFonts.kantumruyPro(color: _NMDark.textMuted, fontSize: 14.0),
-                  prefixIcon: const Icon(Icons.search_rounded, color: _NMDark.textMuted, size: 18.0),
-                  filled: true,
-                  fillColor: _NMDark.cardBg,
+                  hintText: 'ស្វែងរកឈ្មោះបុគ្គលិក ឬផ្នែក...',
+                  hintStyle: GoogleFonts.kantumruyPro(
+                    color: AppTheme.textMuted,
+                    fontSize: 13.0,
+                  ),
+                  border: InputBorder.none,
                   isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 14.0),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(20.0),
-                    borderSide: BorderSide.none,
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(20.0),
-                    borderSide: BorderSide.none,
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(20.0),
-                    borderSide: const BorderSide(color: _NMDark.accent, width: 1.0),
-                  ),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
                 ),
               ),
             ),
+            if (_searchController.text.isNotEmpty)
+              GestureDetector(
+                onTap: () {
+                  _searchController.clear();
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  child: Icon(
+                    Icons.cancel_rounded,
+                    color: AppTheme.textMuted,
+                    size: 18,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ==========================================
+  // QUICK ACTIONS SECTION (BENTO GRID TILES)
+  // ==========================================
+  Widget _buildQuickActionsSection() {
+    return Column(
+      children: [
+        // 1. Create Group Card
+        _buildActionTile(
+          icon: Icons.group_add_rounded,
+          gradientColors: [const Color(0xFFD4AF37), const Color(0xFFB8860B)],
+          title: 'បង្កើតក្រុមការងារ (Team Group)',
+          subtitle: 'ជជែក និងចែករំលែកឯកសារជាក្រុម',
+          onTap: () {
+            _hapticLight();
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ChatCreateGroupScreen(
+                  allUsers: _usersList,
+                  currentUserId: _myId,
+                ),
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 8),
+
+        // 2. Community Channel Card
+        _buildActionTile(
+          icon: Icons.campaign_rounded,
+          gradientColors: [const Color(0xFFA855F7), const Color(0xFF7C3AED)],
+          title: 'ប៉ុស្តិ៍សហគមន៍ (Community Channel)',
+          subtitle: 'ដំណឹងក្រុមហ៊ុន និងការផ្សព្វផ្សាយផ្លូវការ',
+          onTap: () {
+            _hapticLight();
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const CommunityChannelScreen(),
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 8),
+
+        // 3. New Story Card
+        _buildActionTile(
+          icon: Icons.add_photo_alternate_rounded,
+          gradientColors: [const Color(0xFF38BDF8), const Color(0xFF0284C7)],
+          title: 'ចែករំលែក Story ថ្មី (Post Story)',
+          subtitle: 'រូបភាព ឬវីដេអូបច្ចុប្បន្នភាព ២៤ ម៉ោង',
+          onTap: () {
+            _hapticLight();
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const AddStoryScreen(),
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 8),
+
+        // 4. AI Assistant
+        _buildActionTile(
+          icon: Icons.smart_toy_rounded,
+          gradientColors: [const Color(0xFF10B981), const Color(0xFF059669)],
+          title: 'ជំនួយការ VVC AI Assistant',
+          subtitle: 'ឆ្លើយសំណួរ គណនា និងវិភាគទិន្នន័យ',
+          onTap: () {
+            _hapticLight();
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const AiChatScreen(),
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildActionTile({
+    required IconData icon,
+    required List<Color> gradientColors,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 12.0),
+        decoration: BoxDecoration(
+          color: AppTheme.bgCard,
+          borderRadius: BorderRadius.circular(16.0),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.07),
           ),
-        ],
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.15),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 42.0,
+              height: 42.0,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: gradientColors,
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(12.0),
+                boxShadow: [
+                  BoxShadow(
+                    color: gradientColors.first.withValues(alpha: 0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Icon(icon, color: Colors.white, size: 22.0),
+            ),
+            const SizedBox(width: 14.0),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: GoogleFonts.kantumruyPro(
+                      color: AppTheme.textPrimary,
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: GoogleFonts.kantumruyPro(
+                      color: AppTheme.textMuted,
+                      fontSize: 11.0,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: Colors.white38,
+              size: 20.0,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ==========================================
+  // CONTACT CARD (VVC ENTERPRISE STYLE)
+  // ==========================================
+  Widget _buildContactCard({
+    required String name,
+    required String avatarUrl,
+    required String position,
+    required bool isOnline,
+    required bool isVerified,
+    required VoidCallback onTap,
+  }) {
+    final fullAvatar = avatarUrl.isNotEmpty ? ApiService.getFullImageUrl(avatarUrl) : '';
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
+          decoration: BoxDecoration(
+            color: AppTheme.bgCard,
+            borderRadius: BorderRadius.circular(16.0),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.05),
+            ),
+          ),
+          child: Row(
+            children: [
+              // Avatar with Online indicator
+              Stack(
+                children: [
+                  Container(
+                    width: 46.0,
+                    height: 46.0,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: isOnline
+                            ? const Color(0xFF10B981)
+                            : Colors.white.withValues(alpha: 0.15),
+                        width: 1.5,
+                      ),
+                    ),
+                    child: ClipOval(
+                      child: fullAvatar.isNotEmpty
+                          ? Image.network(
+                              fullAvatar,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => _buildInitials(name),
+                            )
+                          : _buildInitials(name),
+                    ),
+                  ),
+                  if (isOnline)
+                    Positioned(
+                      right: 1.0,
+                      bottom: 1.0,
+                      child: Container(
+                        width: 11.0,
+                        height: 11.0,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF10B981),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: AppTheme.bgCard, width: 2.0),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(width: 12.0),
+
+              // Name & Position
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            name,
+                            style: GoogleFonts.kantumruyPro(
+                              color: AppTheme.textPrimary,
+                              fontSize: 14.0,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (isVerified) ...[
+                          const SizedBox(width: 4.0),
+                          const Icon(
+                            Icons.verified_rounded,
+                            color: Color(0xFF38BDF8),
+                            size: 15.0,
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 3.0),
+                    Row(
+                      children: [
+                        if (position.isNotEmpty) ...[
+                          Flexible(
+                            child: Text(
+                              position,
+                              style: GoogleFonts.kantumruyPro(
+                                color: AppTheme.textSecondary,
+                                fontSize: 11.5,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Container(
+                            width: 3,
+                            height: 3,
+                            decoration: const BoxDecoration(
+                              color: Colors.white24,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                        ],
+                        Text(
+                          isOnline ? 'Online' : 'ក្រៅបណ្តាញ',
+                          style: GoogleFonts.kantumruyPro(
+                            color: isOnline ? const Color(0xFF10B981) : AppTheme.textMuted,
+                            fontSize: 11.0,
+                            fontWeight: isOnline ? FontWeight.w600 : FontWeight.normal,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              // Right Action Icon
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.05),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.chat_bubble_outline_rounded,
+                  color: Color(0xFFD4AF37),
+                  size: 18,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInitials(String name) {
+    return Container(
+      color: _getAvatarBgColor(name),
+      alignment: Alignment.center,
+      child: Text(
+        name.isNotEmpty ? name[0].toUpperCase() : 'U',
+        style: GoogleFonts.inter(
+          color: Colors.white,
+          fontWeight: FontWeight.bold,
+          fontSize: 17.0,
+        ),
       ),
     );
   }
