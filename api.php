@@ -4330,15 +4330,15 @@ try {
 
         // 4. Annual Leave Remaining (Real balance)
         $leaveRemaining = 0;
-        $qBal = $mysqli->prepare("SELECT annual_leave_balance FROM users WHERE employee_id = ? LIMIT 1");
+        $qBal = $mysqli->prepare("SELECT COALESCE(annual_leave_balance, al_remaining, 0) FROM users WHERE employee_id = ? LIMIT 1");
         if ($qBal) {
             $qBal->bind_param("s", $eid);
             $qBal->execute();
             $res = $qBal->get_result();
             if ($res) {
-                $resBal = $res->fetch_assoc();
+                $resBal = $res->fetch_row();
                 if ($resBal) {
-                    $leaveRemaining = $resBal['annual_leave_balance'] ?? 0;
+                    $leaveRemaining = $resBal[0] ?? 0;
                 }
             }
             $qBal->close();
@@ -4416,7 +4416,8 @@ try {
                 'requests_count' => (int)$requestsCount,
                 'announcements_count' => (int)$announcementsCount,
                 'unread_notifications' => $unreadNids,
-                'annual_leave_remaining' => floatval($leaveRemaining)
+                'annual_leave_remaining' => floatval($leaveRemaining),
+                'leave_remaining' => floatval($leaveRemaining),
             ],
             'recent_requests' => $recentRequests
         ]);

@@ -1374,7 +1374,6 @@ class _HomeContentState extends State<HomeContent> {
   Widget _buildBentoHeroAttendanceCard(UserProvider user) {
     final bool isCheckedIn = _checkInTime != null;
     final bool isNextCheckIn = _nextAction == 'Check-In';
-    final double progress = _calculateWorkProgress();
 
     return Container(
       decoration: BoxDecoration(
@@ -1420,7 +1419,7 @@ class _HomeContentState extends State<HomeContent> {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(18),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -1530,60 +1529,6 @@ class _HomeContentState extends State<HomeContent> {
                     ],
                   ),
                   const SizedBox(height: 16),
-
-                  // Timer Title & Digital Clock
-                  Text(
-                    'ម៉ោងបំពេញការងារថ្ងៃនេះ',
-                    style: GoogleFonts.kantumruyPro(
-                      color: AppTheme.textMuted,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.baseline,
-                    textBaseline: TextBaseline.alphabetic,
-                    children: [
-                      Text(
-                        _liveWorkDuration.isNotEmpty
-                            ? _liveWorkDuration
-                            : '00:00:00',
-                        style: GoogleFonts.inter(
-                          color: AppTheme.textPrimary,
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.5,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Text(
-                        '/${_formatStandardWorkHours()}h',
-                        style: GoogleFonts.inter(
-                          color: AppTheme.textMuted,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Progress Bar
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(6),
-                    child: LinearProgressIndicator(
-                      value: progress.clamp(0.0, 1.0),
-                      backgroundColor: Colors.white.withValues(alpha: 0.08),
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        progress >= 1.0
-                            ? const Color(0xFF10B981)
-                            : (isNextCheckIn ? AppTheme.primary : const Color(0xFF3B82F6)),
-                      ),
-                      minHeight: 6,
-                    ),
-                  ),
-                  const SizedBox(height: 18),
 
                   // Bottom Action Buttons
                   Row(
@@ -1703,32 +1648,23 @@ class _HomeContentState extends State<HomeContent> {
     );
   }
 
-  double _calculateWorkProgress() {
-    if (_checkInTime == null) return 0.0;
-    final diff = DateTime.now().difference(_checkInTime!);
-    final totalSeconds = diff.inSeconds;
-    const standardWorkSeconds = 8 * 3600; // 8 hours standard
-    return totalSeconds / standardWorkSeconds;
-  }
-
-  String _formatStandardWorkHours() {
-    return '08';
-  }
-
   // ─── 2. DUAL MEDIUM BENTO CARDS (50% / 50% Row) ───────────────────────────
   Widget _buildBentoMediumRow(UserProvider user) {
-    final leaveBalance = _stats['leave_remaining'] ?? '14';
+    // Dynamic Annual Leave (AL) Live Balance from database/stats
+    final dynamic rawAl = _stats['annual_leave_remaining'] ?? _stats['leave_remaining'] ?? 0;
+    final num alNum = (rawAl is num) ? rawAl : (num.tryParse(rawAl.toString()) ?? 0);
+    final String leaveBalanceStr = (alNum % 1 == 0) ? alNum.toInt().toString() : alNum.toStringAsFixed(1);
 
     return Row(
       children: [
-        // Left: Leave Balance Card
+        // Left: Leave Balance Card (AL Live Balance)
         Expanded(
           child: _buildBentoMediumCard(
             icon: Icons.beach_access_rounded,
             iconColor: const Color(0xFF10B981),
-            title: 'សមតុល្យច្បាប់',
-            value: '$leaveBalance ថ្ងៃ',
-            subtitle: 'នៅសល់ក្នុងឆ្នាំ',
+            title: 'AL នៅសល់',
+            value: '$leaveBalanceStr ថ្ងៃ',
+            subtitle: 'ក្នុងឆ្នាំ (Live Balance)',
             actionText: '+ សុំច្បាប់',
             onTap: () {
               _hapticLight();
@@ -1740,14 +1676,14 @@ class _HomeContentState extends State<HomeContent> {
           ),
         ),
         const SizedBox(width: 12),
-        // Right: Daily Report Card
+        // Right: Daily Report Card (ធ្វើរបាយការណ៍ប្រចាំថ្ងៃ)
         Expanded(
           child: _buildBentoMediumCard(
             icon: Icons.assignment_turned_in_rounded,
             iconColor: const Color(0xFFF59E0B),
-            title: 'របាយការណ៍',
-            value: 'ប្រចាំថ្ងៃ',
-            subtitle: 'ផ្ញើទៅ Telegram',
+            title: 'ផ្ញើទៅ Telegram',
+            value: 'ធ្វើរបាយការណ៍',
+            subtitle: 'ប្រចាំថ្ងៃ',
             actionText: '+ បញ្ជូន',
             onTap: () {
               _hapticLight();
