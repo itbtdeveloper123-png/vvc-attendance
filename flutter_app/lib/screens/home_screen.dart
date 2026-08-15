@@ -22,6 +22,7 @@ import 'attendance_screen.dart';
 import 'scan_history_screen.dart';
 import 'outside_attendance_screen.dart';
 import 'requests_screen.dart';
+import 'leave_request_screen.dart';
 import 'material_request_screen.dart';
 import 'profile_screen.dart';
 import 'notification_screen.dart';
@@ -1068,6 +1069,8 @@ class _HomeContentState extends State<HomeContent> {
                           _buildWeatherAndQuoteRow(),
                           const SizedBox(height: 14),
                           _buildWelcomeBanner(user),
+                          const SizedBox(height: 18),
+                          _buildBentoDashboard(user),
                           const SizedBox(height: 24),
                           _buildRoleBasedActions(user),
                           SizedBox(
@@ -1337,6 +1340,634 @@ class _HomeContentState extends State<HomeContent> {
           color: AppTheme.textPrimary,
           fontWeight: FontWeight.bold,
           fontSize: 18,
+        ),
+      ),
+    );
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════════
+  // ─── BENTO GRID DASHBOARD (Apple / Linear Style) ────────────────────────────
+  // ═════════════════════════════════════════════════════════════════════════════
+
+  Widget _buildBentoDashboard(UserProvider user) {
+    return FadeInUp(
+      duration: const Duration(milliseconds: 450),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 1. HERO BENTO CARD (Attendance & Live Work Timer)
+          _buildBentoHeroAttendanceCard(user),
+          const SizedBox(height: 12),
+
+          // 2. DUAL MEDIUM BENTO CARDS (Leave Balance & Daily Report)
+          _buildBentoMediumRow(user),
+          const SizedBox(height: 12),
+
+          // 3. MINI BENTO TRIO (Checklist, Meetings, Announcements)
+          _buildBentoMiniTrio(user),
+        ],
+      ),
+    );
+  }
+
+  // ─── 1. HERO BENTO CARD (Full Width) ──────────────────────────────────────
+  Widget _buildBentoHeroAttendanceCard(UserProvider user) {
+    final bool isCheckedIn = _checkInTime != null;
+    final bool isNextCheckIn = _nextAction == 'Check-In';
+    final double progress = _calculateWorkProgress();
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppTheme.bgCard,
+            AppTheme.bgDark.withValues(alpha: 0.95),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: isNextCheckIn
+              ? AppTheme.primary.withValues(alpha: 0.28)
+              : const Color(0xFF10B981).withValues(alpha: 0.35),
+          width: 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.35),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: Stack(
+          children: [
+            // Ambient Background Glow
+            Positioned(
+              top: -30,
+              right: -30,
+              child: Container(
+                width: 140,
+                height: 140,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: (isNextCheckIn ? AppTheme.primary : const Color(0xFF10B981))
+                      .withValues(alpha: 0.08),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Top Row: Status Chip + Streak Chip + Scan History Icon
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // Status Badge
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: (isCheckedIn
+                                  ? const Color(0xFF10B981)
+                                  : AppTheme.textMuted)
+                              .withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: (isCheckedIn
+                                    ? const Color(0xFF10B981)
+                                    : AppTheme.textMuted)
+                                .withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 7,
+                              height: 7,
+                              decoration: BoxDecoration(
+                                color: isCheckedIn
+                                    ? const Color(0xFF10B981)
+                                    : AppTheme.textMuted,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              isCheckedIn
+                                  ? 'ចូលធ្វើការ ${DateFormat('hh:mm a').format(_checkInTime!)}'
+                                  : 'មិនទាន់ Check-In',
+                              style: GoogleFonts.kantumruyPro(
+                                color: isCheckedIn
+                                    ? const Color(0xFF10B981)
+                                    : AppTheme.textSecondary,
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Right Controls: Streak + History
+                      Row(
+                        children: [
+                          if (_attendanceStreak > 0) ...[
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.orange.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: Colors.orange.withValues(alpha: 0.35),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Text('🔥', style: TextStyle(fontSize: 12)),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '$_attendanceStreak ថ្ងៃ',
+                                    style: GoogleFonts.inter(
+                                      color: Colors.orange,
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                          ],
+                          GestureDetector(
+                            onTap: () {
+                              _hapticLight();
+                              Navigator.push(
+                                context,
+                                _slideRoute(const ScanHistoryScreen()),
+                              );
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.08),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.history_rounded,
+                                color: Colors.white70,
+                                size: 18,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Timer Title & Digital Clock
+                  Text(
+                    'ម៉ោងបំពេញការងារថ្ងៃនេះ',
+                    style: GoogleFonts.kantumruyPro(
+                      color: AppTheme.textMuted,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
+                    children: [
+                      Text(
+                        _liveWorkDuration.isNotEmpty
+                            ? _liveWorkDuration
+                            : '00:00:00',
+                        style: GoogleFonts.inter(
+                          color: AppTheme.textPrimary,
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.5,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        '/${_formatStandardWorkHours()}h',
+                        style: GoogleFonts.inter(
+                          color: AppTheme.textMuted,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Progress Bar
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: LinearProgressIndicator(
+                      value: progress.clamp(0.0, 1.0),
+                      backgroundColor: Colors.white.withValues(alpha: 0.08),
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        progress >= 1.0
+                            ? const Color(0xFF10B981)
+                            : (isNextCheckIn ? AppTheme.primary : const Color(0xFF3B82F6)),
+                      ),
+                      minHeight: 6,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+
+                  // Bottom Action Buttons
+                  Row(
+                    children: [
+                      // Main Scan Action Button
+                      Expanded(
+                        flex: 3,
+                        child: GestureDetector(
+                          onTap: () {
+                            _hapticMedium();
+                            _goScan(_nextAction);
+                          },
+                          child: Container(
+                            height: 46,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: isNextCheckIn
+                                    ? [const Color(0xFFD4AF37), const Color(0xFFB8860B)]
+                                    : [const Color(0xFFEF4444), const Color(0xFFDC2626)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(14),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: (isNextCheckIn
+                                          ? const Color(0xFFD4AF37)
+                                          : const Color(0xFFEF4444))
+                                      .withValues(alpha: 0.4),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  isNextCheckIn
+                                      ? Icons.qr_code_scanner_rounded
+                                      : Icons.logout_rounded,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  isNextCheckIn ? 'ស្កេនចូល (Check-In)' : 'ស្កេនចេញ (Check-Out)',
+                                  style: GoogleFonts.kantumruyPro(
+                                    color: Colors.white,
+                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      // Outside Attendance Shortcut
+                      Expanded(
+                        flex: 2,
+                        child: GestureDetector(
+                          onTap: () {
+                            _hapticLight();
+                            if (user.isHRM || user.isAdmin) {
+                              Navigator.push(
+                                context,
+                                _slideRoute(const OutsideReportScreen()),
+                              );
+                            } else {
+                              Navigator.push(
+                                context,
+                                _slideRoute(const OutsideAttendanceScreen()),
+                              );
+                            }
+                          },
+                          child: Container(
+                            height: 46,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.12),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(
+                                  Icons.location_on_rounded,
+                                  color: Color(0xFF38BDF8),
+                                  size: 18,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'ក្រៅទីតាំង',
+                                  style: GoogleFonts.kantumruyPro(
+                                    color: AppTheme.textPrimary,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  double _calculateWorkProgress() {
+    if (_checkInTime == null) return 0.0;
+    final diff = DateTime.now().difference(_checkInTime!);
+    final totalSeconds = diff.inSeconds;
+    const standardWorkSeconds = 8 * 3600; // 8 hours standard
+    return totalSeconds / standardWorkSeconds;
+  }
+
+  String _formatStandardWorkHours() {
+    return '08';
+  }
+
+  // ─── 2. DUAL MEDIUM BENTO CARDS (50% / 50% Row) ───────────────────────────
+  Widget _buildBentoMediumRow(UserProvider user) {
+    final leaveBalance = _stats['leave_remaining'] ?? '14';
+
+    return Row(
+      children: [
+        // Left: Leave Balance Card
+        Expanded(
+          child: _buildBentoMediumCard(
+            icon: Icons.beach_access_rounded,
+            iconColor: const Color(0xFF10B981),
+            title: 'សមតុល្យច្បាប់',
+            value: '$leaveBalance ថ្ងៃ',
+            subtitle: 'នៅសល់ក្នុងឆ្នាំ',
+            actionText: '+ សុំច្បាប់',
+            onTap: () {
+              _hapticLight();
+              Navigator.push(
+                context,
+                _slideRoute(const LeaveRequestScreen()),
+              );
+            },
+          ),
+        ),
+        const SizedBox(width: 12),
+        // Right: Daily Report Card
+        Expanded(
+          child: _buildBentoMediumCard(
+            icon: Icons.assignment_turned_in_rounded,
+            iconColor: const Color(0xFFF59E0B),
+            title: 'របាយការណ៍',
+            value: 'ប្រចាំថ្ងៃ',
+            subtitle: 'ផ្ញើទៅ Telegram',
+            actionText: '+ បញ្ជូន',
+            onTap: () {
+              _hapticLight();
+              Navigator.push(
+                context,
+                _slideRoute(const DailyReportScreen()),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBentoMediumCard({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String value,
+    required String subtitle,
+    required String actionText,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppTheme.bgCard,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.08),
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.2),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: iconColor.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, color: iconColor, size: 20),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    actionText,
+                    style: GoogleFonts.kantumruyPro(
+                      color: iconColor,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Text(
+              value,
+              style: GoogleFonts.kantumruyPro(
+                color: AppTheme.textPrimary,
+                fontSize: 17,
+                fontWeight: FontWeight.bold,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 2),
+            Text(
+              subtitle,
+              style: GoogleFonts.kantumruyPro(
+                color: AppTheme.textMuted,
+                fontSize: 11.5,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ─── 3. MINI BENTO TRIO (3-Column Row) ────────────────────────────────────
+  Widget _buildBentoMiniTrio(UserProvider user) {
+    final announcementsCount = _stats['announcements_count'] ?? 0;
+
+    return Row(
+      children: [
+        // 1. Checklist
+        Expanded(
+          child: _buildBentoMiniCard(
+            icon: Icons.checklist_rtl_rounded,
+            color: const Color(0xFF3B82F6),
+            title: 'Checklist',
+            subtitle: 'ការងារថ្ងៃនេះ',
+            onTap: () {
+              _hapticLight();
+              Navigator.push(
+                context,
+                _slideRoute(const ChecklistScreen()),
+              );
+            },
+          ),
+        ),
+        const SizedBox(width: 10),
+        // 2. Meetings
+        Expanded(
+          child: _buildBentoMiniCard(
+            icon: Icons.groups_rounded,
+            color: const Color(0xFFA855F7),
+            title: 'ការប្រជុំ',
+            subtitle: 'កំណត់ត្រា AI',
+            onTap: () {
+              _hapticLight();
+              Navigator.push(
+                context,
+                _slideRoute(const MeetingsScreen()),
+              );
+            },
+          ),
+        ),
+        const SizedBox(width: 10),
+        // 3. Announcements
+        Expanded(
+          child: _buildBentoMiniCard(
+            icon: Icons.campaign_rounded,
+            color: const Color(0xFFF43F5E),
+            title: 'ដំណឹងថ្មី',
+            subtitle: '$announcementsCount ដំណឹង',
+            onTap: () {
+              _hapticLight();
+              Navigator.push(
+                context,
+                _slideRoute(const AnnouncementsScreen()),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBentoMiniCard({
+    required IconData icon,
+    required Color color,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+        decoration: BoxDecoration(
+          color: AppTheme.bgCard,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.06),
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.15),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.14),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 20),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              title,
+              style: GoogleFonts.kantumruyPro(
+                color: AppTheme.textPrimary,
+                fontSize: 11.5,
+                fontWeight: FontWeight.bold,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 2),
+            Text(
+              subtitle,
+              style: GoogleFonts.kantumruyPro(
+                color: AppTheme.textMuted,
+                fontSize: 10,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+            ),
+          ],
         ),
       ),
     );
