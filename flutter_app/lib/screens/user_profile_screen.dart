@@ -44,9 +44,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
   Future<void> _loadMuteState() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
       final userProvider = Provider.of<UserProvider>(context, listen: false);
       final myId = (userProvider.employeeId ?? '').trim();
+      final prefs = await SharedPreferences.getInstance();
       if (myId.isNotEmpty && widget.userId.isNotEmpty) {
         final List<String> ids = [myId, widget.userId]..sort();
         final roomId = 'PRIVATE_${ids[0]}_${ids[1]}';

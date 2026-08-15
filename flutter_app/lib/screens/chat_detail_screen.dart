@@ -62,9 +62,7 @@ MemoryImage _getMemoryImage(String base64Str) {
 // MESSENGER DARK THEME TOKENS
 // ==========================================
 class _MsgDark {
-  static const Color card = Color(0xFF1E293B);
   static const Color sentBubble = Color(0xFFD4AF37);
-  static const Color textPrimary = Color(0xFFFFFFFF);
   static const Color textMuted = Color(0xFF94A3B8);
   static const Color iconColor = Color(0xFFD4AF37);
 }
@@ -4001,78 +3999,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
   }
 
-  // Interactive Call Dialog with Timer, Mute & Speaker
-  void _showCallDialog(bool isVideo) {
-    int callSeconds = 0;
-    bool isMuted = false;
-    bool isSpeaker = false;
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) {
-        Timer? callTimer;
-        return StatefulBuilder(
-          builder: (context, setStateCall) {
-            callTimer ??= Timer.periodic(const Duration(seconds: 1), (timer) {
-              if (ctx.mounted) {
-                setStateCall(() => callSeconds++);
-              } else {
-                timer.cancel();
-              }
-            });
-
-            return AlertDialog(
-              backgroundColor: const Color(0xFF242526),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CircleAvatar(
-                    radius: 40,
-                    backgroundImage: widget.targetUserPhoto.isNotEmpty
-                        ? NetworkImage(ApiService.getFullImageUrl(widget.targetUserPhoto))
-                        : null,
-                    backgroundColor: _getAvatarBgColor(widget.targetUserName),
-                    child: widget.targetUserPhoto.isEmpty
-                        ? Text(widget.targetUserName[0].toUpperCase(), style: GoogleFonts.inter(fontSize: 28, color: Colors.white, fontWeight: FontWeight.bold))
-                        : null,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(widget.targetUserName, style: GoogleFonts.kantumruyPro(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
-                  const SizedBox(height: 6),
-                  Text(
-                    isVideo ? 'កំពុងការហៅវីដេអូ (${_formatDuration(callSeconds)})' : 'កំពុងការហៅសំឡេង (${_formatDuration(callSeconds)})',
-                    style: GoogleFonts.kantumruyPro(fontSize: 13, color: _MsgDark.textMuted),
-                  ),
-                  const SizedBox(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      IconButton(
-                        icon: Icon(isMuted ? Icons.mic_off_rounded : Icons.mic_rounded, color: isMuted ? Colors.redAccent : Colors.white, size: 28),
-                        onPressed: () => setStateCall(() => isMuted = !isMuted),
-                      ),
-                      FloatingActionButton(
-                        backgroundColor: Colors.redAccent,
-                        elevation: 0,
-                        onPressed: () => Navigator.pop(ctx),
-                        child: const Icon(Icons.call_end_rounded, color: Colors.white),
-                      ),
-                      IconButton(
-                        icon: Icon(isSpeaker ? Icons.volume_up_rounded : Icons.volume_down_rounded, color: isSpeaker ? _MsgDark.iconColor : Colors.white, size: 28),
-                        onPressed: () => setStateCall(() => isSpeaker = !isSpeaker),
-                      ),
-                    ],
-                  )
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
 
   // Pick and Send Image
   Future<void> _pickAndSendImage(ImageSource source) async {
