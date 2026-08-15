@@ -2910,7 +2910,14 @@ class _HomeContentState extends State<HomeContent> {
     List<Widget> gridBatch = [];
     List<Widget> finalWidgets = [];
 
+    const Set<String> bentoDuplicates = {
+      'attendance',
+      'stats_slider',
+      'outside_attendance',
+    };
+
     for (var key in keys) {
+      if (bentoDuplicates.contains(key)) continue;
       if (!actionBuilders.containsKey(key)) continue;
 
       // Pre-check visibility: skip hidden items (SizedBox.shrink has null width)
@@ -2951,6 +2958,14 @@ class _HomeContentState extends State<HomeContent> {
     if (finalWidgets.isEmpty) {
       return _buildEmptyActionsState();
     }
+
+    finalWidgets.insert(
+      0,
+      const Padding(
+        padding: EdgeInsets.only(bottom: 12),
+        child: SectionHeader(title: "⚡ សេវាកម្ម និងមុខងារ"),
+      ),
+    );
 
     return Column(children: finalWidgets);
   }
