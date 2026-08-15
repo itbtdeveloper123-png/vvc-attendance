@@ -335,7 +335,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
 
   void _endCallAndLeave() async {
     _durationTimer?.cancel();
-    await _callService.endCall(widget.callId);
+    await _callService.endCall(widget.callId, duration: _callSeconds);
     _endCallLocally();
   }
 

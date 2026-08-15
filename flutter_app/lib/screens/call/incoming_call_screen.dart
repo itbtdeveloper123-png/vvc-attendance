@@ -75,7 +75,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
     if (_isActionTaken) return;
     setState(() => _isActionTaken = true);
 
-    await _callService.endCall(widget.callId);
+    await _callService.endCall(widget.callId, duration: 0, endReason: 'rejected');
     if (mounted) {
       Navigator.pop(context);
     }

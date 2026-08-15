@@ -591,6 +591,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         batch.delete(msgRef);
       }
       await batch.commit();
+      await _syncLastMessageAfterDeletion();
       setState(() {
         _isSelectionMode = false;
         _selectedDocIds.clear();
@@ -602,6 +603,69 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           message: 'បានលុបសារចំនួន $count ចេញពីការសន្ទនា!',
         );
       }
+    }
+  }
+
+  Future<void> _syncLastMessageAfterDeletion() async {
+    try {
+      final latestQuery = await _firestore
+          .collection('chats')
+          .doc(_roomId)
+          .collection('messages')
+          .orderBy('timestamp', descending: true)
+          .limit(1)
+          .get();
+
+      if (latestQuery.docs.isEmpty) {
+        await _firestore.collection('chats').doc(_roomId).set({
+          'lastMessage': '',
+          'lastTimestamp': null,
+          'lastSenderId': '',
+        }, SetOptions(merge: true));
+      } else {
+        final lastDoc = latestQuery.docs.first.data();
+        final type = (lastDoc['type'] ?? 'text').toString();
+        String lastText = (lastDoc['text'] ?? '').toString();
+
+        if (type == 'call') {
+          final isVideo = lastDoc['callType'] == 'video' || lastDoc['isVideo'] == true;
+          final duration = (lastDoc['duration'] ?? 0) as int;
+          final callStatus = (lastDoc['callStatus'] ?? 'completed').toString();
+          if (callStatus == 'missed') {
+            lastText = isVideo ? '📹 ការខលវីដេអូខកខាន' : '📞 ការខលខកខាន (Missed Call)';
+          } else if (callStatus == 'declined') {
+            lastText = isVideo ? '📹 ការខលវីដេអូបដិសេធ' : '📞 ការខលត្រូវបានបដិសេធ';
+          } else {
+            String durStr = '';
+            if (duration > 0) {
+              final m = duration ~/ 60;
+              final s = duration % 60;
+              durStr = m > 0 ? '$m នាទី $s វិនាទី' : '$s វិនាទី';
+            }
+            lastText = isVideo
+                ? (durStr.isNotEmpty ? '📹 ការខលវីដេអូ ($durStr)' : '📹 ការខលវីដេអូ')
+                : (durStr.isNotEmpty ? '📞 ការខលជាសំឡេង ($durStr)' : '📞 ការខលជាសំឡេង');
+          }
+        } else if (type == 'image') {
+          lastText = '📷 បានផ្ញើរូបភាព';
+        } else if (type == 'audio' || type == 'voice') {
+          lastText = '🎙️ សារសំឡេង';
+        } else if (type == 'file') {
+          lastText = '📄 ឯកសារ';
+        } else if (type == 'location') {
+          lastText = '📍 ទីតាំង';
+        } else if (type == 'sticker' || lastText.startsWith('assets/') || lastText.contains('/sticker/')) {
+          lastText = '🎨 ស្ទីគ័រ (Sticker)';
+        }
+
+        await _firestore.collection('chats').doc(_roomId).set({
+          'lastMessage': lastText,
+          'lastTimestamp': lastDoc['timestamp'] ?? FieldValue.serverTimestamp(),
+          'lastSenderId': lastDoc['senderId'] ?? '',
+        }, SetOptions(merge: true));
+      }
+    } catch (e) {
+      debugPrint('Error syncing last message: $e');
     }
   }
 
@@ -1170,8 +1234,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (showDivider) _buildDateDivider(msgTime),
-            if (rawType == 'callMissed') _buildCallEventCard(docId: doc.id, isMissed: true, time: msgTime, senderName: senderName),
-            if (rawType == 'callVideo') _buildCallEventCard(docId: doc.id, isMissed: false, time: msgTime, senderName: senderName),
+            if (rawType == 'call' || rawType == 'callMissed' || rawType == 'callVideo')
+              _buildTelegramCallBubble(docId: doc.id, data: data, isMine: isMine, time: msgTime, senderName: senderName),
             if (imageUrl.isNotEmpty || rawType == 'image')
               _buildImageBubble(docId: doc.id, imageUrl: imageUrl, isMine: isMine, time: msgTime, isRead: isRead, senderName: senderName),
             if (audioUrl.isNotEmpty || rawType == 'audio' || rawType == 'voice')
@@ -1192,7 +1256,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                 time: msgTime,
                 isRead: isRead,
               ),
-            if (rawType != 'callMissed' && rawType != 'callVideo' && !imageUrl.isNotEmpty && rawType != 'image' && !audioUrl.isNotEmpty && rawType != 'audio' && rawType != 'voice' && rawType != 'file' && rawType != 'location' && rawType != 'sticker' && rawType != 'groupInvite' && !rawText.startsWith('vvc://group/') && rawText != '👍' && rawText.isNotEmpty)
+            if (rawType != 'call' && rawType != 'callMissed' && rawType != 'callVideo' && !imageUrl.isNotEmpty && rawType != 'image' && !audioUrl.isNotEmpty && rawType != 'audio' && rawType != 'voice' && rawType != 'file' && rawType != 'location' && rawType != 'sticker' && rawType != 'groupInvite' && !rawText.startsWith('vvc://group/') && rawText != '👍' && rawText.isNotEmpty)
               _buildTextBubble(docId: doc.id, text: rawText, replyTo: replyTo, forwardedFrom: forwardedFrom, senderName: senderName, isMine: isMine, time: msgTime, isRead: isRead),
           ],
         );
@@ -1768,60 +1832,134 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
   }
 
-  // Call Event Card
-  Widget _buildCallEventCard({
+  // Telegram Call Event Bubble
+  Widget _buildTelegramCallBubble({
     required String docId,
-    required bool isMissed,
+    required Map<String, dynamic> data,
+    required bool isMine,
     required DateTime time,
     required String senderName,
   }) {
+    final rawType = (data['type'] ?? '').toString();
+    final isVideo = data['callType'] == 'video' || data['isVideo'] == true || rawType == 'callVideo';
+    final int duration = (data['duration'] ?? data['callDuration'] ?? 0) as int;
+    final String callStatus = (data['callStatus'] ?? (rawType == 'callMissed' ? 'missed' : 'completed')).toString();
+    final bool isMissed = callStatus == 'missed';
+    final bool isDeclined = callStatus == 'declined';
+
+    String title;
+    IconData icon;
+    Color iconColor;
+    Color iconBg;
+
+    if (isMine) {
+      if (isMissed || duration == 0) {
+        title = isVideo ? 'ការខលវីដេអូបានបោះបង់' : 'ការខលបានបោះបង់ (Cancelled)';
+        icon = isVideo ? Icons.videocam_off_rounded : Icons.call_made_rounded;
+        iconColor = const Color(0xFF94A3B8);
+        iconBg = const Color(0xFF334155);
+      } else {
+        title = isVideo ? 'ការខលវីដេអូចេញ' : 'ការខលចេញ (Outgoing Call)';
+        icon = isVideo ? Icons.videocam_rounded : Icons.call_made_rounded;
+        iconColor = const Color(0xFF10B981);
+        iconBg = const Color(0xFF10B981).withValues(alpha: 0.15);
+      }
+    } else {
+      if (isMissed) {
+        title = isVideo ? 'ការខលវីដេអូខកខាន' : 'ការខលខកខាន (Missed Call)';
+        icon = isVideo ? Icons.videocam_off_rounded : Icons.phone_missed_rounded;
+        iconColor = const Color(0xFFFF3B30);
+        iconBg = const Color(0xFFFF3B30).withValues(alpha: 0.15);
+      } else if (isDeclined) {
+        title = isVideo ? 'ការខលវីដេអូបដិសេធ' : 'ការខលត្រូវបានបដិសេធ';
+        icon = isVideo ? Icons.videocam_off_rounded : Icons.call_end_rounded;
+        iconColor = const Color(0xFFFF9500);
+        iconBg = const Color(0xFFFF9500).withValues(alpha: 0.15);
+      } else {
+        title = isVideo ? 'ការខលវីដេអូចូល' : 'ការខលចូល (Incoming Call)';
+        icon = isVideo ? Icons.videocam_rounded : Icons.call_received_rounded;
+        iconColor = const Color(0xFF0A84FF);
+        iconBg = const Color(0xFF0A84FF).withValues(alpha: 0.15);
+      }
+    }
+
+    String subtitle;
+    if (duration > 0) {
+      final m = duration ~/ 60;
+      final s = duration % 60;
+      final durText = m > 0 ? '$m នាទី $s វិនាទី' : '$s វិនាទី';
+      subtitle = '$durText • ${DateFormat('h:mm a').format(time)}';
+    } else {
+      subtitle = DateFormat('h:mm a').format(time);
+    }
+
     return Align(
-      alignment: Alignment.centerRight,
+      alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
       child: GestureDetector(
-        onLongPress: () => _showMessageOptionsModal(docId: docId, content: isMissed ? 'Missed Call' : 'Video Call', type: 'call', senderName: senderName),
+        onLongPress: () => _showMessageOptionsModal(
+          docId: docId,
+          content: title,
+          type: 'call',
+          senderName: senderName,
+        ),
         child: Container(
-          margin: const EdgeInsets.symmetric(vertical: 6.0),
-          width: 220.0,
+          margin: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 4.0),
+          width: 250.0,
           decoration: BoxDecoration(
-            color: _MsgDark.card,
-            borderRadius: BorderRadius.circular(16.0),
+            color: const Color(0xFF1E293B),
+            borderRadius: BorderRadius.circular(18.0),
+            border: Border.all(
+              color: isMissed && !isMine
+                  ? const Color(0xFFFF3B30).withValues(alpha: 0.4)
+                  : const Color(0xFF334155),
+              width: 1.0,
+            ),
+            boxShadow: const [
+              BoxShadow(
+                color: Colors.black26,
+                blurRadius: 8,
+                offset: Offset(0, 2),
+              ),
+            ],
           ),
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(14.0, 14.0, 14.0, 10.0),
+                padding: const EdgeInsets.fromLTRB(12.0, 12.0, 12.0, 10.0),
                 child: Row(
                   children: [
                     Container(
-                      width: 40.0,
-                      height: 40.0,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF3E4042),
+                      width: 42.0,
+                      height: 42.0,
+                      decoration: BoxDecoration(
+                        color: iconBg,
                         shape: BoxShape.circle,
                       ),
-                      child: Icon(
-                        isMissed ? Icons.phone_disabled_rounded : Icons.videocam_rounded,
-                        size: 20.0,
-                        color: isMissed ? Colors.redAccent : _MsgDark.iconColor,
-                      ),
+                      child: Icon(icon, size: 22.0, color: iconColor),
                     ),
-                    const SizedBox(width: 12.0),
+                    const SizedBox(width: 10.0),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            isMissed ? 'Missed audio call' : 'Video call',
-                            style: GoogleFonts.inter(
-                              color: _MsgDark.textPrimary,
+                            title,
+                            style: GoogleFonts.kantumruyPro(
+                              color: isMissed && !isMine ? const Color(0xFFFF3B30) : Colors.white,
                               fontWeight: FontWeight.w600,
-                              fontSize: 14.0,
+                              fontSize: 13.5,
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          const SizedBox(height: 2.0),
+                          const SizedBox(height: 3.0),
                           Text(
-                            isMissed ? DateFormat('h:mm a').format(time) : '4 min, 31 secs',
-                            style: GoogleFonts.inter(fontSize: 12.0, color: _MsgDark.textMuted),
+                            subtitle,
+                            style: GoogleFonts.inter(
+                              fontSize: 11.5,
+                              color: const Color(0xFF94A3B8),
+                            ),
                           ),
                         ],
                       ),
@@ -1829,24 +1967,37 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                   ],
                 ),
               ),
-              const Divider(height: 1.0, color: Color(0xFF3E4042)),
+              const Divider(height: 1.0, color: Color(0xFF334155)),
               InkWell(
-                onTap: () => _showCallDialog(false),
+                onTap: () {
+                  _initiateCall(isVideo ? 'video' : 'audio');
+                },
                 borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(16.0),
-                  bottomRight: Radius.circular(16.0),
+                  bottomLeft: Radius.circular(18.0),
+                  bottomRight: Radius.circular(18.0),
                 ),
                 child: Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 10.0),
-                  child: Text(
-                    'Call again',
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.inter(
-                      color: _MsgDark.iconColor,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14.0,
-                    ),
+                  padding: const EdgeInsets.symmetric(vertical: 9.0),
+                  alignment: Alignment.center,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        isVideo ? Icons.videocam_rounded : Icons.phone_callback_rounded,
+                        size: 15,
+                        color: const Color(0xFF0A84FF),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'ខលត្រឡប់ទៅវិញ (Call back)',
+                        style: GoogleFonts.kantumruyPro(
+                          color: const Color(0xFF0A84FF),
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12.5,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -2120,6 +2271,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
                             if (confirm == true) {
                               await _firestore.collection('chats').doc(_roomId).collection('messages').doc(docId).delete();
+                              await _syncLastMessageAfterDeletion();
                               if (ctx.mounted) Navigator.pop(ctx);
                             }
                           },
@@ -2363,6 +2515,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                 onTap: () async {
                   Navigator.pop(menuCtx);
                   await _firestore.collection('chats').doc(_roomId).collection('messages').doc(docId).delete();
+                  await _syncLastMessageAfterDeletion();
                   if (parentCtx.mounted) Navigator.pop(parentCtx);
                 },
               ),
@@ -2540,6 +2693,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         },
         onDelete: () async {
           await _firestore.collection('chats').doc(_roomId).collection('messages').doc(docId).delete();
+          await _syncLastMessageAfterDeletion();
         },
         onSelect: () {
           setState(() {
@@ -2616,6 +2770,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                 onTap: () async {
                   Navigator.pop(ctx);
                   await _firestore.collection('chats').doc(_roomId).collection('messages').doc(docId).delete();
+                  await _syncLastMessageAfterDeletion();
                 },
               ),
               const SizedBox(height: 12),

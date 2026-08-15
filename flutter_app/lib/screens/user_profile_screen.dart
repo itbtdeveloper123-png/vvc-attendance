@@ -7,8 +7,11 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:provider/provider.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/user_provider.dart';
 import '../services/api_service.dart';
+import '../services/call_service.dart';
+import 'call/active_call_screen.dart';
 import '../widgets/chat_wallpaper_picker.dart';
 import '../widgets/vvc_global_alert.dart';
 
@@ -31,6 +34,115 @@ class UserProfileScreen extends StatefulWidget {
 class _UserProfileScreenState extends State<UserProfileScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   int _selectedTab = 1; // 0: Posts, 1: Media, 2: Files, 3: Music, 4: Voice
+  bool _isChatMuted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMuteState();
+  }
+
+  Future<void> _loadMuteState() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
+      final myId = (userProvider.employeeId ?? '').trim();
+      if (myId.isNotEmpty && widget.userId.isNotEmpty) {
+        final List<String> ids = [myId, widget.userId]..sort();
+        final roomId = 'PRIVATE_${ids[0]}_${ids[1]}';
+        final isMuted = prefs.getBool('mute_chat_$roomId') ?? false;
+        if (mounted) {
+          setState(() => _isChatMuted = isMuted);
+        }
+      }
+    } catch (_) {}
+  }
+
+  void _startInAppCall(String type) async {
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    final String myId = (userProvider.employeeId ?? '').trim();
+    final String myName = (userProvider.name ?? 'Caller').trim();
+    final String myPhoto = userProvider.avatar ?? '';
+
+    if (myId.isEmpty) {
+      if (mounted) {
+        VvcAlert.showError(
+          context,
+          title: 'បរាជ័យ',
+          message: 'មិនស្គាល់អត្តសញ្ញាណអ្នកហៅ (Missing User ID)។',
+        );
+      }
+      return;
+    }
+
+    if (widget.userId.trim().isEmpty) {
+      if (mounted) {
+        VvcAlert.showError(
+          context,
+          title: 'បរាជ័យ',
+          message: 'មិនស្គាល់អត្តសញ្ញាណអ្នកទទួល (Missing Receiver ID)។',
+        );
+      }
+      return;
+    }
+
+    final callService = CallService();
+    final callId = await callService.startCall(
+      callerId: myId,
+      receiverId: widget.userId.trim(),
+      receiverName: widget.userName,
+      receiverPhoto: widget.userPhoto,
+      type: type,
+      callerName: myName,
+      callerPhoto: myPhoto,
+    );
+
+    if (callId != null && mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ActiveCallScreen(
+            callId: callId,
+            channelId: callId,
+            targetName: widget.userName,
+            targetPhoto: widget.userPhoto,
+            isVideoCall: type == 'video',
+            isCaller: true,
+          ),
+        ),
+      );
+    } else if (mounted) {
+      final err = CallService.lastErrorMessage ?? 'Connection error';
+      VvcAlert.showError(
+        context,
+        title: 'បរាជ័យ',
+        message: 'មិនអាចតភ្ជាប់ការហៅបានទេ។ ($err)',
+      );
+    }
+  }
+
+  Future<void> _toggleMute(String roomId, String currentUserId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final nextMuted = !_isChatMuted;
+      await prefs.setBool('mute_chat_$roomId', nextMuted);
+      if (currentUserId.isNotEmpty && roomId.isNotEmpty) {
+        await _firestore.collection('chats').doc(roomId).set({
+          'muted': {currentUserId: nextMuted},
+        }, SetOptions(merge: true));
+      }
+      if (mounted) {
+        setState(() => _isChatMuted = nextMuted);
+        VvcAlert.showSuccess(
+          context,
+          title: nextMuted ? 'បានបិទសំឡេង (Muted)' : 'បានបើកសំឡេង (Unmuted)',
+          message: nextMuted
+              ? 'ការជូនដំណឹងពី ${widget.userName} ត្រូវបានបិទសំឡេង។'
+              : 'ការជូនដំណឹងពី ${widget.userName} ត្រូវបានបើកដំណើរការវិញ។',
+        );
+      }
+    } catch (_) {}
+  }
 
   void _showEditContactModal(String firstName, String lastName, String phone, String bio) {
     final fnCtrl = TextEditingController(text: firstName);
@@ -387,10 +499,18 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
                           _buildProfileActionButton(Icons.call_rounded, 'call', () {
-                            launchUrl(Uri.parse('tel:$phone'));
+                            _startInAppCall('audio');
                           }),
-                          _buildProfileActionButton(Icons.videocam_rounded, 'video', () {}),
-                          _buildProfileActionButton(Icons.notifications_active_rounded, 'mute', () {}),
+                          _buildProfileActionButton(Icons.videocam_rounded, 'video', () {
+                            _startInAppCall('video');
+                          }),
+                          _buildProfileActionButton(
+                            _isChatMuted ? Icons.notifications_off_rounded : Icons.notifications_active_rounded,
+                            _isChatMuted ? 'unmute' : 'mute',
+                            () {
+                              _toggleMute(roomId, currentUserId);
+                            },
+                          ),
                           _buildProfileActionButton(Icons.search_rounded, 'search', () {
                             Navigator.pop(context, 'SEARCH');
                           }),
@@ -411,13 +531,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Mobile
-                            ListTile(
-                              title: Text('mobile', style: GoogleFonts.inter(color: const Color(0xFF94A3B8), fontSize: 12.5)),
-                              subtitle: Text(phone, style: GoogleFonts.inter(color: const Color(0xFF0A84FF), fontSize: 15, fontWeight: FontWeight.w500)),
-                            ),
-                            const Divider(height: 1, color: Color(0xFF334155), indent: 16),
-
                             // Username
                             ListTile(
                               title: Text('username', style: GoogleFonts.inter(color: const Color(0xFF94A3B8), fontSize: 12.5)),

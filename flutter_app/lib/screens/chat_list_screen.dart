@@ -12,6 +12,7 @@ import 'chat_detail_screen.dart';
 import 'storage_usage_screen.dart';
 import 'add_story_screen.dart';
 import 'community_channel_screen.dart';
+import 'profile_screen.dart';
 import '../services/api_service.dart';
 import '../providers/user_provider.dart';
 
@@ -191,8 +192,12 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
               orElse: () => '',
             );
             if (otherId.isNotEmpty) {
-              activity[otherId] = data['lastTimestamp'] as Timestamp?;
-              chatsData[otherId] = data;
+              final rawMsg = (data['lastMessage'] ?? '').toString().trim();
+              final ts = data['lastTimestamp'] as Timestamp?;
+              if (rawMsg.isNotEmpty && ts != null) {
+                activity[otherId] = ts;
+                chatsData[otherId] = data;
+              }
             }
           }
           if (mounted) {
@@ -344,25 +349,36 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
             onPressed: () => Navigator.pop(context),
           ),
 
-          // User avatar
-          CircleAvatar(
-            radius: 22.0,
-            backgroundImage:
-                user.avatar != null && user.avatar!.isNotEmpty
-                    ? NetworkImage(ApiService.getFullImageUrl(user.avatar!))
-                    : null,
-            backgroundColor: _getAvatarBgColor(user.name ?? ''),
-            child:
-                user.avatar == null || user.avatar!.isEmpty
-                    ? Text(
-                      (user.name ?? 'U').substring(0, 1).toUpperCase(),
-                      style: GoogleFonts.inter(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        fontSize: 14,
-                      ),
-                    )
-                    : null,
+          // User avatar (Clickable to open profile screen)
+          InkWell(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const ProfileScreen(),
+                ),
+              );
+            },
+            borderRadius: BorderRadius.circular(22),
+            child: CircleAvatar(
+              radius: 22.0,
+              backgroundImage:
+                  user.avatar != null && user.avatar!.isNotEmpty
+                      ? NetworkImage(ApiService.getFullImageUrl(user.avatar!))
+                      : null,
+              backgroundColor: _getAvatarBgColor(user.name ?? ''),
+              child:
+                  user.avatar == null || user.avatar!.isEmpty
+                      ? Text(
+                        (user.name ?? 'U').substring(0, 1).toUpperCase(),
+                        style: GoogleFonts.inter(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          fontSize: 14,
+                        ),
+                      )
+                      : null,
+            ),
           ),
           const SizedBox(width: 10.0),
 
@@ -992,20 +1008,24 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
     bool isLastMessageRead = false;
 
     if (chatData != null) {
-      final rawLastMsg = chatData['lastMessage'] ?? '';
+      final rawLastMsg = (chatData['lastMessage'] ?? '').toString().trim();
       final Timestamp? ts = chatData['lastTimestamp'] as Timestamp?;
-      final lastSenderId = chatData['lastSenderId'] ?? '';
+      final lastSenderId = (chatData['lastSenderId'] ?? '').toString();
       isLastMessageRead = chatData['isRead'] == true;
 
-      if (rawLastMsg.isNotEmpty) {
+      if (rawLastMsg.isNotEmpty && ts != null) {
+        String cleanMsg = rawLastMsg;
+        if (cleanMsg.startsWith('assets/') || cleanMsg.contains('/sticker/') || cleanMsg.endsWith('.json') || cleanMsg.endsWith('.png')) {
+          cleanMsg = '🎨 ស្ទីគ័រ (Sticker)';
+        }
         isLastMessageByMe = lastSenderId == currentUserId;
-        lastMsg = isLastMessageByMe ? "អ្នក៖ $rawLastMsg" : rawLastMsg;
+        lastMsg = isLastMessageByMe ? "អ្នក៖ $cleanMsg" : cleanMsg;
         if (!isLastMessageByMe && !isLastMessageRead) {
           isUnread = true;
         }
-      }
-      if (ts != null) {
         timeStr = _formatTimestamp(ts);
+      } else {
+        lastMsg = position;
       }
     }
 
