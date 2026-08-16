@@ -36,7 +36,6 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
   late RtcEngine _engine;
   bool _engineInitialized = false;
 
-  final int _localUid = (DateTime.now().millisecondsSinceEpoch % 899999) + 100000;
   int? _remoteUid;
   bool _hasRemoteVideo = false;
   bool _isRemoteVideoMuted = false;
@@ -187,7 +186,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
           onTokenPrivilegeWillExpire: (RtcConnection connection, String token) async {
             debugPrint("Agora: Token will expire, refreshing token...");
             try {
-              final tokenRes = await ApiService().fetchAgoraToken(widget.channelId, uid: _localUid);
+              final tokenRes = await ApiService().fetchAgoraToken(widget.channelId, uid: 0);
               if (tokenRes['success'] == true && tokenRes['token'] != null) {
                 await _engine.renewToken(tokenRes['token'].toString());
               }
@@ -198,7 +197,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
           onRequestToken: (RtcConnection connection) async {
             debugPrint("Agora: Requesting new token...");
             try {
-              final tokenRes = await ApiService().fetchAgoraToken(widget.channelId, uid: _localUid);
+              final tokenRes = await ApiService().fetchAgoraToken(widget.channelId, uid: 0);
               if (tokenRes['success'] == true && tokenRes['token'] != null) {
                 await _engine.renewToken(tokenRes['token'].toString());
               }
