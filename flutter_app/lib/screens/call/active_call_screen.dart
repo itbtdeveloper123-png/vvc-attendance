@@ -292,13 +292,14 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
         });
       }
 
-      // 6. Fetch Dynamic Agora RTC Token from Backend with local UID
+      // 6. Fetch Dynamic Agora RTC Token — uid=0 means Agora assigns UID automatically
+      // IMPORTANT: Token uid and joinChannel uid MUST match. We use uid=0 on both sides.
       String token = '';
       try {
-        final tokenRes = await ApiService().fetchAgoraToken(widget.channelId, uid: _localUid);
+        final tokenRes = await ApiService().fetchAgoraToken(widget.channelId, uid: 0);
         if (tokenRes['success'] == true && tokenRes['token'] != null) {
           token = tokenRes['token'].toString();
-          debugPrint("Agora: Retrieved RTC Token for uid $_localUid: $token");
+          debugPrint("Agora: Retrieved RTC Token (uid=0): $token");
         } else {
           debugPrint("Agora Token fetch notice: ${tokenRes['message']}");
         }
@@ -306,39 +307,21 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
         debugPrint("Agora Token fetch error: $e");
       }
 
-      // 7. Join Channel with Token (with fallback attempt)
-      try {
-        await _engine.joinChannel(
-          token: token,
-          channelId: widget.channelId,
-          uid: _localUid,
-          options: ChannelMediaOptions(
-            clientRoleType: ClientRoleType.clientRoleBroadcaster,
-            channelProfile: ChannelProfileType.channelProfileCommunication,
-            publishMicrophoneTrack: true,
-            publishCameraTrack: _isVideoEnabled,
-            autoSubscribeAudio: true,
-            autoSubscribeVideo: true,
-            enableAudioRecordingOrPlayout: true,
-          ),
-        );
-      } catch (e) {
-        debugPrint("Agora joinChannel error: $e. Retrying fallback join...");
-        await _engine.joinChannel(
-          token: '',
-          channelId: widget.channelId,
-          uid: _localUid,
-          options: ChannelMediaOptions(
-            clientRoleType: ClientRoleType.clientRoleBroadcaster,
-            channelProfile: ChannelProfileType.channelProfileCommunication,
-            publishMicrophoneTrack: true,
-            publishCameraTrack: _isVideoEnabled,
-            autoSubscribeAudio: true,
-            autoSubscribeVideo: true,
-            enableAudioRecordingOrPlayout: true,
-          ),
-        );
-      }
+      // 7. Join Channel — uid=0 so Agora assigns UID. Must match the token's uid.
+      await _engine.joinChannel(
+        token: token,
+        channelId: widget.channelId,
+        uid: 0, // MUST match the uid used to generate the token (0 = any)
+        options: ChannelMediaOptions(
+          clientRoleType: ClientRoleType.clientRoleBroadcaster,
+          channelProfile: ChannelProfileType.channelProfileCommunication,
+          publishMicrophoneTrack: true,
+          publishCameraTrack: _isVideoEnabled,
+          autoSubscribeAudio: true,
+          autoSubscribeVideo: true,
+          enableAudioRecordingOrPlayout: true,
+        ),
+      );
     } catch (e) {
       debugPrint("Agora Init Exception: $e");
     }
