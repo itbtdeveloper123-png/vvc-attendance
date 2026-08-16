@@ -77,7 +77,7 @@ class AgoraTokenBuilder {
     const RoleAdmin = 101;
 
     public static function buildTokenWithUid($appID, $appCertificate, $channelName, $uid = 0, $role = 1, $expireTimestamp = 86400) {
-        return self::buildTokenWithUserAccount($appID, $appCertificate, $channelName, ($uid === 0 || $uid === "0" || empty($uid)) ? "" : (string)$uid, $role, $expireTimestamp);
+        return self::buildTokenWithUserAccount($appID, $appCertificate, $channelName, (string)$uid, $role, $expireTimestamp);
     }
 
     public static function buildTokenWithUserAccount($appID, $appCertificate, $channelName, $account = "", $role = 1, $expireTimestamp = 86400) {

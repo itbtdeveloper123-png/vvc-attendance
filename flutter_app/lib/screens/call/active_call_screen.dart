@@ -36,8 +36,8 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
   late RtcEngine _engine;
   bool _engineInitialized = false;
 
+  final int _localUid = (DateTime.now().millisecondsSinceEpoch % 899999) + 100000;
   int? _remoteUid;
-  bool _localUserJoined = false;
   bool _hasRemoteVideo = false;
   bool _isRemoteVideoMuted = false;
   bool _isRemoteAudioMuted = false;
@@ -150,11 +150,6 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
             _engine.muteLocalAudioStream(false);
             _engine.muteAllRemoteAudioStreams(false);
             _engine.setEnableSpeakerphone(_isSpeakerOn);
-            if (mounted) {
-              setState(() {
-                _localUserJoined = true;
-              });
-            }
           },
           onUserJoined: (RtcConnection connection, int remoteUid, int elapsed) {
             debugPrint("Agora: Remote user $remoteUid joined");
@@ -192,7 +187,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
           onTokenPrivilegeWillExpire: (RtcConnection connection, String token) async {
             debugPrint("Agora: Token will expire, refreshing token...");
             try {
-              final tokenRes = await ApiService().fetchAgoraToken(widget.channelId);
+              final tokenRes = await ApiService().fetchAgoraToken(widget.channelId, uid: _localUid);
               if (tokenRes['success'] == true && tokenRes['token'] != null) {
                 await _engine.renewToken(tokenRes['token'].toString());
               }
@@ -203,7 +198,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
           onRequestToken: (RtcConnection connection) async {
             debugPrint("Agora: Requesting new token...");
             try {
-              final tokenRes = await ApiService().fetchAgoraToken(widget.channelId);
+              final tokenRes = await ApiService().fetchAgoraToken(widget.channelId, uid: _localUid);
               if (tokenRes['success'] == true && tokenRes['token'] != null) {
                 await _engine.renewToken(tokenRes['token'].toString());
               }
@@ -291,13 +286,19 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
         await _engine.disableVideo();
       }
 
-      // 6. Fetch Dynamic Agora RTC Token from Backend
+      if (mounted) {
+        setState(() {
+          _engineInitialized = true;
+        });
+      }
+
+      // 6. Fetch Dynamic Agora RTC Token from Backend with local UID
       String token = '';
       try {
-        final tokenRes = await ApiService().fetchAgoraToken(widget.channelId);
+        final tokenRes = await ApiService().fetchAgoraToken(widget.channelId, uid: _localUid);
         if (tokenRes['success'] == true && tokenRes['token'] != null) {
           token = tokenRes['token'].toString();
-          debugPrint("Agora: Successfully retrieved RTC Token from server!");
+          debugPrint("Agora: Retrieved RTC Token for uid $_localUid: $token");
         } else {
           debugPrint("Agora Token fetch notice: ${tokenRes['message']}");
         }
@@ -305,26 +306,38 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
         debugPrint("Agora Token fetch error: $e");
       }
 
-      // 7. Join Channel with Token
-      await _engine.joinChannel(
-        token: token,
-        channelId: widget.channelId,
-        uid: 0,
-        options: ChannelMediaOptions(
-          clientRoleType: ClientRoleType.clientRoleBroadcaster,
-          channelProfile: ChannelProfileType.channelProfileCommunication,
-          publishMicrophoneTrack: true,
-          publishCameraTrack: _isVideoEnabled,
-          autoSubscribeAudio: true,
-          autoSubscribeVideo: true,
-          enableAudioRecordingOrPlayout: true,
-        ),
-      );
-
-      if (mounted) {
-        setState(() {
-          _engineInitialized = true;
-        });
+      // 7. Join Channel with Token (with fallback attempt)
+      try {
+        await _engine.joinChannel(
+          token: token,
+          channelId: widget.channelId,
+          uid: _localUid,
+          options: ChannelMediaOptions(
+            clientRoleType: ClientRoleType.clientRoleBroadcaster,
+            channelProfile: ChannelProfileType.channelProfileCommunication,
+            publishMicrophoneTrack: true,
+            publishCameraTrack: _isVideoEnabled,
+            autoSubscribeAudio: true,
+            autoSubscribeVideo: true,
+            enableAudioRecordingOrPlayout: true,
+          ),
+        );
+      } catch (e) {
+        debugPrint("Agora joinChannel error: $e. Retrying fallback join...");
+        await _engine.joinChannel(
+          token: '',
+          channelId: widget.channelId,
+          uid: _localUid,
+          options: ChannelMediaOptions(
+            clientRoleType: ClientRoleType.clientRoleBroadcaster,
+            channelProfile: ChannelProfileType.channelProfileCommunication,
+            publishMicrophoneTrack: true,
+            publishCameraTrack: _isVideoEnabled,
+            autoSubscribeAudio: true,
+            autoSubscribeVideo: true,
+            enableAudioRecordingOrPlayout: true,
+          ),
+        );
       }
     } catch (e) {
       debugPrint("Agora Init Exception: $e");
@@ -478,7 +491,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
             ),
 
             // 2. Floating Local Camera Preview (PiP) for Video Call
-            if (_isVideoEnabled && _localUserJoined && !_isLocalCameraMuted && _engineInitialized)
+            if (_isVideoEnabled && !_isLocalCameraMuted && _engineInitialized)
               Positioned(
                 left: _pipPosition.dx,
                 top: _pipPosition.dy,
@@ -519,15 +532,26 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
                     clipBehavior: Clip.antiAlias,
                     child: Stack(
                       children: [
-                        AgoraVideoView(
-                          controller: VideoViewController(
-                            rtcEngine: _engine,
-                            canvas: const VideoCanvas(
-                              uid: 0,
-                              renderMode: RenderModeType.renderModeHidden,
-                            ),
-                          ),
-                        ),
+                        _isSwappedView && _remoteUid != null && _hasRemoteVideo && !_isRemoteVideoMuted
+                            ? AgoraVideoView(
+                                controller: VideoViewController.remote(
+                                  rtcEngine: _engine,
+                                  canvas: VideoCanvas(
+                                    uid: _remoteUid,
+                                    renderMode: RenderModeType.renderModeHidden,
+                                  ),
+                                  connection: RtcConnection(channelId: widget.channelId),
+                                ),
+                              )
+                            : AgoraVideoView(
+                                controller: VideoViewController(
+                                  rtcEngine: _engine,
+                                  canvas: const VideoCanvas(
+                                    uid: 0,
+                                    renderMode: RenderModeType.renderModeHidden,
+                                  ),
+                                ),
+                              ),
                         Positioned(
                           bottom: 6,
                           left: 6,
@@ -538,7 +562,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
-                              'ខ្ញុំ (You)',
+                              _isSwappedView ? widget.targetName : 'ខ្ញុំ (You)',
                               style: GoogleFonts.kantumruyPro(
                                 color: Colors.white,
                                 fontSize: 10,
@@ -835,6 +859,19 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
   }
 
   Widget _buildMainView(String fullAvatarUrl) {
+    // If Swapped View: show Local camera fullscreen
+    if (_isSwappedView && _isVideoEnabled && _engineInitialized && !_isLocalCameraMuted) {
+      return AgoraVideoView(
+        controller: VideoViewController(
+          rtcEngine: _engine,
+          canvas: const VideoCanvas(
+            uid: 0,
+            renderMode: RenderModeType.renderModeHidden,
+          ),
+        ),
+      );
+    }
+
     // If Video Call with active remote video stream
     if (_isVideoEnabled && _remoteUid != null && _hasRemoteVideo && !_isRemoteVideoMuted && _engineInitialized) {
       return AgoraVideoView(
