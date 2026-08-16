@@ -60,6 +60,8 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
   late AnimationController _rippleController;
   late Animation<double> _rippleAnimation;
 
+  bool _isEnding = false;
+
   @override
   void initState() {
     super.initState();
@@ -81,6 +83,8 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
 
   void _listenToCallState() {
     _callStateSub = _callService.getCallState(widget.callId).listen((doc) {
+      if (!mounted || _isEnding) return;
+
       if (doc.exists) {
         final data = doc.data() as Map<String, dynamic>;
         final status = data['status'] as String? ?? 'connecting';
@@ -90,13 +94,16 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
             setState(() {
               _callStatus = 'connected';
             });
-            _startCallTimer();
           }
+          _startCallTimer();
         } else if (status == 'ended' || status == 'rejected') {
           _endCallLocally();
-        } else {
-          if (mounted) {
-            setState(() => _callStatus = status);
+        } else if (status == 'ringing' || status == 'connecting') {
+          // Do not overwrite connected status or when remote UID is already present
+          if (_callStatus != 'connected' && _remoteUid == null && _callSeconds == 0) {
+            if (mounted) {
+              setState(() => _callStatus = status);
+            }
           }
         }
       } else {
@@ -106,9 +113,14 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
   }
 
   void _startCallTimer() {
+    if (_durationTimer != null && _durationTimer!.isActive) return;
     _durationTimer?.cancel();
     _durationTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (mounted && _callStatus == 'connected') {
+      if (!mounted || _isEnding) {
+        timer.cancel();
+        return;
+      }
+      if (_callStatus == 'connected' || _remoteUid != null) {
         setState(() {
           _callSeconds++;
         });
@@ -333,26 +345,66 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
     });
   }
 
-  void _endCallAndLeave() async {
+  void _endCallAndLeave() {
+    if (_isEnding) return;
+    _isEnding = true;
+
     _durationTimer?.cancel();
-    await _callService.endCall(widget.callId, duration: _callSeconds);
+    try {
+      _rippleController.stop();
+    } catch (_) {}
+
+    // Leave Agora channel immediately
+    if (_engineInitialized) {
+      try {
+        _engine.leaveChannel();
+      } catch (e) {
+        debugPrint("Agora leaveChannel error: $e");
+      }
+    }
+
+    // Inform Firestore & save call log to chat in background (fire-and-forget)
+    _callService.endCall(widget.callId, duration: _callSeconds).catchError((e) {
+      debugPrint("endCall background error: $e");
+    });
+
+    // Exit call screen immediately
     _endCallLocally();
   }
 
   void _endCallLocally() {
+    _isEnding = true;
+    _durationTimer?.cancel();
+    try {
+      _rippleController.stop();
+    } catch (_) {}
+
+    if (_engineInitialized) {
+      try {
+        _engine.leaveChannel();
+      } catch (_) {}
+    }
+
     if (mounted) {
-      Navigator.pop(context);
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
     }
   }
 
   @override
   void dispose() {
+    _isEnding = true;
     _durationTimer?.cancel();
     _callStateSub?.cancel();
     _rippleController.dispose();
     if (_engineInitialized) {
-      _engine.leaveChannel();
-      _engine.release();
+      try {
+        _engine.leaveChannel();
+        _engine.release();
+      } catch (e) {
+        debugPrint("Agora dispose error: $e");
+      }
     }
     super.dispose();
   }
@@ -364,11 +416,11 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
   }
 
   String _getStatusText() {
-    if (_callStatus == 'ringing') return 'កំពុងរោទ៍... (Ringing)';
-    if (_callStatus == 'connecting') return 'កំពុងតភ្ជាប់... (Connecting)';
-    if (_callStatus == 'connected') {
+    if (_callStatus == 'connected' || _remoteUid != null || _callSeconds > 0) {
       return _formatTimer(_callSeconds);
     }
+    if (_callStatus == 'ringing') return 'កំពុងរោទ៍... (Ringing)';
+    if (_callStatus == 'connecting') return 'កំពុងតភ្ជាប់... (Connecting)';
     if (_callStatus == 'ended') return 'ការហៅបានបញ្ចប់';
     if (_callStatus == 'rejected') return 'បានបដិសេធ';
     return _callStatus;
@@ -706,6 +758,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
 
                       // 5. End Call Button (Large Red Glow)
                       GestureDetector(
+                        behavior: HitTestBehavior.opaque,
                         onTap: _endCallAndLeave,
                         child: Container(
                           width: 56,

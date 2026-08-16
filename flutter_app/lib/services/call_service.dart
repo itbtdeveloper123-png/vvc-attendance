@@ -59,7 +59,8 @@ class CallService {
     try {
       await _firestore.collection('calls').doc(callId).update({
         'status': 'accepted',
-      });
+        'acceptedAt': FieldValue.serverTimestamp(),
+      }).timeout(const Duration(seconds: 5));
     } catch (e) {
       debugPrint('Error accepting call: $e');
     }
@@ -69,21 +70,27 @@ class CallService {
   Future<void> endCall(String callId, {int duration = 0, String endReason = 'ended'}) async {
     try {
       final docRef = _firestore.collection('calls').doc(callId);
-      final docSnap = await docRef.get();
+
+      // Fast update call status first
+      try {
+        await docRef.update({
+          'status': endReason == 'rejected' ? 'rejected' : 'ended',
+          'duration': duration,
+          'endedAt': FieldValue.serverTimestamp(),
+        }).timeout(const Duration(seconds: 4));
+      } catch (e) {
+        debugPrint('Error updating call status in endCall: $e');
+      }
+
+      final docSnap = await docRef.get().timeout(const Duration(seconds: 4));
       if (!docSnap.exists) return;
 
       final data = docSnap.data()!;
       final previousStatus = data['status'] as String? ?? 'ringing';
 
-      await docRef.update({
-        'status': endReason == 'rejected' ? 'rejected' : 'ended',
-        'duration': duration,
-        'endedAt': FieldValue.serverTimestamp(),
-      });
-
       // Avoid duplicate chat message logging
       if (data['loggedToChat'] == true) return;
-      await docRef.update({'loggedToChat': true});
+      await docRef.update({'loggedToChat': true}).timeout(const Duration(seconds: 3)).catchError((_) {});
 
       final String callerId = (data['callerId'] ?? '').toString();
       final String receiverId = (data['receiverId'] ?? '').toString();
@@ -155,7 +162,7 @@ class CallService {
         'isRead': false,
       }, SetOptions(merge: true));
 
-      await batch.commit();
+      await batch.commit().timeout(const Duration(seconds: 4));
     } catch (e) {
       debugPrint('Error ending call or logging to chat: $e');
     }

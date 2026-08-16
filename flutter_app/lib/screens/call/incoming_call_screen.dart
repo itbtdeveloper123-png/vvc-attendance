@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../services/call_service.dart';
@@ -26,6 +27,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
     with SingleTickerProviderStateMixin {
   final CallService _callService = CallService();
   bool _isActionTaken = false;
+  StreamSubscription? _callSub;
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
 
@@ -40,19 +42,40 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
     _pulseAnimation = Tween<double>(begin: 1.0, end: 1.08).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
+
+    _listenForCallState();
+  }
+
+  void _listenForCallState() {
+    _callSub = _callService.getCallState(widget.callId).listen((doc) {
+      if (!mounted || _isActionTaken) return;
+      if (!doc.exists) {
+        _dismissScreen();
+      } else {
+        final data = doc.data() as Map<String, dynamic>;
+        final status = data['status'] as String? ?? '';
+        if (status == 'ended' || status == 'rejected') {
+          _dismissScreen();
+        }
+      }
+    });
   }
 
   @override
   void dispose() {
+    _callSub?.cancel();
     _pulseController.dispose();
     super.dispose();
   }
 
-  void _acceptCall() async {
+  void _acceptCall() {
     if (_isActionTaken) return;
-    setState(() => _isActionTaken = true);
+    _isActionTaken = true;
+    _callSub?.cancel();
 
-    await _callService.acceptCall(widget.callId);
+    _callService.acceptCall(widget.callId).catchError((e) {
+      debugPrint('Error accepting call in background: $e');
+    });
 
     if (mounted) {
       Navigator.pushReplacement(
@@ -71,13 +94,23 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
     }
   }
 
-  void _declineCall() async {
+  void _declineCall() {
     if (_isActionTaken) return;
-    setState(() => _isActionTaken = true);
+    _isActionTaken = true;
+    _callSub?.cancel();
 
-    await _callService.endCall(widget.callId, duration: 0, endReason: 'rejected');
-    if (mounted) {
-      Navigator.pop(context);
+    _callService.endCall(widget.callId, duration: 0, endReason: 'rejected').catchError((e) {
+      debugPrint('Error ending call in background: $e');
+    });
+
+    _dismissScreen();
+  }
+
+  void _dismissScreen() {
+    _isActionTaken = true;
+    _callSub?.cancel();
+    if (mounted && Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
     }
   }
 
@@ -222,6 +255,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
                     children: [
                       // Decline Button
                       GestureDetector(
+                        behavior: HitTestBehavior.opaque,
                         onTap: _declineCall,
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
@@ -266,6 +300,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
 
                       // Accept Button
                       GestureDetector(
+                        behavior: HitTestBehavior.opaque,
                         onTap: _acceptCall,
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
