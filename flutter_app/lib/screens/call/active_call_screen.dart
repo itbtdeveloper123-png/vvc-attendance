@@ -147,6 +147,9 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
         RtcEngineEventHandler(
           onJoinChannelSuccess: (RtcConnection connection, int elapsed) {
             debugPrint("Agora: Local user ${connection.localUid} joined channel");
+            _engine.muteLocalAudioStream(false);
+            _engine.muteAllRemoteAudioStreams(false);
+            _engine.setEnableSpeakerphone(_isSpeakerOn);
             if (mounted) {
               setState(() {
                 _localUserJoined = true;
@@ -155,7 +158,9 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
           },
           onUserJoined: (RtcConnection connection, int remoteUid, int elapsed) {
             debugPrint("Agora: Remote user $remoteUid joined");
-            if (mounted) {
+            _engine.muteRemoteAudioStream(uid: remoteUid, mute: false);
+            _engine.setEnableSpeakerphone(_isSpeakerOn);
+            if (mounted && !_isEnding) {
               setState(() {
                 _remoteUid = remoteUid;
                 _callStatus = 'connected';
@@ -175,6 +180,35 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
                 _hasRemoteVideo = false;
               });
               _endCallAndLeave();
+            }
+          },
+          onConnectionStateChanged: (
+            RtcConnection connection,
+            ConnectionStateType state,
+            ConnectionChangedReasonType reason,
+          ) {
+            debugPrint("Agora: Connection state $state, reason $reason");
+          },
+          onTokenPrivilegeWillExpire: (RtcConnection connection, String token) async {
+            debugPrint("Agora: Token will expire, refreshing token...");
+            try {
+              final tokenRes = await ApiService().fetchAgoraToken(widget.channelId);
+              if (tokenRes['success'] == true && tokenRes['token'] != null) {
+                await _engine.renewToken(tokenRes['token'].toString());
+              }
+            } catch (e) {
+              debugPrint("Agora renewToken error: $e");
+            }
+          },
+          onRequestToken: (RtcConnection connection) async {
+            debugPrint("Agora: Requesting new token...");
+            try {
+              final tokenRes = await ApiService().fetchAgoraToken(widget.channelId);
+              if (tokenRes['success'] == true && tokenRes['token'] != null) {
+                await _engine.renewToken(tokenRes['token'].toString());
+              }
+            } catch (e) {
+              debugPrint("Agora onRequestToken error: $e");
             }
           },
           onFirstRemoteVideoFrame: (
@@ -233,18 +267,18 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
         ),
       );
 
-      // 4. Configure Audio for Clear Full-Duplex VoIP Call
+      // 4. Configure Audio for High Quality Full-Duplex VoIP Call
       await _engine.enableAudio();
       await _engine.enableLocalAudio(true);
       await _engine.setClientRole(role: ClientRoleType.clientRoleBroadcaster);
       await _engine.setAudioProfile(
         profile: AudioProfileType.audioProfileDefault,
-        scenario: AudioScenarioType.audioScenarioMeeting,
+        scenario: AudioScenarioType.audioScenarioDefault,
       );
       await _engine.setDefaultAudioRouteToSpeakerphone(_isSpeakerOn);
       await _engine.setEnableSpeakerphone(_isSpeakerOn);
-      await _engine.adjustRecordingSignalVolume(100);
-      await _engine.adjustPlaybackSignalVolume(100);
+      await _engine.adjustRecordingSignalVolume(200); // 200% Mic volume boost
+      await _engine.adjustPlaybackSignalVolume(200);  // 200% Speaker volume boost
       await _engine.muteLocalAudioStream(false);
       await _engine.muteAllRemoteAudioStreams(false);
 
@@ -311,6 +345,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
       _isSpeakerOn = nextSpeaker;
     });
     await _engine.setEnableSpeakerphone(nextSpeaker);
+    await _engine.setDefaultAudioRouteToSpeakerphone(nextSpeaker);
   }
 
   void _toggleVideo() async {
