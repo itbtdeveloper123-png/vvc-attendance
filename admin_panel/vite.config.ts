@@ -8,7 +8,7 @@ export default defineConfig({
     host: true,
     proxy: {
       '/admin_api.php': {
-        target: 'http://localhost/Vvc-Attendace',
+        target: 'https://app.vvc.asia/flutter',
         changeOrigin: true,
         secure: false,
       },

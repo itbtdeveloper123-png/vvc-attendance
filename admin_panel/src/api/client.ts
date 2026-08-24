@@ -1,7 +1,7 @@
 import axios from 'axios';
 
-// Get base URL for PHP API gateway
-const API_URL = import.meta.env.VITE_API_URL || '/admin_api.php';
+// Get base URL for live PHP API gateway
+const API_URL = import.meta.env.VITE_API_URL || 'https://app.vvc.asia/flutter/admin_api.php';
 
 export const apiClient = axios.create({
   baseURL: API_URL,

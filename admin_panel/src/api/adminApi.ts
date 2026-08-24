@@ -21,6 +21,8 @@ export interface DashboardStats {
   today_scans?: any[];
 }
 
+export type DashboardSummary = DashboardStats;
+
 export interface AttendanceRecord {
   id: number | string;
   employee_id: string;
@@ -70,6 +72,13 @@ export const adminApi = {
 
   // Dashboard Stats
   fetchDashboard: async () => {
+    const params = new URLSearchParams();
+    params.append('action', 'get_dashboard_summary');
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  getDashboardSummary: async () => {
     const params = new URLSearchParams();
     params.append('action', 'get_dashboard_summary');
     const res = await apiClient.post('', params);

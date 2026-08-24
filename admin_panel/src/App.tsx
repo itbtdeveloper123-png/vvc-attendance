@@ -16,6 +16,7 @@ import { MeetingsPage } from './pages/MeetingsPage';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { PollsPage } from './pages/PollsPage';
 import { LocationsPage } from './pages/LocationsPage';
+import { CategoriesPage } from './pages/CategoriesPage';
 import { TokensPage } from './pages/TokensPage';
 import { TrainingQuizPage } from './pages/TrainingQuizPage';
 import { SettingsPage } from './pages/SettingsPage';
@@ -31,25 +32,28 @@ export const App: React.FC = () => {
 
             {/* Protected Admin Routes */}
             <Route element={<AdminLayout />}>
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/" element={<DashboardPage />} />
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/users" element={<UsersPage />} />
               <Route path="/attendance" element={<AttendanceReportsPage />} />
+              <Route path="/reports" element={<AttendanceReportsPage />} />
               <Route path="/requests" element={<RequestsPage />} />
               <Route path="/stock" element={<StockPage />} />
+              <Route path="/gps" element={<GpsTrackingPage />} />
               <Route path="/gps-tracking" element={<GpsTrackingPage />} />
               <Route path="/payroll" element={<PayrollPage />} />
               <Route path="/meetings" element={<MeetingsPage />} />
               <Route path="/notifications" element={<NotificationsPage />} />
               <Route path="/polls" element={<PollsPage />} />
               <Route path="/locations" element={<LocationsPage />} />
+              <Route path="/categories" element={<CategoriesPage />} />
               <Route path="/tokens" element={<TokensPage />} />
               <Route path="/training" element={<TrainingQuizPage />} />
               <Route path="/settings" element={<SettingsPage />} />
             </Route>
 
             {/* Fallback */}
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </BrowserRouter>
       </AuthProvider>
