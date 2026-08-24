@@ -894,20 +894,32 @@ try {
             }
 
             try {
-                if ($mysqli) {
-                    $escapedDate = $mysqli->real_escape_string($date);
-                    $intVal = intval($value);
-                    $mysqli->query("INSERT INTO {$table} (reports_date, {$column}) VALUES ('{$escapedDate}', {$intVal}) ON DUPLICATE KEY UPDATE {$column} = {$intVal}");
-                    sendJson(['success' => true, 'message' => 'រក្សាទុកទិន្នន័យរួចរាល់!']);
-                } elseif ($pdo) {
-                    $stmt = $pdo->prepare("INSERT INTO {$table} (reports_date, {$column}) VALUES (?, ?) ON DUPLICATE KEY UPDATE {$column} = ?");
-                    $stmt->execute([$date, $value, $value]);
-                    sendJson(['success' => true, 'message' => 'រក្សាទុកទិន្នន័យរួចរាល់!']);
+                $intVal = intval($value);
+                $escapedDate = $mysqli ? $mysqli->real_escape_string($date) : addslashes($date);
+
+                // Check if row exists
+                $existing = dbQuery("SELECT id FROM {$table} WHERE reports_date = ? LIMIT 1", [$date]);
+                if (!empty($existing)) {
+                    $rowId = (int)$existing[0]['id'];
+                    if ($mysqli) {
+                        $mysqli->query("UPDATE {$table} SET {$column} = {$intVal} WHERE id = {$rowId}");
+                        $mysqli->query("DELETE FROM {$table} WHERE reports_date = '{$escapedDate}' AND id != {$rowId}");
+                    } elseif ($pdo) {
+                        $pdo->exec("UPDATE {$table} SET {$column} = {$intVal} WHERE id = {$rowId}");
+                        $pdo->exec("DELETE FROM {$table} WHERE reports_date = '{$escapedDate}' AND id != {$rowId}");
+                    }
+                } else {
+                    if ($mysqli) {
+                        $mysqli->query("INSERT INTO {$table} (reports_date, {$column}) VALUES ('{$escapedDate}', {$intVal})");
+                    } elseif ($pdo) {
+                        $stmt = $pdo->prepare("INSERT INTO {$table} (reports_date, {$column}) VALUES (?, ?)");
+                        $stmt->execute([$date, $intVal]);
+                    }
                 }
+                sendJson(['success' => true, 'message' => 'រក្សាទុកទិន្នន័យរួចរាល់!']);
             } catch (Throwable $e) {
                 sendJson(['success' => false, 'message' => $e->getMessage()]);
             }
-            sendJson(['success' => true, 'message' => 'រក្សាទុកទិន្នន័យរួចរាល់!']);
             break;
 
         case 'fetch_consolidated_report':
@@ -929,36 +941,11 @@ try {
             $staff_res = [];
 
             try {
-                if ($mysqli) {
-                    $st1 = $mysqli->prepare("SELECT * FROM {$main_t} WHERE reports_date = ? LIMIT 1");
-                    if ($st1) {
-                        $st1->bind_param("s", $date);
-                        $st1->execute();
-                        $res1 = $st1->get_result();
-                        if ($res1) $consolidatedRow = $res1->fetch_assoc();
-                        $st1->close();
-                    }
-                    $st2 = $mysqli->prepare("SELECT * FROM {$new_t} WHERE reports_date = ? ORDER BY id ASC");
-                    if ($st2) {
-                        $st2->bind_param("s", $date);
-                        $st2->execute();
-                        $res2 = $st2->get_result();
-                        if ($res2) {
-                            while ($row2 = $res2->fetch_assoc()) {
-                                $staff_res[] = $row2;
-                            }
-                        }
-                        $st2->close();
-                    }
-                } elseif ($pdo) {
-                    $st1 = $pdo->prepare("SELECT * FROM {$main_t} WHERE reports_date = ? LIMIT 1");
-                    $st1->execute([$date]);
-                    $consolidatedRow = $st1->fetch();
-
-                    $st2 = $pdo->prepare("SELECT * FROM {$new_t} WHERE reports_date = ? ORDER BY id ASC");
-                    $st2->execute([$date]);
-                    $staff_res = $st2->fetchAll() ?: [];
+                $rows = dbQuery("SELECT * FROM {$main_t} WHERE reports_date = ? ORDER BY id DESC LIMIT 1", [$date]);
+                if (!empty($rows)) {
+                    $consolidatedRow = $rows[0];
                 }
+                $staff_res = dbQuery("SELECT * FROM {$new_t} WHERE reports_date = ? ORDER BY id ASC", [$date]) ?: [];
             } catch (Throwable $e) {}
 
             sendJson([
