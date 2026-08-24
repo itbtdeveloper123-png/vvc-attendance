@@ -179,6 +179,33 @@ export const adminApi = {
     return res.data;
   },
 
+  // Work Rules / Shift Schedule
+  getTimeRules: async (userId: string) => {
+    const params = new URLSearchParams();
+    params.append('action', 'get_time_rules');
+    params.append('user_id', userId);
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  saveTimeRules: async (employeeId: string, rules: any[]) => {
+    const params = new URLSearchParams();
+    params.append('action', 'save_time_rules');
+    params.append('rule_employee_id', employeeId);
+    params.append('rules_json', JSON.stringify(rules));
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  copyTimeRules: async (fromUserId: string, toUserId: string) => {
+    const params = new URLSearchParams();
+    params.append('action', 'copy_time_rules');
+    params.append('from_user_id', fromUserId);
+    params.append('to_user_id', toUserId);
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
   // Settings
   fetchSettings: async () => {
     const params = new URLSearchParams();
@@ -195,3 +222,4 @@ export const adminApi = {
     return res.data;
   },
 };
+

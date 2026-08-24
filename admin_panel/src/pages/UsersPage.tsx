@@ -28,6 +28,15 @@ import {
   CheckCircle2,
   Calendar,
   KeyRound,
+  ArrowLeft,
+  LogIn,
+  LogOut,
+  Play,
+  Square,
+  PlusCircle,
+  RotateCcw,
+  Sparkles,
+  AlertTriangle,
 } from 'lucide-react';
 import { Modal } from '../components/common/Modal';
 import { adminApi, AdminUser } from '../api/adminApi';
@@ -39,10 +48,19 @@ interface DepartmentGroup {
   users: AdminUser[];
 }
 
+export interface TimeRuleItem {
+  id?: string | number;
+  type: 'checkin' | 'checkout';
+  start_time: string;
+  end_time: string;
+  status: 'Good' | 'Late' | 'Absent';
+}
+
 export const UsersPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const actionParam = searchParams.get('action') || 'list_users';
+  const idParam = searchParams.get('id') || '';
   const [activeTab, setActiveTab] = useState<'list_users' | 'create_user' | 'create_admin' | 'edit_rules' | 'inactive_users'>('list_users');
   const [formTab, setFormTab] = useState<'basic' | 'employment' | 'documents' | 'payroll'>('basic');
 
@@ -70,6 +88,15 @@ export const UsersPage: React.FC = () => {
     new_id: '',
     new_name: '',
   });
+
+  // Work Rules / Shift Schedule State (matching admin_attendance.php?page=users&action=edit_rules&id=...)
+  const [selectedRuleUserId, setSelectedRuleUserId] = useState<string>(idParam);
+  const [rules, setRules] = useState<TimeRuleItem[]>([]);
+  const [rulesLoading, setRulesLoading] = useState(false);
+  const [rulesSaving, setRulesSaving] = useState(false);
+  const [rulesSuccess, setRulesSuccess] = useState(false);
+  const [isCopyRulesModalOpen, setIsCopyRulesModalOpen] = useState(false);
+  const [copyFromUserId, setCopyFromUserId] = useState('');
 
   // User Form State
   const [formData, setFormData] = useState({
@@ -136,7 +163,7 @@ export const UsersPage: React.FC = () => {
     return () => window.removeEventListener('click', handleOutsideClick);
   }, []);
 
-  // Sync activeTab with URL action parameter
+  // Sync activeTab and selectedRuleUserId with URL parameters
   useEffect(() => {
     if (actionParam === 'create_user') {
       setActiveTab('create_user');
@@ -144,12 +171,15 @@ export const UsersPage: React.FC = () => {
       setActiveTab('create_admin');
     } else if (actionParam === 'edit_rules') {
       setActiveTab('edit_rules');
+      if (idParam) {
+        setSelectedRuleUserId(idParam);
+      }
     } else if (actionParam === 'inactive_users') {
       setActiveTab('inactive_users');
     } else {
       setActiveTab('list_users');
     }
-  }, [actionParam]);
+  }, [actionParam, idParam]);
 
   const loadUsers = async () => {
     setLoading(true);
@@ -157,6 +187,9 @@ export const UsersPage: React.FC = () => {
       const data = await adminApi.fetchUsers();
       if (data && data.success && Array.isArray(data.users)) {
         setUsers(data.users);
+        if (!selectedRuleUserId && data.users.length > 0) {
+          setSelectedRuleUserId(idParam || data.users[0].employee_id);
+        }
       }
     } catch {}
     setLoading(false);
@@ -166,10 +199,144 @@ export const UsersPage: React.FC = () => {
     loadUsers();
   }, []);
 
-  const handleTabChange = (tab: 'list_users' | 'create_user' | 'create_admin' | 'edit_rules' | 'inactive_users') => {
-    setActiveTab(tab);
-    setSearchParams({ action: tab });
+  const loadTimeRules = async (empId: string) => {
+    if (!empId) return;
+    setRulesLoading(true);
+    try {
+      const res = await adminApi.getTimeRules(empId);
+      if (res && (res.success || res.status === 'success') && Array.isArray(res.rules) && res.rules.length > 0) {
+        setRules(
+          res.rules.map((r: any) => ({
+            id: r.id,
+            type: r.type === 'checkout' ? 'checkout' : 'checkin',
+            start_time: r.start_time || (r.type === 'checkout' ? '17:00:00' : '08:00:00'),
+            end_time: r.end_time || (r.type === 'checkout' ? '23:59:59' : '08:15:00'),
+            status: r.status === 'Late' || r.status === 'Absent' ? r.status : 'Good',
+          }))
+        );
+      } else {
+        // Standard default schedule preset if user doesn't have any rules yet
+        setRules([
+          { type: 'checkin', start_time: '07:30:00', end_time: '08:15:00', status: 'Good' },
+          { type: 'checkin', start_time: '08:16:00', end_time: '09:00:00', status: 'Late' },
+          { type: 'checkin', start_time: '09:01:00', end_time: '12:00:00', status: 'Absent' },
+          { type: 'checkout', start_time: '17:00:00', end_time: '23:59:59', status: 'Good' },
+          { type: 'checkout', start_time: '12:00:00', end_time: '16:59:59', status: 'Late' },
+        ]);
+      }
+    } catch (err) {
+      console.error('Error fetching time rules:', err);
+    }
+    setRulesLoading(false);
   };
+
+  // Load rules when activeTab is edit_rules or selectedRuleUserId changes
+  useEffect(() => {
+    if (activeTab === 'edit_rules' && selectedRuleUserId) {
+      loadTimeRules(selectedRuleUserId);
+    }
+  }, [activeTab, selectedRuleUserId]);
+
+  const handleSaveTimeRules = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!selectedRuleUserId) {
+      alert('សូមជ្រើសរើសបុគ្គលិកជាមុនសិន!');
+      return;
+    }
+    setRulesSaving(true);
+    try {
+      const res = await adminApi.saveTimeRules(selectedRuleUserId, rules);
+      if (res && (res.success || res.status === 'success')) {
+        setRulesSuccess(true);
+        setTimeout(() => setRulesSuccess(false), 3500);
+      } else {
+        alert(res?.message || 'កំហុសក្នុងការរក្សាទុកច្បាប់ម៉ោង');
+      }
+    } catch (err) {
+      alert('Network error saving time rules');
+    }
+    setRulesSaving(false);
+  };
+
+  const handleCopyTimeRules = async () => {
+    if (!copyFromUserId || !selectedRuleUserId) {
+      alert('សូមជ្រើសរើសបុគ្គលិកប្រភពដែលត្រូវចម្លងពី!');
+      return;
+    }
+    setRulesSaving(true);
+    try {
+      const res = await adminApi.copyTimeRules(copyFromUserId, selectedRuleUserId);
+      if (res && (res.success || res.status === 'success')) {
+        setIsCopyRulesModalOpen(false);
+        setRulesSuccess(true);
+        setTimeout(() => setRulesSuccess(false), 3500);
+        loadTimeRules(selectedRuleUserId);
+      } else {
+        alert(res?.message || 'កំហុសក្នុងការចម្លង');
+      }
+    } catch (err) {
+      alert('Network error copying rules');
+    }
+    setRulesSaving(false);
+  };
+
+  const addTimeRule = (type: 'checkin' | 'checkout') => {
+    const newRule: TimeRuleItem = {
+      type,
+      start_time: type === 'checkin' ? '08:00:00' : '17:00:00',
+      end_time: type === 'checkin' ? '08:15:00' : '23:59:59',
+      status: 'Good',
+    };
+    setRules([...rules, newRule]);
+  };
+
+  const updateTimeRule = (index: number, field: keyof TimeRuleItem, value: any) => {
+    const updated = [...rules];
+    updated[index] = { ...updated[index], [field]: value };
+    setRules(updated);
+  };
+
+  const removeTimeRule = (index: number) => {
+    setRules(rules.filter((_, i) => i !== index));
+  };
+
+  const applyPreset = (preset: 'standard' | 'morning' | 'afternoon') => {
+    if (preset === 'standard') {
+      setRules([
+        { type: 'checkin', start_time: '07:30:00', end_time: '08:15:00', status: 'Good' },
+        { type: 'checkin', start_time: '08:16:00', end_time: '09:00:00', status: 'Late' },
+        { type: 'checkin', start_time: '09:01:00', end_time: '12:00:00', status: 'Absent' },
+        { type: 'checkout', start_time: '17:00:00', end_time: '23:59:59', status: 'Good' },
+        { type: 'checkout', start_time: '12:00:00', end_time: '16:59:59', status: 'Late' },
+      ]);
+    } else if (preset === 'morning') {
+      setRules([
+        { type: 'checkin', start_time: '07:30:00', end_time: '08:15:00', status: 'Good' },
+        { type: 'checkin', start_time: '08:16:00', end_time: '08:45:00', status: 'Late' },
+        { type: 'checkin', start_time: '08:46:00', end_time: '12:00:00', status: 'Absent' },
+        { type: 'checkout', start_time: '12:00:00', end_time: '14:00:00', status: 'Good' },
+      ]);
+    } else if (preset === 'afternoon') {
+      setRules([
+        { type: 'checkin', start_time: '13:00:00', end_time: '13:45:00', status: 'Good' },
+        { type: 'checkin', start_time: '13:46:00', end_time: '14:15:00', status: 'Late' },
+        { type: 'checkin', start_time: '14:16:00', end_time: '17:00:00', status: 'Absent' },
+        { type: 'checkout', start_time: '17:30:00', end_time: '23:59:59', status: 'Good' },
+      ]);
+    }
+  };
+
+  const handleTabChange = (tab: 'list_users' | 'create_user' | 'create_admin' | 'edit_rules' | 'inactive_users', empId?: string) => {
+    setActiveTab(tab);
+    if (tab === 'edit_rules') {
+      const targetId = empId || selectedRuleUserId || (users.length > 0 ? users[0].employee_id : '0016');
+      setSelectedRuleUserId(targetId);
+      setSearchParams({ action: tab, id: targetId });
+    } else {
+      setSearchParams({ action: tab });
+    }
+  };
+
 
   const openEditModal = (u: AdminUser) => {
     setEditingUser(u);
@@ -800,7 +967,10 @@ export const UsersPage: React.FC = () => {
                                     >
                                       <button
                                         type="button"
-                                        onClick={() => handleTabChange('edit_rules')}
+                                        onClick={() => {
+                                          handleTabChange('edit_rules', u.employee_id);
+                                          setActiveMenuRowId(null);
+                                        }}
                                         style={{
                                           display: 'flex',
                                           alignItems: 'center',
@@ -1478,38 +1648,588 @@ export const UsersPage: React.FC = () => {
       )}
 
       {/* ======================================================== */}
-      {/* 4. WORK RULES & SCHEDULE                                */}
+      {/* 4. WORK RULES & SCHEDULE (Matching admin_attendance.php) */}
       {/* ======================================================== */}
       {activeTab === 'edit_rules' && (
-        <div className="hrm-card" style={{ padding: '24px', borderRadius: '18px' }}>
-          <h3 style={{ fontSize: '16px', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '16px' }}>
-            ច្បាប់កំណត់ម៉ោងចូល & ចេញធ្វើការ (Shift Schedule Rules)
-          </h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '18px' }}>
-            <div style={{ padding: '18px', borderRadius: '14px', background: 'var(--surface-alt)', border: '1px solid var(--border)' }}>
-              <div style={{ fontWeight: 700, fontSize: '14px', marginBottom: '8px', color: 'var(--primary)' }}>
-                ☀️ វេនព្រឹក (Morning Shift)
-              </div>
-              <div style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.8 }}>
-                <div>• ម៉ោង Check-In: <strong>08:00 AM</strong></div>
-                <div>• កម្រិតអនុញ្ញាតយឺត: <strong>15 នាទី</strong> (រហូតដល់ 08:15 AM)</div>
-                <div>• ម៉ោង Check-Out: <strong>12:00 PM</strong></div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%' }}>
+          {/* Header Bar matching admin_attendance.php */}
+          <div
+            className="hrm-card"
+            style={{
+              padding: '18px 24px',
+              borderRadius: '18px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '16px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <button
+                type="button"
+                onClick={() => handleTabChange('list_users')}
+                className="btn btn-secondary"
+                style={{
+                  width: '42px',
+                  height: '42px',
+                  borderRadius: '12px',
+                  padding: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+                title="ត្រឡប់ក្រោយ (Back to Users)"
+              >
+                <ArrowLeft size={18} />
+              </button>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <h2 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <RotateCcw size={20} color="var(--primary)" />
+                    <span>កំណត់ច្បាប់ម៉ោងចូល/ចេញ</span>
+                  </h2>
+                  <span
+                    style={{
+                      background: 'rgba(99, 102, 241, 0.12)',
+                      color: 'var(--primary)',
+                      fontSize: '12px',
+                      fontWeight: 800,
+                      padding: '3px 10px',
+                      borderRadius: '8px',
+                    }}
+                  >
+                    ID: {selectedRuleUserId || '0016'}
+                  </span>
+                </div>
+                <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px', fontWeight: 600 }}>
+                  បុគ្គលិក:{' '}
+                  <strong style={{ color: 'var(--text-primary)' }}>
+                    {users.find((u) => u.employee_id === selectedRuleUserId)?.name ||
+                      (selectedRuleUserId === '0016' ? 'ខឿន ដានីន' : selectedRuleUserId)}
+                  </strong>{' '}
+                  • ផ្នែក: {users.find((u) => u.employee_id === selectedRuleUserId)?.department || 'Store 318'}
+                </div>
               </div>
             </div>
 
-            <div style={{ padding: '18px', borderRadius: '14px', background: 'var(--surface-alt)', border: '1px solid var(--border)' }}>
-              <div style={{ fontWeight: 700, fontSize: '14px', marginBottom: '8px', color: 'var(--accent-gold)' }}>
-                🌆 វេនរសៀល (Afternoon Shift)
+            {/* Top Right Actions: User Switcher & Copy Rules */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              {/* Employee Selector */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)' }}>ប្តូរបុគ្គលិក:</span>
+                <select
+                  className="form-control"
+                  value={selectedRuleUserId}
+                  onChange={(e) => {
+                    setSelectedRuleUserId(e.target.value);
+                    setSearchParams({ action: 'edit_rules', id: e.target.value });
+                  }}
+                  style={{ minWidth: '180px', padding: '7px 12px', fontSize: '12.5px', borderRadius: '10px' }}
+                >
+                  {users.map((u) => (
+                    <option key={u.employee_id} value={u.employee_id}>
+                      {u.employee_id} - {u.name}
+                    </option>
+                  ))}
+                  {users.length === 0 && <option value="0016">0016 - ខឿន ដានីន</option>}
+                </select>
               </div>
-              <div style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.8 }}>
-                <div>• ម៉ោង Check-In: <strong>01:30 PM</strong></div>
-                <div>• កម្រិតអនុញ្ញាតយឺត: <strong>15 នាទី</strong> (រហូតដល់ 01:45 PM)</div>
-                <div>• ម៉ោង Check-Out: <strong>05:30 PM</strong></div>
-              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setCopyFromUserId(users.find((u) => u.employee_id !== selectedRuleUserId)?.employee_id || '');
+                  setIsCopyRulesModalOpen(true);
+                }}
+                className="btn btn-secondary btn-sm"
+                style={{ borderRadius: '10px', padding: '8px 14px', fontWeight: 700 }}
+              >
+                <Copy size={14} />
+                <span>ចម្លងពីអ្នកផ្សេង (Copy Rules)</span>
+              </button>
             </div>
           </div>
+
+          {/* Quick Presets Bar */}
+          <div
+            className="hrm-card"
+            style={{
+              padding: '12px 20px',
+              borderRadius: '14px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '10px',
+              background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.04), rgba(59, 130, 246, 0.04))',
+              border: '1px dashed var(--border)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12.5px', color: 'var(--text-secondary)', fontWeight: 600 }}>
+              <Sparkles size={16} color="var(--primary)" />
+              <span>ម៉ោងគំរូទូទៅ (Presets):</span>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => applyPreset('standard')}
+                className="btn btn-sm btn-secondary"
+                style={{ borderRadius: '8px', fontSize: '12px', padding: '5px 12px' }}
+              >
+                🏢 ម៉ោងស្តង់ដារពេញម៉ោង (08:00 - 17:00)
+              </button>
+              <button
+                type="button"
+                onClick={() => applyPreset('morning')}
+                className="btn btn-sm btn-secondary"
+                style={{ borderRadius: '8px', fontSize: '12px', padding: '5px 12px' }}
+              >
+                ☀️ វេនព្រឹក (08:00 - 12:00)
+              </button>
+              <button
+                type="button"
+                onClick={() => applyPreset('afternoon')}
+                className="btn btn-sm btn-secondary"
+                style={{ borderRadius: '8px', fontSize: '12px', padding: '5px 12px' }}
+              >
+                🌆 វេនរសៀល (13:30 - 17:30)
+              </button>
+            </div>
+          </div>
+
+          {/* Success Banner */}
+          {rulesSuccess && (
+            <div
+              style={{
+                padding: '12px 18px',
+                borderRadius: '12px',
+                background: 'rgba(34, 197, 94, 0.12)',
+                border: '1px solid rgba(34, 197, 94, 0.3)',
+                color: '#15803d',
+                fontSize: '13.5px',
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                animation: 'scaleUp 0.2s ease',
+              }}
+            >
+              <CheckCircle2 size={18} color="#15803d" />
+              <span>បានរក្សាទុកច្បាប់ម៉ោងចូល/ចេញដោយជោគជ័យ!</span>
+            </div>
+          )}
+
+          {/* Main 2-Column Rules Cards */}
+          <form onSubmit={handleSaveTimeRules}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '22px' }}>
+              {/* Check-In Card */}
+              <div
+                className="hrm-card"
+                style={{
+                  padding: '22px',
+                  borderRadius: '18px',
+                  border: '1px solid var(--border)',
+                  boxShadow: 'var(--shadow-sm)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '14px',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    paddingBottom: '12px',
+                    borderBottom: '1px solid var(--border)',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div
+                      style={{
+                        width: '34px',
+                        height: '34px',
+                        borderRadius: '10px',
+                        background: 'rgba(16, 185, 129, 0.12)',
+                        color: '#10b981',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <LogIn size={18} />
+                    </div>
+                    <h3 style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                      ច្បាប់ម៉ោងចូល (Check-In)
+                    </h3>
+                  </div>
+                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#10b981', background: 'rgba(16, 185, 129, 0.1)', padding: '2px 8px', borderRadius: '6px' }}>
+                    {rules.filter((r) => r.type === 'checkin').length} ច្បាប់
+                  </span>
+                </div>
+
+                {/* Rules Container */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {rules
+                    .map((r, originalIdx) => ({ rule: r, idx: originalIdx }))
+                    .filter((item) => item.rule.type === 'checkin')
+                    .map(({ rule: r, idx }) => (
+                      <div
+                        key={idx}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '10px 14px',
+                          borderRadius: '12px',
+                          background: 'var(--surface-alt)',
+                          border: '1px solid var(--border)',
+                          flexWrap: 'wrap',
+                        }}
+                      >
+                        {/* Start Time */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <Play size={12} color="#10b981" />
+                          <input
+                            type="time"
+                            step="1"
+                            value={r.start_time}
+                            onChange={(e) => updateTimeRule(idx, 'start_time', e.target.value)}
+                            className="form-control"
+                            style={{ padding: '6px 8px', fontSize: '13px', borderRadius: '8px', width: '115px' }}
+                            required
+                          />
+                        </div>
+
+                        <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>→</span>
+
+                        {/* End Time */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <Square size={12} color="#ef4444" />
+                          <input
+                            type="time"
+                            step="1"
+                            value={r.end_time}
+                            onChange={(e) => updateTimeRule(idx, 'end_time', e.target.value)}
+                            className="form-control"
+                            style={{ padding: '6px 8px', fontSize: '13px', borderRadius: '8px', width: '115px' }}
+                            required
+                          />
+                        </div>
+
+                        {/* Status Select */}
+                        <select
+                          value={r.status}
+                          onChange={(e) => updateTimeRule(idx, 'status', e.target.value as any)}
+                          className="form-control"
+                          style={{
+                            padding: '6px 10px',
+                            fontSize: '12.5px',
+                            borderRadius: '8px',
+                            flex: '1',
+                            minWidth: '105px',
+                            fontWeight: 700,
+                            color:
+                              r.status === 'Good'
+                                ? '#15803d'
+                                : r.status === 'Late'
+                                ? '#b45309'
+                                : '#b91c1c',
+                            background:
+                              r.status === 'Good'
+                                ? 'rgba(34, 197, 94, 0.1)'
+                                : r.status === 'Late'
+                                ? 'rgba(245, 158, 11, 0.1)'
+                                : 'rgba(239, 68, 68, 0.1)',
+                          }}
+                        >
+                          <option value="Good">✅ Good</option>
+                          <option value="Late">⚠️ Late</option>
+                          <option value="Absent">❌ Absent</option>
+                        </select>
+
+                        {/* Delete button */}
+                        <button
+                          type="button"
+                          onClick={() => removeTimeRule(idx)}
+                          className="btn btn-secondary btn-sm"
+                          style={{
+                            width: '34px',
+                            height: '34px',
+                            padding: 0,
+                            borderRadius: '8px',
+                            color: '#ef4444',
+                            borderColor: 'rgba(239, 68, 68, 0.2)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                          title="លុបច្បាប់នេះ"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                    ))}
+
+                  {rules.filter((r) => r.type === 'checkin').length === 0 && (
+                    <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)', fontSize: '13px' }}>
+                      មិនទាន់មានច្បាប់ Check-In នៅឡើយទេ
+                    </div>
+                  )}
+                </div>
+
+                {/* Add Check-in Rule button */}
+                <button
+                  type="button"
+                  onClick={() => addTimeRule('checkin')}
+                  className="btn btn-secondary"
+                  style={{
+                    width: '100%',
+                    borderStyle: 'dashed',
+                    padding: '12px',
+                    fontWeight: 700,
+                    borderRadius: '12px',
+                    borderColor: 'var(--primary)',
+                    color: 'var(--primary)',
+                    marginTop: '4px',
+                  }}
+                >
+                  <PlusCircle size={16} />
+                  <span>+ បន្ថែមច្បាប់ Check-In</span>
+                </button>
+              </div>
+
+              {/* Check-Out Card */}
+              <div
+                className="hrm-card"
+                style={{
+                  padding: '22px',
+                  borderRadius: '18px',
+                  border: '1px solid var(--border)',
+                  boxShadow: 'var(--shadow-sm)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '14px',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    paddingBottom: '12px',
+                    borderBottom: '1px solid var(--border)',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div
+                      style={{
+                        width: '34px',
+                        height: '34px',
+                        borderRadius: '10px',
+                        background: 'rgba(239, 68, 68, 0.12)',
+                        color: '#ef4444',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <LogOut size={18} />
+                    </div>
+                    <h3 style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                      ច្បាប់ម៉ោងចេញ (Check-Out)
+                    </h3>
+                  </div>
+                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#ef4444', background: 'rgba(239, 68, 68, 0.1)', padding: '2px 8px', borderRadius: '6px' }}>
+                    {rules.filter((r) => r.type === 'checkout').length} ច្បាប់
+                  </span>
+                </div>
+
+                {/* Rules Container */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {rules
+                    .map((r, originalIdx) => ({ rule: r, idx: originalIdx }))
+                    .filter((item) => item.rule.type === 'checkout')
+                    .map(({ rule: r, idx }) => (
+                      <div
+                        key={idx}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '10px 14px',
+                          borderRadius: '12px',
+                          background: 'var(--surface-alt)',
+                          border: '1px solid var(--border)',
+                          flexWrap: 'wrap',
+                        }}
+                      >
+                        {/* Start Time */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <Play size={12} color="#10b981" />
+                          <input
+                            type="time"
+                            step="1"
+                            value={r.start_time}
+                            onChange={(e) => updateTimeRule(idx, 'start_time', e.target.value)}
+                            className="form-control"
+                            style={{ padding: '6px 8px', fontSize: '13px', borderRadius: '8px', width: '115px' }}
+                            required
+                          />
+                        </div>
+
+                        <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>→</span>
+
+                        {/* End Time */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <Square size={12} color="#ef4444" />
+                          <input
+                            type="time"
+                            step="1"
+                            value={r.end_time}
+                            onChange={(e) => updateTimeRule(idx, 'end_time', e.target.value)}
+                            className="form-control"
+                            style={{ padding: '6px 8px', fontSize: '13px', borderRadius: '8px', width: '115px' }}
+                            required
+                          />
+                        </div>
+
+                        {/* Status Select */}
+                        <select
+                          value={r.status}
+                          onChange={(e) => updateTimeRule(idx, 'status', e.target.value as any)}
+                          className="form-control"
+                          style={{
+                            padding: '6px 10px',
+                            fontSize: '12.5px',
+                            borderRadius: '8px',
+                            flex: '1',
+                            minWidth: '105px',
+                            fontWeight: 700,
+                            color:
+                              r.status === 'Good'
+                                ? '#15803d'
+                                : r.status === 'Late'
+                                ? '#b45309'
+                                : '#b91c1c',
+                            background:
+                              r.status === 'Good'
+                                ? 'rgba(34, 197, 94, 0.1)'
+                                : r.status === 'Late'
+                                ? 'rgba(245, 158, 11, 0.1)'
+                                : 'rgba(239, 68, 68, 0.1)',
+                          }}
+                        >
+                          <option value="Good">✅ Good</option>
+                          <option value="Late">⚠️ Late / Early</option>
+                          <option value="Absent">❌ Absent</option>
+                        </select>
+
+                        {/* Delete button */}
+                        <button
+                          type="button"
+                          onClick={() => removeTimeRule(idx)}
+                          className="btn btn-secondary btn-sm"
+                          style={{
+                            width: '34px',
+                            height: '34px',
+                            padding: 0,
+                            borderRadius: '8px',
+                            color: '#ef4444',
+                            borderColor: 'rgba(239, 68, 68, 0.2)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                          title="លុបច្បាប់នេះ"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                    ))}
+
+                  {rules.filter((r) => r.type === 'checkout').length === 0 && (
+                    <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)', fontSize: '13px' }}>
+                      មិនទាន់មានច្បាប់ Check-Out នៅឡើយទេ
+                    </div>
+                  )}
+                </div>
+
+                {/* Add Check-out Rule button */}
+                <button
+                  type="button"
+                  onClick={() => addTimeRule('checkout')}
+                  className="btn btn-secondary"
+                  style={{
+                    width: '100%',
+                    borderStyle: 'dashed',
+                    padding: '12px',
+                    fontWeight: 700,
+                    borderRadius: '12px',
+                    borderColor: '#ef4444',
+                    color: '#ef4444',
+                    marginTop: '4px',
+                  }}
+                >
+                  <PlusCircle size={16} />
+                  <span>+ បន្ថែមច្បាប់ Check-Out</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Bottom Action Footer matching admin_attendance.php */}
+            <div
+              style={{
+                marginTop: '32px',
+                borderTop: '1px solid var(--border)',
+                paddingTop: '20px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '14px',
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => handleTabChange('list_users')}
+                className="btn btn-secondary"
+                style={{ padding: '12px 24px', borderRadius: '12px' }}
+              >
+                <ArrowLeft size={16} />
+                <span>ត្រឡប់ក្រោយ (Back to Users)</span>
+              </button>
+
+              <button
+                type="submit"
+                disabled={rulesSaving}
+                className="btn btn-primary"
+                style={{
+                  padding: '12px 36px',
+                  borderRadius: '14px',
+                  fontSize: '14.5px',
+                  fontWeight: 800,
+                  boxShadow: '0 8px 24px -6px rgba(99, 102, 241, 0.4)',
+                }}
+              >
+                {rulesSaving ? (
+                  <>
+                    <RotateCw size={16} className="fa-spin" />
+                    <span>កំពុងរក្សាទុក...</span>
+                  </>
+                ) : (
+                  <>
+                    <Save size={16} />
+                    <span>រក្សាសិទ្ធិ និងច្បាប់ម៉ោង</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
         </div>
       )}
+
 
       {/* ======================================================== */}
       {/* 5. EDIT USER MODAL (Matching admin_attendance.php)       */}
@@ -1690,6 +2410,70 @@ export const UsersPage: React.FC = () => {
               </button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {/* ======================================================== */}
+      {/* 7. COPY RULES MODAL (Matching admin_attendance.php)      */}
+      {/* ======================================================== */}
+      {isCopyRulesModalOpen && (
+        <Modal
+          isOpen={isCopyRulesModalOpen}
+          onClose={() => setIsCopyRulesModalOpen(false)}
+          title="ចម្លងច្បាប់ម៉ោងពីបុគ្គលិកផ្សេង (Copy Work Rules)"
+          maxWidth="500px"
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div className="form-group">
+              <label className="form-label">បុគ្គលិកប្រភព (Copy From Employee) *</label>
+              <select
+                className="form-control"
+                value={copyFromUserId}
+                onChange={(e) => setCopyFromUserId(e.target.value)}
+                style={{ padding: '10px 14px', fontSize: '13px' }}
+              >
+                <option value="">-- ជ្រើសរើសបុគ្គលិកដើម្បីចម្លងច្បាប់ --</option>
+                {users
+                  .filter((u) => u.employee_id !== selectedRuleUserId)
+                  .map((u) => (
+                    <option key={u.employee_id} value={u.employee_id}>
+                      {u.employee_id} - {u.name} ({u.department || 'Staff'})
+                    </option>
+                  ))}
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">ចម្លងទៅកាន់បុគ្គលិក (Target Employee)</label>
+              <input
+                type="text"
+                className="form-control"
+                value={`${selectedRuleUserId} - ${users.find((u) => u.employee_id === selectedRuleUserId)?.name || selectedRuleUserId}`}
+                readOnly
+                style={{ background: 'var(--surface-alt)', fontWeight: 700 }}
+              />
+            </div>
+
+            <div style={{ padding: '12px 14px', borderRadius: '10px', background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.25)', color: '#b45309', fontSize: '12px', lineHeight: 1.5 }}>
+              ⚠️ ចំណាំ: ច្បាប់ម៉ោងចាស់របស់បុគ្គលិកគោលដៅ នឹងត្រូវជំនួសទាំងស្រុងដោយច្បាប់ម៉ោងថ្មីពីបុគ្គលិកប្រភព។
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px', borderTop: '1px solid var(--border)', paddingTop: '14px' }}>
+              <button type="button" onClick={() => setIsCopyRulesModalOpen(false)} className="btn btn-secondary">
+                បោះបង់
+              </button>
+              <button
+                type="button"
+                onClick={handleCopyTimeRules}
+                disabled={rulesSaving || !copyFromUserId}
+                className="btn btn-primary"
+                style={{ padding: '10px 22px' }}
+              >
+                {rulesSaving ? <RotateCw size={15} className="fa-spin" /> : <Copy size={15} />}
+                <span>ចម្លងច្បាប់ម៉ោងឥឡូវនេះ</span>
+              </button>
+            </div>
+          </div>
         </Modal>
       )}
     </div>

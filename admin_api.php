@@ -468,8 +468,54 @@ try {
             break;
 
         // ==========================================
-        // 7. SETTINGS
+        // 7. SETTINGS & RULES
         // ==========================================
+        case 'get_time_rules':
+        case 'fetch_time_rules':
+            $userId = trim($_POST['user_id'] ?? $_POST['employee_id'] ?? $_GET['user_id'] ?? $_GET['employee_id'] ?? '');
+            if (!empty($userId)) {
+                $rules = dbQuery("SELECT type, start_time, end_time, status FROM attendance_rules WHERE employee_id = ? ORDER BY type, start_time", [$userId]);
+                sendJson(['success' => true, 'status' => 'success', 'rules' => $rules]);
+            }
+            sendJson(['success' => false, 'status' => 'error', 'message' => 'Missing user_id'], 400);
+            break;
+
+        case 'save_time_rules':
+            $userId = trim($_POST['rule_employee_id'] ?? $_POST['employee_id'] ?? $_POST['user_id'] ?? '');
+            $rulesRaw = $_POST['rules_json'] ?? $_POST['rules'] ?? '';
+            if (!empty($userId)) {
+                $rules = is_array($rulesRaw) ? $rulesRaw : (json_decode($rulesRaw, true) ?: []);
+                dbQuery("DELETE FROM attendance_rules WHERE employee_id = ?", [$userId]);
+                if (!empty($rules)) {
+                    $adminId = 'SYSTEM';
+                    foreach ($rules as $r) {
+                        $type = $r['type'] ?? 'checkin';
+                        $sTime = $r['start_time'] ?? $r['start'] ?? '08:00:00';
+                        $eTime = $r['end_time'] ?? $r['end'] ?? '17:00:00';
+                        $status = $r['status'] ?? 'Good';
+                        dbQuery("INSERT INTO attendance_rules (employee_id, type, start_time, end_time, status, created_by_admin_id) VALUES (?, ?, ?, ?, ?, ?)", [$userId, $type, $sTime, $eTime, $status, $adminId]);
+                    }
+                }
+                sendJson(['success' => true, 'status' => 'success', 'message' => 'ច្បាប់ម៉ោងត្រូវបានរក្សាទុកបានជោគជ័យ!']);
+            }
+            sendJson(['success' => false, 'status' => 'error', 'message' => 'Missing rule_employee_id'], 400);
+            break;
+
+        case 'copy_time_rules':
+            $fromId = trim($_POST['from_user_id'] ?? $_POST['from_id'] ?? '');
+            $toId = trim($_POST['to_user_id'] ?? $_POST['to_id'] ?? '');
+            if (!empty($fromId) && !empty($toId)) {
+                dbQuery("DELETE FROM attendance_rules WHERE employee_id = ?", [$toId]);
+                $fromRules = dbQuery("SELECT type, start_time, end_time, status FROM attendance_rules WHERE employee_id = ?", [$fromId]);
+                $adminId = 'SYSTEM';
+                foreach ($fromRules as $r) {
+                    dbQuery("INSERT INTO attendance_rules (employee_id, type, start_time, end_time, status, created_by_admin_id) VALUES (?, ?, ?, ?, ?, ?)", [$toId, $r['type'], $r['start_time'], $r['end_time'], $r['status'], $adminId]);
+                }
+                sendJson(['success' => true, 'status' => 'success', 'message' => 'បានចម្លងច្បាប់ម៉ោងជោគជ័យ!']);
+            }
+            sendJson(['success' => false, 'status' => 'error', 'message' => 'Missing from_user_id or to_user_id'], 400);
+            break;
+
         case 'get_panel_settings':
             $settings = [];
             $rows = dbQuery("SELECT setting_key, setting_value FROM app_settings WHERE admin_id = 'SYSTEM_WIDE'");
