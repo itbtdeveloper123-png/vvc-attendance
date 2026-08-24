@@ -39,6 +39,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { Modal } from '../components/common/Modal';
+import { ViewModeToggle, ViewMode } from '../components/common/ViewModeToggle';
 import { adminApi, AdminUser } from '../api/adminApi';
 
 interface DepartmentGroup {
@@ -63,6 +64,7 @@ export const UsersPage: React.FC = () => {
   const idParam = searchParams.get('id') || '';
   const [activeTab, setActiveTab] = useState<'list_users' | 'create_user' | 'create_admin' | 'edit_rules' | 'inactive_users'>('list_users');
   const [formTab, setFormTab] = useState<'basic' | 'employment' | 'documents' | 'payroll'>('basic');
+  const [viewMode, setViewMode] = useState<ViewMode>('table');
 
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -88,6 +90,14 @@ export const UsersPage: React.FC = () => {
 
   // Active Context Menu for row
   const [activeMenuRowId, setActiveMenuRowId] = useState<string | number | null>(null);
+
+  // Drag & Drop State
+  const [draggedUserId, setDraggedUserId] = useState<string | null>(null);
+  const [dragOverUserId, setDragOverUserId] = useState<string | null>(null);
+  const [draggedDept, setDraggedDept] = useState<string | null>(null);
+  const [dragOverDept, setDragOverDept] = useState<string | null>(null);
+  const [deptOrder, setDeptOrder] = useState<string[]>([]);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   // Edit Modal State
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -203,6 +213,9 @@ export const UsersPage: React.FC = () => {
         if (!selectedRuleUserId && data.users.length > 0) {
           setSelectedRuleUserId(idParam || data.users[0].employee_id);
         }
+        // Initialize distinct department order if empty
+        const depts = Array.from(new Set(data.users.map((u: any) => u.department || 'Store 318'))) as string[];
+        setDeptOrder(depts);
       }
     } catch {}
     setLoading(false);
@@ -211,6 +224,154 @@ export const UsersPage: React.FC = () => {
   useEffect(() => {
     loadUsers();
   }, []);
+
+  // Toggle Verification Handler (Blue badge icon)
+  const handleToggleVerify = async (empId: string) => {
+    const user = users.find((x) => x.employee_id === empId);
+    if (!user) return;
+    const nextVal = Number(user.is_verified) === 1 ? 0 : 1;
+
+    // Optimistic Update
+    setUsers((prev) =>
+      prev.map((x) => (x.employee_id === empId ? { ...x, is_verified: nextVal } : x))
+    );
+
+    try {
+      const res = await adminApi.toggleVerification(empId);
+      if (res && res.success) {
+        setToastMsg(
+          nextVal === 1
+            ? `✅ បានផ្ទៀងផ្ទាត់ ${user.name || empId} (Verified)`
+            : `ℹ️ បានដកការផ្ទៀងផ្ទាត់ ${user.name || empId}`
+        );
+        setTimeout(() => setToastMsg(null), 3000);
+      } else {
+        // Revert on fail
+        setUsers((prev) =>
+          prev.map((x) => (x.employee_id === empId ? { ...x, is_verified: user.is_verified } : x))
+        );
+      }
+    } catch (err) {
+      // Revert on network error
+      setUsers((prev) =>
+        prev.map((x) => (x.employee_id === empId ? { ...x, is_verified: user.is_verified } : x))
+      );
+    }
+  };
+
+  // Status Change Handler
+  const handleStatusChange = async (empId: string, status: 'Active' | 'Inactive') => {
+    const active = status === 'Active' ? 1 : 0;
+    setUsers((prev) =>
+      prev.map((x) => (x.employee_id === empId ? { ...x, is_active: active } : x))
+    );
+    try {
+      await adminApi.saveUser({ employee_id: empId, is_active: active });
+      setToastMsg(`ស្ថានភាព ${empId} ត្រូវបានប្តូរទៅជា ${status}`);
+      setTimeout(() => setToastMsg(null), 2500);
+    } catch (err) {
+      console.error('Failed to change status:', err);
+    }
+  };
+
+  // Drag & Drop Department Groups
+  const handleDropDept = async (targetDept: string) => {
+    if (!draggedDept || draggedDept === targetDept) {
+      setDraggedDept(null);
+      setDragOverDept(null);
+      return;
+    }
+
+    const currentOrder = deptOrder.length > 0 ? [...deptOrder] : Array.from(new Set(users.map(u => u.department || 'Store 318')));
+    const fromIdx = currentOrder.indexOf(draggedDept);
+    const toIdx = currentOrder.indexOf(targetDept);
+
+    if (fromIdx !== -1 && toIdx !== -1) {
+      currentOrder.splice(fromIdx, 1);
+      currentOrder.splice(toIdx, 0, draggedDept);
+      setDeptOrder(currentOrder);
+
+      try {
+        const payload = currentOrder.map((_, idx) => ({ id: idx + 1, sort_order: idx }));
+        await adminApi.saveGroupSortOrder(payload);
+        setToastMsg(`បានតម្រៀបលំដាប់ផ្នែក "${draggedDept}" ជោគជ័យ!`);
+        setTimeout(() => setToastMsg(null), 3000);
+      } catch (e) {
+        console.error('Error saving group sort order:', e);
+      }
+    }
+
+    setDraggedDept(null);
+    setDragOverDept(null);
+  };
+
+  // Drag & Drop User Row
+  const handleDropUser = async (targetEmpId: string, targetDeptName: string) => {
+    if (!draggedUserId || draggedUserId === targetEmpId) {
+      setDraggedUserId(null);
+      setDragOverUserId(null);
+      return;
+    }
+
+    const newUsers = [...users];
+    const fromIdx = newUsers.findIndex((u) => u.employee_id === draggedUserId);
+    const toIdx = newUsers.findIndex((u) => u.employee_id === targetEmpId);
+
+    if (fromIdx !== -1 && toIdx !== -1) {
+      const [movedUser] = newUsers.splice(fromIdx, 1);
+      const isDeptChanged = movedUser.department !== targetDeptName;
+      movedUser.department = targetDeptName;
+
+      newUsers.splice(toIdx, 0, movedUser);
+      setUsers(newUsers);
+
+      try {
+        const orderPayload = newUsers.map((u, idx) => ({
+          employee_id: u.employee_id,
+          sort_order: idx,
+          department: u.department,
+        }));
+        await adminApi.saveUserSortOrder(orderPayload);
+        if (isDeptChanged) {
+          await adminApi.saveUser({ employee_id: draggedUserId, department: targetDeptName });
+        }
+        setToastMsg(`បានផ្លាស់ប្តូរទីតាំងបុគ្គលិក "${movedUser.name || draggedUserId}" ជោគជ័យ!`);
+        setTimeout(() => setToastMsg(null), 3000);
+      } catch (err) {
+        console.error('Error saving user sort order:', err);
+      }
+    }
+
+    setDraggedUserId(null);
+    setDragOverUserId(null);
+  };
+
+  // Drop User directly onto Group Banner to move to that department
+  const handleDropUserOnDeptBanner = async (targetDeptName: string) => {
+    if (!draggedUserId) return;
+    const user = users.find((u) => u.employee_id === draggedUserId);
+    if (!user || user.department === targetDeptName) {
+      setDraggedUserId(null);
+      setDragOverDept(null);
+      return;
+    }
+
+    const newUsers = users.map((u) =>
+      u.employee_id === draggedUserId ? { ...u, department: targetDeptName } : u
+    );
+    setUsers(newUsers);
+
+    try {
+      await adminApi.saveUser({ employee_id: draggedUserId, department: targetDeptName });
+      setToastMsg(`បានផ្លាស់ប្តូរបុគ្គលិក "${user.name || draggedUserId}" ទៅកាន់ "${targetDeptName}"`);
+      setTimeout(() => setToastMsg(null), 3000);
+    } catch (err) {
+      console.error('Error moving user to department:', err);
+    }
+
+    setDraggedUserId(null);
+    setDragOverDept(null);
+  };
 
   const loadTimeRules = async (empId: string) => {
     if (!empId) return;
@@ -541,14 +702,22 @@ export const UsersPage: React.FC = () => {
     deptMap[dept].push(u);
   });
 
+  const allDepts = Object.keys(deptMap);
+  const orderedDepts = [
+    ...deptOrder.filter((d) => allDepts.includes(d)),
+    ...allDepts.filter((d) => !deptOrder.includes(d)),
+  ];
+
   let gId = 4;
-  Object.keys(deptMap).forEach((deptName) => {
-    groupedDepartments.push({
-      id: deptName,
-      name: deptName,
-      groupId: gId++,
-      users: deptMap[deptName],
-    });
+  orderedDepts.forEach((deptName) => {
+    if (deptMap[deptName]) {
+      groupedDepartments.push({
+        id: deptName,
+        name: deptName,
+        groupId: gId++,
+        users: deptMap[deptName],
+      });
+    }
   });
 
   return (
@@ -826,8 +995,10 @@ export const UsersPage: React.FC = () => {
               </select>
             </div>
 
-            {/* Right Action Buttons */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {/* Right Action Buttons with ViewModeToggle */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <ViewModeToggle mode={viewMode} onChange={setViewMode} />
+
               <button onClick={loadUsers} className="btn btn-secondary btn-sm" title="ផ្ទុកឡើងវិញ">
                 <RotateCw size={14} className={loading ? 'fa-spin' : ''} />
                 <span>Refresh</span>
@@ -840,17 +1011,306 @@ export const UsersPage: React.FC = () => {
             </div>
           </div>
 
-          {/* User Table Matching Exact Screenshot Design */}
-          <div
-            className="hrm-card"
-            style={{
-              padding: 0,
-              borderRadius: '16px',
-              overflow: 'visible',
-              border: '1px solid var(--border)',
-              boxShadow: 'var(--shadow-sm)',
-            }}
-          >
+          {/* View Mode Switching: Grid Cards or Table List */}
+          {viewMode === 'grid' ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              {filteredUsers.length === 0 ? (
+                <div className="hrm-card" style={{ textAlign: 'center', padding: '48px', color: 'var(--text-muted)' }}>
+                  {loading ? 'កំពុងទាញយកទិន្នន័យ...' : 'មិនមានទិន្នន័យបុគ្គលិកឡើយ'}
+                </div>
+              ) : (
+                groupedDepartments.map((group) => (
+                  <div
+                    key={`grid-group-${group.id}`}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      if (draggedDept && draggedDept !== group.name) setDragOverDept(group.name);
+                      else if (draggedUserId) setDragOverDept(group.name);
+                    }}
+                    onDragLeave={() => setDragOverDept(null)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (draggedDept) handleDropDept(group.name);
+                      else if (draggedUserId) handleDropUserOnDeptBanner(group.name);
+                    }}
+                    style={{
+                      background: dragOverDept === group.name ? 'rgba(99, 102, 241, 0.08)' : 'transparent',
+                      borderRadius: '18px',
+                      padding: '8px',
+                      transition: 'all 0.2s ease',
+                    }}
+                  >
+                    {/* Department Header Banner */}
+                    <div
+                      draggable={true}
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData('text/plain', `group:${group.name}`);
+                        setDraggedDept(group.name);
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        background: 'rgba(99, 102, 241, 0.06)',
+                        borderLeft: '4px solid var(--primary)',
+                        padding: '12px 18px',
+                        borderRadius: '12px',
+                        marginBottom: '16px',
+                        border: '1px solid var(--border)',
+                        cursor: 'grab',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <GripVertical size={16} color="var(--primary)" />
+                        <Store size={18} color="var(--primary)" />
+                        <span style={{ fontWeight: 800, fontSize: '15px', color: 'var(--text-primary)' }}>
+                          {group.name}
+                        </span>
+                        <span
+                          style={{
+                            background: 'rgba(99, 102, 241, 0.12)',
+                            color: 'var(--primary)',
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            padding: '2px 8px',
+                            borderRadius: '6px',
+                          }}
+                        >
+                          Group ID: {group.groupId}
+                        </span>
+                        <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>
+                          ({group.users.length} នាក់)
+                        </span>
+                      </div>
+
+                      {dragOverDept === group.name && (
+                        <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--primary)' }}>
+                          ⬇️ ទម្លាក់ទីនេះដើម្បីផ្លាស់ប្តូរ
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Employee Cards Grid */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+                      {group.users.map((u) => {
+                        const isSelected = selectedIds.includes(String(u.employee_id));
+                        const initials = (u.name || u.employee_id).substring(0, 2).toUpperCase();
+                        const isBeingDragged = draggedUserId === u.employee_id;
+                        const isDragOver = dragOverUserId === u.employee_id;
+
+                        return (
+                          <div
+                            key={`grid-user-${u.id}`}
+                            draggable={true}
+                            onDragStart={(e) => {
+                              e.stopPropagation();
+                              e.dataTransfer.setData('text/plain', `user:${u.employee_id}`);
+                              setDraggedUserId(u.employee_id);
+                            }}
+                            onDragOver={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              if (draggedUserId && draggedUserId !== u.employee_id) {
+                                setDragOverUserId(u.employee_id);
+                              }
+                            }}
+                            onDragLeave={() => {
+                              if (dragOverUserId === u.employee_id) setDragOverUserId(null);
+                            }}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              if (draggedUserId) handleDropUser(u.employee_id, group.name);
+                            }}
+                            onDragEnd={() => {
+                              setDraggedUserId(null);
+                              setDragOverUserId(null);
+                            }}
+                            className="hrm-card"
+                            style={{
+                              padding: '18px',
+                              borderRadius: '16px',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '14px',
+                              position: 'relative',
+                              border: isDragOver ? '2px solid var(--primary)' : isSelected ? '1.5px solid var(--primary)' : '1px solid var(--border)',
+                              boxShadow: isDragOver ? '0 8px 24px rgba(99, 102, 241, 0.2)' : 'var(--shadow-sm)',
+                              opacity: isBeingDragged ? 0.35 : 1,
+                              background: isSelected ? 'rgba(99, 102, 241, 0.02)' : 'var(--surface)',
+                              transition: 'all 0.2s ease',
+                              cursor: 'grab',
+                            }}
+                          >
+                            {/* Card Top Row: Checkbox + Avatar + Name + Verify + Actions */}
+                            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => handleSelectRow(String(u.employee_id))}
+                                  style={{ width: '16px', height: '16px', accentColor: 'var(--primary)', cursor: 'pointer' }}
+                                />
+
+                                <div
+                                  style={{
+                                    width: '46px',
+                                    height: '46px',
+                                    borderRadius: '14px',
+                                    background: u.avatar ? 'transparent' : 'rgba(99, 102, 241, 0.12)',
+                                    color: 'var(--primary)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    fontWeight: 800,
+                                    fontSize: '15px',
+                                    overflow: 'hidden',
+                                    flexShrink: 0,
+                                    border: '1px solid var(--border)',
+                                    boxShadow: '0 2px 5px rgba(0,0,0,0.04)',
+                                  }}
+                                >
+                                  {u.avatar ? (
+                                    <img src={u.avatar} alt={u.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                  ) : (
+                                    initials
+                                  )}
+                                </div>
+
+                                <div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <span style={{ fontWeight: 800, fontSize: '15px', color: 'var(--text-primary)' }}>
+                                      {u.name}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleToggleVerify(u.employee_id);
+                                      }}
+                                      style={{
+                                        background: 'transparent',
+                                        border: 'none',
+                                        padding: '2px',
+                                        cursor: 'pointer',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        outline: 'none',
+                                      }}
+                                      title={Number(u.is_verified) === 1 ? 'គណនីបានផ្ទៀងផ្ទាត់ (Verified)' : 'ចុចដើម្បីផ្ទៀងផ្ទាត់ (Verify)'}
+                                    >
+                                      {Number(u.is_verified) === 1 ? (
+                                        <CheckCircle2 size={16} color="#2563eb" fill="#3b82f6" style={{ color: '#ffffff', filter: 'drop-shadow(0 2px 4px rgba(37, 99, 235, 0.4))' }} />
+                                      ) : (
+                                        <CheckCircle2 size={16} color="#94a3b8" style={{ opacity: 0.7 }} />
+                                      )}
+                                    </button>
+                                  </div>
+                                  <div style={{ fontFamily: "'Outfit', monospace", fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>
+                                    ID: {u.employee_id}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveMenuRowId(activeMenuRowId === u.id ? null : u.id);
+                                }}
+                                style={{
+                                  width: '32px',
+                                  height: '32px',
+                                  borderRadius: '8px',
+                                  border: '1px solid var(--border)',
+                                  background: 'var(--surface-alt)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  color: 'var(--text-secondary)',
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                <MoreVertical size={15} />
+                              </button>
+                            </div>
+
+                            {/* Card Details: Role, Position, Contact */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12.5px', color: 'var(--text-secondary)', background: 'var(--surface-alt)', padding: '10px 12px', borderRadius: '10px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <span style={{ color: 'var(--text-muted)' }}>តួនាទី (Role):</span>
+                                <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{u.user_role === 'Admin' ? 'Admin (អ្នកគ្រប់គ្រង)' : 'Employee'}</span>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <span style={{ color: 'var(--text-muted)' }}>មុខតំណែង (Pos):</span>
+                                <span style={{ fontWeight: 600 }}>{u.position || 'Staff'}</span>
+                              </div>
+                              {u.phone && (
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                  <span style={{ color: 'var(--text-muted)' }}>ទូរស័ព្ទ:</span>
+                                  <span style={{ fontFamily: 'monospace' }}>{u.phone}</span>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Card Footer: Status & Quick Actions */}
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid var(--border)', paddingTop: '10px' }}>
+                              <span
+                                style={{
+                                  background: Number(u.is_active) !== 0 ? '#dcfce7' : '#fee2e2',
+                                  color: Number(u.is_active) !== 0 ? '#16a34a' : '#dc2626',
+                                  fontWeight: 700,
+                                  fontSize: '11px',
+                                  borderRadius: '9999px',
+                                  padding: '2px 10px',
+                                }}
+                              >
+                                {Number(u.is_active) !== 0 ? 'Active' : 'Inactive'}
+                              </span>
+
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleTabChange('edit_rules', u.employee_id)}
+                                  className="btn btn-secondary btn-sm"
+                                  style={{ padding: '4px 8px', fontSize: '11px', borderRadius: '8px' }}
+                                  title="Shift / Schedule"
+                                >
+                                  <Clock size={12} />
+                                  <span>Shift</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => openEditModal(u)}
+                                  className="btn btn-secondary btn-sm"
+                                  style={{ padding: '4px 8px', fontSize: '11px', borderRadius: '8px', color: 'var(--primary)' }}
+                                  title="កែប្រែ (Edit)"
+                                >
+                                  <Edit2 size={12} />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          ) : (
+            /* User Table Matching Exact Screenshot Design */
+            <div
+              className="hrm-card"
+              style={{
+                padding: 0,
+                borderRadius: '16px',
+                overflow: 'visible',
+                border: '1px solid var(--border)',
+                boxShadow: 'var(--shadow-sm)',
+              }}
+            >
             <div style={{ overflowX: 'auto', borderRadius: '16px' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                 {/* Table Header */}
@@ -893,65 +1353,152 @@ export const UsersPage: React.FC = () => {
                   ) : (
                     groupedDepartments.map((group) => (
                       <React.Fragment key={group.id}>
-                        {/* Group Header Banner Row */}
+                        {/* Group Header Banner Row (Draggable to Reorder / Drop Target) */}
                         <tr
+                          draggable={true}
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData('text/plain', `group:${group.name}`);
+                            setDraggedDept(group.name);
+                          }}
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                            if (draggedDept && draggedDept !== group.name) {
+                              setDragOverDept(group.name);
+                            } else if (draggedUserId) {
+                              setDragOverDept(group.name);
+                            }
+                          }}
+                          onDragLeave={() => setDragOverDept(null)}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            if (draggedDept) {
+                              handleDropDept(group.name);
+                            } else if (draggedUserId) {
+                              handleDropUserOnDeptBanner(group.name);
+                            }
+                          }}
                           style={{
-                            background: 'rgba(99, 102, 241, 0.04)',
+                            background: dragOverDept === group.name ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.04)',
                             borderTop: '1px solid var(--border)',
                             borderBottom: '1px solid var(--border)',
+                            borderLeft: dragOverDept === group.name ? '4px solid #3b82f6' : '4px solid var(--primary)',
+                            opacity: draggedDept === group.name ? 0.4 : 1,
+                            transition: 'all 0.15s ease',
+                            cursor: 'grab',
                           }}
                         >
                           <td
                             colSpan={6}
                             style={{
                               padding: '12px 18px',
-                              borderLeft: '4px solid var(--primary)',
                             }}
                           >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                              <GripVertical size={16} color="var(--text-muted)" style={{ cursor: 'grab' }} />
-                              <Store size={18} color="var(--primary)" />
-                              <span style={{ fontWeight: 800, fontSize: '15px', color: 'var(--text-primary)' }}>
-                                {group.name}
-                              </span>
-                              <span
-                                style={{
-                                  background: 'rgba(99, 102, 241, 0.12)',
-                                  color: 'var(--primary)',
-                                  fontSize: '11px',
-                                  fontWeight: 700,
-                                  padding: '2px 8px',
-                                  borderRadius: '6px',
-                                }}
-                              >
-                                Group ID: {group.groupId}
-                              </span>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <span
+                                  title="អូសដើម្បីតម្រៀបលំដាប់ផ្នែក (Drag to Reorder Department)"
+                                  style={{ cursor: 'grab', display: 'flex', alignItems: 'center', padding: '2px 4px', borderRadius: '4px' }}
+                                >
+                                  <GripVertical size={16} color="var(--primary)" />
+                                </span>
+                                <Store size={18} color="var(--primary)" />
+                                <span style={{ fontWeight: 800, fontSize: '15px', color: 'var(--text-primary)' }}>
+                                  {group.name}
+                                </span>
+                                <span
+                                  style={{
+                                    background: 'rgba(99, 102, 241, 0.12)',
+                                    color: 'var(--primary)',
+                                    fontSize: '11px',
+                                    fontWeight: 700,
+                                    padding: '2px 8px',
+                                    borderRadius: '6px',
+                                  }}
+                                >
+                                  Group ID: {group.groupId}
+                                </span>
+                                <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>
+                                  ({group.users.length} នាក់)
+                                </span>
+                              </div>
+
+                              {dragOverDept === group.name && (
+                                <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--primary)', background: 'rgba(99, 102, 241, 0.15)', padding: '2px 10px', borderRadius: '6px' }}>
+                                  ⬇️ ទម្លាក់ទីនេះដើម្បីផ្លាស់ប្តូរ
+                                </span>
+                              )}
                             </div>
                           </td>
                         </tr>
 
-                        {/* Employee Rows in Group */}
+                        {/* Employee Rows in Group (Draggable & Interactive) */}
                         {group.users.map((u) => {
                           const isSelected = selectedIds.includes(String(u.employee_id));
                           const initials = (u.name || u.employee_id).substring(0, 2).toUpperCase();
+                          const isBeingDragged = draggedUserId === u.employee_id;
+                          const isDragOver = dragOverUserId === u.employee_id;
 
                           return (
                             <tr
                               key={u.id}
+                              draggable={true}
+                              onDragStart={(e) => {
+                                e.stopPropagation();
+                                e.dataTransfer.setData('text/plain', `user:${u.employee_id}`);
+                                setDraggedUserId(u.employee_id);
+                              }}
+                              onDragOver={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                if (draggedUserId && draggedUserId !== u.employee_id) {
+                                  setDragOverUserId(u.employee_id);
+                                }
+                              }}
+                              onDragLeave={() => {
+                                if (dragOverUserId === u.employee_id) {
+                                  setDragOverUserId(null);
+                                }
+                              }}
+                              onDrop={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                if (draggedUserId) {
+                                  handleDropUser(u.employee_id, group.name);
+                                }
+                              }}
+                              onDragEnd={() => {
+                                setDraggedUserId(null);
+                                setDragOverUserId(null);
+                              }}
                               style={{
-                                borderBottom: '1px solid var(--border)',
-                                background: isSelected ? 'rgba(99, 102, 241, 0.03)' : 'var(--surface)',
-                                transition: 'background-color 0.15s ease',
+                                borderBottom: isDragOver ? '2px solid var(--primary)' : '1px solid var(--border)',
+                                borderTop: isDragOver ? '2px solid var(--primary)' : 'none',
+                                background: isDragOver
+                                  ? 'rgba(99, 102, 241, 0.12)'
+                                  : isSelected
+                                  ? 'rgba(99, 102, 241, 0.03)'
+                                  : 'var(--surface)',
+                                opacity: isBeingDragged ? 0.35 : 1,
+                                transition: 'all 0.15s ease',
+                                cursor: 'grab',
                               }}
                             >
-                              {/* Checkbox */}
-                              <td style={{ padding: '14px 18px', textAlign: 'center' }}>
-                                <input
-                                  type="checkbox"
-                                  checked={isSelected}
-                                  onChange={() => handleSelectRow(String(u.employee_id))}
-                                  style={{ width: '16px', height: '16px', accentColor: 'var(--primary)', cursor: 'pointer' }}
-                                />
+                              {/* Drag Handle + Checkbox */}
+                              <td style={{ padding: '14px 14px', textAlign: 'center' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                                  <span
+                                    title="អូសដើម្បីតម្រៀបបុគ្គលិក (Drag to Reorder)"
+                                    style={{ cursor: 'grab', display: 'flex', alignItems: 'center', color: 'var(--text-muted)' }}
+                                  >
+                                    <GripVertical size={14} />
+                                  </span>
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={() => handleSelectRow(String(u.employee_id))}
+                                    style={{ width: '16px', height: '16px', accentColor: 'var(--primary)', cursor: 'pointer' }}
+                                  />
+                                </div>
                               </td>
 
                               {/* ID */}
@@ -959,7 +1506,7 @@ export const UsersPage: React.FC = () => {
                                 {u.employee_id}
                               </td>
 
-                              {/* Employee Info */}
+                              {/* Employee Info with Interactive Verify Toggle */}
                               <td style={{ padding: '14px 18px' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                                   {/* Avatar Image / Squircle */}
@@ -992,14 +1539,57 @@ export const UsersPage: React.FC = () => {
                                     )}
                                   </div>
 
-                                  {/* Name and Role Info */}
+                                  {/* Name and Interactive Verified Icon Toggle */}
                                   <div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px' }}>
                                       <span style={{ fontWeight: 800, fontSize: '15px', color: 'var(--text-primary)' }}>
                                         {u.name}
                                       </span>
-                                      <CheckCircle2 size={14} color="#94a3b8" />
+
+                                      {/* Verified Toggle Icon Button */}
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleToggleVerify(u.employee_id);
+                                        }}
+                                        style={{
+                                          background: 'transparent',
+                                          border: 'none',
+                                          padding: '2px',
+                                          cursor: 'pointer',
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          borderRadius: '50%',
+                                          transition: 'transform 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
+                                          outline: 'none',
+                                        }}
+                                        onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.25)')}
+                                        onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+                                        title={
+                                          Number(u.is_verified) === 1
+                                            ? 'គណនីបានផ្ទៀងផ្ទាត់ (Verified) - ចុចដើម្បីបិទ'
+                                            : 'គណនីមិនទាន់ផ្ទៀងផ្ទាត់ - ចុចដើម្បីផ្ទៀងផ្ទាត់ (Verify)'
+                                        }
+                                      >
+                                        {Number(u.is_verified) === 1 ? (
+                                          <CheckCircle2
+                                            size={16}
+                                            color="#2563eb"
+                                            fill="#3b82f6"
+                                            style={{ color: '#ffffff', filter: 'drop-shadow(0 2px 4px rgba(37, 99, 235, 0.4))' }}
+                                          />
+                                        ) : (
+                                          <CheckCircle2
+                                            size={16}
+                                            color="#94a3b8"
+                                            style={{ opacity: 0.7 }}
+                                          />
+                                        )}
+                                      </button>
                                     </div>
+
                                     <div style={{ fontSize: '12.5px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                                       <span style={{ color: 'var(--primary)', fontWeight: 700 }}>•</span>
                                       <span>{u.user_role === 'Admin' ? 'អ្នកគ្រប់គ្រង (Admin)' : 'បុគ្គលិក (Employee)'}</span>
@@ -1029,14 +1619,7 @@ export const UsersPage: React.FC = () => {
                                   <select
                                     className="form-control"
                                     value={Number(u.is_active) !== 0 ? 'Active' : 'Inactive'}
-                                    onChange={(e) => {
-                                      const active = e.target.value === 'Active' ? 1 : 0;
-                                      setUsers(
-                                        users.map((x) =>
-                                          x.id === u.id ? { ...x, is_active: active } : x
-                                        )
-                                      );
-                                    }}
+                                    onChange={(e) => handleStatusChange(u.employee_id, e.target.value as any)}
                                     style={{
                                       padding: '4px 8px',
                                       fontSize: '12px',
@@ -1223,6 +1806,7 @@ export const UsersPage: React.FC = () => {
               </table>
             </div>
           </div>
+          )}
         </>
       )}
 
@@ -2623,6 +3207,33 @@ export const UsersPage: React.FC = () => {
             </div>
           </div>
         </Modal>
+      )}
+
+      {/* Floating Toast Notification */}
+      {toastMsg && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: '24px',
+            right: '24px',
+            background: 'var(--surface-dark, #0f172a)',
+            color: '#ffffff',
+            padding: '12px 22px',
+            borderRadius: '14px',
+            boxShadow: '0 12px 30px rgba(0, 0, 0, 0.25)',
+            fontSize: '13.5px',
+            fontWeight: 700,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            zIndex: 9999,
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            animation: 'scaleUp 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+          }}
+        >
+          <Sparkles size={16} color="#fbbf24" />
+          <span>{toastMsg}</span>
+        </div>
       )}
     </div>
   );

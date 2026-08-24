@@ -15,10 +15,12 @@ import {
 } from 'lucide-react';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { Modal } from '../components/common/Modal';
+import { ViewModeToggle, ViewMode } from '../components/common/ViewModeToggle';
 import { adminApi, RequestItem } from '../api/adminApi';
 
 export const RequestsPage: React.FC = () => {
   const [requests, setRequests] = useState<RequestItem[]>([]);
+  const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all');
   const [search, setSearch] = useState('');
@@ -286,8 +288,10 @@ export const RequestsPage: React.FC = () => {
           </button>
         </div>
 
-        {/* Right Search & Refresh */}
+        {/* Right Search, ViewModeToggle & Refresh */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <ViewModeToggle mode={viewMode} onChange={setViewMode} />
+
           <div
             style={{
               display: 'flex',
@@ -296,7 +300,7 @@ export const RequestsPage: React.FC = () => {
               border: '1px solid var(--border)',
               borderRadius: 'var(--radius)',
               padding: '8px 14px',
-              width: '260px',
+              width: '240px',
               gap: '8px',
             }}
           >
@@ -325,84 +329,161 @@ export const RequestsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Requests Table */}
-      <div className="table-container">
-        <table className="hrm-table">
-          <thead>
-            <tr>
-              <th>អ្នកស្នើសុំ</th>
-              <th>ប្រភេទសំណើរ</th>
-              <th>កាលបរិច្ឆេទ</th>
-              <th>មូលហេតុ / ព័ត៌មានលម្អិត</th>
-              <th>ស្ថានភាព</th>
-              <th style={{ textAlign: 'right' }}>សកម្មភាព</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredRequests.length === 0 ? (
+      {/* View Mode Switching: Grid Cards or Table */}
+      {viewMode === 'grid' ? (
+        filteredRequests.length === 0 ? (
+          <div className="hrm-card" style={{ textAlign: 'center', padding: '48px', color: 'var(--text-muted)' }}>
+            {loading ? 'កំពុងទាញយកបញ្ជីសំណើរ...' : 'គ្មានសំណើរដែលត្រូវបង្ហាញឡើយ'}
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
+            {filteredRequests.map((r) => (
+              <div
+                key={r.id}
+                className="hrm-card"
+                style={{
+                  padding: '18px',
+                  borderRadius: '16px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '14px',
+                  border: '1px solid var(--border)',
+                  boxShadow: 'var(--shadow-sm)',
+                  background: 'var(--surface)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px' }}>
+                  <div>
+                    <div style={{ fontWeight: 800, fontSize: '15px', color: 'var(--text-primary)' }}>{r.requester_name}</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                      <span style={{ fontFamily: "'Outfit', monospace", fontWeight: 700, color: 'var(--primary)' }}>{r.employee_id}</span>
+                      {r.department && ` • ${r.department}`}
+                    </div>
+                  </div>
+                  <StatusBadge status={r.status} />
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: 'var(--surface-alt)', padding: '12px', borderRadius: '12px', fontSize: '12.5px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>ប្រភេទ:</span>
+                    <span style={{ fontWeight: 700, color: 'var(--primary)' }}>{r.request_type}</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>កាលបរិច្ឆេទ:</span>
+                    <span style={{ fontWeight: 600 }}>{r.request_date} {r.return_date ? `→ ${r.return_date}` : ''}</span>
+                  </div>
+                  {r.reason && (
+                    <div style={{ borderTop: '1px dashed var(--border)', paddingTop: '6px', marginTop: '2px', color: 'var(--text-secondary)' }}>
+                      <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>មូលហេតុ: </span>
+                      {r.reason}
+                    </div>
+                  )}
+                </div>
+
+                {/* Footer Actions */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid var(--border)', paddingTop: '10px', marginTop: 'auto' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    {r.status === 'Pending' && (
+                      <>
+                        <button onClick={() => handleOpenAction(r, 'Approved')} className="btn btn-success btn-sm">
+                          <Check size={13} />
+                          <span>យល់ព្រម</span>
+                        </button>
+                        <button onClick={() => handleOpenAction(r, 'Rejected')} className="btn btn-danger btn-sm">
+                          <X size={13} />
+                          <span>បដិសេធ</span>
+                        </button>
+                      </>
+                    )}
+                  </div>
+                  <button onClick={() => handleDeleteRequest(r.id)} className="btn btn-danger btn-sm" title="លុបសំណើរ">
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )
+      ) : (
+        /* Requests Table */
+        <div className="table-container">
+          <table className="hrm-table">
+            <thead>
               <tr>
-                <td colSpan={6} style={{ textAlign: 'center', padding: '36px', color: 'var(--text-muted)' }}>
-                  {loading ? 'កំពុងទាញយកបញ្ជីសំណើរ...' : 'គ្មានសំណើរដែលត្រូវបង្ហាញឡើយ'}
-                </td>
+                <th>អ្នកស្នើសុំ</th>
+                <th>ប្រភេទសំណើរ</th>
+                <th>កាលបរិច្ឆេទ</th>
+                <th>មូលហេតុ / ព័ត៌មានលម្អិត</th>
+                <th>ស្ថានភាព</th>
+                <th style={{ textAlign: 'right' }}>សកម្មភាព</th>
               </tr>
-            ) : (
-              filteredRequests.map((r) => (
-                <tr key={r.id}>
-                  <td>
-                    <div style={{ fontWeight: 600 }}>{r.requester_name}</div>
-                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
-                      {r.employee_id} • {r.department}
-                    </div>
-                  </td>
-                  <td>
-                    <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--primary)' }}>
-                      {r.request_type}
-                    </span>
-                  </td>
-                  <td style={{ fontSize: '12.5px' }}>
-                    {r.request_date} {r.return_date ? `→ ${r.return_date}` : ''}
-                  </td>
-                  <td style={{ fontSize: '12.5px', maxWidth: '280px' }}>
-                    {r.reason || '-'}
-                  </td>
-                  <td>
-                    <StatusBadge status={r.status} />
-                  </td>
-                  <td style={{ textAlign: 'right' }}>
-                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                      {r.status === 'Pending' && (
-                        <>
-                          <button
-                            onClick={() => handleOpenAction(r, 'Approved')}
-                            className="btn btn-success btn-sm"
-                          >
-                            <Check size={13} />
-                            <span>យល់ព្រម</span>
-                          </button>
-                          <button
-                            onClick={() => handleOpenAction(r, 'Rejected')}
-                            className="btn btn-danger btn-sm"
-                          >
-                            <X size={13} />
-                            <span>បដិសេធ</span>
-                          </button>
-                        </>
-                      )}
-                      <button
-                        onClick={() => handleDeleteRequest(r.id)}
-                        className="btn btn-danger btn-sm"
-                        title="លុបសំណើរ"
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
+            </thead>
+            <tbody>
+              {filteredRequests.length === 0 ? (
+                <tr>
+                  <td colSpan={6} style={{ textAlign: 'center', padding: '36px', color: 'var(--text-muted)' }}>
+                    {loading ? 'កំពុងទាញយកបញ្ជីសំណើរ...' : 'គ្មានសំណើរដែលត្រូវបង្ហាញឡើយ'}
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+              ) : (
+                filteredRequests.map((r) => (
+                  <tr key={r.id}>
+                    <td>
+                      <div style={{ fontWeight: 600 }}>{r.requester_name}</div>
+                      <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
+                        {r.employee_id} • {r.department}
+                      </div>
+                    </td>
+                    <td>
+                      <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--primary)' }}>
+                        {r.request_type}
+                      </span>
+                    </td>
+                    <td style={{ fontSize: '12.5px' }}>
+                      {r.request_date} {r.return_date ? `→ ${r.return_date}` : ''}
+                    </td>
+                    <td style={{ fontSize: '12.5px', maxWidth: '280px' }}>
+                      {r.reason || '-'}
+                    </td>
+                    <td>
+                      <StatusBadge status={r.status} />
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        {r.status === 'Pending' && (
+                          <>
+                            <button
+                              onClick={() => handleOpenAction(r, 'Approved')}
+                              className="btn btn-success btn-sm"
+                            >
+                              <Check size={13} />
+                              <span>យល់ព្រម</span>
+                            </button>
+                            <button
+                              onClick={() => handleOpenAction(r, 'Rejected')}
+                              className="btn btn-danger btn-sm"
+                            >
+                              <X size={13} />
+                              <span>បដិសេធ</span>
+                            </button>
+                          </>
+                        )}
+                        <button
+                          onClick={() => handleDeleteRequest(r.id)}
+                          className="btn btn-danger btn-sm"
+                          title="លុបសំណើរ"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Create Request Modal */}
       {createModal && (

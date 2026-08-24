@@ -19,6 +19,7 @@ import {
   MoreVertical,
 } from 'lucide-react';
 import { StatCard } from '../components/common/StatCard';
+import { ViewModeToggle, ViewMode } from '../components/common/ViewModeToggle';
 import { adminApi, SessionItem, SessionGroup } from '../api/adminApi';
 
 const formatSessionDate = (dateStr?: string) => {
@@ -43,6 +44,7 @@ const formatSessionDate = (dateStr?: string) => {
 
 export const TokensPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'active_sessions' | 'global_settings'>('active_sessions');
+  const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [sessions, setSessions] = useState<SessionItem[]>([]);
   const [groups, setGroups] = useState<SessionGroup[]>([]);
   const [loading, setLoading] = useState(false);
@@ -415,6 +417,8 @@ export const TokensPage: React.FC = () => {
                 />
               </div>
 
+              <ViewModeToggle mode={viewMode} onChange={setViewMode} />
+
               <button
                 type="button"
                 onClick={loadSessions}
@@ -427,137 +431,250 @@ export const TokensPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Sessions Table */}
-          <div className="table-container" style={{ borderRadius: '16px' }}>
-            <table className="hrm-table">
-              <thead>
-                <tr>
-                  <th style={{ width: '44px', textAlign: 'center' }}>
-                    <input
-                      type="checkbox"
-                      checked={selectedTokens.length > 0 && selectedTokens.length === filteredSessions.length}
-                      onChange={handleToggleSelectAll}
-                      style={{ width: '18px', height: '18px', cursor: 'pointer' }}
-                    />
-                  </th>
-                  <th>ព័ត៌មានអ្នកប្រើប្រាស់ (USER)</th>
-                  <th>ប្រភេទ</th>
-                  <th>TOKEN (សង្ខេប)</th>
-                  <th>បង្កើតនៅ (CREATED AT)</th>
-                  <th>សកម្មភាពចុងក្រោយ (LAST ACTIVITY)</th>
-                  <th style={{ textAlign: 'right' }}>សកម្មភាព</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredSessions.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
-                      {loading ? 'កំពុងទាញយកបញ្ជី Session...' : 'មិនមាន Session សកម្មនៅក្នុងប្រព័ន្ធឡើយ'}
-                    </td>
-                  </tr>
-                ) : (
-                  filteredSessions.map((s) => {
-                    const tokenKey = s.auth_token || String(s.id);
-                    const isChecked = selectedTokens.includes(tokenKey);
-                    const created = formatSessionDate(s.created_at);
-                    const lastUsed = formatSessionDate(s.last_used);
+          {/* View Mode Switching: Grid Cards or Table */}
+          {viewMode === 'grid' ? (
+            filteredSessions.length === 0 ? (
+              <div className="hrm-card" style={{ textAlign: 'center', padding: '48px', color: 'var(--text-muted)' }}>
+                {loading ? 'កំពុងទាញយកបញ្ជី Session...' : 'មិនមាន Session សកម្មនៅក្នុងប្រព័ន្ធឡើយ'}
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
+                {filteredSessions.map((s) => {
+                  const tokenKey = s.auth_token || String(s.id);
+                  const isChecked = selectedTokens.includes(tokenKey);
+                  const created = formatSessionDate(s.created_at);
+                  const lastUsed = formatSessionDate(s.last_used);
 
-                    return (
-                      <tr key={s.id || s.auth_token}>
-                        <td style={{ textAlign: 'center' }}>
+                  return (
+                    <div
+                      key={s.id || s.auth_token}
+                      className="hrm-card"
+                      style={{
+                        padding: '18px',
+                        borderRadius: '16px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '14px',
+                        border: isChecked ? '2px solid var(--primary)' : '1px solid var(--border)',
+                        boxShadow: 'var(--shadow-sm)',
+                        background: 'var(--surface)',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                           <input
                             type="checkbox"
                             checked={isChecked}
                             onChange={() => handleToggleToken(tokenKey)}
-                            style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                            style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: 'var(--primary)' }}
                           />
-                        </td>
-                        <td>
-                          <div style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: '14px' }}>
-                            {s.user_name || s.name || 'User'}
+                          <div>
+                            <div style={{ fontWeight: 800, fontSize: '15px', color: 'var(--text-primary)' }}>
+                              {s.user_name || s.name || 'User'}
+                            </div>
+                            <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontFamily: "'Outfit', monospace", fontWeight: 600 }}>
+                              ID: {s.employee_id}
+                            </div>
                           </div>
-                          <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                            ID: {s.employee_id}
-                          </div>
-                        </td>
-                        <td>
-                          <span
-                            style={{
-                              background: '#f1f5f9',
-                              color: '#475569',
-                              border: '1px solid var(--border)',
-                              fontSize: '11px',
-                              padding: '4px 10px',
-                              borderRadius: '8px',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '5px',
-                              fontWeight: 600,
-                            }}
-                          >
-                            <Laptop size={12} />
-                            <span>{(s as any).scan_user_type || 'N/A'}</span>
-                          </span>
-                        </td>
-                        <td>
-                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                            <code
-                              style={{
-                                background: 'var(--surface-alt)',
-                                padding: '4px 8px',
-                                borderRadius: '6px',
-                                fontSize: '11.5px',
-                                border: '1px solid var(--border)',
-                                color: 'var(--text-secondary)',
-                              }}
-                            >
-                              {s.auth_token ? `${s.auth_token.substring(0, 15)}...` : 'N/A'}
+                        </div>
+
+                        <span
+                          style={{
+                            background: '#f1f5f9',
+                            color: '#475569',
+                            border: '1px solid var(--border)',
+                            fontSize: '11px',
+                            padding: '3px 8px',
+                            borderRadius: '8px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            fontWeight: 600,
+                          }}
+                        >
+                          <Laptop size={12} />
+                          <span>{(s as any).scan_user_type || 'Device'}</span>
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: 'var(--surface-alt)', padding: '12px', borderRadius: '12px', fontSize: '12px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>Token:</span>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            <code style={{ fontSize: '11px', background: 'var(--surface)', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--border)' }}>
+                              {s.auth_token ? `${s.auth_token.substring(0, 12)}...` : 'N/A'}
                             </code>
                             {s.auth_token && (
                               <button
                                 type="button"
                                 onClick={() => handleCopyToken(s.auth_token)}
                                 title="Copy Token"
-                                style={{
-                                  background: 'none',
-                                  border: 'none',
-                                  cursor: 'pointer',
-                                  padding: '2px',
-                                  color: copiedToken === s.auth_token ? '#10b981' : 'var(--text-muted)',
-                                }}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: copiedToken === s.auth_token ? '#10b981' : 'var(--text-muted)' }}
                               >
-                                {copiedToken === s.auth_token ? <Check size={13} /> : <Copy size={13} />}
+                                {copiedToken === s.auth_token ? <Check size={12} /> : <Copy size={12} />}
                               </button>
                             )}
                           </div>
-                        </td>
-                        <td style={{ fontSize: '11.5px', color: 'var(--text-secondary)' }}>
-                          <div>{created.date}</div>
-                          <div style={{ color: 'var(--text-muted)', fontSize: '11px' }}>{created.time}</div>
-                        </td>
-                        <td style={{ fontSize: '11.5px', color: 'var(--text-secondary)' }}>
-                          <div>{lastUsed.date}</div>
-                          <div style={{ color: 'var(--text-muted)', fontSize: '11px' }}>{lastUsed.time}</div>
-                        </td>
-                        <td style={{ textAlign: 'right' }}>
-                          <button
-                            type="button"
-                            onClick={() => handleRevokeSingle(s)}
-                            className="btn btn-danger btn-sm"
-                            title="ផ្តាច់ Session"
-                            style={{ padding: '5px 12px', borderRadius: '8px' }}
-                          >
-                            <Trash2 size={13} />
-                            <span>Revoke</span>
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>បានបង្កើត:</span>
+                          <span style={{ fontWeight: 600 }}>{created.date} {created.time}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>សកម្មភាពចុងក្រោយ:</span>
+                          <span style={{ fontWeight: 600 }}>{lastUsed.date} {lastUsed.time}</span>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--border)', paddingTop: '10px', marginTop: 'auto' }}>
+                        <button
+                          type="button"
+                          onClick={() => handleRevokeSingle(s)}
+                          className="btn btn-danger btn-sm"
+                          style={{ padding: '6px 14px', borderRadius: '8px', fontSize: '12px' }}
+                        >
+                          <Trash2 size={13} />
+                          <span>ផ្តាច់ Session (Revoke)</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )
+          ) : (
+            /* Sessions Table */
+            <div className="table-container" style={{ borderRadius: '16px' }}>
+              <table className="hrm-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: '44px', textAlign: 'center' }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedTokens.length > 0 && selectedTokens.length === filteredSessions.length}
+                        onChange={handleToggleSelectAll}
+                        style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                      />
+                    </th>
+                    <th>ព័ត៌មានអ្នកប្រើប្រាស់ (USER)</th>
+                    <th>ប្រភេទ</th>
+                    <th>TOKEN (សង្ខេប)</th>
+                    <th>បង្កើតនៅ (CREATED AT)</th>
+                    <th>សកម្មភាពចុងក្រោយ (LAST ACTIVITY)</th>
+                    <th style={{ textAlign: 'right' }}>សកម្មភាព</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredSessions.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+                        {loading ? 'កំពុងទាញយកបញ្ជី Session...' : 'មិនមាន Session សកម្មនៅក្នុងប្រព័ន្ធឡើយ'}
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredSessions.map((s) => {
+                      const tokenKey = s.auth_token || String(s.id);
+                      const isChecked = selectedTokens.includes(tokenKey);
+                      const created = formatSessionDate(s.created_at);
+                      const lastUsed = formatSessionDate(s.last_used);
+
+                      return (
+                        <tr key={s.id || s.auth_token}>
+                          <td style={{ textAlign: 'center' }}>
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => handleToggleToken(tokenKey)}
+                              style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                            />
+                          </td>
+                          <td>
+                            <div style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: '14px' }}>
+                              {s.user_name || s.name || 'User'}
+                            </div>
+                            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                              ID: {s.employee_id}
+                            </div>
+                          </td>
+                          <td>
+                            <span
+                              style={{
+                                background: '#f1f5f9',
+                                color: '#475569',
+                                border: '1px solid var(--border)',
+                                fontSize: '11px',
+                                padding: '4px 10px',
+                                borderRadius: '8px',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                                fontWeight: 600,
+                              }}
+                            >
+                              <Laptop size={12} />
+                              <span>{(s as any).scan_user_type || 'N/A'}</span>
+                            </span>
+                          </td>
+                          <td>
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                              <code
+                                style={{
+                                  background: 'var(--surface-alt)',
+                                  padding: '4px 8px',
+                                  borderRadius: '6px',
+                                  fontSize: '11.5px',
+                                  border: '1px solid var(--border)',
+                                  color: 'var(--text-secondary)',
+                                }}
+                              >
+                                {s.auth_token ? `${s.auth_token.substring(0, 15)}...` : 'N/A'}
+                              </code>
+                              {s.auth_token && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopyToken(s.auth_token)}
+                                  title="Copy Token"
+                                  style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    padding: '2px',
+                                    color: copiedToken === s.auth_token ? '#10b981' : 'var(--text-muted)',
+                                  }}
+                                >
+                                  {copiedToken === s.auth_token ? <Check size={13} /> : <Copy size={13} />}
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                          <td style={{ fontSize: '11.5px', color: 'var(--text-secondary)' }}>
+                            <div>{created.date}</div>
+                            <div style={{ color: 'var(--text-muted)', fontSize: '11px' }}>{created.time}</div>
+                          </td>
+                          <td style={{ fontSize: '11.5px', color: 'var(--text-secondary)' }}>
+                            <div>{lastUsed.date}</div>
+                            <div style={{ color: 'var(--text-muted)', fontSize: '11px' }}>{lastUsed.time}</div>
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            <button
+                              type="button"
+                              onClick={() => handleRevokeSingle(s)}
+                              className="btn btn-danger btn-sm"
+                              title="ផ្តាច់ Session"
+                              style={{ padding: '5px 12px', borderRadius: '8px' }}
+                            >
+                              <Trash2 size={13} />
+                              <span>Revoke</span>
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 

@@ -313,6 +313,8 @@ try {
                     'current_address' => (string)($r['current_address'] ?? $custom['current_address'] ?? ''),
                     'avatar' => (string)($r['avatar'] ?? $custom['avatar'] ?? ''),
                     'is_active' => isset($r['is_active']) ? (int)$r['is_active'] : 1,
+                    'is_verified' => isset($r['is_verified']) ? (int)$r['is_verified'] : (isset($custom['is_verified']) ? (int)$custom['is_verified'] : 0),
+                    'sort_order' => isset($r['sort_order']) ? (int)$r['sort_order'] : (isset($custom['sort_order']) ? (int)$custom['sort_order'] : 0),
                     'joined_at' => (string)($r['joined_at'] ?? $custom['joined_at'] ?? ''),
                     'marital_status' => (string)($r['marital_status'] ?? $custom['marital_status'] ?? 'Single'),
                     'contract_start' => (string)($r['contract_start'] ?? $custom['contract_start'] ?? ''),
@@ -331,6 +333,55 @@ try {
             sendJson(['success' => true, 'users' => $users]);
             break;
 
+        case 'toggle_verification':
+        case 'toggle_verify':
+            $empId = trim($_POST['employee_id'] ?? $_POST['user_id'] ?? '');
+            if (!empty($empId)) {
+                @dbQuery("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_verified TINYINT(1) DEFAULT 0");
+                $cur = dbQuery("SELECT is_verified, custom_data FROM users WHERE employee_id = ? LIMIT 1", [$empId]);
+                $currentVal = !empty($cur) ? (int)($cur[0]['is_verified'] ?? 0) : 0;
+                $newVal = $currentVal ? 0 : 1;
+                dbQuery("UPDATE users SET is_verified = ? WHERE employee_id = ?", [$newVal, $empId]);
+
+                if (!empty($cur)) {
+                    $cd = json_decode($cur[0]['custom_data'] ?? '{}', true) ?: [];
+                    $cd['is_verified'] = $newVal;
+                    dbQuery("UPDATE users SET custom_data = ? WHERE employee_id = ?", [json_encode($cd, JSON_UNESCAPED_UNICODE), $empId]);
+                }
+
+                sendJson([
+                    'success' => true,
+                    'status' => 'success',
+                    'message' => $newVal ? 'បានផ្ទៀងផ្ទាត់បុគ្គលិកជោគជ័យ (Verified)!' : 'បានបិទការផ្ទៀងផ្ទាត់បុគ្គលិក (Unverified)!',
+                    'new_verified' => $newVal,
+                    'is_verified' => $newVal
+                ]);
+            }
+            sendJson(['success' => false, 'message' => 'Employee ID មិនត្រឹមត្រូវ!'], 400);
+            break;
+
+        case 'save_user_sort_order':
+        case 'reorder_users':
+            $orders = $_POST['orders'] ?? $_POST['users'] ?? [];
+            if (is_string($orders)) {
+                $orders = json_decode($orders, true) ?: [];
+            }
+            @dbQuery("ALTER TABLE users ADD COLUMN IF NOT EXISTS sort_order INT DEFAULT 0");
+            foreach ($orders as $idx => $o) {
+                $empId = is_array($o) ? ($o['employee_id'] ?? $o['id'] ?? '') : (string)$o;
+                $sort = is_array($o) ? (int)($o['sort_order'] ?? $o['sort'] ?? $idx) : (int)$idx;
+                $dept = is_array($o) ? ($o['department'] ?? '') : '';
+                if (!empty($empId)) {
+                    if (!empty($dept)) {
+                        dbQuery("UPDATE users SET sort_order = ?, department = ? WHERE employee_id = ?", [$sort, $dept, $empId]);
+                    } else {
+                        dbQuery("UPDATE users SET sort_order = ? WHERE employee_id = ?", [$sort, $empId]);
+                    }
+                }
+            }
+            sendJson(['success' => true, 'status' => 'success', 'message' => 'បានរក្សាទុកលំដាប់តម្រៀបជោគជ័យ!']);
+            break;
+
         case 'save_user':
             $empId = trim($_POST['employee_id'] ?? '');
             $name = trim($_POST['name'] ?? '');
@@ -338,10 +389,14 @@ try {
             $pos = trim($_POST['position'] ?? 'Staff');
             $role = trim($_POST['user_role'] ?? 'User');
             $pass = trim($_POST['password'] ?? '');
+            $isVerified = isset($_POST['is_verified']) ? (int)$_POST['is_verified'] : 0;
 
             if (empty($empId) || empty($name)) {
                 sendJson(['success' => false, 'message' => 'Missing employee_id or name'], 400);
             }
+
+            @dbQuery("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_verified TINYINT(1) DEFAULT 0");
+            @dbQuery("ALTER TABLE users ADD COLUMN IF NOT EXISTS sort_order INT DEFAULT 0");
 
             $exists = dbQuery("SELECT id FROM users WHERE employee_id = ? LIMIT 1", [$empId]);
 
@@ -352,14 +407,14 @@ try {
             if (!empty($exists)) {
                 if (!empty($pass)) {
                     $hash = password_hash($pass, PASSWORD_BCRYPT);
-                    dbQuery("UPDATE users SET name = ?, department = ?, position = ?, user_role = ?, password = ?, custom_data = ? WHERE employee_id = ?", [$name, $dept, $pos, $role, $hash, $customJson, $empId]);
+                    dbQuery("UPDATE users SET name = ?, department = ?, position = ?, user_role = ?, password = ?, is_verified = ?, custom_data = ? WHERE employee_id = ?", [$name, $dept, $pos, $role, $hash, $isVerified, $customJson, $empId]);
                 } else {
-                    dbQuery("UPDATE users SET name = ?, department = ?, position = ?, user_role = ?, custom_data = ? WHERE employee_id = ?", [$name, $dept, $pos, $role, $customJson, $empId]);
+                    dbQuery("UPDATE users SET name = ?, department = ?, position = ?, user_role = ?, is_verified = ?, custom_data = ? WHERE employee_id = ?", [$name, $dept, $pos, $role, $isVerified, $customJson, $empId]);
                 }
                 sendJson(['success' => true, 'message' => 'បានកែប្រែព័ត៌មានបុគ្គលិកជោគជ័យ!']);
             } else {
                 $hash = !empty($pass) ? password_hash($pass, PASSWORD_BCRYPT) : password_hash('123456', PASSWORD_BCRYPT);
-                dbQuery("INSERT INTO users (employee_id, name, department, position, user_role, password, is_active, custom_data) VALUES (?, ?, ?, ?, ?, ?, 1, ?)", [$empId, $name, $dept, $pos, $role, $hash, $customJson]);
+                dbQuery("INSERT INTO users (employee_id, name, department, position, user_role, password, is_active, is_verified, custom_data) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)", [$empId, $name, $dept, $pos, $role, $hash, $isVerified, $customJson]);
                 sendJson(['success' => true, 'message' => 'បានបង្កើតគណនីបុគ្គលិកថ្មីជោគជ័យ!']);
             }
             break;
@@ -378,37 +433,184 @@ try {
         // ==========================================
         case 'fetch_attendance_records':
         case 'fetch_attendance':
-            $page = max(1, (int)($_POST['page'] ?? 1));
-            $limit = max(10, min(200, (int)($_POST['limit'] ?? 50)));
+            $page = max(1, (int)($_POST['page'] ?? $_GET['page'] ?? 1));
+            $limit = max(10, min(500, (int)($_POST['limit'] ?? $_GET['limit'] ?? 100)));
             $offset = ($page - 1) * $limit;
 
-            $date = $_POST['date'] ?? '';
-            $status = $_POST['status'] ?? '';
-            $search = $_POST['search'] ?? '';
+            $date = trim((string)($_POST['date'] ?? $_GET['date'] ?? ''));
+            $status = trim((string)($_POST['status'] ?? $_GET['status'] ?? ''));
+            $department = trim((string)($_POST['department'] ?? $_GET['department'] ?? ''));
+            $search = trim((string)($_POST['search'] ?? $_GET['search'] ?? ''));
+            $tab = trim((string)($_POST['tab'] ?? $_GET['tab'] ?? 'daily'));
 
-            $sql = "SELECT a.*, u.name as employee_name FROM attendance_logs a LEFT JOIN users u ON a.employee_id = u.employee_id WHERE 1=1";
+            // 1. Fetch available dates from checkin_logs & attendance for quick filter
+            $availableDatesRows = dbQuery("SELECT DISTINCT DATE(log_datetime) as log_date FROM checkin_logs WHERE log_datetime IS NOT NULL ORDER BY log_date DESC LIMIT 60");
+            $availableDates = array_values(array_filter(array_map(function($r) {
+                return !empty($r['log_date']) ? (string)$r['log_date'] : null;
+            }, $availableDatesRows)));
+
+            if (empty($availableDates)) {
+                $attDatesRows = dbQuery("SELECT DISTINCT DATE(created_at) as log_date FROM attendance WHERE created_at IS NOT NULL ORDER BY log_date DESC LIMIT 60");
+                $availableDates = array_values(array_filter(array_map(function($r) {
+                    return !empty($r['log_date']) ? (string)$r['log_date'] : null;
+                }, $attDatesRows)));
+            }
+
+            // 2. Query checkin_logs
+            $sql = "SELECT 
+                        cl.id,
+                        cl.employee_id,
+                        COALESCE(u.name, cl.name, cl.employee_id) as name,
+                        COALESCE(cl.action_type, 'Check-In') as action_type,
+                        COALESCE(cl.status, 'Good') as status,
+                        cl.log_datetime as log_time,
+                        cl.log_datetime,
+                        COALESCE(cl.location_name, u.branch, 'Store 318') as workplace,
+                        cl.location_name,
+                        cl.distance_m,
+                        cl.late_reason,
+                        cl.photo_path,
+                        cl.latitude,
+                        cl.longitude,
+                        cl.geo_address,
+                        cl.qr_location_id,
+                        cl.noted,
+                        COALESCE(u.department, '') as department,
+                        COALESCE(u.position, '') as position,
+                        COALESCE(u.avatar, '') as avatar
+                    FROM checkin_logs cl
+                    LEFT JOIN users u ON cl.employee_id = u.employee_id
+                    WHERE 1=1";
             $params = [];
-            if (!empty($date)) {
-                $sql .= " AND DATE(a.log_time) = ?";
+
+            if (!empty($date) && $date !== 'all') {
+                $sql .= " AND DATE(cl.log_datetime) = ?";
                 $params[] = $date;
             }
             if (!empty($status) && $status !== 'all') {
-                $sql .= " AND a.status = ?";
+                $sql .= " AND cl.status = ?";
                 $params[] = $status;
             }
+            if (!empty($department) && $department !== 'all') {
+                $sql .= " AND (u.department = ? OR cl.location_name LIKE ?)";
+                $params[] = $department;
+                $params[] = "%$department%";
+            }
             if (!empty($search)) {
-                $sql .= " AND (u.name LIKE ? OR a.employee_id LIKE ?)";
+                $sql .= " AND (u.name LIKE ? OR cl.name LIKE ? OR cl.employee_id LIKE ? OR cl.location_name LIKE ?)";
+                $params[] = "%$search%";
+                $params[] = "%$search%";
                 $params[] = "%$search%";
                 $params[] = "%$search%";
             }
 
-            $sql .= " ORDER BY a.id DESC LIMIT $limit OFFSET $offset";
+            if ($tab === 'late') {
+                $sql .= " AND cl.status = 'Late'";
+            }
 
-            $records = dbQuery($sql, $params);
+            $sql .= " ORDER BY cl.id DESC LIMIT $limit OFFSET $offset";
+
+            $rawRecords = dbQuery($sql, $params);
+
+            // Fallback 1: If checkin_logs returned empty, check attendance table
+            if (empty($rawRecords)) {
+                $sqlAtt = "SELECT 
+                            a.id,
+                            a.employee_id,
+                            COALESCE(u.name, a.name, a.employee_id) as name,
+                            COALESCE(a.action_type, a.action, 'Check-In') as action_type,
+                            COALESCE(a.status, 'Good') as status,
+                            COALESCE(a.log_datetime, a.log_time, a.attendance_date, a.created_at) as log_time,
+                            COALESCE(a.location_name, a.workplace, u.branch, 'Store 318') as workplace,
+                            COALESCE(a.late_reason, '') as late_reason,
+                            COALESCE(a.photo_path, '') as photo_path,
+                            COALESCE(a.noted, '') as noted,
+                            COALESCE(u.department, '') as department,
+                            COALESCE(u.position, '') as position,
+                            COALESCE(u.avatar, '') as avatar
+                        FROM attendance a
+                        LEFT JOIN users u ON a.employee_id = u.employee_id
+                        WHERE 1=1";
+                $attParams = [];
+                if (!empty($date) && $date !== 'all') {
+                    $sqlAtt .= " AND (DATE(a.created_at) = ? OR DATE(a.attendance_date) = ? OR DATE(a.log_time) = ?)";
+                    $attParams[] = $date;
+                    $attParams[] = $date;
+                    $attParams[] = $date;
+                }
+                if (!empty($status) && $status !== 'all') {
+                    $sqlAtt .= " AND a.status = ?";
+                    $attParams[] = $status;
+                }
+                if (!empty($search)) {
+                    $sqlAtt .= " AND (u.name LIKE ? OR a.employee_id LIKE ?)";
+                    $attParams[] = "%$search%";
+                    $attParams[] = "%$search%";
+                }
+                if ($tab === 'late') {
+                    $sqlAtt .= " AND a.status = 'Late'";
+                }
+                $sqlAtt .= " ORDER BY a.id DESC LIMIT $limit OFFSET $offset";
+                $rawRecords = dbQuery($sqlAtt, $attParams);
+            }
+
+            // Normalize records
+            $records = [];
+            $totalGood = 0;
+            $totalLate = 0;
+            $totalScans = 0;
+
+            foreach ($rawRecords as $r) {
+                $act = (string)($r['action_type'] ?? 'Check-In');
+                if (stripos($act, 'in') !== false) {
+                    $actionDisplay = 'Check-In';
+                } elseif (stripos($act, 'out') !== false) {
+                    $actionDisplay = 'Check-Out';
+                } else {
+                    $actionDisplay = ucwords(str_replace(['_', '-'], ' ', $act));
+                }
+
+                $st = (string)($r['status'] ?? 'Good');
+                if (strcasecmp($st, 'Late') === 0) {
+                    $totalLate++;
+                } else {
+                    $totalGood++;
+                }
+                $totalScans++;
+
+                $records[] = [
+                    'id' => (int)($r['id'] ?? 0),
+                    'employee_id' => (string)($r['employee_id'] ?? ''),
+                    'name' => (string)($r['name'] ?? $r['employee_id'] ?? ''),
+                    'action' => $actionDisplay,
+                    'action_type' => $act,
+                    'status' => $st,
+                    'log_time' => (string)($r['log_time'] ?? $r['log_datetime'] ?? ''),
+                    'workplace' => (string)($r['workplace'] ?? $r['location_name'] ?? 'Store 318'),
+                    'location_name' => (string)($r['location_name'] ?? $r['workplace'] ?? 'Store 318'),
+                    'late_reason' => (string)($r['late_reason'] ?? ''),
+                    'photo_path' => (string)($r['photo_path'] ?? ''),
+                    'distance_m' => isset($r['distance_m']) ? (float)$r['distance_m'] : 0,
+                    'geo_address' => (string)($r['geo_address'] ?? ''),
+                    'noted' => (string)($r['noted'] ?? ''),
+                    'department' => (string)($r['department'] ?? ''),
+                    'position' => (string)($r['position'] ?? ''),
+                    'avatar' => (string)($r['avatar'] ?? ''),
+                ];
+            }
+
+            // Summary counts for the date
             sendJson([
                 'success' => true,
                 'page' => $page,
                 'limit' => $limit,
+                'date' => $date,
+                'available_dates' => $availableDates,
+                'summary' => [
+                    'total' => $totalScans,
+                    'good' => $totalGood,
+                    'late' => $totalLate,
+                ],
                 'records' => $records
             ]);
             break;

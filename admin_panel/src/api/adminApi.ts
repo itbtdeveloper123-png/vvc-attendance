@@ -18,6 +18,9 @@ export interface AdminUser {
   current_address?: string;
   avatar?: string;
   is_active?: boolean | number;
+  is_verified?: boolean | number;
+  sort_order?: number;
+  group_id?: number;
   joined_at?: string;
   marital_status?: string;
   contract_start?: string;
@@ -47,12 +50,18 @@ export interface AttendanceRecord {
   employee_id: string;
   name: string;
   action: string;
-  status: 'Good' | 'Late' | 'Absent';
+  status: 'Good' | 'Late' | 'Absent' | string;
   log_time: string;
   workplace: string;
   late_reason?: string;
   location_raw?: string;
   photo?: string;
+  photo_path?: string;
+  geo_address?: string;
+  department?: string;
+  position?: string;
+  distance_m?: number;
+  noted?: string;
 }
 
 export interface RequestItem {
@@ -432,6 +441,30 @@ export const adminApi = {
     const params = new URLSearchParams();
     params.append('action', 'delete_user');
     params.append('employee_id', employeeId);
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  toggleVerification: async (employeeId: string) => {
+    const params = new URLSearchParams();
+    params.append('action', 'toggle_verification');
+    params.append('employee_id', employeeId);
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  saveUserSortOrder: async (orders: { employee_id: string; sort_order: number; department?: string }[]) => {
+    const params = new URLSearchParams();
+    params.append('action', 'save_user_sort_order');
+    params.append('orders', JSON.stringify(orders));
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  saveGroupSortOrder: async (orders: { id: number | string; sort_order: number }[]) => {
+    const params = new URLSearchParams();
+    params.append('action', 'save_group_sort_order');
+    params.append('orders', JSON.stringify(orders));
     const res = await apiClient.post('', params);
     return res.data;
   },

@@ -21,10 +21,12 @@ import {
   User,
 } from 'lucide-react';
 import { Modal } from '../components/common/Modal';
+import { ViewModeToggle, ViewMode } from '../components/common/ViewModeToggle';
 import { adminApi, PayrollItem } from '../api/adminApi';
 
 export const PayrollPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'payroll_dashboard' | 'manage_salaries' | 'adjustments' | 'payroll_history'>('payroll_dashboard');
+  const [viewMode, setViewMode] = useState<ViewMode>('table');
 
   // Month & Year Filter
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
@@ -442,128 +444,257 @@ export const PayrollPage: React.FC = () => {
               </select>
             </div>
 
-            <button
-              type="button"
-              onClick={handleCalculate}
-              disabled={calculating}
-              className="btn btn-primary"
-              style={{ height: '42px', padding: '0 24px', borderRadius: '10px', fontWeight: 700 }}
-            >
-              <Calculator size={16} />
-              <span>{calculating ? 'កំពុងគណនា...' : 'គណនា (Calculate)'}</span>
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <ViewModeToggle mode={viewMode} onChange={setViewMode} />
+
+              <button
+                type="button"
+                onClick={handleCalculate}
+                disabled={calculating}
+                className="btn btn-primary"
+                style={{ height: '42px', padding: '0 24px', borderRadius: '10px', fontWeight: 700 }}
+              >
+                <Calculator size={16} />
+                <span>{calculating ? 'កំពុងគណនា...' : 'គណនា (Calculate)'}</span>
+              </button>
+            </div>
           </div>
 
-          {/* Table matching admin_attendance.php */}
-          <div className="table-container" style={{ border: 'none', boxShadow: 'none' }}>
-            <table className="hrm-table">
-              <thead>
-                <tr>
-                  <th>បុគ្គលិក (EMPLOYEE)</th>
-                  <th>ប្រាក់ខែគោល (BASE SALARY)</th>
-                  <th style={{ textAlign: 'center' }}>ថ្ងៃបង្ហាញខ្លួន (DAYS)</th>
-                  <th style={{ color: '#ef4444' }}>កាត់ (DEDUCT)</th>
-                  <th style={{ color: '#22c55e' }}>ថែម (OT)</th>
-                  <th style={{ color: '#f59e0b' }}>បំណុល (LOAN)</th>
-                  <th style={{ color: '#6366f1', fontWeight: 800 }}>ប្រាក់ខែសរុប (NET)</th>
-                  <th style={{ textAlign: 'center' }}>ស្ថានភាព (STATUS)</th>
-                </tr>
-              </thead>
-              <tbody id="payroll-results-body">
-                {salaries.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} style={{ textAlign: 'center', padding: '36px', color: 'var(--text-muted)' }}>
-                      {loading ? 'កំពុងទាញយកទិន្នន័យប្រាក់បៀវត្ស...' : 'សូមចុចប៊ូតុង "គណនា" ដើម្បីមើលទិន្នន័យ។'}
-                    </td>
-                  </tr>
-                ) : (
-                  salaries.map((row) => {
-                    const isPaid = row.is_paid || row.status === 'Paid';
+          {/* View Mode Switching: Grid Cards or Table */}
+          {viewMode === 'grid' ? (
+            salaries.length === 0 ? (
+              <div className="hrm-card" style={{ textAlign: 'center', padding: '48px', color: 'var(--text-muted)' }}>
+                {loading ? 'កំពុងទាញយកទិន្នន័យប្រាក់បៀវត្ស...' : 'សូមចុចប៊ូតុង "គណនា" ដើម្បីមើលទិន្នន័យ។'}
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: '16px' }}>
+                {salaries.map((row) => {
+                  const isPaid = row.is_paid || row.status === 'Paid';
 
-                    return (
-                      <tr key={row.employee_id}>
-                        <td>
-                          <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '13.5px' }}>
+                  return (
+                    <div
+                      key={row.employee_id}
+                      className="hrm-card"
+                      style={{
+                        padding: '18px',
+                        borderRadius: '16px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '14px',
+                        border: '1px solid var(--border)',
+                        boxShadow: 'var(--shadow-sm)',
+                        background: 'var(--surface)',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px' }}>
+                        <div>
+                          <div style={{ fontWeight: 800, fontSize: '15px', color: 'var(--text-primary)' }}>
                             {row.name}
                           </div>
-                          <small style={{ color: '#94a3b8', fontFamily: 'monospace' }}>
+                          <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontFamily: "'Outfit', monospace", fontWeight: 600 }}>
                             ID: {row.employee_id}
-                          </small>
-                        </td>
+                          </div>
+                        </div>
 
-                        <td style={{ fontWeight: 700 }}>
-                          ${Number(row.base_salary || 0).toLocaleString()}
-                        </td>
+                        {isPaid ? (
+                          <span
+                            style={{
+                              background: '#dcfce7',
+                              color: '#16a34a',
+                              padding: '3px 10px',
+                              borderRadius: '9999px',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                            }}
+                          >
+                            <CheckCircle2 size={12} />
+                            <span>Paid</span>
+                          </span>
+                        ) : (
+                          <span
+                            style={{
+                              background: '#fee2e2',
+                              color: '#dc2626',
+                              padding: '3px 10px',
+                              borderRadius: '9999px',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                            }}
+                          >
+                            Pending
+                          </span>
+                        )}
+                      </div>
 
-                        <td style={{ textAlign: 'center', fontWeight: 600 }}>
-                          {row.present_days ?? row.days_present ?? 0}
-                        </td>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: 'var(--surface-alt)', padding: '12px', borderRadius: '12px', fontSize: '12px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>ប្រាក់ខែគោល:</span>
+                          <span style={{ fontWeight: 700 }}>${Number(row.base_salary || 0).toLocaleString()}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>ថ្ងៃបង្ហាញខ្លួន:</span>
+                          <span style={{ fontWeight: 600 }}>{row.present_days ?? row.days_present ?? 0} ថ្ងៃ</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>កាត់ (Deduct):</span>
+                          <span style={{ color: '#ef4444', fontWeight: 600 }}>-${Number(row.deductions || 0).toLocaleString()}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>ថែម (OT):</span>
+                          <span style={{ color: '#22c55e', fontWeight: 600 }}>+${Number(row.ot_bonus || row.ot_amount || 0).toLocaleString()}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid var(--border)', paddingTop: '6px', marginTop: '2px' }}>
+                          <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>ប្រាក់ខែសរុប (NET):</span>
+                          <span style={{ color: 'var(--primary)', fontWeight: 800, fontSize: '15px' }}>
+                            ${Number(row.calculated_salary ?? row.net_salary ?? 0).toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
 
-                        <td style={{ color: '#ef4444', fontWeight: 600 }}>
-                          -${Number(row.deductions || 0).toLocaleString()}
-                        </td>
-
-                        <td style={{ color: '#22c55e', fontWeight: 600 }}>
-                          +${Number(row.ot_bonus || row.ot_amount || 0).toLocaleString()}
-                        </td>
-
-                        <td style={{ color: '#f59e0b', fontWeight: 600 }}>
-                          -${Number(row.loan_deduct || row.loans || 0).toLocaleString()}
-                        </td>
-
-                        <td style={{ color: '#6366f1', fontWeight: 800, fontSize: '15px' }}>
-                          ${Number(row.calculated_salary ?? row.net_salary ?? 0).toLocaleString()}
-                        </td>
-
-                        <td style={{ textAlign: 'center' }}>
-                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                            {isPaid ? (
-                              <span
-                                style={{
-                                  background: '#22c55e',
-                                  color: '#fff',
-                                  padding: '5px 12px',
-                                  borderRadius: '10px',
-                                  fontSize: '12px',
-                                  fontWeight: 700,
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '4px',
-                                }}
-                              >
-                                <CheckCircle2 size={13} />
-                                <span>Paid</span>
-                              </span>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => handlePaySalarySingle(row)}
-                                className="btn btn-primary btn-sm"
-                                style={{ padding: '6px 14px', borderRadius: '8px', fontWeight: 700, fontSize: '12px' }}
-                              >
-                                <Coins size={13} />
-                                <span>បើកប្រាក់</span>
-                              </button>
-                            )}
-
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid var(--border)', paddingTop: '10px', marginTop: 'auto' }}>
+                        <div>
+                          {!isPaid && (
                             <button
                               type="button"
-                              onClick={() => setPayslipItem(row)}
-                              className="btn btn-secondary btn-sm"
-                              title="ប័ណ្ណបើកប្រាក់ (Payslip)"
-                              style={{ padding: '5px 8px', borderRadius: '8px' }}
+                              onClick={() => handlePaySalarySingle(row)}
+                              className="btn btn-primary btn-sm"
+                              style={{ padding: '5px 12px', borderRadius: '8px', fontSize: '11.5px' }}
                             >
-                              <Eye size={13} />
+                              <Coins size={12} />
+                              <span>បើកប្រាក់</span>
                             </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setPayslipItem(row)}
+                          className="btn btn-secondary btn-sm"
+                          style={{ padding: '5px 10px', borderRadius: '8px', fontSize: '11.5px' }}
+                        >
+                          <Eye size={12} />
+                          <span>Payslip</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )
+          ) : (
+            /* Table matching admin_attendance.php */
+            <div className="table-container" style={{ border: 'none', boxShadow: 'none' }}>
+              <table className="hrm-table">
+                <thead>
+                  <tr>
+                    <th>បុគ្គលិក (EMPLOYEE)</th>
+                    <th>ប្រាក់ខែគោល (BASE SALARY)</th>
+                    <th style={{ textAlign: 'center' }}>ថ្ងៃបង្ហាញខ្លួន (DAYS)</th>
+                    <th style={{ color: '#ef4444' }}>កាត់ (DEDUCT)</th>
+                    <th style={{ color: '#22c55e' }}>ថែម (OT)</th>
+                    <th style={{ color: '#f59e0b' }}>បំណុល (LOAN)</th>
+                    <th style={{ color: '#6366f1', fontWeight: 800 }}>ប្រាក់ខែសរុប (NET)</th>
+                    <th style={{ textAlign: 'center' }}>ស្ថានភាព (STATUS)</th>
+                  </tr>
+                </thead>
+                <tbody id="payroll-results-body">
+                  {salaries.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} style={{ textAlign: 'center', padding: '36px', color: 'var(--text-muted)' }}>
+                        {loading ? 'កំពុងទាញយកទិន្នន័យប្រាក់បៀវត្ស...' : 'សូមចុចប៊ូតុង "គណនា" ដើម្បីមើលទិន្នន័យ។'}
+                      </td>
+                    </tr>
+                  ) : (
+                    salaries.map((row) => {
+                      const isPaid = row.is_paid || row.status === 'Paid';
+
+                      return (
+                        <tr key={row.employee_id}>
+                          <td>
+                            <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '13.5px' }}>
+                              {row.name}
+                            </div>
+                            <small style={{ color: '#94a3b8', fontFamily: 'monospace' }}>
+                              ID: {row.employee_id}
+                            </small>
+                          </td>
+
+                          <td style={{ fontWeight: 700 }}>
+                            ${Number(row.base_salary || 0).toLocaleString()}
+                          </td>
+
+                          <td style={{ textAlign: 'center', fontWeight: 600 }}>
+                            {row.present_days ?? row.days_present ?? 0}
+                          </td>
+
+                          <td style={{ color: '#ef4444', fontWeight: 600 }}>
+                            -${Number(row.deductions || 0).toLocaleString()}
+                          </td>
+
+                          <td style={{ color: '#22c55e', fontWeight: 600 }}>
+                            +${Number(row.ot_bonus || row.ot_amount || 0).toLocaleString()}
+                          </td>
+
+                          <td style={{ color: '#f59e0b', fontWeight: 600 }}>
+                            -${Number(row.loan_deduct || row.loans || 0).toLocaleString()}
+                          </td>
+
+                          <td style={{ color: '#6366f1', fontWeight: 800, fontSize: '15px' }}>
+                            ${Number(row.calculated_salary ?? row.net_salary ?? 0).toLocaleString()}
+                          </td>
+
+                          <td style={{ textAlign: 'center' }}>
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                              {isPaid ? (
+                                <span
+                                  style={{
+                                    background: '#22c55e',
+                                    color: '#fff',
+                                    padding: '5px 12px',
+                                    borderRadius: '10px',
+                                    fontSize: '12px',
+                                    fontWeight: 700,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                  }}
+                                >
+                                  <CheckCircle2 size={13} />
+                                  <span>Paid</span>
+                                </span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handlePaySalarySingle(row)}
+                                  className="btn btn-primary btn-sm"
+                                  style={{ padding: '6px 14px', borderRadius: '8px', fontWeight: 700, fontSize: '12px' }}
+                                >
+                                  <Coins size={13} />
+                                  <span>បើកប្រាក់</span>
+                                </button>
+                              )}
+
+                              <button
+                                type="button"
+                                onClick={() => setPayslipItem(row)}
+                                className="btn btn-secondary btn-sm"
+                                title="ប័ណ្ណបើកប្រាក់ (Payslip)"
+                                style={{ padding: '5px 8px', borderRadius: '8px' }}
+                              >
+                                <Eye size={13} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 

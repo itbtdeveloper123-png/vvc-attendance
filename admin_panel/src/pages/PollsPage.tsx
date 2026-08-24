@@ -19,10 +19,12 @@ import {
   Lock,
 } from 'lucide-react';
 import { Modal } from '../components/common/Modal';
+import { ViewModeToggle, ViewMode } from '../components/common/ViewModeToggle';
 import { adminApi, PollItem, PollCandidate, GroupUserItem } from '../api/adminApi';
 
 export const PollsPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'manage' | 'results'>('manage');
+  const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [polls, setPolls] = useState<PollItem[]>([]);
   const [employees, setEmployees] = useState<GroupUserItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -393,7 +395,9 @@ export const PollsPage: React.FC = () => {
               />
             </div>
 
-            <div style={{ display: 'flex', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <ViewModeToggle mode={viewMode} onChange={setViewMode} />
+
               <button onClick={loadPolls} className="btn btn-secondary" style={{ borderRadius: '10px' }}>
                 <RotateCw size={14} className={loading ? 'fa-spin' : ''} />
                 <span>Refresh</span>
@@ -406,124 +410,231 @@ export const PollsPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Table matching admin_attendance.php */}
-          <div className="table-container" style={{ border: 'none', boxShadow: 'none' }}>
-            <table className="hrm-table">
-              <thead>
-                <tr>
-                  <th style={{ width: '70px', textAlign: 'center' }}>ID</th>
-                  <th>ចំណងជើង</th>
-                  <th style={{ width: '110px' }}>ត្រីមាស</th>
-                  <th style={{ width: '150px' }}>ទីតាំង/ឃ្លាំង</th>
-                  <th style={{ width: '120px', textAlign: 'center' }}>បេក្ខជន</th>
-                  <th style={{ width: '140px', textAlign: 'center' }}>សំឡេងឆ្នោត</th>
-                  <th style={{ width: '180px' }}>កាលបរិច្ឆេទ</th>
-                  <th style={{ width: '100px', textAlign: 'center' }}>ស្ថានភាព</th>
-                  <th style={{ width: '160px', textAlign: 'center' }}>សកម្មភាព</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredPolls.length === 0 ? (
-                  <tr>
-                    <td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
-                      {loading ? 'កំពុងទាញយកទិន្នន័យការបោះឆ្នោត...' : 'មិនមានការបោះឆ្នោតនៅឡើយទេ'}
-                    </td>
-                  </tr>
-                ) : (
-                  filteredPolls.map((poll) => {
-                    const candCount = poll.candidates ? poll.candidates.length : (poll.candidate_count || 0);
-                    const isActiveBool = poll.is_active === 1 || poll.status === 'Active';
+          {/* View Mode Switching: Grid Cards or Table */}
+          {viewMode === 'grid' ? (
+            filteredPolls.length === 0 ? (
+              <div className="hrm-card" style={{ textAlign: 'center', padding: '48px', color: 'var(--text-muted)' }}>
+                {loading ? 'កំពុងទាញយកទិន្នន័យការបោះឆ្នោត...' : 'មិនមានការបោះឆ្នោតនៅឡើយទេ'}
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
+                {filteredPolls.map((poll) => {
+                  const candCount = poll.candidates ? poll.candidates.length : (poll.candidate_count || 0);
+                  const isActiveBool = poll.is_active === 1 || poll.status === 'Active';
 
-                    return (
-                      <tr key={poll.id}>
-                        <td style={{ textAlign: 'center', fontWeight: 800, color: 'var(--text-muted)' }}>
-                          #{poll.id}
-                        </td>
-                        <td>
-                          <div style={{ fontWeight: 800, fontSize: '14px', color: 'var(--text-primary)' }}>
+                  return (
+                    <div
+                      key={poll.id}
+                      className="hrm-card"
+                      style={{
+                        padding: '18px',
+                        borderRadius: '16px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '14px',
+                        border: '1px solid var(--border)',
+                        boxShadow: 'var(--shadow-sm)',
+                        background: 'var(--surface)',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px' }}>
+                        <div>
+                          <div style={{ fontWeight: 800, fontSize: '15px', color: 'var(--text-primary)' }}>
                             {poll.title}
                           </div>
-                          {poll.access_code && (
-                            <div style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
-                              <Lock size={11} /> កូដចូលមើល: {poll.access_code}
-                            </div>
-                          )}
-                        </td>
-                        <td>
-                          <span className="badge badge-primary" style={{ fontWeight: 700 }}>
-                            {poll.quarter || 'Q3'}
-                          </span>
-                        </td>
-                        <td>
-                          <span style={{ background: '#e0e7ff', color: '#3730a3', padding: '3px 8px', borderRadius: '8px', fontSize: '12px', fontWeight: 600 }}>
-                            <Building2 size={12} style={{ display: 'inline', marginRight: '4px' }} />
-                            {poll.location || 'ការិយាល័យកណ្តាល'}
-                          </span>
-                        </td>
-                        <td style={{ textAlign: 'center' }}>
-                          <span style={{ background: '#f1f5f9', color: '#475569', padding: '4px 10px', borderRadius: '20px', fontWeight: 800, fontSize: '12.5px' }}>
-                            <Users size={13} style={{ display: 'inline', marginRight: '4px' }} />
+                          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                            ID: #{poll.id} • <span style={{ fontWeight: 700, color: 'var(--primary)' }}>{poll.quarter || 'Q3'}</span>
+                          </div>
+                        </div>
+
+                        <span className={isActiveBool ? 'badge badge-good' : 'badge badge-danger'}>
+                          {isActiveBool ? 'សកម្ម' : 'មិនសកម្ម'}
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: 'var(--surface-alt)', padding: '12px', borderRadius: '12px', fontSize: '12px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>ទីតាំង:</span>
+                          <span style={{ fontWeight: 600 }}>{poll.location || 'ការិយាល័យកណ្តាល'}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>បេក្ខជន:</span>
+                          <span style={{ fontWeight: 700, color: '#475569' }}>
+                            <Users size={12} style={{ display: 'inline', marginRight: '4px' }} />
                             {candCount} នាក់
                           </span>
-                        </td>
-                        <td style={{ textAlign: 'center' }}>
-                          <span style={{ background: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0', padding: '4px 12px', borderRadius: '20px', fontWeight: 800, fontSize: '13px' }}>
-                            <Vote size={13} style={{ display: 'inline', marginRight: '4px' }} />
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>សំឡេងឆ្នោត:</span>
+                          <span style={{ fontWeight: 800, color: '#059669' }}>
+                            <Vote size={12} style={{ display: 'inline', marginRight: '4px' }} />
                             {poll.total_votes || 0} សំឡេង
                           </span>
-                        </td>
-                        <td>
-                          <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                            <div>ចាប់ផ្ដើម: {poll.start_date || '-'}</div>
-                            <div>បញ្ចប់: {poll.end_date || poll.ends_at || '-'}</div>
-                          </div>
-                        </td>
-                        <td style={{ textAlign: 'center' }}>
-                          <span className={isActiveBool ? 'badge badge-good' : 'badge badge-danger'}>
-                            {isActiveBool ? 'សកម្ម' : 'មិនសកម្ម'}
-                          </span>
-                        </td>
-                        <td style={{ textAlign: 'center' }}>
-                          <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
-                            <button
-                              onClick={() => {
-                                setSelectedPollForResults(poll.id);
-                                setActiveTab('results');
-                              }}
-                              className="btn btn-sm"
-                              style={{ background: '#10b981', color: '#fff', borderRadius: '8px', padding: '5px 8px', fontWeight: 700, fontSize: '11.5px' }}
-                              title="មើលលទ្ធផល"
-                            >
-                              <BarChart3 size={13} />
-                              <span>លទ្ធផល</span>
-                            </button>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid var(--border)', paddingTop: '6px', marginTop: '2px', fontSize: '11.5px', color: 'var(--text-secondary)' }}>
+                          <span>{poll.start_date || '-'}</span>
+                          <span>→</span>
+                          <span>{poll.end_date || poll.ends_at || '-'}</span>
+                        </div>
+                      </div>
 
-                            <button
-                              onClick={() => handleOpenEdit(poll)}
-                              className="btn btn-secondary btn-sm"
-                              style={{ borderRadius: '8px', padding: '5px 8px' }}
-                              title="កែប្រែ"
-                            >
-                              <Edit size={13} />
-                            </button>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid var(--border)', paddingTop: '10px', marginTop: 'auto' }}>
+                        <button
+                          onClick={() => {
+                            setSelectedPollForResults(poll.id);
+                            setActiveTab('results');
+                          }}
+                          className="btn btn-sm"
+                          style={{ background: '#10b981', color: '#fff', borderRadius: '8px', padding: '6px 12px', fontWeight: 700, fontSize: '12px' }}
+                        >
+                          <BarChart3 size={13} />
+                          <span>មើលលទ្ធផល</span>
+                        </button>
 
-                            <button
-                              onClick={() => handleDeletePoll(poll.id, poll.title)}
-                              className="btn btn-sm"
-                              style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '8px', padding: '5px 8px' }}
-                              title="លុប"
-                            >
-                              <Trash2 size={13} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <button
+                            onClick={() => handleOpenEdit(poll)}
+                            className="btn btn-secondary btn-sm"
+                            style={{ borderRadius: '8px', padding: '5px 8px' }}
+                            title="កែប្រែ"
+                          >
+                            <Edit size={13} />
+                          </button>
+                          <button
+                            onClick={() => handleDeletePoll(poll.id, poll.title)}
+                            className="btn btn-sm"
+                            style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '8px', padding: '5px 8px' }}
+                            title="លុប"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )
+          ) : (
+            /* Table matching admin_attendance.php */
+            <div className="table-container" style={{ border: 'none', boxShadow: 'none' }}>
+              <table className="hrm-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: '70px', textAlign: 'center' }}>ID</th>
+                    <th>ចំណងជើង</th>
+                    <th style={{ width: '110px' }}>ត្រីមាស</th>
+                    <th style={{ width: '150px' }}>ទីតាំង/ឃ្លាំង</th>
+                    <th style={{ width: '120px', textAlign: 'center' }}>បេក្ខជន</th>
+                    <th style={{ width: '140px', textAlign: 'center' }}>សំឡេងឆ្នោត</th>
+                    <th style={{ width: '180px' }}>កាលបរិច្ឆេទ</th>
+                    <th style={{ width: '100px', textAlign: 'center' }}>ស្ថានភាព</th>
+                    <th style={{ width: '160px', textAlign: 'center' }}>សកម្មភាព</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredPolls.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+                        {loading ? 'កំពុងទាញយកទិន្នន័យការបោះឆ្នោត...' : 'មិនមានការបោះឆ្នោតនៅឡើយទេ'}
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredPolls.map((poll) => {
+                      const candCount = poll.candidates ? poll.candidates.length : (poll.candidate_count || 0);
+                      const isActiveBool = poll.is_active === 1 || poll.status === 'Active';
+
+                      return (
+                        <tr key={poll.id}>
+                          <td style={{ textAlign: 'center', fontWeight: 800, color: 'var(--text-muted)' }}>
+                            #{poll.id}
+                          </td>
+                          <td>
+                            <div style={{ fontWeight: 800, fontSize: '14px', color: 'var(--text-primary)' }}>
+                              {poll.title}
+                            </div>
+                            {poll.access_code && (
+                              <div style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
+                                <Lock size={11} /> កូដចូលមើល: {poll.access_code}
+                              </div>
+                            )}
+                          </td>
+                          <td>
+                            <span className="badge badge-primary" style={{ fontWeight: 700 }}>
+                              {poll.quarter || 'Q3'}
+                            </span>
+                          </td>
+                          <td>
+                            <span style={{ background: '#e0e7ff', color: '#3730a3', padding: '3px 8px', borderRadius: '8px', fontSize: '12px', fontWeight: 600 }}>
+                              <Building2 size={12} style={{ display: 'inline', marginRight: '4px' }} />
+                              {poll.location || 'ការិយាល័យកណ្តាល'}
+                            </span>
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            <span style={{ background: '#f1f5f9', color: '#475569', padding: '4px 10px', borderRadius: '20px', fontWeight: 800, fontSize: '12.5px' }}>
+                              <Users size={13} style={{ display: 'inline', marginRight: '4px' }} />
+                              {candCount} នាក់
+                            </span>
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            <span style={{ background: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0', padding: '4px 12px', borderRadius: '20px', fontWeight: 800, fontSize: '13px' }}>
+                              <Vote size={13} style={{ display: 'inline', marginRight: '4px' }} />
+                              {poll.total_votes || 0} សំឡេង
+                            </span>
+                          </td>
+                          <td>
+                            <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                              <div>ចាប់ផ្ដើម: {poll.start_date || '-'}</div>
+                              <div>បញ្ចប់: {poll.end_date || poll.ends_at || '-'}</div>
+                            </div>
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            <span className={isActiveBool ? 'badge badge-good' : 'badge badge-danger'}>
+                              {isActiveBool ? 'សកម្ម' : 'មិនសកម្ម'}
+                            </span>
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
+                              <button
+                                onClick={() => {
+                                  setSelectedPollForResults(poll.id);
+                                  setActiveTab('results');
+                                }}
+                                className="btn btn-sm"
+                                style={{ background: '#10b981', color: '#fff', borderRadius: '8px', padding: '5px 8px', fontWeight: 700, fontSize: '11.5px' }}
+                                title="មើលលទ្ធផល"
+                              >
+                                <BarChart3 size={13} />
+                                <span>លទ្ធផល</span>
+                              </button>
+
+                              <button
+                                onClick={() => handleOpenEdit(poll)}
+                                className="btn btn-secondary btn-sm"
+                                style={{ borderRadius: '8px', padding: '5px 8px' }}
+                                title="កែប្រែ"
+                              >
+                                <Edit size={13} />
+                              </button>
+
+                              <button
+                                onClick={() => handleDeletePoll(poll.id, poll.title)}
+                                className="btn btn-sm"
+                                style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '8px', padding: '5px 8px' }}
+                                title="លុប"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 

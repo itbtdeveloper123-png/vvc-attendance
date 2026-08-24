@@ -864,9 +864,11 @@ class _AttendanceScreenState extends State<AttendanceScreen>
 
       if (!mounted) return;
 
+      final String resolvedAction = action;
+
       Future<void> submit(String? reason) async {
         final result = await _apiService.submitAttendance(
-          action: action!,
+          action: resolvedAction,
           employeeId: userProvider.employeeId!,
           workplace: 'Face Scan',
           branch: 'Face Scan',
@@ -882,9 +884,9 @@ class _AttendanceScreenState extends State<AttendanceScreen>
           NotificationService().showNotification(
             id: DateTime.now().millisecondsSinceEpoch.remainder(100000),
             title: 'ជោគជ័យ',
-            body: 'អ្នកបាន $action ដោយជោគជ័យ!',
+            body: 'អ្នកបាន $resolvedAction ដោយជោគជ័យ!',
           );
-          _showSuccess(result['message'], action: action);
+          _showSuccess(result['message'], action: resolvedAction);
         } else if (result['require_late_reason'] == true) {
           if (!mounted) return;
           setState(() => _isLoading = false);
@@ -897,7 +899,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
           }
         } else if (_isOfflineOrNetworkError(result)) {
           await _saveOfflinePunch(
-            action: action,
+            action: resolvedAction,
             employeeId: userProvider.employeeId!,
             workplace: 'Face Scan',
             branch: 'Face Scan',
@@ -1010,12 +1012,14 @@ class _AttendanceScreenState extends State<AttendanceScreen>
 
       if (!mounted) return;
 
+      final String resolvedAction = action;
+
       // 4. Submit Flow
       final userProvider = Provider.of<UserProvider>(context, listen: false);
 
       Future<void> submit(String? reason) async {
         final result = await _apiService.submitAttendance(
-          action: action!,
+          action: resolvedAction,
           employeeId: userProvider.employeeId!,
           workplace: "N/A",
           branch: "N/A",
@@ -1029,9 +1033,9 @@ class _AttendanceScreenState extends State<AttendanceScreen>
           NotificationService().showNotification(
             id: DateTime.now().millisecondsSinceEpoch.remainder(100000),
             title: "ជោគជ័យ",
-            body: "អ្នកបាន $action ដោយជោគជ័យ!",
+            body: "អ្នកបាន $resolvedAction ដោយជោគជ័យ!",
           );
-          _showSuccess(result['message'], action: action);
+          _showSuccess(result['message'], action: resolvedAction);
         } else if (result['require_late_reason'] == true) {
           if (!mounted) return;
           setState(() => _isLoading = false);
@@ -1044,7 +1048,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
           }
         } else if (_isOfflineOrNetworkError(result)) {
           await _saveOfflinePunch(
-            action: action,
+            action: resolvedAction,
             employeeId: userProvider.employeeId!,
             workplace: "N/A",
             branch: "N/A",

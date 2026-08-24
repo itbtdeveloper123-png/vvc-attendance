@@ -15,10 +15,12 @@ import {
   Info,
   AlertTriangle,
 } from 'lucide-react';
+import { ViewModeToggle, ViewMode } from '../components/common/ViewModeToggle';
 import { adminApi, CategoryItem, GroupUserItem } from '../api/adminApi';
 
 export const CategoriesPage: React.FC = () => {
   const [groups, setGroups] = useState<CategoryItem[]>([]);
+  const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [users, setUsers] = useState<GroupUserItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
@@ -244,10 +246,14 @@ export const CategoriesPage: React.FC = () => {
             <span>គ្រប់គ្រងក្រុមអ្នកប្រើប្រាស់ (Skill Groups)</span>
           </h3>
 
-          <button onClick={loadData} className="btn btn-secondary btn-sm" style={{ borderRadius: '10px' }}>
-            <RotateCw size={13} className={loading ? 'fa-spin' : ''} />
-            <span>Refresh</span>
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <ViewModeToggle mode={viewMode} onChange={setViewMode} />
+
+            <button onClick={loadData} className="btn btn-secondary btn-sm" style={{ borderRadius: '10px' }}>
+              <RotateCw size={13} className={loading ? 'fa-spin' : ''} />
+              <span>Refresh</span>
+            </button>
+          </div>
         </div>
 
         <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: '0 0 20px 0' }}>
@@ -294,144 +300,250 @@ export const CategoriesPage: React.FC = () => {
           </button>
         </form>
 
-        {/* Groups Table Matching admin_attendance.php */}
-        <div className="table-container" style={{ border: 'none', boxShadow: 'none' }}>
-          <table className="hrm-table">
-            <thead>
-              <tr>
-                <th style={{ width: '50px', textAlign: 'center' }}>DRAG</th>
-                <th style={{ width: '110px', textAlign: 'center' }}>លំដាប់ (SORT)</th>
-                <th>ឈ្មោះក្រុម (GROUP NAME)</th>
-                <th style={{ width: '150px', textAlign: 'center' }}>ចំនួនបុគ្គលិក</th>
-                <th style={{ width: '100px', textAlign: 'center' }}>ACTIONS</th>
-              </tr>
-            </thead>
-            <tbody>
-              {groups.length === 0 ? (
-                <tr>
-                  <td colSpan={5} style={{ textAlign: 'center', padding: '36px', color: 'var(--text-muted)' }}>
-                    {loading ? 'កំពុងទាញយកទិន្នន័យ...' : 'មិនទាន់មានក្រុមនៅឡើយទេ'}
-                  </td>
-                </tr>
-              ) : (
-                groups.map((gr) => {
-                  const isMenuOpen = openDropdownId === gr.id;
-
-                  return (
-                    <tr key={gr.id}>
-                      <td style={{ textAlign: 'center', color: 'var(--text-muted)', cursor: 'grab' }}>
+        {/* View Mode Switching: Grid Cards or Table */}
+        {viewMode === 'grid' ? (
+          groups.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '36px', color: 'var(--text-muted)' }}>
+              {loading ? 'កំពុងទាញយកទិន្នន័យ...' : 'មិនទាន់មានក្រុមនៅឡើយទេ'}
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+              {groups.map((gr) => (
+                <div
+                  key={gr.id}
+                  className="hrm-card"
+                  style={{
+                    padding: '18px',
+                    borderRadius: '16px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '14px',
+                    border: '1px solid var(--border)',
+                    boxShadow: 'var(--shadow-sm)',
+                    background: 'var(--surface)',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ color: 'var(--text-muted)', cursor: 'grab' }}>
                         <GripVertical size={16} />
-                      </td>
+                      </span>
+                      <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>
+                        ID: #{gr.id}
+                      </span>
+                    </div>
 
-                      <td style={{ textAlign: 'center' }}>
-                        <input
-                          type="number"
-                          className="form-input"
-                          value={sortOrders[gr.id] ?? 0}
-                          onChange={(e) =>
-                            setSortOrders({ ...sortOrders, [gr.id]: Number(e.target.value) })
-                          }
-                          style={{
-                            height: '32px',
-                            fontSize: '13px',
-                            textAlign: 'center',
-                            width: '70px',
-                            margin: '0 auto',
-                            padding: '0',
-                            borderRadius: '8px',
-                          }}
-                        />
-                      </td>
+                    <span
+                      className="badge badge-good"
+                      style={{ minWidth: '40px', justifyContent: 'center', fontSize: '12px', fontWeight: 800 }}
+                    >
+                      <Users size={12} style={{ display: 'inline', marginRight: '4px' }} />
+                      {gr.user_count ?? gr.item_count ?? 0} នាក់
+                    </span>
+                  </div>
 
-                      <td>
-                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <label style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--text-muted)' }}>
+                      ឈ្មោះក្រុម (Group Name):
+                    </label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={editingGroupNames[gr.id] ?? gr.group_name ?? gr.name}
+                      onChange={(e) =>
+                        setEditingGroupNames({ ...editingGroupNames, [gr.id]: e.target.value })
+                      }
+                      style={{ height: '36px', fontWeight: 700, fontSize: '13.5px' }}
+                    />
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--surface-alt)', padding: '8px 12px', borderRadius: '10px' }}>
+                    <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>លំដាប់ (Sort):</span>
+                    <input
+                      type="number"
+                      className="form-input"
+                      value={sortOrders[gr.id] ?? 0}
+                      onChange={(e) =>
+                        setSortOrders({ ...sortOrders, [gr.id]: Number(e.target.value) })
+                      }
+                      style={{ height: '30px', width: '60px', textAlign: 'center', fontSize: '12px', padding: '0', borderRadius: '6px' }}
+                    />
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid var(--border)', paddingTop: '10px', marginTop: 'auto' }}>
+                    <button
+                      type="button"
+                      onClick={() => handleSaveGroupName(gr.id)}
+                      className="btn btn-secondary btn-sm"
+                      style={{ padding: '6px 14px', borderRadius: '8px', fontSize: '12px', fontWeight: 700 }}
+                    >
+                      <Save size={12} />
+                      <span>រក្សាទុក</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteGroup(gr.id, gr.group_name || gr.name)}
+                      className="btn btn-danger btn-sm"
+                      style={{ padding: '6px 12px', borderRadius: '8px', fontSize: '12px' }}
+                    >
+                      <Trash2 size={12} />
+                      <span>លុប</span>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        ) : (
+          /* Groups Table Matching admin_attendance.php */
+          <div className="table-container" style={{ border: 'none', boxShadow: 'none' }}>
+            <table className="hrm-table">
+              <thead>
+                <tr>
+                  <th style={{ width: '50px', textAlign: 'center' }}>DRAG</th>
+                  <th style={{ width: '110px', textAlign: 'center' }}>លំដាប់ (SORT)</th>
+                  <th>ឈ្មោះក្រុម (GROUP NAME)</th>
+                  <th style={{ width: '150px', textAlign: 'center' }}>ចំនួនបុគ្គលិក</th>
+                  <th style={{ width: '100px', textAlign: 'center' }}>ACTIONS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {groups.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} style={{ textAlign: 'center', padding: '36px', color: 'var(--text-muted)' }}>
+                      {loading ? 'កំពុងទាញយកទិន្នន័យ...' : 'មិនទាន់មានក្រុមនៅឡើយទេ'}
+                    </td>
+                  </tr>
+                ) : (
+                  groups.map((gr) => {
+                    const isMenuOpen = openDropdownId === gr.id;
+
+                    return (
+                      <tr key={gr.id}>
+                        <td style={{ textAlign: 'center', color: 'var(--text-muted)', cursor: 'grab' }}>
+                          <GripVertical size={16} />
+                        </td>
+
+                        <td style={{ textAlign: 'center' }}>
                           <input
-                            type="text"
+                            type="number"
                             className="form-input"
-                            value={editingGroupNames[gr.id] ?? gr.group_name ?? gr.name}
+                            value={sortOrders[gr.id] ?? 0}
                             onChange={(e) =>
-                              setEditingGroupNames({ ...editingGroupNames, [gr.id]: e.target.value })
+                              setSortOrders({ ...sortOrders, [gr.id]: Number(e.target.value) })
                             }
-                            style={{ height: '36px', fontWeight: 700, fontSize: '13.5px', maxWidth: '400px' }}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => handleSaveGroupName(gr.id)}
-                            className="btn btn-secondary btn-sm"
-                            style={{ padding: '6px 14px', borderRadius: '8px', fontSize: '11.5px', fontWeight: 700 }}
-                          >
-                            <Save size={12} />
-                            <span>Save</span>
-                          </button>
-                        </div>
-                      </td>
-
-                      <td style={{ textAlign: 'center' }}>
-                        <span
-                          className="badge badge-good"
-                          style={{ minWidth: '40px', justifyContent: 'center', fontSize: '13px', fontWeight: 800 }}
-                        >
-                          {gr.user_count ?? gr.item_count ?? 0}
-                        </span>
-                      </td>
-
-                      <td style={{ textAlign: 'center', position: 'relative' }}>
-                        <button
-                          type="button"
-                          onClick={() => setOpenDropdownId(isMenuOpen ? null : gr.id)}
-                          className="btn btn-secondary btn-sm"
-                          style={{ padding: '6px 10px', borderRadius: '8px' }}
-                          title="Actions"
-                        >
-                          <MoreVertical size={14} />
-                        </button>
-
-                        {isMenuOpen && (
-                          <div
                             style={{
-                              position: 'absolute',
-                              right: '10px',
-                              top: '40px',
-                              background: '#fff',
-                              borderRadius: '10px',
-                              boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
-                              border: '1px solid var(--border)',
-                              zIndex: 100,
-                              minWidth: '120px',
-                              overflow: 'hidden',
+                              height: '32px',
+                              fontSize: '13px',
+                              textAlign: 'center',
+                              width: '70px',
+                              margin: '0 auto',
+                              padding: '0',
+                              borderRadius: '8px',
                             }}
-                          >
+                          />
+                        </td>
+
+                        <td>
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            <input
+                              type="text"
+                              className="form-input"
+                              value={editingGroupNames[gr.id] ?? gr.group_name ?? gr.name}
+                              onChange={(e) =>
+                                setEditingGroupNames({ ...editingGroupNames, [gr.id]: e.target.value })
+                              }
+                              style={{ height: '36px', fontWeight: 700, fontSize: '13.5px', maxWidth: '400px' }}
+                            />
                             <button
                               type="button"
-                              onClick={() => handleDeleteGroup(gr.id, gr.group_name || gr.name)}
-                              style={{
-                                width: '100%',
-                                padding: '10px 14px',
-                                border: 'none',
-                                background: 'transparent',
-                                color: '#ef4444',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '8px',
-                                fontSize: '12.5px',
-                                fontWeight: 700,
-                                cursor: 'pointer',
-                                textAlign: 'left',
-                              }}
+                              onClick={() => handleSaveGroupName(gr.id)}
+                              className="btn btn-secondary btn-sm"
+                              style={{ padding: '6px 14px', borderRadius: '8px', fontSize: '11.5px', fontWeight: 700 }}
                             >
-                              <Trash2 size={13} />
-                              <span>Delete</span>
+                              <Save size={12} />
+                              <span>Save</span>
                             </button>
                           </div>
-                        )}
-                      </td>
-                    </tr>
+                        </td>
+
+                        <td style={{ textAlign: 'center' }}>
+                          <span
+                            className="badge badge-good"
+                            style={{ minWidth: '40px', justifyContent: 'center', fontSize: '13px', fontWeight: 800 }}
+                          >
+                            {gr.user_count ?? gr.item_count ?? 0}
+                          </span>
+                        </td>
+
+                        <td style={{ textAlign: 'center', position: 'relative' }}>
+                          <button
+                            type="button"
+                            onClick={() => setOpenDropdownId(isMenuOpen ? null : gr.id)}
+                            style={{
+                              width: '32px',
+                              height: '32px',
+                              borderRadius: '8px',
+                              border: '1px solid var(--border)',
+                              background: 'var(--surface)',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: 'pointer',
+                              color: 'var(--text-secondary)',
+                            }}
+                          >
+                            <MoreVertical size={15} />
+                          </button>
+
+                          {isMenuOpen && (
+                            <div
+                              style={{
+                                position: 'absolute',
+                                right: '10px',
+                                top: '40px',
+                                background: '#fff',
+                                borderRadius: '10px',
+                                boxShadow: 'var(--shadow-lg)',
+                                border: '1px solid var(--border)',
+                                minWidth: '140px',
+                                padding: '6px 0',
+                                zIndex: 30,
+                              }}
+                            >
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteGroup(gr.id, gr.group_name || gr.name)}
+                                style={{
+                                  padding: '8px 14px',
+                                  border: 'none',
+                                  background: 'transparent',
+                                  color: '#ef4444',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '8px',
+                                  fontSize: '12.5px',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  textAlign: 'left',
+                                  width: '100%',
+                                }}
+                              >
+                                <Trash2 size={13} />
+                                <span>Delete</span>
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
                   );
                 })
               )}
             </tbody>
           </table>
         </div>
+        )}
 
         {/* Update Sort Button Bar */}
         <div

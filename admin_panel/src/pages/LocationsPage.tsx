@@ -27,6 +27,7 @@ import {
   Palette
 } from 'lucide-react';
 import { Modal } from '../components/common/Modal';
+import { ViewModeToggle, ViewMode } from '../components/common/ViewModeToggle';
 import {
   adminApi,
   LocationItem,
@@ -460,40 +461,7 @@ export const LocationsPage: React.FC = () => {
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{ display: 'flex', background: 'var(--surface-subtle, #f1f5f9)', padding: '4px', borderRadius: '10px' }}>
-                <button
-                  type="button"
-                  onClick={() => setViewMode('grid')}
-                  style={{
-                    padding: '6px 10px',
-                    borderRadius: '8px',
-                    border: 'none',
-                    background: viewMode === 'grid' ? '#fff' : 'transparent',
-                    color: viewMode === 'grid' ? 'var(--primary)' : 'var(--text-muted)',
-                    cursor: 'pointer',
-                    boxShadow: viewMode === 'grid' ? '0 2px 6px rgba(0,0,0,0.06)' : 'none',
-                  }}
-                  title="Grid View"
-                >
-                  <LayoutGrid size={16} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setViewMode('table')}
-                  style={{
-                    padding: '6px 10px',
-                    borderRadius: '8px',
-                    border: 'none',
-                    background: viewMode === 'table' ? '#fff' : 'transparent',
-                    color: viewMode === 'table' ? 'var(--primary)' : 'var(--text-muted)',
-                    cursor: 'pointer',
-                    boxShadow: viewMode === 'table' ? '0 2px 6px rgba(0,0,0,0.06)' : 'none',
-                  }}
-                  title="Table View"
-                >
-                  <TableIcon size={16} />
-                </button>
-              </div>
+              <ViewModeToggle mode={viewMode} onChange={setViewMode} />
 
               <button
                 type="button"
