@@ -9,11 +9,11 @@ import {
   CheckCircle2,
   Users,
   GripVertical,
-  ArrowRightLeft,
-  UserX,
+  Send,
   Save,
   MoreVertical,
   Info,
+  AlertTriangle,
 } from 'lucide-react';
 import { adminApi, CategoryItem, GroupUserItem } from '../api/adminApi';
 
@@ -28,8 +28,7 @@ export const CategoriesPage: React.FC = () => {
   // User Assignments State
   const [userSearch, setUserSearch] = useState('');
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
-  const [targetGroupId, setTargetGroupId] = useState<string>('');
-  const [activeFilterGroupId, setActiveFilterGroupId] = useState<string>('all');
+  const [targetGroupId, setTargetGroupId] = useState<string>('none');
   const [openDropdownId, setOpenDropdownId] = useState<number | null>(null);
 
   // Banner
@@ -157,16 +156,11 @@ export const CategoriesPage: React.FC = () => {
   // Filtered Users
   const filteredUsers = users.filter((u) => {
     const q = userSearch.toLowerCase();
-    const matchesSearch =
+    return (
       (u.name || '').toLowerCase().includes(q) ||
       (u.employee_id || '').toLowerCase().includes(q) ||
-      (u.department || '').toLowerCase().includes(q);
-
-    if (!matchesSearch) return false;
-
-    if (activeFilterGroupId === 'all') return true;
-    if (activeFilterGroupId === 'none') return !u.group_id;
-    return String(u.group_id) === activeFilterGroupId;
+      (u.department || '').toLowerCase().includes(q)
+    );
   });
 
   // Toggle Single User
@@ -191,50 +185,30 @@ export const CategoriesPage: React.FC = () => {
     filteredUsers.length > 0 &&
     filteredUsers.every((u) => selectedUserIds.includes(u.employee_id));
 
-  // Move Selected Users to Group
-  const handleAssignToGroup = async () => {
+  // Save Assignment (Move to Group or Remove)
+  const handleSaveAssignment = async () => {
     if (selectedUserIds.length === 0) {
       alert('សូមជ្រើសរើសបុគ្គលិកយ៉ាងតិចម្នាក់!');
       return;
     }
-    if (!targetGroupId) {
-      alert('សូមជ្រើសរើសក្រុមគោលដៅ!');
-      return;
-    }
     try {
-      const res = await adminApi.assignUsersToGroup(selectedUserIds, Number(targetGroupId));
-      if (res && (res.success || res.status === 'success')) {
-        showBanner('success', res.message || 'បានកំណត់ក្រុមជូនបុគ្គលិកជោគជ័យ!');
-        setSelectedUserIds([]);
-        loadData();
+      if (targetGroupId === 'none' || !targetGroupId) {
+        const res = await adminApi.removeUsersFromGroup(selectedUserIds);
+        if (res && (res.success || res.status === 'success')) {
+          showBanner('success', res.message || 'បានដកបុគ្គលិកចេញពីក្រុមជោគជ័យ!');
+          setSelectedUserIds([]);
+          loadData();
+        }
       } else {
-        showBanner('error', res?.message || 'Error assigning group');
+        const res = await adminApi.assignUsersToGroup(selectedUserIds, Number(targetGroupId));
+        if (res && (res.success || res.status === 'success')) {
+          showBanner('success', res.message || 'បានកំណត់ក្រុមជូនបុគ្គលិកជោគជ័យ!');
+          setSelectedUserIds([]);
+          loadData();
+        }
       }
     } catch (err) {
-      showBanner('error', 'កំហុសក្នុងការកំណត់ក្រុម');
-    }
-  };
-
-  // Remove Selected Users from Group
-  const handleRemoveFromGroup = async () => {
-    if (selectedUserIds.length === 0) {
-      alert('សូមជ្រើសរើសបុគ្គលិកយ៉ាងតិចម្នាក់!');
-      return;
-    }
-    if (!window.confirm(`តើអ្នកពិតជាចង់ដកបុគ្គលិកចំនួន ${selectedUserIds.length} នាក់ចេញពីក្រុមមែនទេ?`)) {
-      return;
-    }
-    try {
-      const res = await adminApi.removeUsersFromGroup(selectedUserIds);
-      if (res && (res.success || res.status === 'success')) {
-        showBanner('success', res.message || 'បានដកបុគ្គលិកចេញពីក្រុមជោគជ័យ!');
-        setSelectedUserIds([]);
-        loadData();
-      } else {
-        showBanner('error', res?.message || 'Error removing from group');
-      }
-    } catch (err) {
-      showBanner('error', 'កំហុសក្នុងការដកចេញពីក្រុម');
+      showBanner('error', 'កំហុសក្នុងការរក្សាទុកការផ្លាស់ប្តូរ');
     }
   };
 
@@ -500,7 +474,7 @@ export const CategoriesPage: React.FC = () => {
             <span>កំណត់បុគ្គលិកទៅកាន់ក្រុម (User Assignments)</span>
           </h3>
           <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: '4px 0 0 0' }}>
-            ជ្រើសរើសបុគ្គលិកមួយ ឬច្រើន ដើម្បីប្ដូរក្រុម ឬដកចេញពីក្រុម។
+            ជ្រើសរើសបុគ្គលិកមួយ ឬច្រើន ដើម្បីប្តូរក្រុម ឬដកចេញពីក្រុម។
           </p>
         </div>
 
@@ -512,7 +486,7 @@ export const CategoriesPage: React.FC = () => {
             alignItems: 'start',
           }}
         >
-          {/* Left Column: Employee List & Selector */}
+          {/* Left Column: Employee List matching admin_attendance.php */}
           <div
             style={{
               background: '#fff',
@@ -597,26 +571,26 @@ export const CategoriesPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Employee Cards Grid */}
+            {/* Employee Cards Grid (3 columns matching admin_attendance.php) */}
             <div
               style={{
                 flex: 1,
                 overflowY: 'auto',
                 padding: '20px',
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
                 gap: '12px',
                 maxHeight: '520px',
               }}
             >
               {filteredUsers.length === 0 ? (
                 <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
-                  រកមិនឃើញបុគ្គលិកឡើយ
+                  {loading ? 'កំពុងទាញយកទិន្នន័យបុគ្គលិក...' : 'រកមិនឃើញបុគ្គលិកឡើយ'}
                 </div>
               ) : (
                 filteredUsers.map((u) => {
                   const isSelected = selectedUserIds.includes(u.employee_id);
-                  const matchedGroup = groups.find((g) => g.id === u.group_id);
+                  const initials = (u.name || u.employee_id).substring(0, 2).toUpperCase();
 
                   return (
                     <div
@@ -629,7 +603,7 @@ export const CategoriesPage: React.FC = () => {
                         padding: '10px 12px',
                         border: isSelected ? '2px solid var(--primary)' : '1px solid var(--border)',
                         background: isSelected ? 'var(--primary-light)' : '#fff',
-                        borderRadius: '12px',
+                        borderRadius: '14px',
                         cursor: 'pointer',
                         transition: 'all 0.15s ease',
                       }}
@@ -637,16 +611,16 @@ export const CategoriesPage: React.FC = () => {
                       <input
                         type="checkbox"
                         checked={isSelected}
-                        onChange={() => {}} // handled by div onClick
+                        onChange={() => {}} // handled by container onClick
                         style={{ cursor: 'pointer', accentColor: 'var(--primary)', width: '16px', height: '16px' }}
                       />
 
                       <div
                         style={{
-                          width: '36px',
-                          height: '36px',
-                          borderRadius: '8px',
-                          background: 'var(--primary)',
+                          width: '38px',
+                          height: '38px',
+                          borderRadius: '10px',
+                          background: u.avatar ? 'transparent' : '#3b82f6',
                           color: '#fff',
                           display: 'flex',
                           alignItems: 'center',
@@ -655,12 +629,13 @@ export const CategoriesPage: React.FC = () => {
                           fontSize: '13px',
                           flexShrink: 0,
                           overflow: 'hidden',
+                          border: '1px solid rgba(0,0,0,0.06)',
                         }}
                       >
                         {u.avatar ? (
                           <img src={u.avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                         ) : (
-                          u.name.substring(0, 2).toUpperCase()
+                          initials
                         )}
                       </div>
 
@@ -668,16 +643,8 @@ export const CategoriesPage: React.FC = () => {
                         <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {u.name}
                         </div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                          ID: {u.employee_id}
-                        </div>
-                        <div style={{ marginTop: '2px' }}>
-                          <span
-                            className={matchedGroup ? 'badge badge-primary' : 'badge'}
-                            style={{ fontSize: '10px', padding: '1px 6px' }}
-                          >
-                            {matchedGroup ? (matchedGroup.group_name || matchedGroup.name) : 'គ្មានក្រុម'}
-                          </span>
+                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                          #{u.employee_id}
                         </div>
                       </div>
                     </div>
@@ -687,81 +654,94 @@ export const CategoriesPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Right Column: Actions Control Panel */}
+          {/* Right Column: Actions matching admin_attendance.php */}
           <div
             style={{
-              background: '#fff',
+              background: 'var(--surface-alt)',
               border: '1px solid var(--border)',
               borderRadius: '16px',
-              padding: '20px',
+              padding: '24px',
               display: 'flex',
               flexDirection: 'column',
-              gap: '20px',
+              gap: '18px',
+              position: 'sticky',
+              top: '20px',
             }}
           >
             <div>
-              <h4 style={{ margin: '0 0 4px 0', fontSize: '14.5px', fontWeight: 800, color: 'var(--text-primary)' }}>
-                គ្រប់គ្រងការចាត់តាំង
+              <h4 style={{ margin: '0 0 6px 0', fontSize: '15px', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Send size={16} color="var(--primary)" />
+                <span>ប្តូរទៅក្រុមថ្មី</span>
               </h4>
-              <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-muted)' }}>
+              <p style={{ margin: 0, fontSize: '12.5px', color: 'var(--text-secondary)' }}>
                 បានជ្រើសរើសបុគ្គលិក៖ <strong style={{ color: 'var(--primary)' }}>{selectedUserIds.length} នាក់</strong>
               </p>
             </div>
 
-            {/* Action 1: Move to Group */}
-            <div style={{ background: 'var(--surface-alt)', padding: '16px', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <label style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--text-secondary)' }}>
-                <ArrowRightLeft size={13} style={{ display: 'inline', marginRight: '5px' }} />
-                ប្តូរទៅក្រុមថ្មី
+            {/* Target Group Selector */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <label style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Layers size={14} color="var(--primary)" />
+                <span>ជ្រើសរើសក្រុមគោលដៅ:</span>
               </label>
 
               <select
                 className="form-control"
                 value={targetGroupId}
                 onChange={(e) => setTargetGroupId(e.target.value)}
-                style={{ height: '38px', borderRadius: '8px', fontSize: '13px' }}
+                style={{ height: '42px', borderRadius: '10px', fontSize: '13px', background: '#fff' }}
               >
-                <option value="">-- ជ្រើសរើសក្រុមគោលដៅ --</option>
+                <option value="none">— ដកចេញពីក្រុម (Remove) —</option>
                 {groups.map((g) => (
                   <option key={g.id} value={g.id}>
                     {g.group_name || g.name}
                   </option>
                 ))}
               </select>
-
-              <button
-                type="button"
-                onClick={handleAssignToGroup}
-                disabled={selectedUserIds.length === 0 || !targetGroupId}
-                className="btn btn-primary"
-                style={{ width: '100%', height: '38px', borderRadius: '8px', fontSize: '12.5px', fontWeight: 700 }}
-              >
-                <Check size={14} />
-                <span>+ ប្តូរទៅក្រុមគោលដៅ</span>
-              </button>
             </div>
 
-            {/* Action 2: Remove from Group */}
-            <div style={{ background: 'var(--surface-alt)', padding: '16px', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <label style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--text-secondary)' }}>
-                <UserX size={13} style={{ display: 'inline', marginRight: '5px' }} />
-                ដកចេញពីក្រុម
-              </label>
-              <p style={{ margin: 0, fontSize: '11.5px', color: 'var(--text-muted)' }}>
-                ដកបុគ្គលិកដែលបានជ្រើសរើសចេញពីក្រុមបច្ចុប្បន្ន។
-              </p>
-
-              <button
-                type="button"
-                onClick={handleRemoveFromGroup}
-                disabled={selectedUserIds.length === 0}
-                className="btn btn-danger"
-                style={{ width: '100%', height: '38px', borderRadius: '8px', fontSize: '12.5px', fontWeight: 700 }}
-              >
-                <Trash2 size={14} />
-                <span>ដកចេញពីក្រុម (Remove)</span>
-              </button>
+            {/* Notification / Note Alert Box */}
+            <div
+              style={{
+                padding: '14px',
+                borderRadius: '12px',
+                background: 'rgba(245, 158, 11, 0.1)',
+                border: '1px dashed #f59e0b',
+                color: '#b45309',
+                fontSize: '12px',
+                lineHeight: '1.5',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '8px',
+              }}
+            >
+              <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
+              <div>
+                <strong>បញ្ជាក់:</strong> ការកំណត់នេះនឹងជំនួសក្រុមចាស់របស់បុគ្គលិកដែលបានជ្រើសរើស។ បុគ្គលិកដែលមិនមានក្រុម រូបភាពផ្ទាំងការបោះឆ្នោតនឹងមិនបង្ហាញឡើយ។
+              </div>
             </div>
+
+            {/* Save Button */}
+            <button
+              type="button"
+              onClick={handleSaveAssignment}
+              disabled={selectedUserIds.length === 0}
+              className="btn btn-primary"
+              style={{
+                width: '100%',
+                height: '44px',
+                borderRadius: '10px',
+                fontSize: '13.5px',
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+              }}
+            >
+              <Save size={15} />
+              <span>រក្សាទុកការផ្លាស់ប្តូរ</span>
+            </button>
           </div>
         </div>
       </div>

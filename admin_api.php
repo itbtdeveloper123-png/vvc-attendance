@@ -751,11 +751,15 @@ try {
             }
             unset($gr);
 
-            // Fetch users for User Assignments section
-            $allUsersRaw = dbQuery("SELECT id, employee_id, name, avatar, department, phone, role, custom_data FROM users ORDER BY name ASC");
+            // Fetch users for User Assignments section matching admin_attendance.php
+            $allUsersRaw = dbQuery("SELECT id, employee_id, name, avatar, department, phone, user_role, custom_data FROM users ORDER BY name ASC");
+            if (empty($allUsersRaw)) {
+                $allUsersRaw = dbQuery("SELECT * FROM users ORDER BY name ASC");
+            }
+
             $allUsers = [];
             foreach ($allUsersRaw as $u) {
-                $cd = !empty($u['custom_data']) ? json_decode($u['custom_data'], true) : [];
+                $cd = !empty($u['custom_data']) ? (is_array($u['custom_data']) ? $u['custom_data'] : json_decode($u['custom_data'], true)) : [];
                 $userGroupId = isset($cd['group_id']) ? (int)$cd['group_id'] : null;
 
                 // Fallback: match by department / branch name if group_id is not explicitly in custom_data
@@ -771,11 +775,11 @@ try {
                 $allUsers[] = [
                     'id' => (int)$u['id'],
                     'employee_id' => $u['employee_id'],
-                    'name' => $u['name'] ?: $u['employee_id'],
+                    'name' => !empty($u['name']) ? $u['name'] : $u['employee_id'],
                     'avatar' => $u['avatar'] ?? '',
                     'department' => $u['department'] ?? '',
                     'phone' => $u['phone'] ?? '',
-                    'role' => $u['role'] ?? 'employee',
+                    'user_role' => $u['user_role'] ?? 'User',
                     'group_id' => $userGroupId,
                 ];
             }
