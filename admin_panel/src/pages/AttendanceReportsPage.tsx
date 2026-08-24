@@ -187,20 +187,30 @@ export const AttendanceReportsPage: React.FC = () => {
     setLoadingLeaveDeo(true);
     try {
       const d = getActiveDate();
-      const res = await adminApi.fetchLeaveDeoReport(selectedStore, d);
-      if (res && res.success) {
-        setLeaveDeoRecords(res.records || []);
-        setApprovedLeaves(res.approved_leaves || []);
+      if (activeReportTab === 'leave_deo') {
+        try {
+          const res = await adminApi.fetchLeaveDeoReport(selectedStore, d);
+          if (res && res.success) {
+            setLeaveDeoRecords(res.records || []);
+            setApprovedLeaves(res.approved_leaves || []);
+          }
+        } catch (e) {
+          console.warn('Failed to fetch leave deo report:', e);
+        }
       }
 
       if (activeReportTab === 'combined') {
-        const cRes = await adminApi.fetchConsolidatedReport(selectedStore, d);
-        if (cRes && cRes.success) {
-          setConsolidatedScans(cRes.scans || []);
-          setConsolidatedData(cRes.consolidated || {});
-          if (cRes.staff && Array.isArray(cRes.staff) && cRes.staff.length > 0) {
-            setLeaveDeoRecords(cRes.staff);
+        try {
+          const cRes = await adminApi.fetchConsolidatedReport(selectedStore, d);
+          if (cRes && cRes.success) {
+            setConsolidatedScans(cRes.scans || []);
+            setConsolidatedData(cRes.consolidated || {});
+            if (cRes.staff && Array.isArray(cRes.staff) && cRes.staff.length > 0) {
+              setLeaveDeoRecords(cRes.staff);
+            }
           }
+        } catch (e) {
+          console.warn('Failed to fetch consolidated report:', e);
         }
       }
     } catch (e) {

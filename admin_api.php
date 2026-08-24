@@ -79,45 +79,49 @@ if (!$mysqli && class_exists('PDO')) {
 // Helper Query Function
 function dbQuery(string $sql, array $params = []): array {
     global $mysqli, $pdo;
-    if ($mysqli) {
-        if (empty($params)) {
-            $res = $mysqli->query($sql);
-            if (!$res) return [];
-            if ($res === true) return ['affected_rows' => $mysqli->affected_rows, 'insert_id' => $mysqli->insert_id];
-            $rows = [];
-            while ($row = $res->fetch_assoc()) $rows[] = $row;
-            return $rows;
-        } else {
-            $stmt = $mysqli->prepare($sql);
-            if (!$stmt) return [];
-            $types = '';
-            foreach ($params as $p) {
-                if (is_int($p)) $types .= 'i';
-                elseif (is_double($p)) $types .= 'd';
-                else $types .= 's';
-            }
-            $stmt->bind_param($types, ...$params);
-            $stmt->execute();
-            $res = $stmt->get_result();
-            if ($res) {
+    try {
+        if ($mysqli) {
+            if (empty($params)) {
+                $res = @$mysqli->query($sql);
+                if (!$res) return [];
+                if ($res === true) return ['affected_rows' => (int)$mysqli->affected_rows, 'insert_id' => (int)$mysqli->insert_id];
                 $rows = [];
                 while ($row = $res->fetch_assoc()) $rows[] = $row;
-                $stmt->close();
                 return $rows;
+            } else {
+                $stmt = @$mysqli->prepare($sql);
+                if (!$stmt) return [];
+                $types = '';
+                foreach ($params as $p) {
+                    if (is_int($p)) $types .= 'i';
+                    elseif (is_double($p)) $types .= 'd';
+                    else $types .= 's';
+                }
+                @$stmt->bind_param($types, ...$params);
+                @$stmt->execute();
+                $res = @$stmt->get_result();
+                if ($res) {
+                    $rows = [];
+                    while ($row = $res->fetch_assoc()) $rows[] = $row;
+                    @$stmt->close();
+                    return $rows;
+                }
+                $affected = (int)$stmt->affected_rows;
+                $insertId = (int)$stmt->insert_id;
+                @$stmt->close();
+                return ['affected_rows' => $affected, 'insert_id' => $insertId];
             }
-            $affected = $stmt->affected_rows;
-            $insertId = $stmt->insert_id;
-            $stmt->close();
-            return ['affected_rows' => $affected, 'insert_id' => $insertId];
+        } elseif ($pdo) {
+            $stmt = @$pdo->prepare($sql);
+            if (!$stmt) return [];
+            @$stmt->execute($params);
+            if (stripos(trim($sql), 'SELECT') === 0) {
+                return $stmt->fetchAll() ?: [];
+            }
+            return ['affected_rows' => (int)$stmt->rowCount(), 'insert_id' => (int)$pdo->lastInsertId()];
         }
-    } elseif ($pdo) {
-        $stmt = $pdo->prepare($sql);
-        if (!$stmt) return [];
-        $stmt->execute($params);
-        if (stripos(trim($sql), 'SELECT') === 0) {
-            return $stmt->fetchAll() ?: [];
-        }
-        return ['affected_rows' => $stmt->rowCount(), 'insert_id' => $pdo->lastInsertId()];
+    } catch (Throwable $e) {
+        return [];
     }
     return [];
 }
@@ -710,7 +714,7 @@ try {
 
             $rows = [];
             try {
-                $sql = "SELECT id, number, name, role, note, reports_date FROM {$table} WHERE 1=1";
+                $sql = "SELECT * FROM {$table} WHERE 1=1";
                 $params = [];
                 if (!empty($date) && $date !== 'all') {
                     $sql .= " AND reports_date = ?";
