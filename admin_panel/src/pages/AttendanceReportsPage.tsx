@@ -432,51 +432,52 @@ export const AttendanceReportsPage: React.FC = () => {
 
   // Add new row in Leave & Deo
   const handleAddNewLeaveDeoRow = async () => {
+    const d = getActiveDate();
+    const tempId = Date.now();
+    const newRecord = {
+      id: tempId,
+      number: String(leaveDeoRecords.length + 1),
+      name: '',
+      role: '',
+      note: '',
+      reports_date: d,
+    };
+    setLeaveDeoRecords((prev) => [...prev, newRecord]);
+    setSaveSuccessMsg('បានបន្ថែមជួរថ្មី!');
+    setTimeout(() => setSaveSuccessMsg(null), 2500);
+
     try {
-      const d = getActiveDate();
       const res = await adminApi.createLeaveDeoRow(selectedStore, d);
       if (res && res.success && res.new_id) {
-        setLeaveDeoRecords((prev) => [
-          ...prev,
-          {
-            id: res.new_id,
-            number: String(prev.length + 1),
-            name: '',
-            role: '',
-            note: '',
-            reports_date: d,
-          },
-        ]);
-        setSaveSuccessMsg('បានបន្ថែមជួរថ្មី!');
-        setTimeout(() => setSaveSuccessMsg(null), 2500);
+        setLeaveDeoRecords((prev) =>
+          prev.map((r) => (r.id === tempId ? { ...r, id: res.new_id } : r))
+        );
       }
     } catch (e) {
-      console.error(e);
+      console.error('Failed to create row on server:', e);
     }
   };
 
   // Update cell in Leave & Deo
-  const handleUpdateLeaveDeoCell = async (id: number, column: string, value: string) => {
+  const handleUpdateLeaveDeoCell = async (id: number | string, column: string, value: string) => {
     setLeaveDeoRecords((prev) =>
       prev.map((r) => (r.id === id ? { ...r, [column]: value } : r))
     );
     try {
       await adminApi.updateLeaveDeoRow(selectedStore, id, column, value);
     } catch (e) {
-      console.error(e);
+      console.error('Failed to update leave deo cell:', e);
     }
   };
 
   // Delete row in Leave & Deo
-  const handleDeleteLeaveDeoRow = async (id: number) => {
+  const handleDeleteLeaveDeoRow = async (id: number | string) => {
     if (!window.confirm('តើអ្នកពិតជាចង់លុបជួរដេកនេះមែនទេ?')) return;
+    setLeaveDeoRecords((prev) => prev.filter((r) => r.id !== id));
     try {
-      const res = await adminApi.deleteLeaveDeoRow(selectedStore, id);
-      if (res && res.success) {
-        setLeaveDeoRecords((prev) => prev.filter((r) => r.id !== id));
-      }
+      await adminApi.deleteLeaveDeoRow(selectedStore, id);
     } catch (e) {
-      console.error(e);
+      console.error('Failed to delete leave deo row:', e);
     }
   };
 
