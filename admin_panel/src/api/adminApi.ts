@@ -130,14 +130,25 @@ export interface PollItem {
   options: PollOption[];
 }
 
+export interface SessionGroup {
+  id: number;
+  group_name: string;
+  sort_order: number;
+}
+
 export interface SessionItem {
   id: number;
   employee_id: string;
-  name: string;
-  device: string;
-  ip_address: string;
+  user_name?: string;
+  name?: string;
+  auth_token: string;
+  user_role?: string;
+  department?: string;
+  position?: string;
+  custom_data?: string;
+  avatar?: string;
+  created_at: string;
   last_used: string;
-  status: string;
 }
 
 export interface QuizItem {
@@ -558,10 +569,44 @@ export const adminApi = {
     return res.data;
   },
 
-  revokeSession: async (id: number | string) => {
+  revokeSession: async (tokenOrId: number | string) => {
     const params = new URLSearchParams();
     params.append('action', 'revoke_session');
-    params.append('id', String(id));
+    if (typeof tokenOrId === 'number' || !isNaN(Number(tokenOrId))) {
+      params.append('id', String(tokenOrId));
+    } else {
+      params.append('token', String(tokenOrId));
+    }
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  revokeBulkTokens: async (tokens: string[]) => {
+    const params = new URLSearchParams();
+    params.append('action', 'revoke_bulk_tokens');
+    params.append('tokens', JSON.stringify(tokens));
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  revokeAllSessions: async () => {
+    const params = new URLSearchParams();
+    params.append('action', 'revoke_all_sessions');
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  fetchGlobalTokenSettings: async () => {
+    const params = new URLSearchParams();
+    params.append('action', 'fetch_global_token_settings');
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  saveGlobalTokenSettings: async (maxTokens: number) => {
+    const params = new URLSearchParams();
+    params.append('action', 'save_global_token_settings');
+    params.append('global_max_tokens', String(maxTokens));
     const res = await apiClient.post('', params);
     return res.data;
   },
@@ -766,21 +811,6 @@ export const adminApi = {
     return res.data;
   },
 
-  // Global Token Settings
-  fetchGlobalTokenSettings: async () => {
-    const params = new URLSearchParams();
-    params.append('action', 'fetch_global_token_settings');
-    const res = await apiClient.post('', params);
-    return res.data;
-  },
-
-  saveGlobalTokenSettings: async (maxTokens: number) => {
-    const params = new URLSearchParams();
-    params.append('action', 'save_global_token_settings');
-    params.append('global_max_tokens', String(maxTokens));
-    const res = await apiClient.post('', params);
-    return res.data;
-  },
 
   // Themes
   fetchThemes: async () => {

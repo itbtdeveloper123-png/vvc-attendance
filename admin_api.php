@@ -1153,38 +1153,91 @@ try {
             break;
 
         // ==========================================
-        // 11. SESSIONS & TOKENS
+        // 11. SESSIONS & TOKENS (REAL ACTIVE_TOKENS TABLE)
         // ==========================================
         case 'fetch_active_sessions':
         case 'get_tokens':
-            dbQuery("CREATE TABLE IF NOT EXISTS user_sessions (
+            dbQuery("CREATE TABLE IF NOT EXISTS active_tokens (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 employee_id VARCHAR(50) NOT NULL,
-                name VARCHAR(255) DEFAULT NULL,
-                device VARCHAR(100) DEFAULT 'Mobile App',
-                ip_address VARCHAR(50) DEFAULT '127.0.0.1',
+                auth_token VARCHAR(255) NOT NULL UNIQUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 last_used TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                status VARCHAR(50) DEFAULT 'Active'
+                INDEX idx_emp (employee_id),
+                INDEX idx_token (auth_token)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
-            $sessions = dbQuery("SELECT * FROM user_sessions ORDER BY id DESC");
-            if (empty($sessions)) {
-                dbQuery("INSERT INTO user_sessions (employee_id, name, device, ip_address, last_used, status) VALUES 
-                    ('VVC-101', 'សុខ គឹមហុង', 'iPhone 15 Pro (iOS 18.2)', '103.216.48.12', NOW(), 'Active'),
-                    ('VVC-102', 'កែវ សុភា', 'Samsung Galaxy S24 (Android 14)', '175.100.12.90', NOW(), 'Active'),
-                    ('VVC-103', 'ជា វណ្ណៈ', 'Xiaomi 13T (Android 14)', '103.216.48.15', NOW(), 'Active')");
-                $sessions = dbQuery("SELECT * FROM user_sessions ORDER BY id DESC");
-            }
-            sendJson(['success' => true, 'sessions' => $sessions]);
+            dbQuery("CREATE TABLE IF NOT EXISTS user_skill_groups (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                group_name VARCHAR(255) NOT NULL,
+                sort_order INT DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+            $groups = dbQuery("SELECT id, group_name, sort_order FROM user_skill_groups ORDER BY sort_order ASC, group_name ASC");
+
+            $sessions = dbQuery("SELECT at.id, at.employee_id, at.auth_token, at.created_at, at.last_used,
+                                        u.name as user_name, u.name, u.user_role, u.department, u.position, u.custom_data, u.avatar
+                                 FROM active_tokens at
+                                 JOIN users u ON at.employee_id = u.employee_id
+                                 ORDER BY at.created_at DESC");
+
+            $globalMaxRow = dbQuery("SELECT setting_value FROM app_settings WHERE setting_key = 'global_max_tokens' LIMIT 1");
+            $globalMaxTokens = !empty($globalMaxRow) ? (int)$globalMaxRow[0]['setting_value'] : 1;
+            if ($globalMaxTokens < 1) $globalMaxTokens = 1;
+
+            sendJson(['success' => true, 'sessions' => $sessions, 'groups' => $groups, 'global_max_tokens' => $globalMaxTokens]);
             break;
 
         case 'revoke_session':
+        case 'revoke_token':
+            $token = trim($_POST['token'] ?? $_POST['auth_token'] ?? '');
             $sessionId = (int)($_POST['id'] ?? $_POST['session_id'] ?? 0);
-            if ($sessionId > 0) {
-                dbQuery("DELETE FROM user_sessions WHERE id = ?", [$sessionId]);
+
+            if (!empty($token)) {
+                dbQuery("DELETE FROM active_tokens WHERE auth_token = ?", [$token]);
+                sendJson(['success' => true, 'message' => 'បានផ្តាច់ Token ជោគជ័យ!']);
+            } elseif ($sessionId > 0) {
+                dbQuery("DELETE FROM active_tokens WHERE id = ?", [$sessionId]);
                 sendJson(['success' => true, 'message' => 'បានផ្តាច់ Session ជោគជ័យ!']);
             }
-            sendJson(['success' => false, 'message' => 'Invalid Session ID']);
+            sendJson(['success' => false, 'message' => 'Invalid Session or Token ID'], 400);
+            break;
+
+        case 'revoke_bulk_tokens':
+            $tokens = $_POST['tokens'] ?? [];
+            if (is_string($tokens)) $tokens = json_decode($tokens, true) ?: explode(',', $tokens);
+            if (!empty($tokens) && is_array($tokens)) {
+                $placeholders = implode(',', array_fill(0, count($tokens), '?'));
+                dbQuery("DELETE FROM active_tokens WHERE auth_token IN ($placeholders) OR id IN ($placeholders)", array_merge($tokens, $tokens));
+                sendJson(['success' => true, 'message' => 'បានផ្តាច់ Session ដែលបានជ្រើសរើសជោគជ័យ!']);
+            }
+            sendJson(['success' => false, 'message' => 'No sessions selected'], 400);
+            break;
+
+        case 'revoke_all_sessions':
+        case 'revoke_all_my_users_tokens':
+            dbQuery("DELETE FROM active_tokens");
+            sendJson(['success' => true, 'message' => 'បានផ្តាច់គ្រប់ Session ទាំងអស់ដោយជោគជ័យ!']);
+            break;
+
+        case 'fetch_global_token_settings':
+        case 'get_global_max_tokens':
+            $globalMaxRow = dbQuery("SELECT setting_value FROM app_settings WHERE setting_key = 'global_max_tokens' LIMIT 1");
+            $maxTokens = !empty($globalMaxRow) ? (int)$globalMaxRow[0]['setting_value'] : 1;
+            sendJson(['success' => true, 'global_max_tokens' => $maxTokens, 'max_tokens' => $maxTokens]);
+            break;
+
+        case 'save_global_token_settings':
+        case 'set_global_max_tokens':
+            $maxTokens = (int)($_POST['global_max_tokens'] ?? $_POST['max_tokens'] ?? 1);
+            if ($maxTokens < 1) $maxTokens = 1;
+            if ($maxTokens > 10) $maxTokens = 10;
+
+            dbQuery("INSERT INTO app_settings (setting_key, setting_value) VALUES ('global_max_tokens', ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)", [(string)$maxTokens]);
+            dbQuery("UPDATE users SET global_max_tokens = ?", [$maxTokens]);
+
+            sendJson(['success' => true, 'message' => 'បានរក្សាទុកការកំណត់ចំនួន Token អតិបរមាជោគជ័យ!', 'global_max_tokens' => $maxTokens]);
             break;
 
         // ==========================================
