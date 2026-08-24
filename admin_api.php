@@ -1,7 +1,7 @@
 <?php
 /**
  * VVC Attendance & HRM - React Admin REST API Gateway
- * Universal REST API supporting both MySQLi & PDO with JSON support.
+ * Universal REST API supporting both MySQLi & PDO with JSON & Custom Data support.
  */
 
 // 1. Output Buffering & Timezone
@@ -13,7 +13,7 @@ date_default_timezone_set('Asia/Phnom_Penh');
 // 2. CORS & Response Headers
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization, X-CSRF-Token, X-Requested-With');
+header('Access-Control-Allow-Headers: Content-Type, Authorization, X-CSRF-Token, X-Requested-With, Accept, Origin');
 header('Content-Type: application/json; charset=utf-8');
 
 if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -29,6 +29,9 @@ function sendJson(array $data, int $statusCode = 200): void {
         ob_end_clean();
     }
     http_response_code($statusCode);
+    header('Access-Control-Allow-Origin: *');
+    header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+    header('Access-Control-Allow-Headers: Content-Type, Authorization, X-CSRF-Token, X-Requested-With, Accept, Origin');
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode($data, JSON_UNESCAPED_UNICODE);
     exit;
@@ -221,10 +224,18 @@ try {
             $today = date('Y-m-d');
             $todayGood = 0;
             $todayLate = 0;
+            
+            // Query checkin_logs or attendance_logs
             $gRows = dbQuery("SELECT COUNT(*) as cnt FROM attendance_logs WHERE DATE(log_time) = ? AND status = 'Good'", [$today]);
+            if (empty($gRows)) {
+                $gRows = dbQuery("SELECT COUNT(*) as cnt FROM checkin_logs WHERE DATE(log_datetime) = ? AND status = 'Good'", [$today]);
+            }
             if (!empty($gRows)) $todayGood = (int)($gRows[0]['cnt'] ?? 0);
 
             $lRows = dbQuery("SELECT COUNT(*) as cnt FROM attendance_logs WHERE DATE(log_time) = ? AND status = 'Late'", [$today]);
+            if (empty($lRows)) {
+                $lRows = dbQuery("SELECT COUNT(*) as cnt FROM checkin_logs WHERE DATE(log_datetime) = ? AND status = 'Late'", [$today]);
+            }
             if (!empty($lRows)) $todayLate = (int)($lRows[0]['cnt'] ?? 0);
 
             $pendingRequests = 0;
@@ -232,7 +243,10 @@ try {
             if (!empty($pRows)) $pendingRequests = (int)($pRows[0]['cnt'] ?? 0);
 
             // Recent Scans
-            $recentScans = dbQuery("SELECT a.*, u.name as employee_name FROM attendance_logs a LEFT JOIN users u ON a.employee_id = u.employee_id ORDER BY a.id DESC LIMIT 10");
+            $recentScans = dbQuery("SELECT * FROM attendance_logs ORDER BY id DESC LIMIT 10");
+            if (empty($recentScans)) {
+                $recentScans = dbQuery("SELECT * FROM checkin_logs ORDER BY id DESC LIMIT 10");
+            }
 
             sendJson([
                 'success' => true,
@@ -248,23 +262,72 @@ try {
         // 3. USERS MANAGEMENT
         // ==========================================
         case 'fetch_users':
-            $dept = $_POST['department'] ?? '';
-            $search = $_POST['search'] ?? '';
+            $dept = $_POST['department'] ?? $_GET['department'] ?? '';
+            $search = $_POST['search'] ?? $_GET['search'] ?? '';
 
-            $sql = "SELECT * FROM users WHERE 1=1";
-            $params = [];
-            if (!empty($dept) && $dept !== 'all') {
-                $sql .= " AND department = ?";
-                $params[] = $dept;
-            }
-            if (!empty($search)) {
-                $sql .= " AND (name LIKE ? OR employee_id LIKE ?)";
-                $params[] = "%$search%";
-                $params[] = "%$search%";
-            }
-            $sql .= " ORDER BY id DESC LIMIT 500";
+            $rawUsers = dbQuery("SELECT * FROM users ORDER BY id DESC LIMIT 500");
+            
+            $users = [];
+            foreach ($rawUsers as $r) {
+                $custom = [];
+                if (!empty($r['custom_data'])) {
+                    if (is_array($r['custom_data'])) {
+                        $custom = $r['custom_data'];
+                    } else {
+                        $custom = json_decode($r['custom_data'], true) ?: [];
+                    }
+                }
 
-            $users = dbQuery($sql, $params);
+                $empId = (string)($r['employee_id'] ?? $r['id'] ?? '');
+                $name = (string)($r['name'] ?? $empId);
+                $latin = (string)($r['latin_name'] ?? $custom['latin_name'] ?? '');
+                $department = (string)($r['department'] ?? $custom['department'] ?? 'Store 318');
+                $position = (string)($r['position'] ?? $custom['position'] ?? 'Staff');
+                $role = (string)($r['user_role'] ?? 'User');
+
+                if (!empty($dept) && $dept !== 'all' && $department !== $dept) {
+                    continue;
+                }
+
+                if (!empty($search)) {
+                    $s = strtolower($search);
+                    if (stripos($name, $s) === false && stripos($empId, $s) === false && stripos($position, $s) === false) {
+                        continue;
+                    }
+                }
+
+                $users[] = [
+                    'id' => $r['id'] ?? $empId,
+                    'employee_id' => $empId,
+                    'name' => $name,
+                    'latin_name' => $latin,
+                    'username' => (string)($r['username'] ?? $empId),
+                    'email' => (string)($r['email'] ?? $custom['email'] ?? ''),
+                    'phone' => (string)($r['phone'] ?? $custom['phone'] ?? ''),
+                    'user_role' => $role,
+                    'system_role' => (string)($r['system_role'] ?? $custom['system_role'] ?? 'employee'),
+                    'system_role_label' => (string)($r['system_role_label'] ?? $custom['system_role_label'] ?? ''),
+                    'position' => $position,
+                    'department' => $department,
+                    'branch' => (string)($r['branch'] ?? $custom['branch'] ?? 'VVC-HQ'),
+                    'current_address' => (string)($r['current_address'] ?? $custom['current_address'] ?? ''),
+                    'avatar' => (string)($r['avatar'] ?? $custom['avatar'] ?? ''),
+                    'is_active' => isset($r['is_active']) ? (int)$r['is_active'] : 1,
+                    'joined_at' => (string)($r['joined_at'] ?? $custom['joined_at'] ?? ''),
+                    'marital_status' => (string)($r['marital_status'] ?? $custom['marital_status'] ?? 'Single'),
+                    'contract_start' => (string)($r['contract_start'] ?? $custom['contract_start'] ?? ''),
+                    'contract_end' => (string)($r['contract_end'] ?? $custom['contract_end'] ?? ''),
+                    'contract_type' => (string)($r['contract_type'] ?? $custom['contract_type'] ?? 'UDC'),
+                    'manager_id' => (string)($r['manager_id'] ?? $custom['manager_id'] ?? ''),
+                    'al_total' => isset($r['al_total']) ? (float)$r['al_total'] : (float)($custom['al_total'] ?? 18),
+                    'al_remaining' => isset($r['al_remaining']) ? (float)$r['al_remaining'] : (float)($custom['al_remaining'] ?? 18),
+                    'base_salary' => (string)($r['base_salary'] ?? $custom['base_salary'] ?? '0.00'),
+                    'nssf_id' => (string)($r['nssf_id'] ?? $custom['nssf_id'] ?? ''),
+                    'bank_data_str' => (string)($r['bank_data_str'] ?? $custom['bank_data_str'] ?? ''),
+                    'custom_data' => $custom,
+                ];
+            }
+
             sendJson(['success' => true, 'users' => $users]);
             break;
 
@@ -273,7 +336,7 @@ try {
             $name = trim($_POST['name'] ?? '');
             $dept = trim($_POST['department'] ?? 'Store 318');
             $pos = trim($_POST['position'] ?? 'Staff');
-            $role = trim($_POST['user_role'] ?? 'Employee');
+            $role = trim($_POST['user_role'] ?? 'User');
             $pass = trim($_POST['password'] ?? '');
 
             if (empty($empId) || empty($name)) {
@@ -282,17 +345,21 @@ try {
 
             $exists = dbQuery("SELECT id FROM users WHERE employee_id = ? LIMIT 1", [$empId]);
 
+            $customData = $_POST;
+            unset($customData['action'], $customData['password']);
+            $customJson = json_encode($customData, JSON_UNESCAPED_UNICODE);
+
             if (!empty($exists)) {
                 if (!empty($pass)) {
                     $hash = password_hash($pass, PASSWORD_BCRYPT);
-                    dbQuery("UPDATE users SET name = ?, department = ?, position = ?, user_role = ?, password = ? WHERE employee_id = ?", [$name, $dept, $pos, $role, $hash, $empId]);
+                    dbQuery("UPDATE users SET name = ?, department = ?, position = ?, user_role = ?, password = ?, custom_data = ? WHERE employee_id = ?", [$name, $dept, $pos, $role, $hash, $customJson, $empId]);
                 } else {
-                    dbQuery("UPDATE users SET name = ?, department = ?, position = ?, user_role = ? WHERE employee_id = ?", [$name, $dept, $pos, $role, $empId]);
+                    dbQuery("UPDATE users SET name = ?, department = ?, position = ?, user_role = ?, custom_data = ? WHERE employee_id = ?", [$name, $dept, $pos, $role, $customJson, $empId]);
                 }
                 sendJson(['success' => true, 'message' => 'បានកែប្រែព័ត៌មានបុគ្គលិកជោគជ័យ!']);
             } else {
                 $hash = !empty($pass) ? password_hash($pass, PASSWORD_BCRYPT) : password_hash('123456', PASSWORD_BCRYPT);
-                dbQuery("INSERT INTO users (employee_id, name, department, position, user_role, password, is_active) VALUES (?, ?, ?, ?, ?, ?, 1)", [$empId, $name, $dept, $pos, $role, $hash]);
+                dbQuery("INSERT INTO users (employee_id, name, department, position, user_role, password, is_active, custom_data) VALUES (?, ?, ?, ?, ?, ?, 1, ?)", [$empId, $name, $dept, $pos, $role, $hash, $customJson]);
                 sendJson(['success' => true, 'message' => 'បានបង្កើតគណនីបុគ្គលិកថ្មីជោគជ័យ!']);
             }
             break;

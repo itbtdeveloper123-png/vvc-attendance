@@ -1,10 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Users,
   UserPlus,
   Search,
-  Filter,
   Edit2,
   Trash2,
   Clock,
@@ -17,43 +16,47 @@ import {
   Building,
   Mail,
   Phone,
-  MapPin,
-  Calendar,
-  DollarSign,
-  QrCode,
-  FileText,
-  Heart,
-  UserCheck,
-  ShieldAlert,
+  Check,
   Shield,
   ShieldCheck,
-  ArrowLeft,
-  Check,
-  KeyRound,
-  Lock,
   Copy,
   Download,
   RotateCw,
   MoreVertical,
-  X,
+  GripVertical,
+  Store,
+  CheckCircle2,
+  Calendar,
+  KeyRound,
 } from 'lucide-react';
 import { Modal } from '../components/common/Modal';
 import { adminApi, AdminUser } from '../api/adminApi';
 
+interface DepartmentGroup {
+  id: string | number;
+  name: string;
+  groupId: number;
+  users: AdminUser[];
+}
+
 export const UsersPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const navigate = useNavigate();
 
   const actionParam = searchParams.get('action') || 'list_users';
   const [activeTab, setActiveTab] = useState<'list_users' | 'create_user' | 'create_admin' | 'edit_rules' | 'inactive_users'>('list_users');
   const [formTab, setFormTab] = useState<'basic' | 'employment' | 'documents' | 'payroll'>('basic');
 
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [selectAll, setSelectAll] = useState(false);
   const [search, setSearch] = useState('');
   const [deptFilter, setDeptFilter] = useState('all');
   const [roleFilter, setRoleFilter] = useState('all');
   const [loading, setLoading] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+
+  // Active Context Menu for row
+  const [activeMenuRowId, setActiveMenuRowId] = useState<string | number | null>(null);
 
   // Edit Modal State
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -122,6 +125,17 @@ export const UsersPage: React.FC = () => {
     },
   });
 
+  // Close context menu on outside click
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest('.action-menu-container')) {
+        setActiveMenuRowId(null);
+      }
+    };
+    window.addEventListener('click', handleOutsideClick);
+    return () => window.removeEventListener('click', handleOutsideClick);
+  }, []);
+
   // Sync activeTab with URL action parameter
   useEffect(() => {
     if (actionParam === 'create_user') {
@@ -189,6 +203,7 @@ export const UsersPage: React.FC = () => {
     });
     setFormTab('basic');
     setIsEditModalOpen(true);
+    setActiveMenuRowId(null);
   };
 
   const openDuplicateModal = (u: AdminUser) => {
@@ -199,6 +214,7 @@ export const UsersPage: React.FC = () => {
       new_name: `${u.name} (Copy)`,
     });
     setIsDuplicateModalOpen(true);
+    setActiveMenuRowId(null);
   };
 
   const handleConfirmDuplicate = async (e: React.FormEvent) => {
@@ -267,6 +283,17 @@ export const UsersPage: React.FC = () => {
     }
   };
 
+  const handleDeleteUser = async (empId: string) => {
+    if (!confirm(`តើអ្នកប្រាកដថាចង់បិទ/លុបគណនីបុគ្គលិក ${empId} នេះទេ?`)) return;
+    try {
+      await adminApi.deleteUser(empId);
+      loadUsers();
+      setActiveMenuRowId(null);
+    } catch {
+      alert('មានបញ្ហាក្នុងការបិទគណនី');
+    }
+  };
+
   const handleExportCSV = () => {
     const headers = ['Employee ID', 'Name', 'Latin Name', 'Department', 'Position', 'Role', 'Status'];
     const rows = filteredUsers.map((u) => [
@@ -288,6 +315,23 @@ export const UsersPage: React.FC = () => {
     document.body.removeChild(link);
   };
 
+  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSelectAll(e.target.checked);
+    if (e.target.checked) {
+      setSelectedIds(filteredUsers.map((u) => String(u.employee_id)));
+    } else {
+      setSelectedIds([]);
+    }
+  };
+
+  const handleSelectRow = (id: string) => {
+    if (selectedIds.includes(id)) {
+      setSelectedIds(selectedIds.filter((x) => x !== id));
+    } else {
+      setSelectedIds([...selectedIds, id]);
+    }
+  };
+
   const filteredUsers = users.filter((u) => {
     const q = search.toLowerCase();
     const matchSearch =
@@ -303,10 +347,25 @@ export const UsersPage: React.FC = () => {
     return matchSearch && matchDept && matchRole && Number(u.is_active) !== 0;
   });
 
-  const totalUsersCount = users.length;
-  const activeUsersCount = users.filter((u) => Number(u.is_active) !== 0).length;
-  const adminsCount = users.filter((u) => u.user_role === 'Admin').length;
-  const inactiveUsersCount = users.filter((u) => Number(u.is_active) === 0).length;
+  // Group Users by Department (matching admin_attendance.php UI group headers)
+  const groupedDepartments: DepartmentGroup[] = [];
+  const deptMap: { [key: string]: AdminUser[] } = {};
+
+  filteredUsers.forEach((u) => {
+    const dept = u.department || 'Store 318';
+    if (!deptMap[dept]) deptMap[dept] = [];
+    deptMap[dept].push(u);
+  });
+
+  let gId = 4;
+  Object.keys(deptMap).forEach((deptName) => {
+    groupedDepartments.push({
+      id: deptName,
+      name: deptName,
+      groupId: gId++,
+      users: deptMap[deptName],
+    });
+  });
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%' }}>
@@ -373,49 +432,6 @@ export const UsersPage: React.FC = () => {
       {/* ======================================================== */}
       {(activeTab === 'list_users' || activeTab === 'inactive_users') && (
         <>
-          {/* Top Quick Stats Header */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
-            <div className="hrm-card" style={{ padding: '16px 20px', borderRadius: '14px', display: 'flex', alignItems: 'center', gap: '14px' }}>
-              <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'rgba(79, 70, 229, 0.12)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Users size={22} />
-              </div>
-              <div>
-                <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>បុគ្គលិកសរុប (USERS)</div>
-                <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--text-primary)' }}>{totalUsersCount}</div>
-              </div>
-            </div>
-
-            <div className="hrm-card" style={{ padding: '16px 20px', borderRadius: '14px', display: 'flex', alignItems: 'center', gap: '14px' }}>
-              <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'rgba(16, 185, 129, 0.12)', color: 'var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <UserCheck size={22} />
-              </div>
-              <div>
-                <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>កំពុងដំណើរការ (ACTIVE)</div>
-                <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--success)' }}>{activeUsersCount}</div>
-              </div>
-            </div>
-
-            <div className="hrm-card" style={{ padding: '16px 20px', borderRadius: '14px', display: 'flex', alignItems: 'center', gap: '14px' }}>
-              <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'rgba(212, 175, 55, 0.15)', color: 'var(--accent-gold-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Shield size={22} />
-              </div>
-              <div>
-                <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>អ្នកគ្រប់គ្រង (ADMINS)</div>
-                <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--accent-gold-dark)' }}>{adminsCount}</div>
-              </div>
-            </div>
-
-            <div className="hrm-card" style={{ padding: '16px 20px', borderRadius: '14px', display: 'flex', alignItems: 'center', gap: '14px' }}>
-              <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'rgba(239, 68, 68, 0.12)', color: 'var(--danger)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <UserX size={22} />
-              </div>
-              <div>
-                <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>គណនីបានបិទ (INACTIVE)</div>
-                <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--danger)' }}>{inactiveUsersCount}</div>
-              </div>
-            </div>
-          </div>
-
           {/* Filter Toolbar Matching admin_attendance.php */}
           <div
             className="hrm-card"
@@ -431,7 +447,6 @@ export const UsersPage: React.FC = () => {
           >
             {/* Left Controls: Search & Filters */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-              {/* Search */}
               <div
                 style={{
                   display: 'flex',
@@ -462,7 +477,6 @@ export const UsersPage: React.FC = () => {
                 />
               </div>
 
-              {/* Department Filter */}
               <select
                 className="form-control"
                 value={deptFilter}
@@ -477,7 +491,6 @@ export const UsersPage: React.FC = () => {
                 <option value="IT Department">IT Department</option>
               </select>
 
-              {/* Role Filter */}
               <select
                 className="form-control"
                 value={roleFilter}
@@ -512,107 +525,385 @@ export const UsersPage: React.FC = () => {
             </div>
           </div>
 
-          {/* User Table Matching admin_attendance.php */}
-          <div className="table-container">
-            <table className="hrm-table">
-              <thead>
-                <tr>
-                  <th style={{ width: '50px' }}>#</th>
-                  <th>អត្តលេខ (ID)</th>
-                  <th>ឈ្មោះបុគ្គលិក</th>
-                  <th>ផ្នែក / សាខា</th>
-                  <th>មុខតំណែង</th>
-                  <th>សិទ្ធិប្រើប្រាស់</th>
-                  <th>ស្ថានភាព</th>
-                  <th style={{ textAlign: 'right' }}>សកម្មភាព</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredUsers.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
-                      {loading ? 'កំពុងទាញយកទិន្នន័យពី Server...' : 'រកមិនឃើញបុគ្គលិកត្រូវនឹងការស្វែងរកឡើយ'}
-                    </td>
+          {/* User Table Matching Exact Screenshot Design */}
+          <div
+            className="hrm-card"
+            style={{
+              padding: 0,
+              borderRadius: '16px',
+              overflow: 'visible',
+              border: '1px solid var(--border)',
+              boxShadow: 'var(--shadow-sm)',
+            }}
+          >
+            <div style={{ overflowX: 'auto', borderRadius: '16px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                {/* Table Header */}
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
+                    <th style={{ padding: '16px 18px', width: '40px', textAlign: 'center' }}>
+                      <input
+                        type="checkbox"
+                        checked={selectAll}
+                        onChange={handleSelectAll}
+                        style={{ width: '16px', height: '16px', accentColor: 'var(--primary)', cursor: 'pointer' }}
+                      />
+                    </th>
+                    <th style={{ padding: '16px 14px', fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.4px', width: '90px' }}>
+                      ID
+                    </th>
+                    <th style={{ padding: '16px 18px', fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                      ព័ត៌មានបុគ្គលិក (EMPLOYEE INFO)
+                    </th>
+                    <th style={{ padding: '16px 18px', fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.4px', textAlign: 'center', width: '160px' }}>
+                      ស្ថានភាព (STATUS)
+                    </th>
+                    <th style={{ padding: '16px 18px', fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.4px', width: '180px' }}>
+                      ថ្ងៃបញ្ចប់ការងារ
+                    </th>
+                    <th style={{ padding: '16px 18px', fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.4px', textAlign: 'center', width: '90px' }}>
+                      ACTIONS
+                    </th>
                   </tr>
-                ) : (
-                  filteredUsers.map((u, idx) => {
-                    const initials = (u.name || u.employee_id).substring(0, 2).toUpperCase();
-                    return (
-                      <tr key={u.id}>
-                        <td style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{idx + 1}</td>
-                        <td>
-                          <div style={{ fontFamily: "'Outfit', monospace", fontWeight: 700, color: 'var(--primary)' }}>
-                            {u.employee_id}
-                          </div>
-                          {u.username && (
-                            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>@{u.username}</div>
-                          )}
-                        </td>
-                        <td>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <div
+                </thead>
+
+                {/* Table Body with Department Groups */}
+                <tbody>
+                  {filteredUsers.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} style={{ textAlign: 'center', padding: '48px', color: 'var(--text-muted)' }}>
+                        {loading ? 'កំពុងទាញយកទិន្នន័យ...' : 'មិនមានទិន្នន័យបុគ្គលិកឡើយ'}
+                      </td>
+                    </tr>
+                  ) : (
+                    groupedDepartments.map((group) => (
+                      <React.Fragment key={group.id}>
+                        {/* Group Header Banner Row */}
+                        <tr
+                          style={{
+                            background: 'rgba(99, 102, 241, 0.04)',
+                            borderTop: '1px solid var(--border)',
+                            borderBottom: '1px solid var(--border)',
+                          }}
+                        >
+                          <td
+                            colSpan={6}
+                            style={{
+                              padding: '12px 18px',
+                              borderLeft: '4px solid var(--primary)',
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              <GripVertical size={16} color="var(--text-muted)" style={{ cursor: 'grab' }} />
+                              <Store size={18} color="var(--primary)" />
+                              <span style={{ fontWeight: 800, fontSize: '15px', color: 'var(--text-primary)' }}>
+                                {group.name}
+                              </span>
+                              <span
+                                style={{
+                                  background: 'rgba(99, 102, 241, 0.12)',
+                                  color: 'var(--primary)',
+                                  fontSize: '11px',
+                                  fontWeight: 700,
+                                  padding: '2px 8px',
+                                  borderRadius: '6px',
+                                }}
+                              >
+                                Group ID: {group.groupId}
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+
+                        {/* Employee Rows in Group */}
+                        {group.users.map((u) => {
+                          const isSelected = selectedIds.includes(String(u.employee_id));
+                          const initials = (u.name || u.employee_id).substring(0, 2).toUpperCase();
+
+                          return (
+                            <tr
+                              key={u.id}
                               style={{
-                                width: '34px',
-                                height: '34px',
-                                borderRadius: '10px',
-                                background: u.user_role === 'Admin' ? 'rgba(212, 175, 55, 0.15)' : 'var(--primary-light)',
-                                color: u.user_role === 'Admin' ? 'var(--accent-gold-dark)' : 'var(--primary)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                fontWeight: 700,
-                                fontSize: '12px',
+                                borderBottom: '1px solid var(--border)',
+                                background: isSelected ? 'rgba(99, 102, 241, 0.03)' : 'var(--surface)',
+                                transition: 'background-color 0.15s ease',
                               }}
                             >
-                              {initials}
-                            </div>
-                            <div>
-                              <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{u.name}</div>
-                              {u.latin_name && (
-                                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{u.latin_name}</div>
-                              )}
-                            </div>
-                          </div>
-                        </td>
-                        <td>
-                          <div style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{u.department || 'Store 318'}</div>
-                          {u.branch && <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{u.branch}</div>}
-                        </td>
-                        <td>{u.position || 'Staff'}</td>
-                        <td>
-                          <span className={`badge ${u.user_role === 'Admin' ? 'badge-primary' : 'badge-good'}`}>
-                            {u.user_role === 'Admin' ? '👑 Admin' : '👤 User'}
-                          </span>
-                        </td>
-                        <td>
-                          <span className={`badge ${Number(u.is_active) !== 0 ? 'badge-good' : 'badge-absent'}`}>
-                            {Number(u.is_active) !== 0 ? '✓ សកម្ម' : '✕ អសកម្ម'}
-                          </span>
-                        </td>
-                        <td style={{ textAlign: 'right' }}>
-                          <div style={{ display: 'inline-flex', gap: '6px' }}>
-                            <button
-                              onClick={() => openEditModal(u)}
-                              className="btn btn-secondary btn-sm"
-                              title="កែសម្រួល"
-                            >
-                              <Edit2 size={13} />
-                            </button>
-                            <button
-                              onClick={() => openDuplicateModal(u)}
-                              className="btn btn-secondary btn-sm"
-                              title="ចម្លង (Duplicate)"
-                            >
-                              <Copy size={13} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
+                              {/* Checkbox */}
+                              <td style={{ padding: '14px 18px', textAlign: 'center' }}>
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => handleSelectRow(String(u.employee_id))}
+                                  style={{ width: '16px', height: '16px', accentColor: 'var(--primary)', cursor: 'pointer' }}
+                                />
+                              </td>
+
+                              {/* ID */}
+                              <td style={{ padding: '14px', fontFamily: "'Outfit', monospace", fontWeight: 700, fontSize: '14px', color: 'var(--text-primary)' }}>
+                                {u.employee_id}
+                              </td>
+
+                              {/* Employee Info */}
+                              <td style={{ padding: '14px 18px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                                  {/* Avatar Image / Squircle */}
+                                  <div
+                                    style={{
+                                      width: '46px',
+                                      height: '46px',
+                                      borderRadius: '12px',
+                                      background: u.avatar ? 'transparent' : 'rgba(99, 102, 241, 0.12)',
+                                      color: 'var(--primary)',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      fontWeight: 800,
+                                      fontSize: '14px',
+                                      overflow: 'hidden',
+                                      flexShrink: 0,
+                                      border: '1px solid var(--border)',
+                                      boxShadow: '0 2px 5px rgba(0,0,0,0.04)',
+                                    }}
+                                  >
+                                    {u.avatar ? (
+                                      <img
+                                        src={u.avatar}
+                                        alt={u.name}
+                                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                      />
+                                    ) : (
+                                      initials
+                                    )}
+                                  </div>
+
+                                  {/* Name and Role Info */}
+                                  <div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
+                                      <span style={{ fontWeight: 800, fontSize: '15px', color: 'var(--text-primary)' }}>
+                                        {u.name}
+                                      </span>
+                                      <CheckCircle2 size={14} color="#94a3b8" />
+                                    </div>
+                                    <div style={{ fontSize: '12.5px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                      <span style={{ color: 'var(--primary)', fontWeight: 700 }}>•</span>
+                                      <span>{u.user_role === 'Admin' ? 'អ្នកគ្រប់គ្រង (Admin)' : 'បុគ្គលិក (Employee)'}</span>
+                                      <span style={{ color: 'var(--text-muted)' }}>•</span>
+                                      <span style={{ color: 'var(--text-secondary)' }}>{u.position || 'Staff'}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+
+                              {/* Status Badge + Dropdown */}
+                              <td style={{ padding: '14px 18px', textAlign: 'center' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+                                  <span
+                                    style={{
+                                      background: Number(u.is_active) !== 0 ? '#dcfce7' : '#fee2e2',
+                                      color: Number(u.is_active) !== 0 ? '#16a34a' : '#dc2626',
+                                      fontWeight: 700,
+                                      fontSize: '11.5px',
+                                      borderRadius: '9999px',
+                                      padding: '3px 14px',
+                                      display: 'inline-block',
+                                    }}
+                                  >
+                                    {Number(u.is_active) !== 0 ? 'Active' : 'Inactive'}
+                                  </span>
+                                  <select
+                                    className="form-control"
+                                    value={Number(u.is_active) !== 0 ? 'Active' : 'Inactive'}
+                                    onChange={(e) => {
+                                      const active = e.target.value === 'Active' ? 1 : 0;
+                                      setUsers(
+                                        users.map((x) =>
+                                          x.id === u.id ? { ...x, is_active: active } : x
+                                        )
+                                      );
+                                    }}
+                                    style={{
+                                      padding: '4px 8px',
+                                      fontSize: '12px',
+                                      borderRadius: '8px',
+                                      width: '100px',
+                                      textAlign: 'center',
+                                      borderColor: 'var(--border)',
+                                    }}
+                                  >
+                                    <option value="Active">Active</option>
+                                    <option value="Inactive">Inactive</option>
+                                  </select>
+                                </div>
+                              </td>
+
+                              {/* ថ្ងៃបញ្ចប់ការងារ (End Date Input) */}
+                              <td style={{ padding: '14px 18px' }}>
+                                <input
+                                  type="date"
+                                  className="form-control"
+                                  defaultValue={u.contract_end || ''}
+                                  style={{
+                                    fontSize: '12.5px',
+                                    padding: '6px 10px',
+                                    borderRadius: '10px',
+                                    width: '150px',
+                                    borderColor: 'var(--border)',
+                                  }}
+                                />
+                              </td>
+
+                              {/* ACTIONS 3-Dots Menu */}
+                              <td style={{ padding: '14px 18px', textAlign: 'center', position: 'relative' }}>
+                                <div className="action-menu-container" style={{ display: 'inline-block', position: 'relative' }}>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setActiveMenuRowId(activeMenuRowId === u.id ? null : u.id);
+                                    }}
+                                    style={{
+                                      width: '36px',
+                                      height: '36px',
+                                      borderRadius: '10px',
+                                      border: '1px solid var(--border)',
+                                      background: 'var(--surface)',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      color: 'var(--primary)',
+                                      cursor: 'pointer',
+                                      transition: 'all 0.15s ease',
+                                    }}
+                                    title="សកម្មភាព (Actions)"
+                                  >
+                                    <MoreVertical size={16} />
+                                  </button>
+
+                                  {/* Floating Dropdown Menu (Exact match to screenshot) */}
+                                  {activeMenuRowId === u.id && (
+                                    <div
+                                      style={{
+                                        position: 'absolute',
+                                        right: 0,
+                                        top: '42px',
+                                        background: 'var(--surface)',
+                                        border: '1px solid var(--border)',
+                                        borderRadius: '14px',
+                                        boxShadow: 'var(--shadow-lg)',
+                                        minWidth: '185px',
+                                        zIndex: 100,
+                                        padding: '6px 0',
+                                        textAlign: 'left',
+                                        animation: 'scaleUp 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
+                                      }}
+                                    >
+                                      <button
+                                        type="button"
+                                        onClick={() => handleTabChange('edit_rules')}
+                                        style={{
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          gap: '10px',
+                                          width: '100%',
+                                          padding: '9px 16px',
+                                          border: 'none',
+                                          background: 'transparent',
+                                          fontSize: '13px',
+                                          color: 'var(--text-primary)',
+                                          cursor: 'pointer',
+                                          textAlign: 'left',
+                                        }}
+                                        onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--surface-alt)')}
+                                        onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                                      >
+                                        <Clock size={15} color="var(--text-secondary)" />
+                                        <span>Shift / Schedule</span>
+                                      </button>
+
+                                      <button
+                                        type="button"
+                                        onClick={() => openDuplicateModal(u)}
+                                        style={{
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          gap: '10px',
+                                          width: '100%',
+                                          padding: '9px 16px',
+                                          border: 'none',
+                                          background: 'transparent',
+                                          fontSize: '13px',
+                                          color: 'var(--text-primary)',
+                                          cursor: 'pointer',
+                                          textAlign: 'left',
+                                        }}
+                                        onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--surface-alt)')}
+                                        onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                                      >
+                                        <Copy size={15} color="var(--text-secondary)" />
+                                        <span>ចម្លង (Duplicate)</span>
+                                      </button>
+
+                                      <button
+                                        type="button"
+                                        onClick={() => openEditModal(u)}
+                                        style={{
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          gap: '10px',
+                                          width: '100%',
+                                          padding: '9px 16px',
+                                          border: 'none',
+                                          background: 'transparent',
+                                          fontSize: '13px',
+                                          color: 'var(--text-primary)',
+                                          cursor: 'pointer',
+                                          textAlign: 'left',
+                                        }}
+                                        onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--surface-alt)')}
+                                        onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                                      >
+                                        <Edit2 size={15} color="var(--primary)" />
+                                        <span>Edit Info</span>
+                                      </button>
+
+                                      <div style={{ height: '1px', background: 'var(--border)', margin: '4px 0' }} />
+
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteUser(u.employee_id)}
+                                        style={{
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          gap: '10px',
+                                          width: '100%',
+                                          padding: '9px 16px',
+                                          border: 'none',
+                                          background: 'transparent',
+                                          fontSize: '13px',
+                                          color: 'var(--danger)',
+                                          cursor: 'pointer',
+                                          textAlign: 'left',
+                                        }}
+                                        onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--danger-light)')}
+                                        onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                                      >
+                                        <Trash2 size={15} color="var(--danger)" />
+                                        <span>លុប (Delete)</span>
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </React.Fragment>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </>
       )}
