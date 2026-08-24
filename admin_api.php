@@ -122,6 +122,11 @@ function dbQuery(string $sql, array $params = []): array {
     return [];
 }
 
+// Helper Execute Function
+function dbExecute(string $sql, array $params = []) {
+    return dbQuery($sql, $params);
+}
+
 // 6. Extract Action
 $action = $_POST['action'] ?? $_GET['action'] ?? $_REQUEST['action'] ?? '';
 $action = trim(strtolower((string)$action));
