@@ -22,6 +22,12 @@ import {
   ChevronDown,
   GripVertical,
   RefreshCw,
+  Plus,
+  Clock,
+  Bell,
+  FileText,
+  User,
+  Info,
 } from 'lucide-react';
 import { adminApi } from '../api/adminApi';
 
@@ -97,6 +103,9 @@ export const SettingsPage: React.FC = () => {
   // Sub-tabs inside Manage App Scan (All tabs matching screenshot)
   const [appScanSubTab, setAppScanSubTab] = useState<string>('branding');
 
+  // Users List for dropdowns
+  const [usersList, setUsersList] = useState<any[]>([]);
+
   // Panel Settings state
   const [panelTitle, setPanelTitle] = useState('VVC ATTENDANCE');
   const [companyName, setCompanyName] = useState('VVC Asia Co., Ltd.');
@@ -151,6 +160,7 @@ export const SettingsPage: React.FC = () => {
   );
   const [tgTplRequest, setTgTplRequest] = useState('');
   const [showPreviewGenAtt, setShowPreviewGenAtt] = useState(false);
+  const [showPreviewGenReq, setShowPreviewGenReq] = useState(false);
 
   const [tgBotTokenWorker, setTgBotTokenWorker] = useState('');
   const [tgChatIdWorker, setTgChatIdWorker] = useState('');
@@ -158,6 +168,8 @@ export const SettingsPage: React.FC = () => {
   const [tgNotifyRequestsWorker, setTgNotifyRequestsWorker] = useState(false);
   const [tgTplAttendanceWorker, setTgTplAttendanceWorker] = useState('');
   const [tgTplRequestWorker, setTgTplRequestWorker] = useState('');
+  const [showPreviewWrkAtt, setShowPreviewWrkAtt] = useState(false);
+  const [showPreviewWrkReq, setShowPreviewWrkReq] = useState(false);
 
   const [tgTimeFormatPreset, setTgTimeFormatPreset] = useState('Y-m-d H:i:s');
   const [tgTimeFormat, setTgTimeFormat] = useState('Y-m-d H:i:s');
@@ -166,11 +178,15 @@ export const SettingsPage: React.FC = () => {
   const [reminderMinutes, setReminderMinutes] = useState('10');
   const [reminderSound, setReminderSound] = useState('default');
 
+  // Daily Report Telegram
   const [dailyReportEnabled, setDailyReportEnabled] = useState(false);
   const [dailyReportReporterId, setDailyReportReporterId] = useState('');
   const [dailyReportBotToken, setDailyReportBotToken] = useState('');
   const [dailyReportChatId, setDailyReportChatId] = useState('');
   const [dailyReportTemplate, setDailyReportTemplate] = useState('');
+  const [dailyReportThreadId, setDailyReportThreadId] = useState('');
+  const [dailyReportDestinations, setDailyReportDestinations] = useState<any[]>([]);
+  const [showPreviewDailyReport, setShowPreviewDailyReport] = useState(false);
 
   // 7. Departments Whitelist
   const [allowedDeptSkill, setAllowedDeptSkill] = useState('');
@@ -232,9 +248,20 @@ export const SettingsPage: React.FC = () => {
 
   const loadAllSettings = async () => {
     try {
-      const panelRes = await adminApi.fetchSettings();
-      if (panelRes && panelRes.settings) {
-        const s = panelRes.settings;
+      const [panelRes, appScanRes, usersRes] = await Promise.all([
+        adminApi.fetchSettings().catch(() => ({})),
+        adminApi.fetchAppScanSettings().catch(() => ({})),
+        adminApi.fetchUsers().catch(() => ({ users: [] })),
+      ]);
+
+      if (usersRes && usersRes.users && Array.isArray(usersRes.users)) {
+        setUsersList(usersRes.users);
+      }
+
+      // Merge panel and app scan settings thoroughly
+      const s = { ...(panelRes?.settings || {}), ...(appScanRes?.settings || {}) };
+
+      if (Object.keys(s).length > 0) {
         if (s.panel_title) setPanelTitle(s.panel_title);
         if (s.company_name) setCompanyName(s.company_name);
         if (s.footer_text) setFooterText(s.footer_text);
@@ -330,6 +357,16 @@ export const SettingsPage: React.FC = () => {
         if (s.daily_report_telegram_bot_token) setDailyReportBotToken(s.daily_report_telegram_bot_token);
         if (s.daily_report_telegram_chat_id) setDailyReportChatId(s.daily_report_telegram_chat_id);
         if (s.daily_report_telegram_template) setDailyReportTemplate(s.daily_report_telegram_template);
+        if (s.daily_report_telegram_thread_id) setDailyReportThreadId(s.daily_report_telegram_thread_id);
+
+        if (s.daily_report_telegram_destinations) {
+          try {
+            const parsed = typeof s.daily_report_telegram_destinations === 'string'
+              ? JSON.parse(s.daily_report_telegram_destinations)
+              : s.daily_report_telegram_destinations;
+            if (Array.isArray(parsed)) setDailyReportDestinations(parsed);
+          } catch (ignore) {}
+        }
 
         if (s.allowed_departments_skill) setAllowedDeptSkill(s.allowed_departments_skill);
         if (s.allowed_departments_worker) setAllowedDeptWorker(s.allowed_departments_worker);
@@ -431,6 +468,33 @@ export const SettingsPage: React.FC = () => {
     setRoleOrders({ ...roleOrders, [suffix]: curOrder });
   };
 
+  // Add / Remove Destinations helper
+  const handleAddDestination = () => {
+    const chat_id = prompt('បញ្ជាក់លេខ Chat ID / Group ID (ឧ. -100xxxxxxxx):');
+    if (!chat_id) return;
+    const thread_id = prompt('បញ្ជាក់លេខ Thread ID (Topic ID) - បើគ្មានសូមទុកទទេ:', '');
+    const name = prompt('ឈ្មោះចំណាំ (ឧ. IT Group):', 'Group') || 'Group';
+
+    setDailyReportDestinations([
+      ...dailyReportDestinations,
+      { name: name.trim(), chat_id: chat_id.trim(), thread_id: thread_id ? thread_id.trim() : '', active: true },
+    ]);
+  };
+
+  const handleRemoveDestination = (idx: number) => {
+    if (window.confirm('តើអ្នកពិតជាចង់លុបគោលដៅនេះឬ?')) {
+      const updated = [...dailyReportDestinations];
+      updated.splice(idx, 1);
+      setDailyReportDestinations(updated);
+    }
+  };
+
+  const handleToggleDestination = (idx: number, active: boolean) => {
+    const updated = [...dailyReportDestinations];
+    updated[idx].active = active;
+    setDailyReportDestinations(updated);
+  };
+
   const handleSaveGeneral = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
@@ -501,6 +565,8 @@ export const SettingsPage: React.FC = () => {
         daily_report_telegram_bot_token: dailyReportBotToken,
         daily_report_telegram_chat_id: dailyReportChatId,
         daily_report_telegram_template: dailyReportTemplate,
+        daily_report_telegram_thread_id: dailyReportThreadId,
+        daily_report_telegram_destinations: JSON.stringify(dailyReportDestinations),
         allowed_departments_skill: allowedDeptSkill,
         allowed_departments_worker: allowedDeptWorker,
         material_request_locations: materialLocations,
@@ -607,6 +673,9 @@ export const SettingsPage: React.FC = () => {
 
   // Active role if on a visibility tab
   const activeRole = VISIBILITY_ROLES.find((r) => `vis-${r.suffix}` === appScanSubTab);
+
+  // Selected reporter user
+  const selectedReporter = usersList.find((u) => u.employee_id === dailyReportReporterId);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', maxWidth: '1150px' }}>
@@ -921,7 +990,7 @@ export const SettingsPage: React.FC = () => {
         </div>
       )}
 
-      {/* 5. MANAGE APP SCAN - FULL 27 SUB-TABS (EXACT MATCHING ADMIN_ATTENDANCE.PHP) */}
+      {/* 5. MANAGE APP SCAN - FULL 27 SUB-TABS */}
       {activeTab === 'manage_app_scan' && (
         <form onSubmit={handleSaveAppScan} className="hrm-card" style={{ padding: '28px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
@@ -1546,24 +1615,25 @@ export const SettingsPage: React.FC = () => {
           {appScanSubTab === 'telegram' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               <div>
-                <h4 style={{ fontSize: '14px', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                <h4 style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Send size={18} color="#0088cc" />
                   ការកំណត់ Telegram (Telegram Configuration)
                 </h4>
                 <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '4px 0 0' }}>
-                  កំណត់ Bot Token, Chat ID, Notifications, Reminders និង Daily Report
+                  កំណត់ Bot Token និង Chat ID ដើម្បីផ្ញើសារជូនដំណឹងពីវត្តមាន និងសំណើផ្សេងៗ
                 </p>
               </div>
 
               {/* General Bot Card */}
               <div
                 style={{
-                  padding: '18px',
-                  borderRadius: '14px',
+                  padding: '20px',
+                  borderRadius: '16px',
                   border: '1px solid var(--border)',
                   background: 'var(--surface-hover)',
                 }}
               >
-                <h5 style={{ margin: '0 0 14px', fontSize: '13.5px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                <h5 style={{ margin: '0 0 16px', fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>
                   🤖 ការកំណត់ Bot រួម (General Bot Settings)
                 </h5>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
@@ -1584,20 +1654,20 @@ export const SettingsPage: React.FC = () => {
                       className="form-input"
                       value={tgChatId}
                       onChange={(e) => setTgChatId(e.target.value)}
-                      placeholder="-100XXXXXXXXXX"
+                      placeholder="ឧ. 1234789 ឬ -100XXXXXXXXXX"
                     />
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: '20px', margin: '12px 0' }}>
+                <div style={{ display: 'flex', gap: '24px', margin: '14px 0' }}>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
                     <input
                       type="checkbox"
                       checked={tgNotifyAttendance}
                       onChange={(e) => setTgNotifyAttendance(e.target.checked)}
-                      style={{ width: '17px', height: '17px', accentColor: 'var(--primary)' }}
+                      style={{ width: '18px', height: '18px', accentColor: 'var(--primary)' }}
                     />
-                    <span style={{ fontSize: '13px', fontWeight: 600 }}>ផ្ញើសារពេល Check-In/Out</span>
+                    <span style={{ fontSize: '13px', fontWeight: 600 }}>ផ្ញើសារ ពេល Check-In/Out</span>
                   </label>
 
                   <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
@@ -1605,72 +1675,118 @@ export const SettingsPage: React.FC = () => {
                       type="checkbox"
                       checked={tgNotifyRequests}
                       onChange={(e) => setTgNotifyRequests(e.target.checked)}
-                      style={{ width: '17px', height: '17px', accentColor: 'var(--primary)' }}
+                      style={{ width: '18px', height: '18px', accentColor: 'var(--primary)' }}
                     />
-                    <span style={{ fontSize: '13px', fontWeight: 600 }}>ផ្ញើសារពេលមាន Request ថ្មី</span>
+                    <span style={{ fontSize: '13px', fontWeight: 600 }}>ផ្ញើសារ ពេលមាន Request ថ្មី</span>
                   </label>
                 </div>
 
-                <div className="form-group" style={{ marginTop: '10px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-                    <label className="form-label" style={{ margin: 0 }}>
-                      គំរូសារវត្តមាន (General Attendance Template)
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => setShowPreviewGenAtt(!showPreviewGenAtt)}
-                      className="btn btn-secondary btn-sm"
-                      style={{ padding: '2px 8px', fontSize: '11px' }}
-                    >
-                      {showPreviewGenAtt ? 'បិទ Preview' : 'មើល Preview'}
-                    </button>
-                  </div>
-                  <textarea
-                    className="form-textarea"
-                    rows={4}
-                    value={tgTplAttendance}
-                    onChange={(e) => setTgTplAttendance(e.target.value)}
-                    style={{ fontFamily: 'monospace', fontSize: '12px' }}
-                  />
-                  {showPreviewGenAtt && (
-                    <div
-                      style={{
-                        marginTop: '8px',
-                        padding: '12px',
-                        borderRadius: '8px',
-                        background: 'rgba(59, 130, 246, 0.1)',
-                        border: '1px dashed #3b82f6',
-                        fontSize: '12px',
-                        whiteSpace: 'pre-wrap',
-                      }}
-                    >
-                      {tgTplAttendance
-                        .replace('{{name}}', 'Sok San')
-                        .replace('{{action}}', 'Check-In')
-                        .replace('{{status}}', 'Good')
-                        .replace('{{late_reason}}', 'None')
-                        .replace('{{employee_id}}', 'VVC-001')
-                        .replace('{{field_department}}', 'IT')
-                        .replace('{{field_position}}', 'Developer')
-                        .replace('{{time}}', '2026-08-24 08:00:00')
-                        .replace('{{location_name}}', 'Main Office (318)')
-                        .replace('{{distance_m}}', '12')
-                        .replace('{{map_url}}', 'https://maps.google.com/?q=11.55,104.91')}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '12px' }}>
+                  <div className="form-group">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                      <label className="form-label" style={{ margin: 0 }}>
+                        គំរូសារវត្តមាន (General Attendance Template)
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setShowPreviewGenAtt(!showPreviewGenAtt)}
+                        className="btn btn-secondary btn-sm"
+                        style={{ padding: '2px 8px', fontSize: '11px' }}
+                      >
+                        {showPreviewGenAtt ? 'បិទ Preview' : 'មើល Preview'}
+                      </button>
                     </div>
-                  )}
+                    <textarea
+                      className="form-textarea"
+                      rows={5}
+                      value={tgTplAttendance}
+                      onChange={(e) => setTgTplAttendance(e.target.value)}
+                      style={{ fontFamily: 'monospace', fontSize: '12px' }}
+                    />
+                    {showPreviewGenAtt && (
+                      <div
+                        style={{
+                          marginTop: '8px',
+                          padding: '12px',
+                          borderRadius: '8px',
+                          background: 'rgba(59, 130, 246, 0.08)',
+                          border: '1px dashed #3b82f6',
+                          fontSize: '12px',
+                          whiteSpace: 'pre-wrap',
+                        }}
+                      >
+                        {tgTplAttendance
+                          .replace(/\{\{name\}\}/g, 'សុខ សាន')
+                          .replace(/\{\{action\}\}/g, 'Check-In')
+                          .replace(/\{\{status\}\}/g, 'Good')
+                          .replace(/\{\{late_reason\}\}/g, 'N/A')
+                          .replace(/\{\{employee_id\}\}/g, 'VVC-001')
+                          .replace(/\{\{field_department\}\}/g, 'IT')
+                          .replace(/\{\{field_position\}\}/g, 'Developer')
+                          .replace(/\{\{time\}\}/g, '2026-08-24 08:00:00')
+                          .replace(/\{\{location_name\}\}/g, 'Main Office (318)')
+                          .replace(/\{\{distance_m\}\}/g, '12')
+                          .replace(/\{\{map_url\}\}/g, 'https://maps.google.com/?q=11.55,104.91')}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="form-group">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                      <label className="form-label" style={{ margin: 0 }}>
+                        គំរូសារសំណើ (General Request Template)
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setShowPreviewGenReq(!showPreviewGenReq)}
+                        className="btn btn-secondary btn-sm"
+                        style={{ padding: '2px 8px', fontSize: '11px' }}
+                      >
+                        {showPreviewGenReq ? 'បិទ Preview' : 'មើល Preview'}
+                      </button>
+                    </div>
+                    <textarea
+                      className="form-textarea"
+                      rows={3}
+                      value={tgTplRequest}
+                      onChange={(e) => setTgTplRequest(e.target.value)}
+                      placeholder="<b>[NEW REQUEST]</b>&#10;<b>ប្រភេទ:</b> {{request_type}}&#10;<b>ឈ្មោះ:</b> {{name}}&#10;<b>ID:</b> {{employee_id}}&#10;<b>ព័ត៌មាន:</b> {{summary}}"
+                      style={{ fontFamily: 'monospace', fontSize: '12px' }}
+                    />
+                    {showPreviewGenReq && (
+                      <div
+                        style={{
+                          marginTop: '8px',
+                          padding: '12px',
+                          borderRadius: '8px',
+                          background: 'rgba(59, 130, 246, 0.08)',
+                          border: '1px dashed #3b82f6',
+                          fontSize: '12px',
+                          whiteSpace: 'pre-wrap',
+                        }}
+                      >
+                        {(tgTplRequest || '<b>[NEW REQUEST]</b>\n<b>ប្រភេទ:</b> {{request_type}}\n<b>ឈ្មោះ:</b> {{name}}\n<b>ID:</b> {{employee_id}}\n<b>ព័ត៌មាន:</b> {{summary}}')
+                          .replace(/\{\{name\}\}/g, 'សុខ សាន')
+                          .replace(/\{\{request_type\}\}/g, 'ច្បាប់ឈប់សម្រាក')
+                          .replace(/\{\{employee_id\}\}/g, 'VVC-001')
+                          .replace(/\{\{summary\}\}/g, 'សុំច្បាប់ឈប់សម្រាក ២ ថ្ងៃ')
+                          .replace(/\{\{time\}\}/g, '2026-08-24 08:00:00')}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
               {/* Worker Overrides Card */}
               <div
                 style={{
-                  padding: '18px',
-                  borderRadius: '14px',
+                  padding: '20px',
+                  borderRadius: '16px',
                   border: '1px solid #fef3c7',
                   background: '#fffdf5',
                 }}
               >
-                <h5 style={{ margin: '0 0 14px', fontSize: '13.5px', fontWeight: 700, color: '#b45309' }}>
+                <h5 style={{ margin: '0 0 16px', fontSize: '14px', fontWeight: 700, color: '#b45309' }}>
                   👷 ការកំណត់សម្រាប់ កម្មករ (Worker Overrides)
                 </h5>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
@@ -1696,13 +1812,13 @@ export const SettingsPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: '20px', margin: '12px 0' }}>
+                <div style={{ display: 'flex', gap: '24px', margin: '14px 0' }}>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
                     <input
                       type="checkbox"
                       checked={tgNotifyAttendanceWorker}
                       onChange={(e) => setTgNotifyAttendanceWorker(e.target.checked)}
-                      style={{ width: '17px', height: '17px', accentColor: '#f59e0b' }}
+                      style={{ width: '18px', height: '18px', accentColor: '#f59e0b' }}
                     />
                     <span style={{ fontSize: '13px', fontWeight: 600 }}>ផ្ញើសារវត្តមាន (Worker)</span>
                   </label>
@@ -1711,28 +1827,125 @@ export const SettingsPage: React.FC = () => {
                       type="checkbox"
                       checked={tgNotifyRequestsWorker}
                       onChange={(e) => setTgNotifyRequestsWorker(e.target.checked)}
-                      style={{ width: '17px', height: '17px', accentColor: '#f59e0b' }}
+                      style={{ width: '18px', height: '18px', accentColor: '#f59e0b' }}
                     />
                     <span style={{ fontSize: '13px', fontWeight: 600 }}>ផ្ញើសារសំណើ (Worker)</span>
                   </label>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '12px' }}>
+                  <div className="form-group">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                      <label className="form-label" style={{ margin: 0 }}>
+                        គំរូសារវត្តមាន (Worker Attendance Template)
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setShowPreviewWrkAtt(!showPreviewWrkAtt)}
+                        className="btn btn-secondary btn-sm"
+                        style={{ padding: '2px 8px', fontSize: '11px' }}
+                      >
+                        {showPreviewWrkAtt ? 'បិទ Preview' : 'មើល Preview'}
+                      </button>
+                    </div>
+                    <textarea
+                      className="form-textarea"
+                      rows={5}
+                      value={tgTplAttendanceWorker}
+                      onChange={(e) => setTgTplAttendanceWorker(e.target.value)}
+                      placeholder="Fallback: ប្រើ General Attendance Template"
+                      style={{ fontFamily: 'monospace', fontSize: '12px' }}
+                    />
+                    {showPreviewWrkAtt && (
+                      <div
+                        style={{
+                          marginTop: '8px',
+                          padding: '12px',
+                          borderRadius: '8px',
+                          background: '#fef3c7',
+                          border: '1px dashed #f59e0b',
+                          fontSize: '12px',
+                          whiteSpace: 'pre-wrap',
+                        }}
+                      >
+                        {(tgTplAttendanceWorker || tgTplAttendance)
+                          .replace(/\{\{name\}\}/g, 'កម្មករ សុខ')
+                          .replace(/\{\{action\}\}/g, 'Check-In')
+                          .replace(/\{\{status\}\}/g, 'Good')
+                          .replace(/\{\{late_reason\}\}/g, 'N/A')
+                          .replace(/\{\{employee_id\}\}/g, 'W-009')
+                          .replace(/\{\{field_department\}\}/g, 'Factory')
+                          .replace(/\{\{field_position\}\}/g, 'Worker')
+                          .replace(/\{\{time\}\}/g, '2026-08-24 07:30:00')
+                          .replace(/\{\{location_name\}\}/g, 'Factory 1 (NR3)')
+                          .replace(/\{\{distance_m\}\}/g, '5')
+                          .replace(/\{\{map_url\}\}/g, 'https://maps.google.com/?q=11.45,104.85')}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="form-group">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                      <label className="form-label" style={{ margin: 0 }}>
+                        គំរូសារសំណើ (Worker Request Template)
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setShowPreviewWrkReq(!showPreviewWrkReq)}
+                        className="btn btn-secondary btn-sm"
+                        style={{ padding: '2px 8px', fontSize: '11px' }}
+                      >
+                        {showPreviewWrkReq ? 'បិទ Preview' : 'មើល Preview'}
+                      </button>
+                    </div>
+                    <textarea
+                      className="form-textarea"
+                      rows={3}
+                      value={tgTplRequestWorker}
+                      onChange={(e) => setTgTplRequestWorker(e.target.value)}
+                      placeholder="Fallback: ប្រើ General Request Template"
+                      style={{ fontFamily: 'monospace', fontSize: '12px' }}
+                    />
+                    {showPreviewWrkReq && (
+                      <div
+                        style={{
+                          marginTop: '8px',
+                          padding: '12px',
+                          borderRadius: '8px',
+                          background: '#fef3c7',
+                          border: '1px dashed #f59e0b',
+                          fontSize: '12px',
+                          whiteSpace: 'pre-wrap',
+                        }}
+                      >
+                        {(tgTplRequestWorker || tgTplRequest || '<b>[NEW REQUEST]</b>\n<b>ឈ្មោះ:</b> {{name}}\n<b>ID:</b> {{employee_id}}')
+                          .replace(/\{\{name\}\}/g, 'កម្មករ សុខ')
+                          .replace(/\{\{request_type\}\}/g, 'សុំច្បាប់ឈឺ')
+                          .replace(/\{\{employee_id\}\}/g, 'W-009')
+                          .replace(/\{\{summary\}\}/g, 'សុំសម្រាកព្យាបាលជំងឺ ១ ថ្ងៃ')
+                          .replace(/\{\{time\}\}/g, '2026-08-24 07:30:00')}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
               {/* Time Format Card */}
               <div
                 style={{
-                  padding: '18px',
-                  borderRadius: '14px',
+                  padding: '20px',
+                  borderRadius: '16px',
                   border: '1px solid var(--border)',
                   background: 'var(--surface)',
                 }}
               >
-                <h5 style={{ margin: '0 0 14px', fontSize: '13.5px', fontWeight: 700, color: 'var(--text-primary)' }}>
-                  🕒 ទម្រង់ពេលវេលា (Time Formatting)
+                <h5 style={{ margin: '0 0 16px', fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Clock size={16} color="#3b82f6" />
+                  ទម្រង់ពេលវេលា (Time Formatting)
                 </h5>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                   <div className="form-group">
-                    <label className="form-label">ជ្រើសរើស Presets</label>
+                    <label className="form-label">ជ្រើសរើសទម្រង់ Preset</label>
                     <select
                       className="form-input"
                       value={tgTimeFormatPreset}
@@ -1746,6 +1959,7 @@ export const SettingsPage: React.FC = () => {
                       <option value="d-m-Y h:i A">24-08-2026 08:00 AM (12 Hours)</option>
                       <option value="M j, Y g:i A">Aug 24, 2026 8:00 AM (English Short)</option>
                       <option value="d F Y H:i">24 August 2026 08:00 (Full Month)</option>
+                      <option value="j M Y, H:i">24 Aug 2026, 08:00</option>
                     </select>
                   </div>
                   <div className="form-group">
@@ -1755,6 +1969,7 @@ export const SettingsPage: React.FC = () => {
                       className="form-input"
                       value={tgTimeFormat}
                       onChange={(e) => setTgTimeFormat(e.target.value)}
+                      placeholder="ឧ. d-m-Y h:i A"
                     />
                   </div>
                 </div>
@@ -1763,23 +1978,27 @@ export const SettingsPage: React.FC = () => {
               {/* Attendance Reminders */}
               <div
                 style={{
-                  padding: '18px',
-                  borderRadius: '14px',
+                  padding: '20px',
+                  borderRadius: '16px',
                   border: '1px solid var(--border)',
+                  borderTop: '4px solid #f59e0b',
                   background: 'var(--surface)',
                 }}
               >
-                <h5 style={{ margin: '0 0 14px', fontSize: '13.5px', fontWeight: 700, color: 'var(--text-primary)' }}>
-                  🔔 ការរំលឹកស្កេនវត្តមាន (Attendance Reminders)
+                <h5 style={{ margin: '0 0 16px', fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Bell size={16} color="#f59e0b" />
+                  ការរំលឹកស្កេនវត្តមាន (Attendance Reminders)
                 </h5>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '12px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '14px' }}>
                   <input
                     type="checkbox"
                     checked={reminderEnabled}
                     onChange={(e) => setReminderEnabled(e.target.checked)}
-                    style={{ width: '17px', height: '17px', accentColor: 'var(--primary)' }}
+                    style={{ width: '18px', height: '18px', accentColor: '#f59e0b' }}
                   />
-                  <span style={{ fontSize: '13.5px', fontWeight: 600 }}>បើកដំណើរការរំលឹកស្វ័យប្រវត្តិ (Auto Reminders)</span>
+                  <span style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                    បើកដំណើរការរំលឹកស្វ័យប្រវត្តិ (Enable Auto Reminders)
+                  </span>
                 </label>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
@@ -1790,6 +2009,8 @@ export const SettingsPage: React.FC = () => {
                       className="form-input"
                       value={reminderMinutes}
                       onChange={(e) => setReminderMinutes(e.target.value)}
+                      min="1"
+                      max="60"
                     />
                   </div>
                   <div className="form-group">
@@ -1803,6 +2024,258 @@ export const SettingsPage: React.FC = () => {
                       <option value="call">Call Ringtone (Urgent)</option>
                     </select>
                   </div>
+                </div>
+
+                <div
+                  style={{
+                    background: '#fffbeb',
+                    padding: '12px 16px',
+                    borderRadius: '10px',
+                    borderLeft: '4px solid #f59e0b',
+                    marginTop: '12px',
+                    fontSize: '12px',
+                    color: '#92400e',
+                  }}
+                >
+                  <Info size={14} style={{ display: 'inline', marginRight: '6px' }} />
+                  បញ្ជាក់៖ កម្មវិធីនឹងផ្ញើការជូនដំណឹងទៅកាន់បុគ្គលិកនៅពេលដល់ម៉ោងស្កេនវត្តមាន។
+                </div>
+              </div>
+
+              {/* Daily Report Telegram Configuration */}
+              <div
+                style={{
+                  padding: '20px',
+                  borderRadius: '16px',
+                  border: '1px solid var(--border)',
+                  borderTop: '4px solid #10b981',
+                  background: 'var(--surface)',
+                }}
+              >
+                <h5 style={{ margin: '0 0 16px', fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <FileText size={16} color="#10b981" />
+                  ការកំណត់របាយការណ៍ប្រចាំថ្ងៃ (Daily Report Settings)
+                </h5>
+
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '16px' }}>
+                  <input
+                    type="checkbox"
+                    checked={dailyReportEnabled}
+                    onChange={(e) => setDailyReportEnabled(e.target.checked)}
+                    style={{ width: '18px', height: '18px', accentColor: '#10b981' }}
+                  />
+                  <span style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                    បើកដំណើរការផ្ញើរបាយការណ៍ប្រចាំថ្ងៃ (Enable Daily Report)
+                  </span>
+                </label>
+
+                {/* Reporter select */}
+                <div className="form-group" style={{ marginBottom: '14px' }}>
+                  <label className="form-label">ជ្រើសរើសបុគ្គលិករាយការណ៍ (Select Reporter)</label>
+                  <select
+                    className="form-input"
+                    value={dailyReportReporterId}
+                    onChange={(e) => setDailyReportReporterId(e.target.value)}
+                  >
+                    <option value="">-- ជ្រើសរើសបុគ្គលិក --</option>
+                    {usersList.map((u) => (
+                      <option key={u.employee_id} value={u.employee_id}>
+                        {u.name} ({u.employee_id}) {u.position ? `- ${u.position}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {selectedReporter && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
+                    <div className="form-group">
+                      <label className="form-label">តួនាទី (Role)</label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        value={selectedReporter.position || 'N/A'}
+                        readOnly
+                        style={{ background: 'var(--surface-hover)', cursor: 'not-allowed' }}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">មន្ទីរ / សាខា</label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        value={selectedReporter.department || 'N/A'}
+                        readOnly
+                        style={{ background: 'var(--surface-hover)', cursor: 'not-allowed' }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Multiple Bot Tokens */}
+                <div className="form-group" style={{ marginBottom: '14px' }}>
+                  <label className="form-label">
+                    Bot Tokens (Multiple - មួយក្នុងមួយជួរ / Line by line)
+                  </label>
+                  <textarea
+                    className="form-textarea"
+                    rows={2}
+                    value={dailyReportBotToken}
+                    onChange={(e) => setDailyReportBotToken(e.target.value)}
+                    placeholder="123456:Token1&#10;123456:Token2"
+                    style={{ fontFamily: 'monospace', fontSize: '12px' }}
+                  />
+                  <small style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                    បើសិនជាទុកទទេ វានឹងប្រើ Bot Token រួម (General Bot Token)
+                  </small>
+                </div>
+
+                {/* Destinations checklist */}
+                <div className="form-group" style={{ marginBottom: '14px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <label className="form-label" style={{ margin: 0 }}>
+                      ជ្រើសរើសគោលដៅផ្ញើសារ (Select Destinations)
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleAddDestination}
+                      className="btn btn-secondary btn-sm"
+                      style={{ fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                    >
+                      <Plus size={12} />
+                      <span>បន្ថែមគោលដៅថ្មី</span>
+                    </button>
+                  </div>
+
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+                      gap: '10px',
+                      background: 'var(--surface-hover)',
+                      padding: '14px',
+                      borderRadius: '12px',
+                      border: '1px solid var(--border)',
+                      maxHeight: '220px',
+                      overflowY: 'auto',
+                    }}
+                  >
+                    {dailyReportDestinations.length === 0 ? (
+                      <div style={{ gridColumn: '1/-1', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px', padding: '10px' }}>
+                        សូមចុច "បន្ថែមគោលដៅថ្មី" ដើម្បីបញ្ចូល Group / Topic
+                      </div>
+                    ) : (
+                      dailyReportDestinations.map((dest, idx) => (
+                        <div
+                          key={idx}
+                          style={{
+                            background: 'var(--surface)',
+                            border: '1px solid var(--border)',
+                            padding: '10px 12px',
+                            borderRadius: '8px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={dest.active !== false}
+                            onChange={(e) => handleToggleDestination(idx, e.target.checked)}
+                            style={{ width: '18px', height: '18px', accentColor: '#10b981' }}
+                          />
+                          <div style={{ flex: 1, overflow: 'hidden' }}>
+                            <div style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {dest.name || 'Group Topic'}
+                            </div>
+                            <div style={{ fontSize: '10.5px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                              ID: {dest.chat_id} {dest.thread_id ? `| Topic: ${dest.thread_id}` : ''}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveDestination(idx)}
+                            className="btn btn-secondary btn-sm"
+                            style={{ padding: '3px 6px', color: '#ef4444' }}
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                {/* Manual Chat IDs / Group IDs */}
+                <div className="form-group" style={{ marginBottom: '14px' }}>
+                  <label className="form-label">
+                    Chat IDs / Group IDs (Manual Input - បម្រុងទុក)
+                  </label>
+                  <textarea
+                    className="form-textarea"
+                    rows={1}
+                    value={dailyReportChatId}
+                    onChange={(e) => setDailyReportChatId(e.target.value)}
+                    placeholder="-100XXXXXXXXXX"
+                  />
+                </div>
+
+                {/* Daily Report Message Template */}
+                <div className="form-group">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                    <label className="form-label" style={{ margin: 0 }}>
+                      ទំព័រគំរូសាររបាយការណ៍ (Daily Report Template)
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowPreviewDailyReport(!showPreviewDailyReport)}
+                      className="btn btn-secondary btn-sm"
+                      style={{ padding: '2px 8px', fontSize: '11px' }}
+                    >
+                      {showPreviewDailyReport ? 'បិទ Preview' : 'មើល Preview'}
+                    </button>
+                  </div>
+                  <div
+                    style={{
+                      background: 'rgba(59, 130, 246, 0.08)',
+                      padding: '10px 14px',
+                      borderRadius: '8px',
+                      marginBottom: '8px',
+                      fontSize: '11.5px',
+                      color: 'var(--text-primary)',
+                      borderLeft: '3px solid #3b82f6',
+                    }}
+                  >
+                    <strong>Placeholders:</strong> {'{name}'}, {'{employee_id}'}, {'{position}'}, {'{content}'}, {'{date}'}, {'{time}'}
+                  </div>
+                  <textarea
+                    className="form-textarea"
+                    rows={5}
+                    value={dailyReportTemplate}
+                    onChange={(e) => setDailyReportTemplate(e.target.value)}
+                    placeholder="បើសិនជាទុកទទេ ប្រព័ន្ធនឹងប្រើប្រាស់ទម្រង់លំនាំដើម..."
+                    style={{ fontFamily: 'monospace', fontSize: '12px' }}
+                  />
+                  {showPreviewDailyReport && (
+                    <div
+                      style={{
+                        marginTop: '8px',
+                        padding: '12px',
+                        borderRadius: '8px',
+                        background: 'rgba(16, 185, 129, 0.08)',
+                        border: '1px dashed #10b981',
+                        fontSize: '12px',
+                        whiteSpace: 'pre-wrap',
+                      }}
+                    >
+                      {(dailyReportTemplate || 'ឈ្មោះ ៖  {name}\nតួនាទី ៖ {position}\nថ្ងៃខែឆ្នាំ និងម៉ោង ៖ {date}, {time}\n\n{content}')
+                        .replace(/\{name\}/g, selectedReporter?.name || 'សុខ ភក្តី')
+                        .replace(/\{employee_id\}/g, dailyReportReporterId || 'VVC-001')
+                        .replace(/\{position\}/g, selectedReporter?.position || 'IT Manager')
+                        .replace(/\{content\}/g, 'របាយការណ៍បូកសរុបប្រចាំថ្ងៃ៖ វត្តមានគ្រប់ចំនួន...')
+                        .replace(/\{date\}/g, '24/08/2026')
+                        .replace(/\{time\}/g, '08:00:00')}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

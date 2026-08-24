@@ -1202,19 +1202,38 @@ try {
 
         case 'get_app_scan_settings':
         case 'fetch_app_scan_settings':
-            $rows = dbQuery("SELECT setting_key, setting_value FROM app_settings WHERE admin_id = 'SYSTEM_WIDE'");
             $appSettings = [];
-            foreach ($rows as $r) {
-                $appSettings[$r['setting_key']] = $r['setting_value'];
-            }
             try {
-                $scanRows = dbQuery("SELECT setting_key, setting_value FROM app_scan_settings");
+                $rows = dbQuery("SELECT admin_id, setting_key, setting_value FROM app_settings ORDER BY (setting_value != '') ASC, (admin_id = 'SYSTEM_WIDE') ASC");
+                foreach ($rows as $r) {
+                    if (!empty($r['setting_value']) || !isset($appSettings[$r['setting_key']])) {
+                        $appSettings[$r['setting_key']] = $r['setting_value'];
+                    }
+                }
+            } catch (Throwable $ignore) {}
+
+            try {
+                $scanRows = dbQuery("SELECT admin_id, setting_key, setting_value FROM app_scan_settings ORDER BY (setting_value != '') ASC, (admin_id = 'SYSTEM_WIDE') ASC");
                 foreach ($scanRows as $sr) {
-                    if (!isset($appSettings[$sr['setting_key']])) {
+                    if (!empty($sr['setting_value']) || !isset($appSettings[$sr['setting_key']])) {
                         $appSettings[$sr['setting_key']] = $sr['setting_value'];
                     }
                 }
             } catch (Throwable $ignore) {}
+
+            try {
+                $drSettings = dbQuery("SELECT * FROM daily_report_telegram_settings LIMIT 1");
+                if (!empty($drSettings)) {
+                    $dr = $drSettings[0];
+                    if (!empty($dr['bot_token']) && empty($appSettings['daily_report_telegram_bot_token'])) {
+                        $appSettings['daily_report_telegram_bot_token'] = $dr['bot_token'];
+                    }
+                    if (!empty($dr['chat_id']) && empty($appSettings['daily_report_telegram_chat_id'])) {
+                        $appSettings['daily_report_telegram_chat_id'] = $dr['chat_id'];
+                    }
+                }
+            } catch (Throwable $ignore) {}
+
             sendJson(['success' => true, 'settings' => $appSettings]);
             break;
 
