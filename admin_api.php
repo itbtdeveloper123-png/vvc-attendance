@@ -811,9 +811,16 @@ try {
             }
             break;
 
-        case 'fetch_consolidated_report':
-            $date = trim((string)($_POST['date'] ?? $_GET['date'] ?? date('Y-m-d')));
-            $store = trim((string)($_POST['store'] ?? $_GET['store'] ?? '318'));
+        case 'update_single_attendance':
+        case 'update_consolidated_cell':
+            $date = trim((string)($_POST['date'] ?? date('Y-m-d')));
+            $column = trim((string)($_POST['column'] ?? ''));
+            $value = isset($_POST['value']) ? (int)$_POST['value'] : 0;
+            $store = trim((string)($_POST['store'] ?? 'ks2'));
+
+            if (!$date || !$column) {
+                sendJson(['success' => false, 'message' => 'ទិន្នន័យមិនត្រឹមត្រូវ។']);
+            }
 
             $main_tables = [
                 'ks2' => 'ks2_consolidated_staff',
@@ -822,7 +829,40 @@ try {
                 'prv' => 'nr3_consolidated_staff',
                 '318' => 'store_318_consolidated_staff'
             ];
-            $table = $main_tables[strtolower($store)] ?? 'store_318_consolidated_staff';
+            $table = $main_tables[strtolower($store)] ?? 'ks2_consolidated_staff';
+
+            if (!preg_match('/^[a-z0-9_]+$/i', $column)) {
+                sendJson(['success' => false, 'message' => 'Invalid column.']);
+            }
+
+            try {
+                dbExecute("CREATE TABLE IF NOT EXISTS {$table} (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    reports_date DATE NOT NULL UNIQUE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )");
+                dbExecute("ALTER TABLE {$table} ADD COLUMN IF NOT EXISTS {$column} INT DEFAULT 0");
+                dbExecute("INSERT INTO {$table} (reports_date, {$column}) VALUES (?, ?) ON DUPLICATE KEY UPDATE {$column} = ?", [$date, $value, $value]);
+                sendJson(['success' => true, 'message' => 'រក្សាទុកទិន្នន័យរួចរាល់!']);
+            } catch (\Exception $e) {
+                sendJson(['success' => false, 'message' => $e->getMessage()]);
+            }
+            break;
+
+        case 'fetch_consolidated_report':
+            $date = trim((string)($_POST['date'] ?? $_GET['date'] ?? date('Y-m-d')));
+            $store = trim((string)($_POST['store'] ?? $_GET['store'] ?? '318'));
+
+            $main_tables = [
+                'ks2' => ['main' => 'ks2_consolidated_staff', 'new' => 'ks2_new_staff'],
+                'psp' => ['main' => 'ks2_consolidated_staff', 'new' => 'ks2_new_staff'],
+                'nr3' => ['main' => 'nr3_consolidated_staff', 'new' => 'nr3_new_staff'],
+                'prv' => ['main' => 'nr3_consolidated_staff', 'new' => 'nr3_new_staff'],
+                '318' => ['main' => 'store_318_consolidated_staff', 'new' => 'store_318_new_staff'],
+            ];
+            $storeKey = strtolower($store);
+            $mainTable = $main_tables[$storeKey]['main'] ?? 'store_318_consolidated_staff';
+            $newTable = $main_tables[$storeKey]['new'] ?? 'store_318_new_staff';
 
             $scans = dbQuery("SELECT 
                                 COALESCE(u.department, cl.location_name, 'Other') as department,
@@ -835,10 +875,15 @@ try {
 
             $consolidatedRow = [];
             try {
-                $rows = dbQuery("SELECT * FROM {$table} WHERE reports_date = ?", [$date]);
+                $rows = dbQuery("SELECT * FROM {$mainTable} WHERE reports_date = ?", [$date]);
                 if (!empty($rows)) {
                     $consolidatedRow = $rows[0];
                 }
+            } catch (\Exception $e) {}
+
+            $newStaffRows = [];
+            try {
+                $newStaffRows = dbQuery("SELECT * FROM {$newTable} WHERE reports_date = ? ORDER BY id ASC", [$date]);
             } catch (\Exception $e) {}
 
             sendJson([
@@ -846,7 +891,8 @@ try {
                 'store' => $store,
                 'date' => $date,
                 'scans' => $scans,
-                'consolidated' => $consolidatedRow
+                'consolidated' => $consolidatedRow,
+                'staff' => $newStaffRows
             ]);
             break;
 

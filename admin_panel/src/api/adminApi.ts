@@ -542,6 +542,17 @@ export const adminApi = {
     return res.data;
   },
 
+  updateSingleAttendance: async (store: string, date: string, column: string, value: number) => {
+    const params = new URLSearchParams();
+    params.append('action', 'update_single_attendance');
+    params.append('store', store);
+    params.append('date', date);
+    params.append('column', column);
+    params.append('value', String(value));
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
   fetchLateSummaryReport: async (filters?: { start_date?: string; end_date?: string; department?: string; dept_category?: string }) => {
     const params = new URLSearchParams();
     params.append('action', 'fetch_late_summary_report');

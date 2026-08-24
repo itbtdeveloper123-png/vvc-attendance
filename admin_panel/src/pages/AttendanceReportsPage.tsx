@@ -108,6 +108,8 @@ export const AttendanceReportsPage: React.FC = () => {
 
   // Consolidated staff matrix data
   const [consolidatedScans, setConsolidatedScans] = useState<any[]>([]);
+  const [consolidatedData, setConsolidatedData] = useState<Record<string, any>>({});
+  const [savingCellKey, setSavingCellKey] = useState<string | null>(null);
 
   // Late Summary Report data (A4)
   const [lateSummaryRecords, setLateSummaryRecords] = useState<LateSummaryRecord[]>([]);
@@ -195,6 +197,10 @@ export const AttendanceReportsPage: React.FC = () => {
         const cRes = await adminApi.fetchConsolidatedReport(selectedStore, d);
         if (cRes && cRes.success) {
           setConsolidatedScans(cRes.scans || []);
+          setConsolidatedData(cRes.consolidated || {});
+          if (cRes.staff && Array.isArray(cRes.staff) && cRes.staff.length > 0) {
+            setLeaveDeoRecords(cRes.staff);
+          }
         }
       }
     } catch (e) {
@@ -258,6 +264,40 @@ export const AttendanceReportsPage: React.FC = () => {
       loadAttendance();
     }
   }, [activeReportTab, deptCategoryTab, selectedStore, reportStartDate, reportEndDate, selectedDate, customDate, isCustomDateMode, statusFilter, page]);
+
+  // Format Khmer date string helper (e.g. ថ្ងៃ អង្គារ ទី២៤ ខែសីហា ឆ្នាំ ២០២៦)
+  const formatKhmerDateString = (dateStr: string) => {
+    if (!dateStr) return '';
+    try {
+      const d = new Date(dateStr + 'T00:00:00');
+      const khmerDays = ['អាទិត្យ', 'ច័ន្ទ', 'អង្គារ', 'ពុធ', 'ព្រហស្បតិ៍', 'សុក្រ', 'សៅរ៍'];
+      const khmerMonths = ['មករា', 'កុម្ភៈ', 'មីនា', 'មេសា', 'ឧសភា', 'មិថុនា', 'កក្កដា', 'សីហា', 'កញ្ញា', 'តុលា', 'វិច្ឆិកា', 'ធ្នូ'];
+      const khmerDigits = ['០', '១', '២', '៣', '៤', '៥', '៦', '៧', '៨', '៩'];
+      const toKhNum = (n: number | string) => String(n).split('').map((c) => khmerDigits[parseInt(c)] ?? c).join('');
+      
+      const weekday = khmerDays[d.getDay()];
+      const day = toKhNum(d.getDate());
+      const month = khmerMonths[d.getMonth()];
+      const year = toKhNum(d.getFullYear());
+      return `ថ្ងៃ ${weekday} ទី${day} ខែ${month} ឆ្នាំ ${year}`;
+    } catch {
+      return dateStr;
+    }
+  };
+
+  // Update consolidated cell inline
+  const handleUpdateConsolidatedCell = async (column: string, value: number) => {
+    const d = getActiveDate();
+    setSavingCellKey(column);
+    setConsolidatedData((prev) => ({ ...prev, [column]: value }));
+    try {
+      await adminApi.updateSingleAttendance(selectedStore, d, column, value);
+    } catch (e) {
+      console.error('Failed to update inline cell:', e);
+    } finally {
+      setTimeout(() => setSavingCellKey(null), 500);
+    }
+  };
 
   // Format date helper for dropdown display e.g. "14 Aug 2026 (Fri)"
   const formatDateDisplay = (dateStr: string) => {
@@ -1524,211 +1564,728 @@ const DEFAULT_DEPT_FORGOTTEN_RECORDS: ForgottenScanRecord[] = [
       )}
 
       {/* ========================================================================= */}
-      {/* 4. COMBINED REPORT VIEW (admin_attendance.php?action=combined_report) */}
+      {/* 4. COMBINED REPORT VIEW (318 / KS2 / NR3 Consolidated with Inline Editing) */}
       {/* ========================================================================= */}
-      {activeReportTab === 'combined' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          {/* Main Matrix Container Card */}
-          <div className="hrm-card" style={{ padding: 0, borderRadius: '18px', overflow: 'hidden' }}>
-            {/* Store Tabs */}
-            <div
-              style={{
-                background: 'var(--surface-alt)',
-                padding: '0 20px',
-                borderBottom: '1px solid var(--border)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                overflowX: 'auto',
-              }}
-            >
-              {[
-                { id: '318', label: '🏬 Store 318' },
-                { id: 'ks2', label: '🏭 Warehouse PSP (KS2)' },
-                { id: 'nr3', label: '🏪 Store NR3 (PRV)' },
-                { id: 'all', label: '🏢 សរុបរួមគ្រប់សាខា' },
-              ].map((store) => (
-                <button
-                  key={store.id}
-                  type="button"
-                  onClick={() => setSelectedStore(store.id)}
-                  style={{
-                    padding: '14px 20px',
-                    border: 'none',
-                    background: 'transparent',
-                    fontWeight: 700,
-                    fontSize: '13.5px',
-                    cursor: 'pointer',
-                    color: selectedStore === store.id ? 'var(--primary)' : 'var(--text-secondary)',
-                    borderBottom: selectedStore === store.id ? '3px solid var(--primary)' : '3px solid transparent',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    transition: 'all 0.2s ease',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  <span>{store.label}</span>
-                </button>
-              ))}
-            </div>
+      {activeReportTab === 'combined' && (() => {
+        const storeConfigs = {
+          ks2: {
+            label: 'ផ្សារក្បាលកោះ២',
+            departments: [
+              { key: 'cosmetic', label: 'បុគ្គលិកសរុប' },
+              { key: 'intern', label: 'អនុប្រធានស្តុក' },
+              { key: 'stock', label: 'ផ្នែកស្តុក' },
+              { key: 'sales', label: 'ផ្នែកលក់' },
+              { key: 'cashier', label: 'ផ្នែកគិតលុយ' },
+              { key: 'delivery', label: 'ផ្នែកដឹកជញ្ជូន' },
+            ],
+          },
+          nr3: {
+            label: 'NR3',
+            departments: [
+              { key: 'store', label: 'បុគ្គលិក NR3' },
+              { key: 'intern', label: 'អនុប្រធាន' },
+              { key: 'stock', label: 'ផ្នែកស្តុក' },
+              { key: 'sales', label: 'ផ្នែកលក់' },
+              { key: 'cashier', label: 'ផ្នែកគិតលុយ' },
+            ],
+          },
+          '318': {
+            label: 'ហាងទំនិញ ៣១៨',
+            departments: [
+              { key: 'store', label: 'បុគ្គលិកហាងទំនិញ៣១៨' },
+              { key: 'intern', label: 'បុគ្គលិកកម្មករ' },
+              { key: 'stock', label: 'ផ្នែកស្តុក' },
+              { key: 'sales', label: 'ផ្នែកលក់' },
+              { key: 'cashier', label: 'ផ្នែកគិតលុយ' },
+            ],
+          },
+        };
 
-            {/* Matrix Header Title & Date */}
-            <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
-              <div>
-                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: 'var(--text-primary)' }}>
-                  របាយការណ៍វត្តមានរួម - {selectedStore.toUpperCase()} ({formatDateDisplay(getActiveDate())})
-                </h3>
-                <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                  ចំនួនបុគ្គលិកតាមផ្នែក និងសរុបវេន
+        const curStore = (selectedStore === 'ks2' || selectedStore === 'nr3' || selectedStore === '318') ? selectedStore : '318';
+        const curConfig = storeConfigs[curStore];
+
+        const getVal = (col: string) => {
+          const v = consolidatedData[col];
+          return v !== undefined && v !== null ? Number(v) : 0;
+        };
+
+        // Calculations for KS2
+        const morningFemaleRowTotal = curConfig.departments.reduce((acc, d) => acc + getVal(`${d.key}_female_morning`), 0);
+        const morningMaleRowTotal = curConfig.departments.reduce((acc, d) => acc + getVal(`${d.key}_male_morning`), 0);
+        const morningGrandTotal = morningFemaleRowTotal + morningMaleRowTotal;
+
+        const eveningFemaleRowTotal = curConfig.departments.reduce((acc, d) => acc + getVal(`${d.key}_female_evening`), 0);
+        const eveningMaleRowTotal = curConfig.departments.reduce((acc, d) => acc + getVal(`${d.key}_male_evening`), 0);
+        const eveningGrandTotal = eveningFemaleRowTotal + eveningMaleRowTotal;
+
+        const finalGrandTotalKs2 = morningGrandTotal + eveningGrandTotal;
+
+        // Calculations for NR3 & 318
+        const femaleRowTotal = curConfig.departments.reduce((acc, d) => acc + getVal(`${d.key}_female`), 0);
+        const maleRowTotal = curConfig.departments.reduce((acc, d) => acc + getVal(`${d.key}_male`), 0);
+        const standardGrandTotal = femaleRowTotal + maleRowTotal;
+
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            {/* Store Tabs & Filter Card */}
+            <div className="hrm-card no-print" style={{ padding: '16px 20px', borderRadius: '18px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  {[
+                    { id: '318', label: '🏬 ហាងទំនិញ ៣១៨' },
+                    { id: 'ks2', label: '🏪 ផ្សារក្បាលកោះ២ (KS2)' },
+                    { id: 'nr3', label: '🏪 សាខា NR3' },
+                  ].map((store) => (
+                    <button
+                      key={store.id}
+                      type="button"
+                      onClick={() => setSelectedStore(store.id)}
+                      className={`btn btn-sm ${selectedStore === store.id ? 'btn-primary' : 'btn-secondary'}`}
+                      style={{
+                        padding: '10px 18px',
+                        borderRadius: '12px',
+                        fontWeight: 800,
+                        fontSize: '13.5px',
+                        transition: 'all 0.2s ease',
+                      }}
+                    >
+                      <span>{store.label}</span>
+                    </button>
+                  ))}
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--text-secondary)' }}>កាលបរិច្ឆេទ:</span>
+                  <input
+                    type="date"
+                    className="form-input"
+                    value={selectedDate || new Date().toISOString().split('T')[0]}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    style={{ height: '40px', borderRadius: '10px', fontSize: '13.5px', width: '165px', fontWeight: 700 }}
+                  />
+                  <button
+                    type="button"
+                    onClick={loadLeaveDeoAndCombined}
+                    className="btn btn-secondary btn-sm"
+                    style={{ height: '40px', borderRadius: '10px', padding: '0 14px', fontWeight: 700 }}
+                    title="Refresh Data"
+                  >
+                    <RefreshCw size={15} className={loadingLeaveDeo ? 'animate-spin' : ''} />
+                  </button>
                 </div>
               </div>
+            </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)' }}>កាលបរិច្ឆេទ:</span>
-                <input
-                  type="date"
-                  className="form-input"
-                  value={selectedDate || new Date().toISOString().split('T')[0]}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  style={{ height: '38px', borderRadius: '10px', fontSize: '13px', width: '160px' }}
-                />
+            {/* Printable Report Canvas */}
+            <div
+              className="hrm-card printable-report-card"
+              style={{
+                padding: '36px 40px',
+                borderRadius: '20px',
+                background: '#ffffff',
+                color: '#0f172a',
+                boxShadow: '0 4px 20px rgba(0,0,0,0.06)',
+              }}
+            >
+              {/* Header Title Section matching Mobile App / public_report.php */}
+              <div style={{ textAlign: 'center', marginBottom: '28px' }}>
+                <h1
+                  style={{
+                    fontSize: '24px',
+                    fontWeight: 900,
+                    color: '#05165e',
+                    margin: '0 0 6px 0',
+                    fontFamily: "'Hanuman', 'Khmer OS Battambang', serif",
+                  }}
+                >
+                  របាយការណ៍វត្តមានបុគ្គលិក - {curConfig.label}
+                </h1>
+                <h2
+                  style={{
+                    fontSize: '16px',
+                    fontWeight: 700,
+                    color: '#05165e',
+                    margin: '0 0 16px 0',
+                    fontFamily: "'Hanuman', 'Khmer OS Battambang', serif",
+                  }}
+                >
+                  {formatKhmerDateString(getActiveDate())}
+                </h2>
+                <h3
+                  style={{
+                    fontSize: '18px',
+                    fontWeight: 800,
+                    color: '#05165e',
+                    margin: 0,
+                    fontFamily: "'Hanuman', 'Khmer OS Battambang', serif",
+                  }}
+                >
+                  ចំនួនបុគ្គលិកតាមផ្នែក
+                </h3>
               </div>
-            </div>
 
-            {/* Consolidated Headcount Matrix Table */}
-            <div className="table-container" style={{ border: 'none', boxShadow: 'none' }}>
-              <table className="hrm-table">
-                <thead>
-                  <tr style={{ background: '#0f172a', color: '#fff' }}>
-                    <th style={{ width: '140px', textAlign: 'center', color: '#fff', background: '#0f172a' }}>ព័ត៌មាន</th>
-                    {matrixDepartments.map((d) => (
-                      <th key={d.key} style={{ textAlign: 'center', color: '#fff', background: '#0f172a' }}>{d.label}</th>
-                    ))}
-                    <th style={{ width: '120px', textAlign: 'center', color: '#fff', background: '#1e293b' }}>សរុបរួម</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td style={{ textAlign: 'center', fontWeight: 700, color: '#ec4899', background: 'rgba(236, 72, 153, 0.05)' }}>
-                      👩 ស្រី (Female)
-                    </td>
-                    {matrixDepartments.map((d) => {
-                      const count = consolidatedScans.filter((s) => s.gender === 'Female' && s.department.toLowerCase().includes(d.key)).reduce((acc, curr) => acc + curr.scan_count, 0);
-                      return (
-                        <td key={d.key} style={{ textAlign: 'center', fontWeight: 700 }}>
-                          {count || 0}
-                        </td>
-                      );
-                    })}
-                    <td style={{ textAlign: 'center', fontWeight: 800, color: '#ec4899' }}>
-                      {consolidatedScans.filter((s) => s.gender === 'Female').reduce((acc, curr) => acc + curr.scan_count, 0)}
-                    </td>
-                  </tr>
+              {/* Matrix Table with Navy Blue Header & Direct Inline Editor */}
+              <div style={{ overflowX: 'auto', marginBottom: '36px' }}>
+                <table
+                  style={{
+                    width: '100%',
+                    borderCollapse: 'collapse',
+                    textAlign: 'center',
+                    fontFamily: "'Hanuman', 'Khmer OS Battambang', sans-serif",
+                    fontSize: '14px',
+                  }}
+                >
+                  <thead>
+                    <tr style={{ background: '#05165e', color: '#ffffff' }}>
+                      <th
+                        colSpan={curStore === 'ks2' ? 2 : 1}
+                        style={{
+                          border: '1px solid #0d288a',
+                          padding: '12px 8px',
+                          color: '#ffffff',
+                          fontWeight: 800,
+                          fontSize: '14.5px',
+                          background: '#05165e',
+                        }}
+                      >
+                        ព័ត៌មាន
+                      </th>
+                      {curConfig.departments.map((d) => (
+                        <th
+                          key={d.key}
+                          style={{
+                            border: '1px solid #0d288a',
+                            padding: '12px 8px',
+                            color: '#ffffff',
+                            fontWeight: 800,
+                            fontSize: '14.5px',
+                            background: '#05165e',
+                          }}
+                        >
+                          {d.label}
+                        </th>
+                      ))}
+                      <th
+                        style={{
+                          border: '1px solid #0d288a',
+                          padding: '12px 8px',
+                          color: '#ffffff',
+                          fontWeight: 800,
+                          fontSize: '14.5px',
+                          background: '#05165e',
+                          width: '110px',
+                        }}
+                      >
+                        សរុបរួម
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {curStore === 'ks2' ? (
+                      <>
+                        {/* Morning Shift */}
+                        <tr>
+                          <th
+                            rowSpan={3}
+                            style={{
+                              border: '1px solid #dee2e6',
+                              background: '#f8f9fa',
+                              fontWeight: 800,
+                              width: '90px',
+                              color: '#0f172a',
+                            }}
+                          >
+                            វេនព្រឹក
+                          </th>
+                          <th
+                            style={{
+                              border: '1px solid #dee2e6',
+                              background: '#f8f9fa',
+                              fontWeight: 700,
+                              width: '75px',
+                              color: '#ec4899',
+                            }}
+                          >
+                            ស្រី
+                          </th>
+                          {curConfig.departments.map((d) => {
+                            const colKey = `${d.key}_female_morning`;
+                            return (
+                              <td key={colKey} style={{ border: '1px solid #dee2e6', padding: '4px' }}>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  className="form-input"
+                                  value={getVal(colKey)}
+                                  onChange={(e) => handleUpdateConsolidatedCell(colKey, parseInt(e.target.value) || 0)}
+                                  style={{
+                                    width: '100%',
+                                    textAlign: 'center',
+                                    fontWeight: 700,
+                                    height: '36px',
+                                    border: savingCellKey === colKey ? '2px solid #22c55e' : '1px solid transparent',
+                                    background: 'transparent',
+                                    color: '#0f172a',
+                                  }}
+                                />
+                              </td>
+                            );
+                          })}
+                          <td style={{ border: '1px solid #dee2e6', fontWeight: 800, color: '#ec4899' }}>
+                            {morningFemaleRowTotal}
+                          </td>
+                        </tr>
 
-                  <tr>
-                    <td style={{ textAlign: 'center', fontWeight: 700, color: '#3b82f6', background: 'rgba(59, 130, 246, 0.05)' }}>
-                      👨 ប្រុស (Male)
-                    </td>
-                    {matrixDepartments.map((d) => {
-                      const count = consolidatedScans.filter((s) => s.gender === 'Male' && s.department.toLowerCase().includes(d.key)).reduce((acc, curr) => acc + curr.scan_count, 0);
-                      return (
-                        <td key={d.key} style={{ textAlign: 'center', fontWeight: 700 }}>
-                          {count || 0}
-                        </td>
-                      );
-                    })}
-                    <td style={{ textAlign: 'center', fontWeight: 800, color: '#3b82f6' }}>
-                      {consolidatedScans.filter((s) => s.gender === 'Male').reduce((acc, curr) => acc + curr.scan_count, 0)}
-                    </td>
-                  </tr>
+                        <tr>
+                          <th
+                            style={{
+                              border: '1px solid #dee2e6',
+                              background: '#f8f9fa',
+                              fontWeight: 700,
+                              color: '#3b82f6',
+                            }}
+                          >
+                            ប្រុស
+                          </th>
+                          {curConfig.departments.map((d) => {
+                            const colKey = `${d.key}_male_morning`;
+                            return (
+                              <td key={colKey} style={{ border: '1px solid #dee2e6', padding: '4px' }}>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  className="form-input"
+                                  value={getVal(colKey)}
+                                  onChange={(e) => handleUpdateConsolidatedCell(colKey, parseInt(e.target.value) || 0)}
+                                  style={{
+                                    width: '100%',
+                                    textAlign: 'center',
+                                    fontWeight: 700,
+                                    height: '36px',
+                                    border: savingCellKey === colKey ? '2px solid #22c55e' : '1px solid transparent',
+                                    background: 'transparent',
+                                    color: '#0f172a',
+                                  }}
+                                />
+                              </td>
+                            );
+                          })}
+                          <td style={{ border: '1px solid #dee2e6', fontWeight: 800, color: '#3b82f6' }}>
+                            {morningMaleRowTotal}
+                          </td>
+                        </tr>
 
-                  <tr style={{ background: 'var(--surface-alt)', borderTop: '2px solid var(--border)' }}>
-                    <td style={{ textAlign: 'center', fontWeight: 900, color: 'var(--primary)' }}>
-                      សរុប (Grand Total)
-                    </td>
-                    {matrixDepartments.map((d) => {
-                      const count = consolidatedScans.filter((s) => s.department.toLowerCase().includes(d.key)).reduce((acc, curr) => acc + curr.scan_count, 0);
-                      return (
-                        <td key={d.key} style={{ textAlign: 'center', fontWeight: 900, color: 'var(--primary)' }}>
-                          {count || 0}
-                        </td>
-                      );
-                    })}
-                    <td style={{ textAlign: 'center', fontWeight: 900, fontSize: '15px', color: 'var(--primary)' }}>
-                      {consolidatedScans.reduce((acc, curr) => acc + curr.scan_count, 0)}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
+                        <tr style={{ background: '#f1f3f5', fontWeight: 800 }}>
+                          <td style={{ border: '1px solid #dee2e6', color: '#0f172a' }}>សរុប (ព្រឹក)</td>
+                          {curConfig.departments.map((d) => {
+                            const sumMorning = getVal(`${d.key}_female_morning`) + getVal(`${d.key}_male_morning`);
+                            return (
+                              <td key={d.key} style={{ border: '1px solid #dee2e6', color: '#0f172a' }}>
+                                {sumMorning}
+                              </td>
+                            );
+                          })}
+                          <td style={{ border: '1px solid #dee2e6', color: '#05165e', fontSize: '15px' }}>
+                            {morningGrandTotal}
+                          </td>
+                        </tr>
 
-          {/* Lower Table: Staff on Leave / Deo / New staff on this date */}
-          <div className="hrm-card" style={{ padding: '20px 24px', borderRadius: '18px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
-              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <FileText size={18} color="var(--primary)" />
-                <span>បុគ្គលិកសុំច្បាប់, ដេអូស, ប្តូរដេអូស និងចូលថ្មី (Leave & Deo for {selectedStore.toUpperCase()})</span>
-              </h3>
+                        {/* Evening Shift */}
+                        <tr>
+                          <th
+                            rowSpan={3}
+                            style={{
+                              border: '1px solid #dee2e6',
+                              background: '#f8f9fa',
+                              fontWeight: 800,
+                              color: '#0f172a',
+                            }}
+                          >
+                            វេនល្ងាច
+                          </th>
+                          <th
+                            style={{
+                              border: '1px solid #dee2e6',
+                              background: '#f8f9fa',
+                              fontWeight: 700,
+                              color: '#ec4899',
+                            }}
+                          >
+                            ស្រី
+                          </th>
+                          {curConfig.departments.map((d) => {
+                            const colKey = `${d.key}_female_evening`;
+                            return (
+                              <td key={colKey} style={{ border: '1px solid #dee2e6', padding: '4px' }}>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  className="form-input"
+                                  value={getVal(colKey)}
+                                  onChange={(e) => handleUpdateConsolidatedCell(colKey, parseInt(e.target.value) || 0)}
+                                  style={{
+                                    width: '100%',
+                                    textAlign: 'center',
+                                    fontWeight: 700,
+                                    height: '36px',
+                                    border: savingCellKey === colKey ? '2px solid #22c55e' : '1px solid transparent',
+                                    background: 'transparent',
+                                    color: '#0f172a',
+                                  }}
+                                />
+                              </td>
+                            );
+                          })}
+                          <td style={{ border: '1px solid #dee2e6', fontWeight: 800, color: '#ec4899' }}>
+                            {eveningFemaleRowTotal}
+                          </td>
+                        </tr>
 
-              <button
-                type="button"
-                onClick={handleAddNewLeaveDeoRow}
-                className="btn btn-primary btn-sm"
-                style={{ borderRadius: '8px', padding: '6px 14px', fontWeight: 700 }}
-              >
-                <Plus size={14} />
-                <span>បន្ថែមជួរដេក</span>
-              </button>
-            </div>
+                        <tr>
+                          <th
+                            style={{
+                              border: '1px solid #dee2e6',
+                              background: '#f8f9fa',
+                              fontWeight: 700,
+                              color: '#3b82f6',
+                            }}
+                          >
+                            ប្រុស
+                          </th>
+                          {curConfig.departments.map((d) => {
+                            const colKey = `${d.key}_male_evening`;
+                            return (
+                              <td key={colKey} style={{ border: '1px solid #dee2e6', padding: '4px' }}>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  className="form-input"
+                                  value={getVal(colKey)}
+                                  onChange={(e) => handleUpdateConsolidatedCell(colKey, parseInt(e.target.value) || 0)}
+                                  style={{
+                                    width: '100%',
+                                    textAlign: 'center',
+                                    fontWeight: 700,
+                                    height: '36px',
+                                    border: savingCellKey === colKey ? '2px solid #22c55e' : '1px solid transparent',
+                                    background: 'transparent',
+                                    color: '#0f172a',
+                                  }}
+                                />
+                              </td>
+                            );
+                          })}
+                          <td style={{ border: '1px solid #dee2e6', fontWeight: 800, color: '#3b82f6' }}>
+                            {eveningMaleRowTotal}
+                          </td>
+                        </tr>
 
-            <div className="table-container" style={{ border: 'none', boxShadow: 'none' }}>
-              <table className="hrm-table">
-                <thead>
-                  <tr>
-                    <th style={{ width: '60px', textAlign: 'center' }}>ល.រ</th>
-                    <th style={{ width: '22%' }}>ឈ្មោះ</th>
-                    <th style={{ width: '20%' }}>តួនាទី</th>
-                    <th>អធិប្បាយ</th>
-                    <th style={{ width: '130px', textAlign: 'center' }}>ថ្ងៃរាយការណ៍</th>
-                    <th style={{ width: '80px', textAlign: 'center' }}>សកម្មភាព</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {leaveDeoRecords.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)' }}>
-                        មិនមានទិន្នន័យសម្រាប់ថ្ងៃនេះទេ។
+                        <tr style={{ background: '#f1f3f5', fontWeight: 800 }}>
+                          <td style={{ border: '1px solid #dee2e6', color: '#0f172a' }}>សរុប (ល្ងាច)</td>
+                          {curConfig.departments.map((d) => {
+                            const sumEvening = getVal(`${d.key}_female_evening`) + getVal(`${d.key}_male_evening`);
+                            return (
+                              <td key={d.key} style={{ border: '1px solid #dee2e6', color: '#0f172a' }}>
+                                {sumEvening}
+                              </td>
+                            );
+                          })}
+                          <td style={{ border: '1px solid #dee2e6', color: '#05165e', fontSize: '15px' }}>
+                            {eveningGrandTotal}
+                          </td>
+                        </tr>
+                      </>
+                    ) : (
+                      <>
+                        {/* Standard NR3 & 318 Rows */}
+                        <tr>
+                          <th
+                            style={{
+                              border: '1px solid #dee2e6',
+                              background: '#f8f9fa',
+                              fontWeight: 700,
+                              width: '130px',
+                              color: '#ec4899',
+                            }}
+                          >
+                            ស្រី
+                          </th>
+                          {curConfig.departments.map((d) => {
+                            const colKey = `${d.key}_female`;
+                            return (
+                              <td key={colKey} style={{ border: '1px solid #dee2e6', padding: '4px' }}>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  className="form-input"
+                                  value={getVal(colKey)}
+                                  onChange={(e) => handleUpdateConsolidatedCell(colKey, parseInt(e.target.value) || 0)}
+                                  style={{
+                                    width: '100%',
+                                    textAlign: 'center',
+                                    fontWeight: 700,
+                                    height: '36px',
+                                    border: savingCellKey === colKey ? '2px solid #22c55e' : '1px solid transparent',
+                                    background: 'transparent',
+                                    color: '#0f172a',
+                                  }}
+                                />
+                              </td>
+                            );
+                          })}
+                          <td style={{ border: '1px solid #dee2e6', fontWeight: 800, color: '#ec4899' }}>
+                            {femaleRowTotal}
+                          </td>
+                        </tr>
+
+                        <tr>
+                          <th
+                            style={{
+                              border: '1px solid #dee2e6',
+                              background: '#f8f9fa',
+                              fontWeight: 700,
+                              color: '#3b82f6',
+                            }}
+                          >
+                            ប្រុស
+                          </th>
+                          {curConfig.departments.map((d) => {
+                            const colKey = `${d.key}_male`;
+                            return (
+                              <td key={colKey} style={{ border: '1px solid #dee2e6', padding: '4px' }}>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  className="form-input"
+                                  value={getVal(colKey)}
+                                  onChange={(e) => handleUpdateConsolidatedCell(colKey, parseInt(e.target.value) || 0)}
+                                  style={{
+                                    width: '100%',
+                                    textAlign: 'center',
+                                    fontWeight: 700,
+                                    height: '36px',
+                                    border: savingCellKey === colKey ? '2px solid #22c55e' : '1px solid transparent',
+                                    background: 'transparent',
+                                    color: '#0f172a',
+                                  }}
+                                />
+                              </td>
+                            );
+                          })}
+                          <td style={{ border: '1px solid #dee2e6', fontWeight: 800, color: '#3b82f6' }}>
+                            {maleRowTotal}
+                          </td>
+                        </tr>
+                      </>
+                    )}
+                  </tbody>
+
+                  {/* Grand Total Footer */}
+                  <tfoot>
+                    <tr style={{ background: '#f1f3f5', fontWeight: 900 }}>
+                      <th
+                        colSpan={curStore === 'ks2' ? 2 : 1}
+                        style={{
+                          border: '1px solid #dee2e6',
+                          background: '#f1f3f5',
+                          color: '#05165e',
+                          padding: '12px 8px',
+                          fontSize: '14.5px',
+                        }}
+                      >
+                        សរុបរួមតាមផ្នែក
+                      </th>
+                      {curConfig.departments.map((d) => {
+                        const totalDept = curStore === 'ks2'
+                          ? getVal(`${d.key}_female_morning`) + getVal(`${d.key}_male_morning`) + getVal(`${d.key}_female_evening`) + getVal(`${d.key}_male_evening`)
+                          : getVal(`${d.key}_female`) + getVal(`${d.key}_male`);
+                        return (
+                          <td
+                            key={d.key}
+                            style={{
+                              border: '1px solid #dee2e6',
+                              color: '#05165e',
+                              padding: '12px 8px',
+                              fontSize: '14.5px',
+                            }}
+                          >
+                            {totalDept}
+                          </td>
+                        );
+                      })}
+                      <td
+                        style={{
+                          border: '1px solid #dee2e6',
+                          color: '#05165e',
+                          padding: '12px 8px',
+                          fontSize: '16px',
+                        }}
+                      >
+                        {curStore === 'ks2' ? finalGrandTotalKs2 : standardGrandTotal}
                       </td>
                     </tr>
-                  ) : (
-                    leaveDeoRecords.map((r, i) => (
-                      <tr key={r.id}>
-                        <td style={{ textAlign: 'center', fontWeight: 700 }}>{r.number || i + 1}</td>
-                        <td style={{ fontWeight: 800, color: 'var(--primary)' }}>{r.name || '-'}</td>
-                        <td>{r.role || '-'}</td>
-                        <td>{r.note || '-'}</td>
-                        <td style={{ textAlign: 'center', fontFamily: "'Outfit', monospace" }}>{r.reports_date}</td>
-                        <td style={{ textAlign: 'center' }}>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteLeaveDeoRow(r.id)}
-                            className="btn btn-danger btn-sm"
-                            style={{ padding: '3px 8px', borderRadius: '6px', fontSize: '11px' }}
-                          >
-                            លុប
-                          </button>
-                        </td>
+                  </tfoot>
+                </table>
+              </div>
+
+              {/* Sub-Table: Staff on Leave / Deo / New staff on this date */}
+              <div>
+                <div style={{ textAlign: 'center', marginBottom: '18px' }}>
+                  <h3
+                    style={{
+                      fontSize: '18px',
+                      fontWeight: 800,
+                      color: '#05165e',
+                      margin: 0,
+                      fontFamily: "'Hanuman', 'Khmer OS Battambang', serif",
+                    }}
+                  >
+                    បុគ្គលិកសុំច្បាប់, ដេអូស, ប្ដូរដេអូស និងចូលថ្មី
+                  </h3>
+                </div>
+
+                <div style={{ overflowX: 'auto' }}>
+                  <table
+                    style={{
+                      width: '100%',
+                      borderCollapse: 'collapse',
+                      textAlign: 'left',
+                      fontFamily: "'Hanuman', 'Khmer OS Battambang', sans-serif",
+                      fontSize: '14px',
+                    }}
+                  >
+                    <thead>
+                      <tr style={{ background: '#05165e', color: '#ffffff' }}>
+                        <th style={{ border: '1px solid #0d288a', padding: '10px 8px', width: '70px', textAlign: 'center', color: '#fff' }}>
+                          ល.រ
+                        </th>
+                        <th style={{ border: '1px solid #0d288a', padding: '10px 12px', width: '22%', color: '#fff' }}>
+                          ឈ្មោះ
+                        </th>
+                        <th style={{ border: '1px solid #0d288a', padding: '10px 12px', width: '20%', color: '#fff' }}>
+                          តួនាទី
+                        </th>
+                        <th style={{ border: '1px solid #0d288a', padding: '10px 12px', color: '#fff' }}>
+                          អធិប្បាយ
+                        </th>
+                        <th style={{ border: '1px solid #0d288a', padding: '10px 8px', width: '130px', textAlign: 'center', color: '#fff' }}>
+                          ថ្ងៃរាយការណ៍
+                        </th>
+                        <th className="no-print" style={{ border: '1px solid #0d288a', padding: '10px 8px', width: '70px', textAlign: 'center', color: '#fff' }}>
+                          សកម្មភាព
+                        </th>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                    </thead>
+                    <tbody>
+                      {leaveDeoRecords.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} style={{ textAlign: 'center', padding: '20px', color: '#64748b', border: '1px solid #dee2e6' }}>
+                            មិនមានទិន្នន័យសម្រាប់ថ្ងៃនេះទេ។
+                          </td>
+                        </tr>
+                      ) : (
+                        leaveDeoRecords.map((r, i) => (
+                          <tr key={r.id}>
+                            <td style={{ border: '1px solid #dee2e6', padding: '4px', textAlign: 'center' }}>
+                              <input
+                                type="text"
+                                className="form-input"
+                                value={r.number || String(i + 1)}
+                                onChange={(e) => handleUpdateLeaveDeoCell(r.id, 'number', e.target.value)}
+                                style={{
+                                  width: '100%',
+                                  textAlign: 'center',
+                                  fontWeight: 700,
+                                  border: '1px solid transparent',
+                                  background: 'transparent',
+                                  height: '34px',
+                                }}
+                              />
+                            </td>
+                            <td style={{ border: '1px solid #dee2e6', padding: '4px' }}>
+                              <input
+                                type="text"
+                                className="form-input"
+                                placeholder="ឈ្មោះបុគ្គលិក..."
+                                value={r.name || ''}
+                                onChange={(e) => handleUpdateLeaveDeoCell(r.id, 'name', e.target.value)}
+                                style={{
+                                  width: '100%',
+                                  fontWeight: 800,
+                                  color: '#05165e',
+                                  border: '1px solid transparent',
+                                  background: 'transparent',
+                                  height: '34px',
+                                }}
+                              />
+                            </td>
+                            <td style={{ border: '1px solid #dee2e6', padding: '4px' }}>
+                              <input
+                                type="text"
+                                className="form-input"
+                                placeholder="តួនាទី..."
+                                value={r.role || ''}
+                                onChange={(e) => handleUpdateLeaveDeoCell(r.id, 'role', e.target.value)}
+                                style={{
+                                  width: '100%',
+                                  fontWeight: 600,
+                                  border: '1px solid transparent',
+                                  background: 'transparent',
+                                  height: '34px',
+                                }}
+                              />
+                            </td>
+                            <td style={{ border: '1px solid #dee2e6', padding: '4px' }}>
+                              <input
+                                type="text"
+                                className="form-input"
+                                placeholder="សរសេរការអធិប្បាយ..."
+                                value={r.note || ''}
+                                onChange={(e) => handleUpdateLeaveDeoCell(r.id, 'note', e.target.value)}
+                                style={{
+                                  width: '100%',
+                                  border: '1px solid transparent',
+                                  background: 'transparent',
+                                  height: '34px',
+                                }}
+                              />
+                            </td>
+                            <td style={{ border: '1px solid #dee2e6', padding: '4px', textAlign: 'center', fontFamily: "'Outfit', monospace" }}>
+                              {r.reports_date || getActiveDate()}
+                            </td>
+                            <td className="no-print" style={{ border: '1px solid #dee2e6', padding: '4px', textAlign: 'center' }}>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteLeaveDeoRow(r.id)}
+                                className="btn btn-danger btn-sm"
+                                style={{ padding: '3px 8px', borderRadius: '6px', fontSize: '11px' }}
+                              >
+                                លុប
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="no-print" style={{ marginTop: '14px', display: 'flex', justifyContent: 'flex-start' }}>
+                  <button
+                    type="button"
+                    onClick={handleAddNewLeaveDeoRow}
+                    className="btn btn-primary btn-sm"
+                    style={{ borderRadius: '8px', padding: '7px 16px', fontWeight: 700 }}
+                  >
+                    <Plus size={15} />
+                    <span>+ បន្ថែមជួរដេក</span>
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ========================================================================= */}
       {/* 5. DAILY REPORT VIEW */}
