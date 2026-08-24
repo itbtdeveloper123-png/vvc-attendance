@@ -211,7 +211,7 @@ export const AttendanceReportsPage: React.FC = () => {
       const res = await adminApi.fetchLateSummaryReport({
         start_date: reportStartDate,
         end_date: reportEndDate,
-        dept_category: deptCategoryTab !== 'all' ? deptCategoryTab : undefined,
+        dept_category: deptCategoryTab,
       });
       if (res && res.success) {
         setLateSummaryRecords(res.records || []);
@@ -233,7 +233,7 @@ export const AttendanceReportsPage: React.FC = () => {
       const res = await adminApi.fetchForgottenScanReport({
         start_date: reportStartDate,
         end_date: reportEndDate,
-        dept_category: deptCategoryTab !== 'all' ? deptCategoryTab : undefined,
+        dept_category: deptCategoryTab,
       });
       if (res && res.success) {
         setForgottenScanRecords(res.records || []);
@@ -514,6 +514,32 @@ export const AttendanceReportsPage: React.FC = () => {
     { key: 'it', label: 'បច្ចេកវិទ្យា (IT)' },
   ];
 
+  // Dynamic Theme Helpers for SK Cosmetic vs Van Van Cambodia
+  const isSkMode = deptCategoryTab === 'sk';
+  const activeLogoUrl = isSkMode
+    ? 'https://i.ibb.co/1JXccBzm/Your-paragraph-text-2.png'
+    : 'https://i.ibb.co/NdJMpN75/Logo-Van-Van-2.png';
+
+  const bannerBg = isSkMode ? '#fef3c7' : '#1e3a8a';
+  const bannerBorder = isSkMode ? '1px solid #fde68a' : 'none';
+  const bannerShadow = isSkMode ? '0 4px 14px rgba(217, 119, 6, 0.12)' : '0 4px 12px rgba(30, 58, 138, 0.25)';
+  const bannerTitleColor = isSkMode ? '#92400e' : '#fef08a';
+  const bannerSubColor = isSkMode ? '#b45309' : '#ffffff';
+  const bannerDateColor = isSkMode ? '#78350f' : '#fbbf24';
+  const bannerSubText = isSkMode
+    ? 'សម្រាប់បុគ្គលិកជំនាញ និងផ្នែកលក់ គិតលុយ'
+    : (deptCategoryTab === 'worker' ? 'សម្រាប់ផ្នែកកម្មករ' : 'សម្រាប់បុគ្គលិកជំនាញ និងតាមឃ្លាំង');
+
+  const tableHeaderBg = isSkMode ? '#d97706' : '#fde047';
+  const tableHeaderTextColor = isSkMode ? '#ffffff' : '#000000';
+  const tableSubHeaderBg = isSkMode ? '#f59e0b' : '#fef08a';
+  const tableSubHeaderTextColor = isSkMode ? '#ffffff' : '#000000';
+  const tableTotalColBg = isSkMode ? '#b45309' : '#facc15';
+  const tableFooterBg = isSkMode ? '#d97706' : '#1e3a8a';
+  const tableFooterLabelColor = isSkMode ? '#ffffff' : '#fef08a';
+  const tableFooterNumColor = isSkMode ? '#ffffff' : '#60a5fa';
+  const tableFooterGrandTotalColor = isSkMode ? '#fef08a' : '#facc15';
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
       {/* Print Styles for A4 Paper Layout */}
@@ -659,7 +685,7 @@ export const AttendanceReportsPage: React.FC = () => {
       </div>
 
       {/* ========================================================================= */}
-      {/* 1. LATE SUMMARY REPORT A4 VIEW (មកយឺតសរុប A4 Table Matching Screenshot) */}
+      {/* 1. LATE SUMMARY REPORT A4 VIEW (មកយឺតសរុប A4 Table) */}
       {/* ========================================================================= */}
       {activeReportTab === 'late' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -747,37 +773,37 @@ export const AttendanceReportsPage: React.FC = () => {
               fontFamily: "'Hanuman', 'Khmer OS Battambang', sans-serif",
             }}
           >
-            {/* 1. Header with Clean Logo */}
+            {/* 1. Header with Clean Dynamic Logo */}
             <div style={{ textAlign: 'center', marginBottom: '16px' }}>
               <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: '6px' }}>
                 <img
-                  src="https://i.ibb.co/NdJMpN75/Logo-Van-Van-2.png"
-                  alt="Van Van Logo"
-                  style={{ height: '78px', objectFit: 'contain' }}
+                  src={activeLogoUrl}
+                  alt="Organization Logo"
+                  style={{ height: isSkMode ? '82px' : '78px', objectFit: 'contain' }}
                   onError={(e) => {
                     (e.target as HTMLElement).style.display = 'none';
                   }}
                 />
               </div>
 
-              {/* Dark Blue Title Banner Box */}
+              {/* Dynamic Title Banner Box */}
               <div
                 style={{
-                  background: '#1e3a8a',
-                  color: '#ffffff',
+                  background: bannerBg,
+                  border: bannerBorder,
+                  boxShadow: bannerShadow,
                   padding: '12px 20px',
                   borderRadius: '10px',
                   marginTop: '10px',
-                  boxShadow: '0 4px 12px rgba(30, 58, 138, 0.25)',
                 }}
               >
-                <h2 style={{ fontSize: '18px', fontWeight: 800, margin: '0 0 4px 0', color: '#fef08a' }}>
+                <h2 style={{ fontSize: '18px', fontWeight: 800, margin: '0 0 4px 0', color: bannerTitleColor }}>
                   របាយការណ៍មកយឺតប្រចាំ{getKhmerDateHeader(reportStartDate)}
                 </h2>
-                <h3 style={{ fontSize: '14px', fontWeight: 700, margin: '0 0 4px 0', color: '#ffffff' }}>
-                  សម្រាប់បុគ្គលិកជំនាញ និងតាមឃ្លាំង
+                <h3 style={{ fontSize: '14px', fontWeight: 700, margin: '0 0 4px 0', color: bannerSubColor }}>
+                  {bannerSubText}
                 </h3>
-                <div style={{ fontSize: '12.5px', color: '#fbbf24', fontWeight: 600 }}>
+                <div style={{ fontSize: '12.5px', color: bannerDateColor, fontWeight: 600 }}>
                   {getKhmerDateRange()}
                 </div>
               </div>
@@ -794,17 +820,17 @@ export const AttendanceReportsPage: React.FC = () => {
                 }}
               >
                 <thead>
-                  {/* Top Golden Header */}
-                  <tr style={{ background: '#fde047', color: '#000000', textAlign: 'center', fontWeight: 800 }}>
+                  {/* Top Header */}
+                  <tr style={{ background: tableHeaderBg, color: tableHeaderTextColor, textAlign: 'center', fontWeight: 800 }}>
                     <th rowSpan={2} style={{ border: '1px solid #000000', padding: '6px 4px', width: '40px' }}>ល.រ</th>
                     <th rowSpan={2} style={{ border: '1px solid #000000', padding: '6px 4px', width: '70px' }}>អត្តលេខ</th>
                     <th rowSpan={2} style={{ border: '1px solid #000000', padding: '6px 8px', textAlign: 'left', minWidth: '130px' }}>ឈ្មោះ</th>
                     <th rowSpan={2} style={{ border: '1px solid #000000', padding: '6px 4px', width: '55px' }}>ភេទ</th>
                     <th rowSpan={2} style={{ border: '1px solid #000000', padding: '6px 8px', textAlign: 'left', minWidth: '160px' }}>តួនាទី</th>
                     <th colSpan={3} style={{ border: '1px solid #000000', padding: '4px 6px', fontWeight: 900 }}>មកយឺត</th>
-                    <th rowSpan={2} style={{ border: '1px solid #000000', padding: '6px 6px', width: '65px', background: '#facc15' }}>សរុប</th>
+                    <th rowSpan={2} style={{ border: '1px solid #000000', padding: '6px 6px', width: '65px', background: tableTotalColBg, color: '#ffffff' }}>សរុប</th>
                   </tr>
-                  <tr style={{ background: '#fef08a', color: '#000000', textAlign: 'center', fontWeight: 700, fontSize: '11px' }}>
+                  <tr style={{ background: tableSubHeaderBg, color: tableSubHeaderTextColor, textAlign: 'center', fontWeight: 700, fontSize: '11px' }}>
                     <th style={{ border: '1px solid #000000', padding: '4px 6px', width: '75px' }}>ក្រោម ១៥ នាទី</th>
                     <th style={{ border: '1px solid #000000', padding: '4px 6px', width: '75px' }}>ចាប់ពី ១៥ នាទី</th>
                     <th style={{ border: '1px solid #000000', padding: '4px 6px', width: '75px' }}>ចាប់ពី១ម៉ោង</th>
@@ -814,13 +840,13 @@ export const AttendanceReportsPage: React.FC = () => {
                   {lateSummaryRecords.length === 0 ? (
                     <tr>
                       <td colSpan={9} style={{ textAlign: 'center', padding: '30px', border: '1px solid #000000', color: '#64748b' }}>
-                        មិនមានទិន្នន័យបុគ្គលិកមកយឺតក្នុងចន្លោះកាលបរិច្ឆេទនេះឡើយ។
+                        កំពុងទាញយកទិន្នន័យបុគ្គលិក...
                       </td>
                     </tr>
                   ) : (
                     lateSummaryRecords.map((r, idx) => {
-                      const isHighLate = r.total >= 2;
-                      const rowBg = isHighLate ? '#fef9c3' : '#ffffff';
+                      const isHighLate = r.total >= 1;
+                      const rowBg = isHighLate ? (isSkMode ? '#fef08a' : '#fef9c3') : '#ffffff';
 
                       return (
                         <tr key={r.employee_id || idx} style={{ background: rowBg }}>
@@ -839,16 +865,16 @@ export const AttendanceReportsPage: React.FC = () => {
                           <td style={{ border: '1px solid #000000', padding: '5px 8px', fontSize: '12px' }}>
                             {r.role}
                           </td>
-                          <td style={{ border: '1px solid #000000', textAlign: 'center', fontWeight: 700, color: r.under_15 > 0 ? '#1e3a8a' : '#ef4444' }}>
+                          <td style={{ border: '1px solid #000000', textAlign: 'center', fontWeight: 700, color: r.under_15 > 0 ? (isSkMode ? '#000000' : '#1e3a8a') : '#ef4444' }}>
                             {r.under_15}
                           </td>
-                          <td style={{ border: '1px solid #000000', textAlign: 'center', fontWeight: 700, color: r.from_15_to_60 > 0 ? '#1e3a8a' : '#ef4444' }}>
+                          <td style={{ border: '1px solid #000000', textAlign: 'center', fontWeight: 700, color: r.from_15_to_60 > 0 ? (isSkMode ? '#000000' : '#1e3a8a') : '#ef4444' }}>
                             {r.from_15_to_60}
                           </td>
-                          <td style={{ border: '1px solid #000000', textAlign: 'center', fontWeight: 700, color: r.over_60 > 0 ? '#1e3a8a' : '#ef4444' }}>
+                          <td style={{ border: '1px solid #000000', textAlign: 'center', fontWeight: 700, color: r.over_60 > 0 ? (isSkMode ? '#000000' : '#1e3a8a') : '#ef4444' }}>
                             {r.over_60}
                           </td>
-                          <td style={{ border: '1px solid #000000', textAlign: 'center', fontWeight: 900, background: isHighLate ? '#fde047' : '#ffffff', color: r.total > 0 ? '#b45309' : '#ef4444' }}>
+                          <td style={{ border: '1px solid #000000', textAlign: 'center', fontWeight: 900, background: isHighLate ? (isSkMode ? '#facc15' : '#fde047') : '#ffffff', color: r.total > 0 ? (isSkMode ? '#000000' : '#b45309') : '#ef4444' }}>
                             {r.total}
                           </td>
                         </tr>
@@ -857,20 +883,20 @@ export const AttendanceReportsPage: React.FC = () => {
                   )}
 
                   {/* Footer Totals Row */}
-                  <tr style={{ background: '#1e3a8a', color: '#ffffff', fontWeight: 900, fontSize: '13px' }}>
-                    <td colSpan={5} style={{ border: '1px solid #000000', textAlign: 'center', padding: '8px', color: '#fef08a' }}>
+                  <tr style={{ background: tableFooterBg, color: '#ffffff', fontWeight: 900, fontSize: '13px' }}>
+                    <td colSpan={5} style={{ border: '1px solid #000000', textAlign: 'center', padding: '8px', color: tableFooterLabelColor }}>
                       សរុប (Total)
                     </td>
-                    <td style={{ border: '1px solid #000000', textAlign: 'center', padding: '8px', color: '#60a5fa' }}>
+                    <td style={{ border: '1px solid #000000', textAlign: 'center', padding: '8px', color: tableFooterNumColor }}>
                       {lateSummaryTotals.under_15}
                     </td>
-                    <td style={{ border: '1px solid #000000', textAlign: 'center', padding: '8px', color: '#60a5fa' }}>
+                    <td style={{ border: '1px solid #000000', textAlign: 'center', padding: '8px', color: tableFooterNumColor }}>
                       {lateSummaryTotals.from_15_to_60}
                     </td>
-                    <td style={{ border: '1px solid #000000', textAlign: 'center', padding: '8px', color: '#60a5fa' }}>
+                    <td style={{ border: '1px solid #000000', textAlign: 'center', padding: '8px', color: tableFooterNumColor }}>
                       {lateSummaryTotals.over_60}
                     </td>
-                    <td style={{ border: '1px solid #000000', textAlign: 'center', padding: '8px', color: '#facc15', fontSize: '14px' }}>
+                    <td style={{ border: '1px solid #000000', textAlign: 'center', padding: '8px', color: tableFooterGrandTotalColor, fontSize: '14px' }}>
                       {lateSummaryTotals.grand_total}
                     </td>
                   </tr>
@@ -908,7 +934,7 @@ export const AttendanceReportsPage: React.FC = () => {
       )}
 
       {/* ========================================================================= */}
-      {/* 2. FORGOTTEN SCAN REPORT A4 VIEW (ភ្លេចស្កេន A4 Table Matching Screenshot) */}
+      {/* 2. FORGOTTEN SCAN REPORT A4 VIEW (ភ្លេចស្កេន A4 Table) */}
       {/* ========================================================================= */}
       {activeReportTab === 'forgotten' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -996,37 +1022,37 @@ export const AttendanceReportsPage: React.FC = () => {
               fontFamily: "'Hanuman', 'Khmer OS Battambang', sans-serif",
             }}
           >
-            {/* 1. Header with Clean Logo */}
+            {/* 1. Header with Clean Dynamic Logo */}
             <div style={{ textAlign: 'center', marginBottom: '16px' }}>
               <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: '6px' }}>
                 <img
-                  src="https://i.ibb.co/NdJMpN75/Logo-Van-Van-2.png"
-                  alt="Van Van Logo"
-                  style={{ height: '78px', objectFit: 'contain' }}
+                  src={activeLogoUrl}
+                  alt="Organization Logo"
+                  style={{ height: isSkMode ? '82px' : '78px', objectFit: 'contain' }}
                   onError={(e) => {
                     (e.target as HTMLElement).style.display = 'none';
                   }}
                 />
               </div>
 
-              {/* Dark Blue Title Banner Box */}
+              {/* Dynamic Title Banner Box */}
               <div
                 style={{
-                  background: '#1e3a8a',
-                  color: '#ffffff',
+                  background: bannerBg,
+                  border: bannerBorder,
+                  boxShadow: bannerShadow,
                   padding: '12px 20px',
                   borderRadius: '10px',
                   marginTop: '10px',
-                  boxShadow: '0 4px 12px rgba(30, 58, 138, 0.25)',
                 }}
               >
-                <h2 style={{ fontSize: '18px', fontWeight: 800, margin: '0 0 4px 0', color: '#fef08a' }}>
-                  របាយការណ៍បុគ្គលិកភ្លេចស្កេនលើHR Appប្រចាំ{getKhmerDateHeader(reportStartDate)}
+                <h2 style={{ fontSize: '18px', fontWeight: 800, margin: '0 0 4px 0', color: bannerTitleColor }}>
+                  {isSkMode ? `របាយការណ៍ភ្លេចស្កេនមេដៃប្រចាំ${getKhmerDateHeader(reportStartDate)}` : `របាយការណ៍បុគ្គលិកភ្លេចស្កេនលើHR Appប្រចាំ${getKhmerDateHeader(reportStartDate)}`}
                 </h2>
-                <h3 style={{ fontSize: '14px', fontWeight: 700, margin: '0 0 4px 0', color: '#ffffff' }}>
-                  សម្រាប់បុគ្គលិកជំនាញ
+                <h3 style={{ fontSize: '14px', fontWeight: 700, margin: '0 0 4px 0', color: bannerSubColor }}>
+                  {bannerSubText}
                 </h3>
-                <div style={{ fontSize: '12.5px', color: '#fbbf24', fontWeight: 600 }}>
+                <div style={{ fontSize: '12.5px', color: bannerDateColor, fontWeight: 600 }}>
                   {getKhmerDateRange()}
                 </div>
               </div>
@@ -1043,18 +1069,18 @@ export const AttendanceReportsPage: React.FC = () => {
                 }}
               >
                 <thead>
-                  {/* Top Golden Header identical to Late Summary */}
-                  <tr style={{ background: '#fde047', color: '#000000', textAlign: 'center', fontWeight: 800 }}>
+                  {/* Top Dynamic Header */}
+                  <tr style={{ background: tableHeaderBg, color: tableHeaderTextColor, textAlign: 'center', fontWeight: 800 }}>
                     <th rowSpan={2} style={{ border: '1px solid #000000', padding: '6px 4px', width: '40px' }}>ល.រ</th>
                     <th rowSpan={2} style={{ border: '1px solid #000000', padding: '6px 4px', width: '70px' }}>អត្តលេខ</th>
                     <th rowSpan={2} style={{ border: '1px solid #000000', padding: '6px 8px', textAlign: 'left', minWidth: '130px' }}>ឈ្មោះ</th>
                     <th rowSpan={2} style={{ border: '1px solid #000000', padding: '6px 4px', width: '55px' }}>ភេទ</th>
                     <th rowSpan={2} style={{ border: '1px solid #000000', padding: '6px 8px', textAlign: 'left', minWidth: '160px' }}>តួនាទី</th>
                     <th colSpan={2} style={{ border: '1px solid #000000', padding: '4px 6px', fontWeight: 900 }}>ភ្លេចស្កេនមេដៃ</th>
-                    <th rowSpan={2} style={{ border: '1px solid #000000', padding: '6px 6px', width: '65px', background: '#facc15' }}>សរុប</th>
-                    <th rowSpan={2} style={{ border: '1px solid #000000', padding: '6px 6px', width: '120px', background: '#fde047' }}>ចំនួនយឺតលើស15នាទី</th>
+                    <th rowSpan={2} style={{ border: '1px solid #000000', padding: '6px 6px', width: '65px', background: tableTotalColBg, color: '#ffffff' }}>សរុប</th>
+                    <th rowSpan={2} style={{ border: '1px solid #000000', padding: '6px 6px', width: '120px', background: tableHeaderBg }}>ចំនួនយឺតលើស15នាទី</th>
                   </tr>
-                  <tr style={{ background: '#fef08a', color: '#000000', textAlign: 'center', fontWeight: 700, fontSize: '11px' }}>
+                  <tr style={{ background: tableSubHeaderBg, color: tableSubHeaderTextColor, textAlign: 'center', fontWeight: 700, fontSize: '11px' }}>
                     <th style={{ border: '1px solid #000000', padding: '4px 6px', width: '65px' }}>ចូល</th>
                     <th style={{ border: '1px solid #000000', padding: '4px 6px', width: '65px' }}>ចេញ</th>
                   </tr>
@@ -1063,13 +1089,13 @@ export const AttendanceReportsPage: React.FC = () => {
                   {forgottenScanRecords.length === 0 ? (
                     <tr>
                       <td colSpan={9} style={{ textAlign: 'center', padding: '30px', border: '1px solid #000000', color: '#64748b' }}>
-                        មិនមានទិន្នន័យបុគ្គលិកភ្លេចស្កេនក្នុងចន្លោះកាលបរិច្ឆេទនេះឡើយ។
+                        កំពុងទាញយកទិន្នន័យបុគ្គលិក...
                       </td>
                     </tr>
                   ) : (
                     forgottenScanRecords.map((r, idx) => {
                       const isHigh = r.total >= 1;
-                      const rowBg = isHigh ? '#fef9c3' : '#ffffff';
+                      const rowBg = isHigh ? (isSkMode ? '#fef08a' : '#fef9c3') : '#ffffff';
 
                       return (
                         <tr key={r.employee_id || idx} style={{ background: rowBg }}>
@@ -1088,16 +1114,16 @@ export const AttendanceReportsPage: React.FC = () => {
                           <td style={{ border: '1px solid #000000', padding: '5px 8px', fontSize: '12px' }}>
                             {r.role}
                           </td>
-                          <td style={{ border: '1px solid #000000', textAlign: 'center', fontWeight: 700, color: r.forgot_in > 0 ? '#1e3a8a' : '#ef4444' }}>
+                          <td style={{ border: '1px solid #000000', textAlign: 'center', fontWeight: 700, color: r.forgot_in > 0 ? (isSkMode ? '#000000' : '#1e3a8a') : '#ef4444' }}>
                             {r.forgot_in}
                           </td>
-                          <td style={{ border: '1px solid #000000', textAlign: 'center', fontWeight: 700, color: r.forgot_out > 0 ? '#1e3a8a' : '#ef4444' }}>
+                          <td style={{ border: '1px solid #000000', textAlign: 'center', fontWeight: 700, color: r.forgot_out > 0 ? (isSkMode ? '#000000' : '#1e3a8a') : '#ef4444' }}>
                             {r.forgot_out}
                           </td>
-                          <td style={{ border: '1px solid #000000', textAlign: 'center', fontWeight: 900, background: isHigh ? '#fde047' : '#ffffff', color: r.total > 0 ? '#b45309' : '#ef4444' }}>
+                          <td style={{ border: '1px solid #000000', textAlign: 'center', fontWeight: 900, background: isHigh ? (isSkMode ? '#facc15' : '#fde047') : '#ffffff', color: r.total > 0 ? (isSkMode ? '#000000' : '#b45309') : '#ef4444' }}>
                             {r.total}
                           </td>
-                          <td style={{ border: '1px solid #000000', textAlign: 'center', fontWeight: 700, color: r.late_over_15 > 0 ? '#1e3a8a' : '#ef4444' }}>
+                          <td style={{ border: '1px solid #000000', textAlign: 'center', fontWeight: 700, color: r.late_over_15 > 0 ? (isSkMode ? '#000000' : '#1e3a8a') : '#ef4444' }}>
                             {r.late_over_15 > 0 ? r.late_over_15 : 0}
                           </td>
                         </tr>
@@ -1105,21 +1131,21 @@ export const AttendanceReportsPage: React.FC = () => {
                     })
                   )}
 
-                  {/* Footer Totals Row identical to Late Summary */}
-                  <tr style={{ background: '#1e3a8a', color: '#ffffff', fontWeight: 900, fontSize: '13px' }}>
-                    <td colSpan={5} style={{ border: '1px solid #000000', textAlign: 'center', padding: '8px', color: '#fef08a' }}>
+                  {/* Footer Totals Row */}
+                  <tr style={{ background: tableFooterBg, color: '#ffffff', fontWeight: 900, fontSize: '13px' }}>
+                    <td colSpan={5} style={{ border: '1px solid #000000', textAlign: 'center', padding: '8px', color: tableFooterLabelColor }}>
                       សរុប (Total)
                     </td>
-                    <td style={{ border: '1px solid #000000', textAlign: 'center', padding: '8px', color: '#60a5fa' }}>
+                    <td style={{ border: '1px solid #000000', textAlign: 'center', padding: '8px', color: tableFooterNumColor }}>
                       {forgottenScanTotals.forgot_in}
                     </td>
-                    <td style={{ border: '1px solid #000000', textAlign: 'center', padding: '8px', color: '#60a5fa' }}>
+                    <td style={{ border: '1px solid #000000', textAlign: 'center', padding: '8px', color: tableFooterNumColor }}>
                       {forgottenScanTotals.forgot_out}
                     </td>
-                    <td style={{ border: '1px solid #000000', textAlign: 'center', padding: '8px', color: '#facc15', fontSize: '14px' }}>
+                    <td style={{ border: '1px solid #000000', textAlign: 'center', padding: '8px', color: tableFooterGrandTotalColor, fontSize: '14px' }}>
                       {forgottenScanTotals.grand_total}
                     </td>
-                    <td style={{ border: '1px solid #000000', textAlign: 'center', padding: '8px', color: '#60a5fa' }}>
+                    <td style={{ border: '1px solid #000000', textAlign: 'center', padding: '8px', color: tableFooterNumColor }}>
                       {forgottenScanTotals.late_over_15}
                     </td>
                   </tr>

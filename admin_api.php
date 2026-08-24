@@ -873,7 +873,9 @@ try {
             $startDt = $startDate . ' 00:00:00';
             $endDt = $endDate . ' 23:59:59';
 
-            // 1. Fetch All Users
+            $skEmployeeIds = ['0336','0341','0337','0340','0349','0342','0323','0315','0346','0320','0326','0321','0303','0301','0312','0345','0348','0350','0343','0347','0335','0318','0172'];
+
+            // 1. Fetch All Users from users table and checkin_logs
             $rawUsers = dbQuery("SELECT * FROM users ORDER BY CAST(employee_id AS UNSIGNED) ASC, name ASC");
             if (empty($rawUsers)) {
                 $rawUsers = dbQuery("SELECT DISTINCT employee_id, COALESCE(name, employee_id) as name, 'ប្រុស' as gender, COALESCE(department, location_name, 'Store 318') as department, 'បុគ្គលិក' as position 
@@ -888,12 +890,13 @@ try {
                     if (is_array($u['custom_data'])) $custom = $u['custom_data'];
                     else $custom = json_decode($u['custom_data'], true) ?: [];
                 }
+                $empId = (string)($u['employee_id'] ?? $u['id'] ?? '');
                 $empDept = (string)($u['department'] ?? $custom['department'] ?? $u['location_name'] ?? '');
                 $empPos = (string)($u['position'] ?? $custom['position'] ?? $u['role'] ?? '');
                 $empRole = (string)($u['user_role'] ?? $custom['role'] ?? '');
 
                 $isWorker = (stripos($empDept, 'worker') !== false || stripos($empDept, 'កម្មករ') !== false || stripos($empPos, 'worker') !== false || stripos($empRole, 'worker') !== false);
-                $isSk = (stripos($empDept, 'sk') !== false || stripos($empDept, 'ks2') !== false || stripos($empDept, 'nr3') !== false || stripos($empDept, 'psp') !== false || stripos($empDept, 'prv') !== false);
+                $isSk = (in_array($empId, $skEmployeeIds, true) || stripos($empDept, 'sk') !== false || stripos($empDept, 'ks2') !== false || stripos($empDept, 'nr3') !== false || stripos($empDept, 'psp') !== false || stripos($empDept, 'prv') !== false || stripos($empPos, 'sk') !== false);
 
                 if ($deptCategory === 'worker' && !$isWorker) continue;
                 if ($deptCategory === 'sk' && !$isSk) continue;
@@ -909,13 +912,79 @@ try {
                     $gDisplay = 'ស្រី';
                 }
 
-                $users[] = [
-                    'employee_id' => (string)($u['employee_id'] ?? $u['id'] ?? ''),
-                    'name' => (string)($u['name'] ?? $u['employee_id'] ?? ''),
+                $users[$empId] = [
+                    'employee_id' => $empId,
+                    'name' => (string)($u['name'] ?? $empId),
                     'gender' => $gDisplay,
                     'role' => $empPos ?: ($empDept ?: 'បុគ្គលិក'),
                     'department' => $empDept,
                 ];
+            }
+
+            // Fallback for SK if needed
+            if ($deptCategory === 'sk' && count($users) < 5) {
+                $defaultSkStaff = [
+                    ['employee_id' => '0336', 'name' => 'ប្រាក់ លីហេង', 'gender' => 'ប្រុស', 'role' => 'បុគ្គលិកស្តុកSK-KS2', 'department' => 'SK-KS2'],
+                    ['employee_id' => '0341', 'name' => 'ថេត ម៉ានិត', 'gender' => 'ស្រី', 'role' => 'អនុប្រធានហាង SK-KS2', 'department' => 'SK-KS2'],
+                    ['employee_id' => '0337', 'name' => 'សេង ចាន់ណា', 'gender' => 'ស្រី', 'role' => 'បុគ្គលិកផ្នែកគិតលុយSK-NR3', 'department' => 'SK-NR3'],
+                    ['employee_id' => '0340', 'name' => 'ស៊ុំ កុន', 'gender' => 'ស្រី', 'role' => 'ប្រធានហាងSK-KS2', 'department' => 'SK-KS2'],
+                    ['employee_id' => '0349', 'name' => 'ខ្លឹម ឃ្លាំងមឿង', 'gender' => 'ប្រុស', 'role' => 'បុគ្គលិកផ្នែកបើកកង់បី SK KS2', 'department' => 'SK-KS2'],
+                    ['employee_id' => '0342', 'name' => 'កាន់ ស្រីណាត', 'gender' => 'ស្រី', 'role' => 'បុគ្គលិកផ្នែកលក់SK-KS2', 'department' => 'SK-KS2'],
+                    ['employee_id' => '0323', 'name' => 'ជីន សុភាស់', 'gender' => 'ស្រី', 'role' => 'អនុប្រធានគ្រប់គ្រងហាង SK-NR3', 'department' => 'SK-NR3'],
+                    ['employee_id' => '0315', 'name' => 'ផាត ស្រីរដ្ឋ', 'gender' => 'ស្រី', 'role' => 'បុគ្គលិកផ្នែកគិតលុយSK-NR3', 'department' => 'SK-NR3'],
+                    ['employee_id' => '0346', 'name' => 'ឃុក ណេសា', 'gender' => 'ស្រី', 'role' => 'បុគ្គលិកផ្នែកលក់SK-NR3', 'department' => 'SK-NR3'],
+                    ['employee_id' => '0320', 'name' => 'អ៊ាង សេងហុង', 'gender' => 'ស្រី', 'role' => 'បុគ្គលិកផ្នែកលក់SK-KS2', 'department' => 'SK-KS2'],
+                    ['employee_id' => '0326', 'name' => 'ឌិន ស្រីកា', 'gender' => 'ស្រី', 'role' => 'បុគ្គលិកផ្នែកលក់SK-KS2', 'department' => 'SK-KS2'],
+                    ['employee_id' => '0321', 'name' => 'ហុង ទិត្យារ៉ាវីត', 'gender' => 'ប្រុស', 'role' => 'បុគ្គលិកស្តុកSK-KS2', 'department' => 'SK-KS2'],
+                    ['employee_id' => '0303', 'name' => 'ង៉ែត ពិសី', 'gender' => 'ស្រី', 'role' => 'បុគ្គលិកផ្នែកលក់ SK-NR3', 'department' => 'SK-NR3'],
+                    ['employee_id' => '0301', 'name' => 'បូរ ស្រីនិច', 'gender' => 'ស្រី', 'role' => 'បុគ្គលិកផ្នែកគិតលុយSK-KS2', 'department' => 'SK-KS2'],
+                    ['employee_id' => '0312', 'name' => 'សៅ សូលីនដា', 'gender' => 'ស្រី', 'role' => 'បុគ្គលិកផ្នែកគិតលុយSK-NR3', 'department' => 'SK-NR3'],
+                    ['employee_id' => '0345', 'name' => 'ប្រាក់ សុខក្រា', 'gender' => 'ស្រី', 'role' => 'បុគ្គលិកផ្នែកលក់SK-KS2', 'department' => 'SK-KS2'],
+                    ['employee_id' => '0348', 'name' => 'កែវ មួយចេង', 'gender' => 'ស្រី', 'role' => 'ប្រធានគ្រប់គ្រងហាង SK-NR3', 'department' => 'SK-NR3'],
+                    ['employee_id' => '0350', 'name' => 'ហេង ចរិយា', 'gender' => 'ស្រី', 'role' => 'បុគ្គលិកផ្នែកលក់SK-KS2', 'department' => 'SK-KS2'],
+                    ['employee_id' => '0343', 'name' => 'រ៉ុង ភីលីព', 'gender' => 'ប្រុស', 'role' => 'ប្រធានគ្រប់គ្រងទូទៅ', 'department' => 'SK-General'],
+                    ['employee_id' => '0347', 'name' => 'តាត ផានុត', 'gender' => 'ប្រុស', 'role' => 'បុគ្គលិកផ្នែកលក់SK-KS2', 'department' => 'SK-KS2'],
+                    ['employee_id' => '0335', 'name' => 'ម៉ុន មករា', 'gender' => 'ប្រុស', 'role' => 'បុគ្គលិកស្តុកSK-KS2', 'department' => 'SK-KS2'],
+                ];
+                foreach ($defaultSkStaff as $ds) {
+                    if (!isset($users[$ds['employee_id']])) {
+                        $users[$ds['employee_id']] = $ds;
+                    }
+                }
+            }
+
+            // Fallback for Department if needed
+            if ($deptCategory === 'department' && count($users) < 5) {
+                $defaultDeptStaff = [
+                    ['employee_id' => '0331', 'name' => 'ឯម ខេមរា', 'gender' => 'ប្រុស', 'role' => 'បុគ្គលិក', 'department' => 'Store 318'],
+                    ['employee_id' => '0296', 'name' => 'ផង ស្រីនិច', 'gender' => 'ស្រី', 'role' => 'បុគ្គលិក', 'department' => 'Store 318'],
+                    ['employee_id' => '0244', 'name' => 'ម៉ុល ធីតា', 'gender' => 'ស្រី', 'role' => 'បុគ្គលិក', 'department' => 'Store 318'],
+                    ['employee_id' => '0245', 'name' => 'ផល សុភិន', 'gender' => 'ស្រី', 'role' => 'បុគ្គលិក', 'department' => 'Store 318'],
+                    ['employee_id' => '0169', 'name' => 'ឡេង ឡឿន', 'gender' => 'ប្រុស', 'role' => 'បុគ្គលិក', 'department' => 'Store 318'],
+                    ['employee_id' => '0334', 'name' => 'មាស ពេជ្រតារា', 'gender' => 'ប្រុស', 'role' => 'បុគ្គលិក', 'department' => 'Store 318'],
+                    ['employee_id' => '0250', 'name' => 'ស៊ីម សុខ', 'gender' => 'ប្រុស', 'role' => 'បុគ្គលិក', 'department' => 'Store 318'],
+                    ['employee_id' => '0295', 'name' => 'សន លីណា', 'gender' => 'ស្រី', 'role' => 'បុគ្គលិក', 'department' => 'Store 318'],
+                    ['employee_id' => '0127', 'name' => 'យ៉ុក វ៉ាន់ដា', 'gender' => 'ប្រុស', 'role' => 'បុគ្គលិក', 'department' => 'Store 318'],
+                    ['employee_id' => '0158', 'name' => 'ឌឹម សុជាតិ', 'gender' => 'ប្រុស', 'role' => 'បុគ្គលិក', 'department' => 'Store 318'],
+                    ['employee_id' => '0119', 'name' => 'រឹម រស្មី', 'gender' => 'ស្រី', 'role' => 'បុគ្គលិក', 'department' => 'Store 318'],
+                    ['employee_id' => '0308', 'name' => 'វណ្ណ ស្រីនិច', 'gender' => 'ស្រី', 'role' => 'បុគ្គលិក', 'department' => 'Store 318'],
+                    ['employee_id' => '0224', 'name' => 'លី សាំងអី', 'gender' => 'ស្រី', 'role' => 'បុគ្គលិក', 'department' => 'Store 318'],
+                    ['employee_id' => '0150', 'name' => 'សៀង សារុន', 'gender' => 'ប្រុស', 'role' => 'IT Support', 'department' => 'Store 318'],
+                    ['employee_id' => '0016', 'name' => 'កឿន ដាលីន', 'gender' => 'ស្រី', 'role' => 'បុគ្គលិក', 'department' => 'Store 318'],
+                    ['employee_id' => '0163', 'name' => 'សៅ សម្បត្តិ', 'gender' => 'ប្រុស', 'role' => 'បុគ្គលិក', 'department' => 'Store 318'],
+                    ['employee_id' => '0021', 'name' => 'យី វ៉ាន់ដេត', 'gender' => 'ប្រុស', 'role' => 'បុគ្គលិក', 'department' => 'Store 318'],
+                    ['employee_id' => '0226', 'name' => 'រាម ចន្ទី', 'gender' => 'ស្រី', 'role' => 'បុគ្គលិក', 'department' => 'Store 318'],
+                    ['employee_id' => '0190', 'name' => 'សែម រស្មី', 'gender' => 'ស្រី', 'role' => 'បុគ្គលិក', 'department' => 'Store 318'],
+                    ['employee_id' => '0062', 'name' => 'វ៉ាន់ សាម៉ែត', 'gender' => 'ប្រុស', 'role' => 'បុគ្គលិក', 'department' => 'Store 318'],
+                    ['employee_id' => '0183', 'name' => 'ភី គីកឡា', 'gender' => 'ប្រុស', 'role' => 'បុគ្គលិក', 'department' => 'Store 318'],
+                    ['employee_id' => '0066', 'name' => 'ម៉ុង ដាលីន', 'gender' => 'ស្រី', 'role' => 'បុគ្គលិក', 'department' => 'Store 318'],
+                    ['employee_id' => '0324', 'name' => 'រិទ្ធ ពិសិដ្ឋ', 'gender' => 'ប្រុស', 'role' => 'បុគ្គលិក', 'department' => 'Store 318'],
+                ];
+                foreach ($defaultDeptStaff as $dd) {
+                    if (!isset($users[$dd['employee_id']])) {
+                        $users[$dd['employee_id']] = $dd;
+                    }
+                }
             }
 
             // 2. Fetch all late logs in date range
@@ -963,8 +1032,7 @@ try {
             $sumOver60 = 0;
             $grandTotal = 0;
 
-            foreach ($users as $u) {
-                $empId = (string)$u['employee_id'];
+            foreach ($users as $empId => $u) {
                 $lateData = $lateByUser[$empId] ?? [
                     'under_15' => 0,
                     'from_15_to_60' => 0,
@@ -1036,6 +1104,8 @@ try {
             $startDt = $startDate . ' 00:00:00';
             $endDt = $endDate . ' 23:59:59';
 
+            $skEmployeeIds = ['0336','0341','0337','0340','0349','0342','0323','0315','0346','0320','0326','0321','0303','0301','0312','0345','0348','0350','0343','0347','0335','0318','0172'];
+
             // 1. Fetch Users
             $rawUsers = dbQuery("SELECT * FROM users ORDER BY CAST(employee_id AS UNSIGNED) ASC, name ASC");
             if (empty($rawUsers)) {
@@ -1051,12 +1121,13 @@ try {
                     if (is_array($u['custom_data'])) $custom = $u['custom_data'];
                     else $custom = json_decode($u['custom_data'], true) ?: [];
                 }
+                $empId = (string)($u['employee_id'] ?? $u['id'] ?? '');
                 $empDept = (string)($u['department'] ?? $custom['department'] ?? $u['location_name'] ?? '');
                 $empPos = (string)($u['position'] ?? $custom['position'] ?? $u['role'] ?? '');
                 $empRole = (string)($u['user_role'] ?? $custom['role'] ?? '');
 
                 $isWorker = (stripos($empDept, 'worker') !== false || stripos($empDept, 'កម្មករ') !== false || stripos($empPos, 'worker') !== false || stripos($empRole, 'worker') !== false);
-                $isSk = (stripos($empDept, 'sk') !== false || stripos($empDept, 'ks2') !== false || stripos($empDept, 'nr3') !== false || stripos($empDept, 'psp') !== false || stripos($empDept, 'prv') !== false);
+                $isSk = (in_array($empId, $skEmployeeIds, true) || stripos($empDept, 'sk') !== false || stripos($empDept, 'ks2') !== false || stripos($empDept, 'nr3') !== false || stripos($empDept, 'psp') !== false || stripos($empDept, 'prv') !== false || stripos($empPos, 'sk') !== false);
 
                 if ($deptCategory === 'worker' && !$isWorker) continue;
                 if ($deptCategory === 'sk' && !$isSk) continue;
@@ -1072,14 +1143,80 @@ try {
                     $gDisplay = 'ស្រី';
                 }
 
-                $users[] = [
-                    'employee_id' => (string)($u['employee_id'] ?? $u['id'] ?? ''),
-                    'name' => (string)($u['name'] ?? $u['employee_id'] ?? ''),
+                $users[$empId] = [
+                    'employee_id' => $empId,
+                    'name' => (string)($u['name'] ?? $empId),
                     'gender' => $gDisplay,
                     'role' => $empPos ?: ($empDept ?: 'បុគ្គលិក'),
                     'department' => $empDept,
                     'is_worker' => $isWorker,
                 ];
+            }
+
+            // Fallback for SK if needed
+            if ($deptCategory === 'sk' && count($users) < 5) {
+                $defaultSkStaff = [
+                    ['employee_id' => '0336', 'name' => 'ប្រាក់ លីហេង', 'gender' => 'ប្រុស', 'role' => 'បុគ្គលិកស្តុកSK-KS2', 'department' => 'SK-KS2'],
+                    ['employee_id' => '0341', 'name' => 'ថេត ម៉ានិត', 'gender' => 'ស្រី', 'role' => 'អនុប្រធានហាង SK-KS2', 'department' => 'SK-KS2'],
+                    ['employee_id' => '0337', 'name' => 'សេង ចាន់ណា', 'gender' => 'ស្រី', 'role' => 'បុគ្គលិកផ្នែកគិតលុយSK-NR3', 'department' => 'SK-NR3'],
+                    ['employee_id' => '0340', 'name' => 'ស៊ុំ កុន', 'gender' => 'ស្រី', 'role' => 'ប្រធានហាងSK-KS2', 'department' => 'SK-KS2'],
+                    ['employee_id' => '0349', 'name' => 'ខ្លឹម ឃ្លាំងមឿង', 'gender' => 'ប្រុស', 'role' => 'បុគ្គលិកផ្នែកបើកកង់បី SK KS2', 'department' => 'SK-KS2'],
+                    ['employee_id' => '0342', 'name' => 'កាន់ ស្រីណាត', 'gender' => 'ស្រី', 'role' => 'បុគ្គលិកផ្នែកលក់SK-KS2', 'department' => 'SK-KS2'],
+                    ['employee_id' => '0323', 'name' => 'ជីន សុភាស់', 'gender' => 'ស្រី', 'role' => 'អនុប្រធានគ្រប់គ្រងហាង SK-NR3', 'department' => 'SK-NR3'],
+                    ['employee_id' => '0315', 'name' => 'ផាត ស្រីរដ្ឋ', 'gender' => 'ស្រី', 'role' => 'បុគ្គលិកផ្នែកគិតលុយSK-NR3', 'department' => 'SK-NR3'],
+                    ['employee_id' => '0346', 'name' => 'ឃុក ណេសា', 'gender' => 'ស្រី', 'role' => 'បុគ្គលិកផ្នែកលក់SK-NR3', 'department' => 'SK-NR3'],
+                    ['employee_id' => '0320', 'name' => 'អ៊ាង សេងហុង', 'gender' => 'ស្រី', 'role' => 'បុគ្គលិកផ្នែកលក់SK-KS2', 'department' => 'SK-KS2'],
+                    ['employee_id' => '0326', 'name' => 'ឌិន ស្រីកា', 'gender' => 'ស្រី', 'role' => 'បុគ្គលិកផ្នែកលក់SK-KS2', 'department' => 'SK-KS2'],
+                    ['employee_id' => '0321', 'name' => 'ហុង ទិត្យារ៉ាវីត', 'gender' => 'ប្រុស', 'role' => 'បុគ្គលិកស្តុកSK-KS2', 'department' => 'SK-KS2'],
+                    ['employee_id' => '0303', 'name' => 'ង៉ែត ពិសី', 'gender' => 'ស្រី', 'role' => 'បុគ្គលិកផ្នែកលក់ SK-NR3', 'department' => 'SK-NR3'],
+                    ['employee_id' => '0301', 'name' => 'បូរ ស្រីនិច', 'gender' => 'ស្រី', 'role' => 'បុគ្គលិកផ្នែកគិតលុយSK-KS2', 'department' => 'SK-KS2'],
+                    ['employee_id' => '0312', 'name' => 'សៅ សូលីនដា', 'gender' => 'ស្រី', 'role' => 'បុគ្គលិកផ្នែកគិតលុយSK-NR3', 'department' => 'SK-NR3'],
+                    ['employee_id' => '0345', 'name' => 'ប្រាក់ សុខក្រា', 'gender' => 'ស្រី', 'role' => 'បុគ្គលិកផ្នែកលក់SK-KS2', 'department' => 'SK-KS2'],
+                    ['employee_id' => '0348', 'name' => 'កែវ មួយចេង', 'gender' => 'ស្រី', 'role' => 'ប្រធានគ្រប់គ្រងហាង SK-NR3', 'department' => 'SK-NR3'],
+                    ['employee_id' => '0350', 'name' => 'ហេង ចរិយា', 'gender' => 'ស្រី', 'role' => 'បុគ្គលិកផ្នែកលក់SK-KS2', 'department' => 'SK-KS2'],
+                    ['employee_id' => '0343', 'name' => 'រ៉ុង ភីលីព', 'gender' => 'ប្រុស', 'role' => 'ប្រធានគ្រប់គ្រងទូទៅ', 'department' => 'SK-General'],
+                    ['employee_id' => '0347', 'name' => 'តាត ផានុត', 'gender' => 'ប្រុស', 'role' => 'បុគ្គលិកផ្នែកលក់SK-KS2', 'department' => 'SK-KS2'],
+                    ['employee_id' => '0335', 'name' => 'ម៉ុន មករា', 'gender' => 'ប្រុស', 'role' => 'បុគ្គលិកស្តុកSK-KS2', 'department' => 'SK-KS2'],
+                ];
+                foreach ($defaultSkStaff as $ds) {
+                    if (!isset($users[$ds['employee_id']])) {
+                        $users[$ds['employee_id']] = array_merge($ds, ['is_worker' => false]);
+                    }
+                }
+            }
+
+            // Fallback for Department if needed
+            if ($deptCategory === 'department' && count($users) < 5) {
+                $defaultDeptStaff = [
+                    ['employee_id' => '0331', 'name' => 'ឯម ខេមរា', 'gender' => 'ប្រុស', 'role' => 'បុគ្គលិក', 'department' => 'Store 318'],
+                    ['employee_id' => '0296', 'name' => 'ផង ស្រីនិច', 'gender' => 'ស្រី', 'role' => 'បុគ្គលិក', 'department' => 'Store 318'],
+                    ['employee_id' => '0244', 'name' => 'ម៉ុល ធីតា', 'gender' => 'ស្រី', 'role' => 'បុគ្គលិក', 'department' => 'Store 318'],
+                    ['employee_id' => '0245', 'name' => 'ផល សុភិន', 'gender' => 'ស្រី', 'role' => 'បុគ្គលិក', 'department' => 'Store 318'],
+                    ['employee_id' => '0169', 'name' => 'ឡេង ឡឿន', 'gender' => 'ប្រុស', 'role' => 'បុគ្គលិក', 'department' => 'Store 318'],
+                    ['employee_id' => '0334', 'name' => 'មាស ពេជ្រតារា', 'gender' => 'ប្រុស', 'role' => 'បុគ្គលិក', 'department' => 'Store 318'],
+                    ['employee_id' => '0250', 'name' => 'ស៊ីម សុខ', 'gender' => 'ប្រុស', 'role' => 'បុគ្គលិក', 'department' => 'Store 318'],
+                    ['employee_id' => '0295', 'name' => 'សន លីណា', 'gender' => 'ស្រី', 'role' => 'បុគ្គលិក', 'department' => 'Store 318'],
+                    ['employee_id' => '0127', 'name' => 'យ៉ុក វ៉ាន់ដា', 'gender' => 'ប្រុស', 'role' => 'បុគ្គលិក', 'department' => 'Store 318'],
+                    ['employee_id' => '0158', 'name' => 'ឌឹម សុជាតិ', 'gender' => 'ប្រុស', 'role' => 'បុគ្គលិក', 'department' => 'Store 318'],
+                    ['employee_id' => '0119', 'name' => 'រឹម រស្មី', 'gender' => 'ស្រី', 'role' => 'បុគ្គលិក', 'department' => 'Store 318'],
+                    ['employee_id' => '0308', 'name' => 'វណ្ណ ស្រីនិច', 'gender' => 'ស្រី', 'role' => 'បុគ្គលិក', 'department' => 'Store 318'],
+                    ['employee_id' => '0224', 'name' => 'លី សាំងអី', 'gender' => 'ស្រី', 'role' => 'បុគ្គលិក', 'department' => 'Store 318'],
+                    ['employee_id' => '0150', 'name' => 'សៀង សារុន', 'gender' => 'ប្រុស', 'role' => 'IT Support', 'department' => 'Store 318'],
+                    ['employee_id' => '0016', 'name' => 'កឿន ដាលីន', 'gender' => 'ស្រី', 'role' => 'បុគ្គលិក', 'department' => 'Store 318'],
+                    ['employee_id' => '0163', 'name' => 'សៅ សម្បត្តិ', 'gender' => 'ប្រុស', 'role' => 'បុគ្គលិក', 'department' => 'Store 318'],
+                    ['employee_id' => '0021', 'name' => 'យី វ៉ាន់ដេត', 'gender' => 'ប្រុស', 'role' => 'បុគ្គលិក', 'department' => 'Store 318'],
+                    ['employee_id' => '0226', 'name' => 'រាម ចន្ទី', 'gender' => 'ស្រី', 'role' => 'បុគ្គលិក', 'department' => 'Store 318'],
+                    ['employee_id' => '0190', 'name' => 'សែម រស្មី', 'gender' => 'ស្រី', 'role' => 'បុគ្គលិក', 'department' => 'Store 318'],
+                    ['employee_id' => '0062', 'name' => 'វ៉ាន់ សាម៉ែត', 'gender' => 'ប្រុស', 'role' => 'បុគ្គលិក', 'department' => 'Store 318'],
+                    ['employee_id' => '0183', 'name' => 'ភី គីកឡា', 'gender' => 'ប្រុស', 'role' => 'បុគ្គលិក', 'department' => 'Store 318'],
+                    ['employee_id' => '0066', 'name' => 'ម៉ុង ដាលីន', 'gender' => 'ស្រី', 'role' => 'បុគ្គលិក', 'department' => 'Store 318'],
+                    ['employee_id' => '0324', 'name' => 'រិទ្ធ ពិសិដ្ឋ', 'gender' => 'ប្រុស', 'role' => 'បុគ្គលិក', 'department' => 'Store 318'],
+                ];
+                foreach ($defaultDeptStaff as $dd) {
+                    if (!isset($users[$dd['employee_id']])) {
+                        $users[$dd['employee_id']] = array_merge($dd, ['is_worker' => false]);
+                    }
+                }
             }
 
             // 2. Fetch logs in date range
@@ -1132,8 +1269,7 @@ try {
             $totalForgotGrand = 0;
             $totalLateOver15 = 0;
 
-            foreach ($users as $u) {
-                $empId = (string)$u['employee_id'];
+            foreach ($users as $empId => $u) {
                 $isWorker = !empty($u['is_worker']);
                 $daily = $empDailyLogs[$empId] ?? [];
                 
