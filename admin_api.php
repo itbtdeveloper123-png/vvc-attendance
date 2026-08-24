@@ -1023,14 +1023,33 @@ try {
                 }
             }
 
-            // 2. Fetch all late logs in date range
+            // 2. Fetch all attendance rules for shift start/end references
+            $rulesRaw = dbQuery("SELECT employee_id, type, start_time, end_time, status FROM attendance_rules WHERE type = 'checkin'");
+            $rulesByUser = [];
+            foreach ($rulesRaw as $r) {
+                $rulesByUser[$r['employee_id']][] = $r;
+            }
+
+            // 3. Fetch all late logs in date range
             $lateLogs = dbQuery("SELECT id, employee_id, log_datetime, late_reason, distance_m 
                                  FROM checkin_logs 
-                                 WHERE log_datetime BETWEEN ? AND ? AND status = 'Late'", [$startDt, $endDt]);
+                                 WHERE log_datetime BETWEEN ? AND ? AND (LOWER(status) = 'late' OR LOWER(action_type) LIKE '%late%')", [$startDt, $endDt]);
+            
+            // Also check attendance table if checkin_logs has few/no records
+            if (empty($lateLogs)) {
+                $attLateLogs = dbQuery("SELECT id, employee_id, log_time as log_datetime, late_minutes 
+                                        FROM attendance 
+                                        WHERE log_time BETWEEN ? AND ? AND (LOWER(status) = 'late' OR late_minutes > 0)", [$startDt, $endDt]);
+                if (!empty($attLateLogs)) {
+                    $lateLogs = $attLateLogs;
+                }
+            }
 
             $lateByUser = [];
             foreach ($lateLogs as $log) {
-                $empId = (string)$log['employee_id'];
+                $empId = (string)($log['employee_id'] ?? '');
+                if (empty($empId)) continue;
+
                 if (!isset($lateByUser[$empId])) {
                     $lateByUser[$empId] = [
                         'under_15' => 0,
@@ -1040,18 +1059,68 @@ try {
                     ];
                 }
 
-                $logTime = strtotime($log['log_datetime']);
+                $logDtStr = $log['log_datetime'];
+                $logTime = strtotime($logDtStr);
+                $logHms = date('H:i:s', $logTime);
                 $hour = (int)date('H', $logTime);
                 $minute = (int)date('i', $logTime);
 
-                if ($hour >= 7 && $hour <= 11) {
-                    $mins = max(1, ($hour - 8) * 60 + $minute);
-                } elseif ($hour >= 12 && $hour <= 17) {
-                    $mins = max(1, ($hour - 13) * 60 + $minute);
+                $mins = 0;
+                if (!empty($log['late_minutes']) && (int)$log['late_minutes'] > 0) {
+                    $mins = (int)$log['late_minutes'];
                 } else {
-                    $mins = 10;
+                    $uRules = $rulesByUser[$empId] ?? ($rulesByUser['all'] ?? []);
+                    $pivotTime = '';
+
+                    $bestGood = null;
+                    foreach ($uRules as $r) {
+                        if (strcasecmp($r['status'], 'Good') === 0 && $r['end_time'] <= $logHms) {
+                            if ($bestGood === null || $r['end_time'] > $bestGood['end_time']) {
+                                $bestGood = $r;
+                            }
+                        }
+                    }
+                    if ($bestGood) {
+                        $pivotTime = $bestGood['end_time'];
+                    } else {
+                        $earliest = null;
+                        foreach ($uRules as $r) {
+                            if ($earliest === null || $r['start_time'] < $earliest['start_time']) {
+                                $earliest = $r;
+                            }
+                        }
+                        if ($earliest) {
+                            $pivotTime = $earliest['start_time'];
+                        }
+                    }
+
+                    if (!empty($pivotTime)) {
+                        if (preg_match('/^\d{1,2}:\d{2}$/', $pivotTime)) {
+                            $pivotTime .= ':00';
+                        }
+                        $baseDt = date('Y-m-d', $logTime) . ' ' . $pivotTime;
+                        $lateSecs = $logTime - strtotime($baseDt);
+                        if ($lateSecs > 0) {
+                            $mins = (int)ceil($lateSecs / 60);
+                        }
+                    }
+
+                    if ($mins <= 0) {
+                        if ($hour >= 7 && $hour <= 11) {
+                            $shiftStart = strtotime(date('Y-m-d', $logTime) . ' 08:00:00');
+                            $diff = $logTime - $shiftStart;
+                            $mins = $diff > 0 ? (int)ceil($diff / 60) : 5;
+                        } elseif ($hour >= 12 && $hour <= 17) {
+                            $shiftStart = strtotime(date('Y-m-d', $logTime) . ' 13:00:00');
+                            $diff = $logTime - $shiftStart;
+                            $mins = $diff > 0 ? (int)ceil($diff / 60) : 5;
+                        } else {
+                            $mins = 10;
+                        }
+                    }
                 }
 
+                // Accumulate per scan into the exact category
                 if ($mins < 15) {
                     $lateByUser[$empId]['under_15']++;
                 } elseif ($mins < 60) {
