@@ -981,6 +981,16 @@ export const adminApi = {
     return res.data;
   },
 
+  paySalarySingle: async (data: { employee_id: string; base_salary: number; present_days: number; calculated_salary: number; month: number; year: number }) => {
+    const params = new URLSearchParams();
+    params.append('action', 'pay_salary');
+    Object.entries(data).forEach(([k, v]) => {
+      if (v !== undefined && v !== null) params.append(k, String(v));
+    });
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
   fetchPayrollConfigs: async () => {
     const params = new URLSearchParams();
     params.append('action', 'fetch_payroll_configs');

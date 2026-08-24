@@ -1,28 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import {
   DollarSign,
-  Download,
+  Calculator,
   Plus,
   Search,
-  CheckCircle,
+  CheckCircle2,
   RotateCw,
-  Check,
-  Calendar,
   CreditCard,
-  QrCode,
-  FileSpreadsheet,
   History,
   TrendingDown,
-  Clock,
   Printer,
-  X,
-  AlertCircle,
-  MinusCircle,
-  PlusCircle,
-  HelpCircle,
   Eye,
+  Building2,
+  Coins,
+  Layers,
+  FileSpreadsheet,
+  Check,
+  X,
+  Upload,
+  User,
 } from 'lucide-react';
-import { StatCard } from '../components/common/StatCard';
 import { Modal } from '../components/common/Modal';
 import { adminApi, PayrollItem } from '../api/adminApi';
 
@@ -41,18 +38,15 @@ export const PayrollPage: React.FC = () => {
   // Bank Configs Data
   const [configs, setConfigs] = useState<any[]>([]);
   const [loadingConfigs, setLoadingConfigs] = useState(false);
-  const [editingConfigId, setEditingConfigId] = useState<string | null>(null);
-  const [configForm, setConfigForm] = useState({
-    employee_id: '',
-    base_salary: 0,
-    bank_name: '',
-    bank_account_number: '',
-  });
+  const [configSearch, setConfigSearch] = useState('');
+  const [editingSalaries, setEditingSalaries] = useState<Record<string, number>>({});
+  const [editingBanks, setEditingBanks] = useState<Record<string, string>>({});
   const [qrFile, setQrFile] = useState<File | null>(null);
   const [previewQrUrl, setPreviewQrUrl] = useState<string | null>(null);
+  const [qrUploadEmpId, setQrUploadEmpId] = useState<string | null>(null);
 
   // Adjustments Data
-  const [adjustSubTab, setAdjustSubTab] = useState<'deduction' | 'ot' | 'loan'>('deduction');
+  const [adjustSubTab, setAdjustSubTab] = useState<'deduction' | 'ot' | 'loan' | 'policy'>('deduction');
   const [usersList, setUsersList] = useState<any[]>([]);
   const [deductions, setDeductions] = useState<any[]>([]);
   const [ots, setOts] = useState<any[]>([]);
@@ -71,7 +65,6 @@ export const PayrollPage: React.FC = () => {
 
   // Banner
   const [banner, setBanner] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-
   const showBanner = (type: 'success' | 'error', text: string) => {
     setBanner({ type, text });
     setTimeout(() => setBanner(null), 3500);
@@ -81,8 +74,13 @@ export const PayrollPage: React.FC = () => {
     setLoading(true);
     try {
       const res = await adminApi.fetchPayroll(selectedMonth, selectedYear);
-      if (res && res.success && Array.isArray(res.salaries)) {
-        setSalaries(res.salaries);
+      if (res && (res.success || res.status === 'success')) {
+        const list = Array.isArray(res.salaries)
+          ? res.salaries
+          : Array.isArray(res.data)
+          ? res.data
+          : [];
+        setSalaries(list);
       }
     } catch (err) {
       console.error('Error fetching payroll:', err);
@@ -94,8 +92,18 @@ export const PayrollPage: React.FC = () => {
     setLoadingConfigs(true);
     try {
       const res = await adminApi.fetchPayrollConfigs();
-      if (res && res.success && Array.isArray(res.configs)) {
-        setConfigs(res.configs);
+      if (res && (res.success || res.status === 'success')) {
+        const list = Array.isArray(res.configs) ? res.configs : Array.isArray(res.data) ? res.data : [];
+        setConfigs(list);
+
+        const salMap: Record<string, number> = {};
+        const bnkMap: Record<string, string> = {};
+        list.forEach((c: any) => {
+          salMap[c.employee_id] = Number(c.base_salary) || 0;
+          bnkMap[c.employee_id] = c.bank_name ? `${c.bank_name}${c.bank_account_number ? ' - ' + c.bank_account_number : ''}` : '';
+        });
+        setEditingSalaries(salMap);
+        setEditingBanks(bnkMap);
       }
     } catch (err) {
       console.error('Error loading payroll configs:', err);
@@ -106,14 +114,14 @@ export const PayrollPage: React.FC = () => {
   const loadAdjustments = async () => {
     try {
       const res = await adminApi.fetchPayrollAdjustments();
-      if (res && res.success) {
+      if (res && (res.success || res.status === 'success')) {
         if (res.deductions) setDeductions(res.deductions);
         if (res.ots) setOts(res.ots);
         if (res.loans) setLoans(res.loans);
       }
-      const uRes = await adminApi.fetchUsers();
-      if (uRes && uRes.success && Array.isArray(uRes.users)) {
-        setUsersList(uRes.users);
+      const catRes = await adminApi.fetchCategories();
+      if (catRes && Array.isArray(catRes.users)) {
+        setUsersList(catRes.users);
       }
     } catch (err) {
       console.error('Error loading adjustments:', err);
@@ -123,8 +131,9 @@ export const PayrollPage: React.FC = () => {
   const loadHistory = async () => {
     try {
       const res = await adminApi.fetchPayrollHistory();
-      if (res && res.success && Array.isArray(res.history)) {
-        setHistoryList(res.history);
+      if (res && (res.success || res.status === 'success')) {
+        const list = Array.isArray(res.history) ? res.history : Array.isArray(res.data) ? res.data : [];
+        setHistoryList(list);
       }
     } catch (err) {
       console.error('Error loading history:', err);
@@ -138,11 +147,12 @@ export const PayrollPage: React.FC = () => {
     if (activeTab === 'payroll_history') loadHistory();
   }, [activeTab, selectedMonth, selectedYear]);
 
+  // Calculate Payroll Action
   const handleCalculate = async () => {
     setCalculating(true);
     try {
       const res = await adminApi.calculatePayroll(selectedMonth, selectedYear);
-      if (res && res.success) {
+      if (res && (res.success || res.status === 'success')) {
         showBanner('success', res.message || 'បានគណនាប្រាក់បៀវត្សជោគជ័យ!');
         await loadPayroll();
       } else {
@@ -154,60 +164,72 @@ export const PayrollPage: React.FC = () => {
     setCalculating(false);
   };
 
-  const handleToggleStatus = async (item: any) => {
-    const newStatus = item.status === 'Paid' ? 'Pending' : 'Paid';
+  // Pay Single Salary Action (matching admin_attendance.php paySalary)
+  const handlePaySalarySingle = async (item: any) => {
     try {
-      await adminApi.savePayroll({
-        id: item.id,
+      const res = await adminApi.paySalarySingle({
         employee_id: item.employee_id,
-        name: item.name,
-        base_salary: item.base_salary,
-        days_present: item.days_present,
-        ot_hours: item.ot_hours,
-        ot_amount: item.ot_amount,
-        deductions: item.deductions,
-        loans: item.loans,
-        net_salary: item.net_salary,
-        status: newStatus,
+        base_salary: Number(item.base_salary) || 0,
+        present_days: Number(item.present_days || item.days_present) || 0,
+        calculated_salary: Number(item.calculated_salary || item.net_salary) || 0,
         month: selectedMonth,
         year: selectedYear,
       });
-      showBanner('success', `បានកែប្រែស្ថានភាព ${item.name} ទៅជា ${newStatus}`);
-      loadPayroll();
+
+      if (res && (res.success || res.status === 'success')) {
+        showBanner('success', res.message || `បានបើកប្រាក់បៀវត្សជូន ${item.name} ជោគជ័យ!`);
+        loadPayroll();
+      } else {
+        showBanner('error', res?.message || 'Error paying salary');
+      }
     } catch (err) {
-      showBanner('error', 'កំហុសក្នុងការកែប្រែស្ថានភាព');
+      showBanner('error', 'កំហុសក្នុងការទូទាត់ប្រាក់បៀវត្ស');
     }
   };
 
-  const handleSaveConfig = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!configForm.employee_id) return;
+  // Save Config Inline per row (matching admin_attendance.php savePayrollConfig)
+  const handleSaveConfigInline = async (empId: string) => {
+    const baseSal = editingSalaries[empId] ?? 0;
+    const bankVal = (editingBanks[empId] ?? '').split('-');
+    const bankName = bankVal[0] ? bankVal[0].trim() : '';
+    const bankAcc = bankVal[1] ? bankVal[1].trim() : '';
+
     try {
       const fd = new FormData();
-      fd.append('employee_id', configForm.employee_id);
-      fd.append('base_salary', String(configForm.base_salary));
-      fd.append('bank_name', configForm.bank_name);
-      fd.append('bank_account_number', configForm.bank_account_number);
-      if (qrFile) fd.append('bank_qr', qrFile);
+      fd.append('employee_id', empId);
+      fd.append('base_salary', String(baseSal));
+      fd.append('bank_name', bankName);
+      fd.append('bank_account_number', bankAcc);
+      fd.append('payment_type', 'Monthly');
+
+      if (qrUploadEmpId === empId && qrFile) {
+        fd.append('bank_qr', qrFile);
+      }
 
       const res = await adminApi.savePayrollConfig(fd);
-      if (res && res.success) {
-        showBanner('success', res.message || 'បានរក្សាទុកព័ត៌មានធនាគារជោគជ័យ!');
-        setEditingConfigId(null);
+      if (res && (res.success || res.status === 'success')) {
+        showBanner('success', res.message || 'បានរក្សាទុកព័ត៌មានប្រាក់បៀវត្ស និងធនាគារជោគជ័យ!');
+        setQrUploadEmpId(null);
         setQrFile(null);
         loadConfigs();
+      } else {
+        showBanner('error', res?.message || 'Error saving config');
       }
     } catch (err) {
       showBanner('error', 'កំហុសក្នុងការរក្សាទុក');
     }
   };
 
+  // Save Adjustments
   const handleSaveDeduction = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!deductForm.emp_id || deductForm.amount <= 0) return;
+    if (!deductForm.emp_id || deductForm.amount <= 0) {
+      alert('សូមជ្រើសរើសបុគ្គលិក និងបញ្ចូលចំនួនទឹកប្រាក់!');
+      return;
+    }
     try {
       const res = await adminApi.savePayrollDeduction(deductForm);
-      if (res && res.success) {
+      if (res && (res.success || res.status === 'success')) {
         showBanner('success', 'បានរក្សាទុកការកាត់ប្រាក់ជោគជ័យ!');
         setDeductForm({ emp_id: '', amount: 0, reason: '', deduction_date: new Date().toISOString().split('T')[0] });
         loadAdjustments();
@@ -219,10 +241,13 @@ export const PayrollPage: React.FC = () => {
 
   const handleSaveOt = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!otForm.emp_id || otForm.ot_hours <= 0) return;
+    if (!otForm.emp_id || otForm.ot_hours <= 0) {
+      alert('សូមជ្រើសរើសបុគ្គលិក និងបញ្ចូលម៉ោងថែម!');
+      return;
+    }
     try {
       const res = await adminApi.savePayrollOt(otForm);
-      if (res && res.success) {
+      if (res && (res.success || res.status === 'success')) {
         showBanner('success', 'បានរក្សាទុកប្រាក់ថែមម៉ោងជោគជ័យ!');
         setOtForm({ emp_id: '', ot_hours: 0, ot_rate: 3.5, reason: '', ot_date: new Date().toISOString().split('T')[0] });
         loadAdjustments();
@@ -234,11 +259,14 @@ export const PayrollPage: React.FC = () => {
 
   const handleSaveLoan = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!loanForm.emp_id || loanForm.total_loan <= 0) return;
+    if (!loanForm.emp_id || loanForm.total_loan <= 0) {
+      alert('សូមជ្រើសរើសបុគ្គលិក និងបញ្ចូលចំនួនប្រាក់កម្ចី!');
+      return;
+    }
     try {
       const res = await adminApi.savePayrollLoan(loanForm);
-      if (res && res.success) {
-        showBanner('success', 'បានរក្សាទុកបំណុលជោគជ័យ!');
+      if (res && (res.success || res.status === 'success')) {
+        showBanner('success', 'បានរក្សាទុកបំណុល/ប្រាក់កម្ចីជោគជ័យ!');
         setLoanForm({ emp_id: '', total_loan: 0, monthly_installment: 0, reason: '' });
         loadAdjustments();
       }
@@ -247,75 +275,8 @@ export const PayrollPage: React.FC = () => {
     }
   };
 
-  const totalPayroll = salaries.reduce((acc, s) => acc + (Number(s.net_salary) || 0), 0);
-  const totalOt = salaries.reduce((acc, s) => acc + (Number(s.ot_amount) || 0), 0);
-  const totalDeductions = salaries.reduce((acc, s) => acc + (Number(s.deductions) || 0), 0);
-  const paidCount = salaries.filter((s) => s.status === 'Paid').length;
-
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '22px', maxWidth: '1200px', margin: '0 auto', width: '100%' }}>
-      {/* Header Banner */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: '16px',
-          background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(79, 70, 229, 0.03))',
-          padding: '24px',
-          borderRadius: '18px',
-          border: '1px solid rgba(99, 102, 241, 0.15)',
-        }}
-      >
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-            <span
-              style={{
-                background: 'var(--primary)',
-                color: '#fff',
-                width: '36px',
-                height: '36px',
-                borderRadius: '10px',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: '0 4px 10px rgba(99, 102, 241, 0.3)',
-              }}
-            >
-              <DollarSign size={20} />
-            </span>
-            <h2 style={{ fontSize: '22px', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
-              ប្រព័ន្ធគ្រប់គ្រងប្រាក់បៀវត្ស (Payroll Management)
-            </h2>
-          </div>
-          <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>
-            គណនាប្រាក់បៀវត្សគោល ថែមម៉ោង (OT) កាត់កង បំណុល ធនាគារ Bank QR និងចេញប័ណ្ណបើកប្រាក់ខែ (Payslip)
-          </p>
-        </div>
-
-        {activeTab === 'payroll_dashboard' ? (
-          <button
-            onClick={handleCalculate}
-            disabled={calculating}
-            className="btn btn-gold"
-            style={{ borderRadius: '12px', padding: '11px 22px', fontWeight: 700 }}
-          >
-            <DollarSign size={16} />
-            <span>{calculating ? 'កំពុងគណនា...' : 'គណនាប្រាក់ខែ (Calculate)'}</span>
-          </button>
-        ) : (
-          <button
-            onClick={() => setActiveTab('payroll_dashboard')}
-            className="btn btn-secondary"
-            style={{ borderRadius: '12px', padding: '11px 20px', fontWeight: 700 }}
-          >
-            <DollarSign size={16} />
-            <span>← ត្រឡប់ទៅផ្ទាំងគណនា</span>
-          </button>
-        )}
-      </div>
-
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '22px', maxWidth: '1280px', margin: '0 auto', width: '100%' }}>
       {banner && (
         <div
           style={{
@@ -331,192 +292,274 @@ export const PayrollPage: React.FC = () => {
             fontWeight: 600,
           }}
         >
-          <CheckCircle size={16} />
+          <CheckCircle2 size={16} />
           <span>{banner.text}</span>
         </div>
       )}
 
-      {/* Main Tabs */}
+      {/* Top Sub-Navigation Bar matching admin_attendance.php */}
       <div
+        className="hrm-card"
         style={{
+          padding: '14px 20px',
+          borderRadius: '16px',
           display: 'flex',
+          justifyContent: 'space-between',
           alignItems: 'center',
-          gap: '6px',
-          background: 'var(--surface-subtle, #f1f5f9)',
-          padding: '6px',
-          borderRadius: '14px',
-          overflowX: 'auto',
+          flexWrap: 'wrap',
+          gap: '12px',
+          background: '#fff',
         }}
       >
-        {[
-          { id: 'payroll_dashboard', label: 'ផ្ទាំងគណនា (Dashboard)', icon: DollarSign },
-          { id: 'manage_salaries', label: 'ប្រាក់ខែ & Bank QR', icon: CreditCard },
-          { id: 'adjustments', label: 'កាត់កង / OT / បំណុល', icon: TrendingDown },
-          { id: 'payroll_history', label: 'ប្រវត្តិទូទាត់ (History)', icon: History },
-        ].map((tab) => {
-          const Icon = tab.icon;
-          const isActive = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '9px 16px',
-                borderRadius: '10px',
-                fontWeight: 700,
-                fontSize: '13px',
-                border: 'none',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-                whiteSpace: 'nowrap',
-                background: isActive ? '#fff' : 'transparent',
-                color: isActive ? 'var(--primary)' : 'var(--text-secondary)',
-                boxShadow: isActive ? '0 4px 12px rgba(0,0,0,0.06)' : 'none',
-              }}
-            >
-              <Icon size={14} />
-              <span>{tab.label}</span>
-            </button>
-          );
-        })}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              background: 'var(--surface-alt)',
+              padding: '6px 14px',
+              borderRadius: '10px',
+              fontWeight: 700,
+              fontSize: '13px',
+              color: 'var(--text-secondary)',
+            }}
+          >
+            <Layers size={15} color="var(--primary)" />
+            <span>Payroll</span>
+          </span>
+
+          <select
+            className="form-control"
+            value={activeTab}
+            onChange={(e) => setActiveTab(e.target.value as any)}
+            style={{ height: '38px', borderRadius: '10px', fontWeight: 700, fontSize: '13px', minWidth: '220px', background: '#fff' }}
+          >
+            <option value="payroll_dashboard">Overview</option>
+            <option value="manage_salaries">Manage Salaries</option>
+            <option value="payroll_history">Payroll History</option>
+            <option value="adjustments">Payroll Settings</option>
+          </select>
+        </div>
+
+        {/* Tab Buttons Quick Switcher */}
+        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+          {[
+            { id: 'payroll_dashboard', label: 'ទិដ្ឋភាពទូទៅ (Dashboard)', icon: DollarSign },
+            { id: 'manage_salaries', label: 'គ្រប់គ្រងប្រាក់បៀវត្ស', icon: CreditCard },
+            { id: 'adjustments', label: 'ការកំណត់ (Deduct/OT/Loan)', icon: TrendingDown },
+            { id: 'payroll_history', label: 'ប្រវត្តិបើកប្រាក់បៀវត្ស', icon: History },
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const isTabActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '7px 14px',
+                  borderRadius: '10px',
+                  fontWeight: 700,
+                  fontSize: '12.5px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  background: isTabActive ? 'var(--primary)' : 'transparent',
+                  color: isTabActive ? '#fff' : 'var(--text-secondary)',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <Icon size={13} />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* ========================================================================= */}
-      {/* 1. PAYROLL DASHBOARD */}
+      {/* 1. TAB: OVERVIEW (ទិដ្ឋភាពទូទៅនៃប្រាក់បៀវត្ស ដូច admin_attendance.php)      */}
       {/* ========================================================================= */}
       {activeTab === 'payroll_dashboard' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          {/* Month / Year Filter Toolbar */}
-          <div className="hrm-card" style={{ padding: '16px 20px', display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)' }}>ខែ (Month):</span>
+        <div className="hrm-card" style={{ padding: '26px', borderRadius: '20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
+            <h2 style={{ fontWeight: 800, fontSize: '1.4rem', color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <Coins size={24} color="var(--primary)" />
+              <span>ប្រព័ន្ធគ្រប់គ្រងប្រាក់បៀវត្ស (Payroll)</span>
+            </h2>
+          </div>
+
+          {/* Filter Toolbar matching admin_attendance.php */}
+          <div
+            style={{
+              background: 'var(--surface-alt)',
+              padding: '18px 22px',
+              borderRadius: '16px',
+              display: 'flex',
+              gap: '16px',
+              marginBottom: '24px',
+              alignItems: 'flex-end',
+              flexWrap: 'wrap',
+            }}
+          >
+            <div style={{ flex: 1, minWidth: '180px' }}>
+              <label style={{ fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px', display: 'block', fontSize: '13px' }}>
+                ខែ (Month)
+              </label>
               <select
-                className="form-input"
-                style={{ width: '130px', height: '38px' }}
+                id="payroll-month"
+                className="form-control"
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                style={{ height: '42px', borderRadius: '10px', background: '#fff', fontSize: '13.5px' }}
               >
                 {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                  <option key={m} value={m}>ខែ {m}</option>
+                  <option key={m} value={m}>
+                    ខែ {m}
+                  </option>
                 ))}
               </select>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)' }}>ឆ្នាំ (Year):</span>
+            <div style={{ flex: 1, minWidth: '180px' }}>
+              <label style={{ fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px', display: 'block', fontSize: '13px' }}>
+                ឆ្នាំ (Year)
+              </label>
               <select
-                className="form-input"
-                style={{ width: '130px', height: '38px' }}
+                id="payroll-year"
+                className="form-control"
                 value={selectedYear}
                 onChange={(e) => setSelectedYear(Number(e.target.value))}
+                style={{ height: '42px', borderRadius: '10px', background: '#fff', fontSize: '13.5px' }}
               >
                 {[2024, 2025, 2026, 2027, 2028].map((y) => (
-                  <option key={y} value={y}>{y}</option>
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
                 ))}
               </select>
             </div>
 
-            <button type="button" onClick={loadPayroll} className="btn btn-secondary btn-sm" style={{ height: '38px' }}>
-              <RotateCw size={14} className={loading ? 'animate-spin' : ''} />
-              <span>បង្ហាញ</span>
+            <button
+              type="button"
+              onClick={handleCalculate}
+              disabled={calculating}
+              className="btn btn-primary"
+              style={{ height: '42px', padding: '0 24px', borderRadius: '10px', fontWeight: 700 }}
+            >
+              <Calculator size={16} />
+              <span>{calculating ? 'កំពុងគណនា...' : 'គណនា (Calculate)'}</span>
             </button>
           </div>
 
-          {/* KPI Stat Cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
-            <div className="hrm-card" style={{ padding: '18px 22px', borderTop: '4px solid #6366f1' }}>
-              <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 800, color: 'var(--text-muted)' }}>ប្រាក់បៀវត្សសរុបខែនេះ</div>
-              <div style={{ fontSize: '24px', fontWeight: 900, color: '#6366f1', margin: '4px 0' }}>${totalPayroll.toFixed(2)}</div>
-              <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>Net Salary សម្រាប់បុគ្គលិកទាំងអស់</div>
-            </div>
-
-            <div className="hrm-card" style={{ padding: '18px 22px', borderTop: '4px solid #10b981' }}>
-              <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 800, color: 'var(--text-muted)' }}>ប្រាក់ថែមម៉ោងសរុប (OT)</div>
-              <div style={{ fontSize: '24px', fontWeight: 900, color: '#10b981', margin: '4px 0' }}>${totalOt.toFixed(2)}</div>
-              <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>បូកបន្ថែមសម្រាប់ម៉ោងការងារបន្ថែម</div>
-            </div>
-
-            <div className="hrm-card" style={{ padding: '18px 22px', borderTop: '4px solid #ef4444' }}>
-              <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 800, color: 'var(--text-muted)' }}>កាត់កងសរុប (Deductions)</div>
-              <div style={{ fontSize: '24px', fontWeight: 900, color: '#ef4444', margin: '4px 0' }}>-${totalDeductions.toFixed(2)}</div>
-              <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>មកយឺត អវត្តមាន & បំណុល</div>
-            </div>
-
-            <div className="hrm-card" style={{ padding: '18px 22px', borderTop: '4px solid #f59e0b' }}>
-              <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 800, color: 'var(--text-muted)' }}>ស្ថានភាពបើកប្រាក់ខែ</div>
-              <div style={{ fontSize: '24px', fontWeight: 900, color: '#f59e0b', margin: '4px 0' }}>{paidCount} / {salaries.length}</div>
-              <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>បុគ្គលិកបានទទួលប្រាក់ខែ</div>
-            </div>
-          </div>
-
-          {/* Payroll Results Table */}
-          <div className="table-container">
+          {/* Table matching admin_attendance.php */}
+          <div className="table-container" style={{ border: 'none', boxShadow: 'none' }}>
             <table className="hrm-table">
               <thead>
                 <tr>
-                  <th>បុគ្គលិក (Employee)</th>
-                  <th>ប្រាក់ខែគោល</th>
-                  <th style={{ textAlign: 'center' }}>វត្តមាន (Days)</th>
-                  <th style={{ color: '#ef4444' }}>កាត់ (Deduct)</th>
-                  <th style={{ color: '#10b981' }}>ថែម (OT)</th>
-                  <th style={{ color: '#f59e0b' }}>បំណុល (Loan)</th>
-                  <th style={{ fontWeight: 800 }}>ប្រាក់ខែសុទ្ធ (Net)</th>
-                  <th>ស្ថានភាព</th>
-                  <th style={{ textAlign: 'right' }}>សកម្មភាព</th>
+                  <th>បុគ្គលិក (EMPLOYEE)</th>
+                  <th>ប្រាក់ខែគោល (BASE SALARY)</th>
+                  <th style={{ textAlign: 'center' }}>ថ្ងៃបង្ហាញខ្លួន (DAYS)</th>
+                  <th style={{ color: '#ef4444' }}>កាត់ (DEDUCT)</th>
+                  <th style={{ color: '#22c55e' }}>ថែម (OT)</th>
+                  <th style={{ color: '#f59e0b' }}>បំណុល (LOAN)</th>
+                  <th style={{ color: '#6366f1', fontWeight: 800 }}>ប្រាក់ខែសរុប (NET)</th>
+                  <th style={{ textAlign: 'center' }}>ស្ថានភាព (STATUS)</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody id="payroll-results-body">
                 {salaries.length === 0 ? (
                   <tr>
-                    <td colSpan={9} style={{ textAlign: 'center', padding: '36px', color: 'var(--text-muted)' }}>
-                      {loading ? 'កំពុងទាញយកទិន្នន័យប្រាក់បៀវត្ស...' : 'មិនទាន់មានទិន្នន័យសម្រាប់ខែនេះឡើយ សូមចុចប៊ូតុង "គណនាប្រាក់ខែ"'}
+                    <td colSpan={8} style={{ textAlign: 'center', padding: '36px', color: 'var(--text-muted)' }}>
+                      {loading ? 'កំពុងទាញយកទិន្នន័យប្រាក់បៀវត្ស...' : 'សូមចុចប៊ូតុង "គណនា" ដើម្បីមើលទិន្នន័យ។'}
                     </td>
                   </tr>
                 ) : (
-                  salaries.map((s) => (
-                    <tr key={s.id}>
-                      <td>
-                        <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{s.name || s.user_name}</div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{s.employee_id} • {s.department || 'Staff'}</div>
-                      </td>
-                      <td>${Number(s.base_salary).toFixed(2)}</td>
-                      <td style={{ textAlign: 'center' }}>{s.days_present || 26} ថ្ងៃ</td>
-                      <td style={{ color: '#ef4444', fontWeight: 600 }}>-${Number(s.deductions).toFixed(2)}</td>
-                      <td style={{ color: '#10b981', fontWeight: 600 }}>+${Number(s.ot_amount).toFixed(2)}</td>
-                      <td style={{ color: '#f59e0b', fontWeight: 600 }}>-${Number(s.loans || 0).toFixed(2)}</td>
-                      <td style={{ fontWeight: 900, fontSize: '14.5px', color: '#6366f1' }}>${Number(s.net_salary).toFixed(2)}</td>
-                      <td>
-                        <span className={`badge ${s.status === 'Paid' ? 'badge-good' : 'badge-late'}`}>
-                          {s.status === 'Paid' ? '✅ បានបើករួច' : '⏳ រង់ចាំបើក'}
-                        </span>
-                      </td>
-                      <td style={{ textAlign: 'right' }}>
-                        <div style={{ display: 'inline-flex', gap: '6px' }}>
-                          <button
-                            type="button"
-                            onClick={() => setPayslipItem(s)}
-                            className="btn btn-secondary btn-sm"
-                            title="មើលប័ណ្ណបើកប្រាក់ខែ (Payslip)"
-                            style={{ padding: '4px 8px' }}
-                          >
-                            <Eye size={13} />
-                            <span>Slip</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleToggleStatus(s)}
-                            className={`btn btn-sm ${s.status === 'Paid' ? 'btn-secondary' : 'btn-primary'}`}
-                            style={{ padding: '4px 10px' }}
-                          >
-                            <span>{s.status === 'Paid' ? 'កែជា Pending' : 'បើកប្រាក់ខែ'}</span>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                  salaries.map((row) => {
+                    const isPaid = row.is_paid || row.status === 'Paid';
+
+                    return (
+                      <tr key={row.employee_id}>
+                        <td>
+                          <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '13.5px' }}>
+                            {row.name}
+                          </div>
+                          <small style={{ color: '#94a3b8', fontFamily: 'monospace' }}>
+                            ID: {row.employee_id}
+                          </small>
+                        </td>
+
+                        <td style={{ fontWeight: 700 }}>
+                          ${Number(row.base_salary || 0).toLocaleString()}
+                        </td>
+
+                        <td style={{ textAlign: 'center', fontWeight: 600 }}>
+                          {row.present_days ?? row.days_present ?? 0}
+                        </td>
+
+                        <td style={{ color: '#ef4444', fontWeight: 600 }}>
+                          -${Number(row.deductions || 0).toLocaleString()}
+                        </td>
+
+                        <td style={{ color: '#22c55e', fontWeight: 600 }}>
+                          +${Number(row.ot_bonus || row.ot_amount || 0).toLocaleString()}
+                        </td>
+
+                        <td style={{ color: '#f59e0b', fontWeight: 600 }}>
+                          -${Number(row.loan_deduct || row.loans || 0).toLocaleString()}
+                        </td>
+
+                        <td style={{ color: '#6366f1', fontWeight: 800, fontSize: '15px' }}>
+                          ${Number(row.calculated_salary ?? row.net_salary ?? 0).toLocaleString()}
+                        </td>
+
+                        <td style={{ textAlign: 'center' }}>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                            {isPaid ? (
+                              <span
+                                style={{
+                                  background: '#22c55e',
+                                  color: '#fff',
+                                  padding: '5px 12px',
+                                  borderRadius: '10px',
+                                  fontSize: '12px',
+                                  fontWeight: 700,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                }}
+                              >
+                                <CheckCircle2 size={13} />
+                                <span>Paid</span>
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handlePaySalarySingle(row)}
+                                className="btn btn-primary btn-sm"
+                                style={{ padding: '6px 14px', borderRadius: '8px', fontWeight: 700, fontSize: '12px' }}
+                              >
+                                <Coins size={13} />
+                                <span>បើកប្រាក់</span>
+                              </button>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => setPayslipItem(row)}
+                              className="btn btn-secondary btn-sm"
+                              title="ប័ណ្ណបើកប្រាក់ (Payslip)"
+                              style={{ padding: '5px 8px', borderRadius: '8px' }}
+                            >
+                              <Eye size={13} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -525,66 +568,120 @@ export const PayrollPage: React.FC = () => {
       )}
 
       {/* ========================================================================= */}
-      {/* 2. MANAGE SALARIES & BANK QR */}
+      {/* 2. TAB: MANAGE SALARIES (គ្រប់គ្រងប្រាក់បៀវត្ស & BANK QR)                   */}
       {/* ========================================================================= */}
       {activeTab === 'manage_salaries' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <div className="table-container">
+        <div className="hrm-card" style={{ padding: '26px', borderRadius: '20px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+            <h3 style={{ fontSize: '18px', fontWeight: 800, margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <CreditCard size={20} color="var(--primary)" />
+              <span>គ្រប់គ្រងប្រាក់បៀវត្ស និងគណនីធនាគារ (Manage Salaries)</span>
+            </h3>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', background: 'var(--surface-alt)', border: '1px solid var(--border)', borderRadius: '10px', padding: '6px 12px', width: '220px', gap: '6px' }}>
+                <Search size={14} color="var(--text-muted)" />
+                <input
+                  type="text"
+                  placeholder="ស្វែងរកឈ្មោះ ឬ ID..."
+                  value={configSearch}
+                  onChange={(e) => setConfigSearch(e.target.value)}
+                  style={{ background: 'transparent', border: 'none', outline: 'none', fontSize: '12.5px', width: '100%' }}
+                />
+              </div>
+
+              <button onClick={loadConfigs} className="btn btn-secondary btn-sm" style={{ borderRadius: '10px' }}>
+                <RotateCw size={13} className={loadingConfigs ? 'fa-spin' : ''} />
+                <span>Refresh</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="table-responsive" style={{ border: 'none', boxShadow: 'none' }}>
             <table className="hrm-table">
               <thead>
                 <tr>
-                  <th>អត្តលេខ</th>
-                  <th>ឈ្មោះបុគ្គលិក</th>
-                  <th>ប្រាក់ខែគោល ($)</th>
-                  <th>ធនាគារ (Bank Name/Acc)</th>
-                  <th style={{ textAlign: 'center' }}>Bank QR Code</th>
-                  <th style={{ textAlign: 'right' }}>សកម្មភាព</th>
+                  <th style={{ width: '100px' }}>អត្តលេខ (ID)</th>
+                  <th>ឈ្មោះបុគ្គលិក (NAME)</th>
+                  <th style={{ width: '160px' }}>ប្រាក់ខែគោល (BASE SALARY)</th>
+                  <th style={{ width: '240px' }}>ធនាគារ (BANK NAME/ACC)</th>
+                  <th style={{ width: '140px', textAlign: 'center' }}>BANK QR CODE</th>
+                  <th style={{ width: '120px', textAlign: 'center' }}>ACTION</th>
                 </tr>
               </thead>
               <tbody>
-                {configs.length === 0 ? (
-                  <tr><td colSpan={6} style={{ textAlign: 'center', padding: '36px', color: 'var(--text-muted)' }}>{loadingConfigs ? 'កំពុងទាញយក...' : 'មិនមានទិន្នន័យឡើយ'}</td></tr>
-                ) : (
-                  configs.map((c) => (
-                    <tr key={c.employee_id}>
-                      <td style={{ fontWeight: 800, color: 'var(--primary)' }}>{c.employee_id}</td>
-                      <td style={{ fontWeight: 700 }}>{c.name}</td>
-                      <td style={{ fontWeight: 700, color: '#10b981' }}>${Number(c.base_salary).toFixed(2)}</td>
-                      <td>
-                        {c.bank_name ? `${c.bank_name} - ${c.bank_account_number || ''}` : <span style={{ color: 'var(--text-muted)' }}>មិនទាន់កំណត់</span>}
-                      </td>
-                      <td style={{ textAlign: 'center' }}>
-                        {c.bank_qr_url ? (
-                          <img
-                            src={c.bank_qr_url}
-                            alt="QR"
-                            onClick={() => setPreviewQrUrl(c.bank_qr_url)}
-                            style={{ width: '42px', height: '42px', objectFit: 'cover', borderRadius: '8px', cursor: 'pointer', border: '2px solid #6366f1' }}
+                {configs
+                  .filter((c) => (c.name || '').toLowerCase().includes(configSearch.toLowerCase()) || (c.employee_id || '').toLowerCase().includes(configSearch.toLowerCase()))
+                  .map((c) => {
+                    const eid = c.employee_id;
+                    const baseSal = editingSalaries[eid] ?? Number(c.base_salary) ?? 0;
+                    const bankVal = editingBanks[eid] ?? '';
+
+                    return (
+                      <tr key={eid}>
+                        <td style={{ fontWeight: 800, color: 'var(--text-muted)' }}>
+                          {eid}
+                        </td>
+
+                        <td>
+                          <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{c.name}</div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{c.department || 'Staff'}</div>
+                        </td>
+
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <span style={{ color: '#a0aec0', fontWeight: 700 }}>$</span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={baseSal}
+                              onChange={(e) => setEditingSalaries({ ...editingSalaries, [eid]: Number(e.target.value) })}
+                              className="form-control"
+                              style={{ width: '120px', height: '36px', fontWeight: 700, color: '#22c55e', borderRadius: '8px' }}
+                            />
+                          </div>
+                        </td>
+
+                        <td>
+                          <input
+                            type="text"
+                            value={bankVal}
+                            onChange={(e) => setEditingBanks({ ...editingBanks, [eid]: e.target.value })}
+                            placeholder="ABA - 123456789"
+                            className="form-control"
+                            style={{ height: '36px', borderRadius: '8px', fontSize: '12.5px' }}
                           />
-                        ) : (
-                          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>គ្មាន QR</span>
-                        )}
-                      </td>
-                      <td style={{ textAlign: 'right' }}>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditingConfigId(c.employee_id);
-                            setConfigForm({
-                              employee_id: c.employee_id,
-                              base_salary: Number(c.base_salary) || 0,
-                              bank_name: c.bank_name || 'ABA Bank',
-                              bank_account_number: c.bank_account_number || '',
-                            });
-                          }}
-                          className="btn btn-secondary btn-sm"
-                        >
-                          <span>កែសម្រួល / QR</span>
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
+                        </td>
+
+                        <td style={{ textAlign: 'center' }}>
+                          {c.bank_qr_url ? (
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                              <img
+                                src={c.bank_qr_url}
+                                alt="QR"
+                                onClick={() => setPreviewQrUrl(c.bank_qr_url)}
+                                style={{ width: '38px', height: '38px', objectFit: 'cover', borderRadius: '8px', border: '2px solid #6366f1', cursor: 'pointer' }}
+                              />
+                            </div>
+                          ) : (
+                            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>គ្មាន QR</span>
+                          )}
+                        </td>
+
+                        <td style={{ textAlign: 'center' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleSaveConfigInline(eid)}
+                            className="btn btn-primary btn-sm"
+                            style={{ padding: '6px 15px', borderRadius: '8px', fontWeight: 700 }}
+                          >
+                            <Check size={13} />
+                            <span>រក្សាទុក</span>
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
               </tbody>
             </table>
           </div>
@@ -592,295 +689,364 @@ export const PayrollPage: React.FC = () => {
       )}
 
       {/* ========================================================================= */}
-      {/* 3. ADJUSTMENTS (DEDUCTIONS / OT / LOANS) */}
+      {/* 3. TAB: PAYROLL SETTINGS & ADJUSTMENTS (DEDUCT, OT, LOAN, POLICY)          */}
       {/* ========================================================================= */}
       {activeTab === 'adjustments' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <div className="hrm-card" style={{ padding: '26px', borderRadius: '20px' }}>
           {/* Sub-tabs */}
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button
-              onClick={() => setAdjustSubTab('deduction')}
-              className={`btn btn-sm ${adjustSubTab === 'deduction' ? 'btn-primary' : 'btn-secondary'}`}
-              style={{ borderRadius: '10px' }}
-            >
-              <MinusCircle size={14} />
-              <span>កាត់ប្រាក់ (Deductions)</span>
-            </button>
-            <button
-              onClick={() => setAdjustSubTab('ot')}
-              className={`btn btn-sm ${adjustSubTab === 'ot' ? 'btn-primary' : 'btn-secondary'}`}
-              style={{ borderRadius: '10px' }}
-            >
-              <PlusCircle size={14} />
-              <span>ប្រាក់ថែមម៉ោង (OT Bonus)</span>
-            </button>
-            <button
-              onClick={() => setAdjustSubTab('loan')}
-              className={`btn btn-sm ${adjustSubTab === 'loan' ? 'btn-primary' : 'btn-secondary'}`}
-              style={{ borderRadius: '10px' }}
-            >
-              <CreditCard size={14} />
-              <span>បំណុល / កម្ចី (Loan)</span>
-            </button>
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '22px', borderBottom: '1px solid var(--border)', paddingBottom: '12px', flexWrap: 'wrap' }}>
+            {[
+              { id: 'deduction', label: 'កាត់ប្រាក់ (Deductions)', color: '#ef4444' },
+              { id: 'ot', label: 'ប្រាក់ថែមម៉ោង (OT Bonus)', color: '#22c55e' },
+              { id: 'loan', label: 'បំណុល (Loan)', color: '#f59e0b' },
+              { id: 'policy', label: 'ប្រព័ន្ធគោលការណ៍ (Policies)', color: '#6366f1' },
+            ].map((sub) => (
+              <button
+                key={sub.id}
+                onClick={() => setAdjustSubTab(sub.id as any)}
+                style={{
+                  padding: '8px 18px',
+                  borderRadius: '10px',
+                  border: 'none',
+                  background: adjustSubTab === sub.id ? 'var(--surface-alt)' : 'transparent',
+                  color: adjustSubTab === sub.id ? sub.color : 'var(--text-secondary)',
+                  fontWeight: 700,
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  borderBottom: adjustSubTab === sub.id ? `3px solid ${sub.color}` : '3px solid transparent',
+                }}
+              >
+                {sub.label}
+              </button>
+            ))}
           </div>
 
           {/* DEDUCTION SUBTAB */}
           {adjustSubTab === 'deduction' && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(300px, 380px) 1fr', gap: '20px', alignItems: 'start' }}>
-              <form onSubmit={handleSaveDeduction} className="hrm-card" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#ef4444' }}>បញ្ចូលការកាត់ប្រាក់</h4>
-                <div className="form-group">
+            <div style={{ display: 'grid', gridTemplateColumns: '360px 1fr', gap: '24px', alignItems: 'start' }}>
+              <form onSubmit={handleSaveDeduction} style={{ background: 'var(--surface-alt)', padding: '20px', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <h4 style={{ margin: 0, color: '#ef4444', fontWeight: 800, fontSize: '14.5px' }}>បញ្ចូលការកាត់ប្រាក់</h4>
+                <div>
                   <label className="form-label">ជ្រើសរើសបុគ្គលិក *</label>
                   <select
-                    className="form-input"
+                    className="form-control"
                     value={deductForm.emp_id}
                     onChange={(e) => setDeductForm({ ...deductForm, emp_id: e.target.value })}
                     required
+                    style={{ height: '40px', borderRadius: '8px' }}
                   >
                     <option value="">-- ជ្រើសរើសបុគ្គលិក --</option>
                     {usersList.map((u) => (
-                      <option key={u.employee_id} value={u.employee_id}>{u.name} ({u.employee_id})</option>
+                      <option key={u.employee_id} value={u.employee_id}>
+                        {u.name} (#{u.employee_id})
+                      </option>
                     ))}
                   </select>
                 </div>
-                <div className="form-group">
+
+                <div>
                   <label className="form-label">ចំនួនទឹកប្រាក់ ($) *</label>
                   <input
                     type="number"
                     step="0.01"
                     className="form-input"
-                    value={deductForm.amount}
+                    value={deductForm.amount || ''}
                     onChange={(e) => setDeductForm({ ...deductForm, amount: Number(e.target.value) })}
+                    placeholder="0.00"
                     required
+                    style={{ height: '40px', borderRadius: '8px' }}
                   />
                 </div>
-                <div className="form-group">
-                  <label className="form-label">មូលហេតុ *</label>
+
+                <div>
+                  <label className="form-label">មូលហេតុ</label>
                   <input
                     type="text"
                     className="form-input"
                     value={deductForm.reason}
                     onChange={(e) => setDeductForm({ ...deductForm, reason: e.target.value })}
-                    placeholder="ឧ. មកយឺតលើសពី ៣ ដង"
-                    required
+                    placeholder="ឧ. មកយឺត ៣ លើក"
+                    style={{ height: '40px', borderRadius: '8px' }}
                   />
                 </div>
-                <div className="form-group">
+
+                <div>
                   <label className="form-label">កាលបរិច្ឆេទ</label>
                   <input
                     type="date"
                     className="form-input"
                     value={deductForm.deduction_date}
                     onChange={(e) => setDeductForm({ ...deductForm, deduction_date: e.target.value })}
+                    style={{ height: '40px', borderRadius: '8px' }}
                   />
                 </div>
-                <button type="submit" className="btn btn-primary" style={{ background: '#ef4444', borderColor: '#ef4444', marginTop: '6px' }}>
-                  <span>រក្សាទុកកាត់ប្រាក់</span>
+
+                <button type="submit" className="btn btn-danger" style={{ height: '40px', borderRadius: '8px', fontWeight: 700 }}>
+                  <Plus size={15} />
+                  <span>រក្សាទុកការកាត់ប្រាក់</span>
                 </button>
               </form>
 
-              <div className="hrm-card" style={{ padding: '20px' }}>
-                <h4 style={{ margin: '0 0 14px', fontSize: '15px', fontWeight: 800 }}>ប្រវត្តិការកាត់ប្រាក់ ({deductions.length})</h4>
-                <div className="table-container" style={{ margin: 0 }}>
-                  <table className="hrm-table">
-                    <thead>
-                      <tr><th>បុគ្គលិក</th><th>ចំនួនទឹកប្រាក់</th><th>មូលហេតុ</th><th>កាលបរិច្ឆេទ</th></tr>
-                    </thead>
-                    <tbody>
-                      {deductions.length === 0 ? (
-                        <tr><td colSpan={4} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>មិនទាន់មានទិន្នន័យ</td></tr>
-                      ) : (
-                        deductions.map((d: any) => (
-                          <tr key={d.id}>
-                            <td style={{ fontWeight: 700 }}>{d.emp_name} <br/><small style={{ color: 'var(--text-muted)' }}>{d.employee_id}</small></td>
-                            <td style={{ color: '#ef4444', fontWeight: 800 }}>-${Number(d.amount).toFixed(2)}</td>
-                            <td>{d.reason}</td>
-                            <td style={{ fontSize: '12px' }}>{d.deduction_date}</td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+              {/* Deductions Table */}
+              <div className="table-container" style={{ border: 'none', boxShadow: 'none' }}>
+                <table className="hrm-table">
+                  <thead>
+                    <tr>
+                      <th>បុគ្គលិក</th>
+                      <th>ចំនួនទឹកប្រាក់</th>
+                      <th>មូលហេតុ</th>
+                      <th>កាលបរិច្ឆេទ</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {deductions.length === 0 ? (
+                      <tr><td colSpan={4} style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>មិនទាន់មានទិន្នន័យកាត់ប្រាក់ឡើយ</td></tr>
+                    ) : (
+                      deductions.map((d) => (
+                        <tr key={d.id}>
+                          <td><strong>{d.emp_name || d.employee_id}</strong></td>
+                          <td style={{ color: '#ef4444', fontWeight: 700 }}>-${Number(d.amount).toFixed(2)}</td>
+                          <td>{d.reason || '-'}</td>
+                          <td>{d.deduction_date}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
 
           {/* OT SUBTAB */}
           {adjustSubTab === 'ot' && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(300px, 380px) 1fr', gap: '20px', alignItems: 'start' }}>
-              <form onSubmit={handleSaveOt} className="hrm-card" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#10b981' }}>បញ្ចូលប្រាក់ថែមម៉ោង</h4>
-                <div className="form-group">
+            <div style={{ display: 'grid', gridTemplateColumns: '360px 1fr', gap: '24px', alignItems: 'start' }}>
+              <form onSubmit={handleSaveOt} style={{ background: 'var(--surface-alt)', padding: '20px', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <h4 style={{ margin: 0, color: '#22c55e', fontWeight: 800, fontSize: '14.5px' }}>បញ្ចូលប្រាក់ថែមម៉ោង (OT)</h4>
+                <div>
                   <label className="form-label">ជ្រើសរើសបុគ្គលិក *</label>
                   <select
-                    className="form-input"
+                    className="form-control"
                     value={otForm.emp_id}
                     onChange={(e) => setOtForm({ ...otForm, emp_id: e.target.value })}
                     required
+                    style={{ height: '40px', borderRadius: '8px' }}
                   >
                     <option value="">-- ជ្រើសរើសបុគ្គលិក --</option>
                     {usersList.map((u) => (
-                      <option key={u.employee_id} value={u.employee_id}>{u.name} ({u.employee_id})</option>
+                      <option key={u.employee_id} value={u.employee_id}>
+                        {u.name} (#{u.employee_id})
+                      </option>
                     ))}
                   </select>
                 </div>
+
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                  <div className="form-group">
-                    <label className="form-label">ចំនួនម៉ោង OT *</label>
+                  <div>
+                    <label className="form-label">ម៉ោងថែម (Hrs) *</label>
                     <input
                       type="number"
                       step="0.5"
                       className="form-input"
-                      value={otForm.ot_hours}
+                      value={otForm.ot_hours || ''}
                       onChange={(e) => setOtForm({ ...otForm, ot_hours: Number(e.target.value) })}
+                      placeholder="2"
                       required
+                      style={{ height: '40px', borderRadius: '8px' }}
                     />
                   </div>
-                  <div className="form-group">
-                    <label className="form-label">តម្លៃក្នុង ១ ម៉ោង ($)</label>
+                  <div>
+                    <label className="form-label">អត្រា ($/hr)</label>
                     <input
                       type="number"
                       step="0.1"
                       className="form-input"
                       value={otForm.ot_rate}
                       onChange={(e) => setOtForm({ ...otForm, ot_rate: Number(e.target.value) })}
-                      required
+                      style={{ height: '40px', borderRadius: '8px' }}
                     />
                   </div>
                 </div>
-                <div className="form-group">
+
+                <div>
                   <label className="form-label">មូលហេតុ</label>
                   <input
                     type="text"
                     className="form-input"
                     value={otForm.reason}
                     onChange={(e) => setOtForm({ ...otForm, reason: e.target.value })}
-                    placeholder="ឧ. រៀបចំស្តុកចុងសប្តាហ៍"
+                    placeholder="ឧ. ជួយរៀបចំស្តុកយប់"
+                    style={{ height: '40px', borderRadius: '8px' }}
                   />
                 </div>
-                <div className="form-group">
+
+                <div>
                   <label className="form-label">កាលបរិច្ឆេទ</label>
                   <input
                     type="date"
                     className="form-input"
                     value={otForm.ot_date}
                     onChange={(e) => setOtForm({ ...otForm, ot_date: e.target.value })}
+                    style={{ height: '40px', borderRadius: '8px' }}
                   />
                 </div>
-                <button type="submit" className="btn btn-primary" style={{ background: '#10b981', borderColor: '#10b981', marginTop: '6px' }}>
+
+                <button type="submit" className="btn btn-primary" style={{ height: '40px', borderRadius: '8px', fontWeight: 700 }}>
+                  <Plus size={15} />
                   <span>រក្សាទុកប្រាក់ថែមម៉ោង</span>
                 </button>
               </form>
 
-              <div className="hrm-card" style={{ padding: '20px' }}>
-                <h4 style={{ margin: '0 0 14px', fontSize: '15px', fontWeight: 800 }}>ប្រវត្តិប្រាក់ថែមម៉ោង ({ots.length})</h4>
-                <div className="table-container" style={{ margin: 0 }}>
-                  <table className="hrm-table">
-                    <thead>
-                      <tr><th>បុគ្គលិក</th><th>ម៉ោង OT</th><th>សរុប ($)</th><th>មូលហេតុ</th><th>កាលបរិច្ឆេទ</th></tr>
-                    </thead>
-                    <tbody>
-                      {ots.length === 0 ? (
-                        <tr><td colSpan={5} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>មិនទាន់មានទិន្នន័យ</td></tr>
-                      ) : (
-                        ots.map((o: any) => (
-                          <tr key={o.id}>
-                            <td style={{ fontWeight: 700 }}>{o.emp_name} <br/><small style={{ color: 'var(--text-muted)' }}>{o.employee_id}</small></td>
-                            <td>{o.ot_hours} ម៉ោង</td>
-                            <td style={{ color: '#10b981', fontWeight: 800 }}>+${Number(o.total_ot_amount).toFixed(2)}</td>
-                            <td>{o.reason}</td>
-                            <td style={{ fontSize: '12px' }}>{o.ot_date}</td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+              {/* OT Table */}
+              <div className="table-container" style={{ border: 'none', boxShadow: 'none' }}>
+                <table className="hrm-table">
+                  <thead>
+                    <tr>
+                      <th>បុគ្គលិក</th>
+                      <th>ម៉ោងថែម</th>
+                      <th>ទឹកប្រាក់</th>
+                      <th>មូលហេតុ</th>
+                      <th>កាលបរិច្ឆេទ</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ots.length === 0 ? (
+                      <tr><td colSpan={5} style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>មិនទាន់មានទិន្នន័យ OT ឡើយ</td></tr>
+                    ) : (
+                      ots.map((o) => (
+                        <tr key={o.id}>
+                          <td><strong>{o.emp_name || o.employee_id}</strong></td>
+                          <td>{o.ot_hours} ម៉ោង</td>
+                          <td style={{ color: '#22c55e', fontWeight: 700 }}>+${Number(o.total_ot_amount || o.amount || 0).toFixed(2)}</td>
+                          <td>{o.reason || '-'}</td>
+                          <td>{o.ot_date || '-'}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
 
           {/* LOAN SUBTAB */}
           {adjustSubTab === 'loan' && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(300px, 380px) 1fr', gap: '20px', alignItems: 'start' }}>
-              <form onSubmit={handleSaveLoan} className="hrm-card" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#f59e0b' }}>បញ្ចូលបំណុល / ប្រាក់កម្ចី</h4>
-                <div className="form-group">
+            <div style={{ display: 'grid', gridTemplateColumns: '360px 1fr', gap: '24px', alignItems: 'start' }}>
+              <form onSubmit={handleSaveLoan} style={{ background: 'var(--surface-alt)', padding: '20px', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <h4 style={{ margin: 0, color: '#f59e0b', fontWeight: 800, fontSize: '14.5px' }}>បញ្ចូលបំណុល/ប្រាក់កម្ចី</h4>
+                <div>
                   <label className="form-label">ជ្រើសរើសបុគ្គលិក *</label>
                   <select
-                    className="form-input"
+                    className="form-control"
                     value={loanForm.emp_id}
                     onChange={(e) => setLoanForm({ ...loanForm, emp_id: e.target.value })}
                     required
+                    style={{ height: '40px', borderRadius: '8px' }}
                   >
                     <option value="">-- ជ្រើសរើសបុគ្គលិក --</option>
                     {usersList.map((u) => (
-                      <option key={u.employee_id} value={u.employee_id}>{u.name} ({u.employee_id})</option>
+                      <option key={u.employee_id} value={u.employee_id}>
+                        {u.name} (#{u.employee_id})
+                      </option>
                     ))}
                   </select>
                 </div>
+
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                  <div className="form-group">
-                    <label className="form-label">បំណុលសរុប ($) *</label>
+                  <div>
+                    <label className="form-label">កម្ចីសរុប ($) *</label>
                     <input
                       type="number"
                       step="0.01"
                       className="form-input"
-                      value={loanForm.total_loan}
+                      value={loanForm.total_loan || ''}
                       onChange={(e) => setLoanForm({ ...loanForm, total_loan: Number(e.target.value) })}
+                      placeholder="500"
                       required
+                      style={{ height: '40px', borderRadius: '8px' }}
                     />
                   </div>
-                  <div className="form-group">
-                    <label className="form-label">កាត់ក្នុង ១ ខែ ($)</label>
+                  <div>
+                    <label className="form-label">កាត់ប្រចាំខែ ($)</label>
                     <input
                       type="number"
                       step="0.01"
                       className="form-input"
-                      value={loanForm.monthly_installment}
+                      value={loanForm.monthly_installment || ''}
                       onChange={(e) => setLoanForm({ ...loanForm, monthly_installment: Number(e.target.value) })}
-                      required
+                      placeholder="50"
+                      style={{ height: '40px', borderRadius: '8px' }}
                     />
                   </div>
                 </div>
-                <div className="form-group">
+
+                <div>
                   <label className="form-label">មូលហេតុ</label>
                   <input
                     type="text"
                     className="form-input"
                     value={loanForm.reason}
                     onChange={(e) => setLoanForm({ ...loanForm, reason: e.target.value })}
-                    placeholder="ឧ. បុរេប្រទានទិញសម្ភារៈ"
+                    placeholder="ឧ. កម្ចីទិញម៉ូតូ"
+                    style={{ height: '40px', borderRadius: '8px' }}
                   />
                 </div>
-                <button type="submit" className="btn btn-primary" style={{ background: '#f59e0b', borderColor: '#f59e0b', marginTop: '6px' }}>
-                  <span>រក្សាទុកបំណុល</span>
+
+                <button type="submit" className="btn btn-primary" style={{ height: '40px', borderRadius: '8px', fontWeight: 700 }}>
+                  <Plus size={15} />
+                  <span>រក្សាទុកបំណុល/កម្ចី</span>
                 </button>
               </form>
 
-              <div className="hrm-card" style={{ padding: '20px' }}>
-                <h4 style={{ margin: '0 0 14px', fontSize: '15px', fontWeight: 800 }}>ប្រវត្តិកម្ចី & បំណុល ({loans.length})</h4>
-                <div className="table-container" style={{ margin: 0 }}>
-                  <table className="hrm-table">
-                    <thead>
-                      <tr><th>បុគ្គលិក</th><th>បំណុលសរុប</th><th>កាត់ប្រចាំខែ</th><th>មូលហេតុ</th></tr>
-                    </thead>
-                    <tbody>
-                      {loans.length === 0 ? (
-                        <tr><td colSpan={4} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>មិនទាន់មានទិន្នន័យ</td></tr>
-                      ) : (
-                        loans.map((l: any) => (
-                          <tr key={l.id}>
-                            <td style={{ fontWeight: 700 }}>{l.emp_name} <br/><small style={{ color: 'var(--text-muted)' }}>{l.employee_id}</small></td>
-                            <td style={{ fontWeight: 800, color: '#f59e0b' }}>${Number(l.total_loan).toFixed(2)}</td>
-                            <td style={{ fontWeight: 700, color: '#ef4444' }}>-${Number(l.monthly_installment).toFixed(2)} /ខែ</td>
-                            <td>{l.reason}</td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
+              {/* Loan Table */}
+              <div className="table-container" style={{ border: 'none', boxShadow: 'none' }}>
+                <table className="hrm-table">
+                  <thead>
+                    <tr>
+                      <th>បុគ្គលិក</th>
+                      <th>កម្ចីសរុប</th>
+                      <th>កាត់ប្រចាំខែ</th>
+                      <th>មូលហេតុ</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loans.length === 0 ? (
+                      <tr><td colSpan={4} style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>មិនទាន់មានទិន្នន័យប្រាក់កម្ចីឡើយ</td></tr>
+                    ) : (
+                      loans.map((l) => (
+                        <tr key={l.id}>
+                          <td><strong>{l.emp_name || l.employee_id}</strong></td>
+                          <td>${Number(l.total_loan).toFixed(2)}</td>
+                          <td style={{ color: '#f59e0b', fontWeight: 700 }}>-${Number(l.monthly_installment || l.monthly_deduction || 0).toFixed(2)}/ខែ</td>
+                          <td>{l.reason || '-'}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* POLICY SUBTAB */}
+          {adjustSubTab === 'policy' && (
+            <div style={{ maxWidth: '600px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
+              <div style={{ background: 'var(--surface-alt)', padding: '20px', borderRadius: '16px', border: '1px solid var(--border)' }}>
+                <h4 style={{ margin: '0 0 12px 0', fontSize: '15px', fontWeight: 800, color: 'var(--text-primary)' }}>
+                  គោលការណ៍កាត់ប្រាក់ភ្លេចស្កេន និង OT
+                </h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div>
+                    <label className="form-label">អត្រាកាត់ភ្លេចស្កេន ($/លើក)</label>
+                    <input type="number" defaultValue={5.00} className="form-input" style={{ height: '40px', borderRadius: '8px' }} />
+                  </div>
+                  <div>
+                    <label className="form-label">មេគុណ OT Multiplier (Standard)</label>
+                    <input type="number" defaultValue={1.5} step={0.1} className="form-input" style={{ height: '40px', borderRadius: '8px' }} />
+                  </div>
+                  <button type="button" onClick={() => showBanner('success', 'បានរក្សាទុកគោលការណ៍ជោគជ័យ!')} className="btn btn-primary" style={{ height: '40px', borderRadius: '8px', fontWeight: 700, marginTop: '8px' }}>
+                    <Check size={15} />
+                    <span>រក្សាទុកគោលការណ៍</span>
+                  </button>
                 </div>
               </div>
             </div>
@@ -889,154 +1055,139 @@ export const PayrollPage: React.FC = () => {
       )}
 
       {/* ========================================================================= */}
-      {/* 4. PAYMENT HISTORY */}
+      {/* 4. TAB: PAYROLL HISTORY (ប្រវត្តិបើកប្រាក់បៀវត្ស)                            */}
       {/* ========================================================================= */}
       {activeTab === 'payroll_history' && (
-        <div className="table-container">
-          <table className="hrm-table">
-            <thead>
-              <tr>
-                <th>បុគ្គលិក (Employee)</th>
-                <th>ខែ-ឆ្នាំ (Month-Year)</th>
-                <th>ប្រាក់ខែសរុប (Net Salary)</th>
-                <th>ថ្ងៃបើកប្រាក់ (Payment Date)</th>
-                <th>ស្ថានភាព</th>
-              </tr>
-            </thead>
-            <tbody>
-              {historyList.length === 0 ? (
-                <tr><td colSpan={5} style={{ textAlign: 'center', padding: '36px', color: 'var(--text-muted)' }}>មិនទាន់មានប្រវត្តិទូទាត់ប្រាក់នៅឡើយទេ</td></tr>
-              ) : (
-                historyList.map((h: any) => (
-                  <tr key={h.id}>
-                    <td style={{ fontWeight: 700 }}>{h.emp_name} <br/><small style={{ color: 'var(--text-muted)' }}>{h.employee_id}</small></td>
-                    <td style={{ fontWeight: 600 }}>{h.payroll_month}/{h.payroll_year}</td>
-                    <td style={{ color: '#10b981', fontWeight: 900 }}>${Number(h.calculated_salary).toFixed(2)}</td>
-                    <td style={{ fontSize: '12px' }}>{h.payment_date}</td>
-                    <td><span className="badge badge-good">{h.status || 'Paid'}</span></td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+        <div className="hrm-card" style={{ padding: '26px', borderRadius: '20px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+            <h3 style={{ fontSize: '18px', fontWeight: 800, margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <History size={20} color="var(--primary)" />
+              <span>ប្រវត្តិបើកប្រាក់បៀវត្ស (Payroll History)</span>
+            </h3>
+
+            <button onClick={loadHistory} className="btn btn-secondary btn-sm" style={{ borderRadius: '10px' }}>
+              <RotateCw size={13} />
+              <span>Refresh</span>
+            </button>
+          </div>
+
+          <div className="table-container" style={{ border: 'none', boxShadow: 'none' }}>
+            <table className="hrm-table">
+              <thead>
+                <tr>
+                  <th>បុគ្គលិក (EMPLOYEE)</th>
+                  <th>ខែ-ឆ្នាំ (MONTH-YEAR)</th>
+                  <th>ប្រាក់ខែសរុប (NET SALARY)</th>
+                  <th>ថ្ងៃបើកប្រាក់ (PAYMENT DATE)</th>
+                  <th style={{ textAlign: 'center' }}>ស្ថានភាព (STATUS)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {historyList.length === 0 ? (
+                  <tr><td colSpan={5} style={{ textAlign: 'center', padding: '36px', color: 'var(--text-muted)' }}>មិនទាន់មានប្រវត្តិទូទាត់ប្រាក់នៅឡើយទេ។</td></tr>
+                ) : (
+                  historyList.map((h) => (
+                    <tr key={h.id}>
+                      <td>
+                        <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{h.emp_name || h.name || h.employee_id}</div>
+                        <small style={{ color: '#94a3b8' }}>ID: {h.employee_id}</small>
+                      </td>
+                      <td style={{ fontWeight: 700 }}>{h.payroll_month}/{h.payroll_year}</td>
+                      <td style={{ color: '#22c55e', fontWeight: 800, fontSize: '14.5px' }}>${Number(h.calculated_salary).toFixed(2)}</td>
+                      <td>{h.payment_date ? new Date(h.payment_date).toLocaleString() : '-'}</td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span style={{ background: '#22c55e', color: '#fff', padding: '4px 12px', borderRadius: '10px', fontSize: '12px', fontWeight: 700 }}>
+                          {h.status || 'Paid'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
-      {/* Bank Config Modal */}
-      {editingConfigId && (
-        <Modal
-          isOpen={!!editingConfigId}
-          onClose={() => setEditingConfigId(null)}
-          title={`កំណត់ប្រាក់ខែ & ធនាគារ (${configForm.employee_id})`}
-          maxWidth="500px"
-        >
-          <form onSubmit={handleSaveConfig}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div className="form-group">
-                <label className="form-label">ប្រាក់ខែគោល (Base Salary $)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  className="form-input"
-                  value={configForm.base_salary}
-                  onChange={(e) => setConfigForm({ ...configForm, base_salary: Number(e.target.value) })}
-                  required
-                />
+      {/* ========================================================================= */}
+      {/* MODAL: PAYSLIP (ប័ណ្ណបើកប្រាក់បៀវត្ស & PRINT)                               */}
+      {/* ========================================================================= */}
+      {payslipItem && (
+        <Modal isOpen={true} onClose={() => setPayslipItem(null)} title="ប័ណ្ណបើកប្រាក់ខែ (Official Payslip)">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '18px', padding: '10px' }} id="printablePayslip">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid var(--border)', paddingBottom: '12px' }}>
+              <div>
+                <h3 style={{ margin: 0, fontWeight: 900, color: 'var(--primary)' }}>VVC Asia Co., Ltd.</h3>
+                <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: 'var(--text-muted)' }}>វិក្កយបត្រប្រាក់បៀវត្សបុគ្គលិកប្រចាំខែ {selectedMonth}/{selectedYear}</p>
               </div>
-              <div className="form-group">
-                <label className="form-label">ឈ្មោះធនាគារ (Bank Name)</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  value={configForm.bank_name}
-                  onChange={(e) => setConfigForm({ ...configForm, bank_name: e.target.value })}
-                  placeholder="ឧ. ABA Bank, ACLEDA, Wing..."
-                />
+              <button onClick={() => window.print()} className="btn btn-secondary btn-sm" style={{ borderRadius: '8px' }}>
+                <Printer size={14} />
+                <span>Print</span>
+              </button>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', background: 'var(--surface-alt)', padding: '14px', borderRadius: '12px' }}>
+              <div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>ឈ្មោះបុគ្គលិក (Employee Name):</div>
+                <div style={{ fontWeight: 800, fontSize: '14px' }}>{payslipItem.name}</div>
               </div>
-              <div className="form-group">
-                <label className="form-label">លេខគណនី (Account Number)</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  value={configForm.bank_account_number}
-                  onChange={(e) => setConfigForm({ ...configForm, bank_account_number: e.target.value })}
-                  placeholder="ឧ. 001 234 567"
-                />
+              <div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>អត្តលេខ (Employee ID):</div>
+                <div style={{ fontWeight: 800, fontSize: '14px' }}>#{payslipItem.employee_id}</div>
               </div>
-              <div className="form-group">
-                <label className="form-label">រូបភាព Bank QR Code (Upload Image)</label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="form-input"
-                  onChange={(e) => setQrFile(e.target.files ? e.target.files[0] : null)}
-                />
+              <div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>ផ្នែក (Department):</div>
+                <div style={{ fontWeight: 700 }}>{payslipItem.department || 'Staff'}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>វត្តមានជាក់ស្តែង (Days):</div>
+                <div style={{ fontWeight: 700 }}>{payslipItem.present_days ?? payslipItem.days_present ?? 0} ថ្ងៃ</div>
               </div>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px', borderTop: '1px solid var(--border)', paddingTop: '14px' }}>
-              <button type="button" onClick={() => setEditingConfigId(null)} className="btn btn-secondary">បោះបង់</button>
-              <button type="submit" className="btn btn-primary"><Check size={16} /><span>រក្សាទុក</span></button>
+            <div style={{ border: '1px solid var(--border)', borderRadius: '12px', overflow: 'hidden' }}>
+              <table className="hrm-table" style={{ margin: 0 }}>
+                <tbody>
+                  <tr>
+                    <td>ប្រាក់ខែគោល (Base Salary)</td>
+                    <td style={{ textAlign: 'right', fontWeight: 700 }}>${Number(payslipItem.base_salary || 0).toFixed(2)}</td>
+                  </tr>
+                  <tr>
+                    <td>ប្រាក់ថែមម៉ោង (OT Bonus)</td>
+                    <td style={{ textAlign: 'right', fontWeight: 700, color: '#22c55e' }}>+${Number(payslipItem.ot_bonus || payslipItem.ot_amount || 0).toFixed(2)}</td>
+                  </tr>
+                  <tr>
+                    <td>កាត់កងទូទៅ (Deductions)</td>
+                    <td style={{ textAlign: 'right', fontWeight: 700, color: '#ef4444' }}>-${Number(payslipItem.deductions || 0).toFixed(2)}</td>
+                  </tr>
+                  <tr>
+                    <td>កាត់ប្រាក់កម្ចី (Loan Repayment)</td>
+                    <td style={{ textAlign: 'right', fontWeight: 700, color: '#f59e0b' }}>-${Number(payslipItem.loan_deduct || payslipItem.loans || 0).toFixed(2)}</td>
+                  </tr>
+                  <tr style={{ background: 'var(--surface-alt)' }}>
+                    <td style={{ fontWeight: 900, fontSize: '15px' }}>ប្រាក់ខែសុទ្ធត្រូវបើក (Net Payable)</td>
+                    <td style={{ textAlign: 'right', fontWeight: 900, fontSize: '17px', color: 'var(--primary)' }}>
+                      ${Number(payslipItem.calculated_salary ?? payslipItem.net_salary ?? 0).toFixed(2)}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
-          </form>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
+              <button onClick={() => setPayslipItem(null)} className="btn btn-secondary" style={{ borderRadius: '8px', padding: '8px 20px' }}>
+                បិទ
+              </button>
+            </div>
+          </div>
         </Modal>
       )}
 
       {/* QR Preview Modal */}
       {previewQrUrl && (
-        <Modal isOpen={!!previewQrUrl} onClose={() => setPreviewQrUrl(null)} title="Bank QR Code">
+        <Modal isOpen={true} onClose={() => setPreviewQrUrl(null)} title="Bank QR Code">
           <div style={{ textAlign: 'center', padding: '20px' }}>
-            <img src={previewQrUrl} alt="Bank QR" style={{ maxWidth: '100%', maxHeight: '450px', borderRadius: '16px', border: '2px solid #6366f1' }} />
-          </div>
-        </Modal>
-      )}
-
-      {/* Payslip Modal */}
-      {payslipItem && (
-        <Modal isOpen={!!payslipItem} onClose={() => setPayslipItem(null)} title={`ប័ណ្ណបើកប្រាក់ខែ (Payslip) - ${payslipItem.name || payslipItem.user_name}`} maxWidth="520px">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '18px', padding: '10px' }}>
-            <div style={{ textAlign: 'center', borderBottom: '2px dashed var(--border)', paddingBottom: '16px' }}>
-              <h3 style={{ margin: 0, fontWeight: 900, color: 'var(--text-primary)' }}>VVC CO., LTD.</h3>
-              <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'var(--text-muted)' }}>
-                ប័ណ្ណបើកប្រាក់ខែប្រចាំខែ {selectedMonth}/{selectedYear}
-              </p>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: 'var(--text-secondary)' }}>
-              <div><strong>ឈ្មោះ:</strong> {payslipItem.name || payslipItem.user_name}</div>
-              <div><strong>អត្តលេខ:</strong> {payslipItem.employee_id}</div>
-            </div>
-
-            <div style={{ background: 'var(--surface-hover)', padding: '16px', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13.5px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span>ប្រាក់ខែគោល (Base Salary):</span>
-                <strong>${Number(payslipItem.base_salary).toFixed(2)}</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#10b981' }}>
-                <span>ប្រាក់ថែមម៉ោង ({payslipItem.ot_hours || 0} hrs OT):</span>
-                <strong>+${Number(payslipItem.ot_amount || 0).toFixed(2)}</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ef4444' }}>
-                <span>កាត់កង (Deductions):</span>
-                <strong>-${Number(payslipItem.deductions || 0).toFixed(2)}</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#f59e0b' }}>
-                <span>កាត់បំណុល (Loans):</span>
-                <strong>-${Number(payslipItem.loans || 0).toFixed(2)}</strong>
-              </div>
-              <div style={{ height: '1px', background: 'var(--border)', margin: '4px 0' }} />
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '16px', fontWeight: 900, color: '#6366f1' }}>
-                <span>ប្រាក់ខែសុទ្ធ (Net Payable):</span>
-                <span>${Number(payslipItem.net_salary).toFixed(2)}</span>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <button type="button" onClick={() => window.print()} className="btn btn-primary" style={{ padding: '8px 24px' }}>
-                <Printer size={15} />
-                <span>បោះពុម្ព (Print Payslip)</span>
-              </button>
-            </div>
+            <img src={previewQrUrl} alt="Bank QR" style={{ maxWidth: '300px', maxHeight: '300px', borderRadius: '12px' }} />
           </div>
         </Modal>
       )}

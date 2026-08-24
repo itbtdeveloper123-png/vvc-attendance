@@ -2423,22 +2423,17 @@ try {
         case 'fetch_payroll_records':
         case 'fetch_payroll':
         case 'get_salaries':
-            dbQuery("CREATE TABLE IF NOT EXISTS payroll_records (
+        case 'calculate_payroll':
+            dbQuery("CREATE TABLE IF NOT EXISTS payroll_history (
                 id INT AUTO_INCREMENT PRIMARY KEY,
-                employee_id VARCHAR(50) NOT NULL,
-                name VARCHAR(255) DEFAULT NULL,
-                base_salary DECIMAL(10, 2) DEFAULT 0.00,
-                days_present INT DEFAULT 26,
-                ot_hours DECIMAL(5, 2) DEFAULT 0.00,
-                ot_amount DECIMAL(10, 2) DEFAULT 0.00,
-                deductions DECIMAL(10, 2) DEFAULT 0.00,
-                loans DECIMAL(10, 2) DEFAULT 0.00,
-                net_salary DECIMAL(10, 2) DEFAULT 0.00,
-                status VARCHAR(50) DEFAULT 'Pending',
-                payroll_month INT DEFAULT 8,
-                payroll_year INT DEFAULT 2026,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE KEY emp_month_year (employee_id, payroll_month, payroll_year)
+                employee_id VARCHAR(50),
+                payroll_month VARCHAR(10),
+                payroll_year VARCHAR(10),
+                base_salary DECIMAL(10,2) DEFAULT 0.00,
+                present_days INT DEFAULT 0,
+                calculated_salary DECIMAL(10,2) DEFAULT 0.00,
+                status VARCHAR(20) DEFAULT 'Paid',
+                payment_date DATETIME DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
             dbQuery("CREATE TABLE IF NOT EXISTS payroll_configs (
@@ -2467,6 +2462,9 @@ try {
                 ot_hours DECIMAL(5,2) DEFAULT 0.00,
                 ot_rate DECIMAL(10,2) DEFAULT 0.00,
                 total_ot_amount DECIMAL(10,2) DEFAULT 0.00,
+                amount DECIMAL(10,2) DEFAULT 0.00,
+                ot_month VARCHAR(10) DEFAULT NULL,
+                ot_year VARCHAR(10) DEFAULT NULL,
                 reason VARCHAR(255) DEFAULT '',
                 ot_date DATE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -2477,75 +2475,128 @@ try {
                 employee_id VARCHAR(50) NOT NULL,
                 total_loan DECIMAL(10,2) DEFAULT 0.00,
                 monthly_installment DECIMAL(10,2) DEFAULT 0.00,
+                monthly_deduction DECIMAL(10,2) DEFAULT 0.00,
+                start_month VARCHAR(20) DEFAULT NULL,
+                duration_months INT DEFAULT 12,
                 reason VARCHAR(255) DEFAULT '',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
-            dbQuery("CREATE TABLE IF NOT EXISTS payroll_history (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                employee_id VARCHAR(50) NOT NULL,
-                payroll_month INT NOT NULL,
-                payroll_year INT NOT NULL,
-                calculated_salary DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-                payment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                status VARCHAR(50) DEFAULT 'Paid'
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-
             $month = (int)($_POST['month'] ?? $_GET['month'] ?? date('n'));
             $year = (int)($_POST['year'] ?? $_GET['year'] ?? date('Y'));
+            $month_padded = str_pad((string)$month, 2, '0', STR_PAD_LEFT);
 
-            $payroll = dbQuery("SELECT p.*, u.name as user_name, u.department, u.position, u.avatar, pc.bank_name, pc.bank_account_number, pc.bank_qr_file FROM payroll_records p LEFT JOIN users u ON p.employee_id = u.employee_id LEFT JOIN payroll_configs pc ON p.employee_id = pc.employee_id WHERE p.payroll_month = ? AND p.payroll_year = ? ORDER BY p.id DESC", [$month, $year]);
+            // Fetch all users
+            $users = dbQuery("SELECT u.employee_id, u.name, u.base_salary, u.avatar, u.department, u.position, pc.bank_name, pc.bank_account_number, pc.bank_qr_file, u.bank_qr_code_url, u.bank_data_str FROM users u LEFT JOIN payroll_configs pc ON u.employee_id = pc.employee_id ORDER BY u.employee_id ASC");
 
-            if (empty($payroll)) {
-                $users = dbQuery("SELECT employee_id, name, base_salary, department, position FROM users WHERE employment_status = 'Active' OR employment_status IS NULL OR employment_status = ''");
-                if (empty($users)) {
-                    $users = dbQuery("SELECT employee_id, name, base_salary, department, position FROM users");
+            $data = [];
+            foreach ($users as $u) {
+                $eid = $u['employee_id'];
+                $base_salary = (float)($u['base_salary'] ?? 0);
+
+                // 1. Present days from checkin_logs or attendance
+                $present_days = 0;
+                $chk_checkin = dbQuery("SHOW TABLES LIKE 'checkin_logs'");
+                if (!empty($chk_checkin)) {
+                    $r = dbQuery("SELECT COUNT(DISTINCT DATE(log_datetime)) as cnt FROM checkin_logs WHERE employee_id = ? AND MONTH(log_datetime) = ? AND YEAR(log_datetime) = ?", [$eid, $month, $year]);
+                    $present_days = (int)($r[0]['cnt'] ?? 0);
+                }
+                if ($present_days === 0) {
+                    $chk_att = dbQuery("SHOW TABLES LIKE 'attendance'");
+                    if (!empty($chk_att)) {
+                        $r = dbQuery("SELECT COUNT(DISTINCT DATE(attendance_date)) as cnt FROM attendance WHERE employee_id = ? AND MONTH(attendance_date) = ? AND YEAR(attendance_date) = ?", [$eid, $month, $year]);
+                        if (empty($r) || (int)($r[0]['cnt'] ?? 0) === 0) {
+                            $r = dbQuery("SELECT COUNT(DISTINCT DATE(created_at)) as cnt FROM attendance WHERE employee_id = ? AND MONTH(created_at) = ? AND YEAR(created_at) = ?", [$eid, $month, $year]);
+                        }
+                        $present_days = (int)($r[0]['cnt'] ?? 0);
+                    }
                 }
 
-                foreach ($users as $u) {
-                    $eid = $u['employee_id'];
-                    $base = (float)($u['base_salary'] ?? 0);
-                    if ($base <= 0) {
-                        $pcRow = dbQuery("SELECT base_salary FROM payroll_configs WHERE employee_id = ?", [$eid]);
-                        $base = !empty($pcRow) ? (float)$pcRow[0]['base_salary'] : 350.00;
-                    }
-                    if ($base <= 0) $base = 350.00;
+                // 2. Base Component calculation matching admin_attendance.php: ($base_salary / 30) * $present_days
+                $base_component = $present_days > 0 ? (($base_salary / 30) * $present_days) : 0;
 
-                    // Days present
-                    $days = 26;
-                    $attRow = dbQuery("SELECT COUNT(DISTINCT DATE(created_at)) as cnt FROM attendance WHERE employee_id = ? AND MONTH(created_at) = ? AND YEAR(created_at) = ?", [$eid, $month, $year]);
-                    if (!empty($attRow) && (int)$attRow[0]['cnt'] > 0) {
-                        $days = (int)$attRow[0]['cnt'];
-                    }
+                // 3. Deductions
+                $d_res = dbQuery("SELECT SUM(amount) as total FROM payroll_deductions WHERE employee_id = ? AND MONTH(deduction_date) = ? AND YEAR(deduction_date) = ?", [$eid, $month, $year]);
+                $deduct_sum = (float)($d_res[0]['total'] ?? 0);
 
-                    // Deductions
-                    $dedRow = dbQuery("SELECT SUM(amount) as s FROM payroll_deductions WHERE employee_id = ? AND MONTH(deduction_date) = ? AND YEAR(deduction_date) = ?", [$eid, $month, $year]);
-                    $ded = (float)($dedRow[0]['s'] ?? 0);
+                // 4. OT Bonus
+                $o_res = dbQuery("SELECT SUM(COALESCE(NULLIF(amount, 0), total_ot_amount, 0)) as total FROM payroll_ot WHERE employee_id = ? AND ((ot_month = ? AND ot_year = ?) OR (MONTH(ot_date) = ? AND YEAR(ot_date) = ?))", [$eid, $month_padded, (string)$year, $month, $year]);
+                $ot_sum = (float)($o_res[0]['total'] ?? 0);
 
-                    // OT
-                    $otRow = dbQuery("SELECT SUM(ot_hours) as h, SUM(total_ot_amount) as a FROM payroll_ot WHERE employee_id = ? AND MONTH(ot_date) = ? AND YEAR(ot_date) = ?", [$eid, $month, $year]);
-                    $otHours = (float)($otRow[0]['h'] ?? 0);
-                    $otAmt = (float)($otRow[0]['a'] ?? 0);
+                // 5. Loan Repayment
+                $l_res = dbQuery("SELECT SUM(COALESCE(NULLIF(monthly_deduction, 0), monthly_installment, 0)) as total FROM payroll_loans WHERE employee_id = ?", [$eid]);
+                $loan_sum = (float)($l_res[0]['total'] ?? 0);
 
-                    // Loan
-                    $loanRow = dbQuery("SELECT SUM(monthly_installment) as s FROM payroll_loans WHERE employee_id = ?", [$eid]);
-                    $loan = (float)($loanRow[0]['s'] ?? 0);
+                // 6. Net Calculation
+                $net_salary = round(max(0, $base_component - $deduct_sum + $ot_sum - $loan_sum), 2);
 
-                    $net = max(0, $base + $otAmt - $ded - $loan);
+                // Check payment status from payroll_history
+                $paid_res = dbQuery("SELECT id, payment_date FROM payroll_history WHERE employee_id = ? AND (payroll_month = ? OR payroll_month = ?) AND payroll_year = ?", [$eid, $month, $month_padded, (string)$year]);
+                $is_paid = !empty($paid_res);
 
-                    dbQuery("INSERT IGNORE INTO payroll_records (employee_id, name, base_salary, days_present, ot_hours, ot_amount, deductions, loans, net_salary, status, payroll_month, payroll_year) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending', ?, ?)", [$eid, $u['name'], $base, $days, $otHours, $otAmt, $ded, $loan, $net, $month, $year]);
-                }
-                $payroll = dbQuery("SELECT p.*, u.name as user_name, u.department, u.position, u.avatar, pc.bank_name, pc.bank_account_number, pc.bank_qr_file FROM payroll_records p LEFT JOIN users u ON p.employee_id = u.employee_id LEFT JOIN payroll_configs pc ON p.employee_id = pc.employee_id WHERE p.payroll_month = ? AND p.payroll_year = ? ORDER BY p.id DESC", [$month, $year]);
+                $bank_name = !empty($u['bank_name']) ? $u['bank_name'] : (!empty($u['bank_data_str']) ? $u['bank_data_str'] : '');
+                $bank_acc = $u['bank_account_number'] ?? '';
+                $bank_qr = !empty($u['bank_qr_file']) ? $u['bank_qr_file'] : ($u['bank_qr_code_url'] ?? '');
+
+                $data[] = [
+                    'id' => $u['employee_id'],
+                    'employee_id' => $u['employee_id'],
+                    'name' => $u['name'] ?: $u['employee_id'],
+                    'avatar' => $u['avatar'] ?? '',
+                    'department' => $u['department'] ?? '',
+                    'position' => $u['position'] ?? '',
+                    'base_salary' => $base_salary,
+                    'present_days' => $present_days,
+                    'days_present' => $present_days,
+                    'deductions' => $deduct_sum,
+                    'ot_bonus' => $ot_sum,
+                    'ot_amount' => $ot_sum,
+                    'loan_deduct' => $loan_sum,
+                    'loans' => $loan_sum,
+                    'calculated_salary' => $net_salary,
+                    'net_salary' => $net_salary,
+                    'is_paid' => $is_paid,
+                    'status' => $is_paid ? 'Paid' : 'Pending',
+                    'bank_name' => $bank_name,
+                    'bank_account_number' => $bank_acc,
+                    'bank_qr_url' => $bank_qr,
+                    'month' => $month,
+                    'year' => $year,
+                ];
             }
 
-            foreach ($payroll as &$pr) {
-                if (empty($pr['name']) && !empty($pr['user_name'])) {
-                    $pr['name'] = $pr['user_name'];
-                }
-            }
-            unset($pr);
+            sendJson([
+                'success' => true,
+                'status' => 'success',
+                'salaries' => $data,
+                'data' => $data,
+                'month' => $month,
+                'year' => $year,
+                'total' => count($data),
+            ]);
+            break;
 
-            sendJson(['success' => true, 'status' => 'success', 'salaries' => $payroll, 'data' => $payroll, 'month' => $month, 'year' => $year]);
+        case 'pay_salary':
+        case 'payroll_pay_single':
+            $empId = trim($_POST['employee_id'] ?? '');
+            $baseSalary = (float)($_POST['base_salary'] ?? 0.00);
+            $presentDays = (int)($_POST['present_days'] ?? 0);
+            $calcSalary = (float)($_POST['calculated_salary'] ?? $_POST['net_salary'] ?? 0.00);
+            $month = str_pad((string)($_POST['month'] ?? date('m')), 2, '0', STR_PAD_LEFT);
+            $year = (string)($_POST['year'] ?? date('Y'));
+
+            if (empty($empId)) {
+                sendJson(['success' => false, 'message' => 'សូមជ្រើសរើសបុគ្គលិក!'], 400);
+            }
+
+            // Remove existing record for this month/year if any
+            dbQuery("DELETE FROM payroll_history WHERE employee_id = ? AND (payroll_month = ? OR payroll_month = ?) AND payroll_year = ?", [$empId, (int)$month, $month, $year]);
+
+            dbQuery("INSERT INTO payroll_history (employee_id, payroll_month, payroll_year, base_salary, present_days, calculated_salary, status, payment_date) VALUES (?, ?, ?, ?, ?, ?, 'Paid', NOW())",
+                [$empId, $month, $year, $baseSalary, $presentDays, $calcSalary]
+            );
+
+            sendJson(['success' => true, 'status' => 'success', 'message' => "បានបើកប្រាក់បៀវត្សជូនបុគ្គលិក #$empId ($calcSalary$) ជោគជ័យ!"]);
             break;
 
         case 'fetch_payroll_configs':
