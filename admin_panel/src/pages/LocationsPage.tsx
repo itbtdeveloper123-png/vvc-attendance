@@ -1,39 +1,92 @@
-import React, { useState } from 'react';
-import { MapPin, QrCode, Plus, Download, ShieldCheck } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { MapPin, QrCode, Plus, Download, Edit2, Trash2, Check, RotateCw } from 'lucide-react';
 import { Modal } from '../components/common/Modal';
+import { adminApi, LocationItem } from '../api/adminApi';
 
 export const LocationsPage: React.FC = () => {
-  const [locations] = useState([
-    {
-      id: 1,
-      name: 'ការិយាល័យកណ្តាល (Store 318)',
-      address: 'ផ្ទះលេខ 318 ផ្លូវកម្ពុជាក្រោម រាជធានីភ្នំពេញ',
-      latitude: 11.5683,
-      longitude: 104.9125,
-      radius_meters: 100,
-      qr_secret: 'vvc_318_secure_qr_2026',
-    },
-    {
-      id: 2,
-      name: 'សាខា SKKS2',
-      address: 'ផ្លូវ 271 រាជធានីភ្នំពេញ',
-      latitude: 11.5421,
-      longitude: 104.9012,
-      radius_meters: 100,
-      qr_secret: 'vvc_skks2_secure_qr_2026',
-    },
-    {
-      id: 3,
-      name: 'ឃ្លាំងទំនិញ PSP (Warehouse)',
-      address: 'ផ្លូវជាតិលេខ ៤ រាជធានីភ្នំពេញ',
-      latitude: 11.5124,
-      longitude: 104.8211,
-      radius_meters: 150,
-      qr_secret: 'vvc_psp_warehouse_qr_2026',
-    },
-  ]);
+  const [locations, setLocations] = useState<LocationItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [qrModal, setQrModal] = useState<LocationItem | null>(null);
+  const [editModal, setEditModal] = useState(false);
+  const [editingLoc, setEditingLoc] = useState<LocationItem | null>(null);
+  const [formData, setFormData] = useState({
+    name: '',
+    address: '',
+    latitude: 11.5683,
+    longitude: 104.9125,
+    radius_meters: 100,
+    qr_secret: '',
+  });
 
-  const [qrModal, setQrModal] = useState<any | null>(null);
+  const loadLocations = async () => {
+    setLoading(true);
+    try {
+      const res = await adminApi.fetchLocations();
+      if (res && res.success && Array.isArray(res.locations)) {
+        setLocations(res.locations);
+      }
+    } catch (err) {
+      console.error('Error fetching locations:', err);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadLocations();
+  }, []);
+
+  const handleOpenCreate = () => {
+    setEditingLoc(null);
+    setFormData({
+      name: '',
+      address: '',
+      latitude: 11.5564,
+      longitude: 104.9282,
+      radius_meters: 100,
+      qr_secret: `vvc_${Math.floor(100 + Math.random() * 900)}_secure_qr`,
+    });
+    setEditModal(true);
+  };
+
+  const handleOpenEdit = (loc: LocationItem) => {
+    setEditingLoc(loc);
+    setFormData({
+      name: loc.name,
+      address: loc.address || '',
+      latitude: Number(loc.latitude) || 11.5564,
+      longitude: Number(loc.longitude) || 104.9282,
+      radius_meters: Number(loc.radius_meters) || 100,
+      qr_secret: loc.qr_secret || '',
+    });
+    setEditModal(true);
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.name) return;
+    try {
+      if (editingLoc) {
+        await adminApi.saveLocation({ id: editingLoc.id, ...formData });
+      } else {
+        await adminApi.saveLocation(formData);
+      }
+      setEditModal(false);
+      loadLocations();
+    } catch (err) {
+      alert('កំហុសក្នុងការរក្សាទុកទីតាំង');
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (window.confirm('តើអ្នកពិតជាចង់លុបទីតាំងនេះមែនទេ?')) {
+      try {
+        await adminApi.deleteLocation(id);
+        loadLocations();
+      } catch (err) {
+        alert('កំហុសក្នុងការលុប');
+      }
+    }
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -56,9 +109,9 @@ export const LocationsPage: React.FC = () => {
           </p>
         </div>
 
-        <button className="btn btn-primary">
+        <button onClick={handleOpenCreate} className="btn btn-primary">
           <Plus size={16} />
-          <span>បង្កើតទីតាំងថ្មី</span>
+          <span>បង្កើតទីតាំងថ្មី (Add Location)</span>
         </button>
       </div>
 
@@ -72,29 +125,50 @@ export const LocationsPage: React.FC = () => {
       >
         {locations.map((loc) => (
           <div key={loc.id} className="hrm-card hover-lift" style={{ padding: '24px' }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px', marginBottom: '16px' }}>
-              <div
-                style={{
-                  width: '44px',
-                  height: '44px',
-                  borderRadius: '12px',
-                  background: 'var(--primary-light)',
-                  color: 'var(--primary)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                }}
-              >
-                <MapPin size={22} />
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
+                <div
+                  style={{
+                    width: '44px',
+                    height: '44px',
+                    borderRadius: '12px',
+                    background: 'var(--primary-light)',
+                    color: 'var(--primary)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  <MapPin size={22} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                    {loc.name}
+                  </h3>
+                  <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                    {loc.address || 'មិនមានអាសយដ្ឋាន'}
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)' }}>
-                  {loc.name}
-                </h3>
-                <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                  {loc.address}
-                </p>
+
+              <div style={{ display: 'flex', gap: '4px' }}>
+                <button
+                  type="button"
+                  onClick={() => handleOpenEdit(loc)}
+                  className="btn btn-secondary btn-sm"
+                  title="កែប្រែ"
+                >
+                  <Edit2 size={13} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDelete(loc.id)}
+                  className="btn btn-danger btn-sm"
+                  title="លុប"
+                >
+                  <Trash2 size={13} />
+                </button>
               </div>
             </div>
 
@@ -129,6 +203,100 @@ export const LocationsPage: React.FC = () => {
           </div>
         ))}
       </div>
+
+      {/* Edit / Create Location Modal */}
+      {editModal && (
+        <Modal
+          isOpen={editModal}
+          onClose={() => setEditModal(false)}
+          title={editingLoc ? 'កែប្រែព័ត៌មានទីតាំង' : 'បង្កើតទីតាំងសាខាថ្មី'}
+          maxWidth="500px"
+        >
+          <form onSubmit={handleSave}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div className="form-group">
+                <label className="form-label">ឈ្មោះទីតាំង / សាខា *</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="ឧ. សាខា Store 318"
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">អាសយដ្ឋាន</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={formData.address}
+                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                  placeholder="ឧ. ផ្លូវកម្ពុជាក្រោម រាជធានីភ្នំពេញ"
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div className="form-group">
+                  <label className="form-label">Latitude</label>
+                  <input
+                    type="number"
+                    step="any"
+                    className="form-input"
+                    value={formData.latitude}
+                    onChange={(e) => setFormData({ ...formData, latitude: Number(e.target.value) })}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Longitude</label>
+                  <input
+                    type="number"
+                    step="any"
+                    className="form-input"
+                    value={formData.longitude}
+                    onChange={(e) => setFormData({ ...formData, longitude: Number(e.target.value) })}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">កាំស្កេនអនុញ្ញាត (Radius Meters)</label>
+                <input
+                  type="number"
+                  className="form-input"
+                  value={formData.radius_meters}
+                  onChange={(e) => setFormData({ ...formData, radius_meters: Number(e.target.value) })}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">QR Secret Key</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={formData.qr_secret}
+                  onChange={(e) => setFormData({ ...formData, qr_secret: e.target.value })}
+                  placeholder="ស្វ័យប្រវត្ត"
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px', borderTop: '1px solid var(--border)', paddingTop: '14px' }}>
+              <button type="button" onClick={() => setEditModal(false)} className="btn btn-secondary">
+                បោះបង់
+              </button>
+              <button type="submit" className="btn btn-primary">
+                <Check size={16} />
+                <span>រក្សាទុកទីតាំង</span>
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
 
       {/* QR Code Modal */}
       {qrModal && (

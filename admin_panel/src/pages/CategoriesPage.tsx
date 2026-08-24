@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Folder,
   Plus,
@@ -8,21 +8,35 @@ import {
   Check,
   Layers,
   Tag,
+  RotateCw,
 } from 'lucide-react';
 import { Modal } from '../components/common/Modal';
+import { adminApi, CategoryItem } from '../api/adminApi';
 
 export const CategoriesPage: React.FC = () => {
-  const [categories, setCategories] = useState([
-    { id: 1, name: 'សម្ភារៈការិយាល័យ (Office Supplies)', code: 'CAT-OFFICE', itemCount: 34, description: 'សម្ភារៈប្រើប្រាស់ទូទៅ' },
-    { id: 2, name: 'គ្រឿងអេឡិចត្រូនិច (Electronics)', code: 'CAT-ELEC', itemCount: 18, description: 'កុំព្យូទ័រ ម៉ាស៊ីនព្រីន ឧបករណ៍បច្ចេកវិទ្យា' },
-    { id: 3, name: 'ទំនិញស្តុកហាង 318 (Store 318 Goods)', code: 'CAT-S318', itemCount: 120, description: 'ទំនិញលក់រាយនៅហាង 318' },
-    { id: 4, name: 'ទំនិញស្តុកឃ្លាំង PSP (Warehouse PSP Goods)', code: 'CAT-PSP', itemCount: 250, description: 'ទំនិញស្តុកធំនៅឃ្លាំង PSP' },
-  ]);
-
+  const [categories, setCategories] = useState<CategoryItem[]>([]);
+  const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
-  const [editingCat, setEditingCat] = useState<any>(null);
+  const [editingCat, setEditingCat] = useState<CategoryItem | null>(null);
   const [formData, setFormData] = useState({ name: '', code: '', description: '' });
+
+  const loadCategories = async () => {
+    setLoading(true);
+    try {
+      const res = await adminApi.fetchCategories();
+      if (res && res.success && Array.isArray(res.categories)) {
+        setCategories(res.categories);
+      }
+    } catch (err) {
+      console.error('Error fetching categories:', err);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadCategories();
+  }, []);
 
   const filtered = categories.filter(
     (c) =>
@@ -36,25 +50,30 @@ export const CategoriesPage: React.FC = () => {
     setModalOpen(true);
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name) return;
-    if (editingCat) {
-      setCategories((prev) =>
-        prev.map((c) => (c.id === editingCat.id ? { ...c, ...formData } : c))
-      );
-    } else {
-      setCategories((prev) => [
-        { id: Date.now(), ...formData, itemCount: 0 },
-        ...prev,
-      ]);
+    try {
+      if (editingCat) {
+        await adminApi.saveCategory({ id: editingCat.id, ...formData });
+      } else {
+        await adminApi.saveCategory(formData);
+      }
+      setModalOpen(false);
+      loadCategories();
+    } catch (err) {
+      alert('កំហុសក្នុងការរក្សាទុកប្រភេទ');
     }
-    setModalOpen(false);
   };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = async (id: number) => {
     if (window.confirm('តើអ្នកពិតជាចង់លុបប្រភេទនេះមែនទេ?')) {
-      setCategories((prev) => prev.filter((c) => c.id !== id));
+      try {
+        await adminApi.deleteCategory(id);
+        loadCategories();
+      } catch (err) {
+        alert('កំហុសក្នុងការលុប');
+      }
     }
   };
 
@@ -152,14 +171,14 @@ export const CategoriesPage: React.FC = () => {
                   </td>
                   <td style={{ color: 'var(--text-secondary)' }}>{cat.description || '-'}</td>
                   <td>
-                    <span className="badge badge-good">{cat.itemCount} មុខ</span>
+                    <span className="badge badge-good">{cat.item_count || 0} មុខ</span>
                   </td>
                   <td style={{ textAlign: 'right' }}>
                     <div style={{ display: 'inline-flex', gap: '6px' }}>
                       <button
                         onClick={() => {
                           setEditingCat(cat);
-                          setFormData({ name: cat.name, code: cat.code, description: cat.description });
+                          setFormData({ name: cat.name, code: cat.code, description: cat.description || '' });
                           setModalOpen(true);
                         }}
                         className="btn btn-secondary btn-sm"

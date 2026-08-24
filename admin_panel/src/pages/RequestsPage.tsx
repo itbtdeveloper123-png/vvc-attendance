@@ -8,60 +8,32 @@ import {
   Filter,
   Check,
   X,
+  Plus,
+  Trash2,
   MessageSquare,
+  RotateCw,
 } from 'lucide-react';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { Modal } from '../components/common/Modal';
 import { adminApi, RequestItem } from '../api/adminApi';
 
 export const RequestsPage: React.FC = () => {
-  const [requests, setRequests] = useState<RequestItem[]>([
-    {
-      id: 1,
-      user_id: 101,
-      employee_id: 'VVC-101',
-      requester_name: 'សុខ គឹមហុង',
-      request_type: 'ច្បាប់ឈប់សម្រាកប្រចាំឆ្នាំ (Annual Leave)',
-      department: 'Store 318',
-      position: 'Staff',
-      request_date: '2026-08-25',
-      return_date: '2026-08-26',
-      reason: 'មានធុរៈចាំបាច់នៅស្រុកកំណើត',
-      status: 'Pending',
-      created_at: '2026-08-24 08:30:00',
-    },
-    {
-      id: 2,
-      user_id: 102,
-      employee_id: 'VVC-103',
-      requester_name: 'ជា វណ្ណៈ',
-      request_type: 'ស្នើសុំចុះបេសកកម្ម (Mission)',
-      department: 'Warehouse PSP',
-      position: 'Staff',
-      request_date: '2026-08-24',
-      return_date: '2026-08-24',
-      reason: 'ដឹកជញ្ជូនទំនិញទៅសាខាកំពង់សោម',
-      status: 'Pending',
-      created_at: '2026-08-24 07:45:00',
-    },
-    {
-      id: 3,
-      user_id: 104,
-      employee_id: 'VVC-104',
-      requester_name: 'លឹម គឹមសាន',
-      request_type: 'ស្នើសុំថែមម៉ោង (Overtime)',
-      department: 'IT Department',
-      position: 'IT Specialist',
-      request_date: '2026-08-23',
-      reason: 'ដំឡើងប្រព័ន្ធ Network Server យប់',
-      status: 'Approved',
-      approved_by: 'Super Admin',
-      created_at: '2026-08-23 18:00:00',
-    },
-  ]);
-
+  const [requests, setRequests] = useState<RequestItem[]>([]);
+  const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all');
   const [search, setSearch] = useState('');
+  const [createModal, setCreateModal] = useState(false);
+  const [newReq, setNewReq] = useState({
+    employee_id: '',
+    requester_name: '',
+    request_type: 'ច្បាប់ឈប់សម្រាកប្រចាំឆ្នាំ (Annual Leave)',
+    department: 'Store 318',
+    position: 'Staff',
+    request_date: new Date().toISOString().split('T')[0],
+    return_date: '',
+    reason: '',
+  });
+
   const [actionModal, setActionModal] = useState<{
     open: boolean;
     item: RequestItem | null;
@@ -75,12 +47,16 @@ export const RequestsPage: React.FC = () => {
   });
 
   const loadRequests = async () => {
+    setLoading(true);
     try {
       const data = await adminApi.fetchRequests(statusFilter !== 'all' ? statusFilter : undefined);
       if (data && data.success && Array.isArray(data.requests)) {
         setRequests(data.requests);
       }
-    } catch {}
+    } catch (err) {
+      console.error('Error loading requests:', err);
+    }
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -90,9 +66,9 @@ export const RequestsPage: React.FC = () => {
   const filteredRequests = requests.filter((r) => {
     const q = search.toLowerCase();
     const matchSearch =
-      r.requester_name.toLowerCase().includes(q) ||
+      (r.requester_name || '').toLowerCase().includes(q) ||
       (r.employee_id || '').toLowerCase().includes(q) ||
-      r.request_type.toLowerCase().includes(q);
+      (r.request_type || '').toLowerCase().includes(q);
     const matchStatus = statusFilter === 'all' || r.status === statusFilter;
     return matchSearch && matchStatus;
   });
@@ -110,28 +86,66 @@ export const RequestsPage: React.FC = () => {
     if (!actionModal.item) return;
     try {
       await adminApi.updateRequestStatus(actionModal.item.id, actionModal.type, actionModal.comment);
-    } catch {}
-
-    setRequests((prev) =>
-      prev.map((r) =>
-        r.id === actionModal.item!.id
-          ? { ...r, status: actionModal.type, approved_by: 'Super Admin' }
-          : r
-      )
-    );
+      loadRequests();
+    } catch (err) {
+      alert('កំហុសក្នុងការកែប្រែស្ថានភាពសំណើរ');
+    }
     setActionModal({ open: false, item: null, type: 'Approved', comment: '' });
+  };
+
+  const handleDeleteRequest = async (id: number | string) => {
+    if (window.confirm('តើអ្នកពិតជាចង់លុបសំណើរនេះមែនទេ?')) {
+      try {
+        await adminApi.deleteRequest(id);
+        loadRequests();
+      } catch (err) {
+        alert('កំហុសក្នុងការលុបសំណើរ');
+      }
+    }
+  };
+
+  const handleCreateRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newReq.requester_name || !newReq.reason) {
+      alert('សូមបំពេញឈ្មោះ និងមូលហេតុ!');
+      return;
+    }
+    try {
+      await adminApi.createRequest(newReq);
+      setCreateModal(false);
+      setNewReq({
+        employee_id: '',
+        requester_name: '',
+        request_type: 'ច្បាប់ឈប់សម្រាកប្រចាំឆ្នាំ (Annual Leave)',
+        department: 'Store 318',
+        position: 'Staff',
+        request_date: new Date().toISOString().split('T')[0],
+        return_date: '',
+        reason: '',
+      });
+      loadRequests();
+    } catch (err) {
+      alert('កំហុសក្នុងការបង្កើតសំណើរ');
+    }
   };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {/* Header */}
-      <div>
-        <h2 style={{ fontSize: '20px', fontWeight: 800, color: 'var(--text-primary)' }}>
-          គ្រប់គ្រង & អនុម័តសំណើរ (Manage Requests)
-        </h2>
-        <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-          ពិនិត្យសំណើរសុំច្បាប់ ថែមម៉ោង (OT) បេសកកម្ម ភ្លេចស្កេន និងសំណើរសម្ភារៈ
-        </p>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+        <div>
+          <h2 style={{ fontSize: '20px', fontWeight: 800, color: 'var(--text-primary)' }}>
+            គ្រប់គ្រង & អនុម័តសំណើរ (Manage Requests)
+          </h2>
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+            ពិនិត្យសំណើរសុំច្បាប់ ថែមម៉ោង (OT) បេសកកម្ម ភ្លេចស្កេន និងសំណើរសម្ភារៈ
+          </p>
+        </div>
+
+        <button onClick={() => setCreateModal(true)} className="btn btn-primary">
+          <Plus size={16} />
+          <span>បង្កើតសំណើរថ្មី (New Request)</span>
+        </button>
       </div>
 
       {/* Filter Tabs */}
@@ -212,7 +226,7 @@ export const RequestsPage: React.FC = () => {
             {filteredRequests.length === 0 ? (
               <tr>
                 <td colSpan={6} style={{ textAlign: 'center', padding: '36px', color: 'var(--text-muted)' }}>
-                  គ្មានសំណើរដែលត្រូវបង្ហាញឡើយ
+                  {loading ? 'កំពុងទាញយកបញ្ជីសំណើរ...' : 'គ្មានសំណើរដែលត្រូវបង្ហាញឡើយ'}
                 </td>
               </tr>
             ) : (
@@ -239,28 +253,33 @@ export const RequestsPage: React.FC = () => {
                     <StatusBadge status={r.status} />
                   </td>
                   <td style={{ textAlign: 'right' }}>
-                    {r.status === 'Pending' ? (
-                      <div style={{ display: 'inline-flex', gap: '6px' }}>
-                        <button
-                          onClick={() => handleOpenAction(r, 'Approved')}
-                          className="btn btn-success btn-sm"
-                        >
-                          <Check size={13} />
-                          <span>យល់ព្រម</span>
-                        </button>
-                        <button
-                          onClick={() => handleOpenAction(r, 'Rejected')}
-                          className="btn btn-danger btn-sm"
-                        >
-                          <X size={13} />
-                          <span>បដិសេធ</span>
-                        </button>
-                      </div>
-                    ) : (
-                      <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                        ដោយ: {r.approved_by || 'Admin'}
-                      </span>
-                    )}
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                      {r.status === 'Pending' && (
+                        <>
+                          <button
+                            onClick={() => handleOpenAction(r, 'Approved')}
+                            className="btn btn-success btn-sm"
+                          >
+                            <Check size={13} />
+                            <span>យល់ព្រម</span>
+                          </button>
+                          <button
+                            onClick={() => handleOpenAction(r, 'Rejected')}
+                            className="btn btn-danger btn-sm"
+                          >
+                            <X size={13} />
+                            <span>បដិសេធ</span>
+                          </button>
+                        </>
+                      )}
+                      <button
+                        onClick={() => handleDeleteRequest(r.id)}
+                        className="btn btn-danger btn-sm"
+                        title="លុបសំណើរ"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))
@@ -268,6 +287,123 @@ export const RequestsPage: React.FC = () => {
           </tbody>
         </table>
       </div>
+
+      {/* Create Request Modal */}
+      {createModal && (
+        <Modal
+          isOpen={createModal}
+          onClose={() => setCreateModal(false)}
+          title="បង្កើតសំណើរថ្មី"
+          maxWidth="540px"
+        >
+          <form onSubmit={handleCreateRequest}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div className="form-group">
+                  <label className="form-label">ឈ្មោះអ្នកស្នើសុំ *</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={newReq.requester_name}
+                    onChange={(e) => setNewReq({ ...newReq, requester_name: e.target.value })}
+                    placeholder="ឧ. សុខ គឹមហុង"
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">អត្តលេខបុគ្គលិក</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={newReq.employee_id}
+                    onChange={(e) => setNewReq({ ...newReq, employee_id: e.target.value })}
+                    placeholder="ឧ. VVC-101"
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">ប្រភេទសំណើរ *</label>
+                <select
+                  className="form-select"
+                  value={newReq.request_type}
+                  onChange={(e) => setNewReq({ ...newReq, request_type: e.target.value })}
+                >
+                  <option value="ច្បាប់ឈប់សម្រាកប្រចាំឆ្នាំ (Annual Leave)">ច្បាប់ឈប់សម្រាកប្រចាំឆ្នាំ (Annual Leave)</option>
+                  <option value="ច្បាប់ឈប់សម្រាកឈឺ (Sick Leave)">ច្បាប់ឈប់សម្រាកឈឺ (Sick Leave)</option>
+                  <option value="ស្នើសុំថែមម៉ោង (Overtime)">ស្នើសុំថែមម៉ោង (Overtime)</option>
+                  <option value="ស្នើសុំចុះបេសកកម្ម (Mission)">ស្នើសុំចុះបេសកកម្ម (Mission)</option>
+                  <option value="ស្នើសុំបំពេញម៉ោងស្កេន (Missed Scan)">ស្នើសុំបំពេញម៉ោងស្កេន (Missed Scan)</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div className="form-group">
+                  <label className="form-label">ផ្នែក / សាខា</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={newReq.department}
+                    onChange={(e) => setNewReq({ ...newReq, department: e.target.value })}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">តួនាទី</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={newReq.position}
+                    onChange={(e) => setNewReq({ ...newReq, position: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div className="form-group">
+                  <label className="form-label">កាលបរិច្ឆេទចាប់ផ្តើម</label>
+                  <input
+                    type="date"
+                    className="form-input"
+                    value={newReq.request_date}
+                    onChange={(e) => setNewReq({ ...newReq, request_date: e.target.value })}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">កាលបរិច្ឆេទបញ្ចប់</label>
+                  <input
+                    type="date"
+                    className="form-input"
+                    value={newReq.return_date}
+                    onChange={(e) => setNewReq({ ...newReq, return_date: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">មូលហេតុ / ព័ត៌មានលម្អិត *</label>
+                <textarea
+                  className="form-textarea"
+                  rows={3}
+                  value={newReq.reason}
+                  onChange={(e) => setNewReq({ ...newReq, reason: e.target.value })}
+                  placeholder="បញ្ចូលមូលហេតុ..."
+                  required
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px', borderTop: '1px solid var(--border)', paddingTop: '14px' }}>
+              <button type="button" onClick={() => setCreateModal(false)} className="btn btn-secondary">
+                បោះបង់
+              </button>
+              <button type="submit" className="btn btn-primary">
+                <Check size={16} />
+                <span>បង្កើតសំណើរ</span>
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
 
       {/* Action Comment Modal */}
       <Modal
@@ -311,3 +447,4 @@ export const RequestsPage: React.FC = () => {
     </div>
   );
 };
+

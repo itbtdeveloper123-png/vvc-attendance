@@ -244,14 +244,74 @@ export const SettingsPage: React.FC = () => {
         </div>
       )}
 
-      {(activeTab === 'menu' || activeTab === 'theme') && (
+      {activeTab === 'menu' && (
         <div className="hrm-card" style={{ padding: '24px' }}>
           <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '12px' }}>
-            {activeTab === 'menu' ? 'ការកំណត់ Sidebar Menu Visibility' : 'ការគ្រប់គ្រង Seasonal Themes & Colors'}
+            ការកំណត់ Sidebar Menu Visibility
           </h3>
           <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-            គ្រប់ម៉ឺនុយ និងពណ៌ Theme ទាំងអស់ត្រូវបានគ្រប់គ្រងដោយស្វ័យប្រវត្តតាមរយៈ System Role និង Seasonal Theme Provider។
+            គ្រប់ម៉ឺនុយទាំងអស់ត្រូវបានគ្រប់គ្រងដោយស្វ័យប្រវត្តតាមរយៈ System Role Permission (Super Admin, HR, Manager, Staff)។
           </p>
+        </div>
+      )}
+
+      {activeTab === 'theme' && (
+        <div className="hrm-card" style={{ padding: '24px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
+            <Palette size={20} color="var(--primary)" />
+            <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)' }}>
+              ការគ្រប់គ្រង Seasonal Themes & Colors
+            </h3>
+          </div>
+          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '20px' }}>
+            ជ្រើសរើស Theme សម្រាប់ដំណើរការទូទាំងប្រព័ន្ធ Panel និង Mobile App
+          </p>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+            {[
+              { id: 'vvc_royal_gold', name: 'VVC Royal Luxury', color: '#1e1b4b', accent: '#d4af37' },
+              { id: 'khmer_new_year', name: 'ចូលឆ្នាំខ្មែរ (Khmer New Year)', color: '#991b1b', accent: '#fbbf24' },
+              { id: 'pchum_ben', name: 'ភ្ជុំបិណ្ឌ (Pchum Ben Festival)', color: '#312e81', accent: '#f59e0b' },
+              { id: 'water_festival', name: 'បុណ្យអុំទូក (Water Festival)', color: '#0369a1', accent: '#38bdf8' },
+            ].map((t) => (
+              <div
+                key={t.id}
+                style={{
+                  border: '1px solid var(--border)',
+                  borderRadius: '12px',
+                  padding: '16px',
+                  background: 'var(--surface-alt)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ width: '18px', height: '18px', borderRadius: '50%', background: t.color }} />
+                  <div style={{ width: '18px', height: '18px', borderRadius: '50%', background: t.accent }} />
+                  <span style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                    {t.name}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await adminApi.setActiveTheme(t.id);
+                      alert(`បានប្តូរ Theme ទៅ «${t.name}» ជោគជ័យ!`);
+                    } catch (err) {
+                      alert('កំហុសក្នុងការប្តូរ Theme');
+                    }
+                  }}
+                  className="btn btn-secondary btn-sm"
+                  style={{ width: '100%', justifyContent: 'center' }}
+                >
+                  <Check size={14} />
+                  <span>ជ្រើសរើស Theme នេះ</span>
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

@@ -71,6 +71,119 @@ export interface RequestItem {
   created_at?: string;
 }
 
+export interface LocationItem {
+  id: number;
+  name: string;
+  location_name?: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+  radius_meters: number;
+  qr_secret: string;
+}
+
+export interface CategoryItem {
+  id: number;
+  name: string;
+  code: string;
+  description?: string;
+  item_count?: number;
+}
+
+export interface StockItem {
+  id: number;
+  code: string;
+  name: string;
+  category: string;
+  quantity: number;
+  unit: string;
+  price: number;
+  location: string;
+  status: 'In Stock' | 'Low Stock' | 'Out of Stock';
+}
+
+export interface MeetingItem {
+  id: number;
+  topic: string;
+  title?: string;
+  department: string;
+  date: string;
+  duration: string;
+  summary: string;
+  hasAudio?: boolean;
+  audio_url?: string;
+}
+
+export interface PollOption {
+  text: string;
+  votes: number;
+  percentage: number;
+}
+
+export interface PollItem {
+  id: number;
+  title: string;
+  creator?: string;
+  status: 'Active' | 'Closed';
+  total_votes: number;
+  ends_at: string;
+  options: PollOption[];
+}
+
+export interface SessionItem {
+  id: number;
+  employee_id: string;
+  name: string;
+  device: string;
+  ip_address: string;
+  last_used: string;
+  status: string;
+}
+
+export interface QuizItem {
+  id: number;
+  question: string;
+  department: string;
+  correct_answer: string;
+  options: string[];
+  points: number;
+}
+
+export interface GpsTripItem {
+  id: number;
+  driver_name: string;
+  employee_id: string;
+  vehicle: string;
+  destination: string;
+  current_location: string;
+  speed: string;
+  status: string;
+  started_at: string;
+}
+
+export interface PayrollItem {
+  id: number;
+  employee_id: string;
+  name: string;
+  base_salary: number;
+  ot_hours: number;
+  ot_amount: number;
+  deductions: number;
+  net_salary: number;
+  status: 'Paid' | 'Pending';
+}
+
+export interface ThemeItem {
+  id: number;
+  theme_id: string;
+  theme_name: string;
+  theme_name_kh?: string;
+  primary_color: string;
+  secondary_color: string;
+  accent_color: string;
+  is_active: number | boolean;
+}
+
 export const adminApi = {
   // Authentication
   login: async (adminId: string, password: string) => {
@@ -156,6 +269,16 @@ export const adminApi = {
     return res.data;
   },
 
+  createRequest: async (data: Partial<RequestItem>) => {
+    const params = new URLSearchParams();
+    params.append('action', 'create_request');
+    Object.entries(data).forEach(([k, v]) => {
+      if (v !== undefined && v !== null) params.append(k, String(v));
+    });
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
   updateRequestStatus: async (requestId: string | number, status: 'Approved' | 'Rejected', comment?: string) => {
     const params = new URLSearchParams();
     params.append('action', 'update_request_status');
@@ -166,7 +289,245 @@ export const adminApi = {
     return res.data;
   },
 
+  deleteRequest: async (requestId: string | number) => {
+    const params = new URLSearchParams();
+    params.append('action', 'delete_request');
+    params.append('request_id', String(requestId));
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  // Locations
+  fetchLocations: async () => {
+    const params = new URLSearchParams();
+    params.append('action', 'fetch_locations');
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  saveLocation: async (data: Partial<LocationItem>) => {
+    const params = new URLSearchParams();
+    params.append('action', 'save_location');
+    Object.entries(data).forEach(([k, v]) => {
+      if (v !== undefined && v !== null) params.append(k, String(v));
+    });
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  deleteLocation: async (id: number | string) => {
+    const params = new URLSearchParams();
+    params.append('action', 'delete_location');
+    params.append('id', String(id));
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  // Categories
+  fetchCategories: async () => {
+    const params = new URLSearchParams();
+    params.append('action', 'fetch_categories');
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  saveCategory: async (data: Partial<CategoryItem>) => {
+    const params = new URLSearchParams();
+    params.append('action', 'save_category');
+    Object.entries(data).forEach(([k, v]) => {
+      if (v !== undefined && v !== null) params.append(k, String(v));
+    });
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  deleteCategory: async (id: number | string) => {
+    const params = new URLSearchParams();
+    params.append('action', 'delete_category');
+    params.append('id', String(id));
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  // Stock Items
+  fetchStockItems: async () => {
+    const params = new URLSearchParams();
+    params.append('action', 'fetch_stock_items');
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  saveStockItem: async (data: Partial<StockItem>) => {
+    const params = new URLSearchParams();
+    params.append('action', 'save_stock_item');
+    Object.entries(data).forEach(([k, v]) => {
+      if (v !== undefined && v !== null) params.append(k, String(v));
+    });
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  deleteStockItem: async (id: number | string) => {
+    const params = new URLSearchParams();
+    params.append('action', 'delete_stock_item');
+    params.append('id', String(id));
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  // Meetings
+  fetchMeetings: async () => {
+    const params = new URLSearchParams();
+    params.append('action', 'fetch_meetings');
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  saveMeeting: async (data: Partial<MeetingItem>) => {
+    const params = new URLSearchParams();
+    params.append('action', 'save_meeting');
+    Object.entries(data).forEach(([k, v]) => {
+      if (v !== undefined && v !== null) params.append(k, String(v));
+    });
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  deleteMeeting: async (id: number | string) => {
+    const params = new URLSearchParams();
+    params.append('action', 'delete_meeting');
+    params.append('id', String(id));
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  // Polls
+  fetchPolls: async () => {
+    const params = new URLSearchParams();
+    params.append('action', 'fetch_polls');
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  savePoll: async (data: Partial<PollItem>) => {
+    const params = new URLSearchParams();
+    params.append('action', 'save_poll');
+    Object.entries(data).forEach(([k, v]) => {
+      if (k === 'options') {
+        params.append('options', JSON.stringify(v));
+      } else if (v !== undefined && v !== null) {
+        params.append(k, String(v));
+      }
+    });
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  deletePoll: async (id: number | string) => {
+    const params = new URLSearchParams();
+    params.append('action', 'delete_poll');
+    params.append('id', String(id));
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  // Sessions & Tokens
+  fetchActiveSessions: async () => {
+    const params = new URLSearchParams();
+    params.append('action', 'fetch_active_sessions');
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  revokeSession: async (id: number | string) => {
+    const params = new URLSearchParams();
+    params.append('action', 'revoke_session');
+    params.append('id', String(id));
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  // Training & Quizzes
+  fetchQuizzes: async () => {
+    const params = new URLSearchParams();
+    params.append('action', 'fetch_quizzes');
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  saveQuiz: async (data: Partial<QuizItem>) => {
+    const params = new URLSearchParams();
+    params.append('action', 'save_quiz');
+    Object.entries(data).forEach(([k, v]) => {
+      if (k === 'options') {
+        params.append('options', JSON.stringify(v));
+      } else if (v !== undefined && v !== null) {
+        params.append(k, String(v));
+      }
+    });
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  deleteQuiz: async (id: number | string) => {
+    const params = new URLSearchParams();
+    params.append('action', 'delete_quiz');
+    params.append('id', String(id));
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  // GPS Tracking
+  fetchGpsTrips: async () => {
+    const params = new URLSearchParams();
+    params.append('action', 'fetch_gps_trips');
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  saveGpsTrip: async (data: Partial<GpsTripItem>) => {
+    const params = new URLSearchParams();
+    params.append('action', 'save_gps_trip');
+    Object.entries(data).forEach(([k, v]) => {
+      if (v !== undefined && v !== null) params.append(k, String(v));
+    });
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  // Payroll
+  fetchPayroll: async () => {
+    const params = new URLSearchParams();
+    params.append('action', 'fetch_payroll_records');
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  savePayroll: async (data: Partial<PayrollItem>) => {
+    const params = new URLSearchParams();
+    params.append('action', 'save_payroll_record');
+    Object.entries(data).forEach(([k, v]) => {
+      if (v !== undefined && v !== null) params.append(k, String(v));
+    });
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  calculatePayroll: async () => {
+    const params = new URLSearchParams();
+    params.append('action', 'calculate_payroll');
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
   // Notifications & Banners
+  fetchNotifications: async () => {
+    const params = new URLSearchParams();
+    params.append('action', 'fetch_notifications');
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
   sendNotification: async (title: string, message: string, targetType: string, targetInfo?: string, imageUrl?: string) => {
     const params = new URLSearchParams();
     params.append('action', 'send_admin_notification');
@@ -175,6 +536,14 @@ export const adminApi = {
     params.append('recipient_type', targetType);
     if (targetInfo) params.append('recipient_info', targetInfo);
     if (imageUrl) params.append('image_url', imageUrl);
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  deleteNotification: async (id: number | string) => {
+    const params = new URLSearchParams();
+    params.append('action', 'delete_notification');
+    params.append('id', String(id));
     const res = await apiClient.post('', params);
     return res.data;
   },
@@ -206,6 +575,22 @@ export const adminApi = {
     return res.data;
   },
 
+  // Themes
+  fetchThemes: async () => {
+    const params = new URLSearchParams();
+    params.append('action', 'fetch_themes');
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  setActiveTheme: async (themeId: string) => {
+    const params = new URLSearchParams();
+    params.append('action', 'set_active_theme');
+    params.append('theme_id', themeId);
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
   // Settings
   fetchSettings: async () => {
     const params = new URLSearchParams();
@@ -222,4 +607,5 @@ export const adminApi = {
     return res.data;
   },
 };
+
 

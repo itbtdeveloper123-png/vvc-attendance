@@ -1,41 +1,37 @@
-import React, { useState } from 'react';
-import { KeyRound, Shield, Smartphone, Monitor, Trash2, Check } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { KeyRound, Shield, Smartphone, Monitor, Trash2, Check, RotateCw } from 'lucide-react';
 import { StatCard } from '../components/common/StatCard';
+import { adminApi, SessionItem } from '../api/adminApi';
 
 export const TokensPage: React.FC = () => {
-  const [sessions, setSessions] = useState([
-    {
-      id: 1,
-      employee_id: 'VVC-101',
-      name: 'សុខ គឹមហុង',
-      device: 'iPhone 15 Pro (iOS 18.2)',
-      ip_address: '103.216.48.12',
-      last_used: '2026-08-24 08:35:10',
-      status: 'Active',
-    },
-    {
-      id: 2,
-      employee_id: 'VVC-102',
-      name: 'កែវ សុភា',
-      device: 'Samsung Galaxy S24 (Android 14)',
-      ip_address: '175.100.12.90',
-      last_used: '2026-08-24 08:38:00',
-      status: 'Active',
-    },
-    {
-      id: 3,
-      employee_id: 'VVC-103',
-      name: 'ជា វណ្ណៈ',
-      device: 'Xiaomi 13T (Android 14)',
-      ip_address: '103.216.48.15',
-      last_used: '2026-08-24 07:45:22',
-      status: 'Active',
-    },
-  ]);
+  const [sessions, setSessions] = useState<SessionItem[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  const handleRevoke = (id: number) => {
+  const loadSessions = async () => {
+    setLoading(true);
+    try {
+      const res = await adminApi.fetchActiveSessions();
+      if (res && res.success && Array.isArray(res.sessions)) {
+        setSessions(res.sessions);
+      }
+    } catch (err) {
+      console.error('Error fetching sessions:', err);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadSessions();
+  }, []);
+
+  const handleRevoke = async (id: number) => {
     if (!window.confirm('តើអ្នកពិតជាចង់ផ្តាច់ Session ឧបករណ៍នេះមែនទេ?')) return;
-    setSessions((prev) => prev.filter((s) => s.id !== id));
+    try {
+      await adminApi.revokeSession(id);
+      loadSessions();
+    } catch (err) {
+      alert('កំហុសក្នុងការផ្តាច់ Session');
+    }
   };
 
   return (
@@ -88,42 +84,51 @@ export const TokensPage: React.FC = () => {
             </tr>
           </thead>
           <tbody>
-            {sessions.map((s) => (
-              <tr key={s.id}>
-                <td>
-                  <div style={{ fontWeight: 600 }}>{s.name}</div>
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                    {s.employee_id}
-                  </div>
-                </td>
-                <td>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Smartphone size={15} color="var(--primary)" />
-                    <span>{s.device}</span>
-                  </div>
-                </td>
-                <td>
-                  <code>{s.ip_address}</code>
-                </td>
-                <td style={{ fontFamily: "'Outfit', sans-serif" }}>{s.last_used}</td>
-                <td>
-                  <span className="badge badge-good">សកម្ម (Active)</span>
-                </td>
-                <td style={{ textAlign: 'right' }}>
-                  <button
-                    onClick={() => handleRevoke(s.id)}
-                    className="btn btn-danger btn-sm"
-                    title="ផ្តាច់ Session"
-                  >
-                    <Trash2 size={13} />
-                    <span>ផ្តាច់ Session</span>
-                  </button>
+            {sessions.length === 0 ? (
+              <tr>
+                <td colSpan={6} style={{ textAlign: 'center', padding: '36px', color: 'var(--text-muted)' }}>
+                  {loading ? 'កំពុងទាញយកបញ្ជី Session...' : 'មិនមាន Session សកម្មឡើយ'}
                 </td>
               </tr>
-            ))}
+            ) : (
+              sessions.map((s) => (
+                <tr key={s.id}>
+                  <td>
+                    <div style={{ fontWeight: 600 }}>{s.name || 'បុគ្គលិក'}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                      {s.employee_id}
+                    </div>
+                  </td>
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Smartphone size={15} color="var(--primary)" />
+                      <span>{s.device}</span>
+                    </div>
+                  </td>
+                  <td>
+                    <code>{s.ip_address}</code>
+                  </td>
+                  <td style={{ fontFamily: "'Outfit', sans-serif" }}>{s.last_used}</td>
+                  <td>
+                    <span className="badge badge-good">សកម្ម (Active)</span>
+                  </td>
+                  <td style={{ textAlign: 'right' }}>
+                    <button
+                      onClick={() => handleRevoke(s.id)}
+                      className="btn btn-danger btn-sm"
+                      title="ផ្តាច់ Session"
+                    >
+                      <Trash2 size={13} />
+                      <span>ផ្តាច់ Session</span>
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
     </div>
   );
 };
+

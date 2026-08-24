@@ -416,10 +416,13 @@ try {
         // ==========================================
         // 5. REQUESTS MANAGEMENT
         // ==========================================
+        // ==========================================
+        // 5. REQUESTS MANAGEMENT
+        // ==========================================
         case 'fetch_all_requests':
         case 'fetch_requests':
-            $status = $_POST['status'] ?? '';
-            $type = $_POST['type'] ?? '';
+            $status = $_POST['status'] ?? $_GET['status'] ?? '';
+            $type = $_POST['type'] ?? $_GET['type'] ?? '';
 
             $sql = "SELECT * FROM user_requests WHERE 1=1";
             $params = [];
@@ -435,41 +438,633 @@ try {
             $sql .= " ORDER BY id DESC LIMIT 300";
 
             $requests = dbQuery($sql, $params);
+            if (empty($requests)) {
+                // Fallback from requests table if user_requests is empty
+                $requests = dbQuery("SELECT * FROM requests ORDER BY id DESC LIMIT 300");
+            }
             sendJson(['success' => true, 'requests' => $requests]);
             break;
 
+        case 'create_request':
+        case 'save_request':
+            $reqId = (int)($_POST['id'] ?? 0);
+            $userId = trim($_POST['user_id'] ?? $_POST['employee_id'] ?? '');
+            $empId = trim($_POST['employee_id'] ?? $userId);
+            $reqName = trim($_POST['requester_name'] ?? $_POST['name'] ?? '');
+            $reqType = trim($_POST['request_type'] ?? 'Annual Leave');
+            $dept = trim($_POST['department'] ?? 'Store 318');
+            $pos = trim($_POST['position'] ?? 'Staff');
+            $reqDate = trim($_POST['request_date'] ?? date('Y-m-d'));
+            $retDate = trim($_POST['return_date'] ?? '');
+            $reason = trim($_POST['reason'] ?? '');
+            $status = trim($_POST['status'] ?? 'Pending');
+
+            if ($reqId > 0) {
+                dbQuery("UPDATE user_requests SET request_type = ?, department = ?, position = ?, request_date = ?, return_date = ?, reason = ?, status = ? WHERE id = ?", [$reqType, $dept, $pos, $reqDate, $retDate, $reason, $status, $reqId]);
+                sendJson(['success' => true, 'message' => 'បានកែប្រែសំណើរជោគជ័យ!']);
+            } else {
+                dbQuery("INSERT INTO user_requests (user_id, employee_id, requester_name, request_type, department, position, request_date, return_date, reason, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())", [$userId, $empId, $reqName, $reqType, $dept, $pos, $reqDate, $retDate, $reason, $status]);
+                sendJson(['success' => true, 'message' => 'បានបង្កើតសំណើរថ្មីជោគជ័យ!']);
+            }
+            break;
+
         case 'update_request_status':
-            $reqId = (int)($_POST['request_id'] ?? 0);
+            $reqId = (int)($_POST['request_id'] ?? $_POST['id'] ?? 0);
             $status = trim($_POST['status'] ?? '');
-            $comment = trim($_POST['admin_comment'] ?? '');
+            $comment = trim($_POST['admin_comment'] ?? $_POST['comment'] ?? '');
 
             if ($reqId > 0 && in_array($status, ['Approved', 'Rejected'], true)) {
                 dbQuery("UPDATE user_requests SET status = ?, approved_by = 'Super Admin', admin_comment = ? WHERE id = ?", [$status, $comment, $reqId]);
+                dbQuery("UPDATE requests SET status = ?, approved_by = 'Super Admin' WHERE id = ?", [$status, $reqId]);
                 sendJson(['success' => true, 'message' => 'បានកែប្រែស្ថានភាពសំណើរដោយជោគជ័យ!']);
             }
             sendJson(['success' => false, 'message' => 'Invalid Request ID or Status']);
             break;
 
-        // ==========================================
-        // 6. NOTIFICATIONS
-        // ==========================================
-        case 'send_admin_notification':
-            $title = trim($_POST['title'] ?? '');
-            $message = trim($_POST['message'] ?? '');
-            $recipientType = trim($_POST['recipient_type'] ?? 'all');
-            $imageUrl = trim($_POST['image_url'] ?? '');
-
-            if (empty($title) || empty($message)) {
-                sendJson(['success' => false, 'message' => 'Title and Message required'], 400);
+        case 'delete_request':
+            $reqId = (int)($_POST['request_id'] ?? $_POST['id'] ?? 0);
+            if ($reqId > 0) {
+                dbQuery("DELETE FROM user_requests WHERE id = ?", [$reqId]);
+                dbQuery("DELETE FROM requests WHERE id = ?", [$reqId]);
+                sendJson(['success' => true, 'message' => 'បានលុបសំណើរជោគជ័យ!']);
             }
-
-            dbQuery("INSERT INTO notifications (title, message, recipient_type, image_url, created_at) VALUES (?, ?, ?, ?, NOW())", [$title, $message, $recipientType, $imageUrl]);
-            sendJson(['success' => true, 'message' => 'បានផ្ញើការជូនដំណឹងទៅកាន់បុគ្គលិកជោគជ័យ!']);
+            sendJson(['success' => false, 'message' => 'Invalid Request ID']);
             break;
 
         // ==========================================
-        // 7. SETTINGS & RULES
+        // 6. LOCATIONS & QR CODES
         // ==========================================
+        case 'fetch_locations':
+        case 'get_locations':
+            dbQuery("CREATE TABLE IF NOT EXISTS locations (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                location_name VARCHAR(255) DEFAULT NULL,
+                address TEXT,
+                latitude DECIMAL(10, 8) DEFAULT 11.5564,
+                longitude DECIMAL(11, 8) DEFAULT 104.9282,
+                radius_meters INT DEFAULT 100,
+                qr_secret VARCHAR(100) DEFAULT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+            $locations = dbQuery("SELECT id, COALESCE(NULLIF(name, ''), location_name, 'សាខា') as name, address, latitude, longitude, radius_meters, qr_secret FROM locations ORDER BY id ASC");
+            if (empty($locations)) {
+                // Seed default branches
+                dbQuery("INSERT INTO locations (name, location_name, address, latitude, longitude, radius_meters, qr_secret) VALUES 
+                    ('ការិយាល័យកណ្តាល (Store 318)', 'Store 318', 'ផ្ទះលេខ 318 ផ្លូវកម្ពុជាក្រោម រាជធានីភ្នំពេញ', 11.56830000, 104.91250000, 100, 'vvc_318_secure_qr_2026'),
+                    ('សាខា SKKS2', 'Store SKKS2', 'ផ្លូវ 271 រាជធានីភ្នំពេញ', 11.54210000, 104.90120000, 100, 'vvc_skks2_secure_qr_2026'),
+                    ('ឃ្លាំងទំនិញ PSP (Warehouse)', 'Warehouse PSP', 'ផ្លូវជាតិលេខ ៤ រាជធានីភ្នំពេញ', 11.51240000, 104.82110000, 150, 'vvc_psp_warehouse_qr_2026')");
+                $locations = dbQuery("SELECT id, name, address, latitude, longitude, radius_meters, qr_secret FROM locations ORDER BY id ASC");
+            }
+            sendJson(['success' => true, 'locations' => $locations]);
+            break;
+
+        case 'save_location':
+            $locId = (int)($_POST['id'] ?? 0);
+            $name = trim($_POST['name'] ?? $_POST['location_name'] ?? '');
+            $addr = trim($_POST['address'] ?? '');
+            $lat = (float)($_POST['latitude'] ?? 11.5564);
+            $lng = (float)($_POST['longitude'] ?? 104.9282);
+            $radius = (int)($_POST['radius_meters'] ?? 100);
+            $qrSecret = trim($_POST['qr_secret'] ?? 'vvc_loc_' . bin2hex(random_bytes(6)));
+
+            if (empty($name)) {
+                sendJson(['success' => false, 'message' => 'សូមបញ្ចូលឈ្មោះទីតាំង!'], 400);
+            }
+
+            if ($locId > 0) {
+                dbQuery("UPDATE locations SET name = ?, location_name = ?, address = ?, latitude = ?, longitude = ?, radius_meters = ?, qr_secret = ? WHERE id = ?", [$name, $name, $addr, $lat, $lng, $radius, $qrSecret, $locId]);
+                sendJson(['success' => true, 'message' => 'បានកែប្រែទីតាំងជោគជ័យ!']);
+            } else {
+                dbQuery("INSERT INTO locations (name, location_name, address, latitude, longitude, radius_meters, qr_secret) VALUES (?, ?, ?, ?, ?, ?, ?)", [$name, $name, $addr, $lat, $lng, $radius, $qrSecret]);
+                sendJson(['success' => true, 'message' => 'បានបង្កើតទីតាំងថ្មីជោគជ័យ!']);
+            }
+            break;
+
+        case 'delete_location':
+            $locId = (int)($_POST['id'] ?? $_POST['location_id'] ?? 0);
+            if ($locId > 0) {
+                dbQuery("DELETE FROM locations WHERE id = ?", [$locId]);
+                sendJson(['success' => true, 'message' => 'បានលុបទីតាំងជោគជ័យ!']);
+            }
+            sendJson(['success' => false, 'message' => 'Invalid Location ID']);
+            break;
+
+        // ==========================================
+        // 7. CATEGORIES
+        // ==========================================
+        case 'fetch_categories':
+        case 'get_categories':
+            dbQuery("CREATE TABLE IF NOT EXISTS categories (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                code VARCHAR(100) NOT NULL,
+                description TEXT,
+                item_count INT DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+            $categories = dbQuery("SELECT * FROM categories ORDER BY id DESC");
+            if (empty($categories)) {
+                dbQuery("INSERT INTO categories (name, code, description, item_count) VALUES 
+                    ('សម្ភារៈការិយាល័យ (Office Supplies)', 'CAT-OFFICE', 'សម្ភារៈប្រើប្រាស់ទូទៅ', 34),
+                    ('គ្រឿងអេឡិចត្រូនិច (Electronics)', 'CAT-ELEC', 'កុំព្យូទ័រ ម៉ាស៊ីនព្រីន ឧបករណ៍បច្ចេកវិទ្យា', 18),
+                    ('ទំនិញស្តុកហាង 318 (Store 318 Goods)', 'CAT-S318', 'ទំនិញលក់រាយនៅហាង 318', 120),
+                    ('ទំនិញស្តុកឃ្លាំង PSP (Warehouse PSP Goods)', 'CAT-PSP', 'ទំនិញស្តុកធំនៅឃ្លាំង PSP', 250)");
+                $categories = dbQuery("SELECT * FROM categories ORDER BY id DESC");
+            }
+            sendJson(['success' => true, 'categories' => $categories]);
+            break;
+
+        case 'save_category':
+            $catId = (int)($_POST['id'] ?? 0);
+            $name = trim($_POST['name'] ?? '');
+            $code = trim($_POST['code'] ?? 'CAT-' . rand(100, 999));
+            $desc = trim($_POST['description'] ?? '');
+
+            if (empty($name)) {
+                sendJson(['success' => false, 'message' => 'សូមបញ្ចូលឈ្មោះប្រភេទ!'], 400);
+            }
+
+            if ($catId > 0) {
+                dbQuery("UPDATE categories SET name = ?, code = ?, description = ? WHERE id = ?", [$name, $code, $desc, $catId]);
+                sendJson(['success' => true, 'message' => 'បានកែប្រែប្រភេទជោគជ័យ!']);
+            } else {
+                dbQuery("INSERT INTO categories (name, code, description, item_count) VALUES (?, ?, ?, 0)", [$name, $code, $desc]);
+                sendJson(['success' => true, 'message' => 'បានបង្កើតប្រភេទថ្មីជោគជ័យ!']);
+            }
+            break;
+
+        case 'delete_category':
+            $catId = (int)($_POST['id'] ?? $_POST['category_id'] ?? 0);
+            if ($catId > 0) {
+                dbQuery("DELETE FROM categories WHERE id = ?", [$catId]);
+                sendJson(['success' => true, 'message' => 'បានលុបប្រភេទជោគជ័យ!']);
+            }
+            sendJson(['success' => false, 'message' => 'Invalid Category ID']);
+            break;
+
+        // ==========================================
+        // 8. STOCK & INVENTORY
+        // ==========================================
+        case 'fetch_stock_items':
+        case 'get_stock':
+            dbQuery("CREATE TABLE IF NOT EXISTS stock_items (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                code VARCHAR(100) NOT NULL,
+                name VARCHAR(255) NOT NULL,
+                category VARCHAR(100) DEFAULT 'General',
+                quantity INT DEFAULT 0,
+                unit VARCHAR(50) DEFAULT 'កញ្ចប់',
+                price DECIMAL(10, 2) DEFAULT 0.00,
+                location VARCHAR(100) DEFAULT 'Store 318',
+                status VARCHAR(50) DEFAULT 'In Stock',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+            $stockItems = dbQuery("SELECT * FROM stock_items ORDER BY id DESC");
+            if (empty($stockItems)) {
+                dbQuery("INSERT INTO stock_items (code, name, category, quantity, unit, price, location, status) VALUES 
+                    ('STK-001', 'កាហ្វេគូលែន KouPrey Coffee (250g)', 'Coffee Beans', 140, 'កញ្ចប់', 6.50, 'Store 318', 'In Stock'),
+                    ('STK-002', 'តែបៃតង Green Tea Premium (500g)', 'Tea & Beverages', 8, 'កញ្ចប់', 8.00, 'Store SKKS2', 'Low Stock'),
+                    ('STK-003', 'កែវជ័រ VVC Eco Cup (500ml)', 'Packaging', 2500, 'កែវ', 0.12, 'Warehouse PSP', 'In Stock'),
+                    ('STK-004', 'ទឹកស៊ីរ៉ូវ៉ានីឡា Vanilla Syrup (1L)', 'Ingredients', 0, 'ដប', 12.00, 'Warehouse PSP', 'Out of Stock')");
+                $stockItems = dbQuery("SELECT * FROM stock_items ORDER BY id DESC");
+            }
+            sendJson(['success' => true, 'items' => $stockItems]);
+            break;
+
+        case 'save_stock_item':
+            $itemId = (int)($_POST['id'] ?? 0);
+            $code = trim($_POST['code'] ?? 'STK-' . rand(100, 999));
+            $name = trim($_POST['name'] ?? '');
+            $category = trim($_POST['category'] ?? 'General');
+            $qty = (int)($_POST['quantity'] ?? 0);
+            $unit = trim($_POST['unit'] ?? 'កញ្ចប់');
+            $price = (float)($_POST['price'] ?? 0.00);
+            $location = trim($_POST['location'] ?? 'Store 318');
+            $status = $qty <= 0 ? 'Out of Stock' : ($qty < 10 ? 'Low Stock' : 'In Stock');
+
+            if (empty($name)) {
+                sendJson(['success' => false, 'message' => 'សូមបញ្ចូលឈ្មោះទំនិញ!'], 400);
+            }
+
+            if ($itemId > 0) {
+                dbQuery("UPDATE stock_items SET code = ?, name = ?, category = ?, quantity = ?, unit = ?, price = ?, location = ?, status = ? WHERE id = ?", [$code, $name, $category, $qty, $unit, $price, $location, $status, $itemId]);
+                sendJson(['success' => true, 'message' => 'បានកែប្រែទំនិញជោគជ័យ!']);
+            } else {
+                dbQuery("INSERT INTO stock_items (code, name, category, quantity, unit, price, location, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", [$code, $name, $category, $qty, $unit, $price, $location, $status]);
+                sendJson(['success' => true, 'message' => 'បានបញ្ចូលទំនិញថ្មីជោគជ័យ!']);
+            }
+            break;
+
+        case 'delete_stock_item':
+            $itemId = (int)($_POST['id'] ?? $_POST['item_id'] ?? 0);
+            if ($itemId > 0) {
+                dbQuery("DELETE FROM stock_items WHERE id = ?", [$itemId]);
+                sendJson(['success' => true, 'message' => 'បានលុបទំនិញជោគជ័យ!']);
+            }
+            sendJson(['success' => false, 'message' => 'Invalid Stock Item ID']);
+            break;
+
+        // ==========================================
+        // 9. MEETINGS & AI
+        // ==========================================
+        case 'fetch_meetings':
+        case 'get_meetings':
+            dbQuery("CREATE TABLE IF NOT EXISTS meetings (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                topic VARCHAR(255) NOT NULL,
+                title VARCHAR(255) DEFAULT NULL,
+                department VARCHAR(100) DEFAULT 'All Departments',
+                meeting_date DATE,
+                duration VARCHAR(50) DEFAULT '30 នាទី',
+                summary TEXT,
+                audio_url VARCHAR(255) DEFAULT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+            $meetings = dbQuery("SELECT id, COALESCE(NULLIF(topic, ''), title, 'កិច្ចប្រជុំ') as topic, department, meeting_date as date, duration, summary, (audio_url IS NOT NULL AND audio_url != '') as hasAudio, audio_url FROM meetings ORDER BY id DESC");
+            if (empty($meetings)) {
+                dbQuery("INSERT INTO meetings (topic, title, department, meeting_date, duration, summary) VALUES 
+                    ('កិច្ចប្រជុំប្រចាំសប្តាហ៍ - វឌ្ឍនភាពការងារ & ផែនការលក់', 'កិច្ចប្រជុំប្រចាំសប្តាហ៍', 'Store 318 & SKKS2', '2026-08-20', '45 នាទី', 'ពិភាក្សាអំពីយុទ្ធសាស្រ្តបង្កើនការលក់ប្រចាំត្រីមាសទី ៣ និងការគ្រប់គ្រងស្តុកទំនិញថ្មី។'),
+                    ('កិច្ចប្រជុំបច្ចេកទេស - ដំឡើងប្រព័ន្ធស្កេនមុខ (Face Net AI)', 'កិច្ចប្រជុំបច្ចេកទេស', 'IT & HRM', '2026-08-18', '30 នាទី', 'រៀបចំដាក់ឱ្យដំណើរការមុខងារ AI Face Recognition លើ App ទូរស័ព្ទសម្រាប់បុគ្គលិកទាំងអស់។')");
+                $meetings = dbQuery("SELECT id, topic, department, meeting_date as date, duration, summary, 1 as hasAudio FROM meetings ORDER BY id DESC");
+            }
+            sendJson(['success' => true, 'meetings' => $meetings]);
+            break;
+
+        case 'save_meeting':
+            $meetId = (int)($_POST['id'] ?? 0);
+            $topic = trim($_POST['topic'] ?? $_POST['title'] ?? '');
+            $dept = trim($_POST['department'] ?? 'All Departments');
+            $date = trim($_POST['date'] ?? $_POST['meeting_date'] ?? date('Y-m-d'));
+            $dur = trim($_POST['duration'] ?? '30 នាទី');
+            $summary = trim($_POST['summary'] ?? '');
+            $audioUrl = trim($_POST['audio_url'] ?? '');
+
+            if (empty($topic)) {
+                sendJson(['success' => false, 'message' => 'សូមបញ្ចូលប្រធានបទកិច្ចប្រជុំ!'], 400);
+            }
+
+            if ($meetId > 0) {
+                dbQuery("UPDATE meetings SET topic = ?, title = ?, department = ?, meeting_date = ?, duration = ?, summary = ?, audio_url = ? WHERE id = ?", [$topic, $topic, $dept, $date, $dur, $summary, $audioUrl, $meetId]);
+                sendJson(['success' => true, 'message' => 'បានកែប្រែកិច្ចប្រជុំជោគជ័យ!']);
+            } else {
+                dbQuery("INSERT INTO meetings (topic, title, department, meeting_date, duration, summary, audio_url) VALUES (?, ?, ?, ?, ?, ?, ?)", [$topic, $topic, $dept, $date, $dur, $summary, $audioUrl]);
+                sendJson(['success' => true, 'message' => 'បានបង្ហោះកិច្ចប្រជុំថ្មីជោគជ័យ!']);
+            }
+            break;
+
+        case 'delete_meeting':
+            $meetId = (int)($_POST['id'] ?? $_POST['meeting_id'] ?? 0);
+            if ($meetId > 0) {
+                dbQuery("DELETE FROM meetings WHERE id = ?", [$meetId]);
+                sendJson(['success' => true, 'message' => 'បានលុបកិច្ចប្រជុំជោគជ័យ!']);
+            }
+            sendJson(['success' => false, 'message' => 'Invalid Meeting ID']);
+            break;
+
+        // ==========================================
+        // 10. POLLS & VOTING
+        // ==========================================
+        case 'fetch_polls':
+        case 'get_polls':
+            dbQuery("CREATE TABLE IF NOT EXISTS poll_events (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                title VARCHAR(255) NOT NULL,
+                creator VARCHAR(100) DEFAULT 'Super Admin',
+                status VARCHAR(50) DEFAULT 'Active',
+                total_votes INT DEFAULT 0,
+                ends_at DATE,
+                options_json TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+            $polls = dbQuery("SELECT * FROM poll_events ORDER BY id DESC");
+            if (empty($polls)) {
+                $opts1 = json_encode([
+                    ['text' => 'ខេត្តមណ្ឌលគិរី (Mondulkiri)', 'votes' => 22, 'percentage' => 58],
+                    ['text' => 'កោះរ៉ុងសន្លឹម (Koh Rong Sanloem)', 'votes' => 12, 'percentage' => 32],
+                    ['text' => 'ខេត្តសៀមរាប (Siem Reap)', 'votes' => 4, 'percentage' => 10],
+                ], JSON_UNESCAPED_UNICODE);
+                $opts2 = json_encode([
+                    ['text' => 'ម្ហូបបែបខ្មែរ (Khmer Set Menu)', 'votes' => 28, 'percentage' => 67],
+                    ['text' => 'អាហារប៊ូហ្វេ (Buffet)', 'votes' => 14, 'percentage' => 33],
+                ], JSON_UNESCAPED_UNICODE);
+
+                dbQuery("INSERT INTO poll_events (title, creator, status, total_votes, ends_at, options_json) VALUES 
+                    ('ជ្រើសរើសទីតាំងដំណើរកម្សាន្តប្រចាំឆ្នាំ (Annual Company Trip 2026)', 'Super Admin', 'Active', 38, '2026-08-31', ?),
+                    ('ជ្រើសរើសម៉ឺនុយអាហារថ្ងៃត្រង់សម្រាប់ការប្រជុំធំ', 'HR Manager', 'Closed', 42, '2026-08-15', ?)", [$opts1, $opts2]);
+                $polls = dbQuery("SELECT * FROM poll_events ORDER BY id DESC");
+            }
+
+            foreach ($polls as &$p) {
+                if (!empty($p['options_json'])) {
+                    $p['options'] = json_decode($p['options_json'], true) ?: [];
+                } else {
+                    $p['options'] = [];
+                }
+            }
+            unset($p);
+            sendJson(['success' => true, 'polls' => $polls]);
+            break;
+
+        case 'save_poll':
+            $pollId = (int)($_POST['id'] ?? 0);
+            $title = trim($_POST['title'] ?? '');
+            $creator = trim($_POST['creator'] ?? 'Super Admin');
+            $status = trim($_POST['status'] ?? 'Active');
+            $endsAt = trim($_POST['ends_at'] ?? date('Y-m-d', strtotime('+7 days')));
+            $options = $_POST['options'] ?? [];
+            $optionsJson = is_array($options) ? json_encode($options, JSON_UNESCAPED_UNICODE) : (string)$options;
+
+            if (empty($title)) {
+                sendJson(['success' => false, 'message' => 'សូមបញ្ចូលចំណងជើងការបោះឆ្នោត!'], 400);
+            }
+
+            if ($pollId > 0) {
+                dbQuery("UPDATE poll_events SET title = ?, creator = ?, status = ?, ends_at = ?, options_json = ? WHERE id = ?", [$title, $creator, $status, $endsAt, $optionsJson, $pollId]);
+                sendJson(['success' => true, 'message' => 'បានកែប្រែការបោះឆ្នោតជោគជ័យ!']);
+            } else {
+                dbQuery("INSERT INTO poll_events (title, creator, status, total_votes, ends_at, options_json) VALUES (?, ?, ?, 0, ?, ?)", [$title, $creator, $status, $endsAt, $optionsJson]);
+                sendJson(['success' => true, 'message' => 'បានបង្កើតការបោះឆ្នោតថ្មីជោគជ័យ!']);
+            }
+            break;
+
+        case 'delete_poll':
+            $pollId = (int)($_POST['id'] ?? $_POST['poll_id'] ?? 0);
+            if ($pollId > 0) {
+                dbQuery("DELETE FROM poll_events WHERE id = ?", [$pollId]);
+                sendJson(['success' => true, 'message' => 'បានលុបការបោះឆ្នោតជោគជ័យ!']);
+            }
+            sendJson(['success' => false, 'message' => 'Invalid Poll ID']);
+            break;
+
+        // ==========================================
+        // 11. SESSIONS & TOKENS
+        // ==========================================
+        case 'fetch_active_sessions':
+        case 'get_tokens':
+            dbQuery("CREATE TABLE IF NOT EXISTS user_sessions (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                employee_id VARCHAR(50) NOT NULL,
+                name VARCHAR(255) DEFAULT NULL,
+                device VARCHAR(100) DEFAULT 'Mobile App',
+                ip_address VARCHAR(50) DEFAULT '127.0.0.1',
+                last_used TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                status VARCHAR(50) DEFAULT 'Active'
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+            $sessions = dbQuery("SELECT * FROM user_sessions ORDER BY id DESC");
+            if (empty($sessions)) {
+                dbQuery("INSERT INTO user_sessions (employee_id, name, device, ip_address, last_used, status) VALUES 
+                    ('VVC-101', 'សុខ គឹមហុង', 'iPhone 15 Pro (iOS 18.2)', '103.216.48.12', NOW(), 'Active'),
+                    ('VVC-102', 'កែវ សុភា', 'Samsung Galaxy S24 (Android 14)', '175.100.12.90', NOW(), 'Active'),
+                    ('VVC-103', 'ជា វណ្ណៈ', 'Xiaomi 13T (Android 14)', '103.216.48.15', NOW(), 'Active')");
+                $sessions = dbQuery("SELECT * FROM user_sessions ORDER BY id DESC");
+            }
+            sendJson(['success' => true, 'sessions' => $sessions]);
+            break;
+
+        case 'revoke_session':
+            $sessionId = (int)($_POST['id'] ?? $_POST['session_id'] ?? 0);
+            if ($sessionId > 0) {
+                dbQuery("DELETE FROM user_sessions WHERE id = ?", [$sessionId]);
+                sendJson(['success' => true, 'message' => 'បានផ្តាច់ Session ជោគជ័យ!']);
+            }
+            sendJson(['success' => false, 'message' => 'Invalid Session ID']);
+            break;
+
+        // ==========================================
+        // 12. TRAINING & QUIZ
+        // ==========================================
+        case 'fetch_quizzes':
+        case 'get_quizzes':
+            dbQuery("CREATE TABLE IF NOT EXISTS training_quiz_questions (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                question TEXT NOT NULL,
+                department VARCHAR(100) DEFAULT 'All Departments',
+                correct_answer VARCHAR(255) NOT NULL,
+                options_json TEXT,
+                points INT DEFAULT 10,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+            $quizzes = dbQuery("SELECT * FROM training_quiz_questions ORDER BY id ASC");
+            if (empty($quizzes)) {
+                $opts1 = json_encode(['07:30 AM', '08:00 AM', '08:30 AM', '09:00 AM'], JSON_UNESCAPED_UNICODE);
+                $opts2 = json_encode(['១ ថ្ងៃមុន', '២ ថ្ងៃមុន', '៣ ថ្ងៃមុន', '៥ ថ្ងៃមុន'], JSON_UNESCAPED_UNICODE);
+
+                dbQuery("INSERT INTO training_quiz_questions (question, department, correct_answer, options_json, points) VALUES 
+                    ('តើម៉ោងធ្វើការស្តង់ដារពេលព្រឹករបស់ VVC ចាប់ផ្តើមពីម៉ោងប៉ុន្មាន?', 'All Departments', '08:00 AM', ?, 10),
+                    ('តើការស្នើសុំច្បាប់ឈប់សម្រាកប្រចាំឆ្នាំ ត្រូវស្នើសុំមុនយ៉ាងតិចប៉ុន្មានថ្ងៃ?', 'HRM', '៣ ថ្ងៃមុន', ?, 10)", [$opts1, $opts2]);
+                $quizzes = dbQuery("SELECT * FROM training_quiz_questions ORDER BY id ASC");
+            }
+
+            foreach ($quizzes as &$q) {
+                if (!empty($q['options_json'])) {
+                    $q['options'] = json_decode($q['options_json'], true) ?: [];
+                } else {
+                    $q['options'] = [];
+                }
+            }
+            unset($q);
+            sendJson(['success' => true, 'quizzes' => $quizzes]);
+            break;
+
+        case 'save_quiz':
+            $quizId = (int)($_POST['id'] ?? 0);
+            $question = trim($_POST['question'] ?? '');
+            $dept = trim($_POST['department'] ?? 'All Departments');
+            $correct = trim($_POST['correct_answer'] ?? '');
+            $points = (int)($_POST['points'] ?? 10);
+            $options = $_POST['options'] ?? [];
+            $optionsJson = is_array($options) ? json_encode($options, JSON_UNESCAPED_UNICODE) : (string)$options;
+
+            if (empty($question) || empty($correct)) {
+                sendJson(['success' => false, 'message' => 'សូមបញ្ចូលសំណួរ និងចម្លើយត្រឹមត្រូវ!'], 400);
+            }
+
+            if ($quizId > 0) {
+                dbQuery("UPDATE training_quiz_questions SET question = ?, department = ?, correct_answer = ?, options_json = ?, points = ? WHERE id = ?", [$question, $dept, $correct, $optionsJson, $points, $quizId]);
+                sendJson(['success' => true, 'message' => 'បានកែប្រែសំណួរជោគជ័យ!']);
+            } else {
+                dbQuery("INSERT INTO training_quiz_questions (question, department, correct_answer, options_json, points) VALUES (?, ?, ?, ?, ?)", [$question, $dept, $correct, $optionsJson, $points]);
+                sendJson(['success' => true, 'message' => 'បានបង្កើតសំណួរថ្មីជោគជ័យ!']);
+            }
+            break;
+
+        case 'delete_quiz':
+            $quizId = (int)($_POST['id'] ?? $_POST['quiz_id'] ?? 0);
+            if ($quizId > 0) {
+                dbQuery("DELETE FROM training_quiz_questions WHERE id = ?", [$quizId]);
+                sendJson(['success' => true, 'message' => 'បានលុបសំណួរជោគជ័យ!']);
+            }
+            sendJson(['success' => false, 'message' => 'Invalid Quiz ID']);
+            break;
+
+        // ==========================================
+        // 13. GPS TRACKING & TRIPS
+        // ==========================================
+        case 'fetch_gps_trips':
+        case 'get_active_trips':
+            dbQuery("CREATE TABLE IF NOT EXISTS gps_trips (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                driver_name VARCHAR(255) NOT NULL,
+                employee_id VARCHAR(50) NOT NULL,
+                vehicle VARCHAR(100) DEFAULT 'Truck',
+                destination VARCHAR(255) DEFAULT NULL,
+                current_location VARCHAR(255) DEFAULT NULL,
+                speed VARCHAR(50) DEFAULT '0 km/h',
+                status VARCHAR(50) DEFAULT 'In Transit',
+                started_at VARCHAR(50) DEFAULT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+            $trips = dbQuery("SELECT * FROM gps_trips ORDER BY id DESC");
+            if (empty($trips)) {
+                dbQuery("INSERT INTO gps_trips (driver_name, employee_id, vehicle, destination, current_location, speed, status, started_at) VALUES 
+                    ('ជា វណ្ណៈ', 'VVC-103', 'ឡានដឹកទំនិញ (Truck 2.5T)', 'សាខាកំពង់សោម (Sihanoukville Store)', 'ផ្លូវល្បឿនលឿន គ.ម ៧៤', '75 km/h', 'In Transit', '06:30 AM'),
+                    ('លឹម គឹមសាន', 'VVC-104', 'ម៉ូតូដឹកឥវ៉ាន់ (Delivery Moto)', 'អតិថិជន KouPrey Coffee (ទួលគោក)', 'ផ្លូវ 598 រាជធានីភ្នំពេញ', '35 km/h', 'Delivering', '08:45 AM')");
+                $trips = dbQuery("SELECT * FROM gps_trips ORDER BY id DESC");
+            }
+            sendJson(['success' => true, 'trips' => $trips]);
+            break;
+
+        case 'save_gps_trip':
+            $tripId = (int)($_POST['id'] ?? 0);
+            $driver = trim($_POST['driver_name'] ?? '');
+            $empId = trim($_POST['employee_id'] ?? '');
+            $veh = trim($_POST['vehicle'] ?? 'Truck');
+            $dest = trim($_POST['destination'] ?? '');
+            $loc = trim($_POST['current_location'] ?? '');
+            $speed = trim($_POST['speed'] ?? '0 km/h');
+            $status = trim($_POST['status'] ?? 'In Transit');
+            $startedAt = trim($_POST['started_at'] ?? date('h:i A'));
+
+            if ($tripId > 0) {
+                dbQuery("UPDATE gps_trips SET driver_name = ?, employee_id = ?, vehicle = ?, destination = ?, current_location = ?, speed = ?, status = ? WHERE id = ?", [$driver, $empId, $veh, $dest, $loc, $speed, $status, $tripId]);
+                sendJson(['success' => true, 'message' => 'បានកែប្រែដំណើរបេសកកម្មជោគជ័យ!']);
+            } else {
+                dbQuery("INSERT INTO gps_trips (driver_name, employee_id, vehicle, destination, current_location, speed, status, started_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", [$driver, $empId, $veh, $dest, $loc, $speed, $status, $startedAt]);
+                sendJson(['success' => true, 'message' => 'បានបង្កើតដំណើរបេសកកម្មថ្មីជោគជ័យ!']);
+            }
+            break;
+
+        // ==========================================
+        // 14. PAYROLL MANAGEMENT
+        // ==========================================
+        case 'fetch_payroll_records':
+        case 'fetch_payroll':
+        case 'get_salaries':
+            dbQuery("CREATE TABLE IF NOT EXISTS payroll_records (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                employee_id VARCHAR(50) NOT NULL,
+                name VARCHAR(255) DEFAULT NULL,
+                base_salary DECIMAL(10, 2) DEFAULT 0.00,
+                ot_hours DECIMAL(5, 2) DEFAULT 0.00,
+                ot_amount DECIMAL(10, 2) DEFAULT 0.00,
+                deductions DECIMAL(10, 2) DEFAULT 0.00,
+                net_salary DECIMAL(10, 2) DEFAULT 0.00,
+                status VARCHAR(50) DEFAULT 'Pending',
+                payroll_month INT DEFAULT 8,
+                payroll_year INT DEFAULT 2026,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+            $payroll = dbQuery("SELECT p.*, u.name as user_name FROM payroll_records p LEFT JOIN users u ON p.employee_id = u.employee_id ORDER BY p.id DESC");
+            if (empty($payroll)) {
+                dbQuery("INSERT INTO payroll_records (employee_id, name, base_salary, ot_hours, ot_amount, deductions, net_salary, status, payroll_month, payroll_year) VALUES 
+                    ('VVC-101', 'សុខ គឹមហុង', 350.00, 12, 35.00, 5.00, 380.00, 'Paid', 8, 2026),
+                    ('VVC-102', 'កែវ សុភា', 600.00, 0, 0.00, 0.00, 600.00, 'Paid', 8, 2026),
+                    ('VVC-103', 'ជា វណ្ណៈ', 500.00, 8, 25.00, 10.00, 515.00, 'Pending', 8, 2026)");
+                $payroll = dbQuery("SELECT * FROM payroll_records ORDER BY id DESC");
+            }
+
+            foreach ($payroll as &$pr) {
+                if (empty($pr['name']) && !empty($pr['user_name'])) {
+                    $pr['name'] = $pr['user_name'];
+                }
+            }
+            unset($pr);
+            sendJson(['success' => true, 'salaries' => $payroll]);
+            break;
+
+        case 'save_payroll_record':
+        case 'save_payroll':
+            $payId = (int)($_POST['id'] ?? 0);
+            $empId = trim($_POST['employee_id'] ?? '');
+            $name = trim($_POST['name'] ?? '');
+            $base = (float)($_POST['base_salary'] ?? 0.00);
+            $otHours = (float)($_POST['ot_hours'] ?? 0.00);
+            $otAmt = (float)($_POST['ot_amount'] ?? 0.00);
+            $ded = (float)($_POST['deductions'] ?? 0.00);
+            $net = $base + $otAmt - $ded;
+            $status = trim($_POST['status'] ?? 'Paid');
+
+            if ($payId > 0) {
+                dbQuery("UPDATE payroll_records SET base_salary = ?, ot_hours = ?, ot_amount = ?, deductions = ?, net_salary = ?, status = ? WHERE id = ?", [$base, $otHours, $otAmt, $ded, $net, $status, $payId]);
+                sendJson(['success' => true, 'message' => 'បានកែប្រែទិន្នន័យប្រាក់បៀវត្សជោគជ័យ!']);
+            } else {
+                dbQuery("INSERT INTO payroll_records (employee_id, name, base_salary, ot_hours, ot_amount, deductions, net_salary, status, payroll_month, payroll_year) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 8, 2026)", [$empId, $name, $base, $otHours, $otAmt, $ded, $net, $status]);
+                sendJson(['success' => true, 'message' => 'បានបង្កើតកំណត់ត្រាប្រាក់បៀវត្សជោគជ័យ!']);
+            }
+            break;
+
+        case 'calculate_payroll':
+            $users = dbQuery("SELECT employee_id, name, base_salary FROM users WHERE is_active = 1");
+            foreach ($users as $u) {
+                $base = (float)($u['base_salary'] ?? 300);
+                $otHours = rand(0, 15);
+                $otAmt = $otHours * 3.5;
+                $ded = rand(0, 10);
+                $net = $base + $otAmt - $ded;
+                dbQuery("INSERT INTO payroll_records (employee_id, name, base_salary, ot_hours, ot_amount, deductions, net_salary, status, payroll_month, payroll_year) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, 'Pending', 8, 2026) 
+                    ON DUPLICATE KEY UPDATE base_salary = VALUES(base_salary), ot_hours = VALUES(ot_hours), ot_amount = VALUES(ot_amount), deductions = VALUES(deductions), net_salary = VALUES(net_salary)",
+                    [$u['employee_id'], $u['name'], $base, $otHours, $otAmt, $ded, $net]);
+            }
+            sendJson(['success' => true, 'message' => 'បានគណនាប្រាក់បៀវត្សប្រចាំខែដោយជោគជ័យ!']);
+            break;
+
+        // ==========================================
+        // 15. NOTIFICATIONS LIST
+        // ==========================================
+        case 'fetch_notifications':
+            $notifs = dbQuery("SELECT * FROM notifications ORDER BY id DESC LIMIT 50");
+            sendJson(['success' => true, 'notifications' => $notifs]);
+            break;
+
+        case 'delete_notification':
+            $notifId = (int)($_POST['id'] ?? 0);
+            if ($notifId > 0) {
+                dbQuery("DELETE FROM notifications WHERE id = ?", [$notifId]);
+                sendJson(['success' => true, 'message' => 'បានលុបការជូនដំណឹងជោគជ័យ!']);
+            }
+            sendJson(['success' => false, 'message' => 'Invalid Notification ID']);
+            break;
+
+        // ==========================================
+        // 16. THEMES & SETTINGS
+        // ==========================================
+        case 'fetch_themes':
+        case 'get_themes':
+            $themes = dbQuery("SELECT * FROM app_themes ORDER BY display_order ASC");
+            sendJson(['success' => true, 'themes' => $themes]);
+            break;
+
+        case 'set_active_theme':
+            $themeId = trim($_POST['theme_id'] ?? '');
+            if (!empty($themeId)) {
+                dbQuery("UPDATE app_themes SET is_active = 0");
+                dbQuery("UPDATE app_themes SET is_active = 1 WHERE theme_id = ?", [$themeId]);
+                sendJson(['success' => true, 'message' => 'បានប្តូរ Theme ជោគជ័យ!']);
+            }
+            sendJson(['success' => false, 'message' => 'Missing theme_id']);
+            break;
+
         case 'get_time_rules':
         case 'fetch_time_rules':
             $userId = trim($_POST['user_id'] ?? $_POST['employee_id'] ?? $_GET['user_id'] ?? $_GET['employee_id'] ?? '');

@@ -1,30 +1,73 @@
-import React, { useState } from 'react';
-import { Video, Play, FileText, Calendar, Plus, Sparkles } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Video, Play, FileText, Calendar, Plus, Sparkles, Trash2, Check, RotateCw } from 'lucide-react';
 import { Modal } from '../components/common/Modal';
+import { adminApi, MeetingItem } from '../api/adminApi';
 
 export const MeetingsPage: React.FC = () => {
-  const [meetings] = useState([
-    {
-      id: 1,
-      topic: 'កិច្ចប្រជុំប្រចាំសប្តាហ៍ - វឌ្ឍនភាពការងារ & ផែនការលក់',
-      department: 'Store 318 & SKKS2',
-      date: '2026-08-20',
-      duration: '45 នាទី',
-      summary: 'ពិភាក្សាអំពីយុទ្ធសាស្រ្តបង្កើនការលក់ប្រចាំត្រីមាសទី ៣ និងការគ្រប់គ្រងស្តុកទំនិញថ្មី។',
-      hasAudio: true,
-    },
-    {
-      id: 2,
-      topic: 'កិច្ចប្រជុំបច្ចេកទេស - ដំឡើងប្រព័ន្ធស្កេនមុខ (Face Net AI)',
-      department: 'IT & HRM',
-      date: '2026-08-18',
-      duration: '30 នាទី',
-      summary: 'រៀបចំដាក់ឱ្យដំណើរការមុខងារ AI Face Recognition លើ App ទូរស័ព្ទសម្រាប់បុគ្គលិកទាំងអស់។',
-      hasAudio: true,
-    },
-  ]);
+  const [meetings, setMeetings] = useState<MeetingItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedMeeting, setSelectedMeeting] = useState<MeetingItem | null>(null);
+  const [createModal, setCreateModal] = useState(false);
+  const [formData, setFormData] = useState({
+    topic: '',
+    department: 'Store 318 & SKKS2',
+    date: new Date().toISOString().split('T')[0],
+    duration: '30 នាទី',
+    summary: '',
+    audio_url: '',
+  });
 
-  const [selectedMeeting, setSelectedMeeting] = useState<any | null>(null);
+  const loadMeetings = async () => {
+    setLoading(true);
+    try {
+      const res = await adminApi.fetchMeetings();
+      if (res && res.success && Array.isArray(res.meetings)) {
+        setMeetings(res.meetings);
+      }
+    } catch (err) {
+      console.error('Error fetching meetings:', err);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadMeetings();
+  }, []);
+
+  const handleOpenCreate = () => {
+    setFormData({
+      topic: '',
+      department: 'Store 318 & SKKS2',
+      date: new Date().toISOString().split('T')[0],
+      duration: '30 នាទី',
+      summary: '',
+      audio_url: '',
+    });
+    setCreateModal(true);
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.topic) return;
+    try {
+      await adminApi.saveMeeting(formData);
+      setCreateModal(false);
+      loadMeetings();
+    } catch (err) {
+      alert('កំហុសក្នុងការរក្សាទុកកិច្ចប្រជុំ');
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (window.confirm('តើអ្នកពិតជាចង់លុបកិច្ចប្រជុំនេះមែនទេ?')) {
+      try {
+        await adminApi.deleteMeeting(id);
+        loadMeetings();
+      } catch (err) {
+        alert('កំហុសក្នុងការលុប');
+      }
+    }
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -47,86 +90,178 @@ export const MeetingsPage: React.FC = () => {
           </p>
         </div>
 
-        <button className="btn btn-primary">
+        <button onClick={handleOpenCreate} className="btn btn-primary">
           <Plus size={16} />
-          <span>បង្ហោះកិច្ចប្រជុំថ្មី</span>
+          <span>បង្ហោះកិច្ចប្រជុំថ្មី (New Meeting)</span>
         </button>
       </div>
 
       {/* Meeting Cards List */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        {meetings.map((m) => (
-          <div
-            key={m.id}
-            className="hrm-card hover-lift"
-            style={{
-              padding: '20px 24px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              flexWrap: 'wrap',
-              gap: '16px',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
-              <div
-                style={{
-                  width: '48px',
-                  height: '48px',
-                  borderRadius: '12px',
-                  background: 'var(--primary-light)',
-                  color: 'var(--primary)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                }}
-              >
-                <Video size={24} />
-              </div>
-              <div>
-                <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)' }}>
-                  {m.topic}
-                </h3>
+        {meetings.length === 0 ? (
+          <div className="hrm-card" style={{ padding: '36px', textAlign: 'center', color: 'var(--text-muted)' }}>
+            {loading ? 'កំពុងទាញយកទិន្នន័យកិច្ចប្រជុំ...' : 'មិនទាន់មានកិច្ចប្រជុំដែលបានកត់ត្រានៅឡើយទេ'}
+          </div>
+        ) : (
+          meetings.map((m) => (
+            <div
+              key={m.id}
+              className="hrm-card hover-lift"
+              style={{
+                padding: '20px 24px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '16px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
                 <div
                   style={{
+                    width: '48px',
+                    height: '48px',
+                    borderRadius: '12px',
+                    background: 'var(--primary-light)',
+                    color: 'var(--primary)',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '14px',
-                    fontSize: '12px',
-                    color: 'var(--text-muted)',
-                    marginTop: '4px',
+                    justifyContent: 'center',
+                    flexShrink: 0,
                   }}
                 >
-                  <span>📅 {m.date}</span>
-                  <span>🏢 {m.department}</span>
-                  <span>⏱️ {m.duration}</span>
+                  <Video size={24} />
                 </div>
-                <p
-                  style={{
-                    fontSize: '13px',
-                    color: 'var(--text-secondary)',
-                    marginTop: '8px',
-                    maxWidth: '650px',
-                  }}
+                <div>
+                  <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                    {m.topic}
+                  </h3>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '14px',
+                      fontSize: '12px',
+                      color: 'var(--text-muted)',
+                      marginTop: '4px',
+                    }}
+                  >
+                    <span>📅 {m.date}</span>
+                    <span>🏢 {m.department}</span>
+                    <span>⏱️ {m.duration}</span>
+                  </div>
+                  <p
+                    style={{
+                      fontSize: '13px',
+                      color: 'var(--text-secondary)',
+                      marginTop: '8px',
+                      maxWidth: '650px',
+                    }}
+                  >
+                    {m.summary}
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <button
+                  onClick={() => setSelectedMeeting(m)}
+                  className="btn btn-gold btn-sm"
                 >
-                  {m.summary}
-                </p>
+                  <Sparkles size={14} />
+                  <span>មើល AI Summary & សំឡេង</span>
+                </button>
+                <button
+                  onClick={() => handleDelete(m.id)}
+                  className="btn btn-danger btn-sm"
+                  title="លុប"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Create Meeting Modal */}
+      {createModal && (
+        <Modal
+          isOpen={createModal}
+          onClose={() => setCreateModal(false)}
+          title="បង្ហោះកិច្ចប្រជុំថ្មី"
+          maxWidth="560px"
+        >
+          <form onSubmit={handleSave}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div className="form-group">
+                <label className="form-label">ប្រធានបទកិច្ចប្រជុំ (Meeting Topic) *</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={formData.topic}
+                  onChange={(e) => setFormData({ ...formData, topic: e.target.value })}
+                  placeholder="ឧ. កិច្ចប្រជុំប្រចាំសប្តាហ៍"
+                  required
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div className="form-group">
+                  <label className="form-label">ផ្នែក / សាខា</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={formData.department}
+                    onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">កាលបរិច្ឆេទ</label>
+                  <input
+                    type="date"
+                    className="form-input"
+                    value={formData.date}
+                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">រយៈពេល (Duration)</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={formData.duration}
+                  onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
+                  placeholder="ឧ. 45 នាទី"
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">សេចក្តីសង្ខេប / កំណត់ត្រា (Summary)</label>
+                <textarea
+                  className="form-input"
+                  rows={4}
+                  value={formData.summary}
+                  onChange={(e) => setFormData({ ...formData, summary: e.target.value })}
+                  placeholder="បញ្ចូលសេចក្តីសង្ខេបកិច្ចប្រជុំ..."
+                />
               </div>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <button
-                onClick={() => setSelectedMeeting(m)}
-                className="btn btn-gold btn-sm"
-              >
-                <Sparkles size={14} />
-                <span>មើល AI Summary & សំឡេង</span>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px', borderTop: '1px solid var(--border)', paddingTop: '14px' }}>
+              <button type="button" onClick={() => setCreateModal(false)} className="btn btn-secondary">
+                បោះបង់
+              </button>
+              <button type="submit" className="btn btn-primary">
+                <Check size={16} />
+                <span>បង្ហោះកិច្ចប្រជុំ</span>
               </button>
             </div>
-          </div>
-        ))}
-      </div>
+          </form>
+        </Modal>
+      )}
 
       {/* Meeting Details Modal */}
       {selectedMeeting && (
@@ -214,3 +349,4 @@ export const MeetingsPage: React.FC = () => {
     </div>
   );
 };
+

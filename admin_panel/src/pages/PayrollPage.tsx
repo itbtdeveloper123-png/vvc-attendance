@@ -1,43 +1,66 @@
-import React, { useState } from 'react';
-import { DollarSign, Download, Plus, Search, CheckCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { DollarSign, Download, Plus, Search, CheckCircle, RotateCw, Check } from 'lucide-react';
 import { StatCard } from '../components/common/StatCard';
+import { adminApi, PayrollItem } from '../api/adminApi';
 
 export const PayrollPage: React.FC = () => {
-  const [salaries] = useState([
-    {
-      id: 1,
-      employee_id: 'VVC-101',
-      name: 'សុខ គឹមហុង',
-      base_salary: 350,
-      ot_hours: 12,
-      ot_amount: 35,
-      deductions: 5,
-      net_salary: 380,
-      status: 'Paid',
-    },
-    {
-      id: 2,
-      employee_id: 'VVC-102',
-      name: 'កែវ សុភា',
-      base_salary: 600,
-      ot_hours: 0,
-      ot_amount: 0,
-      deductions: 0,
-      net_salary: 600,
-      status: 'Paid',
-    },
-    {
-      id: 3,
-      employee_id: 'VVC-103',
-      name: 'ជា វណ្ណៈ',
-      base_salary: 500,
-      ot_hours: 8,
-      ot_amount: 25,
-      deductions: 10,
-      net_salary: 515,
-      status: 'Pending',
-    },
-  ]);
+  const [salaries, setSalaries] = useState<PayrollItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [calculating, setCalculating] = useState(false);
+
+  const loadPayroll = async () => {
+    setLoading(true);
+    try {
+      const res = await adminApi.fetchPayroll();
+      if (res && res.success && Array.isArray(res.salaries)) {
+        setSalaries(res.salaries);
+      }
+    } catch (err) {
+      console.error('Error fetching payroll:', err);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadPayroll();
+  }, []);
+
+  const handleCalculate = async () => {
+    if (window.confirm('តើអ្នកចង់គណនាប្រាក់បៀវត្សសម្រាប់ខែនេះមែនទេ?')) {
+      setCalculating(true);
+      try {
+        await adminApi.calculatePayroll();
+        await loadPayroll();
+      } catch (err) {
+        alert('កំហុសក្នុងការគណនាប្រាក់បៀវត្ស');
+      }
+      setCalculating(false);
+    }
+  };
+
+  const handleToggleStatus = async (item: PayrollItem) => {
+    const newStatus = item.status === 'Paid' ? 'Pending' : 'Paid';
+    try {
+      await adminApi.savePayroll({
+        id: item.id,
+        employee_id: item.employee_id,
+        name: item.name,
+        base_salary: item.base_salary,
+        ot_hours: item.ot_hours,
+        ot_amount: item.ot_amount,
+        deductions: item.deductions,
+        net_salary: item.net_salary,
+        status: newStatus,
+      });
+      loadPayroll();
+    } catch (err) {
+      alert('កំហុសក្នុងការកែប្រែស្ថានភាព');
+    }
+  };
+
+  const totalPayroll = salaries.reduce((acc, s) => acc + (Number(s.net_salary) || 0), 0);
+  const totalOt = salaries.reduce((acc, s) => acc + (Number(s.ot_amount) || 0), 0);
+  const paidCount = salaries.filter((s) => s.status === 'Paid').length;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -60,9 +83,13 @@ export const PayrollPage: React.FC = () => {
           </p>
         </div>
 
-        <button className="btn btn-gold">
+        <button
+          onClick={handleCalculate}
+          disabled={calculating}
+          className="btn btn-gold"
+        >
           <DollarSign size={16} />
-          <span>គណនាប្រាក់ខែខែនេះ (Calculate)</span>
+          <span>{calculating ? 'កំពុងគណនា...' : 'គណនាប្រាក់ខែខែនេះ (Calculate)'}</span>
         </button>
       </div>
 
@@ -76,21 +103,21 @@ export const PayrollPage: React.FC = () => {
       >
         <StatCard
           title="ប្រាក់បៀវត្សសរុប (Total Payroll)"
-          value="$1,495.00"
+          value={`$${totalPayroll.toFixed(2)}`}
           subtitle="ចំណាយប្រាក់ខែសរុបខែនេះ"
           icon={<DollarSign size={22} />}
           variant="gold"
         />
         <StatCard
           title="ប្រាក់ថែមម៉ោងសរុប (Total OT)"
-          value="$60.00"
-          subtitle="20 ម៉ោងថែមម៉ោង"
+          value={`$${totalOt.toFixed(2)}`}
+          subtitle="ប្រាក់ថែមម៉ោងខែនេះ"
           icon={<DollarSign size={22} />}
           variant="success"
         />
         <StatCard
           title="បានបើកប្រាក់ខែ (Paid)"
-          value="2 / 3"
+          value={`${paidCount} / ${salaries.length}`}
           subtitle="បុគ្គលិកបានទទួលប្រាក់ខែ"
           icon={<CheckCircle size={22} />}
           variant="primary"
@@ -110,32 +137,50 @@ export const PayrollPage: React.FC = () => {
               <th>កាត់កង ($)</th>
               <th>ប្រាក់ខែសុទ្ធ (Net Salary)</th>
               <th>ស្ថានភាព</th>
+              <th style={{ textAlign: 'right' }}>សកម្មភាព</th>
             </tr>
           </thead>
           <tbody>
-            {salaries.map((s) => (
-              <tr key={s.id}>
-                <td style={{ fontFamily: "'Outfit', monospace", fontWeight: 700, color: 'var(--primary)' }}>
-                  {s.employee_id}
-                </td>
-                <td style={{ fontWeight: 600 }}>{s.name}</td>
-                <td>${s.base_salary}.00</td>
-                <td>{s.ot_hours} ម៉ោង</td>
-                <td style={{ color: '#10b981', fontWeight: 600 }}>+${s.ot_amount}.00</td>
-                <td style={{ color: '#ef4444' }}>-${s.deductions}.00</td>
-                <td style={{ fontWeight: 800, fontSize: '14px', color: 'var(--accent-gold)' }}>
-                  ${s.net_salary}.00
-                </td>
-                <td>
-                  <span className={`badge ${s.status === 'Paid' ? 'badge-good' : 'badge-late'}`}>
-                    {s.status === 'Paid' ? '✅ បានបើករួច' : '⏳ រង់ចាំបើក'}
-                  </span>
+            {salaries.length === 0 ? (
+              <tr>
+                <td colSpan={9} style={{ textAlign: 'center', padding: '36px', color: 'var(--text-muted)' }}>
+                  {loading ? 'កំពុងទាញយកទិន្នន័យប្រាក់បៀវត្ស...' : 'មិនទាន់មានទិន្នន័យប្រាក់បៀវត្សឡើយ សូមចុចគណនាប្រាក់ខែ'}
                 </td>
               </tr>
-            ))}
+            ) : (
+              salaries.map((s) => (
+                <tr key={s.id}>
+                  <td style={{ fontFamily: "'Outfit', monospace", fontWeight: 700, color: 'var(--primary)' }}>
+                    {s.employee_id}
+                  </td>
+                  <td style={{ fontWeight: 600 }}>{s.name || 'បុគ្គលិក'}</td>
+                  <td>${Number(s.base_salary).toFixed(2)}</td>
+                  <td>{s.ot_hours} ម៉ោង</td>
+                  <td style={{ color: '#10b981', fontWeight: 600 }}>+${Number(s.ot_amount).toFixed(2)}</td>
+                  <td style={{ color: '#ef4444' }}>-${Number(s.deductions).toFixed(2)}</td>
+                  <td style={{ fontWeight: 800, fontSize: '14px', color: 'var(--accent-gold)' }}>
+                    ${Number(s.net_salary).toFixed(2)}
+                  </td>
+                  <td>
+                    <span className={`badge ${s.status === 'Paid' ? 'badge-good' : 'badge-late'}`}>
+                      {s.status === 'Paid' ? '✅ បានបើករួច' : '⏳ រង់ចាំបើក'}
+                    </span>
+                  </td>
+                  <td style={{ textAlign: 'right' }}>
+                    <button
+                      onClick={() => handleToggleStatus(s)}
+                      className={`btn btn-sm ${s.status === 'Paid' ? 'btn-secondary' : 'btn-primary'}`}
+                    >
+                      <span>{s.status === 'Paid' ? 'សម្គាល់មិនទាន់បើក' : 'សម្គាល់បានបើក'}</span>
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
     </div>
   );
 };
+
