@@ -43,10 +43,17 @@ export const TokensPage: React.FC = () => {
     setLoading(true);
     try {
       const res = await adminApi.fetchActiveSessions();
-      if (res && res.success) {
-        if (Array.isArray(res.sessions)) setSessions(res.sessions);
-        if (Array.isArray(res.groups)) setGroups(res.groups);
-        if (res.global_max_tokens) setGlobalMaxTokens(Number(res.global_max_tokens) || 1);
+      if (res) {
+        const rawSessions = Array.isArray(res) 
+          ? res 
+          : (Array.isArray(res.sessions) ? res.sessions : (Array.isArray(res.tokens) ? res.tokens : (Array.isArray(res.data) ? res.data : [])));
+        setSessions(rawSessions);
+
+        const rawGroups = Array.isArray(res.groups) ? res.groups : (Array.isArray(res.data?.groups) ? res.data.groups : []);
+        setGroups(rawGroups);
+
+        const maxTok = res.global_max_tokens || res.max_tokens || res.data?.global_max_tokens;
+        if (maxTok) setGlobalMaxTokens(Number(maxTok) || 1);
       }
     } catch (err) {
       console.error('Error fetching sessions:', err);
@@ -57,8 +64,9 @@ export const TokensPage: React.FC = () => {
   const loadGlobalSettings = async () => {
     try {
       const res = await adminApi.fetchGlobalTokenSettings();
-      if (res && res.success) {
-        setGlobalMaxTokens(res.global_max_tokens || res.max_tokens || 1);
+      if (res) {
+        const maxTok = res.global_max_tokens || res.max_tokens || res.data?.global_max_tokens || res.data?.max_tokens;
+        if (maxTok) setGlobalMaxTokens(Number(maxTok) || 1);
       }
     } catch (err) {
       console.error('Error fetching global token settings:', err);

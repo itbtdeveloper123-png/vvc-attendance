@@ -1156,43 +1156,94 @@ try {
         // 11. SESSIONS & TOKENS (REAL ACTIVE_TOKENS TABLE)
         // ==========================================
         case 'fetch_active_sessions':
+        case 'get_active_sessions':
         case 'get_tokens':
+        case 'fetch_tokens':
+        case 'active_sessions':
             dbQuery("CREATE TABLE IF NOT EXISTS active_tokens (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 employee_id VARCHAR(50) NOT NULL,
-                auth_token VARCHAR(255) NOT NULL UNIQUE,
+                auth_token VARCHAR(255) NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 last_used TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                INDEX idx_emp (employee_id),
-                INDEX idx_token (auth_token)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+                INDEX idx_emp (employee_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
             dbQuery("CREATE TABLE IF NOT EXISTS user_skill_groups (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 group_name VARCHAR(255) NOT NULL,
                 sort_order INT DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
             $groups = dbQuery("SELECT id, group_name, sort_order FROM user_skill_groups ORDER BY sort_order ASC, group_name ASC");
 
-            $sessions = dbQuery("SELECT at.id, at.employee_id, at.auth_token, at.created_at, at.last_used,
-                                        u.name as user_name, u.name, u.user_role, u.department, u.position, u.custom_data, u.avatar
-                                 FROM active_tokens at
-                                 JOIN users u ON at.employee_id = u.employee_id
-                                 ORDER BY at.created_at DESC");
+            // Collation-safe LEFT JOIN query
+            $sessions = dbQuery("
+                SELECT at.id, at.employee_id, 
+                       COALESCE(at.auth_token, '') as auth_token, 
+                       at.created_at, at.last_used,
+                       COALESCE(u.name, at.employee_id) as user_name, 
+                       COALESCE(u.name, at.employee_id) as name, 
+                       COALESCE(u.user_role, 'Employee') as user_role, 
+                       COALESCE(u.department, '') as department, 
+                       COALESCE(u.position, '') as position, 
+                       u.custom_data, 
+                       u.avatar
+                FROM active_tokens at
+                LEFT JOIN users u ON CONVERT(at.employee_id USING utf8mb4) = CONVERT(u.employee_id USING utf8mb4)
+                ORDER BY at.id DESC
+            ");
+
+            // If empty or query issue, try fallback query with in-memory map
+            if (empty($sessions)) {
+                $rawTokens = dbQuery("SELECT * FROM active_tokens ORDER BY id DESC");
+                if (!empty($rawTokens)) {
+                    $users = dbQuery("SELECT employee_id, name, user_role, department, position, custom_data, avatar FROM users");
+                    $userMap = [];
+                    foreach ($users as $u) {
+                        $userMap[$u['employee_id']] = $u;
+                    }
+                    $sessions = [];
+                    foreach ($rawTokens as $rt) {
+                        $eid = $rt['employee_id'] ?? '';
+                        $u = $userMap[$eid] ?? [];
+                        $sessions[] = [
+                            'id' => (int)($rt['id'] ?? 0),
+                            'employee_id' => $eid,
+                            'auth_token' => $rt['auth_token'] ?? $rt['token'] ?? '',
+                            'created_at' => $rt['created_at'] ?? date('Y-m-d H:i:s'),
+                            'last_used' => $rt['last_used'] ?? date('Y-m-d H:i:s'),
+                            'user_name' => $u['name'] ?? $eid,
+                            'name' => $u['name'] ?? $eid,
+                            'user_role' => $u['user_role'] ?? 'Employee',
+                            'department' => $u['department'] ?? '',
+                            'position' => $u['position'] ?? '',
+                            'custom_data' => $u['custom_data'] ?? null,
+                            'avatar' => $u['avatar'] ?? null,
+                        ];
+                    }
+                }
+            }
 
             $globalMaxRow = dbQuery("SELECT setting_value FROM app_settings WHERE setting_key = 'global_max_tokens' LIMIT 1");
             $globalMaxTokens = !empty($globalMaxRow) ? (int)$globalMaxRow[0]['setting_value'] : 1;
             if ($globalMaxTokens < 1) $globalMaxTokens = 1;
 
-            sendJson(['success' => true, 'sessions' => $sessions, 'groups' => $groups, 'global_max_tokens' => $globalMaxTokens]);
+            sendJson([
+                'success' => true, 
+                'sessions' => $sessions, 
+                'tokens' => $sessions, 
+                'groups' => $groups, 
+                'global_max_tokens' => $globalMaxTokens,
+                'count' => count($sessions)
+            ]);
             break;
 
         case 'revoke_session':
         case 'revoke_token':
-            $token = trim($_POST['token'] ?? $_POST['auth_token'] ?? '');
-            $sessionId = (int)($_POST['id'] ?? $_POST['session_id'] ?? 0);
+            $token = trim($_POST['token'] ?? $_POST['auth_token'] ?? $_GET['token'] ?? '');
+            $sessionId = (int)($_POST['id'] ?? $_POST['session_id'] ?? $_GET['id'] ?? 0);
 
             if (!empty($token)) {
                 dbQuery("DELETE FROM active_tokens WHERE auth_token = ?", [$token]);
@@ -1205,6 +1256,7 @@ try {
             break;
 
         case 'revoke_bulk_tokens':
+        case 'revoke_bulk_sessions':
             $tokens = $_POST['tokens'] ?? [];
             if (is_string($tokens)) $tokens = json_decode($tokens, true) ?: explode(',', $tokens);
             if (!empty($tokens) && is_array($tokens)) {
@@ -1217,6 +1269,7 @@ try {
 
         case 'revoke_all_sessions':
         case 'revoke_all_my_users_tokens':
+        case 'revoke_all_tokens':
             dbQuery("DELETE FROM active_tokens");
             sendJson(['success' => true, 'message' => 'បានផ្តាច់គ្រប់ Session ទាំងអស់ដោយជោគជ័យ!']);
             break;
