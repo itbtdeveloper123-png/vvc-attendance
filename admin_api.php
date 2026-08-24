@@ -1664,79 +1664,285 @@ try {
             break;
 
         // ==========================================
-        // 10. POLLS & VOTING
+        // 10. POLLS & VOTING (Matching admin_attendance.php & api.php)
         // ==========================================
         case 'fetch_polls':
         case 'get_polls':
             dbQuery("CREATE TABLE IF NOT EXISTS poll_events (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 title VARCHAR(255) NOT NULL,
+                quarter VARCHAR(50) DEFAULT 'Q1',
+                location VARCHAR(100) DEFAULT 'ការិយាល័យកណ្តាល',
                 creator VARCHAR(100) DEFAULT 'Super Admin',
+                start_date DATE,
+                end_date DATE,
+                access_code VARCHAR(100) DEFAULT '',
+                is_active TINYINT(1) DEFAULT 1,
                 status VARCHAR(50) DEFAULT 'Active',
                 total_votes INT DEFAULT 0,
                 ends_at DATE,
+                allowed_employee_ids TEXT,
+                excluded_employee_ids TEXT,
                 options_json TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
+            dbQuery("CREATE TABLE IF NOT EXISTS poll_candidates (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                poll_id INT NOT NULL,
+                employee_id VARCHAR(50) NOT NULL,
+                category VARCHAR(100) DEFAULT 'Head Office',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+            dbQuery("CREATE TABLE IF NOT EXISTS poll_votes (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                poll_id INT NOT NULL,
+                voter_employee_id VARCHAR(50) NOT NULL,
+                candidate_id INT DEFAULT 0,
+                candidate_employee_id VARCHAR(50) DEFAULT NULL,
+                category VARCHAR(100) DEFAULT 'Head Office',
+                voted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+            // Ensure columns exist in poll_events
+            $peCols = [
+                'quarter' => "VARCHAR(50) DEFAULT 'Q1'",
+                'location' => "VARCHAR(100) DEFAULT 'ការិយាល័យកណ្តាល'",
+                'start_date' => "DATE DEFAULT NULL",
+                'end_date' => "DATE DEFAULT NULL",
+                'access_code' => "VARCHAR(100) DEFAULT ''",
+                'is_active' => "TINYINT(1) DEFAULT 1",
+                'allowed_employee_ids' => "TEXT DEFAULT NULL",
+                'excluded_employee_ids' => "TEXT DEFAULT NULL",
+            ];
+            foreach ($peCols as $cName => $cDef) {
+                $chk = dbQuery("SHOW COLUMNS FROM poll_events LIKE '$cName'");
+                if (empty($chk)) {
+                    dbQuery("ALTER TABLE poll_events ADD COLUMN $cName $cDef");
+                }
+            }
+
             $polls = dbQuery("SELECT * FROM poll_events ORDER BY id DESC");
             if (empty($polls)) {
-                $opts1 = json_encode([
-                    ['text' => 'ខេត្តមណ្ឌលគិរី (Mondulkiri)', 'votes' => 22, 'percentage' => 58],
-                    ['text' => 'កោះរ៉ុងសន្លឹម (Koh Rong Sanloem)', 'votes' => 12, 'percentage' => 32],
-                    ['text' => 'ខេត្តសៀមរាប (Siem Reap)', 'votes' => 4, 'percentage' => 10],
-                ], JSON_UNESCAPED_UNICODE);
-                $opts2 = json_encode([
-                    ['text' => 'ម្ហូបបែបខ្មែរ (Khmer Set Menu)', 'votes' => 28, 'percentage' => 67],
-                    ['text' => 'អាហារប៊ូហ្វេ (Buffet)', 'votes' => 14, 'percentage' => 33],
-                ], JSON_UNESCAPED_UNICODE);
-
-                dbQuery("INSERT INTO poll_events (title, creator, status, total_votes, ends_at, options_json) VALUES 
-                    ('ជ្រើសរើសទីតាំងដំណើរកម្សាន្តប្រចាំឆ្នាំ (Annual Company Trip 2026)', 'Super Admin', 'Active', 38, '2026-08-31', ?),
-                    ('ជ្រើសរើសម៉ឺនុយអាហារថ្ងៃត្រង់សម្រាប់ការប្រជុំធំ', 'HR Manager', 'Closed', 42, '2026-08-15', ?)", [$opts1, $opts2]);
+                $today = date('Y-m-d');
+                $nextMonth = date('Y-m-d', strtotime('+30 days'));
+                dbQuery("INSERT INTO poll_events (title, quarter, location, creator, start_date, end_date, is_active, status, total_votes, ends_at) VALUES 
+                    ('ការបោះឆ្នោតជ្រើសរើសបុគ្គលិកឆ្នើមប្រចាំត្រីមាស (Best Employee Q3)', 'Q3', 'ការិយាល័យកណ្តាល', 'Super Admin', ?, ?, 1, 'Active', 0, ?),
+                    ('ការបោះឆ្នោតជ្រើសរើសប្រធានក្រុមការងារឃ្លាំង (Warehouse Team Leader)', 'Q3', 'ឃ្លាំង PRV', 'Super Admin', ?, ?, 1, 'Active', 0, ?)",
+                    [$today, $nextMonth, $nextMonth, $today, $nextMonth, $nextMonth]
+                );
                 $polls = dbQuery("SELECT * FROM poll_events ORDER BY id DESC");
             }
 
+            // Build user lookup map
+            $usersRaw = dbQuery("SELECT employee_id, name, avatar, department, position, branch FROM users");
+            $userMap = [];
+            foreach ($usersRaw as $u) {
+                $eid = trim((string)$u['employee_id']);
+                if ($eid !== '') {
+                    $userMap[$eid] = $u;
+                    $userMap[ltrim($eid, '0')] = $u;
+                }
+            }
+
             foreach ($polls as &$p) {
-                if (!empty($p['options_json'])) {
-                    $p['options'] = json_decode($p['options_json'], true) ?: [];
-                } else {
-                    $p['options'] = [];
+                $pid = (int)$p['id'];
+
+                // Calculate candidate count
+                $candRows = dbQuery("SELECT * FROM poll_candidates WHERE poll_id = ?", [$pid]);
+                $p['candidate_count'] = count($candRows);
+                
+                // Calculate vote count
+                $voteRows = dbQuery("SELECT COUNT(*) AS c FROM poll_votes WHERE poll_id = ?", [$pid]);
+                $vCnt = (int)($voteRows[0]['c'] ?? 0);
+                $p['total_votes'] = $vCnt;
+
+                // Format candidates
+                $candidates = [];
+                foreach ($candRows as $cr) {
+                    $ceid = trim((string)$cr['employee_id']);
+                    $uInfo = $userMap[$ceid] ?? $userMap[ltrim($ceid, '0')] ?? null;
+                    
+                    // Votes for this candidate
+                    $cVoteRows = dbQuery("SELECT COUNT(*) AS c FROM poll_votes WHERE poll_id = ? AND (candidate_id = ? OR candidate_employee_id = ? OR candidate_employee_id = ?)", [$pid, (int)$cr['id'], $ceid, ltrim($ceid, '0')]);
+                    $cvCnt = (int)($cVoteRows[0]['c'] ?? 0);
+                    $pct = $vCnt > 0 ? round(($cvCnt / $vCnt) * 100, 1) : 0;
+
+                    $candidates[] = [
+                        'id' => (int)$cr['id'],
+                        'poll_id' => $pid,
+                        'employee_id' => $ceid,
+                        'name' => $uInfo['name'] ?? $ceid,
+                        'department' => $uInfo['department'] ?? $uInfo['branch'] ?? 'ការិយាល័យកណ្តាល',
+                        'position' => $uInfo['position'] ?? 'បុគ្គលិក',
+                        'category' => $cr['category'] ?? $p['location'] ?? 'Head Office',
+                        'avatar' => $uInfo['avatar'] ?? '',
+                        'votes_count' => $cvCnt,
+                        'percentage' => $pct,
+                    ];
+                }
+                $p['candidates'] = $candidates;
+
+                // Sync status
+                if (isset($p['is_active'])) {
+                    $p['status'] = (int)$p['is_active'] === 1 ? 'Active' : 'Closed';
                 }
             }
             unset($p);
-            sendJson(['success' => true, 'polls' => $polls]);
+
+            sendJson([
+                'success' => true,
+                'status' => 'success',
+                'polls' => $polls,
+                'data' => $polls,
+                'total' => count($polls),
+            ]);
             break;
 
         case 'save_poll':
-            $pollId = (int)($_POST['id'] ?? 0);
+            $pollId = (int)($_POST['id'] ?? $_POST['poll_id'] ?? 0);
             $title = trim($_POST['title'] ?? '');
-            $creator = trim($_POST['creator'] ?? 'Super Admin');
-            $status = trim($_POST['status'] ?? 'Active');
-            $endsAt = trim($_POST['ends_at'] ?? date('Y-m-d', strtotime('+7 days')));
-            $options = $_POST['options'] ?? [];
-            $optionsJson = is_array($options) ? json_encode($options, JSON_UNESCAPED_UNICODE) : (string)$options;
+            $quarter = trim($_POST['quarter'] ?? 'Q1');
+            $location = trim($_POST['location'] ?? 'ការិយាល័យកណ្តាល');
+            $startDate = trim($_POST['start_date'] ?? date('Y-m-d'));
+            $endDate = trim($_POST['end_date'] ?? date('Y-m-d', strtotime('+30 days')));
+            $accessCode = trim($_POST['access_code'] ?? '');
+            $isActive = isset($_POST['is_active']) ? (int)$_POST['is_active'] : 1;
+            $status = $isActive === 1 ? 'Active' : 'Closed';
+
+            $allowed = $_POST['allowed_employee_ids'] ?? $_POST['allowed_employees'] ?? [];
+            if (is_array($allowed)) $allowed = json_encode($allowed, JSON_UNESCAPED_UNICODE);
+
+            $excluded = $_POST['excluded_employee_ids'] ?? $_POST['excluded_employees'] ?? [];
+            if (is_array($excluded)) $excluded = json_encode($excluded, JSON_UNESCAPED_UNICODE);
 
             if (empty($title)) {
                 sendJson(['success' => false, 'message' => 'សូមបញ្ចូលចំណងជើងការបោះឆ្នោត!'], 400);
             }
 
             if ($pollId > 0) {
-                dbQuery("UPDATE poll_events SET title = ?, creator = ?, status = ?, ends_at = ?, options_json = ? WHERE id = ?", [$title, $creator, $status, $endsAt, $optionsJson, $pollId]);
-                sendJson(['success' => true, 'message' => 'បានកែប្រែការបោះឆ្នោតជោគជ័យ!']);
+                dbQuery("UPDATE poll_events SET title = ?, quarter = ?, location = ?, start_date = ?, end_date = ?, access_code = ?, is_active = ?, status = ?, ends_at = ?, allowed_employee_ids = ?, excluded_employee_ids = ? WHERE id = ?",
+                    [$title, $quarter, $location, $startDate, $endDate, $accessCode, $isActive, $status, $endDate, $allowed, $excluded, $pollId]
+                );
             } else {
-                dbQuery("INSERT INTO poll_events (title, creator, status, total_votes, ends_at, options_json) VALUES (?, ?, ?, 0, ?, ?)", [$title, $creator, $status, $endsAt, $optionsJson]);
-                sendJson(['success' => true, 'message' => 'បានបង្កើតការបោះឆ្នោតថ្មីជោគជ័យ!']);
+                dbQuery("INSERT INTO poll_events (title, quarter, location, creator, start_date, end_date, access_code, is_active, status, ends_at, allowed_employee_ids, excluded_employee_ids) VALUES (?, ?, ?, 'Super Admin', ?, ?, ?, ?, ?, ?, ?, ?)",
+                    [$title, $quarter, $location, $startDate, $endDate, $accessCode, $isActive, $status, $endDate, $allowed, $excluded]
+                );
+                $pollId = (int)dbLastInsertId();
             }
+
+            // Save Candidates if provided
+            $candidates = $_POST['candidates'] ?? [];
+            if (is_string($candidates)) {
+                $candidates = json_decode($candidates, true) ?: [];
+            }
+            if (is_array($candidates) && !empty($candidates) && $pollId > 0) {
+                foreach ($candidates as $cand) {
+                    $candEid = is_array($cand) ? ($cand['employee_id'] ?? '') : (string)$cand;
+                    $candCat = is_array($cand) ? ($cand['category'] ?? $location) : $location;
+                    $candEid = trim($candEid);
+                    if (!empty($candEid)) {
+                        $chk = dbQuery("SELECT id FROM poll_candidates WHERE poll_id = ? AND employee_id = ?", [$pollId, $candEid]);
+                        if (empty($chk)) {
+                            dbQuery("INSERT INTO poll_candidates (poll_id, employee_id, category) VALUES (?, ?, ?)", [$pollId, $candEid, $candCat]);
+                        } else {
+                            dbQuery("UPDATE poll_candidates SET category = ? WHERE id = ?", [$candCat, (int)$chk[0]['id']]);
+                        }
+                    }
+                }
+            }
+
+            sendJson(['success' => true, 'status' => 'success', 'message' => 'បានរក្សាទុកការបោះឆ្នោតជោគជ័យ!', 'id' => $pollId]);
             break;
 
         case 'delete_poll':
             $pollId = (int)($_POST['id'] ?? $_POST['poll_id'] ?? 0);
             if ($pollId > 0) {
                 dbQuery("DELETE FROM poll_events WHERE id = ?", [$pollId]);
-                sendJson(['success' => true, 'message' => 'បានលុបការបោះឆ្នោតជោគជ័យ!']);
+                dbQuery("DELETE FROM poll_candidates WHERE poll_id = ?", [$pollId]);
+                dbQuery("DELETE FROM poll_votes WHERE poll_id = ?", [$pollId]);
+                sendJson(['success' => true, 'status' => 'success', 'message' => 'បានលុបការបោះឆ្នោតជោគជ័យ!']);
             }
-            sendJson(['success' => false, 'message' => 'Invalid Poll ID']);
+            sendJson(['success' => false, 'message' => 'Invalid Poll ID'], 400);
+            break;
+
+        case 'fetch_poll_results':
+        case 'get_poll_results':
+            $pollId = (int)($_GET['id'] ?? $_GET['poll_id'] ?? $_POST['id'] ?? $_POST['poll_id'] ?? 0);
+            $where = $pollId > 0 ? "WHERE id = $pollId" : "";
+            $polls = dbQuery("SELECT * FROM poll_events $where ORDER BY id DESC");
+
+            $usersRaw = dbQuery("SELECT employee_id, name, avatar, department, position, branch FROM users");
+            $userMap = [];
+            foreach ($usersRaw as $u) {
+                $eid = trim((string)$u['employee_id']);
+                if ($eid !== '') {
+                    $userMap[$eid] = $u;
+                    $userMap[ltrim($eid, '0')] = $u;
+                }
+            }
+
+            $results = [];
+            foreach ($polls as $p) {
+                $pid = (int)$p['id'];
+                $voteRows = dbQuery("SELECT * FROM poll_votes WHERE poll_id = ? ORDER BY voted_at DESC", [$pid]);
+                $totalVotes = count($voteRows);
+
+                $candRows = dbQuery("SELECT * FROM poll_candidates WHERE poll_id = ?", [$pid]);
+                $candidatesResult = [];
+
+                foreach ($candRows as $cr) {
+                    $ceid = trim((string)$cr['employee_id']);
+                    $uInfo = $userMap[$ceid] ?? $userMap[ltrim($ceid, '0')] ?? null;
+
+                    $cVoteList = array_filter($voteRows, function($v) use ($cr, $ceid) {
+                        return (int)$v['candidate_id'] === (int)$cr['id'] ||
+                               strcasecmp(trim((string)$v['candidate_employee_id']), $ceid) === 0 ||
+                               strcasecmp(ltrim(trim((string)$v['candidate_employee_id']), '0'), ltrim($ceid, '0')) === 0;
+                    });
+                    $cVoteCount = count($cVoteList);
+                    $pct = $totalVotes > 0 ? round(($cVoteCount / $totalVotes) * 100, 1) : 0;
+
+                    $voters = [];
+                    foreach ($cVoteList as $vl) {
+                        $vEid = trim((string)$vl['voter_employee_id']);
+                        $vInfo = $userMap[$vEid] ?? $userMap[ltrim($vEid, '0')] ?? null;
+                        $voters[] = [
+                            'employee_id' => $vEid,
+                            'name' => $vInfo['name'] ?? $vEid,
+                            'avatar' => $vInfo['avatar'] ?? '',
+                            'voted_at' => $vl['voted_at'] ?? '',
+                        ];
+                    }
+
+                    $candidatesResult[] = [
+                        'id' => (int)$cr['id'],
+                        'employee_id' => $ceid,
+                        'name' => $uInfo['name'] ?? $ceid,
+                        'department' => $uInfo['department'] ?? $uInfo['branch'] ?? 'ការិយាល័យកណ្តាល',
+                        'position' => $uInfo['position'] ?? 'បុគ្គលិក',
+                        'category' => $cr['category'] ?? $p['location'] ?? 'Head Office',
+                        'avatar' => $uInfo['avatar'] ?? '',
+                        'votes_count' => $cVoteCount,
+                        'percentage' => $pct,
+                        'voters' => $voters,
+                    ];
+                }
+
+                // Sort candidates by votes desc
+                usort($candidatesResult, function($a, $b) {
+                    return $b['votes_count'] <=> $a['votes_count'];
+                });
+
+                $results[] = [
+                    'poll' => $p,
+                    'total_votes' => $totalVotes,
+                    'candidates' => $candidatesResult,
+                ];
+            }
+
+            sendJson(['success' => true, 'status' => 'success', 'data' => $results, 'results' => $results]);
             break;
 
         // ==========================================

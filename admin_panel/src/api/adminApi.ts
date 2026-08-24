@@ -221,6 +221,25 @@ export interface NotificationRecipientUser {
   avatar?: string;
 }
 
+export interface PollCandidate {
+  id: number;
+  poll_id?: number;
+  employee_id: string;
+  name: string;
+  department?: string;
+  position?: string;
+  category?: string;
+  avatar?: string;
+  votes_count?: number;
+  percentage?: number;
+  voters?: Array<{
+    employee_id: string;
+    name: string;
+    avatar?: string;
+    voted_at?: string;
+  }>;
+}
+
 export interface PollOption {
   text: string;
   votes: number;
@@ -230,11 +249,21 @@ export interface PollOption {
 export interface PollItem {
   id: number;
   title: string;
+  quarter?: string;
+  location?: string;
   creator?: string;
+  start_date?: string;
+  end_date?: string;
+  access_code?: string;
+  is_active?: number;
   status: 'Active' | 'Closed';
+  candidate_count?: number;
   total_votes: number;
-  ends_at: string;
-  options: PollOption[];
+  ends_at?: string;
+  allowed_employee_ids?: string;
+  excluded_employee_ids?: string;
+  candidates?: PollCandidate[];
+  options?: PollOption[];
 }
 
 export interface SessionGroup {
@@ -771,6 +800,14 @@ export const adminApi = {
     const params = new URLSearchParams();
     params.append('action', 'delete_poll');
     params.append('id', String(id));
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  fetchPollResults: async (pollId?: number | string) => {
+    const params = new URLSearchParams();
+    params.append('action', 'fetch_poll_results');
+    if (pollId) params.append('poll_id', String(pollId));
     const res = await apiClient.post('', params);
     return res.data;
   },
