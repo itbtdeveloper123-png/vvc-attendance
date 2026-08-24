@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import html2canvas from 'html2canvas';
 import {
   Calendar,
   Download,
@@ -142,8 +143,9 @@ export const AttendanceReportsPage: React.FC = () => {
   const [editingNoteValue, setEditingNoteValue] = useState<string>('');
   const [isSavingNote, setIsSavingNote] = useState<boolean>(false);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
-
+  const [isCapturingImage, setIsCapturingImage] = useState<boolean>(false);
   const printRef = useRef<HTMLDivElement>(null);
+  const combinedCaptureRef = useRef<HTMLDivElement>(null);
 
   // Active Date string helper
   const getActiveDate = () => (isCustomDateMode && customDate ? customDate : (selectedDate || new Date().toISOString().split('T')[0]));
@@ -505,6 +507,45 @@ export const AttendanceReportsPage: React.FC = () => {
   // Trigger Print A4 Portrait
   const handlePrintA4 = () => {
     window.print();
+  };
+
+  // Copy Combined Store Table as HD Image to Clipboard (No download)
+  const handleCaptureTableImage = async () => {
+    if (!combinedCaptureRef.current) return;
+    setIsCapturingImage(true);
+    try {
+      // Allow DOM state update
+      await new Promise((r) => setTimeout(r, 120));
+
+      const element = combinedCaptureRef.current;
+      const canvas = await html2canvas(element, {
+        scale: 2.5, // 2.5x High Resolution
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+        ignoreElements: (el) => el.classList.contains('no-capture'),
+      });
+
+      // Copy image directly to Clipboard
+      if (navigator.clipboard && typeof ClipboardItem !== 'undefined') {
+        const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+        if (blob) {
+          await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+          setSaveSuccessMsg('📋 បានចម្លងរូបភាពតារាងទៅ Clipboard រួចរាល់! (អាចចុច Ctrl + V ដើម្បី Paste)');
+          setTimeout(() => setSaveSuccessMsg(null), 4000);
+        } else {
+          throw new Error('Canvas blob creation failed');
+        }
+      } else {
+        alert('កម្មវិធីរុករក (Browser) មិនទាន់គាំទ្រការ Copy Image ដោយផ្ទាល់ទេ។ សូមប្រើប្រាស់ Google Chrome ឬ Microsoft Edge។');
+      }
+    } catch (e) {
+      console.error('Failed to copy table image:', e);
+      alert('មានបញ្ហាក្នុងការចម្លងរូបភាពទៅ Clipboard សូមសាកល្បងម្តងទៀត។');
+    } finally {
+      setIsCapturingImage(false);
+    }
   };
 
   const handleExportCSV = () => {
@@ -1686,7 +1727,7 @@ const DEFAULT_DEPT_FORGOTTEN_RECORDS: ForgottenScanRecord[] = [
                   ))}
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                   <span style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--text-secondary)' }}>កាលបរិច្ឆេទ:</span>
                   <input
                     type="date"
@@ -1704,12 +1745,59 @@ const DEFAULT_DEPT_FORGOTTEN_RECORDS: ForgottenScanRecord[] = [
                   >
                     <RefreshCw size={15} className={loadingLeaveDeo ? 'animate-spin' : ''} />
                   </button>
+
+                  {/* 📸 Copy Table Image to Clipboard Button */}
+                  <button
+                    type="button"
+                    onClick={handleCaptureTableImage}
+                    disabled={isCapturingImage}
+                    className="btn btn-primary btn-sm"
+                    style={{
+                      height: '40px',
+                      borderRadius: '10px',
+                      padding: '0 16px',
+                      fontWeight: 800,
+                      background: 'linear-gradient(135deg, #05165e, #1e3a8a)',
+                      border: 'none',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      color: '#ffffff',
+                      boxShadow: '0 3px 10px rgba(5, 22, 94, 0.25)',
+                    }}
+                    title="ចម្លងរូបភាពតារាងទៅ Clipboard (អាចចុច Ctrl+V ដើម្បី Paste ចូល Telegram/Chat ភ្លាមៗ)"
+                  >
+                    <Camera size={16} className={isCapturingImage ? 'animate-spin' : ''} />
+                    <span>{isCapturingImage ? 'កំពុង Copy...' : '📋 Copy រូបភាពតារាង'}</span>
+                  </button>
+
+                  {/* 🖨 Print / PDF Button */}
+                  <button
+                    type="button"
+                    onClick={handlePrintA4}
+                    className="btn btn-secondary btn-sm"
+                    style={{
+                      height: '40px',
+                      borderRadius: '10px',
+                      padding: '0 14px',
+                      fontWeight: 700,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}
+                    title="បោះពុម្ពជាក្រដាស A4 ឬរក្សាទុកជា PDF"
+                  >
+                    <Printer size={16} />
+                    <span>បោះពុម្ព</span>
+                  </button>
                 </div>
               </div>
             </div>
 
-            {/* Printable Report Canvas */}
+            {/* Printable & Capturable Report Canvas */}
             <div
+              ref={combinedCaptureRef}
+              id="combined-report-capture-area"
               className="hrm-card printable-report-card"
               style={{
                 padding: '36px 40px',
@@ -2203,7 +2291,7 @@ const DEFAULT_DEPT_FORGOTTEN_RECORDS: ForgottenScanRecord[] = [
                         <th style={{ border: '1px solid #0d288a', padding: '10px 8px', width: '130px', textAlign: 'center', color: '#fff' }}>
                           ថ្ងៃរាយការណ៍
                         </th>
-                        <th className="no-print" style={{ border: '1px solid #0d288a', padding: '10px 8px', width: '70px', textAlign: 'center', color: '#fff' }}>
+                        <th className="no-print no-capture" style={{ border: '1px solid #0d288a', padding: '10px 8px', width: '70px', textAlign: 'center', color: '#fff' }}>
                           សកម្មភាព
                         </th>
                       </tr>
@@ -2285,7 +2373,7 @@ const DEFAULT_DEPT_FORGOTTEN_RECORDS: ForgottenScanRecord[] = [
                             <td style={{ border: '1px solid #dee2e6', padding: '4px', textAlign: 'center', fontFamily: "'Outfit', monospace" }}>
                               {r.reports_date || getActiveDate()}
                             </td>
-                            <td className="no-print" style={{ border: '1px solid #dee2e6', padding: '4px', textAlign: 'center' }}>
+                            <td className="no-print no-capture" style={{ border: '1px solid #dee2e6', padding: '4px', textAlign: 'center' }}>
                               <button
                                 type="button"
                                 onClick={() => handleDeleteLeaveDeoRow(r.id, i)}
@@ -2302,7 +2390,7 @@ const DEFAULT_DEPT_FORGOTTEN_RECORDS: ForgottenScanRecord[] = [
                   </table>
                 </div>
 
-                <div className="no-print" style={{ marginTop: '14px', display: 'flex', justifyContent: 'flex-start', alignItems: 'center', gap: '10px' }}>
+                <div className="no-print no-capture" style={{ marginTop: '14px', display: 'flex', justifyContent: 'flex-start', alignItems: 'center', gap: '10px' }}>
                   <button
                     type="button"
                     onClick={handleAddNewLeaveDeoRow}
