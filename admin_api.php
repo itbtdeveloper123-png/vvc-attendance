@@ -856,7 +856,6 @@ try {
             $department = trim((string)($_POST['department'] ?? $_GET['department'] ?? 'all'));
             $deptCategory = trim((string)($_POST['dept_category'] ?? $_GET['dept_category'] ?? 'department'));
 
-            // Default dates if empty: first day of month to today
             if (empty($startDate)) {
                 $startDate = date('Y-m-01');
             }
@@ -864,7 +863,6 @@ try {
                 $endDate = date('Y-m-d');
             }
 
-            // Normalize formats
             if (preg_match('/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/', $startDate, $m)) {
                 $startDate = sprintf('%04d-%02d-%02d', (int)$m[3], (int)$m[2], (int)$m[1]);
             }
@@ -875,31 +873,49 @@ try {
             $startDt = $startDate . ' 00:00:00';
             $endDt = $endDate . ' 23:59:59';
 
-            // 1. Fetch all users
-            $userSql = "SELECT * FROM users WHERE 1=1";
-            $userParams = [];
-
-            if ($deptCategory === 'worker') {
-                $userSql .= " AND (department LIKE '%Worker%' OR department LIKE '%កម្មករ%' OR role LIKE '%Worker%')";
-            } elseif ($deptCategory === 'sk') {
-                $userSql .= " AND (department IN ('SKKS2', 'SKNR3') OR department LIKE '%SK%')";
-            } elseif ($deptCategory === 'department') {
-                $userSql .= " AND (department NOT IN ('Worker', 'SKKS2', 'SKNR3') AND department NOT LIKE '%Worker%' AND department NOT LIKE '%កម្មករ%' OR department IS NULL OR department = '')";
+            // 1. Fetch All Users
+            $rawUsers = dbQuery("SELECT * FROM users ORDER BY CAST(employee_id AS UNSIGNED) ASC, name ASC");
+            if (empty($rawUsers)) {
+                $rawUsers = dbQuery("SELECT DISTINCT employee_id, COALESCE(name, employee_id) as name, 'ប្រុស' as gender, COALESCE(department, location_name, 'Store 318') as department, 'បុគ្គលិក' as position 
+                                     FROM checkin_logs 
+                                     WHERE employee_id IS NOT NULL AND employee_id != ''");
             }
 
-            if (!empty($department) && $department !== 'all') {
-                $userSql .= " AND (department = ? OR workplace = ?)";
-                $userParams[] = $department;
-                $userParams[] = $department;
-            }
+            $users = [];
+            foreach ($rawUsers as $u) {
+                $custom = [];
+                if (!empty($u['custom_data'])) {
+                    if (is_array($u['custom_data'])) $custom = $u['custom_data'];
+                    else $custom = json_decode($u['custom_data'], true) ?: [];
+                }
+                $empDept = (string)($u['department'] ?? $custom['department'] ?? $u['location_name'] ?? '');
+                $empPos = (string)($u['position'] ?? $custom['position'] ?? $u['role'] ?? '');
+                $empRole = (string)($u['user_role'] ?? $custom['role'] ?? '');
 
-            $userSql .= " ORDER BY CAST(employee_id AS UNSIGNED) ASC, name ASC";
-            $users = dbQuery($userSql, $userParams);
+                $isWorker = (stripos($empDept, 'worker') !== false || stripos($empDept, 'កម្មករ') !== false || stripos($empPos, 'worker') !== false || stripos($empRole, 'worker') !== false);
+                $isSk = (stripos($empDept, 'sk') !== false || stripos($empDept, 'ks2') !== false || stripos($empDept, 'nr3') !== false || stripos($empDept, 'psp') !== false || stripos($empDept, 'prv') !== false);
 
-            if (empty($users)) {
-                $users = dbQuery("SELECT DISTINCT employee_id, COALESCE(name, employee_id) as name, 'ប្រុស' as gender, COALESCE(department, location_name, 'បុគ្គលិក') as role, department 
-                                  FROM checkin_logs 
-                                  WHERE employee_id IS NOT NULL AND employee_id != ''");
+                if ($deptCategory === 'worker' && !$isWorker) continue;
+                if ($deptCategory === 'sk' && !$isSk) continue;
+                if ($deptCategory === 'department' && ($isWorker || $isSk)) continue;
+
+                if (!empty($department) && $department !== 'all') {
+                    if (strcasecmp($empDept, $department) !== 0) continue;
+                }
+
+                $gDisplay = 'ប្រុស';
+                $g = (string)($u['gender'] ?? $custom['gender'] ?? '');
+                if (!empty($g) && (stripos($g, 'f') !== false || stripos($g, 'ស្រី') !== false)) {
+                    $gDisplay = 'ស្រី';
+                }
+
+                $users[] = [
+                    'employee_id' => (string)($u['employee_id'] ?? $u['id'] ?? ''),
+                    'name' => (string)($u['name'] ?? $u['employee_id'] ?? ''),
+                    'gender' => $gDisplay,
+                    'role' => $empPos ?: ($empDept ?: 'បុគ្គលិក'),
+                    'department' => $empDept,
+                ];
             }
 
             // 2. Fetch all late logs in date range
@@ -907,7 +923,6 @@ try {
                                  FROM checkin_logs 
                                  WHERE log_datetime BETWEEN ? AND ? AND status = 'Late'", [$startDt, $endDt]);
 
-            // Map late logs by employee_id and calculate late duration bracket
             $lateByUser = [];
             foreach ($lateLogs as $log) {
                 $empId = (string)$log['employee_id'];
@@ -924,7 +939,6 @@ try {
                 $hour = (int)date('H', $logTime);
                 $minute = (int)date('i', $logTime);
 
-                // Bracket calculation
                 if ($hour >= 7 && $hour <= 11) {
                     $mins = max(1, ($hour - 8) * 60 + $minute);
                 } elseif ($hour >= 12 && $hour <= 17) {
@@ -943,7 +957,6 @@ try {
                 $lateByUser[$empId]['total']++;
             }
 
-            // 3. Build employee list with late breakdowns
             $results = [];
             $sumUnder15 = 0;
             $sumFrom15To60 = 0;
@@ -964,17 +977,12 @@ try {
                 $sumOver60 += $lateData['over_60'];
                 $grandTotal += $lateData['total'];
 
-                $gDisplay = 'ប្រុស';
-                if (!empty($u['gender']) && (stripos($u['gender'], 'f') !== false || stripos($u['gender'], 'ស្រី') !== false)) {
-                    $gDisplay = 'ស្រី';
-                }
-
                 $results[] = [
                     'employee_id' => $empId,
-                    'name' => (string)($u['name'] ?: $empId),
-                    'gender' => $gDisplay,
-                    'role' => (string)($u['position'] ?: ($u['department'] ?: 'បុគ្គលិក')),
-                    'department' => (string)($u['department'] ?: ''),
+                    'name' => $u['name'],
+                    'gender' => $u['gender'],
+                    'role' => $u['role'],
+                    'department' => $u['department'],
                     'under_15' => $lateData['under_15'],
                     'from_15_to_60' => $lateData['from_15_to_60'],
                     'over_60' => $lateData['over_60'],
@@ -1029,30 +1037,49 @@ try {
             $endDt = $endDate . ' 23:59:59';
 
             // 1. Fetch Users
-            $userSql = "SELECT * FROM users WHERE 1=1";
-            $userParams = [];
-
-            if ($deptCategory === 'worker') {
-                $userSql .= " AND (department LIKE '%Worker%' OR department LIKE '%កម្មករ%' OR role LIKE '%Worker%')";
-            } elseif ($deptCategory === 'sk') {
-                $userSql .= " AND (department IN ('SKKS2', 'SKNR3') OR department LIKE '%SK%')";
-            } elseif ($deptCategory === 'department') {
-                $userSql .= " AND (department NOT IN ('Worker', 'SKKS2', 'SKNR3') AND department NOT LIKE '%Worker%' AND department NOT LIKE '%កម្មករ%' OR department IS NULL OR department = '')";
+            $rawUsers = dbQuery("SELECT * FROM users ORDER BY CAST(employee_id AS UNSIGNED) ASC, name ASC");
+            if (empty($rawUsers)) {
+                $rawUsers = dbQuery("SELECT DISTINCT employee_id, COALESCE(name, employee_id) as name, 'ប្រុស' as gender, COALESCE(department, location_name, 'Store 318') as department, 'បុគ្គលិក' as position 
+                                     FROM checkin_logs 
+                                     WHERE employee_id IS NOT NULL AND employee_id != ''");
             }
 
-            if (!empty($department) && $department !== 'all') {
-                $userSql .= " AND (department = ? OR workplace = ?)";
-                $userParams[] = $department;
-                $userParams[] = $department;
-            }
+            $users = [];
+            foreach ($rawUsers as $u) {
+                $custom = [];
+                if (!empty($u['custom_data'])) {
+                    if (is_array($u['custom_data'])) $custom = $u['custom_data'];
+                    else $custom = json_decode($u['custom_data'], true) ?: [];
+                }
+                $empDept = (string)($u['department'] ?? $custom['department'] ?? $u['location_name'] ?? '');
+                $empPos = (string)($u['position'] ?? $custom['position'] ?? $u['role'] ?? '');
+                $empRole = (string)($u['user_role'] ?? $custom['role'] ?? '');
 
-            $userSql .= " ORDER BY CAST(employee_id AS UNSIGNED) ASC, name ASC";
-            $users = dbQuery($userSql, $userParams);
+                $isWorker = (stripos($empDept, 'worker') !== false || stripos($empDept, 'កម្មករ') !== false || stripos($empPos, 'worker') !== false || stripos($empRole, 'worker') !== false);
+                $isSk = (stripos($empDept, 'sk') !== false || stripos($empDept, 'ks2') !== false || stripos($empDept, 'nr3') !== false || stripos($empDept, 'psp') !== false || stripos($empDept, 'prv') !== false);
 
-            if (empty($users)) {
-                $users = dbQuery("SELECT DISTINCT employee_id, COALESCE(name, employee_id) as name, 'ប្រុស' as gender, COALESCE(department, location_name, 'បុគ្គលិក') as role, department 
-                                  FROM checkin_logs 
-                                  WHERE employee_id IS NOT NULL AND employee_id != ''");
+                if ($deptCategory === 'worker' && !$isWorker) continue;
+                if ($deptCategory === 'sk' && !$isSk) continue;
+                if ($deptCategory === 'department' && ($isWorker || $isSk)) continue;
+
+                if (!empty($department) && $department !== 'all') {
+                    if (strcasecmp($empDept, $department) !== 0) continue;
+                }
+
+                $gDisplay = 'ប្រុស';
+                $g = (string)($u['gender'] ?? $custom['gender'] ?? '');
+                if (!empty($g) && (stripos($g, 'f') !== false || stripos($g, 'ស្រី') !== false)) {
+                    $gDisplay = 'ស្រី';
+                }
+
+                $users[] = [
+                    'employee_id' => (string)($u['employee_id'] ?? $u['id'] ?? ''),
+                    'name' => (string)($u['name'] ?? $u['employee_id'] ?? ''),
+                    'gender' => $gDisplay,
+                    'role' => $empPos ?: ($empDept ?: 'បុគ្គលិក'),
+                    'department' => $empDept,
+                    'is_worker' => $isWorker,
+                ];
             }
 
             // 2. Fetch logs in date range
@@ -1107,17 +1134,36 @@ try {
 
             foreach ($users as $u) {
                 $empId = (string)$u['employee_id'];
+                $isWorker = !empty($u['is_worker']);
                 $daily = $empDailyLogs[$empId] ?? [];
                 
                 $forgotIn = 0;
                 $forgotOut = 0;
 
                 foreach ($daily as $d => $counts) {
-                    if ($counts['in'] > 0 && $counts['out'] === 0) {
-                        $forgotOut += $counts['in'];
-                    }
-                    if ($counts['out'] > 0 && $counts['in'] === 0) {
-                        $forgotIn += $counts['out'];
+                    $inCount = (int)($counts['in'] ?? 0);
+                    $outCount = (int)($counts['out'] ?? 0);
+                    $dayTotal = $inCount + $outCount;
+
+                    // If staff scanned at least once on this day
+                    if ($dayTotal > 0) {
+                        if ($isWorker) {
+                            // 2-scan per day rule for workers (1 Check-In, 1 Check-Out)
+                            if ($inCount < 1) {
+                                $forgotIn += (1 - $inCount);
+                            }
+                            if ($outCount < 1) {
+                                $forgotOut += (1 - $outCount);
+                            }
+                        } else {
+                            // 4-scan per day rule for skilled/department staff (2 Check-In, 2 Check-Out)
+                            if ($inCount < 2) {
+                                $forgotIn += (2 - $inCount);
+                            }
+                            if ($outCount < 2) {
+                                $forgotOut += (2 - $outCount);
+                            }
+                        }
                     }
                 }
 
@@ -1129,17 +1175,12 @@ try {
                 $totalForgotGrand += $totalForgot;
                 $totalLateOver15 += $late15;
 
-                $gDisplay = 'ប្រុស';
-                if (!empty($u['gender']) && (stripos($u['gender'], 'f') !== false || stripos($u['gender'], 'ស្រី') !== false)) {
-                    $gDisplay = 'ស្រី';
-                }
-
                 $results[] = [
                     'employee_id' => $empId,
-                    'name' => (string)($u['name'] ?: $empId),
-                    'gender' => $gDisplay,
-                    'role' => (string)($u['position'] ?: ($u['department'] ?: 'បុគ្គលិក')),
-                    'department' => (string)($u['department'] ?: ''),
+                    'name' => $u['name'],
+                    'gender' => $u['gender'],
+                    'role' => $u['role'],
+                    'department' => $u['department'],
                     'forgot_in' => $forgotIn,
                     'forgot_out' => $forgotOut,
                     'total' => $totalForgot,
