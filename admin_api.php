@@ -21,8 +21,9 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'OPTIONS
     exit;
 }
 
-// 3. Load Config
+// 3. Load Config & Security Guard WAF
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/security_guard.php';
 
 function sendJson(array $data, int $statusCode = 200): void {
     while (ob_get_level() > 0) {
@@ -131,6 +132,74 @@ function dbExecute(string $sql, array $params = []) {
     return dbQuery($sql, $params);
 }
 
+// =========================================================================
+// SECURITY & AUDIT LOGS HELPER FUNCTIONS
+// =========================================================================
+function ensure_audit_logs_table(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    dbQuery("CREATE TABLE IF NOT EXISTS audit_logs (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        actor_id VARCHAR(50) NULL,
+        actor_name VARCHAR(100) NOT NULL DEFAULT 'Admin',
+        actor_role VARCHAR(50) NULL DEFAULT 'admin',
+        action VARCHAR(100) NOT NULL,
+        module VARCHAR(50) NOT NULL DEFAULT 'general',
+        target_id VARCHAR(100) NULL,
+        target_name VARCHAR(255) NULL,
+        details TEXT NULL,
+        severity ENUM('info', 'warning', 'danger', 'critical') DEFAULT 'info',
+        ip_address VARCHAR(50) NULL,
+        user_agent VARCHAR(255) NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_created_at (created_at),
+        INDEX idx_module (module),
+        INDEX idx_action (action),
+        INDEX idx_severity (severity),
+        INDEX idx_actor_name (actor_name)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+}
+
+function log_audit_event(
+    string $action,
+    string $module = 'general',
+    string $target_name = '',
+    $details = null,
+    string $severity = 'info',
+    ?string $actor_name = null,
+    ?string $actor_id = null,
+    ?string $actor_role = null,
+    ?string $target_id = null
+): void {
+    try {
+        ensure_audit_logs_table();
+        
+        if (empty($actor_name)) {
+            $actor_name = $_POST['admin_name'] ?? $_REQUEST['actor_name'] ?? $_SESSION['admin_user'] ?? $_SERVER['PHP_AUTH_USER'] ?? 'Administrator';
+        }
+        if (empty($actor_id)) {
+            $actor_id = (string)($_POST['admin_id'] ?? $_REQUEST['actor_id'] ?? $_SESSION['admin_id'] ?? 'ADMIN');
+        }
+        if (empty($actor_role)) {
+            $actor_role = (string)($_POST['admin_role'] ?? $_REQUEST['actor_role'] ?? 'admin');
+        }
+        
+        $ip = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
+        if (strpos($ip, ',') !== false) {
+            $ip = trim(explode(',', $ip)[0]);
+        }
+        $ua = substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 250);
+        
+        $detailsStr = is_array($details) || is_object($details) ? json_encode($details, JSON_UNESCAPED_UNICODE) : (string)$details;
+        
+        dbQuery(
+            "INSERT INTO audit_logs (actor_id, actor_name, actor_role, action, module, target_id, target_name, details, severity, ip_address, user_agent, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())",
+            [$actor_id, $actor_name, $actor_role, $action, $module, (string)$target_id, (string)$target_name, $detailsStr, $severity, $ip, $ua]
+        );
+    } catch (Throwable $e) {}
+}
+
 // 6. Extract Action
 $action = $_POST['action'] ?? $_GET['action'] ?? $_REQUEST['action'] ?? '';
 $action = trim(strtolower((string)$action));
@@ -163,6 +232,11 @@ try {
                 sendJson(['success' => false, 'message' => 'សូមបញ្ចូលឈ្មោះគណនី និងលេខសម្ងាត់!'], 400);
             }
 
+            // 1. Brute Force Protection: Check if account/IP is locked out
+            if (function_exists('security_check_login_throttle')) {
+                security_check_login_throttle($adminId);
+            }
+
             // Check users table
             $rows = dbQuery("SELECT * FROM users WHERE (employee_id = ? OR username = ? OR email = ? OR name = ?) LIMIT 1", [$adminId, $adminId, $adminId, $adminId]);
             if (!empty($rows)) {
@@ -175,8 +249,12 @@ try {
                     $verified = true;
                 }
                 if ($verified) {
+                    if (function_exists('security_record_login_result')) {
+                        security_record_login_result($adminId, true);
+                    }
                     $token = bin2hex(random_bytes(32));
                     unset($user['password']);
+                    log_audit_event('LOGIN_SUCCESS', 'auth', $user['name'] ?? $adminId, 'ចូលប្រើប្រាស់ Admin Panel ជោគជ័យ', 'info', $user['name'] ?? $adminId, $user['employee_id'] ?? $adminId, $user['user_role'] ?? 'Admin');
                     sendJson([
                         'success' => true,
                         'token' => $token,
@@ -189,7 +267,11 @@ try {
 
             // Fallback for default admin credentials
             if ($adminId === (defined('DEFAULT_ADMIN_ID') ? DEFAULT_ADMIN_ID : 'admin') && $password === (defined('DEFAULT_ADMIN_PASSWORD') ? DEFAULT_ADMIN_PASSWORD : 'adminpass')) {
+                if (function_exists('security_record_login_result')) {
+                    security_record_login_result($adminId, true);
+                }
                 $token = 'admin_jwt_' . bin2hex(random_bytes(16));
+                log_audit_event('LOGIN_SUCCESS', 'auth', 'Super Administrator', 'ចូលប្រើប្រាស់ Admin Panel ជោគជ័យ (Default Admin)', 'info', 'Super Administrator', 'ADMIN01', 'SuperAdmin');
                 sendJson([
                     'success' => true,
                     'token' => $token,
@@ -204,6 +286,12 @@ try {
                     'message' => 'ចូលប្រើប្រាស់ជោគជ័យ'
                 ]);
             }
+
+            // Failed Login Attempt: Record throttle and log warning
+            if (function_exists('security_record_login_result')) {
+                security_record_login_result($adminId, false);
+            }
+            log_audit_event('LOGIN_FAILED', 'auth', $adminId, 'ការប៉ុនប៉ងចូលប្រើប្រាស់មិនជោគជ័យ (លេខសម្ងាត់មិនត្រឹមត្រូវ)', 'warning', $adminId, $adminId, 'guest');
 
             sendJson(['success' => false, 'message' => 'ឈ្មោះគណនី ឬលេខសម្ងាត់មិនត្រឹមត្រូវឡើយ!'], 401);
             break;
@@ -777,6 +865,7 @@ try {
                 $newId = !empty($maxRow) ? (int)$maxRow[0]['max_id'] : (int)(time() % 1000000);
             }
 
+            log_audit_event('CREATE_LEAVE_DEO', 'attendance', strtoupper($store), "បន្ថែមជួរដេកបុគ្គលិកសុំច្បាប់/ដេអូសថ្មី (កាលបរិច្ឆេទ: {$date})", 'info', null, null, null, $date);
             sendJson(['success' => true, 'new_id' => $newId, 'message' => 'បានបន្ថែមជួរថ្មី!']);
             break;
 
@@ -808,6 +897,7 @@ try {
                     $stmt = $pdo->prepare("UPDATE {$table} SET {$column} = ? WHERE id = ?");
                     $stmt->execute([$value, $id]);
                 }
+                log_audit_event('UPDATE_LEAVE_DEO', 'attendance', strtoupper($store), "កែប្រែទិន្នន័យបុគ្គលិកច្បាប់/ដេអូស (ID: {$id}, {$column} = '{$value}')", 'info', null, null, null, (string)$id);
                 sendJson(['success' => true, 'message' => 'រក្សាទុកទិន្នន័យរួចរាល់!']);
             } catch (Throwable $e) {
                 sendJson(['success' => false, 'message' => $e->getMessage()]);
@@ -835,6 +925,7 @@ try {
                     } elseif ($pdo) {
                         $pdo->exec("DELETE FROM {$table} WHERE id = " . intval($id));
                     }
+                    log_audit_event('DELETE_LEAVE_DEO', 'attendance', strtoupper($store), "លុបជួរដេកបុគ្គលិកច្បាប់/ដេអូស ID: {$id}", 'warning', null, null, null, (string)$id);
                 } else if (!empty($date)) {
                     $escapedDate = $mysqli ? $mysqli->real_escape_string($date) : addslashes($date);
                     if ($mysqli) {
@@ -842,6 +933,7 @@ try {
                     } elseif ($pdo) {
                         $pdo->exec("DELETE FROM {$table} WHERE reports_date = '{$escapedDate}' LIMIT 1");
                     }
+                    log_audit_event('DELETE_LEAVE_DEO', 'attendance', strtoupper($store), "លុបជួរដេកបុគ្គលិកច្បាប់/ដេអូស សម្រាប់ថ្ងៃ {$date}", 'warning', null, null, null, $date);
                 }
             } catch (Throwable $e) {}
             sendJson(['success' => true, 'message' => 'លុបជោគជ័យ!']);
@@ -865,6 +957,7 @@ try {
                 } elseif ($pdo) {
                     $pdo->exec("DELETE FROM {$table} WHERE reports_date = '{$escapedDate}'");
                 }
+                log_audit_event('CLEAR_LEAVE_DEO', 'attendance', strtoupper($store), "សម្អាតជួរដេកបុគ្គលិកច្បាប់/ដេអូសទាំងអស់សម្រាប់ថ្ងៃ {$date}", 'danger', null, null, null, $date);
             } catch (Throwable $e) {}
             sendJson(['success' => true, 'message' => 'បានសម្អាតជួរដេកទាំងអស់សម្រាប់ថ្ងៃនេះ!']);
             break;
@@ -916,6 +1009,7 @@ try {
                         $stmt->execute([$date, $intVal]);
                     }
                 }
+                log_audit_event('UPDATE_ATTENDANCE_CELL', 'attendance', strtoupper($store), "កែប្រែតួលេខ {$column} = {$intVal} (កាលបរិច្ឆេទ: {$date})", 'info', null, null, null, $date);
                 sendJson(['success' => true, 'message' => 'រក្សាទុកទិន្នន័យរួចរាល់!']);
             } catch (Throwable $e) {
                 sendJson(['success' => false, 'message' => $e->getMessage()]);
@@ -4537,6 +4631,124 @@ try {
                 }
             }
             sendJson(['success' => true, 'message' => 'បានរក្សាទុកការកំណត់ Menu ជោគជ័យ!']);
+            break;
+
+        // =========================================================================
+        // AUDIT LOGS ENDPOINTS
+        // =========================================================================
+        case 'fetch_audit_logs':
+        case 'get_audit_logs':
+            ensure_audit_logs_table();
+            $search = trim($_GET['search'] ?? $_POST['search'] ?? '');
+            $module = trim($_GET['module'] ?? $_POST['module'] ?? 'all');
+            $severity = trim($_GET['severity'] ?? $_POST['severity'] ?? 'all');
+            $action_filter = trim($_GET['action_filter'] ?? $_POST['action_filter'] ?? 'all');
+            $startDate = trim($_GET['start_date'] ?? $_POST['start_date'] ?? '');
+            $endDate = trim($_GET['end_date'] ?? $_POST['end_date'] ?? '');
+            $page = max(1, (int)($_GET['page'] ?? $_POST['page'] ?? 1));
+            $limit = min(200, max(10, (int)($_GET['limit'] ?? $_POST['limit'] ?? 30)));
+            $offset = ($page - 1) * $limit;
+
+            $where = ["1=1"];
+            $params = [];
+
+            if (!empty($search)) {
+                $where[] = "(actor_name LIKE ? OR action LIKE ? OR module LIKE ? OR target_name LIKE ? OR details LIKE ? OR ip_address LIKE ?)";
+                $sTerm = "%$search%";
+                $params[] = $sTerm;
+                $params[] = $sTerm;
+                $params[] = $sTerm;
+                $params[] = $sTerm;
+                $params[] = $sTerm;
+                $params[] = $sTerm;
+            }
+
+            if (!empty($module) && $module !== 'all') {
+                $where[] = "module = ?";
+                $params[] = $module;
+            }
+
+            if (!empty($severity) && $severity !== 'all') {
+                $where[] = "severity = ?";
+                $params[] = $severity;
+            }
+
+            if (!empty($action_filter) && $action_filter !== 'all') {
+                $where[] = "action = ?";
+                $params[] = $action_filter;
+            }
+
+            if (!empty($startDate)) {
+                $where[] = "DATE(created_at) >= ?";
+                $params[] = $startDate;
+            }
+
+            if (!empty($endDate)) {
+                $where[] = "DATE(created_at) <= ?";
+                $params[] = $endDate;
+            }
+
+            $whereSql = implode(' AND ', $where);
+
+            // Count Total Matching
+            $countSql = "SELECT COUNT(*) as total FROM audit_logs WHERE $whereSql";
+            $countRes = dbQuery($countSql, $params);
+            $total = (int)($countRes[0]['total'] ?? 0);
+
+            // Query Data
+            $dataSql = "SELECT * FROM audit_logs WHERE $whereSql ORDER BY created_at DESC LIMIT $limit OFFSET $offset";
+            $logs = dbQuery($dataSql, $params);
+
+            // Calculate Summary Stats
+            $statsToday = dbQuery("SELECT COUNT(*) as c FROM audit_logs WHERE DATE(created_at) = CURDATE()");
+            $statsWarning = dbQuery("SELECT COUNT(*) as c FROM audit_logs WHERE severity = 'warning'");
+            $statsDanger = dbQuery("SELECT COUNT(*) as c FROM audit_logs WHERE severity IN ('danger', 'critical')");
+            $topActors = dbQuery("SELECT actor_name, COUNT(*) as count FROM audit_logs GROUP BY actor_name ORDER BY count DESC LIMIT 5");
+            $moduleBreakdown = dbQuery("SELECT module, COUNT(*) as count FROM audit_logs GROUP BY module ORDER BY count DESC");
+
+            sendJson([
+                'success' => true,
+                'logs' => $logs,
+                'total' => $total,
+                'page' => $page,
+                'limit' => $limit,
+                'stats' => [
+                    'total_logs' => $total,
+                    'today_count' => (int)($statsToday[0]['c'] ?? 0),
+                    'warning_count' => (int)($statsWarning[0]['c'] ?? 0),
+                    'danger_count' => (int)($statsDanger[0]['c'] ?? 0),
+                    'top_actors' => $topActors,
+                    'module_breakdown' => $moduleBreakdown,
+                ]
+            ]);
+            break;
+
+        case 'clear_audit_logs':
+            ensure_audit_logs_table();
+            $days = (int)($_POST['older_than_days'] ?? 90);
+            $admin_name = $_POST['admin_name'] ?? 'Super Admin';
+            if ($days <= 0) {
+                // Clear all
+                dbQuery("TRUNCATE TABLE audit_logs");
+                log_audit_event('CLEAR_ALL_LOGS', 'audit', 'All Logs', 'បានលុបកំណត់ត្រាទាំងអស់ (Truncate)', 'danger', $admin_name);
+            } else {
+                dbQuery("DELETE FROM audit_logs WHERE created_at < DATE_SUB(NOW(), INTERVAL ? DAY)", [$days]);
+                log_audit_event('PURGE_OLD_LOGS', 'audit', "Logs older than {$days} days", "បានសម្អាតកំណត់ត្រាចាស់ជាង {$days} ថ្ងៃ", 'warning', $admin_name);
+            }
+            sendJson(['success' => true, 'message' => 'បានសម្អាតកំណត់ត្រាជោគជ័យ!']);
+            break;
+
+        case 'log_custom_audit':
+            $aName = trim($_POST['actor_name'] ?? 'Admin');
+            $aId = trim($_POST['actor_id'] ?? 'ADMIN');
+            $aRole = trim($_POST['actor_role'] ?? 'admin');
+            $actionStr = trim($_POST['log_action'] ?? 'MANUAL_LOG');
+            $moduleStr = trim($_POST['module'] ?? 'general');
+            $targetName = trim($_POST['target_name'] ?? '');
+            $details = $_POST['details'] ?? '';
+            $severity = trim($_POST['severity'] ?? 'info');
+            log_audit_event($actionStr, $moduleStr, $targetName, $details, $severity, $aName, $aId, $aRole);
+            sendJson(['success' => true, 'message' => 'បានកត់ត្រា Audit Log ជោគជ័យ!']);
             break;
 
         default:

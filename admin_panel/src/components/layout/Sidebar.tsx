@@ -13,6 +13,7 @@ import {
   Vote,
   MapPin,
   KeyRound,
+  ShieldAlert,
   GraduationCap,
   Settings,
   ChevronLeft,
@@ -44,6 +45,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed = false, onToggle, o
     { key: 'polls', label: 'ការបោះឆ្នោត', path: '/polls', icon: Vote, badge: null },
     { key: 'locations', label: 'ទីតាំង & QR Code', path: '/locations', icon: MapPin, badge: null },
     { key: 'tokens', label: 'Session & សុវត្ថិភាព', path: '/tokens', icon: KeyRound, badge: null },
+    { key: 'audit-logs', label: 'កំណត់ត្រាសកម្មភាព & Audit', path: '/audit-logs', icon: ShieldAlert, badge: null },
     { key: 'training', label: 'Quiz & បណ្តុះបណ្តាល', path: '/training', icon: GraduationCap, badge: null },
     { key: 'settings', label: 'ការកំណត់ Panel', path: '/settings', icon: Settings, badge: null },
   ];

@@ -18,6 +18,7 @@ import { PollsPage } from './pages/PollsPage';
 import { LocationsPage } from './pages/LocationsPage';
 import { CategoriesPage } from './pages/CategoriesPage';
 import { TokensPage } from './pages/TokensPage';
+import { AuditLogsPage } from './pages/AuditLogsPage';
 import { TrainingQuizPage } from './pages/TrainingQuizPage';
 import { SettingsPage } from './pages/SettingsPage';
 
@@ -48,6 +49,8 @@ export const App: React.FC = () => {
               <Route path="/locations" element={<LocationsPage />} />
               <Route path="/categories" element={<CategoriesPage />} />
               <Route path="/tokens" element={<TokensPage />} />
+              <Route path="/audit-logs" element={<AuditLogsPage />} />
+              <Route path="/logs" element={<AuditLogsPage />} />
               <Route path="/training" element={<TrainingQuizPage />} />
               <Route path="/settings" element={<SettingsPage />} />
             </Route>

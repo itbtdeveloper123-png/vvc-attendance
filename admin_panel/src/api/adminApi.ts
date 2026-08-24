@@ -1465,6 +1465,90 @@ export const adminApi = {
     const res = await apiClient.post('', params);
     return res.data;
   },
+
+  // Audit Logs
+  fetchAuditLogs: async (filterParams?: {
+    search?: string;
+    module?: string;
+    severity?: string;
+    action_filter?: string;
+    start_date?: string;
+    end_date?: string;
+    page?: number;
+    limit?: number;
+  }) => {
+    const params = new URLSearchParams();
+    params.append('action', 'fetch_audit_logs');
+    if (filterParams?.search) params.append('search', filterParams.search);
+    if (filterParams?.module) params.append('module', filterParams.module);
+    if (filterParams?.severity) params.append('severity', filterParams.severity);
+    if (filterParams?.action_filter) params.append('action_filter', filterParams.action_filter);
+    if (filterParams?.start_date) params.append('start_date', filterParams.start_date);
+    if (filterParams?.end_date) params.append('end_date', filterParams.end_date);
+    if (filterParams?.page) params.append('page', String(filterParams.page));
+    if (filterParams?.limit) params.append('limit', String(filterParams.limit));
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  clearAuditLogs: async (olderThanDays = 90, adminName = 'Admin') => {
+    const params = new URLSearchParams();
+    params.append('action', 'clear_audit_logs');
+    params.append('older_than_days', String(olderThanDays));
+    params.append('admin_name', adminName);
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  logCustomAudit: async (data: {
+    log_action: string;
+    module: string;
+    target_name?: string;
+    details?: any;
+    severity?: 'info' | 'warning' | 'danger' | 'critical';
+    actor_name?: string;
+    actor_id?: string;
+    actor_role?: string;
+  }) => {
+    const params = new URLSearchParams();
+    params.append('action', 'log_custom_audit');
+    params.append('log_action', data.log_action);
+    params.append('module', data.module);
+    if (data.target_name) params.append('target_name', data.target_name);
+    if (data.details) params.append('details', typeof data.details === 'object' ? JSON.stringify(data.details) : String(data.details));
+    if (data.severity) params.append('severity', data.severity);
+    if (data.actor_name) params.append('actor_name', data.actor_name);
+    if (data.actor_id) params.append('actor_id', data.actor_id);
+    if (data.actor_role) params.append('actor_role', data.actor_role);
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
 };
+
+export interface AuditLog {
+  id: number;
+  actor_id?: string;
+  actor_name: string;
+  actor_role?: string;
+  action: string;
+  module: string;
+  target_id?: string;
+  target_name?: string;
+  details?: string;
+  severity: 'info' | 'warning' | 'danger' | 'critical';
+  ip_address?: string;
+  user_agent?: string;
+  created_at: string;
+}
+
+export interface AuditLogStats {
+  total_logs: number;
+  today_count: number;
+  warning_count: number;
+  danger_count: number;
+  top_actors: { actor_name: string; count: number }[];
+  module_breakdown: { module: string; count: number }[];
+}
+
 
 

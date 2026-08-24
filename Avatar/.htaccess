@@ -1,0 +1,19 @@
+# VVC Security Shield - Block all script execution in Avatar directory
+<FilesMatch "\.(php|phtml|php3|php4|php5|php7|phps|cgi|pl|py|sh|bat|cmd|exe|dll|jsp|asp|aspx|shtml|config|env|ini)$">
+    Order Deny,Allow
+    Deny from all
+</FilesMatch>
+
+# Disable PHP Engine in this directory
+<IfModule mod_php7.c>
+    php_flag engine off
+</IfModule>
+<IfModule mod_php8.c>
+    php_flag engine off
+</IfModule>
+<IfModule mod_php.c>
+    php_flag engine off
+</IfModule>
+
+# Disable CGI execution and directory listing
+Options -ExecCGI -Indexes

@@ -1032,7 +1032,7 @@ const DEFAULT_DEPT_FORGOTTEN_RECORDS: ForgottenScanRecord[] = [
               maxWidth: '900px',
               margin: '0 auto',
               width: '100%',
-              fontFamily: "'Hanuman', 'Khmer OS Battambang', sans-serif",
+              fontFamily: "'Battambang', 'Khmer OS Battambang', sans-serif",
             }}
           >
             {/* 1. Header with Clean Dynamic Logo */}
@@ -1281,7 +1281,7 @@ const DEFAULT_DEPT_FORGOTTEN_RECORDS: ForgottenScanRecord[] = [
               maxWidth: '900px',
               margin: '0 auto',
               width: '100%',
-              fontFamily: "'Hanuman', 'Khmer OS Battambang', sans-serif",
+              fontFamily: "'Battambang', 'Khmer OS Battambang', sans-serif",
             }}
           >
             {/* 1. Header with Clean Dynamic Logo */}
@@ -1642,7 +1642,7 @@ const DEFAULT_DEPT_FORGOTTEN_RECORDS: ForgottenScanRecord[] = [
       {activeReportTab === 'combined' && (() => {
         const storeConfigs = {
           ks2: {
-            label: 'ផ្សារក្បាលកោះ២',
+            label: 'KS2',
             departments: [
               { key: 'cosmetic', label: 'បុគ្គលិកសរុប' },
               { key: 'intern', label: 'អនុប្រធានស្តុក' },
@@ -1663,7 +1663,7 @@ const DEFAULT_DEPT_FORGOTTEN_RECORDS: ForgottenScanRecord[] = [
             ],
           },
           '318': {
-            label: 'ហាងទំនិញ ៣១៨',
+            label: '៣១៨',
             departments: [
               { key: 'store', label: 'បុគ្គលិកហាងទំនិញ៣១៨' },
               { key: 'intern', label: 'បុគ្គលិកកម្មករ' },
@@ -1705,9 +1705,9 @@ const DEFAULT_DEPT_FORGOTTEN_RECORDS: ForgottenScanRecord[] = [
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                   {[
-                    { id: '318', label: '🏬 ហាងទំនិញ ៣១៨' },
-                    { id: 'ks2', label: '🏪 ផ្សារក្បាលកោះ២ (KS2)' },
-                    { id: 'nr3', label: '🏪 សាខា NR3' },
+                    { id: '318', label: '៣១៨' },
+                    { id: 'ks2', label: 'KS2' },
+                    { id: 'nr3', label: 'NR3' },
                   ].map((store) => (
                     <button
                       key={store.id}
@@ -1804,6 +1804,7 @@ const DEFAULT_DEPT_FORGOTTEN_RECORDS: ForgottenScanRecord[] = [
                 borderRadius: '20px',
                 background: '#ffffff',
                 color: '#0f172a',
+                fontFamily: "'Battambang', 'Khmer OS Battambang', sans-serif",
                 boxShadow: '0 4px 20px rgba(0,0,0,0.06)',
               }}
             >
@@ -1811,33 +1812,34 @@ const DEFAULT_DEPT_FORGOTTEN_RECORDS: ForgottenScanRecord[] = [
               <div style={{ textAlign: 'center', marginBottom: '28px' }}>
                 <h1
                   style={{
-                    fontSize: '24px',
-                    fontWeight: 900,
+                    fontSize: '22px',
+                    fontWeight: 400,
                     color: '#05165e',
-                    margin: '0 0 6px 0',
-                    fontFamily: "'Hanuman', 'Khmer OS Battambang', serif",
+                    margin: '0 0 10px 0',
+                    lineHeight: '1.7',
+                    fontFamily: "'Moul', serif",
                   }}
                 >
                   របាយការណ៍វត្តមានបុគ្គលិក - {curConfig.label}
                 </h1>
                 <h2
                   style={{
-                    fontSize: '16px',
+                    fontSize: '15px',
                     fontWeight: 700,
                     color: '#05165e',
                     margin: '0 0 16px 0',
-                    fontFamily: "'Hanuman', 'Khmer OS Battambang', serif",
+                    fontFamily: "'Battambang', 'Khmer OS Battambang', sans-serif",
                   }}
                 >
                   {formatKhmerDateString(getActiveDate())}
                 </h2>
                 <h3
                   style={{
-                    fontSize: '18px',
-                    fontWeight: 800,
+                    fontSize: '16.5px',
+                    fontWeight: 700,
                     color: '#05165e',
                     margin: 0,
-                    fontFamily: "'Hanuman', 'Khmer OS Battambang', serif",
+                    fontFamily: "'Battambang', 'Khmer OS Battambang', sans-serif",
                   }}
                 >
                   ចំនួនបុគ្គលិកតាមផ្នែក
@@ -1851,7 +1853,7 @@ const DEFAULT_DEPT_FORGOTTEN_RECORDS: ForgottenScanRecord[] = [
                     width: '100%',
                     borderCollapse: 'collapse',
                     textAlign: 'center',
-                    fontFamily: "'Hanuman', 'Khmer OS Battambang', sans-serif",
+                    fontFamily: "'Battambang', 'Khmer OS Battambang', sans-serif",
                     fontSize: '14px',
                   }}
                 >
@@ -2253,11 +2255,11 @@ const DEFAULT_DEPT_FORGOTTEN_RECORDS: ForgottenScanRecord[] = [
                 <div style={{ textAlign: 'center', marginBottom: '18px' }}>
                   <h3
                     style={{
-                      fontSize: '18px',
-                      fontWeight: 800,
+                      fontSize: '16.5px',
+                      fontWeight: 700,
                       color: '#05165e',
                       margin: 0,
-                      fontFamily: "'Hanuman', 'Khmer OS Battambang', serif",
+                      fontFamily: "'Battambang', 'Khmer OS Battambang', sans-serif",
                     }}
                   >
                     បុគ្គលិកសុំច្បាប់, ដេអូស, ប្ដូរដេអូស និងចូលថ្មី
@@ -2270,7 +2272,7 @@ const DEFAULT_DEPT_FORGOTTEN_RECORDS: ForgottenScanRecord[] = [
                       width: '100%',
                       borderCollapse: 'collapse',
                       textAlign: 'left',
-                      fontFamily: "'Hanuman', 'Khmer OS Battambang', sans-serif",
+                      fontFamily: "'Battambang', 'Khmer OS Battambang', sans-serif",
                       fontSize: '14px',
                     }}
                   >
