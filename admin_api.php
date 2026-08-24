@@ -640,6 +640,364 @@ try {
             ]);
             break;
 
+        case 'update_attendance_noted':
+        case 'save_attendance_note':
+            $logId = (int)($_POST['log_id'] ?? $_POST['id'] ?? 0);
+            $noted = trim((string)($_POST['noted'] ?? $_POST['note'] ?? ''));
+
+            if ($logId <= 0) {
+                sendJson(['success' => false, 'status' => 'error', 'message' => 'Invalid Log ID']);
+            }
+
+            // Ensure column noted exists in checkin_logs if not already
+            try {
+                dbExecute("ALTER TABLE checkin_logs ADD COLUMN IF NOT EXISTS noted TEXT NULL");
+            } catch (\Exception $e) {}
+
+            $affected = dbExecute("UPDATE checkin_logs SET noted = ? WHERE id = ?", [$noted, $logId]);
+            if ($affected === 0) {
+                // Try fallback attendance table
+                try {
+                    dbExecute("UPDATE attendance SET noted = ? WHERE id = ?", [$noted, $logId]);
+                } catch (\Exception $e) {}
+            }
+
+            sendJson([
+                'success' => true,
+                'status' => 'success',
+                'log_id' => $logId,
+                'noted' => $noted,
+                'message' => 'រក្សាទុកចំណាំដោយជោគជ័យ!'
+            ]);
+            break;
+
+        // ==========================================
+        // 4.1 LEAVE & DEO AND COMBINED REPORT ACTIONS
+        // ==========================================
+        case 'fetch_leave_deo_report':
+            $date = trim((string)($_POST['date'] ?? $_GET['date'] ?? date('Y-m-d')));
+            $store = trim((string)($_POST['store'] ?? $_GET['store'] ?? '318'));
+            
+            if (preg_match('/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/', $date, $m)) {
+                $date = sprintf('%04d-%02d-%02d', (int)$m[3], (int)$m[2], (int)$m[1]);
+            }
+
+            $table_map = [
+                'ks2' => 'ks2_new_staff',
+                'psp' => 'ks2_new_staff',
+                'nr3' => 'nr3_new_staff',
+                'prv' => 'nr3_new_staff',
+                '318' => 'store_318_new_staff'
+            ];
+            $table = $table_map[strtolower($store)] ?? 'store_318_new_staff';
+
+            try {
+                dbExecute("CREATE TABLE IF NOT EXISTS {$table} (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    number VARCHAR(50) DEFAULT '',
+                    name VARCHAR(255) DEFAULT '',
+                    role VARCHAR(255) DEFAULT '',
+                    note TEXT NULL,
+                    reports_date DATE NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )");
+            } catch (\Exception $e) {}
+
+            $sql = "SELECT id, number, name, role, note, reports_date FROM {$table} WHERE 1=1";
+            $params = [];
+            if (!empty($date) && $date !== 'all') {
+                $sql .= " AND (reports_date = ? OR DATE(created_at) = ?)";
+                $params[] = $date;
+                $params[] = $date;
+            }
+            $sql .= " ORDER BY id ASC";
+            $rows = dbQuery($sql, $params);
+
+            // Also fetch approved leave requests
+            $reqRows = dbQuery("SELECT id, user_id, requester_name as name, request_type as role, reason as note, request_date as reports_date 
+                                FROM requests 
+                                WHERE status = 'Approved' " . (!empty($date) && $date !== 'all' ? " AND (DATE(request_date) = ? OR DATE(created_at) = ?)" : ""), 
+                                (!empty($date) && $date !== 'all' ? [$date, $date] : []));
+
+            sendJson([
+                'success' => true,
+                'store' => $store,
+                'date' => $date,
+                'records' => $rows,
+                'approved_leaves' => $reqRows
+            ]);
+            break;
+
+        case 'create_leave_deo_row':
+            $date = trim((string)($_POST['date'] ?? date('Y-m-d')));
+            $store = trim((string)($_POST['store'] ?? '318'));
+            $table_map = [
+                'ks2' => 'ks2_new_staff',
+                'psp' => 'ks2_new_staff',
+                'nr3' => 'nr3_new_staff',
+                'prv' => 'nr3_new_staff',
+                '318' => 'store_318_new_staff'
+            ];
+            $table = $table_map[strtolower($store)] ?? 'store_318_new_staff';
+
+            try {
+                dbExecute("CREATE TABLE IF NOT EXISTS {$table} (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    number VARCHAR(50) DEFAULT '',
+                    name VARCHAR(255) DEFAULT '',
+                    role VARCHAR(255) DEFAULT '',
+                    note TEXT NULL,
+                    reports_date DATE NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )");
+                dbExecute("INSERT INTO {$table} (name, role, note, reports_date, number) VALUES ('', '', '', ?, '')", [$date]);
+                $lastIdRow = dbQuery("SELECT LAST_INSERT_ID() as id");
+                $lastId = !empty($lastIdRow) ? (int)$lastIdRow[0]['id'] : 0;
+                sendJson(['success' => true, 'new_id' => $lastId, 'message' => 'បានបន្ថែមជួរថ្មី!']);
+            } catch (\Exception $e) {
+                sendJson(['success' => false, 'message' => $e->getMessage()]);
+            }
+            break;
+
+        case 'update_leave_deo_row':
+        case 'update_leave_deo_inline':
+            $id = (int)($_POST['id'] ?? 0);
+            $column = trim((string)($_POST['column'] ?? ''));
+            $value = trim((string)($_POST['value'] ?? ''));
+            $store = trim((string)($_POST['store'] ?? '318'));
+            $table_map = [
+                'ks2' => 'ks2_new_staff',
+                'psp' => 'ks2_new_staff',
+                'nr3' => 'nr3_new_staff',
+                'prv' => 'nr3_new_staff',
+                '318' => 'store_318_new_staff'
+            ];
+            $table = $table_map[strtolower($store)] ?? 'store_318_new_staff';
+
+            $allowed = ['number', 'name', 'role', 'note', 'reports_date'];
+            if (!$id || !$column || !in_array($column, $allowed)) {
+                sendJson(['success' => false, 'message' => 'ទិន្នន័យមិនត្រឹមត្រូវ។']);
+            }
+
+            try {
+                dbExecute("UPDATE {$table} SET {$column} = ? WHERE id = ?", [$value, $id]);
+                sendJson(['success' => true, 'message' => 'រក្សាទុកទិន្នន័យរួចរាល់!']);
+            } catch (\Exception $e) {
+                sendJson(['success' => false, 'message' => $e->getMessage()]);
+            }
+            break;
+
+        case 'delete_leave_deo_row':
+        case 'delete_leave_deo_ajax':
+            $id = (int)($_POST['id'] ?? 0);
+            $store = trim((string)($_POST['store'] ?? '318'));
+            $table_map = [
+                'ks2' => 'ks2_new_staff',
+                'psp' => 'ks2_new_staff',
+                'nr3' => 'nr3_new_staff',
+                'prv' => 'nr3_new_staff',
+                '318' => 'store_318_new_staff'
+            ];
+            $table = $table_map[strtolower($store)] ?? 'store_318_new_staff';
+
+            if ($id <= 0) {
+                sendJson(['success' => false, 'message' => 'Invalid ID']);
+            }
+            try {
+                dbExecute("DELETE FROM {$table} WHERE id = ?", [$id]);
+                sendJson(['success' => true, 'message' => 'លុបជោគជ័យ!']);
+            } catch (\Exception $e) {
+                sendJson(['success' => false, 'message' => $e->getMessage()]);
+            }
+            break;
+
+        case 'fetch_consolidated_report':
+            $date = trim((string)($_POST['date'] ?? $_GET['date'] ?? date('Y-m-d')));
+            $store = trim((string)($_POST['store'] ?? $_GET['store'] ?? '318'));
+
+            $main_tables = [
+                'ks2' => 'ks2_consolidated_staff',
+                'psp' => 'ks2_consolidated_staff',
+                'nr3' => 'nr3_consolidated_staff',
+                'prv' => 'nr3_consolidated_staff',
+                '318' => 'store_318_consolidated_staff'
+            ];
+            $table = $main_tables[strtolower($store)] ?? 'store_318_consolidated_staff';
+
+            $scans = dbQuery("SELECT 
+                                COALESCE(u.department, cl.location_name, 'Other') as department,
+                                u.gender,
+                                COUNT(*) as scan_count
+                              FROM checkin_logs cl
+                              LEFT JOIN users u ON cl.employee_id = u.employee_id
+                              WHERE DATE(cl.log_datetime) = ?
+                              GROUP BY department, u.gender", [$date]);
+
+            $consolidatedRow = [];
+            try {
+                $rows = dbQuery("SELECT * FROM {$table} WHERE reports_date = ?", [$date]);
+                if (!empty($rows)) {
+                    $consolidatedRow = $rows[0];
+                }
+            } catch (\Exception $e) {}
+
+            sendJson([
+                'success' => true,
+                'store' => $store,
+                'date' => $date,
+                'scans' => $scans,
+                'consolidated' => $consolidatedRow
+            ]);
+            break;
+
+        case 'fetch_late_summary_report':
+            $startDate = trim((string)($_POST['start_date'] ?? $_GET['start_date'] ?? ''));
+            $endDate = trim((string)($_POST['end_date'] ?? $_GET['end_date'] ?? ''));
+            $department = trim((string)($_POST['department'] ?? $_GET['department'] ?? 'all'));
+            $deptCategory = trim((string)($_POST['dept_category'] ?? $_GET['dept_category'] ?? 'department'));
+
+            // Default dates if empty: first day of month to today
+            if (empty($startDate)) {
+                $startDate = date('Y-m-01');
+            }
+            if (empty($endDate)) {
+                $endDate = date('Y-m-d');
+            }
+
+            // Normalize formats
+            if (preg_match('/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/', $startDate, $m)) {
+                $startDate = sprintf('%04d-%02d-%02d', (int)$m[3], (int)$m[2], (int)$m[1]);
+            }
+            if (preg_match('/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/', $endDate, $m)) {
+                $endDate = sprintf('%04d-%02d-%02d', (int)$m[3], (int)$m[2], (int)$m[1]);
+            }
+
+            $startDt = $startDate . ' 00:00:00';
+            $endDt = $endDate . ' 23:59:59';
+
+            // 1. Fetch all users
+            $userSql = "SELECT employee_id, name, gender, department, position FROM users WHERE 1=1";
+            $userParams = [];
+
+            if ($deptCategory === 'worker') {
+                $userSql .= " AND (department = 'Worker' OR custom_data LIKE '%Worker%')";
+            } elseif ($deptCategory === 'sk') {
+                $userSql .= " AND (department IN ('SKKS2', 'SKNR3') OR custom_data LIKE '%SK%')";
+            } elseif ($deptCategory === 'department') {
+                $userSql .= " AND (department NOT IN ('Worker', 'SKKS2', 'SKNR3') OR department IS NULL)";
+            }
+
+            if (!empty($department) && $department !== 'all') {
+                $userSql .= " AND department = ?";
+                $userParams[] = $department;
+            }
+
+            $userSql .= " ORDER BY name ASC";
+            $users = dbQuery($userSql, $userParams);
+
+            // 2. Fetch all late logs in date range
+            $lateLogs = dbQuery("SELECT id, employee_id, log_datetime, late_reason, distance_m 
+                                 FROM checkin_logs 
+                                 WHERE log_datetime BETWEEN ? AND ? AND status = 'Late'", [$startDt, $endDt]);
+
+            // Map late logs by employee_id and calculate late duration bracket
+            $lateByUser = [];
+            foreach ($lateLogs as $log) {
+                $empId = (string)$log['employee_id'];
+                if (!isset($lateByUser[$empId])) {
+                    $lateByUser[$empId] = [
+                        'under_15' => 0,
+                        'from_15_to_60' => 0,
+                        'over_60' => 0,
+                        'total' => 0,
+                    ];
+                }
+
+                $logTime = strtotime($log['log_datetime']);
+                $hour = (int)date('H', $logTime);
+                $minute = (int)date('i', $logTime);
+
+                // Bracket calculation
+                if ($hour >= 7 && $hour <= 11) {
+                    $mins = max(1, ($hour - 8) * 60 + $minute);
+                } elseif ($hour >= 12 && $hour <= 17) {
+                    $mins = max(1, ($hour - 13) * 60 + $minute);
+                } else {
+                    $mins = 10;
+                }
+
+                if ($mins < 15) {
+                    $lateByUser[$empId]['under_15']++;
+                } elseif ($mins < 60) {
+                    $lateByUser[$empId]['from_15_to_60']++;
+                } else {
+                    $lateByUser[$empId]['over_60']++;
+                }
+                $lateByUser[$empId]['total']++;
+            }
+
+            // 3. Build employee list with late breakdowns
+            $results = [];
+            $sumUnder15 = 0;
+            $sumFrom15To60 = 0;
+            $sumOver60 = 0;
+            $grandTotal = 0;
+
+            foreach ($users as $u) {
+                $empId = (string)$u['employee_id'];
+                $lateData = $lateByUser[$empId] ?? [
+                    'under_15' => 0,
+                    'from_15_to_60' => 0,
+                    'over_60' => 0,
+                    'total' => 0,
+                ];
+
+                $sumUnder15 += $lateData['under_15'];
+                $sumFrom15To60 += $lateData['from_15_to_60'];
+                $sumOver60 += $lateData['over_60'];
+                $grandTotal += $lateData['total'];
+
+                $gDisplay = 'ប្រុស';
+                if (!empty($u['gender']) && (stripos($u['gender'], 'f') !== false || stripos($u['gender'], 'ស្រី') !== false)) {
+                    $gDisplay = 'ស្រី';
+                }
+
+                $results[] = [
+                    'employee_id' => $empId,
+                    'name' => (string)($u['name'] ?: $empId),
+                    'gender' => $gDisplay,
+                    'role' => (string)($u['position'] ?: ($u['department'] ?: 'បុគ្គលិក')),
+                    'department' => (string)($u['department'] ?: ''),
+                    'under_15' => $lateData['under_15'],
+                    'from_15_to_60' => $lateData['from_15_to_60'],
+                    'over_60' => $lateData['over_60'],
+                    'total' => $lateData['total'],
+                ];
+            }
+
+            // Sort: highest total late on top
+            usort($results, function($a, $b) {
+                if ($b['total'] !== $a['total']) {
+                    return $b['total'] - $a['total'];
+                }
+                return strcmp($a['employee_id'], $b['employee_id']);
+            });
+
+            sendJson([
+                'success' => true,
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+                'department' => $department,
+                'totals' => [
+                    'under_15' => $sumUnder15,
+                    'from_15_to_60' => $sumFrom15To60,
+                    'over_60' => $sumOver60,
+                    'grand_total' => $grandTotal,
+                ],
+                'records' => $results
+            ]);
+            break;
+
         // ==========================================
         // 5. REQUESTS MANAGEMENT
         // ==========================================

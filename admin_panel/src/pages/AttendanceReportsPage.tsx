@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Calendar,
   Download,
@@ -24,16 +24,58 @@ import {
   TrendingUp,
   Columns,
   Trash2,
+  Edit3,
+  ExternalLink,
+  Save,
+  Check,
+  Plus,
+  Printer,
+  Sparkles,
 } from 'lucide-react';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { ViewModeToggle, ViewMode } from '../components/common/ViewModeToggle';
 import { Modal } from '../components/common/Modal';
 import { adminApi, AttendanceRecord } from '../api/adminApi';
 
+interface LeaveDeoRecord {
+  id: number;
+  number: string;
+  name: string;
+  role: string;
+  note: string;
+  reports_date: string;
+}
+
+interface LateSummaryRecord {
+  employee_id: string;
+  name: string;
+  gender: string;
+  role: string;
+  department: string;
+  under_15: number;
+  from_15_to_60: number;
+  over_60: number;
+  total: number;
+}
+
 export const AttendanceReportsPage: React.FC = () => {
-  // Main Department Tabs: Administrative/Skill vs SKKS2/SKNR3 vs Worker vs All
+  // Main Report Type Tab (Daily, Late Summary, Forgotten, Leave & Deo, Combined)
+  const [activeReportTab, setActiveReportTab] = useState<'daily' | 'late' | 'forgotten' | 'leave_deo' | 'combined'>('daily');
+
+  // Department Category Filter Tab (for Daily / Late / Forgotten)
   const [deptCategoryTab, setDeptCategoryTab] = useState<'department' | 'sk' | 'worker' | 'all'>('department');
   const [viewMode, setViewMode] = useState<ViewMode>('table');
+
+  // Store selection for Leave & Deo / Combined reports (318, ks2, nr3, all)
+  const [selectedStore, setSelectedStore] = useState<string>('318');
+
+  // Date range filters for Late Summary
+  const [lateStartDate, setLateStartDate] = useState<string>(
+    new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]
+  );
+  const [lateEndDate, setLateEndDate] = useState<string>(
+    new Date().toISOString().split('T')[0]
+  );
 
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [availableDates, setAvailableDates] = useState<string[]>([]);
@@ -47,11 +89,40 @@ export const AttendanceReportsPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [summary, setSummary] = useState({ total: 0, good: 0, late: 0 });
 
+  // Leave / Deo records state
+  const [leaveDeoRecords, setLeaveDeoRecords] = useState<LeaveDeoRecord[]>([]);
+  const [approvedLeaves, setApprovedLeaves] = useState<any[]>([]);
+  const [loadingLeaveDeo, setLoadingLeaveDeo] = useState(false);
+
+  // Consolidated staff matrix data
+  const [consolidatedScans, setConsolidatedScans] = useState<any[]>([]);
+
+  // Late Summary Report data (A4)
+  const [lateSummaryRecords, setLateSummaryRecords] = useState<LateSummaryRecord[]>([]);
+  const [lateSummaryTotals, setLateSummaryTotals] = useState({
+    under_15: 0,
+    from_15_to_60: 0,
+    over_60: 0,
+    grand_total: 0,
+  });
+  const [loadingLateSummary, setLoadingLateSummary] = useState(false);
+
   // Selected checkbox rows
-  const [selectedRowIds, setSelectedRowIds] = useState<number[]>([]);
+  const [selectedRowIds, setSelectedRowIds] = useState<(string | number)[]>([]);
 
   // Photo Preview Modal
   const [previewPhoto, setPreviewPhoto] = useState<string | null>(null);
+
+  // Note Editing Modal State
+  const [editingNoteRecord, setEditingNoteRecord] = useState<AttendanceRecord | null>(null);
+  const [editingNoteValue, setEditingNoteValue] = useState<string>('');
+  const [isSavingNote, setIsSavingNote] = useState<boolean>(false);
+  const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
+
+  const printRef = useRef<HTMLDivElement>(null);
+
+  // Active Date string helper
+  const getActiveDate = () => (isCustomDateMode && customDate ? customDate : (selectedDate || new Date().toISOString().split('T')[0]));
 
   const loadAttendance = async () => {
     setLoading(true);
@@ -63,6 +134,7 @@ export const AttendanceReportsPage: React.FC = () => {
         dept_category: deptCategoryTab !== 'all' ? deptCategoryTab : undefined,
         status: statusFilter !== 'All' ? statusFilter : undefined,
         search: search || undefined,
+        tab: activeReportTab,
       });
 
       if (data && data.success) {
@@ -71,7 +143,6 @@ export const AttendanceReportsPage: React.FC = () => {
         }
         if (Array.isArray(data.available_dates)) {
           setAvailableDates(data.available_dates);
-          // If no date was selected yet, set selectedDate to the first available date
           if (!selectedDate && data.available_dates.length > 0) {
             setSelectedDate(data.available_dates[0]);
           }
@@ -86,9 +157,61 @@ export const AttendanceReportsPage: React.FC = () => {
     setLoading(false);
   };
 
+  // Load Leave & Deo / Combined report data
+  const loadLeaveDeoAndCombined = async () => {
+    if (activeReportTab !== 'leave_deo' && activeReportTab !== 'combined') return;
+    setLoadingLeaveDeo(true);
+    try {
+      const d = getActiveDate();
+      const res = await adminApi.fetchLeaveDeoReport(selectedStore, d);
+      if (res && res.success) {
+        setLeaveDeoRecords(res.records || []);
+        setApprovedLeaves(res.approved_leaves || []);
+      }
+
+      if (activeReportTab === 'combined') {
+        const cRes = await adminApi.fetchConsolidatedReport(selectedStore, d);
+        if (cRes && cRes.success) {
+          setConsolidatedScans(cRes.scans || []);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    setLoadingLeaveDeo(false);
+  };
+
+  // Load Late Summary Report data (A4)
+  const loadLateSummary = async () => {
+    if (activeReportTab !== 'late') return;
+    setLoadingLateSummary(true);
+    try {
+      const res = await adminApi.fetchLateSummaryReport({
+        start_date: lateStartDate,
+        end_date: lateEndDate,
+        dept_category: deptCategoryTab !== 'all' ? deptCategoryTab : undefined,
+      });
+      if (res && res.success) {
+        setLateSummaryRecords(res.records || []);
+        if (res.totals) {
+          setLateSummaryTotals(res.totals);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    setLoadingLateSummary(false);
+  };
+
   useEffect(() => {
-    loadAttendance();
-  }, [deptCategoryTab, selectedDate, customDate, isCustomDateMode, statusFilter, page]);
+    if (activeReportTab === 'leave_deo' || activeReportTab === 'combined') {
+      loadLeaveDeoAndCombined();
+    } else if (activeReportTab === 'late') {
+      loadLateSummary();
+    } else {
+      loadAttendance();
+    }
+  }, [activeReportTab, deptCategoryTab, selectedStore, lateStartDate, lateEndDate, selectedDate, customDate, isCustomDateMode, statusFilter, page]);
 
   // Format date helper for dropdown display e.g. "14 Aug 2026 (Fri)"
   const formatDateDisplay = (dateStr: string) => {
@@ -141,14 +264,36 @@ export const AttendanceReportsPage: React.FC = () => {
     }
   };
 
+  // Khmer Date text generator for A4 Document
+  const getKhmerDateHeader = (dateStr: string) => {
+    try {
+      const d = new Date(dateStr + 'T00:00:00');
+      const khmerMonths = ['មករា', 'កុម្ភៈ', 'មីនា', 'មេសា', 'ឧសភា', 'មិថុនា', 'កក្កដា', 'សីហា', 'កញ្ញា', 'តុលា', 'វិច្ឆិកា', 'ធ្នូ'];
+      const mName = khmerMonths[d.getMonth()];
+      const yearKhmer = '២០២៦';
+      return `ខែ ${mName} ឆ្នាំ${yearKhmer}`;
+    } catch {
+      return 'ខែ សីហា ឆ្នាំ២០២៦';
+    }
+  };
+
+  const getKhmerDateRange = () => {
+    return `គិតចាប់ពីថ្ងៃទី ${formatDateOnly(lateStartDate).replace(/\//g, '-')} ដល់ថ្ងៃទី ${formatDateOnly(lateEndDate).replace(/\//g, '-')}`;
+  };
+
   // Filter records by search
   const filteredRecords = records.filter((r) => {
+    if (activeReportTab === 'forgotten') {
+      if (r.action === 'Check-Out') return false;
+    }
+
     if (!search) return true;
     const s = search.toLowerCase();
     return (
       (r.name && r.name.toLowerCase().includes(s)) ||
       (r.employee_id && r.employee_id.toLowerCase().includes(s)) ||
-      (r.workplace && r.workplace.toLowerCase().includes(s))
+      (r.workplace && r.workplace.toLowerCase().includes(s)) ||
+      (r.noted && r.noted.toLowerCase().includes(s))
     );
   });
 
@@ -160,14 +305,114 @@ export const AttendanceReportsPage: React.FC = () => {
     }
   };
 
-  const toggleRowSelection = (id: number) => {
+  const toggleRowSelection = (id: string | number) => {
     setSelectedRowIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
   };
 
+  // Open Noted Modal
+  const handleOpenNoteEditor = (record: AttendanceRecord) => {
+    setEditingNoteRecord(record);
+    setEditingNoteValue(record.noted || '');
+  };
+
+  // Save Note to Database
+  const handleSaveNote = async () => {
+    if (!editingNoteRecord) return;
+    setIsSavingNote(true);
+    try {
+      const res = await adminApi.updateAttendanceNoted(editingNoteRecord.id, editingNoteValue);
+      if (res && (res.success || res.status === 'success')) {
+        setRecords((prev) =>
+          prev.map((r) => (r.id === editingNoteRecord.id ? { ...r, noted: editingNoteValue } : r))
+        );
+        setSaveSuccessMsg('រក្សាទុកចំណាំដោយជោគជ័យ!');
+        setTimeout(() => setSaveSuccessMsg(null), 3000);
+        setEditingNoteRecord(null);
+      } else {
+        alert('មិនអាចរក្សាទុកចំណាំបានទេ៖ ' + (res?.message || 'កំហុសបច្ចេកទេស'));
+      }
+    } catch (err) {
+      console.error('Error saving note:', err);
+      alert('កំហុសក្នុងការរក្សាទុកចំណាំ');
+    }
+    setIsSavingNote(false);
+  };
+
+  // Add new row in Leave & Deo
+  const handleAddNewLeaveDeoRow = async () => {
+    try {
+      const d = getActiveDate();
+      const res = await adminApi.createLeaveDeoRow(selectedStore, d);
+      if (res && res.success && res.new_id) {
+        setLeaveDeoRecords((prev) => [
+          ...prev,
+          {
+            id: res.new_id,
+            number: String(prev.length + 1),
+            name: '',
+            role: '',
+            note: '',
+            reports_date: d,
+          },
+        ]);
+        setSaveSuccessMsg('បានបន្ថែមជួរថ្មី!');
+        setTimeout(() => setSaveSuccessMsg(null), 2500);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // Update cell in Leave & Deo
+  const handleUpdateLeaveDeoCell = async (id: number, column: string, value: string) => {
+    setLeaveDeoRecords((prev) =>
+      prev.map((r) => (r.id === id ? { ...r, [column]: value } : r))
+    );
+    try {
+      await adminApi.updateLeaveDeoRow(selectedStore, id, column, value);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // Delete row in Leave & Deo
+  const handleDeleteLeaveDeoRow = async (id: number) => {
+    if (!window.confirm('តើអ្នកពិតជាចង់លុបជួរដេកនេះមែនទេ?')) return;
+    try {
+      const res = await adminApi.deleteLeaveDeoRow(selectedStore, id);
+      if (res && res.success) {
+        setLeaveDeoRecords((prev) => prev.filter((r) => r.id !== id));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // Trigger Print A4 Portrait
+  const handlePrintA4 = () => {
+    window.print();
+  };
+
   const handleExportCSV = () => {
-    const csvContent =
-      'data:text/csv;charset=utf-8,\uFEFF' +
-      ['អត្តលេខ,ឈ្មោះបុគ្គលិក,ទីតាំង,សកម្មភាព,ថ្ងៃខែឆ្នាំ,ពេលវេលា,ស្ថានភាព,មូលហេតុ,NOTED']
+    let csvContent = 'data:text/csv;charset=utf-8,\uFEFF';
+
+    if (activeReportTab === 'late') {
+      csvContent += ['ល.រ,អត្តលេខ,ឈ្មោះ,ភេទ,តួនាទី,ក្រោម ១៥ នាទី,ចាប់ពី ១៥ នាទី,ចាប់ពី១ម៉ោង,សរុប']
+        .concat(
+          lateSummaryRecords.map(
+            (r, i) =>
+              `"${i + 1}","${r.employee_id}","${r.name}","${r.gender}","${r.role}","${r.under_15}","${r.from_15_to_60}","${r.over_60}","${r.total}"`
+          )
+        )
+        .join('\n');
+    } else if (activeReportTab === 'leave_deo') {
+      csvContent += ['ល.រ,ឈ្មោះបុគ្គលិក,តួនាទី,អធិប្បាយ/មូលហេតុ,ថ្ងៃរាយការណ៍']
+        .concat(
+          leaveDeoRecords.map((r, idx) => `"${r.number || idx + 1}","${r.name}","${r.role}","${r.note}","${r.reports_date}"`)
+        )
+        .join('\n');
+    } else {
+      csvContent += ['អត្តលេខ,ឈ្មោះបុគ្គលិក,ទីតាំង,សកម្មភាព,ថ្ងៃខែឆ្នាំ,ពេលវេលា,ស្ថានភាព,មូលហេតុ,NOTED']
         .concat(
           filteredRecords.map(
             (r) =>
@@ -175,20 +420,84 @@ export const AttendanceReportsPage: React.FC = () => {
           )
         )
         .join('\n');
+    }
 
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `VVC_Attendance_${deptCategoryTab}_${selectedDate || 'all'}.csv`);
+    link.setAttribute('download', `VVC_Attendance_${activeReportTab}_${selectedDate || 'all'}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
+  // Render clickable note content
+  const renderNotedContent = (noteStr?: string) => {
+    if (!noteStr) return <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>+ ចុចដើម្បីសរសេរ</span>;
+    const isUrl = /^https?:\/\//i.test(noteStr) || /^(www\.)/i.test(noteStr);
+    if (isUrl) {
+      const url = noteStr.startsWith('http') ? noteStr : 'https://' + noteStr;
+      return (
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          style={{ color: 'var(--primary)', textDecoration: 'underline', display: 'inline-flex', alignItems: 'center', gap: '4px', wordBreak: 'break-all' }}
+        >
+          <span>{noteStr}</span>
+          <ExternalLink size={11} />
+        </a>
+      );
+    }
+    return <span>{noteStr}</span>;
+  };
+
+  // Department definitions for Matrix Table
+  const matrixDepartments = [
+    { key: 'sales', label: 'ផ្នែកលក់ (Sales)' },
+    { key: 'warehouse', label: 'ផ្នែកឃ្លាំង (Warehouse)' },
+    { key: 'delivery', label: 'ផ្នែកដឹកជញ្ជូន (Delivery)' },
+    { key: 'admin', label: 'ផ្នែករដ្ឋបាល (Admin)' },
+    { key: 'accounting', label: 'ផ្នែកគណនេយ្យ (Accounting)' },
+    { key: 'it', label: 'បច្ចេកវិទ្យា (IT)' },
+  ];
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      {/* Page Header Bar matching admin_attendance.php */}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+      {/* Print Styles for A4 Paper Layout */}
+      <style>{`
+        @media print {
+          body * {
+            visibility: hidden;
+          }
+          #a4-late-summary-report, #a4-late-summary-report * {
+            visibility: visible;
+          }
+          #a4-late-summary-report {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100% !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            box-shadow: none !important;
+            border: none !important;
+            background: #ffffff !important;
+          }
+          .no-print {
+            display: none !important;
+          }
+          @page {
+            size: A4 portrait;
+            margin: 12mm;
+          }
+        }
+      `}</style>
+
+      {/* Page Header Bar */}
       <div
+        className="no-print"
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -197,30 +506,45 @@ export const AttendanceReportsPage: React.FC = () => {
           gap: '14px',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'var(--primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <FileSpreadsheet size={20} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'var(--primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(99, 102, 241, 0.25)' }}>
+            <FileSpreadsheet size={22} />
           </div>
           <div>
             <h2 style={{ fontSize: '19px', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
-              បញ្ជីវត្តមានបុគ្គលិក (Attendance Reports)
+              របាយការណ៍វត្តមាន & វិភាគទិន្នន័យ (Attendance Reports)
             </h2>
             <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-              ទាញយក និងតាមដានវត្តមានស្កេនចូល/ចេញ របស់បុគ្គលិកតាមផ្នែក
+              ទាញយក និងតាមដានវត្តមានស្កេនចូល/ចេញ របស់បុគ្គលិកតាមផ្នែក និងរបាយការណ៍លម្អិត
             </div>
           </div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
           <button
-            onClick={loadAttendance}
+            onClick={() => {
+              if (activeReportTab === 'leave_deo' || activeReportTab === 'combined') loadLeaveDeoAndCombined();
+              else if (activeReportTab === 'late') loadLateSummary();
+              else loadAttendance();
+            }}
             className="btn btn-secondary btn-sm"
             style={{ borderRadius: '10px', padding: '8px 14px' }}
             title="Refresh"
           >
-            <RefreshCw size={14} className={loading ? 'fa-spin' : ''} />
+            <RefreshCw size={14} className={loading || loadingLeaveDeo || loadingLateSummary ? 'fa-spin' : ''} />
             <span>ផ្ទុកឡើងវិញ</span>
           </button>
+
+          {activeReportTab === 'late' && (
+            <button
+              onClick={handlePrintA4}
+              className="btn btn-primary btn-sm"
+              style={{ borderRadius: '10px', padding: '8px 16px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
+              <Printer size={15} />
+              <span>បោះពុម្ព A4 (Print PDF)</span>
+            </button>
+          )}
 
           <button
             onClick={handleExportCSV}
@@ -228,10 +552,10 @@ export const AttendanceReportsPage: React.FC = () => {
             style={{ borderRadius: '10px', padding: '8px 16px', fontWeight: 700 }}
           >
             <FileSpreadsheet size={15} />
-            <span>Excel / CSV</span>
+            <span>Excel / CSV ({activeReportTab.toUpperCase()})</span>
           </button>
 
-          {selectedRowIds.length > 0 && (
+          {selectedRowIds.length > 0 && activeReportTab !== 'leave_deo' && activeReportTab !== 'combined' && activeReportTab !== 'late' && (
             <button
               onClick={() => alert(`បានជ្រើសរើស ${selectedRowIds.length} ជួរដើម្បីអនុវត្តសកម្មភាព`)}
               className="btn btn-danger btn-sm"
@@ -244,334 +568,952 @@ export const AttendanceReportsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Main Container Card */}
-      <div className="hrm-card" style={{ padding: 0, borderRadius: '18px', overflow: 'hidden' }}>
-        {/* Top Department Tabs matching admin_attendance.php */}
-        <div
-          style={{
-            background: 'var(--surface-alt)',
-            padding: '0 20px',
-            borderBottom: '1px solid var(--border)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            overflowX: 'auto',
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => setDeptCategoryTab('department')}
-            style={{
-              padding: '14px 20px',
-              border: 'none',
-              background: 'transparent',
-              fontWeight: 700,
-              fontSize: '13.5px',
-              cursor: 'pointer',
-              color: deptCategoryTab === 'department' ? 'var(--primary)' : 'var(--text-secondary)',
-              borderBottom: deptCategoryTab === 'department' ? '3px solid var(--primary)' : '3px solid transparent',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              transition: 'all 0.2s ease',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            <Briefcase size={16} />
-            <span>ផ្នែករដ្ឋបាល/ជំនាញ</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setDeptCategoryTab('sk')}
-            style={{
-              padding: '14px 20px',
-              border: 'none',
-              background: 'transparent',
-              fontWeight: 700,
-              fontSize: '13.5px',
-              cursor: 'pointer',
-              color: deptCategoryTab === 'sk' ? 'var(--primary)' : 'var(--text-secondary)',
-              borderBottom: deptCategoryTab === 'sk' ? '3px solid var(--primary)' : '3px solid transparent',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              transition: 'all 0.2s ease',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            <Star size={16} />
-            <span>SKKS2/SKNR3</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setDeptCategoryTab('worker')}
-            style={{
-              padding: '14px 20px',
-              border: 'none',
-              background: 'transparent',
-              fontWeight: 700,
-              fontSize: '13.5px',
-              cursor: 'pointer',
-              color: deptCategoryTab === 'worker' ? 'var(--primary)' : 'var(--text-secondary)',
-              borderBottom: deptCategoryTab === 'worker' ? '3px solid var(--primary)' : '3px solid transparent',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              transition: 'all 0.2s ease',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            <HardHat size={16} />
-            <span>ផ្នែកកម្មករ</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setDeptCategoryTab('all')}
-            style={{
-              padding: '14px 20px',
-              border: 'none',
-              background: 'transparent',
-              fontWeight: 700,
-              fontSize: '13.5px',
-              cursor: 'pointer',
-              color: deptCategoryTab === 'all' ? 'var(--primary)' : 'var(--text-secondary)',
-              borderBottom: deptCategoryTab === 'all' ? '3px solid var(--primary)' : '3px solid transparent',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              transition: 'all 0.2s ease',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            <Layers size={16} />
-            <span>ទាំងអស់ (All Departments)</span>
-          </button>
+      {/* Success Notification */}
+      {saveSuccessMsg && (
+        <div className="no-print" style={{ background: '#dcfce7', border: '1px solid #86efac', color: '#15803d', padding: '10px 16px', borderRadius: '10px', fontSize: '13px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Check size={16} />
+          <span>{saveSuccessMsg}</span>
         </div>
+      )}
 
-        {/* Filter Toolbar Section */}
-        <div
-          style={{
-            padding: '20px 24px',
-            display: 'flex',
-            alignItems: 'flex-end',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: '16px',
-            borderBottom: '1px solid var(--border)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '16px', flexWrap: 'wrap', flex: 1 }}>
-            {/* Date Selector Dropdown matching admin_attendance.php */}
-            <div style={{ minWidth: '240px', flex: '1 1 240px' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                <Calendar size={15} />
-                <span>ជ្រើសរើសកាលបរិច្ឆេទ</span>
-              </label>
+      {/* Primary Report Type Tabs matching admin_attendance.php */}
+      <div
+        className="hrm-card no-print"
+        style={{
+          padding: '8px 12px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          overflowX: 'auto',
+          borderRadius: '14px',
+        }}
+      >
+        {[
+          { id: 'daily', label: '📅 វត្តមានប្រចាំថ្ងៃ (Daily Log)' },
+          { id: 'late', label: '⚠️ មកយឺតសរុប (Late Summary A4)' },
+          { id: 'forgotten', label: '❓ ភ្លេចស្កេន (Forgotten Scan)' },
+          { id: 'leave_deo', label: '📝 សុំច្បាប់ & ដេអូស (Leave & Deo)' },
+          { id: 'combined', label: '📊 របាយការណ៍រួម (318 / PSP / PRV)' },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveReportTab(tab.id as any)}
+            className={`btn btn-sm ${activeReportTab === tab.id ? 'btn-primary' : 'btn-secondary'}`}
+            style={{ borderRadius: '10px', padding: '8px 16px', fontWeight: 700, fontSize: '13px', whiteSpace: 'nowrap' }}
+          >
+            <span>{tab.label}</span>
+          </button>
+        ))}
+      </div>
 
-              {!isCustomDateMode ? (
-                <div style={{ display: 'flex', gap: '6px' }}>
-                  <select
-                    className="form-select"
-                    value={selectedDate}
-                    onChange={(e) => {
-                      if (e.target.value === 'custom') {
-                        setIsCustomDateMode(true);
-                      } else {
-                        setSelectedDate(e.target.value);
-                      }
-                    }}
-                    style={{ height: '42px', borderRadius: '10px', fontWeight: 600, fontSize: '13.5px', width: '100%' }}
-                  >
-                    {availableDates.length === 0 ? (
-                      <option value={new Date().toISOString().split('T')[0]}>
-                        {formatDateDisplay(new Date().toISOString().split('T')[0])}
-                      </option>
-                    ) : (
-                      availableDates.map((dateStr) => (
-                        <option key={dateStr} value={dateStr}>
-                          {formatDateDisplay(dateStr)}
-                        </option>
-                      ))
-                    )}
-                    <option value="all">គ្រប់កាលបរិច្ឆេទទាំងអស់ (All Dates)</option>
-                    <option value="custom">📅 ជ្រើសរើសថ្ងៃផ្សេងទៀត (Pick Date)...</option>
-                  </select>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', gap: '6px' }}>
-                  <input
-                    type="date"
-                    className="form-input"
-                    value={customDate || selectedDate}
-                    onChange={(e) => setCustomDate(e.target.value)}
-                    style={{ height: '42px', borderRadius: '10px', fontSize: '13px', flex: 1 }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setIsCustomDateMode(false)}
-                    className="btn btn-secondary btn-sm"
-                    style={{ borderRadius: '8px', padding: '0 12px' }}
-                  >
-                    បញ្ជី
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Status Filter */}
-            <div style={{ minWidth: '180px', flex: '1 1 180px' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                <Filter size={15} />
-                <span>ស្ថានភាព</span>
-              </label>
-              <select
-                className="form-select"
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                style={{ height: '42px', borderRadius: '10px', fontWeight: 600, fontSize: '13.5px', width: '100%' }}
-              >
-                <option value="All">ទាំងអស់ (All Status)</option>
-                <option value="Good">ទាន់ពេល (Good)</option>
-                <option value="Late">យឺត (Late)</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Right Toolbar: ViewModeToggle & Search */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            <ViewModeToggle mode={viewMode} onChange={setViewMode} />
-
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                background: 'var(--surface-alt)',
-                border: '1px solid var(--border)',
-                borderRadius: '10px',
-                padding: '8px 14px',
-                width: '220px',
-                gap: '8px',
-              }}
-            >
-              <Search size={15} color="var(--text-muted)" />
-              <input
-                type="text"
-                placeholder="ស្វែងរកឈ្មោះ, ID..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  outline: 'none',
-                  fontSize: '13px',
-                  color: 'var(--text-primary)',
-                  fontFamily: 'inherit',
-                  width: '100%',
-                }}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* View Mode Switching: Grid Cards or Table */}
-        {viewMode === 'grid' ? (
-          filteredRecords.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '60px 24px', color: 'var(--text-muted)' }}>
-              <Calendar size={48} style={{ margin: '0 auto 12px auto', opacity: 0.2, display: 'block' }} />
-              <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text-primary)' }}>
-                មិនមានទិន្នន័យវត្តមានសម្រាប់ថ្ងៃដែលបានជ្រើសរើសទេ។
-              </div>
-              <p style={{ fontSize: '13px', marginTop: '6px' }}>
-                សូមជ្រើសរើសកាលបរិច្ឆេទផ្សេង ឬជ្រើសរើស "គ្រប់កាលបរិច្ឆេទទាំងអស់"។
-              </p>
-            </div>
-          ) : (
-            <div style={{ padding: '20px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: '16px' }}>
-              {filteredRecords.map((r) => (
-                <div
-                  key={r.id}
-                  className="hrm-card"
-                  style={{
-                    padding: '18px',
-                    borderRadius: '16px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '12px',
-                    border: '1px solid var(--border)',
-                    boxShadow: 'var(--shadow-sm)',
-                    background: 'var(--surface)',
-                  }}
+      {/* ========================================================================= */}
+      {/* 1. LATE SUMMARY REPORT A4 VIEW (មកយឺតសរុប A4 Table Matching Screenshot) */}
+      {/* ========================================================================= */}
+      {activeReportTab === 'late' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {/* Top Filter Bar for Late Summary */}
+          <div
+            className="hrm-card no-print"
+            style={{
+              padding: '16px 20px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '14px',
+              borderRadius: '16px',
+            }}
+          >
+            {/* Department Category Buttons */}
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              {[
+                { id: 'department', label: '💼 ផ្នែករដ្ឋបាល/ជំនាញ' },
+                { id: 'sk', label: '⭐ SKKS2/SKNR3' },
+                { id: 'worker', label: '👥 ផ្នែកកម្មករ' },
+                { id: 'all', label: '📋 ទាំងអស់ (All)' },
+              ].map((d) => (
+                <button
+                  key={d.id}
+                  type="button"
+                  onClick={() => setDeptCategoryTab(d.id as any)}
+                  className={`btn btn-sm ${deptCategoryTab === d.id ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{ borderRadius: '8px', fontWeight: 700 }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div>
-                      <div style={{ fontWeight: 800, fontSize: '16px', color: 'var(--primary)' }}>{r.name}</div>
-                      <span style={{ fontFamily: "'Outfit', monospace", fontSize: '12px', color: 'var(--text-muted)', fontWeight: 700 }}>
-                        ID: {r.employee_id}
-                      </span>
-                    </div>
-                    <span
-                      style={{
-                        background: r.status === 'Late' ? '#fee2e2' : '#dcfce7',
-                        color: r.status === 'Late' ? '#dc2626' : '#16a34a',
-                        fontWeight: 800,
-                        fontSize: '12px',
-                        padding: '4px 10px',
-                        borderRadius: '20px',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                      }}
-                    >
-                      <CheckCircle2 size={13} />
-                      <span>{r.status}</span>
-                    </span>
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12.5px', color: 'var(--text-secondary)', background: 'var(--surface-alt)', padding: '12px', borderRadius: '12px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <span style={{ color: 'var(--text-muted)' }}>ទីតាំង:</span>
-                      <span style={{ fontWeight: 700 }}>{r.workplace}</span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <span style={{ color: 'var(--text-muted)' }}>សកម្មភាព:</span>
-                      <span style={{ fontWeight: 700, color: r.action === 'Check-In' ? '#16a34a' : '#dc2626' }}>{r.action}</span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <span style={{ color: 'var(--text-muted)' }}>ថ្ងៃខែឆ្នាំ:</span>
-                      <span style={{ fontFamily: "'Outfit', monospace", fontWeight: 600 }}>{formatDateOnly(r.log_time)}</span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <span style={{ color: 'var(--text-muted)' }}>ពេលវេលា:</span>
-                      <span style={{ fontFamily: "'Outfit', monospace", fontWeight: 700, color: 'var(--text-primary)' }}>{formatTimeOnly(r.log_time)}</span>
-                    </div>
-                  </div>
-
-                  {r.late_reason && (
-                    <div style={{ fontSize: '12px', color: '#b45309', background: 'rgba(245, 158, 11, 0.1)', padding: '8px 10px', borderRadius: '8px', border: '1px solid rgba(245, 158, 11, 0.25)' }}>
-                      ⚠️ មូលហេតុ: {r.late_reason}
-                    </div>
-                  )}
-
-                  {r.photo_path && (
-                    <button
-                      type="button"
-                      onClick={() => setPreviewPhoto(r.photo_path || null)}
-                      className="btn btn-secondary btn-sm"
-                      style={{ borderRadius: '8px', fontSize: '11.5px', marginTop: 'auto' }}
-                    >
-                      <Camera size={13} />
-                      <span>មើលរូបថតស្កេនផ្ទៃមុខ</span>
-                    </button>
-                  )}
-                </div>
+                  <span>{d.label}</span>
+                </button>
               ))}
             </div>
-          )
-        ) : (
-          /* Table View matching admin_attendance.php 100% */
+
+            {/* Date Range Selector */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)' }}>ចាប់ពីថ្ងៃ:</span>
+                <input
+                  type="date"
+                  className="form-input"
+                  value={lateStartDate}
+                  onChange={(e) => setLateStartDate(e.target.value)}
+                  style={{ height: '36px', borderRadius: '8px', fontSize: '13px', width: '150px' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)' }}>ដល់ថ្ងៃ:</span>
+                <input
+                  type="date"
+                  className="form-input"
+                  value={lateEndDate}
+                  onChange={(e) => setLateEndDate(e.target.value)}
+                  style={{ height: '36px', borderRadius: '8px', fontSize: '13px', width: '150px' }}
+                />
+              </div>
+
+              <button
+                onClick={handlePrintA4}
+                className="btn btn-primary btn-sm"
+                style={{ borderRadius: '8px', padding: '6px 14px', fontWeight: 700 }}
+              >
+                <Printer size={14} />
+                <span>Print A4</span>
+              </button>
+            </div>
+          </div>
+
+          {/* A4 REPORT PAPER CONTAINER */}
+          <div
+            id="a4-late-summary-report"
+            ref={printRef}
+            style={{
+              background: '#ffffff',
+              color: '#000000',
+              padding: '36px 40px',
+              borderRadius: '16px',
+              boxShadow: '0 8px 30px rgba(0,0,0,0.08)',
+              maxWidth: '900px',
+              margin: '0 auto',
+              width: '100%',
+              fontFamily: "'Hanuman', 'Khmer OS Battambang', sans-serif",
+            }}
+          >
+            {/* 1. Header with Logo & Van Van Title */}
+            <div style={{ textAlign: 'center', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '14px', marginBottom: '4px' }}>
+                <img
+                  src="https://i.ibb.co/NdJMpN75/Logo-Van-Van-2.png"
+                  alt="Van Van Logo"
+                  style={{ height: '62px', objectFit: 'contain' }}
+                  onError={(e) => {
+                    (e.target as HTMLElement).style.display = 'none';
+                  }}
+                />
+                <div>
+                  <h1
+                    style={{
+                      fontSize: '28px',
+                      fontWeight: 900,
+                      color: '#b45309',
+                      margin: 0,
+                      letterSpacing: '1px',
+                    }}
+                  >
+                    វ៉ាន់ វ៉ាន់ ខេមបូឌា
+                  </h1>
+                  <div
+                    style={{
+                      fontSize: '13px',
+                      fontWeight: 800,
+                      letterSpacing: '2.5px',
+                      color: '#b45309',
+                      marginTop: '2px',
+                    }}
+                  >
+                    VAN VAN CAMBODIA
+                  </div>
+                </div>
+              </div>
+
+              {/* Dark Blue Title Banner Box */}
+              <div
+                style={{
+                  background: '#1e3a8a',
+                  color: '#ffffff',
+                  padding: '12px 20px',
+                  borderRadius: '10px',
+                  marginTop: '14px',
+                  boxShadow: '0 4px 12px rgba(30, 58, 138, 0.25)',
+                }}
+              >
+                <h2 style={{ fontSize: '18px', fontWeight: 800, margin: '0 0 4px 0', color: '#fef08a' }}>
+                  របាយការណ៍មកយឺតប្រចាំ{getKhmerDateHeader(lateStartDate)}
+                </h2>
+                <h3 style={{ fontSize: '14px', fontWeight: 700, margin: '0 0 4px 0', color: '#ffffff' }}>
+                  សម្រាប់បុគ្គលិកជំនាញ និងតាមឃ្លាំង
+                </h3>
+                <div style={{ fontSize: '12.5px', color: '#fbbf24', fontWeight: 600 }}>
+                  {getKhmerDateRange()}
+                </div>
+              </div>
+            </div>
+
+            {/* 2. Late Summary A4 Table */}
+            <div style={{ overflowX: 'auto', marginTop: '14px' }}>
+              <table
+                style={{
+                  width: '100%',
+                  borderCollapse: 'collapse',
+                  border: '1.5px solid #000000',
+                  fontSize: '12.5px',
+                }}
+              >
+                <thead>
+                  {/* Top Golden Header */}
+                  <tr style={{ background: '#fde047', color: '#000000', textAlign: 'center', fontWeight: 800 }}>
+                    <th rowSpan={2} style={{ border: '1px solid #000000', padding: '6px 4px', width: '40px' }}>ល.រ</th>
+                    <th rowSpan={2} style={{ border: '1px solid #000000', padding: '6px 4px', width: '70px' }}>អត្តលេខ</th>
+                    <th rowSpan={2} style={{ border: '1px solid #000000', padding: '6px 8px', textAlign: 'left', minWidth: '130px' }}>ឈ្មោះ</th>
+                    <th rowSpan={2} style={{ border: '1px solid #000000', padding: '6px 4px', width: '55px' }}>ភេទ</th>
+                    <th rowSpan={2} style={{ border: '1px solid #000000', padding: '6px 8px', textAlign: 'left', minWidth: '160px' }}>តួនាទី</th>
+                    <th colSpan={3} style={{ border: '1px solid #000000', padding: '4px 6px', fontWeight: 900 }}>មកយឺត</th>
+                    <th rowSpan={2} style={{ border: '1px solid #000000', padding: '6px 6px', width: '65px', background: '#facc15' }}>សរុប</th>
+                  </tr>
+                  <tr style={{ background: '#fef08a', color: '#000000', textAlign: 'center', fontWeight: 700, fontSize: '11px' }}>
+                    <th style={{ border: '1px solid #000000', padding: '4px 6px', width: '75px' }}>ក្រោម ១៥ នាទី</th>
+                    <th style={{ border: '1px solid #000000', padding: '4px 6px', width: '75px' }}>ចាប់ពី ១៥ នាទី</th>
+                    <th style={{ border: '1px solid #000000', padding: '4px 6px', width: '75px' }}>ចាប់ពី១ម៉ោង</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {lateSummaryRecords.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} style={{ textAlign: 'center', padding: '30px', border: '1px solid #000000', color: '#64748b' }}>
+                        មិនមានទិន្នន័យបុគ្គលិកមកយឺតក្នុងចន្លោះកាលបរិច្ឆេទនេះឡើយ។
+                      </td>
+                    </tr>
+                  ) : (
+                    lateSummaryRecords.map((r, idx) => {
+                      const isHighLate = r.total >= 2;
+                      const rowBg = isHighLate ? '#fef9c3' : '#ffffff';
+
+                      return (
+                        <tr key={r.employee_id || idx} style={{ background: rowBg }}>
+                          <td style={{ border: '1px solid #000000', textAlign: 'center', fontWeight: 600, padding: '5px 4px' }}>
+                            {idx + 1}
+                          </td>
+                          <td style={{ border: '1px solid #000000', textAlign: 'center', fontFamily: "'Outfit', monospace", fontWeight: 700, padding: '5px 4px' }}>
+                            {r.employee_id}
+                          </td>
+                          <td style={{ border: '1px solid #000000', padding: '5px 8px', fontWeight: 800 }}>
+                            {r.name}
+                          </td>
+                          <td style={{ border: '1px solid #000000', textAlign: 'center', padding: '5px 4px' }}>
+                            {r.gender}
+                          </td>
+                          <td style={{ border: '1px solid #000000', padding: '5px 8px', fontSize: '12px' }}>
+                            {r.role}
+                          </td>
+                          <td style={{ border: '1px solid #000000', textAlign: 'center', fontWeight: 700, color: r.under_15 > 0 ? '#1e3a8a' : '#ef4444' }}>
+                            {r.under_15}
+                          </td>
+                          <td style={{ border: '1px solid #000000', textAlign: 'center', fontWeight: 700, color: r.from_15_to_60 > 0 ? '#1e3a8a' : '#ef4444' }}>
+                            {r.from_15_to_60}
+                          </td>
+                          <td style={{ border: '1px solid #000000', textAlign: 'center', fontWeight: 700, color: r.over_60 > 0 ? '#1e3a8a' : '#ef4444' }}>
+                            {r.over_60}
+                          </td>
+                          <td style={{ border: '1px solid #000000', textAlign: 'center', fontWeight: 900, background: isHighLate ? '#fde047' : '#ffffff', color: r.total > 0 ? '#b45309' : '#ef4444' }}>
+                            {r.total}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+
+                  {/* Footer Totals Row */}
+                  <tr style={{ background: '#1e3a8a', color: '#ffffff', fontWeight: 900, fontSize: '13px' }}>
+                    <td colSpan={5} style={{ border: '1px solid #000000', textAlign: 'center', padding: '8px', color: '#fef08a' }}>
+                      សរុប (Total)
+                    </td>
+                    <td style={{ border: '1px solid #000000', textAlign: 'center', padding: '8px', color: '#60a5fa' }}>
+                      {lateSummaryTotals.under_15}
+                    </td>
+                    <td style={{ border: '1px solid #000000', textAlign: 'center', padding: '8px', color: '#60a5fa' }}>
+                      {lateSummaryTotals.from_15_to_60}
+                    </td>
+                    <td style={{ border: '1px solid #000000', textAlign: 'center', padding: '8px', color: '#60a5fa' }}>
+                      {lateSummaryTotals.over_60}
+                    </td>
+                    <td style={{ border: '1px solid #000000', textAlign: 'center', padding: '8px', color: '#facc15', fontSize: '14px' }}>
+                      {lateSummaryTotals.grand_total}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            {/* 3. Bottom Signatures and Date Section */}
+            <div style={{ marginTop: '28px' }}>
+              <div style={{ textAlign: 'right', fontSize: '12px', lineHeight: 1.6, color: '#1e293b' }}>
+                <div>ថ្ងៃចន្ទ ១១កើត ខែស្រាពណ៍ ឆ្នាំម្សាញ់ ឆស័ក ពុទ្ធសករាជ ២៥៧០</div>
+                <div style={{ fontWeight: 700 }}>រាជធានីភ្នំពេញ, ថ្ងៃទី២៤ ខែ សីហា ឆ្នាំ២០២៦</div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '16px', padding: '0 20px', fontSize: '13px' }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontWeight: 800, color: '#1e293b' }}>
+                    ប្រធាននាយកដ្ឋានធនធានមនុស្ស និងរដ្ឋបាល
+                  </div>
+                  <div style={{ height: '70px' }}></div>
+                  <div style={{ fontWeight: 800, color: '#0f172a' }}>លោក ផល សំអេងឡេង</div>
+                </div>
+
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontWeight: 800, color: '#1e293b' }}>
+                    រៀបចំដោយ
+                  </div>
+                  <div style={{ height: '70px' }}></div>
+                  <div style={{ fontWeight: 800, color: '#0f172a' }}>សៀង សារុន</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 2. LEAVE & DEO REPORT VIEW (admin_attendance.php?action=leave_deo_report) */}
+      {/* ========================================================================= */}
+      {activeReportTab === 'leave_deo' && (
+        <div className="hrm-card" style={{ padding: 0, borderRadius: '18px', overflow: 'hidden' }}>
+          {/* Branch Sub-Tabs matching legacy */}
+          <div
+            style={{
+              background: 'var(--surface-alt)',
+              padding: '0 20px',
+              borderBottom: '1px solid var(--border)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              overflowX: 'auto',
+            }}
+          >
+            {[
+              { id: '318', label: '🏬 Store 318' },
+              { id: 'ks2', label: '🏭 Warehouse PSP (KS2)' },
+              { id: 'nr3', label: '🏪 Store NR3 (PRV)' },
+              { id: 'all', label: '🏢 សាខាទាំងអស់ (All Stores)' },
+            ].map((store) => (
+              <button
+                key={store.id}
+                type="button"
+                onClick={() => setSelectedStore(store.id)}
+                style={{
+                  padding: '14px 20px',
+                  border: 'none',
+                  background: 'transparent',
+                  fontWeight: 700,
+                  fontSize: '13.5px',
+                  cursor: 'pointer',
+                  color: selectedStore === store.id ? 'var(--primary)' : 'var(--text-secondary)',
+                  borderBottom: selectedStore === store.id ? '3px solid var(--primary)' : '3px solid transparent',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  transition: 'all 0.2s ease',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                <span>{store.label}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* Filter Toolbar */}
+          <div
+            style={{
+              padding: '18px 24px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '14px',
+              borderBottom: '1px solid var(--border)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                កាលបរិច្ឆេទរាយការណ៍:
+              </span>
+              <input
+                type="date"
+                className="form-input"
+                value={selectedDate || new Date().toISOString().split('T')[0]}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                style={{ height: '38px', borderRadius: '10px', fontSize: '13px', width: '160px' }}
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={handleAddNewLeaveDeoRow}
+              className="btn btn-primary btn-sm"
+              style={{ borderRadius: '10px', padding: '8px 18px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
+              <Plus size={16} />
+              <span>បន្ថែមជួរដេកថ្មី (Add Row)</span>
+            </button>
+          </div>
+
+          {/* Leave & Deo Table */}
+          <div className="table-container" style={{ border: 'none', boxShadow: 'none' }}>
+            <table className="hrm-table">
+              <thead>
+                <tr>
+                  <th style={{ width: '60px', textAlign: 'center' }}>ល.រ</th>
+                  <th style={{ width: '22%' }}>ឈ្មោះបុគ្គលិក</th>
+                  <th style={{ width: '20%' }}>តួនាទី / ផ្នែក</th>
+                  <th>អធិប្បាយ / មូលហេតុសុំច្បាប់ & ដេអូស</th>
+                  <th style={{ width: '140px', textAlign: 'center' }}>ថ្ងៃរាយការណ៍</th>
+                  <th style={{ width: '90px', textAlign: 'center' }}>សកម្មភាព</th>
+                </tr>
+              </thead>
+              <tbody>
+                {leaveDeoRecords.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)' }}>
+                      <FileText size={36} style={{ margin: '0 auto 10px auto', opacity: 0.3, display: 'block' }} />
+                      <div>មិនមានទិន្នន័យសុំច្បាប់ ឬដេអូសសម្រាប់ថ្ងៃនេះឡើយ។</div>
+                      <button
+                        type="button"
+                        onClick={handleAddNewLeaveDeoRow}
+                        className="btn btn-secondary btn-sm"
+                        style={{ marginTop: '12px', borderRadius: '8px' }}
+                      >
+                        + ចុចដើម្បីបន្ថែមជួរដេកថ្មី
+                      </button>
+                    </td>
+                  </tr>
+                ) : (
+                  leaveDeoRecords.map((row, idx) => (
+                    <tr key={row.id}>
+                      <td style={{ textAlign: 'center' }}>
+                        <input
+                          type="text"
+                          defaultValue={row.number || String(idx + 1)}
+                          onBlur={(e) => handleUpdateLeaveDeoCell(row.id, 'number', e.target.value)}
+                          style={{ width: '100%', border: 'none', background: 'transparent', textAlign: 'center', fontWeight: 700, outline: 'none' }}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="text"
+                          defaultValue={row.name}
+                          placeholder="បញ្ចូលឈ្មោះ..."
+                          onBlur={(e) => handleUpdateLeaveDeoCell(row.id, 'name', e.target.value)}
+                          style={{ width: '100%', border: 'none', background: 'transparent', fontWeight: 800, color: 'var(--primary)', outline: 'none', fontSize: '14px' }}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="text"
+                          defaultValue={row.role}
+                          placeholder="បញ្ចូលតួនាទី..."
+                          onBlur={(e) => handleUpdateLeaveDeoCell(row.id, 'role', e.target.value)}
+                          style={{ width: '100%', border: 'none', background: 'transparent', color: 'var(--text-secondary)', outline: 'none', fontSize: '13px' }}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="text"
+                          defaultValue={row.note}
+                          placeholder="បញ្ចូលមូលហេតុសុំច្បាប់ / ដេអូស..."
+                          onBlur={(e) => handleUpdateLeaveDeoCell(row.id, 'note', e.target.value)}
+                          style={{ width: '100%', border: 'none', background: 'transparent', outline: 'none', fontSize: '13px' }}
+                        />
+                      </td>
+                      <td style={{ textAlign: 'center', fontFamily: "'Outfit', monospace", fontSize: '13px' }}>
+                        {row.reports_date || selectedDate}
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteLeaveDeoRow(row.id)}
+                          className="btn btn-danger btn-sm"
+                          style={{ padding: '4px 10px', borderRadius: '6px', fontSize: '11.5px' }}
+                        >
+                          លុប
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Approved system leave requests if any */}
+          {approvedLeaves.length > 0 && (
+            <div style={{ padding: '20px 24px', background: 'var(--surface-alt)', borderTop: '1px solid var(--border)' }}>
+              <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <CheckCircle2 size={16} color="#16a34a" />
+                <span>ពាក្យសុំច្បាប់ដែលបានអនុម័តក្នុងប្រព័ន្ធ (Approved System Leaves)</span>
+              </h4>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '12px' }}>
+                {approvedLeaves.map((al) => (
+                  <div key={al.id} style={{ padding: '12px', background: 'var(--surface)', borderRadius: '10px', border: '1px solid var(--border)', fontSize: '12.5px' }}>
+                    <div style={{ fontWeight: 800, color: 'var(--primary)' }}>{al.name}</div>
+                    <div style={{ color: 'var(--text-muted)' }}>ប្រភេទ៖ {al.role}</div>
+                    <div>មូលហេតុ៖ {al.note || 'គ្មាន'}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 3. COMBINED REPORT VIEW (admin_attendance.php?action=combined_report) */}
+      {/* ========================================================================= */}
+      {activeReportTab === 'combined' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {/* Main Matrix Container Card */}
+          <div className="hrm-card" style={{ padding: 0, borderRadius: '18px', overflow: 'hidden' }}>
+            {/* Store Tabs */}
+            <div
+              style={{
+                background: 'var(--surface-alt)',
+                padding: '0 20px',
+                borderBottom: '1px solid var(--border)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                overflowX: 'auto',
+              }}
+            >
+              {[
+                { id: '318', label: '🏬 Store 318' },
+                { id: 'ks2', label: '🏭 Warehouse PSP (KS2)' },
+                { id: 'nr3', label: '🏪 Store NR3 (PRV)' },
+                { id: 'all', label: '🏢 សរុបរួមគ្រប់សាខា' },
+              ].map((store) => (
+                <button
+                  key={store.id}
+                  type="button"
+                  onClick={() => setSelectedStore(store.id)}
+                  style={{
+                    padding: '14px 20px',
+                    border: 'none',
+                    background: 'transparent',
+                    fontWeight: 700,
+                    fontSize: '13.5px',
+                    cursor: 'pointer',
+                    color: selectedStore === store.id ? 'var(--primary)' : 'var(--text-secondary)',
+                    borderBottom: selectedStore === store.id ? '3px solid var(--primary)' : '3px solid transparent',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    transition: 'all 0.2s ease',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  <span>{store.label}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Matrix Header Title & Date */}
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: 'var(--text-primary)' }}>
+                  របាយការណ៍វត្តមានរួម - {selectedStore.toUpperCase()} ({formatDateDisplay(getActiveDate())})
+                </h3>
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                  ចំនួនបុគ្គលិកតាមផ្នែក និងសរុបវេន
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)' }}>កាលបរិច្ឆេទ:</span>
+                <input
+                  type="date"
+                  className="form-input"
+                  value={selectedDate || new Date().toISOString().split('T')[0]}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  style={{ height: '38px', borderRadius: '10px', fontSize: '13px', width: '160px' }}
+                />
+              </div>
+            </div>
+
+            {/* Consolidated Headcount Matrix Table */}
+            <div className="table-container" style={{ border: 'none', boxShadow: 'none' }}>
+              <table className="hrm-table">
+                <thead>
+                  <tr style={{ background: '#0f172a', color: '#fff' }}>
+                    <th style={{ width: '140px', textAlign: 'center', color: '#fff', background: '#0f172a' }}>ព័ត៌មាន</th>
+                    {matrixDepartments.map((d) => (
+                      <th key={d.key} style={{ textAlign: 'center', color: '#fff', background: '#0f172a' }}>{d.label}</th>
+                    ))}
+                    <th style={{ width: '120px', textAlign: 'center', color: '#fff', background: '#1e293b' }}>សរុបរួម</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td style={{ textAlign: 'center', fontWeight: 700, color: '#ec4899', background: 'rgba(236, 72, 153, 0.05)' }}>
+                      👩 ស្រី (Female)
+                    </td>
+                    {matrixDepartments.map((d) => {
+                      const count = consolidatedScans.filter((s) => s.gender === 'Female' && s.department.toLowerCase().includes(d.key)).reduce((acc, curr) => acc + curr.scan_count, 0);
+                      return (
+                        <td key={d.key} style={{ textAlign: 'center', fontWeight: 700 }}>
+                          {count || 0}
+                        </td>
+                      );
+                    })}
+                    <td style={{ textAlign: 'center', fontWeight: 800, color: '#ec4899' }}>
+                      {consolidatedScans.filter((s) => s.gender === 'Female').reduce((acc, curr) => acc + curr.scan_count, 0)}
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td style={{ textAlign: 'center', fontWeight: 700, color: '#3b82f6', background: 'rgba(59, 130, 246, 0.05)' }}>
+                      👨 ប្រុស (Male)
+                    </td>
+                    {matrixDepartments.map((d) => {
+                      const count = consolidatedScans.filter((s) => s.gender === 'Male' && s.department.toLowerCase().includes(d.key)).reduce((acc, curr) => acc + curr.scan_count, 0);
+                      return (
+                        <td key={d.key} style={{ textAlign: 'center', fontWeight: 700 }}>
+                          {count || 0}
+                        </td>
+                      );
+                    })}
+                    <td style={{ textAlign: 'center', fontWeight: 800, color: '#3b82f6' }}>
+                      {consolidatedScans.filter((s) => s.gender === 'Male').reduce((acc, curr) => acc + curr.scan_count, 0)}
+                    </td>
+                  </tr>
+
+                  <tr style={{ background: 'var(--surface-alt)', borderTop: '2px solid var(--border)' }}>
+                    <td style={{ textAlign: 'center', fontWeight: 900, color: 'var(--primary)' }}>
+                      សរុប (Grand Total)
+                    </td>
+                    {matrixDepartments.map((d) => {
+                      const count = consolidatedScans.filter((s) => s.department.toLowerCase().includes(d.key)).reduce((acc, curr) => acc + curr.scan_count, 0);
+                      return (
+                        <td key={d.key} style={{ textAlign: 'center', fontWeight: 900, color: 'var(--primary)' }}>
+                          {count || 0}
+                        </td>
+                      );
+                    })}
+                    <td style={{ textAlign: 'center', fontWeight: 900, fontSize: '15px', color: 'var(--primary)' }}>
+                      {consolidatedScans.reduce((acc, curr) => acc + curr.scan_count, 0)}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Lower Table: Staff on Leave / Deo / New staff on this date */}
+          <div className="hrm-card" style={{ padding: '20px 24px', borderRadius: '18px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
+              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <FileText size={18} color="var(--primary)" />
+                <span>បុគ្គលិកសុំច្បាប់, ដេអូស, ប្តូរដេអូស និងចូលថ្មី (Leave & Deo for {selectedStore.toUpperCase()})</span>
+              </h3>
+
+              <button
+                type="button"
+                onClick={handleAddNewLeaveDeoRow}
+                className="btn btn-primary btn-sm"
+                style={{ borderRadius: '8px', padding: '6px 14px', fontWeight: 700 }}
+              >
+                <Plus size={14} />
+                <span>បន្ថែមជួរដេក</span>
+              </button>
+            </div>
+
+            <div className="table-container" style={{ border: 'none', boxShadow: 'none' }}>
+              <table className="hrm-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: '60px', textAlign: 'center' }}>ល.រ</th>
+                    <th style={{ width: '22%' }}>ឈ្មោះ</th>
+                    <th style={{ width: '20%' }}>តួនាទី</th>
+                    <th>អធិប្បាយ</th>
+                    <th style={{ width: '130px', textAlign: 'center' }}>ថ្ងៃរាយការណ៍</th>
+                    <th style={{ width: '80px', textAlign: 'center' }}>សកម្មភាព</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {leaveDeoRecords.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)' }}>
+                        មិនមានទិន្នន័យសម្រាប់ថ្ងៃនេះទេ។
+                      </td>
+                    </tr>
+                  ) : (
+                    leaveDeoRecords.map((r, i) => (
+                      <tr key={r.id}>
+                        <td style={{ textAlign: 'center', fontWeight: 700 }}>{r.number || i + 1}</td>
+                        <td style={{ fontWeight: 800, color: 'var(--primary)' }}>{r.name || '-'}</td>
+                        <td>{r.role || '-'}</td>
+                        <td>{r.note || '-'}</td>
+                        <td style={{ textAlign: 'center', fontFamily: "'Outfit', monospace" }}>{r.reports_date}</td>
+                        <td style={{ textAlign: 'center' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteLeaveDeoRow(r.id)}
+                            className="btn btn-danger btn-sm"
+                            style={{ padding: '3px 8px', borderRadius: '6px', fontSize: '11px' }}
+                          >
+                            លុប
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 4. DAILY / FORGOTTEN REPORT VIEW */}
+      {/* ========================================================================= */}
+      {activeReportTab !== 'leave_deo' && activeReportTab !== 'combined' && activeReportTab !== 'late' && (
+        <div className="hrm-card" style={{ padding: 0, borderRadius: '18px', overflow: 'hidden' }}>
+          {/* Top Department Tabs matching admin_attendance.php */}
+          <div
+            style={{
+              background: 'var(--surface-alt)',
+              padding: '0 20px',
+              borderBottom: '1px solid var(--border)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              overflowX: 'auto',
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setDeptCategoryTab('department')}
+              style={{
+                padding: '14px 20px',
+                border: 'none',
+                background: 'transparent',
+                fontWeight: 700,
+                fontSize: '13.5px',
+                cursor: 'pointer',
+                color: deptCategoryTab === 'department' ? 'var(--primary)' : 'var(--text-secondary)',
+                borderBottom: deptCategoryTab === 'department' ? '3px solid var(--primary)' : '3px solid transparent',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                transition: 'all 0.2s ease',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              <Briefcase size={16} />
+              <span>ផ្នែករដ្ឋបាល/ជំនាញ</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setDeptCategoryTab('sk')}
+              style={{
+                padding: '14px 20px',
+                border: 'none',
+                background: 'transparent',
+                fontWeight: 700,
+                fontSize: '13.5px',
+                cursor: 'pointer',
+                color: deptCategoryTab === 'sk' ? 'var(--primary)' : 'var(--text-secondary)',
+                borderBottom: deptCategoryTab === 'sk' ? '3px solid var(--primary)' : '3px solid transparent',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                transition: 'all 0.2s ease',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              <Star size={16} />
+              <span>SKKS2/SKNR3</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setDeptCategoryTab('worker')}
+              style={{
+                padding: '14px 20px',
+                border: 'none',
+                background: 'transparent',
+                fontWeight: 700,
+                fontSize: '13.5px',
+                cursor: 'pointer',
+                color: deptCategoryTab === 'worker' ? 'var(--primary)' : 'var(--text-secondary)',
+                borderBottom: deptCategoryTab === 'worker' ? '3px solid var(--primary)' : '3px solid transparent',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                transition: 'all 0.2s ease',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              <HardHat size={16} />
+              <span>ផ្នែកកម្មករ</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setDeptCategoryTab('all')}
+              style={{
+                padding: '14px 20px',
+                border: 'none',
+                background: 'transparent',
+                fontWeight: 700,
+                fontSize: '13.5px',
+                cursor: 'pointer',
+                color: deptCategoryTab === 'all' ? 'var(--primary)' : 'var(--text-secondary)',
+                borderBottom: deptCategoryTab === 'all' ? '3px solid var(--primary)' : '3px solid transparent',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                transition: 'all 0.2s ease',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              <Layers size={16} />
+              <span>ទាំងអស់ (All Departments)</span>
+            </button>
+          </div>
+
+          {/* Filter Toolbar Section */}
+          <div
+            style={{
+              padding: '20px 24px',
+              display: 'flex',
+              alignItems: 'flex-end',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '16px',
+              borderBottom: '1px solid var(--border)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: '16px', flexWrap: 'wrap', flex: 1 }}>
+              {/* Date Selector Dropdown matching admin_attendance.php */}
+              <div style={{ minWidth: '240px', flex: '1 1 240px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                  <Calendar size={15} />
+                  <span>ជ្រើសរើសកាលបរិច្ឆេទ</span>
+                </label>
+
+                {!isCustomDateMode ? (
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <select
+                      className="form-select"
+                      value={selectedDate}
+                      onChange={(e) => {
+                        if (e.target.value === 'custom') {
+                          setIsCustomDateMode(true);
+                        } else {
+                          setSelectedDate(e.target.value);
+                        }
+                      }}
+                      style={{ height: '42px', borderRadius: '10px', fontWeight: 600, fontSize: '13.5px', width: '100%' }}
+                    >
+                      {availableDates.length === 0 ? (
+                        <option value={new Date().toISOString().split('T')[0]}>
+                          {formatDateDisplay(new Date().toISOString().split('T')[0])}
+                        </option>
+                      ) : (
+                        availableDates.map((dateStr) => (
+                          <option key={dateStr} value={dateStr}>
+                            {formatDateDisplay(dateStr)}
+                          </option>
+                        ))
+                      )}
+                      <option value="all">គ្រប់កាលបរិច្ឆេទទាំងអស់ (All Dates)</option>
+                      <option value="custom">📅 ជ្រើសរើសថ្ងៃផ្សេងទៀត (Pick Date)...</option>
+                    </select>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <input
+                      type="date"
+                      className="form-input"
+                      value={customDate || selectedDate}
+                      onChange={(e) => setCustomDate(e.target.value)}
+                      style={{ height: '42px', borderRadius: '10px', fontSize: '13px', flex: 1 }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setIsCustomDateMode(false)}
+                      className="btn btn-secondary btn-sm"
+                      style={{ borderRadius: '8px', padding: '0 12px' }}
+                    >
+                      បញ្ជី
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Status Filter */}
+              <div style={{ minWidth: '180px', flex: '1 1 180px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                  <Filter size={15} />
+                  <span>ស្ថានភាព</span>
+                </label>
+                <select
+                  className="form-select"
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  style={{ height: '42px', borderRadius: '10px', fontWeight: 600, fontSize: '13.5px', width: '100%' }}
+                >
+                  <option value="All">ទាំងអស់ (All Status)</option>
+                  <option value="Good">ទាន់ពេល (Good)</option>
+                  <option value="Late">យឺត (Late)</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Right Toolbar: ViewModeToggle & Search */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              <ViewModeToggle mode={viewMode} onChange={setViewMode} />
+
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  background: 'var(--surface-alt)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '10px',
+                  padding: '8px 14px',
+                  width: '220px',
+                  gap: '8px',
+                }}
+              >
+                <Search size={15} color="var(--text-muted)" />
+                <input
+                  type="text"
+                  placeholder="ស្វែងរកឈ្មោះ, ID, Noted..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    outline: 'none',
+                    fontSize: '13px',
+                    color: 'var(--text-primary)',
+                    fontFamily: 'inherit',
+                    width: '100%',
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Table View matching admin_attendance.php 100% */}
           <div className="table-container" style={{ border: 'none', boxShadow: 'none' }}>
             <table className="hrm-table">
               <thead>
@@ -592,7 +1534,7 @@ export const AttendanceReportsPage: React.FC = () => {
                   <th style={{ width: '130px' }}>ពេលវេលា</th>
                   <th style={{ width: '110px' }}>ស្ថានភាព</th>
                   <th>មូលហេតុ</th>
-                  <th>NOTED</th>
+                  <th style={{ minWidth: '150px' }}>NOTED</th>
                   <th style={{ width: '90px', textAlign: 'center' }}>ACTION</th>
                 </tr>
               </thead>
@@ -665,9 +1607,41 @@ export const AttendanceReportsPage: React.FC = () => {
                         <td style={{ fontSize: '12.5px', color: log.late_reason ? '#f59e0b' : 'var(--text-muted)' }}>
                           {log.late_reason || ''}
                         </td>
-                        <td style={{ fontSize: '12.5px', color: 'var(--text-muted)' }}>
-                          {log.noted || ''}
+
+                        {/* Interactive Click-to-Edit NOTED Cell */}
+                        <td
+                          onClick={() => handleOpenNoteEditor(log)}
+                          title="ចុចដើម្បីកែប្រែចំណាំ / Click to edit note"
+                          style={{
+                            fontSize: '12.5px',
+                            cursor: 'pointer',
+                            transition: 'background 0.2s ease',
+                            position: 'relative',
+                            paddingRight: '28px',
+                          }}
+                          onMouseEnter={(e) => {
+                            (e.currentTarget as HTMLElement).style.background = 'rgba(99, 102, 241, 0.08)';
+                          }}
+                          onMouseLeave={(e) => {
+                            (e.currentTarget as HTMLElement).style.background = isSelected ? 'rgba(99, 102, 241, 0.04)' : '';
+                          }}
+                        >
+                          <div style={{ maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {renderNotedContent(log.noted)}
+                          </div>
+                          <Edit3
+                            size={13}
+                            color="var(--primary)"
+                            style={{
+                              position: 'absolute',
+                              right: '8px',
+                              top: '50%',
+                              transform: 'translateY(-50%)',
+                              opacity: 0.6,
+                            }}
+                          />
                         </td>
+
                         <td style={{ textAlign: 'center' }}>
                           {log.photo_path ? (
                             <button
@@ -690,8 +1664,53 @@ export const AttendanceReportsPage: React.FC = () => {
               </tbody>
             </table>
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      {/* Edit Note Modal */}
+      <Modal
+        isOpen={!!editingNoteRecord}
+        onClose={() => setEditingNoteRecord(null)}
+        title={`កែប្រែចំណាំ (Edit Note) - ${editingNoteRecord?.name || ''}`}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '6px 0' }}>
+          <div>
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+              ខ្លឹមសារចំណាំ (Text or Link URL):
+            </label>
+            <textarea
+              rows={4}
+              className="form-input"
+              value={editingNoteValue}
+              onChange={(e) => setEditingNoteValue(e.target.value)}
+              placeholder="បញ្ចូលអត្ថបទចំណាំ ឬ Link ទីនេះ..."
+              style={{ width: '100%', borderRadius: '10px', padding: '12px', fontSize: '13.5px', resize: 'vertical' }}
+              autoFocus
+            />
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
+            <button
+              type="button"
+              onClick={() => setEditingNoteRecord(null)}
+              className="btn btn-secondary"
+              style={{ borderRadius: '10px', padding: '8px 18px' }}
+            >
+              បោះបង់
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveNote}
+              disabled={isSavingNote}
+              className="btn btn-primary"
+              style={{ borderRadius: '10px', padding: '8px 22px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
+              {isSavingNote ? <RefreshCw size={14} className="fa-spin" /> : <Save size={15} />}
+              <span>{isSavingNote ? 'កំពុងរក្សាទុក...' : 'រក្សាទុក (Save)'}</span>
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Photo Preview Modal */}
       <Modal

@@ -485,6 +485,74 @@ export const adminApi = {
     return res.data;
   },
 
+  updateAttendanceNoted: async (logId: number | string, noted: string) => {
+    const params = new URLSearchParams();
+    params.append('action', 'update_attendance_noted');
+    params.append('log_id', String(logId));
+    params.append('noted', noted);
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  // Leave & Deo / Consolidated Reports
+  fetchLeaveDeoReport: async (store: string, date: string) => {
+    const params = new URLSearchParams();
+    params.append('action', 'fetch_leave_deo_report');
+    params.append('store', store);
+    params.append('date', date);
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  createLeaveDeoRow: async (store: string, date: string) => {
+    const params = new URLSearchParams();
+    params.append('action', 'create_leave_deo_row');
+    params.append('store', store);
+    params.append('date', date);
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  updateLeaveDeoRow: async (store: string, id: number | string, column: string, value: string) => {
+    const params = new URLSearchParams();
+    params.append('action', 'update_leave_deo_row');
+    params.append('store', store);
+    params.append('id', String(id));
+    params.append('column', column);
+    params.append('value', value);
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  deleteLeaveDeoRow: async (store: string, id: number | string) => {
+    const params = new URLSearchParams();
+    params.append('action', 'delete_leave_deo_row');
+    params.append('store', store);
+    params.append('id', String(id));
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  fetchConsolidatedReport: async (store: string, date: string) => {
+    const params = new URLSearchParams();
+    params.append('action', 'fetch_consolidated_report');
+    params.append('store', store);
+    params.append('date', date);
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  fetchLateSummaryReport: async (filters?: { start_date?: string; end_date?: string; department?: string; dept_category?: string }) => {
+    const params = new URLSearchParams();
+    params.append('action', 'fetch_late_summary_report');
+    if (filters?.start_date) params.append('start_date', filters.start_date);
+    if (filters?.end_date) params.append('end_date', filters.end_date);
+    if (filters?.department) params.append('department', filters.department);
+    if (filters?.dept_category) params.append('dept_category', filters.dept_category);
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
   // Requests Management
   fetchRequests: async (status?: string, type?: string) => {
     const params = new URLSearchParams();
