@@ -711,34 +711,61 @@ try {
             break;
 
         // ==========================================
-        // 7. CATEGORIES
+        // 7. CATEGORIES (Category Management)
         // ==========================================
         case 'fetch_categories':
         case 'get_categories':
             dbQuery("CREATE TABLE IF NOT EXISTS categories (
                 id INT AUTO_INCREMENT PRIMARY KEY,
-                name VARCHAR(255) NOT NULL,
-                code VARCHAR(100) NOT NULL,
+                name VARCHAR(255) NOT NULL DEFAULT '',
+                code VARCHAR(100) NOT NULL DEFAULT '',
                 description TEXT,
                 item_count INT DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
+            // Ensure columns exist
+            $catCols = [
+                'name' => "VARCHAR(255) NOT NULL DEFAULT ''",
+                'code' => "VARCHAR(100) NOT NULL DEFAULT ''",
+                'description' => "TEXT DEFAULT NULL",
+                'item_count' => "INT DEFAULT 0",
+            ];
+            foreach ($catCols as $cName => $cDef) {
+                $chk = dbQuery("SHOW COLUMNS FROM categories LIKE '$cName'");
+                if (empty($chk)) {
+                    dbQuery("ALTER TABLE categories ADD COLUMN $cName $cDef");
+                }
+            }
+
             $categories = dbQuery("SELECT * FROM categories ORDER BY id DESC");
             if (empty($categories)) {
                 dbQuery("INSERT INTO categories (name, code, description, item_count) VALUES 
-                    ('សម្ភារៈការិយាល័យ (Office Supplies)', 'CAT-OFFICE', 'សម្ភារៈប្រើប្រាស់ទូទៅ', 34),
-                    ('គ្រឿងអេឡិចត្រូនិច (Electronics)', 'CAT-ELEC', 'កុំព្យូទ័រ ម៉ាស៊ីនព្រីន ឧបករណ៍បច្ចេកវិទ្យា', 18),
-                    ('ទំនិញស្តុកហាង 318 (Store 318 Goods)', 'CAT-S318', 'ទំនិញលក់រាយនៅហាង 318', 120),
-                    ('ទំនិញស្តុកឃ្លាំង PSP (Warehouse PSP Goods)', 'CAT-PSP', 'ទំនិញស្តុកធំនៅឃ្លាំង PSP', 250)");
+                    ('Coffee Beans', 'CAT-COFFEE', 'គ្រាប់កាហ្វេគុណភាពខ្ពស់ និងផលិតផលកាហ្វេ', 12),
+                    ('Tea & Beverages', 'CAT-TEA', 'តែបៃតង តែក្រហម និងភេសជ្ជៈ', 8),
+                    ('Packaging', 'CAT-PACK', 'កែវជ័រ ប្រអប់ ថង់ និងសម្ភារៈវេចខ្ចប់', 25),
+                    ('Ingredients', 'CAT-INGR', 'គ្រឿងផ្សំ ស៊ីរ៉ូ ម្សៅទឹកដោះគោ និងសារធាតុផ្សំ', 15),
+                    ('សម្ភារៈការិយាល័យ (Office Supplies)', 'CAT-OFFICE', 'សម្ភារៈប្រើប្រាស់ទូទៅក្នុងការិយាល័យ', 34),
+                    ('គ្រឿងអេឡិចត្រូនិច (Electronics)', 'CAT-ELEC', 'កុំព្យូទ័រ ម៉ាស៊ីនព្រីន ឧបករណ៍បច្ចេកវិទ្យា', 18)");
                 $categories = dbQuery("SELECT * FROM categories ORDER BY id DESC");
             }
-            sendJson(['success' => true, 'categories' => $categories]);
+
+            // Dynamically calculate item count from stock_items
+            foreach ($categories as &$cat) {
+                $catName = $cat['name'];
+                $countRes = dbQuery("SELECT COUNT(*) as cnt FROM stock_items WHERE category = ? OR category LIKE ?", [$catName, "%$catName%"]);
+                if (!empty($countRes) && (int)$countRes[0]['cnt'] > 0) {
+                    $cat['item_count'] = (int)$countRes[0]['cnt'];
+                }
+            }
+            unset($cat);
+
+            sendJson(['success' => true, 'status' => 'success', 'categories' => $categories, 'data' => $categories, 'total' => count($categories)]);
             break;
 
         case 'save_category':
-            $catId = (int)($_POST['id'] ?? 0);
-            $name = trim($_POST['name'] ?? '');
+            $catId = (int)($_POST['id'] ?? $_POST['category_id'] ?? 0);
+            $name = trim($_POST['name'] ?? $_POST['category_name'] ?? '');
             $code = trim($_POST['code'] ?? 'CAT-' . rand(100, 999));
             $desc = trim($_POST['description'] ?? '');
 
@@ -748,10 +775,10 @@ try {
 
             if ($catId > 0) {
                 dbQuery("UPDATE categories SET name = ?, code = ?, description = ? WHERE id = ?", [$name, $code, $desc, $catId]);
-                sendJson(['success' => true, 'message' => 'បានកែប្រែប្រភេទជោគជ័យ!']);
+                sendJson(['success' => true, 'status' => 'success', 'message' => 'បានកែប្រែប្រភេទជោគជ័យ!']);
             } else {
                 dbQuery("INSERT INTO categories (name, code, description, item_count) VALUES (?, ?, ?, 0)", [$name, $code, $desc]);
-                sendJson(['success' => true, 'message' => 'បានបង្កើតប្រភេទថ្មីជោគជ័យ!']);
+                sendJson(['success' => true, 'status' => 'success', 'message' => 'បានបង្កើតប្រភេទថ្មីជោគជ័យ!']);
             }
             break;
 
@@ -759,9 +786,9 @@ try {
             $catId = (int)($_POST['id'] ?? $_POST['category_id'] ?? 0);
             if ($catId > 0) {
                 dbQuery("DELETE FROM categories WHERE id = ?", [$catId]);
-                sendJson(['success' => true, 'message' => 'បានលុបប្រភេទជោគជ័យ!']);
+                sendJson(['success' => true, 'status' => 'success', 'message' => 'បានលុបប្រភេទជោគជ័យ!']);
             }
-            sendJson(['success' => false, 'message' => 'Invalid Category ID']);
+            sendJson(['success' => false, 'message' => 'Invalid Category ID'], 400);
             break;
 
         // ==========================================
