@@ -1023,47 +1023,256 @@ try {
         // ==========================================
         case 'fetch_meetings':
         case 'get_meetings':
-            dbQuery("CREATE TABLE IF NOT EXISTS meetings (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                topic VARCHAR(255) NOT NULL,
-                title VARCHAR(255) DEFAULT NULL,
-                department VARCHAR(100) DEFAULT 'All Departments',
-                meeting_date DATE,
-                duration VARCHAR(50) DEFAULT '30 នាទី',
-                summary TEXT,
-                audio_url VARCHAR(255) DEFAULT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+            if ($mysqli) {
+                // Ensure required columns
+                $cols_to_add = [
+                    'topic' => "VARCHAR(255) DEFAULT ''",
+                    'title' => "VARCHAR(255) DEFAULT ''",
+                    'department' => "VARCHAR(100) DEFAULT 'General'",
+                    'category' => "VARCHAR(100) DEFAULT 'General'",
+                    'meeting_date' => "DATE DEFAULT NULL",
+                    'duration' => "VARCHAR(50) DEFAULT '30 នាទី'",
+                    'summary' => "TEXT DEFAULT NULL",
+                    'description' => "TEXT DEFAULT NULL",
+                    'external_url' => "TEXT DEFAULT NULL",
+                    'photo_url' => "VARCHAR(255) DEFAULT NULL",
+                    'mp3_url' => "VARCHAR(255) DEFAULT NULL",
+                    'audio_path' => "VARCHAR(255) DEFAULT NULL",
+                    'audio_file_path' => "VARCHAR(255) DEFAULT NULL",
+                    'audio_url' => "VARCHAR(255) DEFAULT NULL",
+                    'photos' => "LONGTEXT DEFAULT NULL",
+                    'related_photos' => "LONGTEXT DEFAULT NULL",
+                    'admin_id' => "VARCHAR(64) DEFAULT NULL",
+                    'created_by' => "VARCHAR(64) DEFAULT NULL"
+                ];
+                $mysqli->query("CREATE TABLE IF NOT EXISTS meetings (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    topic VARCHAR(255) NOT NULL,
+                    title VARCHAR(255) DEFAULT NULL,
+                    department VARCHAR(100) DEFAULT 'General',
+                    category VARCHAR(100) DEFAULT 'General',
+                    meeting_date DATE,
+                    duration VARCHAR(50) DEFAULT '30 នាទី',
+                    summary TEXT,
+                    description TEXT,
+                    external_url TEXT,
+                    audio_url VARCHAR(255) DEFAULT NULL,
+                    photo_url VARCHAR(255) DEFAULT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
-            $meetings = dbQuery("SELECT id, COALESCE(NULLIF(topic, ''), title, 'កិច្ចប្រជុំ') as topic, department, meeting_date as date, duration, summary, (audio_url IS NOT NULL AND audio_url != '') as hasAudio, audio_url FROM meetings ORDER BY id DESC");
-            if (empty($meetings)) {
-                dbQuery("INSERT INTO meetings (topic, title, department, meeting_date, duration, summary) VALUES 
-                    ('កិច្ចប្រជុំប្រចាំសប្តាហ៍ - វឌ្ឍនភាពការងារ & ផែនការលក់', 'កិច្ចប្រជុំប្រចាំសប្តាហ៍', 'Store 318 & SKKS2', '2026-08-20', '45 នាទី', 'ពិភាក្សាអំពីយុទ្ធសាស្រ្តបង្កើនការលក់ប្រចាំត្រីមាសទី ៣ និងការគ្រប់គ្រងស្តុកទំនិញថ្មី។'),
-                    ('កិច្ចប្រជុំបច្ចេកទេស - ដំឡើងប្រព័ន្ធស្កេនមុខ (Face Net AI)', 'កិច្ចប្រជុំបច្ចេកទេស', 'IT & HRM', '2026-08-18', '30 នាទី', 'រៀបចំដាក់ឱ្យដំណើរការមុខងារ AI Face Recognition លើ App ទូរស័ព្ទសម្រាប់បុគ្គលិកទាំងអស់។')");
-                $meetings = dbQuery("SELECT id, topic, department, meeting_date as date, duration, summary, 1 as hasAudio FROM meetings ORDER BY id DESC");
+                foreach ($cols_to_add as $cName => $cDef) {
+                    $chk = $mysqli->query("SHOW COLUMNS FROM meetings LIKE '$cName'");
+                    if ($chk && $chk->num_rows === 0) {
+                        @$mysqli->query("ALTER TABLE meetings ADD COLUMN $cName $cDef");
+                    }
+                }
             }
-            sendJson(['success' => true, 'meetings' => $meetings]);
+
+            $rawMeetings = dbQuery("SELECT * FROM meetings ORDER BY meeting_date DESC, id DESC");
+            $formattedMeetings = [];
+            foreach ($rawMeetings as $row) {
+                // Parse photos
+                $photos = [];
+                foreach (['related_photos', 'photos'] as $pField) {
+                    if (!empty($row[$pField])) {
+                        $raw = $row[$pField];
+                        if (is_string($raw)) {
+                            $decoded = json_decode($raw, true);
+                            if (is_array($decoded)) {
+                                foreach ($decoded as $p) {
+                                    $p = trim((string)$p);
+                                    if ($p !== '' && !in_array($p, $photos)) $photos[] = $p;
+                                }
+                            } else {
+                                $trimmed = trim($raw);
+                                if ($trimmed !== '' && !in_array($trimmed, $photos)) $photos[] = $trimmed;
+                            }
+                        } elseif (is_array($raw)) {
+                            foreach ($raw as $p) {
+                                $p = trim((string)$p);
+                                if ($p !== '' && !in_array($p, $photos)) $photos[] = $p;
+                            }
+                        }
+                    }
+                }
+                $photoUrl = trim((string)($row['photo_url'] ?? ''));
+                if ($photoUrl === '' && !empty($photos)) {
+                    $photoUrl = $photos[0];
+                } elseif ($photoUrl !== '' && !in_array($photoUrl, $photos)) {
+                    array_unshift($photos, $photoUrl);
+                }
+
+                // Parse audio
+                $audioUrl = '';
+                foreach (['mp3_url', 'audio_file_path', 'audio_path', 'audio_url'] as $aField) {
+                    $val = trim((string)($row[$aField] ?? ''));
+                    if ($val !== '') {
+                        $audioUrl = $val;
+                        break;
+                    }
+                }
+
+                $topic = trim((string)($row['topic'] ?? ''));
+                $title = trim((string)($row['title'] ?? ''));
+                $displayTopic = $topic !== '' ? $topic : ($title !== '' ? $title : 'កិច្ចប្រជុំ');
+
+                $dept = trim((string)($row['department'] ?? ''));
+                $cat = trim((string)($row['category'] ?? ''));
+                $displayDept = $dept !== '' ? $dept : ($cat !== '' ? $cat : 'General');
+
+                $desc = trim((string)($row['description'] ?? ''));
+                $sum = trim((string)($row['summary'] ?? ''));
+                $displaySummary = $desc !== '' ? $desc : $sum;
+
+                $formattedMeetings[] = [
+                    'id' => (int)$row['id'],
+                    'topic' => $displayTopic,
+                    'title' => $displayTopic,
+                    'department' => $displayDept,
+                    'category' => $displayDept,
+                    'date' => $row['meeting_date'] ?? date('Y-m-d'),
+                    'meeting_date' => $row['meeting_date'] ?? date('Y-m-d'),
+                    'duration' => $row['duration'] ?? '30 នាទី',
+                    'summary' => $displaySummary,
+                    'description' => $displaySummary,
+                    'external_url' => trim((string)($row['external_url'] ?? '')),
+                    'audio_url' => $audioUrl,
+                    'audio_file_path' => $audioUrl,
+                    'mp3_url' => $audioUrl,
+                    'hasAudio' => !empty($audioUrl),
+                    'photo_url' => $photoUrl,
+                    'photos' => $photos,
+                    'related_photos' => $photos,
+                    'created_at' => $row['created_at'] ?? ''
+                ];
+            }
+
+            if (empty($formattedMeetings)) {
+                dbQuery("INSERT INTO meetings (topic, title, department, category, meeting_date, duration, summary, description) VALUES 
+                    ('កិច្ចប្រជុំប្រចាំសប្តាហ៍ - វឌ្ឍនភាពការងារ & ផែនការលក់', 'កិច្ចប្រជុំប្រចាំសប្តាហ៍', 'Store 318 & SKKS2', 'Store 318 & SKKS2', '2026-08-20', '45 នាទី', 'ពិភាក្សាអំពីយុទ្ធសាស្រ្តបង្កើនការលក់ប្រចាំត្រីមាសទី ៣ និងការគ្រប់គ្រងស្តុកទំនិញថ្មី។', 'ពិភាក្សាអំពីយុទ្ធសាស្រ្តបង្កើនការលក់ប្រចាំត្រីមាសទី ៣ និងការគ្រប់គ្រងស្តុកទំនិញថ្មី។'),
+                    ('កិច្ចប្រជុំបច្ចេកទេស - ដំឡើងប្រព័ន្ធស្កេនមុខ (Face Net AI)', 'កិច្ចប្រជុំបច្ចេកទេស', 'IT & HRM', 'IT & HRM', '2026-08-18', '30 នាទី', 'រៀបចំដាក់ឱ្យដំណើរការមុខងារ AI Face Recognition លើ App ទូរស័ព្ទសម្រាប់បុគ្គលិកទាំងអស់។', 'រៀបចំដាក់ឱ្យដំណើរការមុខងារ AI Face Recognition លើ App ទូរស័ព្ទសម្រាប់បុគ្គលិកទាំងអស់។')");
+                $formattedMeetings = [
+                    [
+                        'id' => 1,
+                        'topic' => 'កិច្ចប្រជុំប្រចាំសប្តាហ៍ - វឌ្ឍនភាពការងារ & ផែនការលក់',
+                        'title' => 'កិច្ចប្រជុំប្រចាំសប្តាហ៍',
+                        'department' => 'Store 318 & SKKS2',
+                        'category' => 'Store 318 & SKKS2',
+                        'date' => '2026-08-20',
+                        'meeting_date' => '2026-08-20',
+                        'duration' => '45 នាទី',
+                        'summary' => 'ពិភាក្សាអំពីយុទ្ធសាស្រ្តបង្កើនការលក់ប្រចាំត្រីមាសទី ៣ និងការគ្រប់គ្រងស្តុកទំនិញថ្មី។',
+                        'description' => 'ពិភាក្សាអំពីយុទ្ធសាស្រ្តបង្កើនការលក់ប្រចាំត្រីមាសទី ៣ និងការគ្រប់គ្រងស្តុកទំនិញថ្មី។',
+                        'external_url' => '',
+                        'audio_url' => '',
+                        'hasAudio' => false,
+                        'photo_url' => '',
+                        'photos' => [],
+                        'related_photos' => []
+                    ]
+                ];
+            }
+            sendJson(['success' => true, 'status' => 'success', 'meetings' => $formattedMeetings, 'data' => $formattedMeetings]);
             break;
 
         case 'save_meeting':
+        case 'post_meeting':
             $meetId = (int)($_POST['id'] ?? 0);
             $topic = trim($_POST['topic'] ?? $_POST['title'] ?? '');
-            $dept = trim($_POST['department'] ?? 'All Departments');
+            $dept = trim($_POST['department'] ?? $_POST['category'] ?? 'General');
             $date = trim($_POST['date'] ?? $_POST['meeting_date'] ?? date('Y-m-d'));
             $dur = trim($_POST['duration'] ?? '30 នាទី');
-            $summary = trim($_POST['summary'] ?? '');
-            $audioUrl = trim($_POST['audio_url'] ?? '');
+            $desc = trim($_POST['description'] ?? $_POST['summary'] ?? '');
+            $extUrl = trim($_POST['external_url'] ?? '');
+            $photoUrl = trim($_POST['photo_url'] ?? '');
+            $audioUrl = trim($_POST['audio_url'] ?? $_POST['mp3_url'] ?? '');
+            $adminId = $_SESSION['admin_id'] ?? 'SYSTEM';
 
             if (empty($topic)) {
-                sendJson(['success' => false, 'message' => 'សូមបញ្ចូលប្រធានបទកិច្ចប្រជុំ!'], 400);
+                sendJson(['success' => false, 'status' => 'error', 'message' => 'សូមបញ្ចូលប្រធានបទកិច្ចប្រជុំ!'], 400);
             }
 
+            // Handle Single Photo Upload
+            if (isset($_FILES['photo']) && $_FILES['photo']['error'] === UPLOAD_ERR_OK) {
+                $ext = strtolower(pathinfo($_FILES['photo']['name'], PATHINFO_EXTENSION));
+                if (in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
+                    if (!is_dir('uploads/meetings')) @mkdir('uploads/meetings', 0755, true);
+                    $dest = 'uploads/meetings/' . time() . '_' . rand(100, 999) . '.' . $ext;
+                    if (move_uploaded_file($_FILES['photo']['tmp_name'], $dest)) {
+                        $photoUrl = $dest;
+                    }
+                }
+            }
+
+            // Handle Multiple Related Photos Upload
+            $uploadedPhotos = [];
+            if (!empty($_POST['existing_photos'])) {
+                $existing = is_array($_POST['existing_photos']) ? $_POST['existing_photos'] : json_decode($_POST['existing_photos'], true);
+                if (is_array($existing)) {
+                    foreach ($existing as $ep) {
+                        if (!empty($ep) && !in_array($ep, $uploadedPhotos)) $uploadedPhotos[] = $ep;
+                    }
+                }
+            }
+            if ($photoUrl !== '' && !in_array($photoUrl, $uploadedPhotos)) {
+                $uploadedPhotos[] = $photoUrl;
+            }
+
+            if (isset($_FILES['related_photos'])) {
+                if (!is_dir('uploads/meetings')) @mkdir('uploads/meetings', 0755, true);
+                $files = $_FILES['related_photos'];
+                $count = is_array($files['name']) ? count($files['name']) : 1;
+                for ($i = 0; $i < $count; $i++) {
+                    $error = is_array($files['error']) ? $files['error'][$i] : $files['error'];
+                    $tmpName = is_array($files['tmp_name']) ? $files['tmp_name'][$i] : $files['tmp_name'];
+                    $name = is_array($files['name']) ? $files['name'][$i] : $files['name'];
+                    if ($error === UPLOAD_ERR_OK && is_uploaded_file($tmpName)) {
+                        $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+                        if (in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
+                            $dest = 'uploads/meetings/' . time() . '_' . rand(1000, 9999) . '_' . $i . '.' . $ext;
+                            if (move_uploaded_file($tmpName, $dest)) {
+                                $uploadedPhotos[] = $dest;
+                                if (empty($photoUrl)) $photoUrl = $dest;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Handle Audio Upload
+            $audioInput = isset($_FILES['audio']) ? $_FILES['audio'] : (isset($_FILES['audio_file']) ? $_FILES['audio_file'] : null);
+            if ($audioInput && $audioInput['error'] === UPLOAD_ERR_OK) {
+                $ext = strtolower(pathinfo($audioInput['name'], PATHINFO_EXTENSION));
+                if (in_array($ext, ['mp3', 'wav', 'm4a', 'aac', 'ogg'])) {
+                    if (!is_dir('uploads/meetings/audio')) @mkdir('uploads/meetings/audio', 0755, true);
+                    $dest = 'uploads/meetings/audio/' . time() . '_' . rand(100, 999) . '.' . $ext;
+                    if (move_uploaded_file($audioInput['tmp_name'], $dest)) {
+                        $audioUrl = $dest;
+                    }
+                }
+            }
+
+            $photosJson = json_encode(array_values(array_unique($uploadedPhotos)), JSON_UNESCAPED_SLASHES);
+
             if ($meetId > 0) {
-                dbQuery("UPDATE meetings SET topic = ?, title = ?, department = ?, meeting_date = ?, duration = ?, summary = ?, audio_url = ? WHERE id = ?", [$topic, $topic, $dept, $date, $dur, $summary, $audioUrl, $meetId]);
-                sendJson(['success' => true, 'message' => 'បានកែប្រែកិច្ចប្រជុំជោគជ័យ!']);
+                dbQuery("UPDATE meetings SET 
+                    topic = ?, title = ?, department = ?, category = ?, 
+                    meeting_date = ?, duration = ?, summary = ?, description = ?, 
+                    external_url = ?, photo_url = ?, mp3_url = ?, audio_url = ?, 
+                    audio_file_path = ?, audio_path = ?, photos = ?, related_photos = ? 
+                    WHERE id = ?", 
+                    [$topic, $topic, $dept, $dept, $date, $dur, $desc, $desc, $extUrl, $photoUrl, $audioUrl, $audioUrl, $audioUrl, $audioUrl, $photosJson, $photosJson, $meetId]);
+                sendJson(['success' => true, 'status' => 'success', 'message' => 'បានកែប្រែកិច្ចប្រជុំជោគជ័យ!']);
             } else {
-                dbQuery("INSERT INTO meetings (topic, title, department, meeting_date, duration, summary, audio_url) VALUES (?, ?, ?, ?, ?, ?, ?)", [$topic, $topic, $dept, $date, $dur, $summary, $audioUrl]);
-                sendJson(['success' => true, 'message' => 'បានបង្ហោះកិច្ចប្រជុំថ្មីជោគជ័យ!']);
+                dbQuery("INSERT INTO meetings (
+                    topic, title, department, category, 
+                    meeting_date, duration, summary, description, 
+                    external_url, photo_url, mp3_url, audio_url, 
+                    audio_file_path, audio_path, photos, related_photos, admin_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", 
+                    [$topic, $topic, $dept, $dept, $date, $dur, $desc, $desc, $extUrl, $photoUrl, $audioUrl, $audioUrl, $audioUrl, $audioUrl, $photosJson, $photosJson, $adminId]);
+                sendJson(['success' => true, 'status' => 'success', 'message' => 'បានបង្ហោះកិច្ចប្រជុំថ្មីជោគជ័យ!']);
             }
             break;
 
@@ -1071,9 +1280,9 @@ try {
             $meetId = (int)($_POST['id'] ?? $_POST['meeting_id'] ?? 0);
             if ($meetId > 0) {
                 dbQuery("DELETE FROM meetings WHERE id = ?", [$meetId]);
-                sendJson(['success' => true, 'message' => 'បានលុបកិច្ចប្រជុំជោគជ័យ!']);
+                sendJson(['success' => true, 'status' => 'success', 'message' => 'បានលុបកិច្ចប្រជុំជោគជ័យ!']);
             }
-            sendJson(['success' => false, 'message' => 'Invalid Meeting ID']);
+            sendJson(['success' => false, 'status' => 'error', 'message' => 'Invalid Meeting ID']);
             break;
 
         // ==========================================
@@ -1674,20 +1883,350 @@ try {
             break;
 
         // ==========================================
-        // 15. NOTIFICATIONS LIST
+        // 15. NOTIFICATIONS & SCHEDULES & TEMPLATES
         // ==========================================
         case 'fetch_notifications':
-            $notifs = dbQuery("SELECT * FROM notifications ORDER BY id DESC LIMIT 50");
-            sendJson(['success' => true, 'notifications' => $notifs]);
+        case 'get_notifications':
+            if ($mysqli) {
+                $mysqli->query("CREATE TABLE IF NOT EXISTS notifications (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    admin_id VARCHAR(64) DEFAULT 'SYSTEM',
+                    title VARCHAR(255) NOT NULL,
+                    message TEXT NOT NULL,
+                    recipient_type ENUM('all','role','user','specific') DEFAULT 'all',
+                    recipient_info TEXT DEFAULT NULL,
+                    target_roles VARCHAR(255) DEFAULT NULL,
+                    target_users TEXT DEFAULT NULL,
+                    expiry_date DATE DEFAULT NULL,
+                    image_url VARCHAR(255) DEFAULT NULL,
+                    sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+                // Ensure image_url column
+                $chkImg = $mysqli->query("SHOW COLUMNS FROM notifications LIKE 'image_url'");
+                if ($chkImg && $chkImg->num_rows === 0) {
+                    @$mysqli->query("ALTER TABLE notifications ADD COLUMN image_url VARCHAR(255) DEFAULT NULL AFTER expiry_date");
+                }
+                $chkRoles = $mysqli->query("SHOW COLUMNS FROM notifications LIKE 'target_roles'");
+                if ($chkRoles && $chkRoles->num_rows === 0) {
+                    @$mysqli->query("ALTER TABLE notifications ADD COLUMN target_roles VARCHAR(255) DEFAULT NULL");
+                }
+                $chkUsers = $mysqli->query("SHOW COLUMNS FROM notifications LIKE 'target_users'");
+                if ($chkUsers && $chkUsers->num_rows === 0) {
+                    @$mysqli->query("ALTER TABLE notifications ADD COLUMN target_users TEXT DEFAULT NULL");
+                }
+            }
+
+            $notifs = dbQuery("SELECT * FROM notifications ORDER BY id DESC LIMIT 120");
+            sendJson(['success' => true, 'status' => 'success', 'notifications' => $notifs, 'data' => $notifs]);
+            break;
+
+        case 'send_notification':
+        case 'save_notification':
+            $title = trim($_POST['title'] ?? '');
+            $message = trim($_POST['message'] ?? '');
+            $targetType = trim($_POST['target_type'] ?? 'all');
+            $expiryDate = !empty($_POST['expiry_date']) ? trim($_POST['expiry_date']) : null;
+            $imageUrl = trim($_POST['image_url'] ?? '');
+            $adminId = $_SESSION['admin_id'] ?? 'SYSTEM';
+
+            if (empty($title) || empty($message)) {
+                sendJson(['success' => false, 'status' => 'error', 'message' => 'សូមបញ្ចូលចំណងជើង និងខ្លឹមសារសារ!'], 400);
+            }
+
+            // Image file upload
+            if (isset($_FILES['notification_image']) && $_FILES['notification_image']['error'] === UPLOAD_ERR_OK) {
+                $ext = strtolower(pathinfo($_FILES['notification_image']['name'], PATHINFO_EXTENSION));
+                if (in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
+                    if (!is_dir('uploads/notifications')) @mkdir('uploads/notifications', 0755, true);
+                    $dest = 'uploads/notifications/' . time() . '_' . rand(100, 999) . '.' . $ext;
+                    if (move_uploaded_file($_FILES['notification_image']['tmp_name'], $dest)) {
+                        $imageUrl = $dest;
+                    }
+                }
+            }
+
+            $targetRoles = $_POST['target_roles'] ?? [];
+            if (is_string($targetRoles)) {
+                $targetRoles = json_decode($targetRoles, true) ?: array_filter(array_map('trim', explode(',', $targetRoles)));
+            }
+            $targetRolesStr = is_array($targetRoles) ? implode(',', $targetRoles) : (string)$targetRoles;
+
+            $targetUsers = $_POST['target_users'] ?? [];
+            if (is_string($targetUsers)) {
+                $targetUsers = json_decode($targetUsers, true) ?: array_filter(array_map('trim', explode(',', $targetUsers)));
+            }
+            $targetUsersStr = is_array($targetUsers) ? implode(',', $targetUsers) : (string)$targetUsers;
+
+            if ($targetType === 'role' && empty($targetRoles)) {
+                sendJson(['success' => false, 'status' => 'error', 'message' => 'សូមជ្រើសរើសតួនាទីយ៉ាងហោចណាស់មួយ!'], 400);
+            }
+            if ($targetType === 'user' && empty($targetUsers)) {
+                sendJson(['success' => false, 'status' => 'error', 'message' => 'សូមជ្រើសរើសបុគ្គលិកយ៉ាងហោចណាស់ម្នាក់!'], 400);
+            }
+
+            // Call shared notification helpers if available
+            $dispatched = false;
+            if (file_exists(__DIR__ . '/notification_functions.php')) {
+                require_once __DIR__ . '/notification_functions.php';
+                if ($mysqli) {
+                    if ($targetType === 'all' && function_exists('sendAppNotificationToAll')) {
+                        $dispatched = sendAppNotificationToAll($mysqli, $title, $message, $adminId, $expiryDate, $imageUrl);
+                    } elseif ($targetType === 'role' && function_exists('sendAppNotificationToRoles')) {
+                        $dispatched = sendAppNotificationToRoles($mysqli, (array)$targetRoles, $title, $message, $adminId, $expiryDate, $imageUrl);
+                    } elseif ($targetType === 'user' && function_exists('sendAppNotificationToUser')) {
+                        foreach ((array)$targetUsers as $uid) {
+                            sendAppNotificationToUser($mysqli, $uid, $title, $message, $adminId, $expiryDate, $imageUrl);
+                        }
+                        $dispatched = true;
+                    }
+                }
+            }
+
+            // Fallback direct DB insert if helper not executed
+            if (!$dispatched) {
+                $recipientInfo = $targetType === 'role' ? $targetRolesStr : ($targetType === 'user' ? $targetUsersStr : 'all');
+                dbQuery("INSERT INTO notifications (admin_id, title, message, recipient_type, recipient_info, target_roles, target_users, expiry_date, image_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    [$adminId, $title, $message, $targetType, $recipientInfo, $targetRolesStr, $targetUsersStr, $expiryDate, $imageUrl]);
+            }
+
+            sendJson(['success' => true, 'status' => 'success', 'message' => 'សារជូនដំណឹងត្រូវបានផ្ញើដោយជោគជ័យ!']);
             break;
 
         case 'delete_notification':
-            $notifId = (int)($_POST['id'] ?? 0);
+            $notifId = (int)($_POST['id'] ?? $_POST['notification_id'] ?? 0);
             if ($notifId > 0) {
                 dbQuery("DELETE FROM notifications WHERE id = ?", [$notifId]);
-                sendJson(['success' => true, 'message' => 'បានលុបការជូនដំណឹងជោគជ័យ!']);
+                if ($mysqli) {
+                    @$mysqli->query("DELETE FROM user_notifications WHERE notification_id = $notifId");
+                }
+                sendJson(['success' => true, 'status' => 'success', 'message' => 'បានលុបការជូនដំណឹងជោគជ័យ!']);
             }
-            sendJson(['success' => false, 'message' => 'Invalid Notification ID']);
+            sendJson(['success' => false, 'status' => 'error', 'message' => 'Invalid Notification ID']);
+            break;
+
+        case 'delete_notifications':
+        case 'bulk_delete_notifications':
+            $ids = $_POST['ids'] ?? [];
+            if (is_string($ids)) {
+                $ids = json_decode($ids, true) ?: array_filter(array_map('intval', explode(',', $ids)));
+            }
+            if (empty($ids) || !is_array($ids)) {
+                sendJson(['success' => false, 'status' => 'error', 'message' => 'សូមជ្រើសរើសសារដែលត្រូវលុប!'], 400);
+            }
+            $cleanIds = array_filter(array_map('intval', $ids));
+            if (!empty($cleanIds)) {
+                $idList = implode(',', $cleanIds);
+                dbQuery("DELETE FROM notifications WHERE id IN ($idList)");
+                if ($mysqli) {
+                    @$mysqli->query("DELETE FROM user_notifications WHERE notification_id IN ($idList)");
+                }
+                sendJson(['success' => true, 'status' => 'success', 'message' => 'បានលុប ' . count($cleanIds) . ' សារជោគជ័យ!']);
+            }
+            sendJson(['success' => false, 'status' => 'error', 'message' => 'No items deleted']);
+            break;
+
+        // ------------------------------------------
+        // Notification Templates CRUD
+        // ------------------------------------------
+        case 'fetch_notification_templates':
+        case 'get_notification_templates':
+            if ($mysqli) {
+                $mysqli->query("CREATE TABLE IF NOT EXISTS notification_templates (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    admin_id VARCHAR(64) DEFAULT 'SYSTEM',
+                    template_key VARCHAR(100) DEFAULT NULL,
+                    template_name VARCHAR(255) NOT NULL,
+                    title_template VARCHAR(255) NOT NULL,
+                    message_template TEXT NOT NULL,
+                    target_type ENUM('all','role','user') DEFAULT 'all',
+                    target_roles_json LONGTEXT DEFAULT NULL,
+                    target_users_json LONGTEXT DEFAULT NULL,
+                    image_url VARCHAR(255) DEFAULT NULL,
+                    is_active TINYINT(1) DEFAULT 1,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+            }
+            $templates = dbQuery("SELECT * FROM notification_templates ORDER BY id DESC");
+            sendJson(['success' => true, 'status' => 'success', 'templates' => $templates, 'data' => $templates]);
+            break;
+
+        case 'save_notification_template':
+            $tId = (int)($_POST['template_id'] ?? $_POST['id'] ?? 0);
+            $tName = trim($_POST['template_name'] ?? '');
+            $tKey = trim($_POST['template_key'] ?? '');
+            $titleTpl = trim($_POST['title_template'] ?? '');
+            $msgTpl = trim($_POST['message_template'] ?? '');
+            $tgtType = trim($_POST['target_type'] ?? 'all');
+            $imgUrl = trim($_POST['image_url'] ?? '');
+            $isActive = isset($_POST['is_active']) ? (int)($_POST['is_active'] == 1 || $_POST['is_active'] === 'true' || $_POST['is_active'] === true) : 1;
+            $adminId = $_SESSION['admin_id'] ?? 'SYSTEM';
+
+            if (empty($tName) || empty($titleTpl) || empty($msgTpl)) {
+                sendJson(['success' => false, 'status' => 'error', 'message' => 'សូមបំពេញឈ្មោះ Template, Title និង Message!'], 400);
+            }
+
+            $rolesJson = json_encode($_POST['target_roles'] ?? ($_POST['target_roles_json'] ?? []));
+            $usersJson = json_encode($_POST['target_users'] ?? ($_POST['target_users_json'] ?? []));
+
+            if ($tId > 0) {
+                dbQuery("UPDATE notification_templates SET template_key = ?, template_name = ?, title_template = ?, message_template = ?, target_type = ?, target_roles_json = ?, target_users_json = ?, image_url = ?, is_active = ? WHERE id = ?",
+                    [$tKey, $tName, $titleTpl, $msgTpl, $tgtType, $rolesJson, $usersJson, $imgUrl, $isActive, $tId]);
+                sendJson(['success' => true, 'status' => 'success', 'message' => 'បានកែប្រែគំរូសារជោគជ័យ!']);
+            } else {
+                dbQuery("INSERT INTO notification_templates (admin_id, template_key, template_name, title_template, message_template, target_type, target_roles_json, target_users_json, image_url, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    [$adminId, $tKey, $tName, $titleTpl, $msgTpl, $tgtType, $rolesJson, $usersJson, $imgUrl, $isActive]);
+                sendJson(['success' => true, 'status' => 'success', 'message' => 'បានបង្កើតគំរូសារថ្មីជោគជ័យ!']);
+            }
+            break;
+
+        case 'delete_notification_template':
+            $tId = (int)($_POST['template_id'] ?? $_POST['id'] ?? 0);
+            if ($tId > 0) {
+                dbQuery("DELETE FROM notification_templates WHERE id = ?", [$tId]);
+                sendJson(['success' => true, 'status' => 'success', 'message' => 'បានលុបគំរូសារជោគជ័យ!']);
+            }
+            sendJson(['success' => false, 'status' => 'error', 'message' => 'Invalid Template ID']);
+            break;
+
+        // ------------------------------------------
+        // Notification Schedules CRUD
+        // ------------------------------------------
+        case 'fetch_notification_schedules':
+        case 'get_notification_schedules':
+            if ($mysqli) {
+                $mysqli->query("CREATE TABLE IF NOT EXISTS notification_schedules (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    admin_id VARCHAR(64) DEFAULT 'SYSTEM',
+                    template_id INT DEFAULT NULL,
+                    schedule_name VARCHAR(255) NOT NULL,
+                    title_override VARCHAR(255) DEFAULT NULL,
+                    message_override TEXT DEFAULT NULL,
+                    target_type ENUM('all','role','user') DEFAULT NULL,
+                    target_roles_json LONGTEXT DEFAULT NULL,
+                    target_users_json LONGTEXT DEFAULT NULL,
+                    image_url VARCHAR(255) DEFAULT NULL,
+                    frequency ENUM('once','daily','weekly','monthly') NOT NULL DEFAULT 'once',
+                    scheduled_at DATETIME DEFAULT NULL,
+                    time_of_day VARCHAR(5) DEFAULT '09:00',
+                    day_of_week TINYINT DEFAULT NULL,
+                    day_of_month TINYINT DEFAULT NULL,
+                    next_run_at DATETIME DEFAULT NULL,
+                    last_run_at DATETIME DEFAULT NULL,
+                    last_result VARCHAR(50) DEFAULT NULL,
+                    last_message TEXT DEFAULT NULL,
+                    is_active TINYINT(1) DEFAULT 1,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+            }
+
+            $schedules = dbQuery("SELECT ns.*, nt.template_name 
+                                  FROM notification_schedules ns 
+                                  LEFT JOIN notification_templates nt ON ns.template_id = nt.id 
+                                  ORDER BY ns.id DESC");
+            sendJson(['success' => true, 'status' => 'success', 'schedules' => $schedules, 'data' => $schedules]);
+            break;
+
+        case 'save_notification_schedule':
+            $sId = (int)($_POST['schedule_id'] ?? $_POST['id'] ?? 0);
+            $sName = trim($_POST['schedule_name'] ?? '');
+            $tplId = (int)($_POST['template_id'] ?? 0);
+            $titleOver = trim($_POST['title_override'] ?? '');
+            $msgOver = trim($_POST['message_override'] ?? '');
+            $tgtType = trim($_POST['target_type'] ?? 'all');
+            $freq = trim($_POST['frequency'] ?? 'once');
+            $schedAt = !empty($_POST['scheduled_at']) ? trim($_POST['scheduled_at']) : null;
+            $timeOfDay = !empty($_POST['time_of_day']) ? trim($_POST['time_of_day']) : '09:00';
+            $dow = isset($_POST['day_of_week']) && $_POST['day_of_week'] !== '' ? (int)$_POST['day_of_week'] : null;
+            $dom = isset($_POST['day_of_month']) && $_POST['day_of_month'] !== '' ? (int)$_POST['day_of_month'] : null;
+            $imgUrl = trim($_POST['image_url'] ?? '');
+            $isActive = isset($_POST['is_active']) ? (int)($_POST['is_active'] == 1 || $_POST['is_active'] === 'true' || $_POST['is_active'] === true) : 1;
+            $adminId = $_SESSION['admin_id'] ?? 'SYSTEM';
+
+            if (empty($sName)) {
+                sendJson(['success' => false, 'status' => 'error', 'message' => 'សូមបញ្ចូលឈ្មោះកាលវិភាគ (Schedule Name)!'], 400);
+            }
+
+            $rolesJson = json_encode($_POST['target_roles'] ?? ($_POST['target_roles_json'] ?? []));
+            $usersJson = json_encode($_POST['target_users'] ?? ($_POST['target_users_json'] ?? []));
+
+            // Calculate next_run_at
+            $nextRunAt = null;
+            if ($isActive) {
+                if ($freq === 'once') {
+                    $nextRunAt = $schedAt ?: date('Y-m-d H:i:s', strtotime('+1 hour'));
+                } elseif ($freq === 'daily') {
+                    $nextRunAt = date('Y-m-d') . ' ' . $timeOfDay . ':00';
+                    if (strtotime($nextRunAt) <= time()) {
+                        $nextRunAt = date('Y-m-d', strtotime('+1 day')) . ' ' . $timeOfDay . ':00';
+                    }
+                } elseif ($freq === 'weekly') {
+                    $targetDow = $dow !== null ? $dow : 1;
+                    $nextRunAt = date('Y-m-d', strtotime("next Sunday +" . $targetDow . " days")) . ' ' . $timeOfDay . ':00';
+                } elseif ($freq === 'monthly') {
+                    $targetDom = $dom !== null ? min(28, max(1, $dom)) : 1;
+                    $currentMonth = date('Y-m-') . sprintf('%02d', $targetDom) . ' ' . $timeOfDay . ':00';
+                    if (strtotime($currentMonth) <= time()) {
+                        $nextRunAt = date('Y-m-', strtotime('+1 month')) . sprintf('%02d', $targetDom) . ' ' . $timeOfDay . ':00';
+                    } else {
+                        $nextRunAt = $currentMonth;
+                    }
+                }
+            }
+
+            if ($sId > 0) {
+                dbQuery("UPDATE notification_schedules SET 
+                    template_id = ?, schedule_name = ?, title_override = ?, message_override = ?, 
+                    target_type = ?, target_roles_json = ?, target_users_json = ?, image_url = ?, 
+                    frequency = ?, scheduled_at = ?, time_of_day = ?, day_of_week = ?, 
+                    day_of_month = ?, next_run_at = ?, is_active = ? 
+                    WHERE id = ?",
+                    [$tplId ?: null, $sName, $titleOver, $msgOver, $tgtType, $rolesJson, $usersJson, $imgUrl, $freq, $schedAt, $timeOfDay, $dow, $dom, $nextRunAt, $isActive, $sId]);
+                sendJson(['success' => true, 'status' => 'success', 'message' => 'បានកែប្រែកាលវិភាគជោគជ័យ!']);
+            } else {
+                dbQuery("INSERT INTO notification_schedules (
+                    admin_id, template_id, schedule_name, title_override, message_override, 
+                    target_type, target_roles_json, target_users_json, image_url, frequency, 
+                    scheduled_at, time_of_day, day_of_week, day_of_month, next_run_at, is_active
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    [$adminId, $tplId ?: null, $sName, $titleOver, $msgOver, $tgtType, $rolesJson, $usersJson, $imgUrl, $freq, $schedAt, $timeOfDay, $dow, $dom, $nextRunAt, $isActive]);
+                sendJson(['success' => true, 'status' => 'success', 'message' => 'បានបង្កើតកាលវិភាគថ្មីជោគជ័យ!']);
+            }
+            break;
+
+        case 'toggle_notification_schedule':
+            $sId = (int)($_POST['schedule_id'] ?? $_POST['id'] ?? 0);
+            if ($sId > 0) {
+                $sched = dbQuery("SELECT is_active, frequency, scheduled_at, time_of_day, day_of_week, day_of_month FROM notification_schedules WHERE id = ? LIMIT 1", [$sId]);
+                if (!empty($sched)) {
+                    $newActive = empty($sched[0]['is_active']) ? 1 : 0;
+                    $nextRunAt = $newActive ? date('Y-m-d H:i:s', strtotime('+1 hour')) : null;
+                    dbQuery("UPDATE notification_schedules SET is_active = ?, next_run_at = ? WHERE id = ?", [$newActive, $nextRunAt, $sId]);
+                    sendJson(['success' => true, 'status' => 'success', 'message' => $newActive ? 'បានបើកកាលវិភាគជោគជ័យ!' : 'បានផ្អាកកាលវិភាគ!']);
+                }
+            }
+            sendJson(['success' => false, 'status' => 'error', 'message' => 'Invalid Schedule ID']);
+            break;
+
+        case 'delete_notification_schedule':
+            $sId = (int)($_POST['schedule_id'] ?? $_POST['id'] ?? 0);
+            if ($sId > 0) {
+                dbQuery("DELETE FROM notification_schedules WHERE id = ?", [$sId]);
+                sendJson(['success' => true, 'status' => 'success', 'message' => 'បានលុបកាលវិភាគជោគជ័យ!']);
+            }
+            sendJson(['success' => false, 'status' => 'error', 'message' => 'Invalid Schedule ID']);
+            break;
+
+        case 'fetch_notification_recipients':
+        case 'get_notification_metadata':
+            $users = dbQuery("SELECT employee_id, name, department, system_role, avatar FROM users WHERE employment_status = 'Active' OR employment_status IS NULL ORDER BY name ASC");
+            $rolesRaw = dbQuery("SELECT DISTINCT system_role FROM users WHERE system_role IS NOT NULL AND system_role != '' ORDER BY system_role ASC");
+            $roles = array_map(function($r) { return $r['system_role']; }, $rolesRaw);
+            if (empty($roles)) $roles = ['Admin', 'HRM', 'Manager', 'Staff', 'User'];
+            sendJson(['success' => true, 'status' => 'success', 'users' => $users, 'roles' => $roles]);
             break;
 
         // ==========================================

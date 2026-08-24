@@ -107,11 +107,86 @@ export interface MeetingItem {
   topic: string;
   title?: string;
   department: string;
-  date: string;
-  duration: string;
-  summary: string;
-  hasAudio?: boolean;
+  category?: string;
+  date?: string;
+  meeting_date?: string;
+  duration?: string;
+  summary?: string;
+  description?: string;
+  external_url?: string;
   audio_url?: string;
+  audio_file_path?: string;
+  mp3_url?: string;
+  hasAudio?: boolean;
+  photo_url?: string;
+  photos?: string[];
+  related_photos?: string[];
+  created_at?: string;
+}
+
+export interface NotificationItem {
+  id: number;
+  admin_id?: string;
+  title: string;
+  message: string;
+  recipient_type?: 'all' | 'role' | 'user' | 'specific' | string;
+  recipient_info?: string;
+  target_roles?: string;
+  target_users?: string;
+  expiry_date?: string;
+  image_url?: string;
+  sent_at?: string;
+  created_at?: string;
+}
+
+export interface NotificationTemplate {
+  id: number;
+  admin_id?: string;
+  template_key?: string;
+  template_name: string;
+  title_template: string;
+  message_template: string;
+  target_type: 'all' | 'role' | 'user' | string;
+  target_roles_json?: string;
+  target_users_json?: string;
+  image_url?: string;
+  is_active: number | boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface NotificationSchedule {
+  id: number;
+  admin_id?: string;
+  template_id?: number | null;
+  template_name?: string;
+  schedule_name: string;
+  title_override?: string;
+  message_override?: string;
+  target_type?: 'all' | 'role' | 'user' | string;
+  target_roles_json?: string;
+  target_users_json?: string;
+  image_url?: string;
+  frequency: 'once' | 'daily' | 'weekly' | 'monthly' | string;
+  scheduled_at?: string;
+  time_of_day?: string;
+  day_of_week?: number | null;
+  day_of_month?: number | null;
+  next_run_at?: string;
+  last_run_at?: string;
+  last_result?: string;
+  last_message?: string;
+  is_active: number | boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface NotificationRecipientUser {
+  employee_id: string;
+  name: string;
+  department?: string;
+  system_role?: string;
+  avatar?: string;
 }
 
 export interface PollOption {
@@ -513,11 +588,21 @@ export const adminApi = {
     return res.data;
   },
 
-  saveMeeting: async (data: Partial<MeetingItem>) => {
+  saveMeeting: async (data: FormData | Partial<MeetingItem> | Record<string, any>) => {
+    if (data instanceof FormData) {
+      data.append('action', 'save_meeting');
+      const res = await apiClient.post('', data, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return res.data;
+    }
     const params = new URLSearchParams();
     params.append('action', 'save_meeting');
     Object.entries(data).forEach(([k, v]) => {
-      if (v !== undefined && v !== null) params.append(k, String(v));
+      if (v !== undefined && v !== null) {
+        if (typeof v === 'object') params.append(k, JSON.stringify(v));
+        else params.append(k, String(v));
+      }
     });
     const res = await apiClient.post('', params);
     return res.data;
@@ -756,7 +841,7 @@ export const adminApi = {
     return res.data;
   },
 
-  // Notifications & Banners
+  // Notifications & Schedules & Templates
   fetchNotifications: async () => {
     const params = new URLSearchParams();
     params.append('action', 'fetch_notifications');
@@ -764,14 +849,22 @@ export const adminApi = {
     return res.data;
   },
 
-  sendNotification: async (title: string, message: string, targetType: string, targetInfo?: string, imageUrl?: string) => {
+  sendNotification: async (data: FormData | { title: string; message: string; target_type?: string; target_roles?: string[] | string; target_users?: string[] | string; expiry_date?: string; image_url?: string; [key: string]: any }) => {
+    if (data instanceof FormData) {
+      data.append('action', 'send_notification');
+      const res = await apiClient.post('', data, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return res.data;
+    }
     const params = new URLSearchParams();
-    params.append('action', 'send_admin_notification');
-    params.append('title', title);
-    params.append('message', message);
-    params.append('recipient_type', targetType);
-    if (targetInfo) params.append('recipient_info', targetInfo);
-    if (imageUrl) params.append('image_url', imageUrl);
+    params.append('action', 'send_notification');
+    Object.entries(data).forEach(([k, v]) => {
+      if (v !== undefined && v !== null) {
+        if (Array.isArray(v) || typeof v === 'object') params.append(k, JSON.stringify(v));
+        else params.append(k, String(v));
+      }
+    });
     const res = await apiClient.post('', params);
     return res.data;
   },
@@ -780,6 +873,87 @@ export const adminApi = {
     const params = new URLSearchParams();
     params.append('action', 'delete_notification');
     params.append('id', String(id));
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  bulkDeleteNotifications: async (ids: number[]) => {
+    const params = new URLSearchParams();
+    params.append('action', 'bulk_delete_notifications');
+    params.append('ids', JSON.stringify(ids));
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  // Notification Templates
+  fetchNotificationTemplates: async () => {
+    const params = new URLSearchParams();
+    params.append('action', 'fetch_notification_templates');
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  saveNotificationTemplate: async (data: Partial<NotificationTemplate> | Record<string, any>) => {
+    const params = new URLSearchParams();
+    params.append('action', 'save_notification_template');
+    Object.entries(data).forEach(([k, v]) => {
+      if (v !== undefined && v !== null) {
+        if (Array.isArray(v) || typeof v === 'object') params.append(k, JSON.stringify(v));
+        else params.append(k, String(v));
+      }
+    });
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  deleteNotificationTemplate: async (id: number | string) => {
+    const params = new URLSearchParams();
+    params.append('action', 'delete_notification_template');
+    params.append('id', String(id));
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  // Notification Schedules
+  fetchNotificationSchedules: async () => {
+    const params = new URLSearchParams();
+    params.append('action', 'fetch_notification_schedules');
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  saveNotificationSchedule: async (data: Partial<NotificationSchedule> | Record<string, any>) => {
+    const params = new URLSearchParams();
+    params.append('action', 'save_notification_schedule');
+    Object.entries(data).forEach(([k, v]) => {
+      if (v !== undefined && v !== null) {
+        if (Array.isArray(v) || typeof v === 'object') params.append(k, JSON.stringify(v));
+        else params.append(k, String(v));
+      }
+    });
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  toggleNotificationSchedule: async (id: number | string) => {
+    const params = new URLSearchParams();
+    params.append('action', 'toggle_notification_schedule');
+    params.append('id', String(id));
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  deleteNotificationSchedule: async (id: number | string) => {
+    const params = new URLSearchParams();
+    params.append('action', 'delete_notification_schedule');
+    params.append('id', String(id));
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  fetchNotificationRecipients: async () => {
+    const params = new URLSearchParams();
+    params.append('action', 'fetch_notification_recipients');
     const res = await apiClient.post('', params);
     return res.data;
   },
