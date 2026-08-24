@@ -75,11 +75,29 @@ export interface LocationItem {
   id: number;
   name: string;
   location_name?: string;
-  address: string;
-  latitude: number;
-  longitude: number;
+  address?: string;
+  latitude: number | string;
+  longitude: number | string;
   radius_meters: number;
   qr_secret: string;
+  assigned_employees_count?: number;
+  created_at?: string;
+}
+
+export interface UserLocationAssignment {
+  assign_id: number;
+  id?: number;
+  employee_id: string;
+  user_name: string;
+  department?: string;
+  system_role?: string;
+  avatar?: string;
+  location_id: number;
+  location_name: string;
+  latitude?: number | string;
+  longitude?: number | string;
+  custom_radius_meters: number;
+  created_at?: string;
 }
 
 export interface CategoryItem {
@@ -389,7 +407,7 @@ export const adminApi = {
     return res.data;
   },
 
-  // Locations
+  // Locations & User Assignments
   fetchLocations: async () => {
     const params = new URLSearchParams();
     params.append('action', 'fetch_locations');
@@ -397,7 +415,7 @@ export const adminApi = {
     return res.data;
   },
 
-  saveLocation: async (data: Partial<LocationItem>) => {
+  saveLocation: async (data: Partial<LocationItem> | Record<string, any>) => {
     const params = new URLSearchParams();
     params.append('action', 'save_location');
     Object.entries(data).forEach(([k, v]) => {
@@ -411,6 +429,38 @@ export const adminApi = {
     const params = new URLSearchParams();
     params.append('action', 'delete_location');
     params.append('id', String(id));
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  fetchUserLocations: async () => {
+    const params = new URLSearchParams();
+    params.append('action', 'fetch_user_locations');
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  assignUserLocation: async (data: { employee_ids: string[]; location_ids: (number | string)[]; custom_radius_meters?: number }) => {
+    const params = new URLSearchParams();
+    params.append('action', 'assign_user_location');
+    params.append('employee_ids', JSON.stringify(data.employee_ids));
+    params.append('location_ids', JSON.stringify(data.location_ids));
+    if (data.custom_radius_meters) params.append('custom_radius_meters', String(data.custom_radius_meters));
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  unassignUserLocation: async (assignId: number | string) => {
+    const params = new URLSearchParams();
+    params.append('action', 'unassign_user_location');
+    params.append('assign_id', String(assignId));
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  fetchLocationsMeta: async () => {
+    const params = new URLSearchParams();
+    params.append('action', 'fetch_locations_meta');
     const res = await apiClient.post('', params);
     return res.data;
   },

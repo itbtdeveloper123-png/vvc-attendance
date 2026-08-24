@@ -508,25 +508,44 @@ try {
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
-            $locations = dbQuery("SELECT id, COALESCE(NULLIF(name, ''), location_name, 'សាខា') as name, address, latitude, longitude, radius_meters, qr_secret FROM locations ORDER BY id ASC");
+            dbQuery("CREATE TABLE IF NOT EXISTS user_locations (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                employee_id VARCHAR(50) NOT NULL,
+                location_id INT NOT NULL,
+                custom_radius_meters INT DEFAULT 100,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY unique_user_loc (employee_id, location_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+            $locations = dbQuery("SELECT id, COALESCE(NULLIF(name, ''), location_name, 'សាខា') as name, COALESCE(NULLIF(name, ''), location_name, 'សាខា') as location_name, address, latitude, longitude, radius_meters, qr_secret, created_at FROM locations ORDER BY id ASC");
             if (empty($locations)) {
                 // Seed default branches
                 dbQuery("INSERT INTO locations (name, location_name, address, latitude, longitude, radius_meters, qr_secret) VALUES 
                     ('ការិយាល័យកណ្តាល (Store 318)', 'Store 318', 'ផ្ទះលេខ 318 ផ្លូវកម្ពុជាក្រោម រាជធានីភ្នំពេញ', 11.56830000, 104.91250000, 100, 'vvc_318_secure_qr_2026'),
                     ('សាខា SKKS2', 'Store SKKS2', 'ផ្លូវ 271 រាជធានីភ្នំពេញ', 11.54210000, 104.90120000, 100, 'vvc_skks2_secure_qr_2026'),
                     ('ឃ្លាំងទំនិញ PSP (Warehouse)', 'Warehouse PSP', 'ផ្លូវជាតិលេខ ៤ រាជធានីភ្នំពេញ', 11.51240000, 104.82110000, 150, 'vvc_psp_warehouse_qr_2026')");
-                $locations = dbQuery("SELECT id, name, address, latitude, longitude, radius_meters, qr_secret FROM locations ORDER BY id ASC");
+                $locations = dbQuery("SELECT id, name, location_name, address, latitude, longitude, radius_meters, qr_secret, created_at FROM locations ORDER BY id ASC");
             }
+
+            // Also attach assignments count
+            foreach ($locations as &$loc) {
+                $countRes = dbQuery("SELECT COUNT(*) as total FROM user_locations WHERE location_id = ?", [$loc['id']]);
+                $loc['assigned_employees_count'] = (int)($countRes[0]['total'] ?? 0);
+            }
+            unset($loc);
+
             sendJson(['success' => true, 'locations' => $locations]);
             break;
 
         case 'save_location':
-            $locId = (int)($_POST['id'] ?? 0);
-            $name = trim($_POST['name'] ?? $_POST['location_name'] ?? '');
+        case 'add_location':
+        case 'update_location':
+            $locId = (int)($_POST['id'] ?? $_POST['edit_loc_id'] ?? 0);
+            $name = trim($_POST['name'] ?? $_POST['location_name'] ?? $_POST['edit_loc_name'] ?? '');
             $addr = trim($_POST['address'] ?? '');
-            $lat = (float)($_POST['latitude'] ?? 11.5564);
-            $lng = (float)($_POST['longitude'] ?? 104.9282);
-            $radius = (int)($_POST['radius_meters'] ?? 100);
+            $lat = (float)($_POST['latitude'] ?? $_POST['edit_latitude'] ?? 11.5564);
+            $lng = (float)($_POST['longitude'] ?? $_POST['edit_longitude'] ?? 104.9282);
+            $radius = (int)($_POST['radius_meters'] ?? $_POST['edit_radius_meters'] ?? 100);
             $qrSecret = trim($_POST['qr_secret'] ?? 'vvc_loc_' . bin2hex(random_bytes(6)));
 
             if (empty($name)) {
@@ -543,12 +562,114 @@ try {
             break;
 
         case 'delete_location':
-            $locId = (int)($_POST['id'] ?? $_POST['location_id'] ?? 0);
+            $locId = (int)($_POST['id'] ?? $_POST['location_id'] ?? $_POST['loc_id'] ?? 0);
             if ($locId > 0) {
                 dbQuery("DELETE FROM locations WHERE id = ?", [$locId]);
+                dbQuery("DELETE FROM user_locations WHERE location_id = ?", [$locId]);
                 sendJson(['success' => true, 'message' => 'បានលុបទីតាំងជោគជ័យ!']);
             }
             sendJson(['success' => false, 'message' => 'Invalid Location ID']);
+            break;
+
+        case 'fetch_user_locations':
+        case 'get_user_locations':
+            dbQuery("CREATE TABLE IF NOT EXISTS user_locations (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                employee_id VARCHAR(50) NOT NULL,
+                location_id INT NOT NULL,
+                custom_radius_meters INT DEFAULT 100,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY unique_user_loc (employee_id, location_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+            $assignments = dbQuery("
+                SELECT ul.id as assign_id, ul.id, ul.employee_id, ul.location_id, ul.custom_radius_meters, ul.created_at,
+                       COALESCE(u.name, ul.employee_id) as user_name, u.department, u.system_role, u.avatar,
+                       COALESCE(NULLIF(l.name, ''), l.location_name, 'ទីតាំង') as location_name, l.latitude, l.longitude
+                FROM user_locations ul
+                LEFT JOIN users u ON ul.employee_id = u.employee_id
+                LEFT JOIN locations l ON ul.location_id = l.id
+                ORDER BY u.name ASC, l.name ASC
+            ");
+            sendJson(['success' => true, 'assignments' => $assignments, 'data' => $assignments]);
+            break;
+
+        case 'assign_user_location':
+        case 'assign_location':
+        case 'save_user_location':
+            $empIdsRaw = $_POST['employee_ids'] ?? $_POST['employees'] ?? [];
+            if (is_string($empIdsRaw)) {
+                $decoded = json_decode($empIdsRaw, true);
+                if (is_array($decoded)) $empIdsRaw = $decoded;
+                else $empIdsRaw = explode(',', $empIdsRaw);
+            }
+            if (!is_array($empIdsRaw)) $empIdsRaw = [$empIdsRaw];
+            $empIds = array_filter(array_map('trim', $empIdsRaw));
+
+            $locIdsRaw = $_POST['location_ids'] ?? $_POST['locations'] ?? [];
+            if (is_string($locIdsRaw)) {
+                $decoded = json_decode($locIdsRaw, true);
+                if (is_array($decoded)) $locIdsRaw = $decoded;
+                else $locIdsRaw = explode(',', $locIdsRaw);
+            }
+            if (!is_array($locIdsRaw)) $locIdsRaw = [$locIdsRaw];
+            $locIds = array_filter(array_map('intval', $locIdsRaw));
+
+            $radius = (int)($_POST['custom_radius_meters'] ?? $_POST['radius_meters'] ?? 100);
+            if ($radius < 10) $radius = 100;
+
+            if (empty($empIds)) {
+                sendJson(['success' => false, 'message' => 'សូមជ្រើសរើសបុគ្គលិកយ៉ាងហោចណាស់ម្នាក់!'], 400);
+            }
+            if (empty($locIds)) {
+                sendJson(['success' => false, 'message' => 'សូមជ្រើសរើសទីតាំងយ៉ាងហោចណាស់មួយ!'], 400);
+            }
+
+            dbQuery("CREATE TABLE IF NOT EXISTS user_locations (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                employee_id VARCHAR(50) NOT NULL,
+                location_id INT NOT NULL,
+                custom_radius_meters INT DEFAULT 100,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY unique_user_loc (employee_id, location_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+            $assignedCount = 0;
+            foreach ($empIds as $empId) {
+                foreach ($locIds as $locId) {
+                    dbQuery("
+                        INSERT INTO user_locations (employee_id, location_id, custom_radius_meters)
+                        VALUES (?, ?, ?)
+                        ON DUPLICATE KEY UPDATE custom_radius_meters = VALUES(custom_radius_meters)
+                    ", [$empId, $locId, $radius]);
+                    $assignedCount++;
+                }
+            }
+
+            sendJson(['success' => true, 'message' => "បានកំណត់ទីតាំងសម្រាប់បុគ្គលិកជោគជ័យ ($assignedCount កំណត់ត្រា)!"]);
+            break;
+
+        case 'unassign_user_location':
+        case 'unassign_location':
+        case 'delete_user_location':
+            $assignId = (int)($_POST['assign_id'] ?? $_POST['id'] ?? 0);
+            $empId = trim($_POST['employee_id'] ?? '');
+            $locId = (int)($_POST['location_id'] ?? 0);
+
+            if ($assignId > 0) {
+                dbQuery("DELETE FROM user_locations WHERE id = ?", [$assignId]);
+                sendJson(['success' => true, 'message' => 'បានលុបការកំណត់ទីតាំងជោគជ័យ!']);
+            } elseif (!empty($empId) && $locId > 0) {
+                dbQuery("DELETE FROM user_locations WHERE employee_id = ? AND location_id = ?", [$empId, $locId]);
+                sendJson(['success' => true, 'message' => 'បានលុបការកំណត់ទីតាំងជោគជ័យ!']);
+            }
+            sendJson(['success' => false, 'message' => 'Invalid Assignment ID']);
+            break;
+
+        case 'fetch_locations_meta':
+            $users = dbQuery("SELECT employee_id, name, department, system_role, avatar FROM users WHERE user_role != 'Inactive' ORDER BY name ASC");
+            $locations = dbQuery("SELECT id, COALESCE(NULLIF(name, ''), location_name, 'សាខា') as name, address, latitude, longitude, radius_meters, qr_secret FROM locations ORDER BY id ASC");
+            sendJson(['success' => true, 'users' => $users, 'locations' => $locations]);
             break;
 
         // ==========================================
