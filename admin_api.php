@@ -711,84 +711,199 @@ try {
             break;
 
         // ==========================================
-        // 7. CATEGORIES (Category Management)
+        // 7. CATEGORIES & SKILL GROUPS (Matching admin_attendance.php)
         // ==========================================
         case 'fetch_categories':
         case 'get_categories':
-            dbQuery("CREATE TABLE IF NOT EXISTS categories (
+        case 'fetch_skill_groups':
+        case 'get_user_groups':
+            dbQuery("CREATE TABLE IF NOT EXISTS user_skill_groups (
                 id INT AUTO_INCREMENT PRIMARY KEY,
-                name VARCHAR(255) NOT NULL DEFAULT '',
-                code VARCHAR(100) NOT NULL DEFAULT '',
-                description TEXT,
-                item_count INT DEFAULT 0,
+                group_name VARCHAR(255) NOT NULL,
+                sort_order INT DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
-            // Ensure columns exist
-            $catCols = [
-                'name' => "VARCHAR(255) NOT NULL DEFAULT ''",
-                'code' => "VARCHAR(100) NOT NULL DEFAULT ''",
-                'description' => "TEXT DEFAULT NULL",
-                'item_count' => "INT DEFAULT 0",
-            ];
-            foreach ($catCols as $cName => $cDef) {
-                $chk = dbQuery("SHOW COLUMNS FROM categories LIKE '$cName'");
-                if (empty($chk)) {
-                    dbQuery("ALTER TABLE categories ADD COLUMN $cName $cDef");
+            $groups = dbQuery("SELECT id, group_name, sort_order FROM user_skill_groups ORDER BY sort_order ASC, group_name ASC");
+
+            if (empty($groups)) {
+                dbQuery("INSERT INTO user_skill_groups (group_name, sort_order) VALUES 
+                    ('318 Shop', 0),
+                    ('SK KS2', 0),
+                    ('SK NR3', 0),
+                    ('WH PRV', 0),
+                    ('WH PSP', 0),
+                    ('Worker', 0),
+                    ('Head Office', 1)");
+                $groups = dbQuery("SELECT id, group_name, sort_order FROM user_skill_groups ORDER BY sort_order ASC, group_name ASC");
+            }
+
+            // Calculate user count for each group matching admin_attendance.php
+            foreach ($groups as &$gr) {
+                $gid = (int)$gr['id'];
+                $gName = $gr['group_name'];
+                $c = dbQuery("SELECT COUNT(*) AS c FROM users WHERE JSON_EXTRACT(custom_data, '$.group_id') = ? OR JSON_UNQUOTE(JSON_EXTRACT(custom_data, '$.group_id')) = ? OR department = ? OR branch = ?", [$gid, (string)$gid, $gName, $gName]);
+                $cnt = (int)($c[0]['c'] ?? 0);
+                $gr['user_count'] = $cnt;
+                $gr['item_count'] = $cnt;
+                $gr['name'] = $gr['group_name'];
+                $gr['code'] = 'GRP-' . str_pad((string)$gr['id'], 3, '0', STR_PAD_LEFT);
+            }
+            unset($gr);
+
+            // Fetch users for User Assignments section
+            $allUsersRaw = dbQuery("SELECT id, employee_id, name, avatar, department, phone, role, custom_data FROM users ORDER BY name ASC");
+            $allUsers = [];
+            foreach ($allUsersRaw as $u) {
+                $cd = !empty($u['custom_data']) ? json_decode($u['custom_data'], true) : [];
+                $userGroupId = isset($cd['group_id']) ? (int)$cd['group_id'] : null;
+
+                // Fallback: match by department / branch name if group_id is not explicitly in custom_data
+                if ($userGroupId === null && !empty($u['department'])) {
+                    foreach ($groups as $g) {
+                        if (strcasecmp(trim($g['group_name']), trim($u['department'])) === 0) {
+                            $userGroupId = (int)$g['id'];
+                            break;
+                        }
+                    }
                 }
+
+                $allUsers[] = [
+                    'id' => (int)$u['id'],
+                    'employee_id' => $u['employee_id'],
+                    'name' => $u['name'] ?: $u['employee_id'],
+                    'avatar' => $u['avatar'] ?? '',
+                    'department' => $u['department'] ?? '',
+                    'phone' => $u['phone'] ?? '',
+                    'role' => $u['role'] ?? 'employee',
+                    'group_id' => $userGroupId,
+                ];
             }
 
-            $categories = dbQuery("SELECT * FROM categories ORDER BY id DESC");
-            if (empty($categories)) {
-                dbQuery("INSERT INTO categories (name, code, description, item_count) VALUES 
-                    ('Coffee Beans', 'CAT-COFFEE', 'គ្រាប់កាហ្វេគុណភាពខ្ពស់ និងផលិតផលកាហ្វេ', 12),
-                    ('Tea & Beverages', 'CAT-TEA', 'តែបៃតង តែក្រហម និងភេសជ្ជៈ', 8),
-                    ('Packaging', 'CAT-PACK', 'កែវជ័រ ប្រអប់ ថង់ និងសម្ភារៈវេចខ្ចប់', 25),
-                    ('Ingredients', 'CAT-INGR', 'គ្រឿងផ្សំ ស៊ីរ៉ូ ម្សៅទឹកដោះគោ និងសារធាតុផ្សំ', 15),
-                    ('សម្ភារៈការិយាល័យ (Office Supplies)', 'CAT-OFFICE', 'សម្ភារៈប្រើប្រាស់ទូទៅក្នុងការិយាល័យ', 34),
-                    ('គ្រឿងអេឡិចត្រូនិច (Electronics)', 'CAT-ELEC', 'កុំព្យូទ័រ ម៉ាស៊ីនព្រីន ឧបករណ៍បច្ចេកវិទ្យា', 18)");
-                $categories = dbQuery("SELECT * FROM categories ORDER BY id DESC");
-            }
-
-            // Dynamically calculate item count from stock_items
-            foreach ($categories as &$cat) {
-                $catName = $cat['name'];
-                $countRes = dbQuery("SELECT COUNT(*) as cnt FROM stock_items WHERE category = ? OR category LIKE ?", [$catName, "%$catName%"]);
-                if (!empty($countRes) && (int)$countRes[0]['cnt'] > 0) {
-                    $cat['item_count'] = (int)$countRes[0]['cnt'];
-                }
-            }
-            unset($cat);
-
-            sendJson(['success' => true, 'status' => 'success', 'categories' => $categories, 'data' => $categories, 'total' => count($categories)]);
+            sendJson([
+                'success' => true,
+                'status' => 'success',
+                'groups' => $groups,
+                'categories' => $groups,
+                'users' => $allUsers,
+                'data' => $groups,
+                'total' => count($groups),
+            ]);
             break;
 
+        case 'add_user_group':
+        case 'create_user_group':
         case 'save_category':
-            $catId = (int)($_POST['id'] ?? $_POST['category_id'] ?? 0);
-            $name = trim($_POST['name'] ?? $_POST['category_name'] ?? '');
-            $code = trim($_POST['code'] ?? 'CAT-' . rand(100, 999));
-            $desc = trim($_POST['description'] ?? '');
+            $groupId = (int)($_POST['id'] ?? $_POST['group_id'] ?? $_POST['category_id'] ?? 0);
+            $groupName = trim($_POST['group_name'] ?? $_POST['name'] ?? $_POST['category_name'] ?? '');
+            $sortOrder = isset($_POST['sort_order']) ? (int)$_POST['sort_order'] : 0;
 
-            if (empty($name)) {
-                sendJson(['success' => false, 'message' => 'សូមបញ្ចូលឈ្មោះប្រភេទ!'], 400);
+            if (empty($groupName)) {
+                sendJson(['success' => false, 'message' => 'សូមបញ្ចូលឈ្មោះក្រុម!'], 400);
             }
 
-            if ($catId > 0) {
-                dbQuery("UPDATE categories SET name = ?, code = ?, description = ? WHERE id = ?", [$name, $code, $desc, $catId]);
-                sendJson(['success' => true, 'status' => 'success', 'message' => 'បានកែប្រែប្រភេទជោគជ័យ!']);
+            if ($groupId > 0) {
+                dbQuery("UPDATE user_skill_groups SET group_name = ?, sort_order = ? WHERE id = ?", [$groupName, $sortOrder, $groupId]);
+                sendJson(['success' => true, 'status' => 'success', 'message' => 'បានកែប្រែឈ្មោះក្រុមជោគជ័យ!']);
             } else {
-                dbQuery("INSERT INTO categories (name, code, description, item_count) VALUES (?, ?, ?, 0)", [$name, $code, $desc]);
-                sendJson(['success' => true, 'status' => 'success', 'message' => 'បានបង្កើតប្រភេទថ្មីជោគជ័យ!']);
+                dbQuery("INSERT INTO user_skill_groups (group_name, sort_order) VALUES (?, ?)", [$groupName, $sortOrder]);
+                sendJson(['success' => true, 'status' => 'success', 'message' => 'បានបង្កើតក្រុមថ្មីជោគជ័យ!']);
             }
             break;
 
-        case 'delete_category':
-            $catId = (int)($_POST['id'] ?? $_POST['category_id'] ?? 0);
-            if ($catId > 0) {
-                dbQuery("DELETE FROM categories WHERE id = ?", [$catId]);
-                sendJson(['success' => true, 'status' => 'success', 'message' => 'បានលុបប្រភេទជោគជ័យ!']);
+        case 'rename_user_group':
+            $groupId = (int)($_POST['group_id'] ?? $_POST['id'] ?? 0);
+            $groupName = trim($_POST['group_name'] ?? $_POST['name'] ?? '');
+            if ($groupId <= 0 || empty($groupName)) {
+                sendJson(['success' => false, 'message' => 'ទិន្នន័យមិនត្រឹមត្រូវ!'], 400);
             }
-            sendJson(['success' => false, 'message' => 'Invalid Category ID'], 400);
+            dbQuery("UPDATE user_skill_groups SET group_name = ? WHERE id = ?", [$groupName, $groupId]);
+            sendJson(['success' => true, 'status' => 'success', 'message' => 'បានប្តូរឈ្មោះក្រុមជោគជ័យ!']);
+            break;
+
+        case 'delete_user_group':
+        case 'delete_category':
+            $groupId = (int)($_POST['id'] ?? $_POST['group_id'] ?? $_POST['category_id'] ?? 0);
+            if ($groupId > 0) {
+                dbQuery("DELETE FROM user_skill_groups WHERE id = ?", [$groupId]);
+                sendJson(['success' => true, 'status' => 'success', 'message' => 'បានលុបក្រុមរួចរាល់!']);
+            }
+            sendJson(['success' => false, 'message' => 'Group ID មិនត្រឹមត្រូវ!'], 400);
+            break;
+
+        case 'update_groups_sort':
+        case 'save_group_sort_order':
+            $orders = $_POST['orders'] ?? [];
+            if (is_string($orders)) {
+                $orders = json_decode($orders, true) ?: [];
+            }
+            foreach ($orders as $o) {
+                $id = (int)($o['id'] ?? 0);
+                $sort = (int)($o['sort'] ?? $o['sort_order'] ?? 0);
+                if ($id > 0) {
+                    dbQuery("UPDATE user_skill_groups SET sort_order = ? WHERE id = ?", [$sort, $id]);
+                }
+            }
+            sendJson(['success' => true, 'status' => 'success', 'message' => 'រក្សាទុកលំដាប់ជោគជ័យ!']);
+            break;
+
+        case 'assign_user_group':
+        case 'assign_users_to_group':
+            $employeeIds = $_POST['employee_ids'] ?? $_POST['user_ids'] ?? [];
+            if (is_string($employeeIds)) {
+                $employeeIds = json_decode($employeeIds, true) ?: (explode(',', $employeeIds));
+            }
+            $groupId = isset($_POST['group_id']) && $_POST['group_id'] !== '' && $_POST['group_id'] !== 'none' ? (int)$_POST['group_id'] : null;
+
+            if (empty($employeeIds)) {
+                sendJson(['success' => false, 'message' => 'សូមជ្រើសរើសបុគ្គលិកយ៉ាងតិចម្នាក់!'], 400);
+            }
+
+            $successCount = 0;
+            foreach ($employeeIds as $eid) {
+                $eid = trim((string)$eid);
+                if (empty($eid)) continue;
+
+                $userRow = dbQuery("SELECT custom_data FROM users WHERE employee_id = ? OR id = ? LIMIT 1", [$eid, (int)$eid]);
+                if (!empty($userRow)) {
+                    $cd = !empty($userRow[0]['custom_data']) ? json_decode($userRow[0]['custom_data'], true) : [];
+                    if ($groupId === null) {
+                        unset($cd['group_id']);
+                    } else {
+                        $cd['group_id'] = $groupId;
+                    }
+                    $newCd = json_encode($cd, JSON_UNESCAPED_UNICODE);
+                    dbQuery("UPDATE users SET custom_data = ? WHERE employee_id = ? OR id = ?", [$newCd, $eid, (int)$eid]);
+                    $successCount++;
+                }
+            }
+            sendJson(['success' => true, 'status' => 'success', 'message' => "បានកំណត់ក្រុមជូនបុគ្គលិកចំនួន $successCount នាក់ដោយជោគជ័យ!"]);
+            break;
+
+        case 'remove_user_group':
+            $employeeIds = $_POST['employee_ids'] ?? $_POST['user_ids'] ?? [];
+            if (is_string($employeeIds)) {
+                $employeeIds = json_decode($employeeIds, true) ?: (explode(',', $employeeIds));
+            }
+            if (empty($employeeIds)) {
+                sendJson(['success' => false, 'message' => 'សូមជ្រើសរើសបុគ្គលិកយ៉ាងតិចម្នាក់!'], 400);
+            }
+
+            $successCount = 0;
+            foreach ($employeeIds as $eid) {
+                $eid = trim((string)$eid);
+                if (empty($eid)) continue;
+
+                $userRow = dbQuery("SELECT custom_data FROM users WHERE employee_id = ? OR id = ? LIMIT 1", [$eid, (int)$eid]);
+                if (!empty($userRow)) {
+                    $cd = !empty($userRow[0]['custom_data']) ? json_decode($userRow[0]['custom_data'], true) : [];
+                    unset($cd['group_id']);
+                    $newCd = json_encode($cd, JSON_UNESCAPED_UNICODE);
+                    dbQuery("UPDATE users SET custom_data = ? WHERE employee_id = ? OR id = ?", [$newCd, $eid, (int)$eid]);
+                    $successCount++;
+                }
+            }
+            sendJson(['success' => true, 'status' => 'success', 'message' => "បានដកបុគ្គលិកចំនួន $successCount នាក់ចេញពីក្រុមជោគជ័យ!"]);
             break;
 
         // ==========================================

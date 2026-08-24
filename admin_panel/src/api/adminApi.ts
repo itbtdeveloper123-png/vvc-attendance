@@ -103,9 +103,23 @@ export interface UserLocationAssignment {
 export interface CategoryItem {
   id: number;
   name: string;
-  code: string;
+  group_name?: string;
+  code?: string;
+  sort_order?: number;
   description?: string;
   item_count?: number;
+  user_count?: number;
+}
+
+export interface GroupUserItem {
+  id: number;
+  employee_id: string;
+  name: string;
+  avatar?: string;
+  department?: string;
+  phone?: string;
+  role?: string;
+  group_id?: number | null;
 }
 
 export interface StockItem {
@@ -503,7 +517,7 @@ export const adminApi = {
     return res.data;
   },
 
-  // Categories
+  // Categories & Skill Groups
   fetchCategories: async () => {
     const params = new URLSearchParams();
     params.append('action', 'fetch_categories');
@@ -525,6 +539,33 @@ export const adminApi = {
     const params = new URLSearchParams();
     params.append('action', 'delete_category');
     params.append('id', String(id));
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  updateGroupSort: async (orders: Array<{ id: number; sort: number }>) => {
+    const params = new URLSearchParams();
+    params.append('action', 'update_groups_sort');
+    params.append('orders', JSON.stringify(orders));
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  assignUsersToGroup: async (employeeIds: string[], groupId: number | null) => {
+    const params = new URLSearchParams();
+    params.append('action', 'assign_user_group');
+    params.append('employee_ids', JSON.stringify(employeeIds));
+    if (groupId !== null) {
+      params.append('group_id', String(groupId));
+    }
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  removeUsersFromGroup: async (employeeIds: string[]) => {
+    const params = new URLSearchParams();
+    params.append('action', 'remove_user_group');
+    params.append('employee_ids', JSON.stringify(employeeIds));
     const res = await apiClient.post('', params);
     return res.data;
   },
