@@ -424,50 +424,27 @@ export const MeetingsPage: React.FC = () => {
           </p>
         </div>
 
-        {/* Tab Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--surface-subtle, #f1f5f9)', padding: '6px', borderRadius: '14px' }}>
-          <button
-            onClick={() => setActiveTab('list')}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '10px 18px',
-              borderRadius: '10px',
-              fontWeight: 700,
-              fontSize: '13px',
-              border: 'none',
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-              background: activeTab === 'list' ? '#fff' : 'transparent',
-              color: activeTab === 'list' ? 'var(--primary)' : 'var(--text-secondary)',
-              boxShadow: activeTab === 'list' ? '0 4px 12px rgba(0,0,0,0.06)' : 'none'
-            }}
-          >
-            <Layers size={16} />
-            <span>បញ្ជីកិច្ចប្រជុំ ({meetings.length})</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('create')}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '10px 18px',
-              borderRadius: '10px',
-              fontWeight: 700,
-              fontSize: '13px',
-              border: 'none',
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-              background: activeTab === 'create' ? 'var(--primary)' : 'transparent',
-              color: activeTab === 'create' ? '#fff' : 'var(--text-secondary)',
-              boxShadow: activeTab === 'create' ? '0 4px 12px rgba(99, 102, 241, 0.28)' : 'none'
-            }}
-          >
-            <Plus size={16} />
-            <span>បង្ហោះកិច្ចប្រជុំថ្មី (Post Meeting)</span>
-          </button>
+        {/* Header Action Button */}
+        <div>
+          {activeTab === 'list' ? (
+            <button
+              onClick={() => setActiveTab('create')}
+              className="btn btn-primary"
+              style={{ borderRadius: '12px', padding: '11px 20px', fontWeight: 700 }}
+            >
+              <Plus size={16} />
+              <span>+ បង្ហោះកិច្ចប្រជុំថ្មី</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => setActiveTab('list')}
+              className="btn btn-secondary"
+              style={{ borderRadius: '12px', padding: '11px 20px', fontWeight: 700 }}
+            >
+              <Layers size={16} />
+              <span>← ត្រឡប់ទៅបញ្ជីកិច្ចប្រជុំ</span>
+            </button>
+          )}
         </div>
       </div>
 

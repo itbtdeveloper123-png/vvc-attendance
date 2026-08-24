@@ -357,30 +357,55 @@ export const LocationsPage: React.FC = () => {
           </p>
         </div>
 
-        {/* 4 Navigation Tabs */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--surface-subtle, #f1f5f9)', padding: '6px', borderRadius: '14px', flexWrap: 'wrap' }}>
-          <button
-            type="button"
-            onClick={() => setActiveTab('list')}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '9px 15px',
-              borderRadius: '10px',
-              fontWeight: 700,
-              fontSize: '13px',
-              border: 'none',
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-              background: activeTab === 'list' ? '#fff' : 'transparent',
-              color: activeTab === 'list' ? 'var(--primary)' : 'var(--text-secondary)',
-              boxShadow: activeTab === 'list' ? '0 4px 12px rgba(0,0,0,0.06)' : 'none',
-            }}
-          >
-            <Layers size={15} />
-            <span>បញ្ជីទីតាំង ({locations.length})</span>
-          </button>
+        {/* Right Area: Clean Sub-Tabs + Create Action Button */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--surface-subtle, #f1f5f9)', padding: '6px', borderRadius: '14px' }}>
+            <button
+              type="button"
+              onClick={() => setActiveTab('list')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '9px 16px',
+                borderRadius: '10px',
+                fontWeight: 700,
+                fontSize: '13px',
+                border: 'none',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                background: activeTab === 'list' ? '#fff' : 'transparent',
+                color: activeTab === 'list' ? 'var(--primary)' : 'var(--text-secondary)',
+                boxShadow: activeTab === 'list' ? '0 4px 12px rgba(0,0,0,0.06)' : 'none',
+              }}
+            >
+              <MapPin size={15} />
+              <span>បញ្ជីទីតាំង ({locations.length})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('assignments')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '9px 16px',
+                borderRadius: '10px',
+                fontWeight: 700,
+                fontSize: '13px',
+                border: 'none',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                background: activeTab === 'assignments' ? '#fff' : 'transparent',
+                color: activeTab === 'assignments' ? 'var(--primary)' : 'var(--text-secondary)',
+                boxShadow: activeTab === 'assignments' ? '0 4px 12px rgba(0,0,0,0.06)' : 'none',
+              }}
+            >
+              <Users size={15} />
+              <span>បញ្ជីកំណត់បុគ្គលិក ({assignments.length})</span>
+            </button>
+          </div>
 
           <button
             type="button"
@@ -396,70 +421,11 @@ export const LocationsPage: React.FC = () => {
               });
               setActiveTab('create');
             }}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '9px 15px',
-              borderRadius: '10px',
-              fontWeight: 700,
-              fontSize: '13px',
-              border: 'none',
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-              background: activeTab === 'create' ? 'var(--primary)' : 'transparent',
-              color: activeTab === 'create' ? '#fff' : 'var(--text-secondary)',
-              boxShadow: activeTab === 'create' ? '0 4px 12px rgba(99, 102, 241, 0.28)' : 'none',
-            }}
+            className="btn btn-primary"
+            style={{ borderRadius: '12px', padding: '11px 18px', fontWeight: 700 }}
           >
-            <Plus size={15} />
-            <span>បង្កើតទីតាំងថ្មី (Create)</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('assign')}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '9px 15px',
-              borderRadius: '10px',
-              fontWeight: 700,
-              fontSize: '13px',
-              border: 'none',
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-              background: activeTab === 'assign' ? '#fff' : 'transparent',
-              color: activeTab === 'assign' ? 'var(--primary)' : 'var(--text-secondary)',
-              boxShadow: activeTab === 'assign' ? '0 4px 12px rgba(0,0,0,0.06)' : 'none',
-            }}
-          >
-            <UserCheck size={15} />
-            <span>កំណត់សម្រាប់បុគ្គលិក (Assign)</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('assignments')}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '9px 15px',
-              borderRadius: '10px',
-              fontWeight: 700,
-              fontSize: '13px',
-              border: 'none',
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-              background: activeTab === 'assignments' ? '#fff' : 'transparent',
-              color: activeTab === 'assignments' ? 'var(--primary)' : 'var(--text-secondary)',
-              boxShadow: activeTab === 'assignments' ? '0 4px 12px rgba(0,0,0,0.06)' : 'none',
-            }}
-          >
-            <Users size={15} />
-            <span>បញ្ជីកំណត់បុគ្គលិក ({assignments.length})</span>
+            <Plus size={16} />
+            <span>+ បង្កើតទីតាំងថ្មី</span>
           </button>
         </div>
       </div>

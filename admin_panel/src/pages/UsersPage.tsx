@@ -70,8 +70,21 @@ export const UsersPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [deptFilter, setDeptFilter] = useState('all');
   const [roleFilter, setRoleFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('active');
+  const [createDropdownOpen, setCreateDropdownOpen] = useState(false);
+  const createDropdownRef = useRef<HTMLDivElement | null>(null);
   const [loading, setLoading] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (createDropdownRef.current && !createDropdownRef.current.contains(event.target as Node)) {
+        setCreateDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Active Context Menu for row
   const [activeMenuRowId, setActiveMenuRowId] = useState<string | number | null>(null);
@@ -508,10 +521,14 @@ export const UsersPage: React.FC = () => {
     const matchDept = deptFilter === 'all' || u.department === deptFilter;
     const matchRole = roleFilter === 'all' || u.user_role === roleFilter;
 
-    if (activeTab === 'inactive_users') {
-      return matchSearch && matchDept && matchRole && Number(u.is_active) === 0;
+    let matchStatus = true;
+    if (statusFilter === 'active') {
+      matchStatus = Number(u.is_active) !== 0;
+    } else if (statusFilter === 'inactive') {
+      matchStatus = Number(u.is_active) === 0;
     }
-    return matchSearch && matchDept && matchRole && Number(u.is_active) !== 0;
+
+    return matchSearch && matchDept && matchRole && matchStatus;
   });
 
   // Group Users by Department (matching admin_attendance.php UI group headers)
@@ -536,70 +553,198 @@ export const UsersPage: React.FC = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%' }}>
-      {/* Sub-Tabs Bar Matching admin_attendance.php */}
+      {/* Header Banner with Clean Tabs and Primary Dropdown Action */}
       <div
-        className="hrm-card"
         style={{
-          padding: '8px 12px',
           display: 'flex',
           alignItems: 'center',
-          gap: '8px',
-          overflowX: 'auto',
-          borderRadius: '14px',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '16px',
+          background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(79, 70, 229, 0.03))',
+          padding: '24px',
+          borderRadius: '18px',
+          border: '1px solid rgba(99, 102, 241, 0.15)',
         }}
       >
-        <button
-          onClick={() => handleTabChange('list_users')}
-          className={`btn btn-sm ${activeTab === 'list_users' ? 'btn-primary' : 'btn-secondary'}`}
-          style={{ borderRadius: '10px' }}
-        >
-          <Users size={14} />
-          <span>បញ្ជីអ្នកប្រើប្រាស់ (Users List)</span>
-        </button>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+            <span
+              style={{
+                background: 'var(--primary)',
+                color: '#fff',
+                width: '36px',
+                height: '36px',
+                borderRadius: '10px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 4px 10px rgba(99, 102, 241, 0.3)',
+              }}
+            >
+              <Users size={20} />
+            </span>
+            <h2 style={{ fontSize: '22px', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+              គ្រប់គ្រងអ្នកប្រើប្រាស់ (Users Management)
+            </h2>
+          </div>
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>
+            គ្រប់គ្រងព័ត៌មានបុគ្គលិក កំណត់សិទ្ធិ តួនាទី និងច្បាប់ម៉ោងការងារ (Work Rules)
+          </p>
+        </div>
 
-        <button
-          onClick={() => handleTabChange('create_user')}
-          className={`btn btn-sm ${activeTab === 'create_user' ? 'btn-primary' : 'btn-secondary'}`}
-          style={{ borderRadius: '10px' }}
-        >
-          <UserPlus size={14} />
-          <span>បង្កើតអ្នកប្រើប្រាស់ (Create User)</span>
-        </button>
+        {/* Right Area: Clean Sub-Tabs + Dropdown Action */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--surface-subtle, #f1f5f9)', padding: '6px', borderRadius: '14px' }}>
+            <button
+              onClick={() => handleTabChange('list_users')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '9px 16px',
+                borderRadius: '10px',
+                fontWeight: 700,
+                fontSize: '13px',
+                border: 'none',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                background: activeTab === 'list_users' ? '#fff' : 'transparent',
+                color: activeTab === 'list_users' ? 'var(--primary)' : 'var(--text-secondary)',
+                boxShadow: activeTab === 'list_users' ? '0 4px 12px rgba(0,0,0,0.06)' : 'none',
+              }}
+            >
+              <Users size={15} />
+              <span>បញ្ជីបុគ្គលិក ({users.filter(u => Number(u.is_active) !== 0).length})</span>
+            </button>
 
-        <button
-          onClick={() => handleTabChange('create_admin')}
-          className={`btn btn-sm ${activeTab === 'create_admin' ? 'btn-primary' : 'btn-secondary'}`}
-          style={{ borderRadius: '10px' }}
-        >
-          <ShieldCheck size={14} />
-          <span>បង្កើតគណនី Admin (Create Admin)</span>
-        </button>
+            <button
+              onClick={() => handleTabChange('edit_rules')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '9px 16px',
+                borderRadius: '10px',
+                fontWeight: 700,
+                fontSize: '13px',
+                border: 'none',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                background: activeTab === 'edit_rules' ? '#fff' : 'transparent',
+                color: activeTab === 'edit_rules' ? 'var(--primary)' : 'var(--text-secondary)',
+                boxShadow: activeTab === 'edit_rules' ? '0 4px 12px rgba(0,0,0,0.06)' : 'none',
+              }}
+            >
+              <Clock size={15} />
+              <span>ច្បាប់ម៉ោង (Work Rules)</span>
+            </button>
+          </div>
 
-        <button
-          onClick={() => handleTabChange('edit_rules')}
-          className={`btn btn-sm ${activeTab === 'edit_rules' ? 'btn-primary' : 'btn-secondary'}`}
-          style={{ borderRadius: '10px' }}
-        >
-          <Clock size={14} />
-          <span>ច្បាប់ម៉ោងបុគ្គលិក (Work Rules)</span>
-        </button>
+          {/* Primary Create Account Dropdown Button */}
+          <div style={{ position: 'relative' }} ref={createDropdownRef}>
+            <button
+              type="button"
+              onClick={() => setCreateDropdownOpen(!createDropdownOpen)}
+              className="btn btn-primary"
+              style={{ borderRadius: '12px', padding: '11px 18px', fontWeight: 700 }}
+            >
+              <UserPlus size={16} />
+              <span>+ បង្កើតគណនីថ្មី ▾</span>
+            </button>
 
-        <button
-          onClick={() => handleTabChange('inactive_users')}
-          className={`btn btn-sm ${activeTab === 'inactive_users' ? 'btn-primary' : 'btn-secondary'}`}
-          style={{ borderRadius: '10px' }}
-        >
-          <UserX size={14} />
-          <span>គណនីដែលបានបិទ (Inactive)</span>
-        </button>
+            {createDropdownOpen && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '100%',
+                  right: 0,
+                  marginTop: '8px',
+                  background: 'var(--surface, #ffffff)',
+                  borderRadius: '14px',
+                  boxShadow: '0 12px 30px rgba(0,0,0,0.15)',
+                  border: '1px solid var(--border, #e2e8f0)',
+                  minWidth: '220px',
+                  padding: '8px',
+                  zIndex: 50,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '4px',
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCreateDropdownOpen(false);
+                    handleTabChange('create_user');
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    padding: '10px 14px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: 'transparent',
+                    color: 'var(--text-primary)',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    width: '100%',
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--surface-alt, #f8fafc)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                >
+                  <UserPlus size={16} style={{ color: 'var(--primary)' }} />
+                  <div>
+                    <div>+ បង្កើតបុគ្គលិក (User)</div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 500 }}>បុគ្គលិកទូទៅ សម្រាប់ស្កេនវត្តមាន</div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCreateDropdownOpen(false);
+                    handleTabChange('create_admin');
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    padding: '10px 14px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: 'transparent',
+                    color: 'var(--text-primary)',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    width: '100%',
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--surface-alt, #f8fafc)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                >
+                  <ShieldCheck size={16} style={{ color: '#d97706' }} />
+                  <div>
+                    <div>+ បង្កើតគណនី Admin</div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 500 }}>អ្នកគ្រប់គ្រង & កំណត់សិទ្ធិ</div>
+                  </div>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* ======================================================== */}
-      {/* 1. LIST USERS & INACTIVE USERS (Matching admin_attendance) */}
+      {/* 1. LIST USERS & INACTIVE USERS                           */}
       {/* ======================================================== */}
       {(activeTab === 'list_users' || activeTab === 'inactive_users') && (
         <>
-          {/* Filter Toolbar Matching admin_attendance.php */}
+          {/* Filter Toolbar */}
           <div
             className="hrm-card"
             style={{
@@ -622,7 +767,7 @@ export const UsersPage: React.FC = () => {
                   border: '1px solid var(--border)',
                   borderRadius: 'var(--radius)',
                   padding: '8px 14px',
-                  width: '280px',
+                  width: '260px',
                   gap: '8px',
                 }}
               >
@@ -668,6 +813,17 @@ export const UsersPage: React.FC = () => {
                 <option value="User">User (បុគ្គលិក)</option>
                 <option value="Admin">Admin (អ្នកគ្រប់គ្រង)</option>
               </select>
+
+              <select
+                className="form-control"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as any)}
+                style={{ width: '150px', padding: '8px 12px', fontSize: '13px' }}
+              >
+                <option value="all">គ្រប់ស្ថានភាព (All)</option>
+                <option value="active">សកម្ម (Active)</option>
+                <option value="inactive">បានបិទ (Inactive)</option>
+              </select>
             </div>
 
             {/* Right Action Buttons */}
@@ -680,14 +836,6 @@ export const UsersPage: React.FC = () => {
               <button onClick={handleExportCSV} className="btn btn-secondary btn-sm" title="ទាញយកជា CSV">
                 <Download size={14} />
                 <span>Export CSV</span>
-              </button>
-
-              <button
-                onClick={() => handleTabChange('create_user')}
-                className="btn btn-primary btn-sm"
-              >
-                <UserPlus size={14} />
-                <span>+ បង្កើតបុគ្គលិក</span>
               </button>
             </div>
           </div>

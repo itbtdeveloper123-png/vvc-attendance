@@ -253,23 +253,65 @@ export const PayrollPage: React.FC = () => {
   const paidCount = salaries.filter((s) => s.status === 'Paid').length;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', maxWidth: '1200px', margin: '0 auto' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '22px', maxWidth: '1200px', margin: '0 auto', width: '100%' }}>
+      {/* Header Banner */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '16px',
+          background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(79, 70, 229, 0.03))',
+          padding: '24px',
+          borderRadius: '18px',
+          border: '1px solid rgba(99, 102, 241, 0.15)',
+        }}
+      >
         <div>
-          <h2 style={{ fontSize: '22px', fontWeight: 800, color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <DollarSign size={24} color="#6366f1" />
-            ប្រព័ន្ធគ្រប់គ្រងប្រាក់បៀវត្ស (Payroll Management)
-          </h2>
-          <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '4px 0 0' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+            <span
+              style={{
+                background: 'var(--primary)',
+                color: '#fff',
+                width: '36px',
+                height: '36px',
+                borderRadius: '10px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 4px 10px rgba(99, 102, 241, 0.3)',
+              }}
+            >
+              <DollarSign size={20} />
+            </span>
+            <h2 style={{ fontSize: '22px', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+              ប្រព័ន្ធគ្រប់គ្រងប្រាក់បៀវត្ស (Payroll Management)
+            </h2>
+          </div>
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>
             គណនាប្រាក់បៀវត្សគោល ថែមម៉ោង (OT) កាត់កង បំណុល ធនាគារ Bank QR និងចេញប័ណ្ណបើកប្រាក់ខែ (Payslip)
           </p>
         </div>
 
-        {activeTab === 'payroll_dashboard' && (
-          <button onClick={handleCalculate} disabled={calculating} className="btn btn-gold" style={{ padding: '10px 22px' }}>
+        {activeTab === 'payroll_dashboard' ? (
+          <button
+            onClick={handleCalculate}
+            disabled={calculating}
+            className="btn btn-gold"
+            style={{ borderRadius: '12px', padding: '11px 22px', fontWeight: 700 }}
+          >
             <DollarSign size={16} />
             <span>{calculating ? 'កំពុងគណនា...' : 'គណនាប្រាក់ខែ (Calculate)'}</span>
+          </button>
+        ) : (
+          <button
+            onClick={() => setActiveTab('payroll_dashboard')}
+            className="btn btn-secondary"
+            style={{ borderRadius: '12px', padding: '11px 20px', fontWeight: 700 }}
+          >
+            <DollarSign size={16} />
+            <span>← ត្រឡប់ទៅផ្ទាំងគណនា</span>
           </button>
         )}
       </div>
@@ -296,21 +338,21 @@ export const PayrollPage: React.FC = () => {
 
       {/* Main Tabs */}
       <div
-        className="hrm-card"
         style={{
-          padding: '10px 14px',
           display: 'flex',
           alignItems: 'center',
-          gap: '8px',
+          gap: '6px',
+          background: 'var(--surface-subtle, #f1f5f9)',
+          padding: '6px',
+          borderRadius: '14px',
           overflowX: 'auto',
-          borderRadius: '16px',
         }}
       >
         {[
-          { id: 'payroll_dashboard', label: '📊 ផ្ទាំងគណនា & បើកប្រាក់ខែ (Dashboard)', icon: DollarSign },
-          { id: 'manage_salaries', label: '💳 ប្រាក់ខែគោល & គណនីធនាគារ (Bank & QR)', icon: CreditCard },
-          { id: 'adjustments', label: '⚙️ កាត់ប្រាក់ / OT / បំណុល (Adjustments)', icon: TrendingDown },
-          { id: 'payroll_history', label: '🕒 ប្រវត្តិទូទាត់ប្រាក់ (Payment History)', icon: History },
+          { id: 'payroll_dashboard', label: 'ផ្ទាំងគណនា (Dashboard)', icon: DollarSign },
+          { id: 'manage_salaries', label: 'ប្រាក់ខែ & Bank QR', icon: CreditCard },
+          { id: 'adjustments', label: 'កាត់កង / OT / បំណុល', icon: TrendingDown },
+          { id: 'payroll_history', label: 'ប្រវត្តិទូទាត់ (History)', icon: History },
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -318,12 +360,21 @@ export const PayrollPage: React.FC = () => {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`btn btn-sm ${isActive ? 'btn-primary' : 'btn-secondary'}`}
               style={{
-                borderRadius: '12px',
-                padding: '8px 16px',
-                fontWeight: isActive ? 800 : 500,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '9px 16px',
+                borderRadius: '10px',
+                fontWeight: 700,
+                fontSize: '13px',
+                border: 'none',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
                 whiteSpace: 'nowrap',
+                background: isActive ? '#fff' : 'transparent',
+                color: isActive ? 'var(--primary)' : 'var(--text-secondary)',
+                boxShadow: isActive ? '0 4px 12px rgba(0,0,0,0.06)' : 'none',
               }}
             >
               <Icon size={14} />

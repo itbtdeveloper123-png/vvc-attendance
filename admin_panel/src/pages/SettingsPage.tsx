@@ -678,42 +678,89 @@ export const SettingsPage: React.FC = () => {
   const selectedReporter = usersList.find((u) => u.employee_id === dailyReportReporterId);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', maxWidth: '1150px' }}>
-      {/* Header */}
-      <div>
-        <h2 style={{ fontSize: '20px', fontWeight: 800, color: 'var(--text-primary)' }}>
-          ការកំណត់ប្រព័ន្ធទាំងមូល (System & Admin Settings)
-        </h2>
-        <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-          កំណត់ព័ត៌មាន Branding, ច្បាប់ស្កេនវត្តមាន App, ទំព័រ Login, ម៉ឺនុយ Menu, និង Themes
-        </p>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '22px', maxWidth: '1200px', margin: '0 auto', width: '100%' }}>
+      {/* Header Banner */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '16px',
+          background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(79, 70, 229, 0.03))',
+          padding: '24px',
+          borderRadius: '18px',
+          border: '1px solid rgba(99, 102, 241, 0.15)',
+        }}
+      >
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+            <span
+              style={{
+                background: 'var(--primary)',
+                color: '#fff',
+                width: '36px',
+                height: '36px',
+                borderRadius: '10px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 4px 10px rgba(99, 102, 241, 0.3)',
+              }}
+            >
+              <Settings size={20} />
+            </span>
+            <h2 style={{ fontSize: '22px', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+              ការកំណត់ប្រព័ន្ធទូទៅ (System & Admin Settings)
+            </h2>
+          </div>
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>
+            កំណត់ព័ត៌មាន Branding, ច្បាប់ស្កេនវត្តមាន App, ទំព័រ Login, ម៉ឺនុយ Menu, និង Themes
+          </p>
+        </div>
       </div>
 
       {/* Navigation Main Tabs */}
       <div
-        className="hrm-card"
         style={{
-          padding: '12px 16px',
           display: 'flex',
           alignItems: 'center',
-          gap: '8px',
+          gap: '6px',
+          background: 'var(--surface-subtle, #f1f5f9)',
+          padding: '6px',
+          borderRadius: '14px',
           overflowX: 'auto',
         }}
       >
         {[
-          { id: 'panel_settings', label: '🏢 ការកំណត់ Panel (Panel Settings)', icon: LayoutGrid },
-          { id: 'menu_settings', label: '🗂️ គ្រប់គ្រង Menu (Menu Settings)', icon: Menu },
-          { id: 'login_page_settings', label: '🔐 ទំព័រ Login (Login Settings)', icon: LogIn },
-          { id: 'theme_management', label: '🎨 Theme & ពណ៌ (Themes)', icon: Palette },
-          { id: 'manage_app_scan', label: '📱 ច្បាប់ស្កេន App (Manage App Scan)', icon: Smartphone },
+          { id: 'panel_settings', label: 'Panel Information', icon: LayoutGrid },
+          { id: 'menu_settings', label: 'គ្រប់គ្រង Menu', icon: Menu },
+          { id: 'login_page_settings', label: 'ទំព័រ Login', icon: LogIn },
+          { id: 'theme_management', label: 'Themes & Colors', icon: Palette },
+          { id: 'manage_app_scan', label: '📱 កម្មវិធី Mobile App (Scan & Rules)', icon: Smartphone },
         ].map((tab) => {
           const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
           return (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`btn btn-sm ${activeTab === tab.id ? 'btn-primary' : 'btn-secondary'}`}
-              style={{ whiteSpace: 'nowrap' }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '9px 16px',
+                borderRadius: '10px',
+                fontWeight: 700,
+                fontSize: '13px',
+                border: 'none',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                whiteSpace: 'nowrap',
+                background: isActive ? '#fff' : 'transparent',
+                color: isActive ? 'var(--primary)' : 'var(--text-secondary)',
+                boxShadow: isActive ? '0 4px 12px rgba(0,0,0,0.06)' : 'none',
+              }}
             >
               <Icon size={14} />
               <span>{tab.label}</span>
@@ -1005,41 +1052,98 @@ export const SettingsPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Sub-Tabs Shell (Exact match with user's screenshot) */}
+          {/* Sub-Tabs Shell: Core Tabs + Role Visibility Dropdown */}
           <div
             style={{
               display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
               flexWrap: 'wrap',
-              gap: '8px',
-              padding: '12px',
-              background: 'var(--surface-hover)',
+              gap: '12px',
+              padding: '10px 14px',
+              background: 'var(--surface-subtle, #f1f5f9)',
               borderRadius: '16px',
               marginBottom: '24px',
               border: '1px solid var(--border)',
             }}
           >
-            {ALL_SUB_TABS.map((sub) => {
-              const SubIcon = sub.icon;
-              const isActive = appScanSubTab === sub.id;
-              return (
-                <button
-                  type="button"
-                  key={sub.id}
-                  onClick={() => setAppScanSubTab(sub.id)}
-                  className={`btn btn-sm ${isActive ? 'btn-primary' : 'btn-secondary'}`}
+            {/* Core Tabs */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflowX: 'auto', flexWrap: 'wrap' }}>
+              {[
+                { id: 'branding', label: 'Branding', icon: LayoutGrid },
+                { id: 'app-version', label: 'Version & Update', icon: Smartphone },
+                { id: 'security', label: 'Security & Biometrics', icon: Shield },
+                { id: 'labels', label: 'Labels', icon: Type },
+                { id: 'telegram', label: 'Telegram Bot', icon: Send },
+                { id: 'departments', label: 'Departments', icon: Building },
+                { id: 'materials', label: 'Materials', icon: Box },
+                { id: 'column-visibility', label: 'Columns', icon: Columns },
+                { id: 'themes', label: 'Themes', icon: Palette },
+                { id: 'scan-history', label: 'Scan History', icon: History },
+              ].map((sub) => {
+                const SubIcon = sub.icon;
+                const isActive = appScanSubTab === sub.id;
+                return (
+                  <button
+                    type="button"
+                    key={sub.id}
+                    onClick={() => setAppScanSubTab(sub.id)}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '8px 14px',
+                      borderRadius: '10px',
+                      fontSize: '12.5px',
+                      fontWeight: 700,
+                      border: 'none',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      whiteSpace: 'nowrap',
+                      background: isActive ? 'var(--primary)' : '#fff',
+                      color: isActive ? '#fff' : 'var(--text-secondary)',
+                      boxShadow: isActive ? '0 4px 12px rgba(79, 70, 229, 0.25)' : '0 1px 3px rgba(0,0,0,0.04)',
+                    }}
+                  >
+                    <SubIcon size={13} />
+                    <span>{sub.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Role Visibility Dropdown Selector */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: appScanSubTab.startsWith('vis-') ? 'var(--primary-light, rgba(79, 70, 229, 0.12))' : '#fff', padding: '6px 12px', borderRadius: '12px', border: '1px solid var(--border)' }}>
+                <Eye size={15} color="var(--primary)" />
+                <span style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
+                  សិទ្ធិកាតតាមតួនាទី (Role Visibility):
+                </span>
+                <select
+                  value={appScanSubTab.startsWith('vis-') ? appScanSubTab : ''}
+                  onChange={(e) => {
+                    if (e.target.value) setAppScanSubTab(e.target.value);
+                  }}
+                  className="form-control"
                   style={{
-                    fontSize: '12px',
-                    padding: '8px 14px',
-                    borderRadius: '12px',
-                    fontWeight: isActive ? 800 : 500,
-                    boxShadow: isActive ? '0 4px 12px rgba(37, 99, 235, 0.25)' : 'none',
+                    padding: '4px 10px',
+                    fontSize: '12.5px',
+                    fontWeight: 700,
+                    width: 'auto',
+                    minWidth: '180px',
+                    height: '32px',
+                    borderRadius: '8px',
                   }}
                 >
-                  <SubIcon size={13} />
-                  <span>{sub.label}</span>
-                </button>
-              );
-            })}
+                  <option value="">-- ជ្រើសរើសតួនាទី ({VISIBILITY_ROLES.length} តួនាទី) --</option>
+                  {VISIBILITY_ROLES.map((r) => (
+                    <option key={r.suffix} value={`vis-${r.suffix}`}>
+                      {r.fullLabel}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
           </div>
 
           {/* TAB 1: BRANDING */}

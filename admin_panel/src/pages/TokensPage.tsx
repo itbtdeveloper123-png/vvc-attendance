@@ -211,68 +211,93 @@ export const TokensPage: React.FC = () => {
   });
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', maxWidth: '1200px', margin: '0 auto' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '22px', maxWidth: '1200px', margin: '0 auto', width: '100%' }}>
+      {/* Header Banner with Clean Sub-Tabs */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '16px',
+          background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(79, 70, 229, 0.03))',
+          padding: '24px',
+          borderRadius: '18px',
+          border: '1px solid rgba(99, 102, 241, 0.15)',
+        }}
+      >
         <div>
-          <h2 style={{ fontSize: '22px', fontWeight: 800, color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <KeyRound size={24} color="#6366f1" />
-            គ្រប់គ្រង Token និង Session (Token & Session Control)
-          </h2>
-          <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '4px 0 0' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+            <span
+              style={{
+                background: 'var(--primary)',
+                color: '#fff',
+                width: '36px',
+                height: '36px',
+                borderRadius: '10px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 4px 10px rgba(99, 102, 241, 0.3)',
+              }}
+            >
+              <KeyRound size={20} />
+            </span>
+            <h2 style={{ fontSize: '22px', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+              គ្រប់គ្រង Token & Sessions (Token & Session Control)
+            </h2>
+          </div>
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>
             តាមដាន Active Tokens បុគ្គលិកលើទូរស័ព្ទ App ផ្តាច់ Session (Revoke) និងកំណត់ចំនួន Login អតិបរមា (Max Tokens)
           </p>
         </div>
-      </div>
 
-      {banner && (
-        <div
-          style={{
-            padding: '12px 18px',
-            borderRadius: '12px',
-            background: banner.type === 'success' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
-            border: `1px solid ${banner.type === 'success' ? '#10b981' : '#ef4444'}`,
-            color: banner.type === 'success' ? '#10b981' : '#ef4444',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            fontSize: '13.5px',
-            fontWeight: 600,
-          }}
-        >
-          <CheckCircle2 size={16} />
-          <span>{banner.text}</span>
+        {/* Clean Segmented Sub-Tabs */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--surface-subtle, #f1f5f9)', padding: '6px', borderRadius: '14px' }}>
+          <button
+            onClick={() => setActiveTab('active_sessions')}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '9px 16px',
+              borderRadius: '10px',
+              fontWeight: 700,
+              fontSize: '13px',
+              border: 'none',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              background: activeTab === 'active_sessions' ? '#fff' : 'transparent',
+              color: activeTab === 'active_sessions' ? 'var(--primary)' : 'var(--text-secondary)',
+              boxShadow: activeTab === 'active_sessions' ? '0 4px 12px rgba(0,0,0,0.06)' : 'none',
+            }}
+          >
+            <KeyRound size={15} />
+            <span>Active Sessions ({sessions.length})</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('global_settings')}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '9px 16px',
+              borderRadius: '10px',
+              fontWeight: 700,
+              fontSize: '13px',
+              border: 'none',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              background: activeTab === 'global_settings' ? '#fff' : 'transparent',
+              color: activeTab === 'global_settings' ? 'var(--primary)' : 'var(--text-secondary)',
+              boxShadow: activeTab === 'global_settings' ? '0 4px 12px rgba(0,0,0,0.06)' : 'none',
+            }}
+          >
+            <Sliders size={15} />
+            <span>កំណត់ Token Limits</span>
+          </button>
         </div>
-      )}
-
-      {/* Tabs Switcher */}
-      <div
-        className="hrm-card"
-        style={{
-          padding: '10px 14px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          overflowX: 'auto',
-          borderRadius: '16px',
-        }}
-      >
-        <button
-          onClick={() => setActiveTab('active_sessions')}
-          className={`btn btn-sm ${activeTab === 'active_sessions' ? 'btn-primary' : 'btn-secondary'}`}
-          style={{ borderRadius: '12px', padding: '8px 18px', fontWeight: activeTab === 'active_sessions' ? 800 : 500 }}
-        >
-          <KeyRound size={15} />
-          <span>បញ្ជី Session សកម្ម (Active Sessions: {sessions.length})</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('global_settings')}
-          className={`btn btn-sm ${activeTab === 'global_settings' ? 'btn-primary' : 'btn-secondary'}`}
-          style={{ borderRadius: '12px', padding: '8px 18px', fontWeight: activeTab === 'global_settings' ? 800 : 500 }}
-        >
-          <Sliders size={15} />
-          <span>ការកំណត់ Token អតិបរមា (Global Token Limits)</span>
-        </button>
       </div>
 
       {/* ========================================================================= */}

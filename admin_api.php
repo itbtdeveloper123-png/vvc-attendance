@@ -1744,51 +1744,249 @@ try {
             break;
 
         // ==========================================
-        // 13. GPS TRACKING & TRIPS
+        // 13. GPS TRACKING & TRIPS (Matching admin_attendance.php & api.php)
         // ==========================================
         case 'fetch_gps_trips':
         case 'get_active_trips':
-            dbQuery("CREATE TABLE IF NOT EXISTS gps_trips (
+            dbQuery("CREATE TABLE IF NOT EXISTS tracking_customers (
                 id INT AUTO_INCREMENT PRIMARY KEY,
-                driver_name VARCHAR(255) NOT NULL,
-                employee_id VARCHAR(50) NOT NULL,
-                vehicle VARCHAR(100) DEFAULT 'Truck',
-                destination VARCHAR(255) DEFAULT NULL,
-                current_location VARCHAR(255) DEFAULT NULL,
-                speed VARCHAR(50) DEFAULT '0 km/h',
-                status VARCHAR(50) DEFAULT 'In Transit',
-                started_at VARCHAR(50) DEFAULT NULL,
+                name VARCHAR(255) NOT NULL,
+                phone VARCHAR(50) DEFAULT '',
+                latitude DECIMAL(20, 14) DEFAULT NULL,
+                longitude DECIMAL(20, 14) DEFAULT NULL,
+                profile_image VARCHAR(500) DEFAULT '',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
-            $trips = dbQuery("SELECT * FROM gps_trips ORDER BY id DESC");
-            if (empty($trips)) {
-                dbQuery("INSERT INTO gps_trips (driver_name, employee_id, vehicle, destination, current_location, speed, status, started_at) VALUES 
-                    ('ជា វណ្ណៈ', 'VVC-103', 'ឡានដឹកទំនិញ (Truck 2.5T)', 'សាខាកំពង់សោម (Sihanoukville Store)', 'ផ្លូវល្បឿនលឿន គ.ម ៧៤', '75 km/h', 'In Transit', '06:30 AM'),
-                    ('លឹម គឹមសាន', 'VVC-104', 'ម៉ូតូដឹកឥវ៉ាន់ (Delivery Moto)', 'អតិថិជន KouPrey Coffee (ទួលគោក)', 'ផ្លូវ 598 រាជធានីភ្នំពេញ', '35 km/h', 'Delivering', '08:45 AM')");
-                $trips = dbQuery("SELECT * FROM gps_trips ORDER BY id DESC");
+            // Safely ensure address column exists
+            $colCheck = dbQuery("SHOW COLUMNS FROM tracking_customers LIKE 'address'");
+            if (empty($colCheck)) {
+                dbQuery("ALTER TABLE tracking_customers ADD COLUMN address TEXT DEFAULT NULL");
             }
-            sendJson(['success' => true, 'trips' => $trips]);
+
+            dbQuery("CREATE TABLE IF NOT EXISTS employee_trips (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                employee_id VARCHAR(50) NOT NULL,
+                employee_name VARCHAR(255) NOT NULL DEFAULT '',
+                customer_id INT DEFAULT NULL,
+                customer_name VARCHAR(255) DEFAULT '',
+                status ENUM('active','completed','cancelled') DEFAULT 'active',
+                start_lat DECIMAL(20, 14) DEFAULT NULL,
+                start_lng DECIMAL(20, 14) DEFAULT NULL,
+                start_address VARCHAR(500) DEFAULT '',
+                end_lat DECIMAL(20, 14) DEFAULT NULL,
+                end_lng DECIMAL(20, 14) DEFAULT NULL,
+                end_address VARCHAR(500) DEFAULT '',
+                total_distance_km DECIMAL(10, 3) DEFAULT 0,
+                duration_minutes INT DEFAULT 0,
+                started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                ended_at DATETIME DEFAULT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_employee (employee_id),
+                INDEX idx_status (status),
+                INDEX idx_started (started_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+            dbQuery("CREATE TABLE IF NOT EXISTS trip_locations (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                trip_id INT NOT NULL,
+                latitude DECIMAL(20, 14) NOT NULL,
+                longitude DECIMAL(20, 14) NOT NULL,
+                speed DECIMAL(8, 2) DEFAULT 0,
+                accuracy DECIMAL(8, 2) DEFAULT 0,
+                recorded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_trip (trip_id),
+                INDEX idx_recorded (recorded_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+            $activeTrips = dbQuery("
+                SELECT t.*, u.avatar, COALESCE(u.name, t.employee_name, t.employee_id) as display_name,
+                       u.department, u.phone as employee_phone,
+                       COALESCE(c.name, t.customer_name, 'គ្មានទិសដៅ') as customer_target_name,
+                       c.latitude as target_lat, c.longitude as target_lng,
+                       (SELECT COUNT(*) FROM trip_locations WHERE trip_id = t.id) as point_count
+                FROM employee_trips t
+                LEFT JOIN users u ON t.employee_id = u.employee_id
+                LEFT JOIN tracking_customers c ON t.customer_id = c.id
+                WHERE t.status = 'active'
+                ORDER BY t.started_at DESC
+            ");
+
+            // Attach latest location to each active trip
+            foreach ($activeTrips as &$trip) {
+                $latestLoc = dbQuery("SELECT latitude, longitude, speed, accuracy, recorded_at FROM trip_locations WHERE trip_id = ? ORDER BY id DESC LIMIT 1", [$trip['id']]);
+                $trip['latest_location'] = !empty($latestLoc) ? $latestLoc[0] : null;
+                if ($trip['latest_location']) {
+                    $trip['current_lat'] = $trip['latest_location']['latitude'];
+                    $trip['current_lng'] = $trip['latest_location']['longitude'];
+                    $trip['current_speed'] = (float)$trip['latest_location']['speed'];
+                    $trip['last_recorded_at'] = $trip['latest_location']['recorded_at'];
+                } else {
+                    $trip['current_lat'] = $trip['start_lat'] ?? '11.5564';
+                    $trip['current_lng'] = $trip['start_lng'] ?? '104.9282';
+                    $trip['current_speed'] = 0;
+                    $trip['last_recorded_at'] = $trip['started_at'];
+                }
+            }
+            unset($trip);
+
+            // Stats matching admin_attendance.php
+            $todayDate = date('Y-m-d');
+            $uniqueActiveEmps = count(array_unique(array_column($activeTrips, 'employee_id')));
+            $totalKmTodayActive = array_sum(array_map(fn($t) => (float)($t['total_distance_km'] ?? 0), $activeTrips));
+            $completedTodayRes = dbQuery("SELECT COUNT(*) as total_completed, SUM(total_distance_km) as completed_km FROM employee_trips WHERE status = 'completed' AND DATE(ended_at) = ?", [$todayDate]);
+            $completedCount = (int)($completedTodayRes[0]['total_completed'] ?? 0);
+            $completedKm = (float)($completedTodayRes[0]['completed_km'] ?? 0);
+            $custCountRes = dbQuery("SELECT COUNT(*) as total_customers FROM tracking_customers");
+
+            $stats = [
+                'active_trips' => count($activeTrips),
+                'active_employees' => $uniqueActiveEmps,
+                'completed_today' => $completedCount,
+                'total_km_today' => round($totalKmTodayActive + $completedKm, 2),
+                'total_customers' => (int)($custCountRes[0]['total_customers'] ?? 0),
+            ];
+
+            sendJson(['success' => true, 'status' => 'success', 'trips' => $activeTrips, 'data' => $activeTrips, 'stats' => $stats]);
             break;
 
-        case 'save_gps_trip':
-            $tripId = (int)($_POST['id'] ?? 0);
-            $driver = trim($_POST['driver_name'] ?? '');
-            $empId = trim($_POST['employee_id'] ?? '');
-            $veh = trim($_POST['vehicle'] ?? 'Truck');
-            $dest = trim($_POST['destination'] ?? '');
-            $loc = trim($_POST['current_location'] ?? '');
-            $speed = trim($_POST['speed'] ?? '0 km/h');
-            $status = trim($_POST['status'] ?? 'In Transit');
-            $startedAt = trim($_POST['started_at'] ?? date('h:i A'));
+        case 'get_trips':
+        case 'fetch_trip_history':
+            $dateFrom = $_POST['date_from'] ?? $_GET['date_from'] ?? date('Y-m-d', strtotime('-7 days'));
+            $dateTo = $_POST['date_to'] ?? $_GET['date_to'] ?? date('Y-m-d');
+            $empFilter = trim($_POST['employee_filter'] ?? $_GET['employee_filter'] ?? $_POST['search'] ?? '');
+            $statusFilter = trim($_POST['status'] ?? $_GET['status'] ?? '');
 
-            if ($tripId > 0) {
-                dbQuery("UPDATE gps_trips SET driver_name = ?, employee_id = ?, vehicle = ?, destination = ?, current_location = ?, speed = ?, status = ? WHERE id = ?", [$driver, $empId, $veh, $dest, $loc, $speed, $status, $tripId]);
-                sendJson(['success' => true, 'message' => 'បានកែប្រែដំណើរបេសកកម្មជោគជ័យ!']);
-            } else {
-                dbQuery("INSERT INTO gps_trips (driver_name, employee_id, vehicle, destination, current_location, speed, status, started_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", [$driver, $empId, $veh, $dest, $loc, $speed, $status, $startedAt]);
-                sendJson(['success' => true, 'message' => 'បានបង្កើតដំណើរបេសកកម្មថ្មីជោគជ័យ!']);
+            $sql = "
+                SELECT t.*, u.avatar, COALESCE(u.name, t.employee_name, t.employee_id) as display_name,
+                       u.department, u.phone as employee_phone,
+                       COALESCE(c.name, t.customer_name, '—') as customer_target_name,
+                       c.latitude as target_lat, c.longitude as target_lng,
+                       (SELECT COUNT(*) FROM trip_locations WHERE trip_id = t.id) as point_count
+                FROM employee_trips t
+                LEFT JOIN users u ON t.employee_id = u.employee_id
+                LEFT JOIN tracking_customers c ON t.customer_id = c.id
+                WHERE DATE(t.started_at) BETWEEN ? AND ?
+            ";
+            $params = [$dateFrom, $dateTo];
+
+            if (!empty($empFilter)) {
+                $sql .= " AND (t.employee_id = ? OR t.employee_name LIKE ? OR u.name LIKE ?)";
+                $params[] = $empFilter;
+                $params[] = "%$empFilter%";
+                $params[] = "%$empFilter%";
             }
+
+            if (!empty($statusFilter) && $statusFilter !== 'all') {
+                $sql .= " AND t.status = ?";
+                $params[] = $statusFilter;
+            }
+
+            $sql .= " ORDER BY t.started_at DESC LIMIT 200";
+            $historyTrips = dbQuery($sql, $params);
+
+            sendJson(['success' => true, 'status' => 'success', 'trips' => $historyTrips, 'data' => $historyTrips]);
+            break;
+
+        case 'get_trip_locations':
+        case 'fetch_trip_locations':
+            $tripId = (int)($_POST['trip_id'] ?? $_GET['trip_id'] ?? 0);
+            if ($tripId <= 0) {
+                sendJson(['success' => false, 'message' => 'Trip ID មិនត្រឹមត្រូវ!'], 400);
+            }
+
+            $locations = dbQuery("SELECT latitude, longitude, speed, accuracy, recorded_at FROM trip_locations WHERE trip_id = ? ORDER BY id ASC", [$tripId]);
+            $tripInfo = dbQuery("
+                SELECT t.*, u.avatar, COALESCE(u.name, t.employee_name, t.employee_id) as display_name,
+                       COALESCE(c.name, t.customer_name, '—') as customer_name,
+                       c.latitude as target_lat, c.longitude as target_lng
+                FROM employee_trips t
+                LEFT JOIN users u ON t.employee_id = u.employee_id
+                LEFT JOIN tracking_customers c ON t.customer_id = c.id
+                WHERE t.id = ?
+            ", [$tripId]);
+
+            sendJson([
+                'success' => true,
+                'status' => 'success',
+                'trip' => !empty($tripInfo) ? $tripInfo[0] : null,
+                'locations' => $locations,
+                'points' => $locations,
+                'points_count' => count($locations),
+            ]);
+            break;
+
+        case 'admin_end_trip':
+        case 'end_trip':
+            $tripId = (int)($_POST['trip_id'] ?? 0);
+            if ($tripId <= 0) {
+                sendJson(['success' => false, 'message' => 'Trip ID មិនត្រឹមត្រូវ!'], 400);
+            }
+
+            $latestLoc = dbQuery("SELECT latitude, longitude FROM trip_locations WHERE trip_id = ? ORDER BY id DESC LIMIT 1", [$tripId]);
+            $endLat = $latestLoc[0]['latitude'] ?? null;
+            $endLng = $latestLoc[0]['longitude'] ?? null;
+
+            dbQuery("
+                UPDATE employee_trips
+                SET status = 'completed',
+                    end_lat = COALESCE(?, end_lat),
+                    end_lng = COALESCE(?, end_lng),
+                    duration_minutes = TIMESTAMPDIFF(MINUTE, started_at, NOW()),
+                    ended_at = NOW()
+                WHERE id = ?
+            ", [$endLat, $endLng, $tripId]);
+
+            sendJson(['success' => true, 'status' => 'success', 'message' => 'ការធ្វើដំណើរត្រូវបានបញ្ចប់ដោយជោគជ័យ!']);
+            break;
+
+        case 'fetch_tracking_customers':
+        case 'get_customers':
+            dbQuery("CREATE TABLE IF NOT EXISTS tracking_customers (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                phone VARCHAR(50) DEFAULT '',
+                latitude DECIMAL(20, 14) DEFAULT NULL,
+                longitude DECIMAL(20, 14) DEFAULT NULL,
+                profile_image VARCHAR(500) DEFAULT '',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+            $customers = dbQuery("SELECT * FROM tracking_customers ORDER BY created_at DESC");
+            sendJson(['success' => true, 'status' => 'success', 'customers' => $customers, 'data' => $customers]);
+            break;
+
+        case 'save_customer':
+        case 'save_tracking_customer':
+            $cId = (int)($_POST['cust_id'] ?? $_POST['id'] ?? 0);
+            $cName = trim($_POST['cust_name'] ?? $_POST['name'] ?? '');
+            $cPhone = trim($_POST['cust_phone'] ?? $_POST['phone'] ?? '');
+            $cAddr = trim($_POST['address'] ?? '');
+            $cLat = !empty($_POST['cust_lat']) ? (float)$_POST['cust_lat'] : (!empty($_POST['latitude']) ? (float)$_POST['latitude'] : 11.5564);
+            $cLng = !empty($_POST['cust_lng']) ? (float)$_POST['cust_lng'] : (!empty($_POST['longitude']) ? (float)$_POST['longitude'] : 104.9282);
+            $cImg = trim($_POST['cust_img_path'] ?? $_POST['profile_image'] ?? '');
+
+            if (empty($cName)) {
+                sendJson(['success' => false, 'message' => 'សូមបញ្ចូលឈ្មោះអតិថិជន/ទីតាំង!'], 400);
+            }
+
+            if ($cId > 0) {
+                dbQuery("UPDATE tracking_customers SET name = ?, phone = ?, latitude = ?, longitude = ?, profile_image = ?, address = ? WHERE id = ?", [$cName, $cPhone, $cLat, $cLng, $cImg, $cAddr, $cId]);
+                sendJson(['success' => true, 'status' => 'success', 'message' => 'បានកែប្រែព័ត៌មានអតិថិជនជោគជ័យ!']);
+            } else {
+                dbQuery("INSERT INTO tracking_customers (name, phone, latitude, longitude, profile_image, address) VALUES (?, ?, ?, ?, ?, ?)", [$cName, $cPhone, $cLat, $cLng, $cImg, $cAddr]);
+                sendJson(['success' => true, 'status' => 'success', 'message' => 'បានបង្កើតអតិថិជន/ទិសដៅថ្មីជោគជ័យ!']);
+            }
+            break;
+
+        case 'delete_customer':
+        case 'delete_tracking_customer':
+            $cId = (int)($_POST['id'] ?? 0);
+            if ($cId > 0) {
+                dbQuery("DELETE FROM tracking_customers WHERE id = ?", [$cId]);
+                sendJson(['success' => true, 'status' => 'success', 'message' => 'បានលុបអតិថិជនជោគជ័យ!']);
+            }
+            sendJson(['success' => false, 'message' => 'Customer ID មិនត្រឹមត្រូវ!'], 400);
             break;
 
         // ==========================================

@@ -129,83 +129,199 @@ export const RequestsPage: React.FC = () => {
     }
   };
 
+  const pendingCount = requests.filter(r => r.status === 'Pending').length;
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
+      {/* Header Banner */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '16px',
+          background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(79, 70, 229, 0.03))',
+          padding: '24px',
+          borderRadius: '18px',
+          border: '1px solid rgba(99, 102, 241, 0.15)',
+        }}
+      >
         <div>
-          <h2 style={{ fontSize: '20px', fontWeight: 800, color: 'var(--text-primary)' }}>
-            គ្រប់គ្រង & អនុម័តសំណើរ (Manage Requests)
-          </h2>
-          <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+            <span
+              style={{
+                background: 'var(--primary)',
+                color: '#fff',
+                width: '36px',
+                height: '36px',
+                borderRadius: '10px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 4px 10px rgba(99, 102, 241, 0.3)',
+              }}
+            >
+              <FileText size={20} />
+            </span>
+            <h2 style={{ fontSize: '22px', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+              គ្រប់គ្រង & អនុម័តសំណើរ (Requests & Approvals)
+            </h2>
+          </div>
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>
             ពិនិត្យសំណើរសុំច្បាប់ ថែមម៉ោង (OT) បេសកកម្ម ភ្លេចស្កេន និងសំណើរសម្ភារៈ
           </p>
         </div>
 
-        <button onClick={() => setCreateModal(true)} className="btn btn-primary">
+        <button
+          onClick={() => setCreateModal(true)}
+          className="btn btn-primary"
+          style={{ borderRadius: '12px', padding: '11px 20px', fontWeight: 700 }}
+        >
           <Plus size={16} />
-          <span>បង្កើតសំណើរថ្មី (New Request)</span>
+          <span>+ បង្កើតសំណើរថ្មី</span>
         </button>
       </div>
 
-      {/* Filter Tabs */}
+      {/* Filter Toolbar & Segmented Status Switcher */}
       <div
         className="hrm-card"
         style={{
-          padding: '16px 20px',
+          padding: '14px 18px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           flexWrap: 'wrap',
           gap: '14px',
+          borderRadius: '16px',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {['all', 'Pending', 'Approved', 'Rejected'].map((st) => (
-            <button
-              key={st}
-              onClick={() => setStatusFilter(st)}
-              className={`btn btn-sm ${statusFilter === st ? 'btn-primary' : 'btn-secondary'}`}
-            >
-              {st === 'all'
-                ? 'ទាំងអស់'
-                : st === 'Pending'
-                ? '⏳ រង់ចាំ (Pending)'
-                : st === 'Approved'
-                ? '✅ យល់ព្រម (Approved)'
-                : '❌ បដិសេធ (Rejected)'}
-            </button>
-          ))}
+        {/* Status Pills */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--surface-subtle, #f1f5f9)', padding: '5px', borderRadius: '12px', flexWrap: 'wrap' }}>
+          <button
+            onClick={() => setStatusFilter('all')}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 14px',
+              borderRadius: '9px',
+              fontWeight: 700,
+              fontSize: '13px',
+              border: 'none',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              background: statusFilter === 'all' ? '#fff' : 'transparent',
+              color: statusFilter === 'all' ? 'var(--primary)' : 'var(--text-secondary)',
+              boxShadow: statusFilter === 'all' ? '0 3px 10px rgba(0,0,0,0.06)' : 'none',
+            }}
+          >
+            <span>ទាំងអស់ ({requests.length})</span>
+          </button>
+
+          <button
+            onClick={() => setStatusFilter('Pending')}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 14px',
+              borderRadius: '9px',
+              fontWeight: 700,
+              fontSize: '13px',
+              border: 'none',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              background: statusFilter === 'Pending' ? '#fff' : 'transparent',
+              color: statusFilter === 'Pending' ? '#d97706' : 'var(--text-secondary)',
+              boxShadow: statusFilter === 'Pending' ? '0 3px 10px rgba(0,0,0,0.06)' : 'none',
+            }}
+          >
+            <Clock size={14} />
+            <span>រង់ចាំអនុម័ត {pendingCount > 0 && `(${pendingCount})`}</span>
+          </button>
+
+          <button
+            onClick={() => setStatusFilter('Approved')}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 14px',
+              borderRadius: '9px',
+              fontWeight: 700,
+              fontSize: '13px',
+              border: 'none',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              background: statusFilter === 'Approved' ? '#fff' : 'transparent',
+              color: statusFilter === 'Approved' ? '#059669' : 'var(--text-secondary)',
+              boxShadow: statusFilter === 'Approved' ? '0 3px 10px rgba(0,0,0,0.06)' : 'none',
+            }}
+          >
+            <CheckCircle size={14} />
+            <span>បានអនុម័ត</span>
+          </button>
+
+          <button
+            onClick={() => setStatusFilter('Rejected')}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 14px',
+              borderRadius: '9px',
+              fontWeight: 700,
+              fontSize: '13px',
+              border: 'none',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              background: statusFilter === 'Rejected' ? '#fff' : 'transparent',
+              color: statusFilter === 'Rejected' ? '#dc2626' : 'var(--text-secondary)',
+              boxShadow: statusFilter === 'Rejected' ? '0 3px 10px rgba(0,0,0,0.06)' : 'none',
+            }}
+          >
+            <XCircle size={14} />
+            <span>បានបដិសេធ</span>
+          </button>
         </div>
 
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            background: 'var(--surface-alt)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius)',
-            padding: '7px 12px',
-            width: '260px',
-            gap: '8px',
-          }}
-        >
-          <Search size={15} color="var(--text-muted)" />
-          <input
-            type="text"
-            placeholder="ស្វែងរកឈ្មោះ, ប្រភេទ..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+        {/* Right Search & Refresh */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div
             style={{
-              background: 'transparent',
-              border: 'none',
-              outline: 'none',
-              fontSize: '13px',
-              color: 'var(--text-primary)',
-              fontFamily: 'inherit',
-              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              background: 'var(--surface-alt)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius)',
+              padding: '8px 14px',
+              width: '260px',
+              gap: '8px',
             }}
-          />
+          >
+            <Search size={15} color="var(--text-muted)" />
+            <input
+              type="text"
+              placeholder="ស្វែងរកឈ្មោះ, ប្រភេទ..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                outline: 'none',
+                fontSize: '13px',
+                color: 'var(--text-primary)',
+                fontFamily: 'inherit',
+                width: '100%',
+              }}
+            />
+          </div>
+
+          <button onClick={loadRequests} className="btn btn-secondary btn-sm" title="ផ្ទុកឡើងវិញ">
+            <RotateCw size={14} className={loading ? 'fa-spin' : ''} />
+            <span>Refresh</span>
+          </button>
         </div>
       </div>
 

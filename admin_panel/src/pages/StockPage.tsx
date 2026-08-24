@@ -452,34 +452,75 @@ export const StockPage: React.FC = () => {
     }
   };
 
-  // Dropdown Sub-pages matching admin_attendance.php
+  // Dropdown Sub-pages
   const STOCK_SUBPAGES = [
-    { id: 'stock_control', label: 'គ្រប់គ្រងស្តុក (Stock Control)', icon: Package },
-    { id: 'stock_purchase', label: 'ទិញចូលស្តុក (Stock Purchase)', icon: ShoppingCart },
-    { id: 'stock_reports', label: 'របាយការណ៍ស្តុក (Stock Reports)', icon: FileSpreadsheet },
-    { id: 'stock_counting', label: 'ការរាប់ស្តុក (Stock Counting)', icon: ClipboardList },
-    { id: 'stock_requests', label: 'ពិនិត្យសំណើរ (Stock Requests)', icon: FileText },
-    { id: 'direct_transfer', label: 'ផ្ទេរដោយផ្ទាល់ (Direct Transfer)', icon: Truck },
+    { id: 'stock_control', label: 'បញ្ជីស្តុក (Stock Control)', icon: Package },
+    { id: 'stock_purchase', label: 'ទិញចូល (Purchase)', icon: ShoppingCart },
+    { id: 'stock_reports', label: 'របាយការណ៍ (Reports)', icon: FileSpreadsheet },
+    { id: 'stock_counting', label: 'ការរាប់ស្តុក (Count)', icon: ClipboardList },
+    { id: 'stock_requests', label: 'សំណើសម្ភារៈ (Requests)', icon: FileText },
+    { id: 'direct_transfer', label: 'ផ្ទេរទំនិញ (Transfers)', icon: Truck },
   ];
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', maxWidth: '1200px', margin: '0 auto' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '22px', maxWidth: '1200px', margin: '0 auto', width: '100%' }}>
+      {/* Header Banner */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '16px',
+          background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(79, 70, 229, 0.03))',
+          padding: '24px',
+          borderRadius: '18px',
+          border: '1px solid rgba(99, 102, 241, 0.15)',
+        }}
+      >
         <div>
-          <h2 style={{ fontSize: '22px', fontWeight: 800, color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <Package size={24} color="var(--primary)" />
-            គ្រប់គ្រងស្តុក & សម្ភារៈ (Stock Management)
-          </h2>
-          <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '4px 0 0' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+            <span
+              style={{
+                background: 'var(--primary)',
+                color: '#fff',
+                width: '36px',
+                height: '36px',
+                borderRadius: '10px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 4px 10px rgba(99, 102, 241, 0.3)',
+              }}
+            >
+              <Package size={20} />
+            </span>
+            <h2 style={{ fontSize: '22px', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+              គ្រប់គ្រងស្តុក & សម្ភារៈ (Stock Management)
+            </h2>
+          </div>
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>
             គ្រប់គ្រងទំនិញក្នុងស្តុក ប័ណ្ណទិញចូល សំណើសម្ភារៈ ផ្ទេរទំនិញ និងរបាយការណ៍សវនកម្មស្តុក
           </p>
         </div>
 
-        {activePage === 'stock_control' && (
-          <button onClick={handleOpenCreate} className="btn btn-primary">
+        {activePage === 'stock_control' ? (
+          <button
+            onClick={handleOpenCreate}
+            className="btn btn-primary"
+            style={{ borderRadius: '12px', padding: '11px 20px', fontWeight: 700 }}
+          >
             <Plus size={16} />
-            <span>បន្ថែមទំនិញថ្មី (Add Item)</span>
+            <span>+ បន្ថែមទំនិញថ្មី</span>
+          </button>
+        ) : (
+          <button
+            onClick={() => setActivePage('stock_control')}
+            className="btn btn-secondary"
+            style={{ borderRadius: '12px', padding: '11px 20px', fontWeight: 700 }}
+          >
+            <Package size={16} />
+            <span>← ត្រឡប់ទៅបញ្ជីស្តុក</span>
           </button>
         )}
       </div>
@@ -512,16 +553,16 @@ export const StockPage: React.FC = () => {
         </div>
       )}
 
-      {/* Subpage Switcher Tabs */}
+      {/* Subpage Segmented Controls */}
       <div
-        className="hrm-card"
         style={{
-          padding: '10px 14px',
           display: 'flex',
           alignItems: 'center',
-          gap: '8px',
+          gap: '6px',
+          background: 'var(--surface-subtle, #f1f5f9)',
+          padding: '6px',
+          borderRadius: '14px',
           overflowX: 'auto',
-          borderRadius: '16px',
         }}
       >
         {STOCK_SUBPAGES.map((tab) => {
@@ -531,13 +572,21 @@ export const StockPage: React.FC = () => {
             <button
               key={tab.id}
               onClick={() => setActivePage(tab.id as any)}
-              className={`btn btn-sm ${isActive ? 'btn-primary' : 'btn-secondary'}`}
               style={{
-                borderRadius: '12px',
-                padding: '8px 16px',
-                fontWeight: isActive ? 800 : 500,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '9px 16px',
+                borderRadius: '10px',
+                fontWeight: 700,
+                fontSize: '13px',
+                border: 'none',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
                 whiteSpace: 'nowrap',
-                boxShadow: isActive ? '0 4px 14px rgba(37, 99, 235, 0.25)' : 'none',
+                background: isActive ? '#fff' : 'transparent',
+                color: isActive ? 'var(--primary)' : 'var(--text-secondary)',
+                boxShadow: isActive ? '0 4px 12px rgba(0,0,0,0.06)' : 'none',
               }}
             >
               <Icon size={14} />

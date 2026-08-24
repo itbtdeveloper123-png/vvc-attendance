@@ -255,14 +255,52 @@ export interface QuizItem {
 
 export interface GpsTripItem {
   id: number;
-  driver_name: string;
   employee_id: string;
-  vehicle: string;
-  destination: string;
-  current_location: string;
-  speed: string;
-  status: string;
-  started_at: string;
+  employee_name?: string;
+  display_name?: string;
+  avatar?: string;
+  department?: string;
+  employee_phone?: string;
+  customer_id?: number | null;
+  customer_name?: string;
+  customer_target_name?: string;
+  target_lat?: number | string | null;
+  target_lng?: number | string | null;
+  target_address?: string;
+  status: 'active' | 'completed' | 'cancelled';
+  start_lat?: number | string | null;
+  start_lng?: number | string | null;
+  start_address?: string;
+  end_lat?: number | string | null;
+  end_lng?: number | string | null;
+  end_address?: string;
+  current_lat?: number | string | null;
+  current_lng?: number | string | null;
+  current_speed?: number | string;
+  total_distance_km?: number | string;
+  duration_minutes?: number | string;
+  started_at?: string;
+  ended_at?: string;
+  point_count?: number;
+  last_recorded_at?: string;
+  latest_location?: {
+    latitude: number | string;
+    longitude: number | string;
+    speed: number | string;
+    accuracy: number | string;
+    recorded_at: string;
+  } | null;
+}
+
+export interface TrackingCustomerItem {
+  id: number;
+  name: string;
+  phone?: string;
+  address?: string;
+  latitude?: number | string;
+  longitude?: number | string;
+  profile_image?: string;
+  created_at?: string;
 }
 
 export interface PayrollItem {
@@ -776,7 +814,7 @@ export const adminApi = {
     return res.data;
   },
 
-  // GPS Tracking
+  // GPS Tracking & Trips (Matching admin_attendance.php)
   fetchGpsTrips: async () => {
     const params = new URLSearchParams();
     params.append('action', 'fetch_gps_trips');
@@ -784,12 +822,54 @@ export const adminApi = {
     return res.data;
   },
 
-  saveGpsTrip: async (data: Partial<GpsTripItem>) => {
+  fetchTripHistory: async (dateFrom?: string, dateTo?: string, search?: string, status?: string) => {
     const params = new URLSearchParams();
-    params.append('action', 'save_gps_trip');
+    params.append('action', 'fetch_trip_history');
+    if (dateFrom) params.append('date_from', dateFrom);
+    if (dateTo) params.append('date_to', dateTo);
+    if (search) params.append('employee_filter', search);
+    if (status) params.append('status', status);
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  fetchTripLocations: async (tripId: number) => {
+    const params = new URLSearchParams();
+    params.append('action', 'fetch_trip_locations');
+    params.append('trip_id', String(tripId));
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  endTrip: async (tripId: number) => {
+    const params = new URLSearchParams();
+    params.append('action', 'admin_end_trip');
+    params.append('trip_id', String(tripId));
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  fetchTrackingCustomers: async () => {
+    const params = new URLSearchParams();
+    params.append('action', 'fetch_tracking_customers');
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  saveTrackingCustomer: async (data: Partial<TrackingCustomerItem>) => {
+    const params = new URLSearchParams();
+    params.append('action', 'save_tracking_customer');
     Object.entries(data).forEach(([k, v]) => {
       if (v !== undefined && v !== null) params.append(k, String(v));
     });
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  deleteTrackingCustomer: async (id: number) => {
+    const params = new URLSearchParams();
+    params.append('action', 'delete_tracking_customer');
+    params.append('id', String(id));
     const res = await apiClient.post('', params);
     return res.data;
   },
