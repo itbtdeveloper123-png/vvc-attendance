@@ -608,55 +608,196 @@ try {
         // ==========================================
         // 8. STOCK & INVENTORY
         // ==========================================
+        // 8. STOCK MANAGEMENT (All Sub-Pages & Actions)
+        // ==========================================
         case 'fetch_stock_items':
         case 'get_stock':
             dbQuery("CREATE TABLE IF NOT EXISTS stock_items (
                 id INT AUTO_INCREMENT PRIMARY KEY,
-                code VARCHAR(100) NOT NULL,
+                code VARCHAR(100) NOT NULL DEFAULT '',
                 name VARCHAR(255) NOT NULL,
+                item_name VARCHAR(255) DEFAULT '',
                 category VARCHAR(100) DEFAULT 'General',
                 quantity INT DEFAULT 0,
                 unit VARCHAR(50) DEFAULT 'កញ្ចប់',
                 price DECIMAL(10, 2) DEFAULT 0.00,
                 location VARCHAR(100) DEFAULT 'Store 318',
                 status VARCHAR(50) DEFAULT 'In Stock',
+                image_path VARCHAR(255) DEFAULT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+            // Create auxiliary tables for stock
+            dbQuery("CREATE TABLE IF NOT EXISTS stock_purchases (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                supplier VARCHAR(255) DEFAULT '',
+                invoice_number VARCHAR(100) DEFAULT '',
+                invoice_image VARCHAR(255) DEFAULT NULL,
+                notes TEXT,
+                total_amount DECIMAL(12,2) DEFAULT 0.00,
+                created_by VARCHAR(100) DEFAULT 'Admin',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
-            $stockItems = dbQuery("SELECT * FROM stock_items ORDER BY id DESC");
+            dbQuery("CREATE TABLE IF NOT EXISTS stock_purchase_items (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                purchase_id INT NOT NULL,
+                item_id INT NOT NULL,
+                item_name VARCHAR(255) DEFAULT '',
+                quantity INT DEFAULT 0,
+                price DECIMAL(10,2) DEFAULT 0.00,
+                total DECIMAL(12,2) DEFAULT 0.00
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+            dbQuery("CREATE TABLE IF NOT EXISTS stock_transfers (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                transfer_title VARCHAR(255) DEFAULT '',
+                request_no VARCHAR(100) DEFAULT '',
+                stock_item_id INT DEFAULT 0,
+                item_name VARCHAR(255) DEFAULT '',
+                quantity_transferred INT DEFAULT 0,
+                to_location VARCHAR(100) DEFAULT '',
+                notes TEXT,
+                transfer_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+            dbQuery("CREATE TABLE IF NOT EXISTS stock_count_history (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                item_id INT DEFAULT 0,
+                item_name VARCHAR(255) DEFAULT '',
+                system_qty INT DEFAULT 0,
+                physical_qty INT DEFAULT 0,
+                difference INT DEFAULT 0,
+                phase VARCHAR(50) DEFAULT 'Morning',
+                count_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                notes TEXT
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+            dbQuery("CREATE TABLE IF NOT EXISTS stock_movements (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                item_id INT DEFAULT 0,
+                item_name VARCHAR(255) DEFAULT '',
+                movement_type VARCHAR(100) DEFAULT 'transfer',
+                quantity_change INT DEFAULT 0,
+                quantity_before INT DEFAULT 0,
+                quantity_after INT DEFAULT 0,
+                reference_no VARCHAR(100) DEFAULT '',
+                reference_type VARCHAR(100) DEFAULT '',
+                actor_name VARCHAR(100) DEFAULT 'Admin',
+                notes TEXT,
+                location VARCHAR(100) DEFAULT '',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+            dbQuery("CREATE TABLE IF NOT EXISTS stock_request (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                request_no VARCHAR(100) NOT NULL,
+                title VARCHAR(255) DEFAULT '',
+                user_id VARCHAR(100) DEFAULT '',
+                user_name VARCHAR(255) DEFAULT '',
+                department VARCHAR(100) DEFAULT '',
+                location VARCHAR(100) DEFAULT '',
+                status VARCHAR(50) DEFAULT 'pending',
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+            $search = trim($_POST['search'] ?? $_GET['search'] ?? '');
+            if (!empty($search)) {
+                $stockItems = dbQuery("SELECT id, COALESCE(NULLIF(name, ''), item_name, 'Item') as name, COALESCE(NULLIF(item_name, ''), name, 'Item') as item_name, code, category, quantity, unit, price, location, status, image_path, created_at FROM stock_items WHERE name LIKE ? OR item_name LIKE ? OR code LIKE ? OR category LIKE ? ORDER BY id DESC", ["%$search%", "%$search%", "%$search%", "%$search%"]);
+            } else {
+                $stockItems = dbQuery("SELECT id, COALESCE(NULLIF(name, ''), item_name, 'Item') as name, COALESCE(NULLIF(item_name, ''), name, 'Item') as item_name, code, category, quantity, unit, price, location, status, image_path, created_at FROM stock_items ORDER BY id DESC");
+            }
+
             if (empty($stockItems)) {
-                dbQuery("INSERT INTO stock_items (code, name, category, quantity, unit, price, location, status) VALUES 
-                    ('STK-001', 'កាហ្វេគូលែន KouPrey Coffee (250g)', 'Coffee Beans', 140, 'កញ្ចប់', 6.50, 'Store 318', 'In Stock'),
-                    ('STK-002', 'តែបៃតង Green Tea Premium (500g)', 'Tea & Beverages', 8, 'កញ្ចប់', 8.00, 'Store SKKS2', 'Low Stock'),
-                    ('STK-003', 'កែវជ័រ VVC Eco Cup (500ml)', 'Packaging', 2500, 'កែវ', 0.12, 'Warehouse PSP', 'In Stock'),
-                    ('STK-004', 'ទឹកស៊ីរ៉ូវ៉ានីឡា Vanilla Syrup (1L)', 'Ingredients', 0, 'ដប', 12.00, 'Warehouse PSP', 'Out of Stock')");
-                $stockItems = dbQuery("SELECT * FROM stock_items ORDER BY id DESC");
+                dbQuery("INSERT INTO stock_items (code, name, item_name, category, quantity, unit, price, location, status) VALUES 
+                    ('STK-001', 'កាហ្វេគូលែន KouPrey Coffee (250g)', 'កាហ្វេគូលែន KouPrey Coffee (250g)', 'Coffee Beans', 140, 'កញ្ចប់', 6.50, 'Store 318', 'In Stock'),
+                    ('STK-002', 'តែបៃតង Green Tea Premium (500g)', 'តែបៃតង Green Tea Premium (500g)', 'Tea & Beverages', 8, 'កញ្ចប់', 8.00, 'Store SKKS2', 'Low Stock'),
+                    ('STK-003', 'កែវជ័រ VVC Eco Cup (500ml)', 'កែវជ័រ VVC Eco Cup (500ml)', 'Packaging', 2500, 'កែវ', 0.12, 'Warehouse PSP', 'In Stock'),
+                    ('STK-004', 'ទឹកស៊ីរ៉ូវ៉ានីឡា Vanilla Syrup (1L)', 'ទឹកស៊ីរ៉ូវ៉ានីឡា Vanilla Syrup (1L)', 'Ingredients', 0, 'ដប', 12.00, 'Warehouse PSP', 'Out of Stock')");
+                $stockItems = dbQuery("SELECT id, COALESCE(NULLIF(name, ''), item_name, 'Item') as name, COALESCE(NULLIF(item_name, ''), name, 'Item') as item_name, code, category, quantity, unit, price, location, status, image_path, created_at FROM stock_items ORDER BY id DESC");
             }
             sendJson(['success' => true, 'items' => $stockItems]);
             break;
 
+        case 'get_stock_item':
+            $id = (int)($_POST['id'] ?? $_GET['id'] ?? 0);
+            $item = dbQuery("SELECT id, COALESCE(NULLIF(name, ''), item_name, 'Item') as name, COALESCE(NULLIF(item_name, ''), name, 'Item') as item_name, code, category, quantity, unit, price, location, status, image_path FROM stock_items WHERE id = ? LIMIT 1", [$id]);
+            if (!empty($item)) {
+                sendJson(['success' => true, 'data' => $item[0]]);
+            }
+            sendJson(['success' => false, 'message' => 'ទំនិញរកមិនឃើញ!'], 404);
+            break;
+
         case 'save_stock_item':
-            $itemId = (int)($_POST['id'] ?? 0);
+        case 'add_stock':
+        case 'update_stock':
+            $itemId = (int)($_POST['id'] ?? $_POST['item_id'] ?? 0);
             $code = trim($_POST['code'] ?? 'STK-' . rand(100, 999));
-            $name = trim($_POST['name'] ?? '');
+            $name = trim($_POST['name'] ?? $_POST['item_name'] ?? '');
             $category = trim($_POST['category'] ?? 'General');
             $qty = (int)($_POST['quantity'] ?? 0);
             $unit = trim($_POST['unit'] ?? 'កញ្ចប់');
             $price = (float)($_POST['price'] ?? 0.00);
             $location = trim($_POST['location'] ?? 'Store 318');
             $status = $qty <= 0 ? 'Out of Stock' : ($qty < 10 ? 'Low Stock' : 'In Stock');
+            $imagePath = null;
+
+            if (isset($_FILES['item_image']) && $_FILES['item_image']['error'] === UPLOAD_ERR_OK) {
+                $ext = strtolower(pathinfo($_FILES['item_image']['name'], PATHINFO_EXTENSION));
+                if (in_array($ext, ['jpg', 'jpeg', 'png', 'webp', 'gif'])) {
+                    $uploadDir = __DIR__ . '/uploads/stock/';
+                    if (!is_dir($uploadDir)) @mkdir($uploadDir, 0777, true);
+                    $filename = 'stock_' . time() . '_' . rand(1000, 9999) . '.' . $ext;
+                    if (move_uploaded_file($_FILES['item_image']['tmp_name'], $uploadDir . $filename)) {
+                        $imagePath = 'uploads/stock/' . $filename;
+                    }
+                }
+            }
 
             if (empty($name)) {
                 sendJson(['success' => false, 'message' => 'សូមបញ្ចូលឈ្មោះទំនិញ!'], 400);
             }
 
             if ($itemId > 0) {
-                dbQuery("UPDATE stock_items SET code = ?, name = ?, category = ?, quantity = ?, unit = ?, price = ?, location = ?, status = ? WHERE id = ?", [$code, $name, $category, $qty, $unit, $price, $location, $status, $itemId]);
+                if ($imagePath) {
+                    dbQuery("UPDATE stock_items SET code = ?, name = ?, item_name = ?, category = ?, quantity = ?, unit = ?, price = ?, location = ?, status = ?, image_path = ? WHERE id = ?", [$code, $name, $name, $category, $qty, $unit, $price, $location, $status, $imagePath, $itemId]);
+                } else {
+                    dbQuery("UPDATE stock_items SET code = ?, name = ?, item_name = ?, category = ?, quantity = ?, unit = ?, price = ?, location = ?, status = ? WHERE id = ?", [$code, $name, $name, $category, $qty, $unit, $price, $location, $status, $itemId]);
+                }
                 sendJson(['success' => true, 'message' => 'បានកែប្រែទំនិញជោគជ័យ!']);
             } else {
-                dbQuery("INSERT INTO stock_items (code, name, category, quantity, unit, price, location, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", [$code, $name, $category, $qty, $unit, $price, $location, $status]);
+                dbQuery("INSERT INTO stock_items (code, name, item_name, category, quantity, unit, price, location, status, image_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [$code, $name, $name, $category, $qty, $unit, $price, $location, $status, $imagePath]);
                 sendJson(['success' => true, 'message' => 'បានបញ្ចូលទំនិញថ្មីជោគជ័យ!']);
             }
+            break;
+
+        case 'deduct_stock':
+            $itemId = (int)($_POST['item_id'] ?? $_POST['id'] ?? 0);
+            $deductQty = (int)($_POST['deduct_quantity'] ?? $_POST['quantity'] ?? 0);
+            if ($itemId <= 0 || $deductQty <= 0) {
+                sendJson(['success' => false, 'message' => 'ចំនួនមិនត្រឹមត្រូវ!'], 400);
+            }
+            $itemRows = dbQuery("SELECT id, name, item_name, quantity FROM stock_items WHERE id = ? LIMIT 1", [$itemId]);
+            if (empty($itemRows)) {
+                sendJson(['success' => false, 'message' => 'រកមិនឃើញទំនិញ!'], 404);
+            }
+            $item = $itemRows[0];
+            $currentQty = (int)$item['quantity'];
+            if ($deductQty > $currentQty) {
+                sendJson(['success' => false, 'message' => 'បរិមាណដែលដកចេញ មិនអាចធំជាងបរិមាណក្នុងស្តុកឡើយ!'], 400);
+            }
+            $newQty = $currentQty - $deductQty;
+            $newStatus = $newQty <= 0 ? 'Out of Stock' : ($newQty < 10 ? 'Low Stock' : 'In Stock');
+            dbQuery("UPDATE stock_items SET quantity = ?, status = ? WHERE id = ?", [$newQty, $newStatus, $itemId]);
+
+            // Record movement
+            $itemName = $item['name'] ?: $item['item_name'];
+            dbQuery("INSERT INTO stock_movements (item_id, item_name, movement_type, quantity_change, quantity_before, quantity_after, reference_no, reference_type, actor_name, notes) VALUES (?, ?, 'deduct', ?, ?, ?, 'MANUAL-DEDUCT', 'Manual Action', 'Admin', 'កាត់ចេញពីស្តុកដោយផ្ទាល់')", [$itemId, $itemName, -$deductQty, $currentQty, $newQty]);
+
+            sendJson(['success' => true, 'message' => "បានកាត់បន្ថយចំនួន $deductQty ជោគជ័យ (នៅសល់: $newQty)"]);
             break;
 
         case 'delete_stock_item':
@@ -666,6 +807,215 @@ try {
                 sendJson(['success' => true, 'message' => 'បានលុបទំនិញជោគជ័យ!']);
             }
             sendJson(['success' => false, 'message' => 'Invalid Stock Item ID']);
+            break;
+
+        case 'fetch_stock_purchases':
+            $purchases = dbQuery("SELECT p.*, (SELECT COUNT(*) FROM stock_purchase_items WHERE purchase_id = p.id) as total_items FROM stock_purchases p ORDER BY p.id DESC LIMIT 50");
+            sendJson(['success' => true, 'purchases' => $purchases]);
+            break;
+
+        case 'save_stock_purchase':
+        case 'process_purchase':
+            $supplier = trim($_POST['supplier'] ?? '');
+            $invoiceNumber = trim($_POST['invoice_number'] ?? 'INV-' . time());
+            $notes = trim($_POST['notes'] ?? '');
+            $itemsJson = $_POST['items'] ?? null;
+            $invoiceImage = null;
+
+            if (isset($_FILES['invoice_image']) && $_FILES['invoice_image']['error'] === UPLOAD_ERR_OK) {
+                $ext = strtolower(pathinfo($_FILES['invoice_image']['name'], PATHINFO_EXTENSION));
+                if (in_array($ext, ['jpg', 'jpeg', 'png', 'webp', 'pdf'])) {
+                    $uploadDir = __DIR__ . '/uploads/invoices/';
+                    if (!is_dir($uploadDir)) @mkdir($uploadDir, 0777, true);
+                    $filename = 'inv_' . time() . '_' . rand(1000, 9999) . '.' . $ext;
+                    if (move_uploaded_file($_FILES['invoice_image']['tmp_name'], $uploadDir . $filename)) {
+                        $invoiceImage = 'uploads/invoices/' . $filename;
+                    }
+                }
+            }
+
+            $itemsList = [];
+            if (is_string($itemsJson)) {
+                $itemsList = json_decode($itemsJson, true) ?: [];
+            } elseif (is_array($itemsJson)) {
+                $itemsList = $itemsJson;
+            } elseif (isset($_POST['item_id']) && is_array($_POST['item_id'])) {
+                foreach ($_POST['item_id'] as $idx => $iid) {
+                    $itemsList[] = [
+                        'item_id' => (int)$iid,
+                        'quantity' => (int)($_POST['quantity'][$idx] ?? 0),
+                        'price' => (float)($_POST['price'][$idx] ?? 0),
+                    ];
+                }
+            }
+
+            if (empty($itemsList)) {
+                sendJson(['success' => false, 'message' => 'សូមបន្ថែមទំនិញយ៉ាងហោចណាស់មួយ!'], 400);
+            }
+
+            $totalAmount = 0;
+            foreach ($itemsList as $it) {
+                $totalAmount += ((int)($it['quantity'] ?? 0)) * ((float)($it['price'] ?? 0));
+            }
+
+            dbQuery("INSERT INTO stock_purchases (supplier, invoice_number, invoice_image, notes, total_amount, created_by) VALUES (?, ?, ?, ?, ?, 'Admin')", [$supplier, $invoiceNumber, $invoiceImage, $notes, $totalAmount]);
+            $purchaseId = $mysqli->insert_id;
+
+            foreach ($itemsList as $it) {
+                $iid = (int)($it['item_id'] ?? 0);
+                $iqty = (int)($it['quantity'] ?? 0);
+                $iprice = (float)($it['price'] ?? 0);
+                if ($iid <= 0 || $iqty <= 0) continue;
+
+                $stockRow = dbQuery("SELECT id, name, item_name, quantity FROM stock_items WHERE id = ? LIMIT 1", [$iid]);
+                $itemName = !empty($stockRow) ? ($stockRow[0]['name'] ?: $stockRow[0]['item_name']) : "Item #$iid";
+                $oldQty = !empty($stockRow) ? (int)$stockRow[0]['quantity'] : 0;
+                $newQty = $oldQty + $iqty;
+
+                dbQuery("INSERT INTO stock_purchase_items (purchase_id, item_id, item_name, quantity, price, total) VALUES (?, ?, ?, ?, ?, ?)", [$purchaseId, $iid, $itemName, $iqty, $iprice, $iqty * $iprice]);
+                dbQuery("UPDATE stock_items SET quantity = ?, status = 'In Stock', price = CASE WHEN ? > 0 THEN ? ELSE price END WHERE id = ?", [$newQty, $iprice, $iprice, $iid]);
+
+                dbQuery("INSERT INTO stock_movements (item_id, item_name, movement_type, quantity_change, quantity_before, quantity_after, reference_no, reference_type, actor_name, notes) VALUES (?, ?, 'purchase', ?, ?, ?, ?, 'Purchase Invoice', 'Admin', ?)", [$iid, $itemName, $iqty, $oldQty, $newQty, $invoiceNumber, "ទិញចូលពី $supplier"]);
+            }
+
+            sendJson(['success' => true, 'message' => 'បានទិញចូលស្តុកជោគជ័យ!']);
+            break;
+
+        case 'fetch_stock_reports':
+            $totalItems = (int)(dbQuery("SELECT COUNT(*) as c FROM stock_items")[0]['c'] ?? 0);
+            $totalQty = (int)(dbQuery("SELECT SUM(quantity) as c FROM stock_items")[0]['c'] ?? 0);
+            $totalValue = (float)(dbQuery("SELECT SUM(quantity * price) as c FROM stock_items")[0]['c'] ?? 0);
+            $lowStock = (int)(dbQuery("SELECT COUNT(*) as c FROM stock_items WHERE quantity <= 10")[0]['c'] ?? 0);
+
+            $tab = trim($_POST['tab'] ?? $_GET['tab'] ?? 'all_stock');
+            $data = [];
+
+            if ($tab === 'all_stock') {
+                $data = dbQuery("SELECT id, COALESCE(NULLIF(name, ''), item_name, 'Item') as name, COALESCE(NULLIF(item_name, ''), name, 'Item') as item_name, code, category, quantity, unit, price, (quantity * price) as total_value, location, status, image_path FROM stock_items ORDER BY quantity ASC");
+            } elseif ($tab === 'low_stock') {
+                $data = dbQuery("SELECT id, COALESCE(NULLIF(name, ''), item_name, 'Item') as name, COALESCE(NULLIF(item_name, ''), name, 'Item') as item_name, code, category, quantity, unit, price, (quantity * price) as total_value, location, status FROM stock_items WHERE quantity <= 10 ORDER BY quantity ASC");
+            } elseif ($tab === 'requests') {
+                $data = dbQuery("SELECT * FROM stock_request ORDER BY created_at DESC LIMIT 50");
+            } elseif ($tab === 'history') {
+                $data = dbQuery("SELECT st.*, COALESCE(si.name, si.item_name, st.item_name) as item_name FROM stock_transfers st LEFT JOIN stock_items si ON st.stock_item_id = si.id ORDER BY st.transfer_date DESC LIMIT 50");
+            } elseif ($tab === 'ledger') {
+                $data = dbQuery("SELECT * FROM stock_movements ORDER BY created_at DESC, id DESC LIMIT 150");
+            }
+
+            sendJson([
+                'success' => true,
+                'stats' => [
+                    'total_items' => $totalItems,
+                    'total_qty' => $totalQty,
+                    'total_value' => $totalValue,
+                    'low_stock' => $lowStock
+                ],
+                'tab' => $tab,
+                'data' => $data
+            ]);
+            break;
+
+        case 'fetch_stock_counting':
+            $items = dbQuery("SELECT id, COALESCE(NULLIF(name, ''), item_name, 'Item') as item_name, quantity, code, category FROM stock_items ORDER BY item_name ASC");
+            $searchDate = trim($_POST['search_date'] ?? $_GET['search_date'] ?? date('Y-m-d'));
+            $history = dbQuery("SELECT * FROM stock_count_history WHERE DATE(count_date) = ? ORDER BY count_date DESC", [$searchDate]);
+            sendJson(['success' => true, 'items' => $items, 'history' => $history, 'search_date' => $searchDate]);
+            break;
+
+        case 'save_stock_count':
+            $phase = trim($_POST['phase'] ?? 'Morning');
+            $counts = $_POST['counts'] ?? [];
+            if (is_string($counts)) $counts = json_decode($counts, true) ?: [];
+
+            if (empty($counts)) {
+                sendJson(['success' => false, 'message' => 'សូមបញ្ចូលចំនួនដែលបានរាប់យ៉ាងហោចណាស់មួយទំនិញ!'], 400);
+            }
+
+            foreach ($counts as $itemId => $physQty) {
+                $iid = (int)$itemId;
+                $pqty = (int)$physQty;
+                $stockRow = dbQuery("SELECT id, name, item_name, quantity FROM stock_items WHERE id = ? LIMIT 1", [$iid]);
+                if (empty($stockRow)) continue;
+
+                $itemName = $stockRow[0]['name'] ?: $stockRow[0]['item_name'];
+                $sysQty = (int)$stockRow[0]['quantity'];
+                $diff = $pqty - $sysQty;
+
+                dbQuery("INSERT INTO stock_count_history (item_id, item_name, system_qty, physical_qty, difference, phase, count_date) VALUES (?, ?, ?, ?, ?, ?, NOW())", [$iid, $itemName, $sysQty, $pqty, $diff, $phase]);
+
+                // Update system quantity to match physical count
+                $status = $pqty <= 0 ? 'Out of Stock' : ($pqty < 10 ? 'Low Stock' : 'In Stock');
+                dbQuery("UPDATE stock_items SET quantity = ?, status = ? WHERE id = ?", [$pqty, $status, $iid]);
+
+                dbQuery("INSERT INTO stock_movements (item_id, item_name, movement_type, quantity_change, quantity_before, quantity_after, reference_no, reference_type, actor_name, notes) VALUES (?, ?, 'count_adjustment', ?, ?, ?, ?, 'Stock Audit', 'Admin', ?)", [$iid, $itemName, $diff, $sysQty, $pqty, "COUNT-$phase", "ការរាប់ស្តុកវេន $phase"]);
+            }
+
+            sendJson(['success' => true, 'message' => 'បានរក្សាទុកលទ្ធផលការរាប់ស្តុកជោគជ័យ!']);
+            break;
+
+        case 'fetch_stock_requests':
+            $status = trim($_POST['status'] ?? $_GET['status'] ?? '');
+            if (!empty($status)) {
+                $requests = dbQuery("SELECT sr.*, u.name as user_name FROM stock_request sr LEFT JOIN users u ON sr.user_id = u.employee_id WHERE sr.status = ? ORDER BY sr.created_at DESC", [$status]);
+            } else {
+                $requests = dbQuery("SELECT sr.*, u.name as user_name FROM stock_request sr LEFT JOIN users u ON sr.user_id = u.employee_id ORDER BY sr.created_at DESC LIMIT 100");
+            }
+            sendJson(['success' => true, 'requests' => $requests]);
+            break;
+
+        case 'update_stock_request_status':
+            $reqId = (int)($_POST['request_id'] ?? $_POST['id'] ?? 0);
+            $newStatus = trim($_POST['status'] ?? 'approved');
+            $comment = trim($_POST['admin_comment'] ?? '');
+
+            if ($reqId <= 0) {
+                sendJson(['success' => false, 'message' => 'Invalid Request ID'], 400);
+            }
+
+            dbQuery("UPDATE stock_request SET status = ?, notes = CONCAT(COALESCE(notes, ''), ' | ', ?) WHERE id = ?", [$newStatus, $comment, $reqId]);
+            sendJson(['success' => true, 'message' => "បានធ្វើបច្ចុប្បន្នភាពសំណើជា $newStatus ជោគជ័យ!"]);
+            break;
+
+        case 'fetch_direct_transfers':
+            $transfers = dbQuery("SELECT st.*, COALESCE(si.name, si.item_name, st.item_name) as item_name FROM stock_transfers st LEFT JOIN stock_items si ON st.stock_item_id = si.id ORDER BY st.transfer_date DESC LIMIT 100");
+            sendJson(['success' => true, 'transfers' => $transfers]);
+            break;
+
+        case 'save_direct_transfer':
+            $title = trim($_POST['transfer_title'] ?? 'Direct Transfer');
+            $reqNo = trim($_POST['request_no'] ?? 'TRF-' . time());
+            $location = trim($_POST['location'] ?? 'Target Branch');
+            $items = $_POST['items'] ?? [];
+            if (is_string($items)) $items = json_decode($items, true) ?: [];
+
+            if (empty($items)) {
+                sendJson(['success' => false, 'message' => 'សូមជ្រើសរើសទំនិញយ៉ាងហោចណាស់មួយដើម្បីផ្ទេរ!'], 400);
+            }
+
+            foreach ($items as $it) {
+                $iid = (int)($it['id'] ?? $it['item_id'] ?? 0);
+                $qty = (int)($it['qty'] ?? $it['quantity'] ?? 0);
+                $note = trim($it['note'] ?? '');
+                if ($iid <= 0 || $qty <= 0) continue;
+
+                $stockRow = dbQuery("SELECT id, name, item_name, quantity FROM stock_items WHERE id = ? LIMIT 1", [$iid]);
+                if (empty($stockRow)) continue;
+
+                $itemName = $stockRow[0]['name'] ?: $stockRow[0]['item_name'];
+                $oldQty = (int)$stockRow[0]['quantity'];
+                if ($qty > $oldQty) continue;
+
+                $newQty = $oldQty - $qty;
+                $newStatus = $newQty <= 0 ? 'Out of Stock' : ($newQty < 10 ? 'Low Stock' : 'In Stock');
+
+                dbQuery("UPDATE stock_items SET quantity = ?, status = ? WHERE id = ?", [$newQty, $newStatus, $iid]);
+
+                dbQuery("INSERT INTO stock_transfers (transfer_title, request_no, stock_item_id, item_name, quantity_transferred, to_location, notes, transfer_date) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())", [$title, $reqNo, $iid, $itemName, $qty, $location, $note]);
+
+                dbQuery("INSERT INTO stock_movements (item_id, item_name, movement_type, quantity_change, quantity_before, quantity_after, reference_no, reference_type, actor_name, notes, location) VALUES (?, ?, 'transfer', ?, ?, ?, ?, 'Direct Transfer', 'Admin', ?, ?)", [$iid, $itemName, -$qty, $oldQty, $newQty, $reqNo, $note ?: "ផ្ទេរទៅ $location", $location]);
+            }
+
+            sendJson(['success' => true, 'message' => 'បានផ្ទេរទំនិញដោយផ្ទាល់ជោគជ័យ!']);
             break;
 
         // ==========================================
@@ -956,6 +1306,9 @@ try {
         // ==========================================
         // 14. PAYROLL MANAGEMENT
         // ==========================================
+        // ==========================================
+        // 14. PAYROLL MANAGEMENT & ADJUSTMENTS
+        // ==========================================
         case 'fetch_payroll_records':
         case 'fetch_payroll':
         case 'get_salaries':
@@ -964,23 +1317,86 @@ try {
                 employee_id VARCHAR(50) NOT NULL,
                 name VARCHAR(255) DEFAULT NULL,
                 base_salary DECIMAL(10, 2) DEFAULT 0.00,
+                days_present INT DEFAULT 26,
                 ot_hours DECIMAL(5, 2) DEFAULT 0.00,
                 ot_amount DECIMAL(10, 2) DEFAULT 0.00,
                 deductions DECIMAL(10, 2) DEFAULT 0.00,
+                loans DECIMAL(10, 2) DEFAULT 0.00,
                 net_salary DECIMAL(10, 2) DEFAULT 0.00,
                 status VARCHAR(50) DEFAULT 'Pending',
                 payroll_month INT DEFAULT 8,
                 payroll_year INT DEFAULT 2026,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY emp_month_year (employee_id, payroll_month, payroll_year)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+            dbQuery("CREATE TABLE IF NOT EXISTS payroll_configs (
+                employee_id VARCHAR(50) PRIMARY KEY,
+                base_salary DECIMAL(10,2) DEFAULT 0.00,
+                payment_type VARCHAR(50) DEFAULT 'Monthly',
+                bank_name VARCHAR(255) DEFAULT '',
+                bank_account_number VARCHAR(255) DEFAULT '',
+                nssf_id VARCHAR(100) DEFAULT '',
+                bank_qr_file VARCHAR(255) DEFAULT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
-            $payroll = dbQuery("SELECT p.*, u.name as user_name FROM payroll_records p LEFT JOIN users u ON p.employee_id = u.employee_id ORDER BY p.id DESC");
+            dbQuery("CREATE TABLE IF NOT EXISTS payroll_deductions (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                employee_id VARCHAR(50) NOT NULL,
+                amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+                reason VARCHAR(255) DEFAULT '',
+                deduction_date DATE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+            dbQuery("CREATE TABLE IF NOT EXISTS payroll_ot (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                employee_id VARCHAR(50) NOT NULL,
+                ot_hours DECIMAL(5,2) DEFAULT 0.00,
+                ot_rate DECIMAL(10,2) DEFAULT 0.00,
+                total_ot_amount DECIMAL(10,2) DEFAULT 0.00,
+                reason VARCHAR(255) DEFAULT '',
+                ot_date DATE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+            dbQuery("CREATE TABLE IF NOT EXISTS payroll_loans (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                employee_id VARCHAR(50) NOT NULL,
+                total_loan DECIMAL(10,2) DEFAULT 0.00,
+                monthly_installment DECIMAL(10,2) DEFAULT 0.00,
+                reason VARCHAR(255) DEFAULT '',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+            dbQuery("CREATE TABLE IF NOT EXISTS payroll_history (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                employee_id VARCHAR(50) NOT NULL,
+                payroll_month INT NOT NULL,
+                payroll_year INT NOT NULL,
+                calculated_salary DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+                payment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                status VARCHAR(50) DEFAULT 'Paid'
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+            $month = (int)($_POST['month'] ?? $_GET['month'] ?? date('n'));
+            $year = (int)($_POST['year'] ?? $_GET['year'] ?? date('Y'));
+
+            $payroll = dbQuery("SELECT p.*, u.name as user_name, u.department, u.position FROM payroll_records p LEFT JOIN users u ON p.employee_id = u.employee_id WHERE p.payroll_month = ? AND p.payroll_year = ? ORDER BY p.id DESC", [$month, $year]);
+
             if (empty($payroll)) {
-                dbQuery("INSERT INTO payroll_records (employee_id, name, base_salary, ot_hours, ot_amount, deductions, net_salary, status, payroll_month, payroll_year) VALUES 
-                    ('VVC-101', 'សុខ គឹមហុង', 350.00, 12, 35.00, 5.00, 380.00, 'Paid', 8, 2026),
-                    ('VVC-102', 'កែវ សុភា', 600.00, 0, 0.00, 0.00, 600.00, 'Paid', 8, 2026),
-                    ('VVC-103', 'ជា វណ្ណៈ', 500.00, 8, 25.00, 10.00, 515.00, 'Pending', 8, 2026)");
-                $payroll = dbQuery("SELECT * FROM payroll_records ORDER BY id DESC");
+                $users = dbQuery("SELECT employee_id, name, base_salary, department, position FROM users WHERE is_active = 1");
+                foreach ($users as $u) {
+                    $base = (float)($u['base_salary'] ?? 350.00);
+                    $otHours = 0;
+                    $otAmt = 0;
+                    $ded = 0;
+                    $loan = 0;
+                    $net = $base;
+                    dbQuery("INSERT IGNORE INTO payroll_records (employee_id, name, base_salary, days_present, ot_hours, ot_amount, deductions, loans, net_salary, status, payroll_month, payroll_year) VALUES (?, ?, ?, 26, ?, ?, ?, ?, ?, 'Pending', ?, ?)", [$u['employee_id'], $u['name'], $base, $otHours, $otAmt, $ded, $loan, $net, $month, $year]);
+                }
+                $payroll = dbQuery("SELECT p.*, u.name as user_name, u.department, u.position FROM payroll_records p LEFT JOIN users u ON p.employee_id = u.employee_id WHERE p.payroll_month = ? AND p.payroll_year = ? ORDER BY p.id DESC", [$month, $year]);
             }
 
             foreach ($payroll as &$pr) {
@@ -989,7 +1405,48 @@ try {
                 }
             }
             unset($pr);
-            sendJson(['success' => true, 'salaries' => $payroll]);
+            sendJson(['success' => true, 'salaries' => $payroll, 'month' => $month, 'year' => $year]);
+            break;
+
+        case 'fetch_payroll_configs':
+            $configs = dbQuery("SELECT u.employee_id, u.name, COALESCE(pc.base_salary, u.base_salary, 0.00) as base_salary, COALESCE(pc.bank_name, '') as bank_name, COALESCE(pc.bank_account_number, '') as bank_account_number, COALESCE(pc.bank_qr_file, u.bank_qr_code_url, '') as bank_qr_url FROM users u LEFT JOIN payroll_configs pc ON u.employee_id = pc.employee_id ORDER BY u.name ASC");
+            sendJson(['success' => true, 'configs' => $configs]);
+            break;
+
+        case 'save_payroll_config':
+        case 'payroll_save_config':
+            $empId = trim($_POST['employee_id'] ?? '');
+            $baseSalary = (float)($_POST['base_salary'] ?? 0.00);
+            $bankName = trim($_POST['bank_name'] ?? '');
+            $bankAccount = trim($_POST['bank_account_number'] ?? '');
+            $paymentType = trim($_POST['payment_type'] ?? 'Monthly');
+            $qrPath = null;
+
+            if (isset($_FILES['bank_qr']) && $_FILES['bank_qr']['error'] === UPLOAD_ERR_OK) {
+                $ext = strtolower(pathinfo($_FILES['bank_qr']['name'], PATHINFO_EXTENSION));
+                if (in_array($ext, ['jpg', 'jpeg', 'png', 'webp'])) {
+                    $uploadDir = __DIR__ . '/uploads/bank_qr/';
+                    if (!is_dir($uploadDir)) @mkdir($uploadDir, 0777, true);
+                    $filename = 'qr_' . time() . '_' . rand(1000, 9999) . '.' . $ext;
+                    if (move_uploaded_file($_FILES['bank_qr']['tmp_name'], $uploadDir . $filename)) {
+                        $qrPath = 'uploads/bank_qr/' . $filename;
+                    }
+                }
+            }
+
+            if (empty($empId)) {
+                sendJson(['success' => false, 'message' => 'Missing employee_id'], 400);
+            }
+
+            if ($qrPath) {
+                dbQuery("INSERT INTO payroll_configs (employee_id, base_salary, payment_type, bank_name, bank_account_number, bank_qr_file) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE base_salary = VALUES(base_salary), bank_name = VALUES(bank_name), bank_account_number = VALUES(bank_account_number), bank_qr_file = VALUES(bank_qr_file)", [$empId, $baseSalary, $paymentType, $bankName, $bankAccount, $qrPath]);
+                dbQuery("UPDATE users SET base_salary = ?, bank_qr_code_url = ? WHERE employee_id = ?", [$baseSalary, $qrPath, $empId]);
+            } else {
+                dbQuery("INSERT INTO payroll_configs (employee_id, base_salary, payment_type, bank_name, bank_account_number) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE base_salary = VALUES(base_salary), bank_name = VALUES(bank_name), bank_account_number = VALUES(bank_account_number)", [$empId, $baseSalary, $paymentType, $bankName, $bankAccount]);
+                dbQuery("UPDATE users SET base_salary = ? WHERE employee_id = ?", [$baseSalary, $empId]);
+            }
+
+            sendJson(['success' => true, 'message' => 'បានរក្សាទុកព័ត៌មានប្រាក់បៀវត្ស និងគណនីធនាគារជោគជ័យ!']);
             break;
 
         case 'save_payroll_record':
@@ -998,35 +1455,102 @@ try {
             $empId = trim($_POST['employee_id'] ?? '');
             $name = trim($_POST['name'] ?? '');
             $base = (float)($_POST['base_salary'] ?? 0.00);
+            $days = (int)($_POST['days_present'] ?? 26);
             $otHours = (float)($_POST['ot_hours'] ?? 0.00);
             $otAmt = (float)($_POST['ot_amount'] ?? 0.00);
             $ded = (float)($_POST['deductions'] ?? 0.00);
-            $net = $base + $otAmt - $ded;
+            $loan = (float)($_POST['loans'] ?? 0.00);
+            $net = $base + $otAmt - $ded - $loan;
             $status = trim($_POST['status'] ?? 'Paid');
+            $month = (int)($_POST['month'] ?? date('n'));
+            $year = (int)($_POST['year'] ?? date('Y'));
 
             if ($payId > 0) {
-                dbQuery("UPDATE payroll_records SET base_salary = ?, ot_hours = ?, ot_amount = ?, deductions = ?, net_salary = ?, status = ? WHERE id = ?", [$base, $otHours, $otAmt, $ded, $net, $status, $payId]);
+                dbQuery("UPDATE payroll_records SET base_salary = ?, days_present = ?, ot_hours = ?, ot_amount = ?, deductions = ?, loans = ?, net_salary = ?, status = ? WHERE id = ?", [$base, $days, $otHours, $otAmt, $ded, $loan, $net, $status, $payId]);
+                if ($status === 'Paid') {
+                    dbQuery("INSERT INTO payroll_history (employee_id, payroll_month, payroll_year, calculated_salary, status) VALUES (?, ?, ?, ?, 'Paid')", [$empId, $month, $year, $net]);
+                }
                 sendJson(['success' => true, 'message' => 'បានកែប្រែទិន្នន័យប្រាក់បៀវត្សជោគជ័យ!']);
             } else {
-                dbQuery("INSERT INTO payroll_records (employee_id, name, base_salary, ot_hours, ot_amount, deductions, net_salary, status, payroll_month, payroll_year) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 8, 2026)", [$empId, $name, $base, $otHours, $otAmt, $ded, $net, $status]);
+                dbQuery("INSERT INTO payroll_records (employee_id, name, base_salary, days_present, ot_hours, ot_amount, deductions, loans, net_salary, status, payroll_month, payroll_year) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [$empId, $name, $base, $days, $otHours, $otAmt, $ded, $loan, $net, $status, $month, $year]);
                 sendJson(['success' => true, 'message' => 'បានបង្កើតកំណត់ត្រាប្រាក់បៀវត្សជោគជ័យ!']);
             }
             break;
 
         case 'calculate_payroll':
+            $month = (int)($_POST['month'] ?? date('n'));
+            $year = (int)($_POST['year'] ?? date('Y'));
             $users = dbQuery("SELECT employee_id, name, base_salary FROM users WHERE is_active = 1");
+
             foreach ($users as $u) {
-                $base = (float)($u['base_salary'] ?? 300);
-                $otHours = rand(0, 15);
-                $otAmt = $otHours * 3.5;
-                $ded = rand(0, 10);
-                $net = $base + $otAmt - $ded;
-                dbQuery("INSERT INTO payroll_records (employee_id, name, base_salary, ot_hours, ot_amount, deductions, net_salary, status, payroll_month, payroll_year) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, 'Pending', 8, 2026) 
-                    ON DUPLICATE KEY UPDATE base_salary = VALUES(base_salary), ot_hours = VALUES(ot_hours), ot_amount = VALUES(ot_amount), deductions = VALUES(deductions), net_salary = VALUES(net_salary)",
-                    [$u['employee_id'], $u['name'], $base, $otHours, $otAmt, $ded, $net]);
+                $eid = $u['employee_id'];
+                $base = (float)($u['base_salary'] ?? 350);
+
+                // Fetch total deductions for this employee
+                $dedRow = dbQuery("SELECT SUM(amount) as s FROM payroll_deductions WHERE employee_id = ? AND MONTH(deduction_date) = ? AND YEAR(deduction_date) = ?", [$eid, $month, $year]);
+                $ded = (float)($dedRow[0]['s'] ?? 0);
+
+                // Fetch total OT
+                $otRow = dbQuery("SELECT SUM(ot_hours) as h, SUM(total_ot_amount) as a FROM payroll_ot WHERE employee_id = ? AND MONTH(ot_date) = ? AND YEAR(ot_date) = ?", [$eid, $month, $year]);
+                $otHours = (float)($otRow[0]['h'] ?? 0);
+                $otAmt = (float)($otRow[0]['a'] ?? 0);
+
+                // Fetch loan installment
+                $loanRow = dbQuery("SELECT SUM(monthly_installment) as s FROM payroll_loans WHERE employee_id = ?", [$eid]);
+                $loan = (float)($loanRow[0]['s'] ?? 0);
+
+                $net = $base + $otAmt - $ded - $loan;
+
+                dbQuery("INSERT INTO payroll_records (employee_id, name, base_salary, days_present, ot_hours, ot_amount, deductions, loans, net_salary, status, payroll_month, payroll_year) 
+                    VALUES (?, ?, ?, 26, ?, ?, ?, ?, ?, 'Pending', ?, ?) 
+                    ON DUPLICATE KEY UPDATE base_salary = VALUES(base_salary), ot_hours = VALUES(ot_hours), ot_amount = VALUES(ot_amount), deductions = VALUES(deductions), loans = VALUES(loans), net_salary = VALUES(net_salary)",
+                    [$eid, $u['name'], $base, $otHours, $otAmt, $ded, $loan, $net, $month, $year]);
             }
-            sendJson(['success' => true, 'message' => 'បានគណនាប្រាក់បៀវត្សប្រចាំខែដោយជោគជ័យ!']);
+            sendJson(['success' => true, 'message' => "បានគណនាប្រាក់បៀវត្សសម្រាប់ខែ $month/$year ដោយជោគជ័យ!"]);
+            break;
+
+        case 'fetch_payroll_adjustments':
+            $deductions = dbQuery("SELECT d.*, u.name as emp_name FROM payroll_deductions d LEFT JOIN users u ON d.employee_id = u.employee_id ORDER BY d.id DESC LIMIT 50");
+            $ots = dbQuery("SELECT o.*, u.name as emp_name FROM payroll_ot o LEFT JOIN users u ON o.employee_id = u.employee_id ORDER BY o.id DESC LIMIT 50");
+            $loans = dbQuery("SELECT l.*, u.name as emp_name FROM payroll_loans l LEFT JOIN users u ON l.employee_id = u.employee_id ORDER BY l.id DESC LIMIT 50");
+            sendJson(['success' => true, 'deductions' => $deductions, 'ots' => $ots, 'loans' => $loans]);
+            break;
+
+        case 'save_payroll_deduction':
+            $empId = trim($_POST['employee_id'] ?? $_POST['emp_id'] ?? '');
+            $amt = (float)($_POST['amount'] ?? 0.00);
+            $reason = trim($_POST['reason'] ?? '');
+            $date = trim($_POST['deduction_date'] ?? date('Y-m-d'));
+            if (empty($empId) || $amt <= 0) sendJson(['success' => false, 'message' => 'សូមបញ្ចូលព័ត៌មានឱ្យបានត្រឹមត្រូវ!'], 400);
+            dbQuery("INSERT INTO payroll_deductions (employee_id, amount, reason, deduction_date) VALUES (?, ?, ?, ?)", [$empId, $amt, $reason, $date]);
+            sendJson(['success' => true, 'message' => 'បានរក្សាទុកការកាត់ប្រាក់ជោគជ័យ!']);
+            break;
+
+        case 'save_payroll_ot':
+            $empId = trim($_POST['employee_id'] ?? $_POST['emp_id'] ?? '');
+            $hours = (float)($_POST['ot_hours'] ?? 0.00);
+            $rate = (float)($_POST['ot_rate'] ?? 3.50);
+            $amt = $hours * $rate;
+            $reason = trim($_POST['reason'] ?? '');
+            $date = trim($_POST['ot_date'] ?? date('Y-m-d'));
+            if (empty($empId) || $hours <= 0) sendJson(['success' => false, 'message' => 'សូមបញ្ចូលព័ត៌មានឱ្យបានត្រឹមត្រូវ!'], 400);
+            dbQuery("INSERT INTO payroll_ot (employee_id, ot_hours, ot_rate, total_ot_amount, reason, ot_date) VALUES (?, ?, ?, ?, ?, ?)", [$empId, $hours, $rate, $amt, $reason, $date]);
+            sendJson(['success' => true, 'message' => 'បានរក្សាទុកប្រាក់ថែមម៉ោងជោគជ័យ!']);
+            break;
+
+        case 'save_payroll_loan':
+            $empId = trim($_POST['employee_id'] ?? $_POST['emp_id'] ?? '');
+            $totalLoan = (float)($_POST['total_loan'] ?? 0.00);
+            $installment = (float)($_POST['monthly_installment'] ?? 0.00);
+            $reason = trim($_POST['reason'] ?? '');
+            if (empty($empId) || $totalLoan <= 0) sendJson(['success' => false, 'message' => 'សូមបញ្ចូលព័ត៌មានឱ្យបានត្រឹមត្រូវ!'], 400);
+            dbQuery("INSERT INTO payroll_loans (employee_id, total_loan, monthly_installment, reason) VALUES (?, ?, ?, ?)", [$empId, $totalLoan, $installment, $reason]);
+            sendJson(['success' => true, 'message' => 'បានរក្សាទុកបំណុល/ប្រាក់កម្ចីជោគជ័យ!']);
+            break;
+
+        case 'fetch_payroll_history':
+            $history = dbQuery("SELECT h.*, u.name as emp_name FROM payroll_history h LEFT JOIN users u ON h.employee_id = u.employee_id ORDER BY h.id DESC LIMIT 50");
+            sendJson(['success' => true, 'history' => $history]);
             break;
 
         // ==========================================

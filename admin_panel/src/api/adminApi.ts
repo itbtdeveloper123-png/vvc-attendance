@@ -166,11 +166,17 @@ export interface PayrollItem {
   employee_id: string;
   name: string;
   base_salary: number;
+  days_present?: number;
   ot_hours: number;
   ot_amount: number;
   deductions: number;
+  loans?: number;
   net_salary: number;
   status: 'Paid' | 'Pending';
+  month?: number;
+  year?: number;
+  department?: string;
+  position?: string;
 }
 
 export interface ThemeItem {
@@ -349,15 +355,31 @@ export const adminApi = {
     return res.data;
   },
 
-  // Stock Items
-  fetchStockItems: async () => {
+  // Stock Management (All Sub-Pages & Features)
+  fetchStockItems: async (search?: string) => {
     const params = new URLSearchParams();
     params.append('action', 'fetch_stock_items');
+    if (search) params.append('search', search);
     const res = await apiClient.post('', params);
     return res.data;
   },
 
-  saveStockItem: async (data: Partial<StockItem>) => {
+  getStockItem: async (id: number | string) => {
+    const params = new URLSearchParams();
+    params.append('action', 'get_stock_item');
+    params.append('id', String(id));
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  saveStockItem: async (data: FormData | Partial<StockItem> | Record<string, any>) => {
+    if (data instanceof FormData) {
+      data.append('action', 'save_stock_item');
+      const res = await apiClient.post('', data, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return res.data;
+    }
     const params = new URLSearchParams();
     params.append('action', 'save_stock_item');
     Object.entries(data).forEach(([k, v]) => {
@@ -367,10 +389,107 @@ export const adminApi = {
     return res.data;
   },
 
+  deductStock: async (itemId: number | string, deductQuantity: number) => {
+    const params = new URLSearchParams();
+    params.append('action', 'deduct_stock');
+    params.append('item_id', String(itemId));
+    params.append('deduct_quantity', String(deductQuantity));
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
   deleteStockItem: async (id: number | string) => {
     const params = new URLSearchParams();
     params.append('action', 'delete_stock_item');
     params.append('id', String(id));
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  fetchStockPurchases: async () => {
+    const params = new URLSearchParams();
+    params.append('action', 'fetch_stock_purchases');
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  saveStockPurchase: async (data: FormData | Record<string, any>) => {
+    if (data instanceof FormData) {
+      data.append('action', 'save_stock_purchase');
+      const res = await apiClient.post('', data, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return res.data;
+    }
+    const params = new URLSearchParams();
+    params.append('action', 'save_stock_purchase');
+    Object.entries(data).forEach(([k, v]) => {
+      if (v !== undefined && v !== null) {
+        if (typeof v === 'object') params.append(k, JSON.stringify(v));
+        else params.append(k, String(v));
+      }
+    });
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  fetchStockReports: async (tab: string = 'all_stock') => {
+    const params = new URLSearchParams();
+    params.append('action', 'fetch_stock_reports');
+    params.append('tab', tab);
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  fetchStockCounting: async (searchDate?: string) => {
+    const params = new URLSearchParams();
+    params.append('action', 'fetch_stock_counting');
+    if (searchDate) params.append('search_date', searchDate);
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  saveStockCount: async (phase: string, counts: Record<string, number | string>) => {
+    const params = new URLSearchParams();
+    params.append('action', 'save_stock_count');
+    params.append('phase', phase);
+    params.append('counts', JSON.stringify(counts));
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  fetchStockRequests: async (status?: string) => {
+    const params = new URLSearchParams();
+    params.append('action', 'fetch_stock_requests');
+    if (status) params.append('status', status);
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  updateStockRequestStatus: async (requestId: number | string, status: string, adminComment?: string) => {
+    const params = new URLSearchParams();
+    params.append('action', 'update_stock_request_status');
+    params.append('request_id', String(requestId));
+    params.append('status', status);
+    if (adminComment) params.append('admin_comment', adminComment);
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  fetchDirectTransfers: async () => {
+    const params = new URLSearchParams();
+    params.append('action', 'fetch_direct_transfers');
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  saveDirectTransfer: async (data: { transfer_title: string; request_no?: string; location: string; items: any[] }) => {
+    const params = new URLSearchParams();
+    params.append('action', 'save_direct_transfer');
+    params.append('transfer_title', data.transfer_title);
+    if (data.request_no) params.append('request_no', data.request_no);
+    params.append('location', data.location);
+    params.append('items', JSON.stringify(data.items));
     const res = await apiClient.post('', params);
     return res.data;
   },
@@ -496,9 +615,11 @@ export const adminApi = {
   },
 
   // Payroll
-  fetchPayroll: async () => {
+  fetchPayroll: async (month?: number, year?: number) => {
     const params = new URLSearchParams();
     params.append('action', 'fetch_payroll_records');
+    if (month) params.append('month', String(month));
+    if (year) params.append('year', String(year));
     const res = await apiClient.post('', params);
     return res.data;
   },
@@ -513,9 +634,79 @@ export const adminApi = {
     return res.data;
   },
 
-  calculatePayroll: async () => {
+  calculatePayroll: async (month?: number, year?: number) => {
     const params = new URLSearchParams();
     params.append('action', 'calculate_payroll');
+    if (month) params.append('month', String(month));
+    if (year) params.append('year', String(year));
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  fetchPayrollConfigs: async () => {
+    const params = new URLSearchParams();
+    params.append('action', 'fetch_payroll_configs');
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  savePayrollConfig: async (data: FormData | Record<string, any>) => {
+    if (data instanceof FormData) {
+      data.append('action', 'save_payroll_config');
+      const res = await apiClient.post('', data, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return res.data;
+    }
+    const params = new URLSearchParams();
+    params.append('action', 'save_payroll_config');
+    Object.entries(data).forEach(([k, v]) => {
+      if (v !== undefined && v !== null) params.append(k, String(v));
+    });
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  fetchPayrollAdjustments: async () => {
+    const params = new URLSearchParams();
+    params.append('action', 'fetch_payroll_adjustments');
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  savePayrollDeduction: async (data: any) => {
+    const params = new URLSearchParams();
+    params.append('action', 'save_payroll_deduction');
+    Object.entries(data).forEach(([k, v]) => {
+      if (v !== undefined && v !== null) params.append(k, String(v));
+    });
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  savePayrollOt: async (data: any) => {
+    const params = new URLSearchParams();
+    params.append('action', 'save_payroll_ot');
+    Object.entries(data).forEach(([k, v]) => {
+      if (v !== undefined && v !== null) params.append(k, String(v));
+    });
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  savePayrollLoan: async (data: any) => {
+    const params = new URLSearchParams();
+    params.append('action', 'save_payroll_loan');
+    Object.entries(data).forEach(([k, v]) => {
+      if (v !== undefined && v !== null) params.append(k, String(v));
+    });
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  fetchPayrollHistory: async () => {
+    const params = new URLSearchParams();
+    params.append('action', 'fetch_payroll_history');
     const res = await apiClient.post('', params);
     return res.data;
   },
