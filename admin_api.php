@@ -672,6 +672,7 @@ try {
             break;
 
         // ==========================================
+        // ==========================================
         // 4.1 LEAVE & DEO AND COMBINED REPORT ACTIONS
         // ==========================================
         case 'fetch_leave_deo_report':
@@ -698,26 +699,35 @@ try {
                     name VARCHAR(255) DEFAULT '',
                     role VARCHAR(255) DEFAULT '',
                     note TEXT NULL,
-                    reports_date DATE NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    reports_date DATE NULL
                 )");
             } catch (\Exception $e) {}
 
-            $sql = "SELECT id, number, name, role, note, reports_date FROM {$table} WHERE 1=1";
-            $params = [];
-            if (!empty($date) && $date !== 'all') {
-                $sql .= " AND (reports_date = ? OR DATE(created_at) = ?)";
-                $params[] = $date;
-                $params[] = $date;
-            }
-            $sql .= " ORDER BY id ASC";
-            $rows = dbQuery($sql, $params);
+            $rows = [];
+            try {
+                $sql = "SELECT id, number, name, role, note, reports_date FROM {$table} WHERE 1=1";
+                $params = [];
+                if (!empty($date) && $date !== 'all') {
+                    $sql .= " AND reports_date = ?";
+                    $params[] = $date;
+                }
+                $sql .= " ORDER BY id ASC";
+                $rows = dbQuery($sql, $params);
+            } catch (\Exception $e) {}
 
             // Also fetch approved leave requests
-            $reqRows = dbQuery("SELECT id, user_id, requester_name as name, request_type as role, reason as note, request_date as reports_date 
-                                FROM requests 
-                                WHERE status = 'Approved' " . (!empty($date) && $date !== 'all' ? " AND (DATE(request_date) = ? OR DATE(created_at) = ?)" : ""), 
-                                (!empty($date) && $date !== 'all' ? [$date, $date] : []));
+            $reqRows = [];
+            try {
+                $reqSql = "SELECT id, user_id, requester_name as name, request_type as role, reason as note, request_date as reports_date 
+                           FROM user_requests 
+                           WHERE status = 'Approved'";
+                $reqParams = [];
+                if (!empty($date) && $date !== 'all') {
+                    $reqSql .= " AND DATE(request_date) = ?";
+                    $reqParams[] = $date;
+                }
+                $reqRows = dbQuery($reqSql, $reqParams);
+            } catch (\Exception $e) {}
 
             sendJson([
                 'success' => true,
@@ -747,8 +757,7 @@ try {
                     name VARCHAR(255) DEFAULT '',
                     role VARCHAR(255) DEFAULT '',
                     note TEXT NULL,
-                    reports_date DATE NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    reports_date DATE NULL
                 )");
                 dbExecute("INSERT INTO {$table} (name, role, note, reports_date, number) VALUES ('', '', '', ?, '')", [$date]);
                 $lastIdRow = dbQuery("SELECT LAST_INSERT_ID() as id");
