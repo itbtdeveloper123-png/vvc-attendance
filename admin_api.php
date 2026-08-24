@@ -440,8 +440,18 @@ try {
             $date = trim((string)($_POST['date'] ?? $_GET['date'] ?? ''));
             $status = trim((string)($_POST['status'] ?? $_GET['status'] ?? ''));
             $department = trim((string)($_POST['department'] ?? $_GET['department'] ?? ''));
+            $deptCategory = trim((string)($_POST['dept_category'] ?? $_GET['dept_category'] ?? $_POST['filter_department'] ?? $_GET['filter_department'] ?? ''));
             $search = trim((string)($_POST['search'] ?? $_GET['search'] ?? ''));
             $tab = trim((string)($_POST['tab'] ?? $_GET['tab'] ?? 'daily'));
+
+            // Normalize Date format (e.g. 14/08/2026 or 2026-08-14)
+            if (!empty($date) && $date !== 'all') {
+                if (preg_match('/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/', $date, $m)) {
+                    $date = sprintf('%04d-%02d-%02d', (int)$m[3], (int)$m[2], (int)$m[1]);
+                } elseif (preg_match('/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/', $date, $m)) {
+                    $date = sprintf('%04d-%02d-%02d', (int)$m[1], (int)$m[2], (int)$m[3]);
+                }
+            }
 
             // 1. Fetch available dates from checkin_logs & attendance for quick filter
             $availableDatesRows = dbQuery("SELECT DISTINCT DATE(log_datetime) as log_date FROM checkin_logs WHERE log_datetime IS NOT NULL ORDER BY log_date DESC LIMIT 60");
@@ -456,11 +466,16 @@ try {
                 }, $attDatesRows)));
             }
 
+            // If no specific date was passed and date !== 'all', default to latest available date
+            if (empty($date) && !empty($availableDates)) {
+                $date = $availableDates[0];
+            }
+
             // 2. Query checkin_logs
             $sql = "SELECT 
                         cl.id,
                         cl.employee_id,
-                        COALESCE(u.name, cl.name, cl.employee_id) as name,
+                        COALESCE(NULLIF(TRIM(cl.name), ''), NULLIF(TRIM(u.name), ''), cl.employee_id) as name,
                         COALESCE(cl.action_type, 'Check-In') as action_type,
                         COALESCE(cl.status, 'Good') as status,
                         cl.log_datetime as log_time,
@@ -487,7 +502,7 @@ try {
                 $sql .= " AND DATE(cl.log_datetime) = ?";
                 $params[] = $date;
             }
-            if (!empty($status) && $status !== 'all') {
+            if (!empty($status) && $status !== 'all' && strtolower($status) !== 'all status') {
                 $sql .= " AND cl.status = ?";
                 $params[] = $status;
             }
@@ -496,6 +511,16 @@ try {
                 $params[] = $department;
                 $params[] = "%$department%";
             }
+
+            // Legacy Department Category Filters
+            if ($deptCategory === 'worker') {
+                $sql .= " AND (u.department = 'Worker' OR u.department LIKE '%Worker%' OR u.custom_data LIKE '%Worker%')";
+            } elseif ($deptCategory === 'sk') {
+                $sql .= " AND (u.department IN ('SKKS2', 'SKNR3') OR u.department LIKE '%SK%' OR u.custom_data LIKE '%SK%')";
+            } elseif ($deptCategory === 'department') {
+                $sql .= " AND (u.department NOT IN ('Worker', 'SKKS2', 'SKNR3') OR u.department IS NULL)";
+            }
+
             if (!empty($search)) {
                 $sql .= " AND (u.name LIKE ? OR cl.name LIKE ? OR cl.employee_id LIKE ? OR cl.location_name LIKE ?)";
                 $params[] = "%$search%";

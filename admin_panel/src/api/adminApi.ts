@@ -470,15 +470,17 @@ export const adminApi = {
   },
 
   // Attendance Records
-  fetchAttendance: async (page = 1, limit = 50, filters?: { date?: string; department?: string; status?: string; search?: string }) => {
+  fetchAttendance: async (page = 1, limit = 100, filters?: { date?: string; department?: string; dept_category?: string; status?: string; search?: string; tab?: string }) => {
     const params = new URLSearchParams();
     params.append('action', 'fetch_attendance_records');
     params.append('page', String(page));
     params.append('limit', String(limit));
     if (filters?.date) params.append('date', filters.date);
     if (filters?.department) params.append('department', filters.department);
+    if (filters?.dept_category) params.append('dept_category', filters.dept_category);
     if (filters?.status) params.append('status', filters.status);
     if (filters?.search) params.append('search', filters.search);
+    if (filters?.tab) params.append('tab', filters.tab);
     const res = await apiClient.post('', params);
     return res.data;
   },
