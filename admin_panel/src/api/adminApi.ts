@@ -575,6 +575,22 @@ export const adminApi = {
     return res.data;
   },
 
+  // Global Token Settings
+  fetchGlobalTokenSettings: async () => {
+    const params = new URLSearchParams();
+    params.append('action', 'fetch_global_token_settings');
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  saveGlobalTokenSettings: async (maxTokens: number) => {
+    const params = new URLSearchParams();
+    params.append('action', 'save_global_token_settings');
+    params.append('global_max_tokens', String(maxTokens));
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
   // Themes
   fetchThemes: async () => {
     const params = new URLSearchParams();
@@ -591,7 +607,23 @@ export const adminApi = {
     return res.data;
   },
 
-  // Settings
+  saveTheme: async (themeData: Record<string, any>) => {
+    const params = new URLSearchParams();
+    params.append('action', 'save_theme');
+    Object.entries(themeData).forEach(([k, v]) => params.append(k, String(v)));
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  deleteTheme: async (themeId: string) => {
+    const params = new URLSearchParams();
+    params.append('action', 'delete_theme');
+    params.append('theme_id', themeId);
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  // Panel & General Settings
   fetchSettings: async () => {
     const params = new URLSearchParams();
     params.append('action', 'get_panel_settings');
@@ -603,6 +635,84 @@ export const adminApi = {
     const params = new URLSearchParams();
     params.append('action', 'save_panel_settings');
     Object.entries(settings).forEach(([k, v]) => params.append(k, v));
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  // Login Page Settings
+  fetchLoginPageSettings: async () => {
+    const params = new URLSearchParams();
+    params.append('action', 'fetch_login_page_settings');
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  saveLoginPageSettings: async (settings: Record<string, string>) => {
+    const params = new URLSearchParams();
+    params.append('action', 'save_login_page_settings');
+    Object.entries(settings).forEach(([k, v]) => params.append(k, v));
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  // App Scan & Mobile Settings
+  fetchAppScanSettings: async () => {
+    const params = new URLSearchParams();
+    params.append('action', 'fetch_app_scan_settings');
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  saveAppScanSettings: async (settings: Record<string, string>) => {
+    const params = new URLSearchParams();
+    params.append('action', 'save_app_scan_settings');
+    Object.entries(settings).forEach(([k, v]) => params.append(k, v));
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  fetchScanHistory: async () => {
+    const params = new URLSearchParams();
+    params.append('action', 'fetch_scan_history');
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  fetchPayrollBiometricRecords: async () => {
+    const params = new URLSearchParams();
+    params.append('action', 'fetch_payroll_biometric_records');
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  deletePayrollBiometricRecord: async (recordId: number) => {
+    const params = new URLSearchParams();
+    params.append('action', 'delete_payroll_biometric_record');
+    params.append('record_id', String(recordId));
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  clearPayrollBiometricRecords: async () => {
+    const params = new URLSearchParams();
+    params.append('action', 'clear_payroll_biometric_records');
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  // Menu Settings
+  fetchMenuSettings: async () => {
+    const params = new URLSearchParams();
+    params.append('action', 'fetch_menu_settings');
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  saveMenuSettings: async (menuText: Record<string, string>, menuOrder: Record<string, number>) => {
+    const params = new URLSearchParams();
+    params.append('action', 'save_menu_settings');
+    Object.entries(menuText).forEach(([k, v]) => params.append(`menu_text[${k}]`, v));
+    Object.entries(menuOrder).forEach(([k, v]) => params.append(`menu_order[${k}]`, String(v)));
     const res = await apiClient.post('', params);
     return res.data;
   },

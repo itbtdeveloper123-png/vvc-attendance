@@ -1128,6 +1128,154 @@ try {
             sendJson(['success' => true, 'message' => 'បានរក្សាទុកការកំណត់ជោគជ័យ!']);
             break;
 
+        case 'get_global_token_settings':
+        case 'fetch_global_token_settings':
+            $maxTokens = 1;
+            $row = dbQuery("SELECT setting_value FROM app_settings WHERE admin_id = 'SYSTEM_WIDE' AND setting_key = 'global_max_tokens' LIMIT 1");
+            if (!empty($row)) {
+                $maxTokens = (int)$row[0]['setting_value'];
+            }
+            sendJson(['success' => true, 'global_max_tokens' => $maxTokens, 'max_tokens' => $maxTokens]);
+            break;
+
+        case 'set_global_max_tokens':
+        case 'save_global_token_settings':
+            $max = (int)($_POST['global_max_tokens'] ?? $_POST['max_tokens'] ?? 1);
+            if ($max < 1) $max = 1;
+            if ($max > 10) $max = 10;
+            dbQuery("INSERT INTO app_settings (admin_id, setting_key, setting_value) VALUES ('SYSTEM_WIDE', 'global_max_tokens', ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)", [(string)$max]);
+            dbQuery("UPDATE users SET global_max_tokens = ?", [$max]);
+            sendJson(['success' => true, 'message' => "បានកំណត់ចំនួន Token អតិបរមាទៅកាន់ $max ជោគជ័យ!"]);
+            break;
+
+        case 'save_theme':
+            $themeId = trim($_POST['theme_id'] ?? '');
+            $themeName = trim($_POST['theme_name'] ?? '');
+            $themeNameKh = trim($_POST['theme_name_kh'] ?? '');
+            $primaryColor = trim($_POST['primary_color'] ?? '#0E7490');
+            $secondaryColor = trim($_POST['secondary_color'] ?? '#2563EB');
+            $accentColor = trim($_POST['accent_color'] ?? '#F59E0B');
+            $bgColor = trim($_POST['background_color'] ?? '#111827');
+            $cardColor = trim($_POST['card_color'] ?? '#1F2937');
+            $textPrimary = trim($_POST['text_primary_color'] ?? '#FFFFFF');
+            $textSecondary = trim($_POST['text_secondary_color'] ?? '#CBD5E1');
+
+            if (!empty($themeId) && !empty($themeName)) {
+                dbQuery("INSERT INTO app_themes (theme_id, theme_name, theme_name_kh, primary_color, secondary_color, accent_color, background_color, card_color, text_primary_color, text_secondary_color) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) 
+                    ON DUPLICATE KEY UPDATE theme_name = VALUES(theme_name), theme_name_kh = VALUES(theme_name_kh), primary_color = VALUES(primary_color), secondary_color = VALUES(secondary_color), accent_color = VALUES(accent_color), background_color = VALUES(background_color), card_color = VALUES(card_color), text_primary_color = VALUES(text_primary_color), text_secondary_color = VALUES(text_secondary_color)",
+                    [$themeId, $themeName, $themeNameKh, $primaryColor, $secondaryColor, $accentColor, $bgColor, $cardColor, $textPrimary, $textSecondary]);
+                sendJson(['success' => true, 'message' => 'បានរក្សាទុក Theme ជោគជ័យ!']);
+            }
+            sendJson(['success' => false, 'message' => 'Missing theme_id or theme_name'], 400);
+            break;
+
+        case 'delete_theme':
+            $themeId = trim($_POST['theme_id'] ?? '');
+            if (!empty($themeId)) {
+                dbQuery("DELETE FROM app_themes WHERE theme_id = ?", [$themeId]);
+                sendJson(['success' => true, 'message' => 'បានលុប Theme ជោគជ័យ!']);
+            }
+            sendJson(['success' => false, 'message' => 'Missing theme_id'], 400);
+            break;
+
+        case 'get_login_page_settings':
+        case 'fetch_login_page_settings':
+            $title = 'VVC Attendance Admin Portal';
+            $subtitle = 'Sign in to access your dashboard';
+            $icon = 'fa-solid fa-user-shield';
+            $rows = dbQuery("SELECT setting_key, setting_value FROM app_settings WHERE admin_id = 'SYSTEM_WIDE' AND setting_key IN ('login_page_title', 'login_page_subtitle', 'login_page_icon_class', 'login_page_logo_path')");
+            $loginSettings = [];
+            foreach ($rows as $r) {
+                $loginSettings[$r['setting_key']] = $r['setting_value'];
+            }
+            sendJson(['success' => true, 'settings' => $loginSettings]);
+            break;
+
+        case 'save_login_page_settings':
+            foreach ($_POST as $k => $v) {
+                if ($k === 'action') continue;
+                dbQuery("INSERT INTO app_settings (admin_id, setting_key, setting_value) VALUES ('SYSTEM_WIDE', ?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)", [$k, (string)$v]);
+            }
+            sendJson(['success' => true, 'message' => 'បានរក្សាទុកការកំណត់ Login Page ជោគជ័យ!']);
+            break;
+
+        case 'get_app_scan_settings':
+        case 'fetch_app_scan_settings':
+            $rows = dbQuery("SELECT setting_key, setting_value FROM app_settings WHERE admin_id = 'SYSTEM_WIDE'");
+            $appSettings = [];
+            foreach ($rows as $r) {
+                $appSettings[$r['setting_key']] = $r['setting_value'];
+            }
+            try {
+                $scanRows = dbQuery("SELECT setting_key, setting_value FROM app_scan_settings");
+                foreach ($scanRows as $sr) {
+                    if (!isset($appSettings[$sr['setting_key']])) {
+                        $appSettings[$sr['setting_key']] = $sr['setting_value'];
+                    }
+                }
+            } catch (Throwable $ignore) {}
+            sendJson(['success' => true, 'settings' => $appSettings]);
+            break;
+
+        case 'save_app_scan_settings':
+            foreach ($_POST as $k => $v) {
+                if ($k === 'action') continue;
+                if (is_array($v)) $v = json_encode($v, JSON_UNESCAPED_UNICODE);
+                dbQuery("INSERT INTO app_settings (admin_id, setting_key, setting_value) VALUES ('SYSTEM_WIDE', ?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)", [$k, (string)$v]);
+                try {
+                    dbQuery("INSERT INTO app_scan_settings (admin_id, setting_key, setting_value) VALUES ('SYSTEM_WIDE', ?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)", [$k, (string)$v]);
+                } catch (Throwable $ignore) {}
+            }
+            sendJson(['success' => true, 'message' => 'បានរក្សាទុកការកំណត់ App Scan ជោគជ័យ!']);
+            break;
+
+        case 'fetch_scan_history':
+        case 'get_scan_history':
+            $history = dbQuery("SELECT l.*, u.name as user_name FROM checkin_logs l LEFT JOIN users u ON l.employee_id = u.employee_id ORDER BY l.log_datetime DESC LIMIT 100");
+            sendJson(['success' => true, 'history' => $history]);
+            break;
+
+        case 'fetch_payroll_biometric_records':
+        case 'get_payroll_biometric_records':
+            try {
+                $bioRows = dbQuery("SELECT b.id, b.employee_id, COALESCE(NULLIF(b.employee_name, ''), u.name, b.employee_id) AS employee_name, u.department, u.position, b.verification_count, b.first_verified_at, b.last_verified_at, DATE_FORMAT(b.first_verified_at, '%d/%m/%Y %h:%i %p') AS first_verified_at_formatted, DATE_FORMAT(b.last_verified_at, '%d/%m/%Y %h:%i %p') AS last_verified_at_formatted, b.last_platform, b.last_auth_method, b.last_ip_address FROM payroll_biometric_records b LEFT JOIN users u ON b.employee_id = u.employee_id WHERE b.purpose = 'payroll' ORDER BY b.last_verified_at DESC LIMIT 100");
+                sendJson(['success' => true, 'records' => $bioRows]);
+            } catch (Throwable $e) {
+                sendJson(['success' => true, 'records' => []]);
+            }
+            break;
+
+        case 'delete_payroll_biometric_record':
+            $recordId = (int)($_POST['record_id'] ?? $_POST['id'] ?? 0);
+            if ($recordId > 0) {
+                dbQuery("DELETE FROM payroll_biometric_records WHERE id = ?", [$recordId]);
+                sendJson(['success' => true, 'message' => 'បានលុបកំណត់ត្រា Biometric ជោគជ័យ!']);
+            }
+            sendJson(['success' => false, 'message' => 'Missing record_id'], 400);
+            break;
+
+        case 'clear_payroll_biometric_records':
+            dbQuery("DELETE FROM payroll_biometric_records WHERE purpose = 'payroll'");
+            sendJson(['success' => true, 'message' => 'បានសម្អាតកំណត់ត្រា Biometric ទាំងអស់ជោគជ័យ!']);
+            break;
+
+        case 'get_menu_settings':
+        case 'fetch_menu_settings':
+            $menus = dbQuery("SELECT menu_key, menu_text, menu_order FROM sidebar_settings ORDER BY menu_order ASC");
+            sendJson(['success' => true, 'menus' => $menus]);
+            break;
+
+        case 'save_menu_settings':
+            if (isset($_POST['menu_text']) && is_array($_POST['menu_text'])) {
+                foreach ($_POST['menu_text'] as $mKey => $mTxt) {
+                    $order = (int)($_POST['menu_order'][$mKey] ?? 0);
+                    dbQuery("INSERT INTO sidebar_settings (menu_key, menu_text, menu_order) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE menu_text = VALUES(menu_text), menu_order = VALUES(menu_order)", [$mKey, $mTxt, $order]);
+                }
+            }
+            sendJson(['success' => true, 'message' => 'បានរក្សាទុកការកំណត់ Menu ជោគជ័យ!']);
+            break;
+
         default:
             sendJson(['success' => false, 'message' => "Unknown action '$action'"], 404);
             break;

@@ -51,16 +51,20 @@ export const StockPage: React.FC = () => {
     loadStock();
   }, []);
 
-  const filtered = stockItems.filter(
-    (item) =>
-      item.name.toLowerCase().includes(search.toLowerCase()) ||
-      item.code.toLowerCase().includes(search.toLowerCase()) ||
-      item.category.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = stockItems.filter((item) => {
+    const q = (search || '').toLowerCase();
+    const name = (item.name || '').toLowerCase();
+    const code = (item.code || '').toLowerCase();
+    const category = (item.category || '').toLowerCase();
+    return name.includes(q) || code.includes(q) || category.includes(q);
+  });
 
   const totalItemsCount = stockItems.length;
-  const lowStockCount = stockItems.filter((i) => i.quantity > 0 && i.quantity < 10).length;
-  const outOfStockCount = stockItems.filter((i) => i.quantity <= 0).length;
+  const lowStockCount = stockItems.filter((i) => {
+    const qty = Number(i.quantity) || 0;
+    return qty > 0 && qty < 10;
+  }).length;
+  const outOfStockCount = stockItems.filter((i) => (Number(i.quantity) || 0) <= 0).length;
 
   const handleOpenCreate = () => {
     setEditingItem(null);

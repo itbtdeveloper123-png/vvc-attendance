@@ -38,11 +38,12 @@ export const CategoriesPage: React.FC = () => {
     loadCategories();
   }, []);
 
-  const filtered = categories.filter(
-    (c) =>
-      c.name.toLowerCase().includes(search.toLowerCase()) ||
-      c.code.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = categories.filter((c) => {
+    const q = (search || '').toLowerCase();
+    const name = (c.name || '').toLowerCase();
+    const code = (c.code || '').toLowerCase();
+    return name.includes(q) || code.includes(q);
+  });
 
   const handleOpenCreate = () => {
     setEditingCat(null);
