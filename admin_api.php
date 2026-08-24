@@ -762,13 +762,9 @@ try {
             $newId = 0;
             try {
                 if ($mysqli) {
-                    $sql = "INSERT INTO {$table} (name, role, note, reports_date, number) VALUES ('', '', '', ?, '')";
-                    if ($stmt = $mysqli->prepare($sql)) {
-                        $stmt->bind_param("s", $date);
-                        $stmt->execute();
-                        $newId = (int)$mysqli->insert_id;
-                        $stmt->close();
-                    }
+                    $escapedDate = $mysqli->real_escape_string($date);
+                    $mysqli->query("INSERT INTO {$table} (name, role, note, reports_date, number) VALUES ('', '', '', '{$escapedDate}', '')");
+                    $newId = (int)$mysqli->insert_id;
                 } elseif ($pdo) {
                     $stmt = $pdo->prepare("INSERT INTO {$table} (name, role, note, reports_date, number) VALUES ('', '', '', ?, '')");
                     $stmt->execute([$date]);
@@ -806,12 +802,8 @@ try {
 
             try {
                 if ($mysqli) {
-                    $sql = "UPDATE {$table} SET {$column} = ? WHERE id = ?";
-                    if ($stmt = $mysqli->prepare($sql)) {
-                        $stmt->bind_param("si", $value, $id);
-                        $stmt->execute();
-                        $stmt->close();
-                    }
+                    $escapedVal = $mysqli->real_escape_string($value);
+                    $mysqli->query("UPDATE {$table} SET {$column} = '{$escapedVal}' WHERE id = " . intval($id));
                 } elseif ($pdo) {
                     $stmt = $pdo->prepare("UPDATE {$table} SET {$column} = ? WHERE id = ?");
                     $stmt->execute([$value, $id]);
@@ -838,15 +830,9 @@ try {
             if ($id > 0) {
                 try {
                     if ($mysqli) {
-                        $sql = "DELETE FROM {$table} WHERE id = ?";
-                        if ($stmt = $mysqli->prepare($sql)) {
-                            $stmt->bind_param("i", $id);
-                            $stmt->execute();
-                            $stmt->close();
-                        }
+                        $mysqli->query("DELETE FROM {$table} WHERE id = " . intval($id));
                     } elseif ($pdo) {
-                        $stmt = $pdo->prepare("DELETE FROM {$table} WHERE id = ?");
-                        $stmt->execute([$id]);
+                        $pdo->exec("DELETE FROM {$table} WHERE id = " . intval($id));
                     }
                 } catch (Throwable $e) {}
             }
@@ -879,16 +865,12 @@ try {
 
             try {
                 if ($mysqli) {
-                    $sql = "INSERT INTO {$table} (reports_date, {$column}) VALUES (?, ?) ON DUPLICATE KEY UPDATE {$column} = ?";
-                    if ($stmt = $mysqli->prepare($sql)) {
-                        $stmt->bind_param("sii", $date, $value, $value);
-                        $stmt->execute();
-                        $stmt->close();
-                        sendJson(['success' => true, 'message' => 'រក្សាទុកទិន្នន័យរួចរាល់!']);
-                    }
+                    $escapedDate = $mysqli->real_escape_string($date);
+                    $intVal = intval($value);
+                    $mysqli->query("INSERT INTO {$table} (reports_date, {$column}) VALUES ('{$escapedDate}', {$intVal}) ON DUPLICATE KEY UPDATE {$column} = {$intVal}");
+                    sendJson(['success' => true, 'message' => 'រក្សាទុកទិន្នន័យរួចរាល់!']);
                 } elseif ($pdo) {
-                    $sql = "INSERT INTO {$table} (reports_date, {$column}) VALUES (?, ?) ON DUPLICATE KEY UPDATE {$column} = ?";
-                    $stmt = $pdo->prepare($sql);
+                    $stmt = $pdo->prepare("INSERT INTO {$table} (reports_date, {$column}) VALUES (?, ?) ON DUPLICATE KEY UPDATE {$column} = ?");
                     $stmt->execute([$date, $value, $value]);
                     sendJson(['success' => true, 'message' => 'រក្សាទុកទិន្នន័យរួចរាល់!']);
                 }
