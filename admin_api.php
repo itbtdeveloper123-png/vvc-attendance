@@ -2492,21 +2492,23 @@ try {
             $data = [];
             foreach ($users as $u) {
                 $eid = $u['employee_id'];
+                $eid_clean = ltrim($eid, '0');
+                $eid_padded = str_pad($eid_clean ?: '0', 4, '0', STR_PAD_LEFT);
                 $base_salary = (float)($u['base_salary'] ?? 0);
 
                 // 1. Present days from checkin_logs or attendance
                 $present_days = 0;
                 $chk_checkin = dbQuery("SHOW TABLES LIKE 'checkin_logs'");
                 if (!empty($chk_checkin)) {
-                    $r = dbQuery("SELECT COUNT(DISTINCT DATE(log_datetime)) as cnt FROM checkin_logs WHERE employee_id = ? AND MONTH(log_datetime) = ? AND YEAR(log_datetime) = ?", [$eid, $month, $year]);
+                    $r = dbQuery("SELECT COUNT(DISTINCT DATE(log_datetime)) as cnt FROM checkin_logs WHERE (employee_id = ? OR employee_id = ? OR employee_id = ?) AND MONTH(log_datetime) = ? AND YEAR(log_datetime) = ?", [$eid, $eid_clean, $eid_padded, $month, $year]);
                     $present_days = (int)($r[0]['cnt'] ?? 0);
                 }
                 if ($present_days === 0) {
                     $chk_att = dbQuery("SHOW TABLES LIKE 'attendance'");
                     if (!empty($chk_att)) {
-                        $r = dbQuery("SELECT COUNT(DISTINCT DATE(attendance_date)) as cnt FROM attendance WHERE employee_id = ? AND MONTH(attendance_date) = ? AND YEAR(attendance_date) = ?", [$eid, $month, $year]);
+                        $r = dbQuery("SELECT COUNT(DISTINCT DATE(attendance_date)) as cnt FROM attendance WHERE (employee_id = ? OR employee_id = ? OR employee_id = ?) AND MONTH(attendance_date) = ? AND YEAR(attendance_date) = ?", [$eid, $eid_clean, $eid_padded, $month, $year]);
                         if (empty($r) || (int)($r[0]['cnt'] ?? 0) === 0) {
-                            $r = dbQuery("SELECT COUNT(DISTINCT DATE(created_at)) as cnt FROM attendance WHERE employee_id = ? AND MONTH(created_at) = ? AND YEAR(created_at) = ?", [$eid, $month, $year]);
+                            $r = dbQuery("SELECT COUNT(DISTINCT DATE(created_at)) as cnt FROM attendance WHERE (employee_id = ? OR employee_id = ? OR employee_id = ?) AND MONTH(created_at) = ? AND YEAR(created_at) = ?", [$eid, $eid_clean, $eid_padded, $month, $year]);
                         }
                         $present_days = (int)($r[0]['cnt'] ?? 0);
                     }
@@ -2516,22 +2518,22 @@ try {
                 $base_component = $present_days > 0 ? (($base_salary / 30) * $present_days) : 0;
 
                 // 3. Deductions
-                $d_res = dbQuery("SELECT SUM(amount) as total FROM payroll_deductions WHERE employee_id = ? AND MONTH(deduction_date) = ? AND YEAR(deduction_date) = ?", [$eid, $month, $year]);
+                $d_res = dbQuery("SELECT SUM(amount) as total FROM payroll_deductions WHERE (employee_id = ? OR employee_id = ? OR employee_id = ?) AND MONTH(deduction_date) = ? AND YEAR(deduction_date) = ?", [$eid, $eid_clean, $eid_padded, $month, $year]);
                 $deduct_sum = (float)($d_res[0]['total'] ?? 0);
 
                 // 4. OT Bonus
-                $o_res = dbQuery("SELECT SUM(COALESCE(NULLIF(amount, 0), total_ot_amount, 0)) as total FROM payroll_ot WHERE employee_id = ? AND ((ot_month = ? AND ot_year = ?) OR (MONTH(ot_date) = ? AND YEAR(ot_date) = ?))", [$eid, $month_padded, (string)$year, $month, $year]);
+                $o_res = dbQuery("SELECT SUM(COALESCE(NULLIF(amount, 0), total_ot_amount, 0)) as total FROM payroll_ot WHERE (employee_id = ? OR employee_id = ? OR employee_id = ?) AND ((ot_month = ? AND ot_year = ?) OR (MONTH(ot_date) = ? AND YEAR(ot_date) = ?))", [$eid, $eid_clean, $eid_padded, $month_padded, (string)$year, $month, $year]);
                 $ot_sum = (float)($o_res[0]['total'] ?? 0);
 
                 // 5. Loan Repayment
-                $l_res = dbQuery("SELECT SUM(COALESCE(NULLIF(monthly_deduction, 0), monthly_installment, 0)) as total FROM payroll_loans WHERE employee_id = ?", [$eid]);
+                $l_res = dbQuery("SELECT SUM(COALESCE(NULLIF(monthly_deduction, 0), monthly_installment, 0)) as total FROM payroll_loans WHERE (employee_id = ? OR employee_id = ? OR employee_id = ?)", [$eid, $eid_clean, $eid_padded]);
                 $loan_sum = (float)($l_res[0]['total'] ?? 0);
 
                 // 6. Net Calculation
                 $net_salary = round(max(0, $base_component - $deduct_sum + $ot_sum - $loan_sum), 2);
 
                 // Check payment status from payroll_history
-                $paid_res = dbQuery("SELECT id, payment_date FROM payroll_history WHERE employee_id = ? AND (payroll_month = ? OR payroll_month = ?) AND payroll_year = ?", [$eid, $month, $month_padded, (string)$year]);
+                $paid_res = dbQuery("SELECT id, payment_date FROM payroll_history WHERE (employee_id = ? OR employee_id = ? OR employee_id = ?) AND (payroll_month = ? OR payroll_month = ?) AND payroll_year = ?", [$eid, $eid_clean, $eid_padded, $month, $month_padded, (string)$year]);
                 $is_paid = !empty($paid_res);
 
                 $bank_name = !empty($u['bank_name']) ? $u['bank_name'] : (!empty($u['bank_data_str']) ? $u['bank_data_str'] : '');
