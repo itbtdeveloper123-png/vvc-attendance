@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:ui';
 import 'dart:math';
+import 'dart:collection';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -48,14 +49,44 @@ Color _getAvatarBgColor(String name) {
   return colors[name.codeUnitAt(0) % colors.length];
 }
 
-// Memory Cache to prevent Base64 Image Flickering
-final Map<String, MemoryImage> _base64ImageCache = {};
+// Memory-Bounded LRU Cache to prevent Base64 Image Flickering & Out-Of-Memory Crashes
+class _LruMemoryImageCache {
+  static const int _maxCapacity = 30;
+  final LinkedHashMap<String, MemoryImage> _cache =
+      LinkedHashMap<String, MemoryImage>();
+
+  MemoryImage getOrCreate(String base64Str) {
+    if (_cache.containsKey(base64Str)) {
+      final image = _cache.remove(base64Str)!;
+      _cache[base64Str] = image;
+      return image;
+    }
+
+    if (_cache.length >= _maxCapacity) {
+      final oldestKey = _cache.keys.first;
+      final oldestImage = _cache.remove(oldestKey);
+      oldestImage?.evict();
+    }
+
+    final raw =
+        base64Str.contains(',') ? base64Str.split(',').last : base64Str;
+    final image = MemoryImage(base64Decode(raw));
+    _cache[base64Str] = image;
+    return image;
+  }
+
+  void clear() {
+    for (final img in _cache.values) {
+      img.evict();
+    }
+    _cache.clear();
+  }
+}
+
+final _LruMemoryImageCache _lruImageCache = _LruMemoryImageCache();
 
 MemoryImage _getMemoryImage(String base64Str) {
-  return _base64ImageCache.putIfAbsent(
-    base64Str,
-    () => MemoryImage(base64Decode(base64Str.contains(',') ? base64Str.split(',').last : base64Str)),
-  );
+  return _lruImageCache.getOrCreate(base64Str);
 }
 
 // ==========================================

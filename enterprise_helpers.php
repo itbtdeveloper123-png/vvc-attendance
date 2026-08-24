@@ -1103,3 +1103,195 @@ if (!function_exists('process_due_notification_schedules')) {
         }
     }
 }
+
+// =========================================================================
+//  CSRF PROTECTION HELPERS
+// =========================================================================
+if (!function_exists('generate_csrf_token')) {
+    function generate_csrf_token() {
+        if (session_status() !== PHP_SESSION_ACTIVE && !headers_sent()) {
+            @session_start();
+        }
+        if (empty($_SESSION['csrf_token'])) {
+            $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+        }
+        return $_SESSION['csrf_token'];
+    }
+}
+
+if (!function_exists('get_csrf_token')) {
+    function get_csrf_token() {
+        return generate_csrf_token();
+    }
+}
+
+if (!function_exists('verify_csrf_token')) {
+    function verify_csrf_token($token = null) {
+        if (session_status() !== PHP_SESSION_ACTIVE && !headers_sent()) {
+            @session_start();
+        }
+        $sessionToken = $_SESSION['csrf_token'] ?? '';
+        if (empty($sessionToken)) {
+            return false;
+        }
+
+        if ($token === null) {
+            $token = $_POST['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? $_GET['csrf_token'] ?? '';
+        }
+
+        if (is_string($token) && hash_equals($sessionToken, $token)) {
+            return true;
+        }
+
+        return false;
+    }
+}
+
+if (!function_exists('csrf_input_field')) {
+    function csrf_input_field() {
+        $token = htmlspecialchars(generate_csrf_token(), ENT_QUOTES, 'UTF-8');
+        return '<input type="hidden" name="csrf_token" value="' . $token . '">';
+    }
+}
+
+if (!function_exists('csrf_meta_tag')) {
+    function csrf_meta_tag() {
+        $token = htmlspecialchars(generate_csrf_token(), ENT_QUOTES, 'UTF-8');
+        return '<meta name="csrf-token" content="' . $token . '">';
+    }
+}
+
+// =========================================================================
+//  UNIFIED DATABASE CONNECTION SINGLETON
+// =========================================================================
+if (!function_exists('get_unified_db_connection')) {
+    function get_unified_db_connection() {
+        static $instance = null;
+        if ($instance !== null && @$instance->ping()) {
+            return $instance;
+        }
+
+        mysqli_report(MYSQLI_REPORT_OFF);
+        $instance = @new mysqli(DB_SERVER, DB_USERNAME, DB_PASSWORD, DB_NAME);
+        if ($instance->connect_error) {
+            error_log("Database connection error: " . $instance->connect_error);
+            return null;
+        }
+        $instance->set_charset('utf8mb4');
+        $instance->query("SET time_zone = '+07:00'");
+        return $instance;
+    }
+}
+
+// =========================================================================
+//  SERVER-SIDE PAGINATION HELPERS
+// =========================================================================
+if (!function_exists('get_pagination_params')) {
+    function get_pagination_params($defaultLimit = 50, $maxLimit = 200) {
+        $page = max(1, (int)($_GET['page'] ?? 1));
+        $limit = max(1, min($maxLimit, (int)($_GET['limit'] ?? $defaultLimit)));
+        $offset = ($page - 1) * $limit;
+        return [
+            'page'   => $page,
+            'limit'  => $limit,
+            'offset' => $offset
+        ];
+    }
+}
+
+if (!function_exists('render_pagination_controls')) {
+    function render_pagination_controls($totalItems, $currentPage, $limit, $baseUrl = '', $extraParams = []) {
+        $totalPages = max(1, (int)ceil($totalItems / $limit));
+        if ($totalPages <= 1) {
+            return '';
+        }
+
+        $buildUrl = function($page) use ($baseUrl, $limit, $extraParams) {
+            $params = array_merge($extraParams, ['page' => $page, 'limit' => $limit]);
+            $qs = http_build_query($params);
+            return $baseUrl . ($qs ? '?' . $qs : '');
+        };
+
+        $html = '<div class="admin-pagination flex items-center justify-between px-4 py-3 border-t border-slate-700 bg-slate-900/60 rounded-b-lg">';
+        $html .= '<div class="text-xs text-slate-400">សរុប <span class="font-bold text-amber-400">' . number_format($totalItems) . '</span> ទិន្នន័យ (ទំព័រ ' . $currentPage . ' នៃ ' . $totalPages . ')</div>';
+        $html .= '<div class="flex items-center space-x-1">';
+
+        // Previous
+        if ($currentPage > 1) {
+            $html .= '<a href="' . htmlspecialchars($buildUrl($currentPage - 1)) . '" class="px-3 py-1 text-xs rounded bg-slate-800 hover:bg-amber-500 hover:text-black transition border border-slate-700 text-slate-200">« ថយក្រោយ</a>';
+        }
+
+        // Page Numbers (sliding window)
+        $start = max(1, $currentPage - 2);
+        $end = min($totalPages, $currentPage + 2);
+        if ($start > 1) {
+            $html .= '<a href="' . htmlspecialchars($buildUrl(1)) . '" class="px-2.5 py-1 text-xs rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700">1</a>';
+            if ($start > 2) $html .= '<span class="px-1 text-xs text-slate-500">...</span>';
+        }
+
+        for ($i = $start; $i <= $end; $i++) {
+            if ($i === $currentPage) {
+                $html .= '<span class="px-2.5 py-1 text-xs rounded font-bold bg-amber-500 text-black shadow">' . $i . '</span>';
+            } else {
+                $html .= '<a href="' . htmlspecialchars($buildUrl($i)) . '" class="px-2.5 py-1 text-xs rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700">' . $i . '</a>';
+            }
+        }
+
+        if ($end < $totalPages) {
+            if ($end < $totalPages - 1) $html .= '<span class="px-1 text-xs text-slate-500">...</span>';
+            $html .= '<a href="' . htmlspecialchars($buildUrl($totalPages)) . '" class="px-2.5 py-1 text-xs rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700">' . $totalPages . '</a>';
+        }
+
+        // Next
+        if ($currentPage < $totalPages) {
+            $html .= '<a href="' . htmlspecialchars($buildUrl($currentPage + 1)) . '" class="px-3 py-1 text-xs rounded bg-slate-800 hover:bg-amber-500 hover:text-black transition border border-slate-700 text-slate-200">បន្ទាប់ »</a>';
+        }
+
+        $html .= '</div></div>';
+        return $html;
+    }
+}
+
+// =========================================================================
+//  STREAMING CSV / EXCEL EXPORT (PREVENT MEMORY EXHAUSTION)
+// =========================================================================
+if (!function_exists('stream_csv_export')) {
+    function stream_csv_export($filename, array $headers, callable $rowGenerator) {
+        if (headers_sent()) {
+            return false;
+        }
+
+        // Clean any pre-existing output buffer to prevent corrupt output
+        while (ob_get_level() > 0) {
+            ob_end_clean();
+        }
+
+        header('Content-Type: text/csv; charset=UTF-8');
+        header('Content-Disposition: attachment; filename="' . rawurlencode($filename) . '"');
+        header('Pragma: no-cache');
+        header('Expires: 0');
+
+        $out = fopen('php://output', 'w');
+        // UTF-8 BOM for Excel Khmer text rendering
+        fprintf($out, chr(0xEF) . chr(0xBB) . chr(0xBF));
+
+        if (!empty($headers)) {
+            fputcsv($out, $headers);
+        }
+
+        $batchCount = 0;
+        foreach ($rowGenerator() as $row) {
+            if (is_array($row)) {
+                fputcsv($out, $row);
+                $batchCount++;
+                if ($batchCount % 200 === 0) {
+                    fflush($out);
+                }
+            }
+        }
+
+        fclose($out);
+        exit;
+    }
+}
+

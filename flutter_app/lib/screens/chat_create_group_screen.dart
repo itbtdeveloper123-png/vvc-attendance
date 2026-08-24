@@ -40,33 +40,15 @@ class _ChatCreateGroupScreenState extends State<ChatCreateGroupScreen> {
 
   final Set<String> _selectedUserIds = {};
   String _searchQuery = '';
-  List<dynamic> _filteredUsers = [];
   bool _isCreating = false;
 
   @override
   void initState() {
     super.initState();
-    _filteredUsers = widget.allUsers;
     _searchController.addListener(() {
-      _filterUsers(_searchController.text);
-    });
-  }
-
-  void _filterUsers(String query) {
-    setState(() {
-      _searchQuery = query;
-      if (query.isEmpty) {
-        _filteredUsers = widget.allUsers;
-      } else {
-        _filteredUsers = widget.allUsers.where((u) {
-          final name = (u['name'] ?? '').toString().toLowerCase();
-          final position = (u['position'] ?? '').toString().toLowerCase();
-          final eid = (u['employee_id'] ?? '').toString().toLowerCase();
-          return name.contains(query.toLowerCase()) ||
-              position.contains(query.toLowerCase()) ||
-              eid.contains(query.toLowerCase());
-        }).toList();
-      }
+      setState(() {
+        _searchQuery = _searchController.text.trim();
+      });
     });
   }
 

@@ -14,8 +14,6 @@ class ApiService {
   static const bool _isLocalMode = false;
 
   static const String _primaryBaseUrl = 'https://app.vvc.asia/flutter/api.php';
-  static const String _fallbackV4BaseUrl =
-      'https://104.21.2.219/flutter/api.php';
 
   static String get baseUrl {
     if (_isLocalMode) {
@@ -26,56 +24,23 @@ class ApiService {
     }
   }
 
-  static bool _preferIPv4 = false;
-
-  static String get effectiveBaseUrl {
-    if (_isLocalMode) return baseUrl;
-    return _preferIPv4 ? _fallbackV4BaseUrl : _primaryBaseUrl;
-  }
+  static String get effectiveBaseUrl => baseUrl;
 
   static http.Client? _sharedClient;
-  static http.Client? _sharedIPv4Client;
 
   static http.Client _getHttpClient({bool forceIPv4 = false}) {
     if (kIsWeb) return http.Client();
-    if (forceIPv4 || _preferIPv4) {
-      return _sharedIPv4Client ??= _buildHttpClient(forceIPv4: true);
-    }
-    return _sharedClient ??= _buildHttpClient(forceIPv4: false);
+    return _sharedClient ??= _buildHttpClient();
   }
 
-  static http.Client _buildHttpClient({bool forceIPv4 = false}) {
+  static http.Client _buildHttpClient() {
     if (kIsWeb) return http.Client();
     final ioClient = HttpClient();
     
     // Optimize connection pooling & Keep-Alive
     ioClient.idleTimeout = const Duration(seconds: 60);
     ioClient.maxConnectionsPerHost = 20;
-    
-    // Enable modern TLS protocols
-    ioClient.badCertificateCallback =
-        (X509Certificate cert, String host, int port) {
-      // Allow certificates for specific domains
-      if (host == '104.21.2.219' ||
-          host == '172.67.129.187' ||
-          host == 'app.vvc.asia' ||
-          host == 'vvc.asia') {
-        // Check if certificate is from trusted issuer
-        if (cert.issuer.contains('Cloudflare') || 
-            cert.issuer.contains('Let\'s Encrypt') ||
-            cert.subject.contains('vvc.asia')) {
-          return true;
-        }
-      }
-      return false;
-    };
-    
-    // Set connection timeout
-    if (forceIPv4 || _preferIPv4) {
-      ioClient.connectionTimeout = const Duration(seconds: 8);
-    } else {
-      ioClient.connectionTimeout = const Duration(seconds: 10);
-    }
+    ioClient.connectionTimeout = const Duration(seconds: 12);
     
     return IOClient(ioClient);
   }
@@ -138,27 +103,11 @@ class ApiService {
     Object? lastError;
     for (int attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        final tryForceIPv4 = _preferIPv4 || attempt >= 2;
-        return await fn(forceIPv4: tryForceIPv4);
+        return await fn(forceIPv4: false);
       } catch (e) {
         lastError = e;
-        final bindFail = _isSocketBindError(e);
-        final sslFail = e.toString().contains('SSLV3_ALERT_HANDSHAKE_FAILURE') || 
-                       e.toString().contains('HANDSHAKE_FAILURE');
-        
-        if (bindFail) {
-          _preferIPv4 = true;
-          debugPrint(
-              'Detected IPv6 bind failure — switched to IPv4 mode. Attempt $attempt/$maxAttempts');
-        }
-        
-        if (sslFail) {
-          debugPrint('SSL Handshake failure — retrying with different configuration. Attempt $attempt/$maxAttempts');
-          _preferIPv4 = true;
-        }
-        
         if (attempt < maxAttempts) {
-          final delayMs = (bindFail || sslFail) ? 300 : 250 * attempt;
+          final delayMs = 300 * attempt;
           await Future<void>.delayed(Duration(milliseconds: delayMs));
           continue;
         }
@@ -186,11 +135,8 @@ class ApiService {
 
   static const String publicReportUrl =
       'https://app.vvc.asia/flutter/public_report.php';
-  static const String publicReportFallbackV4 =
-      'https://104.21.2.219/flutter/public_report.php';
 
-  static String get effectivePublicReportUrl =>
-      _preferIPv4 ? publicReportFallbackV4 : publicReportUrl;
+  static String get effectivePublicReportUrl => publicReportUrl;
 
   Future<http.Response> postPublicReport(Map<String, String> body) async {
     return _withRetry<http.Response>(
@@ -199,7 +145,6 @@ class ApiService {
       final hdrs = <String, String>{
         'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
         'Accept-Encoding': 'gzip, deflate',
-        if (forceIPv4 || _preferIPv4) 'Host': 'app.vvc.asia',
       };
       return await client
           .post(Uri.parse(effectivePublicReportUrl),
@@ -263,10 +208,6 @@ class ApiService {
         requestHeaders['Content-Type'] =
             'application/x-www-form-urlencoded; charset=UTF-8';
         requestHeaders['Accept-Encoding'] = 'gzip, deflate';
-        
-        if (forceIPv4 || _preferIPv4) {
-          requestHeaders['Host'] = 'app.vvc.asia';
-        }
 
         final uri = Uri.parse(effectiveBaseUrl);
         final response = await client
@@ -727,14 +668,11 @@ class ApiService {
     try {
       return await _withRetry<Map<String, dynamic>>(
           ({required bool forceIPv4}) async {
-        final client = _buildHttpClient(forceIPv4: forceIPv4);
+        final client = _buildHttpClient();
         try {
           final requestHeaders = Map<String, String>.from(headers);
           requestHeaders['Content-Type'] =
               'application/x-www-form-urlencoded; charset=UTF-8';
-          if (forceIPv4 || _preferIPv4) {
-            requestHeaders['Host'] = 'app.vvc.asia';
-          }
 
           final uri = Uri.parse(effectiveBaseUrl);
           final response = await client
@@ -799,10 +737,9 @@ class ApiService {
     try {
       return await _withRetry<Map<String, dynamic>>(
           ({required bool forceIPv4}) async {
-        final client = _buildHttpClient(forceIPv4: forceIPv4);
+        final client = _buildHttpClient();
         try {
           final hdrs = Map<String, String>.from(requestHeaders);
-          if (forceIPv4 || _preferIPv4) hdrs['Host'] = 'app.vvc.asia';
           final uri = Uri.parse(effectiveBaseUrl);
           final response = await client
               .post(uri, headers: hdrs, body: body)
@@ -850,10 +787,9 @@ class ApiService {
     try {
       return await _withRetry<Map<String, dynamic>>(
           ({required bool forceIPv4}) async {
-        final client = _buildHttpClient(forceIPv4: forceIPv4);
+        final client = _buildHttpClient();
         try {
           final hdrs = Map<String, String>.from(requestHeaders);
-          if (forceIPv4 || _preferIPv4) hdrs['Host'] = 'app.vvc.asia';
           final uri = Uri.parse(effectiveBaseUrl);
           final response = await client
               .post(uri, headers: hdrs, body: body)
@@ -902,12 +838,11 @@ class ApiService {
         };
         final response = await _withRetry<http.Response>(
             ({required bool forceIPv4}) async {
-          final client = _buildHttpClient(forceIPv4: forceIPv4);
+          final client = _buildHttpClient();
           try {
             final hdrs = Map<String, String>.from(headers);
             hdrs['Content-Type'] =
                 'application/x-www-form-urlencoded; charset=UTF-8';
-            if (forceIPv4 || _preferIPv4) hdrs['Host'] = 'app.vvc.asia';
             final uri = Uri.parse(effectiveBaseUrl);
             return await client
                 .post(uri, headers: hdrs, body: body)
@@ -1318,17 +1253,8 @@ class ApiService {
         dioInstance.httpClientAdapter = IOHttpClientAdapter(
           createHttpClient: () {
             final client = HttpClient();
-            client.badCertificateCallback =
-                (X509Certificate cert, String host, int port) {
-              if (forceIPv4 || _preferIPv4) {
-                return host == '104.21.2.219' ||
-                    host == '172.67.129.187' ||
-                    cert.subject.contains('vvc.asia') ||
-                    cert.issuer.contains('Cloudflare') ||
-                    cert.issuer.contains('Let\'s Encrypt');
-              }
-              return false;
-            };
+            client.idleTimeout = const Duration(seconds: 60);
+            client.connectionTimeout = const Duration(seconds: 30);
             return client;
           },
         );
@@ -1397,7 +1323,6 @@ class ApiService {
         }
       }
       final postHeaders = Map<String, String>.from(headers);
-      if (forceIPv4 || _preferIPv4) postHeaders['Host'] = 'app.vvc.asia';
       final response = await dioInstance.post(
         effectiveBaseUrl,
         data: formData,

@@ -33,8 +33,8 @@ class _NotificationScreenState extends State<NotificationScreen> {
       if (mounted) setState(() {});
     });
 
-    // Auto polling every 6 seconds
-    _pollingTimer = Timer.periodic(const Duration(seconds: 6), (timer) {
+    // Auto polling every 30 seconds
+    _pollingTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
       if (mounted) {
         _fetchNotificationsSilently();
       }

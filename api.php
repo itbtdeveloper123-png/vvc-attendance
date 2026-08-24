@@ -119,10 +119,15 @@ if (!function_exists('sendAppNotificationToUser')) {
 }
 
 /**
- * Get connection to HRM settings database
+ * Get connection to HRM settings database (Reuses unified singleton connection)
  * @return mysqli|null
  */
 function getHRMConnection() {
+    if (function_exists('get_unified_db_connection')) {
+        return get_unified_db_connection();
+    }
+    static $conn = null;
+    if ($conn !== null && @$conn->ping()) return $conn;
     if (!defined('HRM_DB_NAME')) return null;
     $conn = @new mysqli(HRM_DB_SERVER, HRM_DB_USERNAME, HRM_DB_PASSWORD, HRM_DB_NAME);
     if ($conn && $conn->connect_error) return null;
@@ -500,17 +505,13 @@ function check_api_rate_limit($mysqli) {
     }
 }
 
-// ── Early DB connection (required by global schema-setup code below) ──────────
-// A lightweight connection used ONLY for global DDL statements (face tables, etc.)
-// The main authenticated connection is re-established at line ~3183 for routing.
+// ── Unified DB connection (Singleton instance) ──────────
 mysqli_report(MYSQLI_REPORT_OFF);
-$mysqli = @new mysqli(DB_SERVER, DB_USERNAME, DB_PASSWORD, DB_NAME);
+$mysqli = function_exists('get_unified_db_connection') ? get_unified_db_connection() : @new mysqli(DB_SERVER, DB_USERNAME, DB_PASSWORD, DB_NAME);
 if ($mysqli && !$mysqli->connect_error) {
     $mysqli->set_charset('utf8mb4');
     $mysqli->query("SET time_zone = '+07:00'");
 } else {
-    // If early connection fails, create a stub so global code below won't fatal-error.
-    // The main connection at ~line 3183 will properly report the failure to the client.
     $mysqli = null;
 }
 
@@ -3192,16 +3193,18 @@ function getBearerToken() {
 
 
 // ================================================================
-//  DATABASE CONNECTION — MUST be before getBearerToken / action routing
+//  DATABASE CONNECTION — Ensure unified connection is ready
 // ================================================================
-$mysqli = @new mysqli(DB_SERVER, DB_USERNAME, DB_PASSWORD, DB_NAME);
-if ($mysqli->connect_error) {
-    error_log("API DB connect failed: " . $mysqli->connect_error);
+if (!$mysqli || !is_object($mysqli) || @$mysqli->connect_error) {
+    $mysqli = function_exists('get_unified_db_connection') ? get_unified_db_connection() : @new mysqli(DB_SERVER, DB_USERNAME, DB_PASSWORD, DB_NAME);
+}
+if (!$mysqli || $mysqli->connect_error) {
+    error_log("API DB connect failed: " . ($mysqli ? $mysqli->connect_error : 'Connection null'));
     http_response_code(500);
     echo json_encode([
         'success' => false,
         'message' => 'Database connection failed',
-        'error'   => $mysqli->connect_error
+        'error'   => $mysqli ? $mysqli->connect_error : 'Connection null'
     ]);
     exit;
 }
@@ -3209,7 +3212,7 @@ $mysqli->set_charset('utf8mb4');
 $mysqli->query("SET time_zone = '+07:00'");
 mysqli_report(MYSQLI_REPORT_OFF); // handle errors manually
 
-// ── Post-connection setup (rate limiting, schema auto-heal) ────────────────
+// ── Post-connection setup (rate limiting, throttled schema auto-heal) ────────────────
 // Perform API Rate Limiting Check
 try {
     check_api_rate_limit($mysqli);
@@ -3217,26 +3220,41 @@ try {
     error_log("Rate limiting check failed: " . $e->getMessage());
 }
 
-// Auto-heal DB schema if core columns in users table are missing
-$_required_columns = [
-    'global_max_tokens' => "INT DEFAULT 1",
-    'system_role_label' => "VARCHAR(100) DEFAULT NULL",
-    'email'             => "VARCHAR(255) DEFAULT NULL",
-    'avatar'            => "VARCHAR(255) DEFAULT NULL",
-    'username'          => "VARCHAR(100) DEFAULT NULL",
-    'joined_at'         => "TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP",
-];
-foreach ($_required_columns as $_col => $_def) {
-    $_col_check = $mysqli->query("SHOW COLUMNS FROM users LIKE '$_col'");
-    if (!$_col_check || $_col_check->num_rows === 0) {
-        @$mysqli->query("ALTER TABLE users ADD COLUMN $_col $_def");
-    }
-}
-unset($_required_columns, $_col, $_def, $_col_check);
+// Throttled schema auto-heal: runs at most once every 12 hours instead of on EVERY API request
+$_schema_cache_file = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'vvc_schema_verified_' . md5(defined('DB_NAME') ? DB_NAME : 'vvc');
+$_should_check_schema = !file_exists($_schema_cache_file) || (time() - @filemtime($_schema_cache_file) > 43200);
 
-try { ensure_enterprise_support_tables($mysqli); } catch (Exception $e) { error_log("Enterprise tables: " . $e->getMessage()); }
-try { ensure_requests_table_schema($mysqli);      } catch (Exception $e) { error_log("Requests schema: "  . $e->getMessage()); }
-try { process_due_notification_schedules($mysqli);} catch (Exception $e) { error_log("Notif schedules: " . $e->getMessage()); }
+if ($_should_check_schema) {
+    @touch($_schema_cache_file);
+    $_required_columns = [
+        'global_max_tokens' => "INT DEFAULT 1",
+        'system_role_label' => "VARCHAR(100) DEFAULT NULL",
+        'email'             => "VARCHAR(255) DEFAULT NULL",
+        'avatar'            => "VARCHAR(255) DEFAULT NULL",
+        'username'          => "VARCHAR(100) DEFAULT NULL",
+        'joined_at'         => "TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP",
+    ];
+    foreach ($_required_columns as $_col => $_def) {
+        $_col_check = $mysqli->query("SHOW COLUMNS FROM users LIKE '$_col'");
+        if (!$_col_check || $_col_check->num_rows === 0) {
+            @$mysqli->query("ALTER TABLE users ADD COLUMN $_col $_def");
+        }
+        if ($_col_check && is_object($_col_check)) {
+            $_col_check->close();
+        }
+    }
+    unset($_required_columns, $_col, $_def, $_col_check);
+
+    try { ensure_enterprise_support_tables($mysqli); } catch (Exception $e) { error_log("Enterprise tables: " . $e->getMessage()); }
+    try { ensure_requests_table_schema($mysqli);      } catch (Exception $e) { error_log("Requests schema: "  . $e->getMessage()); }
+}
+
+// Throttled notification schedule processing (at most once every 60 seconds)
+$_notif_sched_file = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'vvc_notif_sched_tick';
+if (!file_exists($_notif_sched_file) || (time() - @filemtime($_notif_sched_file) > 60)) {
+    @touch($_notif_sched_file);
+    try { process_due_notification_schedules($mysqli);} catch (Exception $e) { error_log("Notif schedules: " . $e->getMessage()); }
+}
 // ─────────────────────────────────────────────────────────────────────────────
 
 $token = getBearerToken();

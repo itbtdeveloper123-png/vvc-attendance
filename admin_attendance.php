@@ -390,29 +390,34 @@ $admin_pages_list = [
 // ===============================================
 // 			DATABASE CONNECTION & HELPERS
 // ===============================================
-$mysqli = new mysqli(DB_SERVER, DB_USERNAME, DB_PASSWORD, DB_NAME);
+$mysqli = function_exists('get_unified_db_connection') ? get_unified_db_connection() : new mysqli(DB_SERVER, DB_USERNAME, DB_PASSWORD, DB_NAME);
 
+if (!$mysqli || $mysqli->connect_error) {
+    die("Database Connection Failed: " . ($mysqli ? $mysqli->connect_error : 'Null Connection'));
+}
 $mysqli->set_charset("utf8mb4");
 $mysqli->query("SET time_zone = '+07:00'");
 
-if ($mysqli->connect_error) {
-    // កំហុសធ្ងន់ធ្ងរ នឹងបង្ហាញសារនេះជំនួសផ្ទាំងសរ
-    die("Database Connection Failed: " . $mysqli->connect_error);
-}
-
-// Auto-heal DB schema if core columns in users table are missing
-$required_columns = [
-    'global_max_tokens' => "INT DEFAULT 1",
-    'system_role_label' => "VARCHAR(100) DEFAULT NULL",
-    'email' => "VARCHAR(255) DEFAULT NULL",
-    'avatar' => "VARCHAR(255) DEFAULT NULL",
-    'username' => "VARCHAR(100) DEFAULT NULL",
-    'joined_at' => "TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP"
-];
-foreach ($required_columns as $col => $definition) {
-    $col_check = $mysqli->query("SHOW COLUMNS FROM users LIKE '$col'");
-    if (!$col_check || $col_check->num_rows === 0) {
-        @$mysqli->query("ALTER TABLE users ADD COLUMN $col $definition");
+// Auto-heal DB schema (throttled to run at most once per 12 hours)
+$_admin_schema_cache = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'vvc_schema_verified_' . md5(defined('DB_NAME') ? DB_NAME : 'vvc');
+if (!file_exists($_admin_schema_cache) || (time() - @filemtime($_admin_schema_cache) > 43200)) {
+    @touch($_admin_schema_cache);
+    $required_columns = [
+        'global_max_tokens' => "INT DEFAULT 1",
+        'system_role_label' => "VARCHAR(100) DEFAULT NULL",
+        'email' => "VARCHAR(255) DEFAULT NULL",
+        'avatar' => "VARCHAR(255) DEFAULT NULL",
+        'username' => "VARCHAR(100) DEFAULT NULL",
+        'joined_at' => "TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP"
+    ];
+    foreach ($required_columns as $col => $definition) {
+        $col_check = $mysqli->query("SHOW COLUMNS FROM users LIKE '$col'");
+        if (!$col_check || $col_check->num_rows === 0) {
+            @$mysqli->query("ALTER TABLE users ADD COLUMN $col $definition");
+        }
+        if ($col_check && is_object($col_check)) {
+            $col_check->close();
+        }
     }
 }
 
@@ -5624,6 +5629,7 @@ ob_end_flush();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <?= function_exists('csrf_meta_tag') ? csrf_meta_tag() : '' ?>
     <title>Admin Panel - Check In/Out</title>
     <!-- Performance: Resource Hints -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -5642,6 +5648,43 @@ ob_end_flush();
         rel="stylesheet">
     <!-- Local Momo Trust Display font (Latin only) -->
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script>
+        // Automatic CSRF Token Interceptor for jQuery and Fetch
+        (function() {
+            var csrfToken = '<?= function_exists("get_csrf_token") ? get_csrf_token() : "" ?>';
+            if (csrfToken) {
+                if (window.jQuery) {
+                    jQuery.ajaxSetup({
+                        headers: { 'X-CSRF-Token': csrfToken }
+                    });
+                }
+                var originalFetch = window.fetch;
+                if (originalFetch) {
+                    window.fetch = function(url, options) {
+                        options = options || {};
+                        options.headers = options.headers || {};
+                        if (typeof options.headers.set === 'function') {
+                            options.headers.set('X-CSRF-Token', csrfToken);
+                        } else {
+                            options.headers['X-CSRF-Token'] = csrfToken;
+                        }
+                        return originalFetch(url, options);
+                    };
+                }
+                document.addEventListener('DOMContentLoaded', function() {
+                    document.querySelectorAll('form[method="post"], form[method="POST"]').forEach(function(f) {
+                        if (!f.querySelector('input[name="csrf_token"]')) {
+                            var inp = document.createElement('input');
+                            inp.type = 'hidden';
+                            inp.name = 'csrf_token';
+                            inp.value = csrfToken;
+                            f.appendChild(inp);
+                        }
+                    });
+                });
+            }
+        })();
+    </script>
     <link rel="icon" href="https://i.ibb.co/kRJFYbC/Logo.png">
     <!-- Premium Admin Panel v2 - Inline Styles -->
     <style>

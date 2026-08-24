@@ -20,6 +20,7 @@ import '../utils/app_theme.dart';
 import '../utils/image_compress.dart';
 import 'face_setup_screen.dart';
 import '../widgets/vvc_global_alert.dart';
+import '../services/local_db_service.dart';
 
 class AttendanceScreen extends StatefulWidget {
   /// If set, auto-submits with this action (skips dialog).
@@ -58,6 +59,94 @@ class _AttendanceScreenState extends State<AttendanceScreen>
   late AnimationController _laserController;
   late Animation<double> _laserAnimation;
 
+  bool _isOfflineOrNetworkError(dynamic result, [Object? error]) {
+    final str = '${result is Map ? result['message'] ?? '' : ''} ${error?.toString() ?? ''}'.toLowerCase();
+    return str.contains('socket') ||
+        str.contains('connection') ||
+        str.contains('timed out') ||
+        str.contains('timeout') ||
+        str.contains('offline') ||
+        str.contains('failed host lookup') ||
+        str.contains('network') ||
+        str.contains('handshake');
+  }
+
+  Future<void> _saveOfflinePunch({
+    required String action,
+    required String employeeId,
+    required String workplace,
+    required String branch,
+    required String locationRaw,
+    required String qrSecret,
+    required int qrLocationId,
+    String? lateReason,
+  }) async {
+    try {
+      final punchData = {
+        'action': action,
+        'employee_id': employeeId,
+        'workplace': workplace,
+        'branch': branch,
+        'location_raw': locationRaw,
+        'qr_secret': qrSecret,
+        'qr_location_id': qrLocationId,
+        'late_reason': lateReason ?? '',
+        'manual_distance': 0.0,
+        'manual_location_name': workplace,
+        'timestamp': DateTime.now().toIso8601String(),
+        'synced': 0,
+      };
+
+      await LocalDbService().insertPunch(punchData);
+
+      NotificationService().showNotification(
+        id: DateTime.now().millisecondsSinceEpoch.remainder(100000),
+        title: 'បានរក្សាទុក Offline',
+        body: 'វត្តមាន $action ត្រូវបានរក្សាទុកក្នុងទូរស័ព្ទ!',
+      );
+
+      if (mounted) {
+        _showSuccess(
+          'បានរក្សាទុកវត្តមានក្នុងទូរស័ព្ទ (Offline) ដោយសារគ្មានអ៊ីនធឺណិត។\nប្រព័ន្ធនឹងផ្ញើទៅ Server ដោយស្វ័យប្រវត្តពេលមានអ៊ីនធឺណិតឡើងវិញ។',
+          action: action,
+        );
+      }
+    } catch (e) {
+      debugPrint('Failed to save offline punch: $e');
+      if (mounted) {
+        _showError('មិនអាចរក្សាទុក Offline បានទេ៖ $e');
+      }
+    }
+  }
+
+  Future<void> _syncOfflinePunches() async {
+    try {
+      final unsynced = await LocalDbService().getUnsyncedPunches();
+      if (unsynced.isEmpty) return;
+
+      debugPrint('[OfflineSync] Found ${unsynced.length} pending offline punches');
+      for (final p in unsynced) {
+        final int id = p['id'] as int;
+        final res = await _apiService.submitAttendance(
+          action: p['action']?.toString() ?? 'Check-In',
+          employeeId: p['employee_id']?.toString() ?? '',
+          workplace: p['workplace']?.toString() ?? 'Offline',
+          branch: p['branch']?.toString() ?? 'Offline',
+          locationRaw: p['location_raw']?.toString() ?? '0.0,0.0',
+          qrSecret: p['qr_secret']?.toString() ?? '',
+          qrLocationId: (p['qr_location_id'] as num?)?.toInt() ?? 0,
+          lateReason: p['late_reason']?.toString(),
+        );
+        if (res['success'] == true) {
+          await LocalDbService().markAsSynced(id);
+          debugPrint('[OfflineSync] Synced punch ID: $id successfully');
+        }
+      }
+    } catch (e) {
+      debugPrint('[OfflineSync] Sync failed (will retry next time): $e');
+    }
+  }
+
   /// Load whether this user has already registered their face
   Future<void> _loadFaceRegistrationStatus() async {
     // Biometrics are native to device, so we treat it as always registered
@@ -78,6 +167,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _loadFaceRegistrationStatus();
       _tryFaceScanOrFallback();
+      _syncOfflinePunches();
     });
   }
 
@@ -742,7 +832,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
           debugPrint('[FaceAttendance] AI verify: ${result.matched} | ${result.error}');
         } else {
           faceVerified = false;
-          faceError = 'អ្នកមិនទាន់បានចុះឈ្មោះផ្ទៃមុខទេ។ សូមចូលទៅកាន់ការកំណត់ដើម្បីចុះឈ្មោះជាមុនសិន។';
+          faceError = 'អ្នកមិនទាន់បានចុះឈ្មោះផ្ទៃមុខទេ។ សូមចូលទៅកាន់ការកំណត់ដើម្បីចុះឈ្មោះជាមុនសិន።';
         }
       } else {
         faceVerified = true; // No user ID — skip
@@ -805,6 +895,17 @@ class _AttendanceScreenState extends State<AttendanceScreen>
           } else {
             await _switchToQrScanner();
           }
+        } else if (_isOfflineOrNetworkError(result)) {
+          await _saveOfflinePunch(
+            action: action,
+            employeeId: userProvider.employeeId!,
+            workplace: 'Face Scan',
+            branch: 'Face Scan',
+            locationRaw: locationRaw,
+            qrSecret: 'outside_scan',
+            qrLocationId: 0,
+            lateReason: reason,
+          );
         } else {
           _showError(result['message'] ?? 'បរាជ័យ');
         }
@@ -813,8 +914,22 @@ class _AttendanceScreenState extends State<AttendanceScreen>
       await submit(null);
     } catch (e) {
       if (mounted) {
-        _showError('កំហុស៖ $e');
-        await _switchToQrScanner();
+        if (_isOfflineOrNetworkError(null, e)) {
+          final userProvider =
+              Provider.of<UserProvider>(context, listen: false);
+          await _saveOfflinePunch(
+            action: widget.presetAction ?? 'Check-In',
+            employeeId: userProvider.employeeId ?? '',
+            workplace: 'Face Scan',
+            branch: 'Face Scan',
+            locationRaw: '0.0,0.0',
+            qrSecret: 'outside_scan',
+            qrLocationId: 0,
+          );
+        } else {
+          _showError('កំហុស៖ $e');
+          await _switchToQrScanner();
+        }
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -927,6 +1042,17 @@ class _AttendanceScreenState extends State<AttendanceScreen>
           } else {
             if (mounted) setState(() => _isScanning = true);
           }
+        } else if (_isOfflineOrNetworkError(result)) {
+          await _saveOfflinePunch(
+            action: action,
+            employeeId: userProvider.employeeId!,
+            workplace: "N/A",
+            branch: "N/A",
+            locationRaw: locationRaw,
+            qrSecret: secret,
+            qrLocationId: locationId,
+            lateReason: reason,
+          );
         } else {
           _showError(result['message'] ?? 'បរាជ័យ');
         }
@@ -934,7 +1060,23 @@ class _AttendanceScreenState extends State<AttendanceScreen>
 
       await submit(null);
     } catch (e) {
-      _showError("កំហុស៖ $e");
+      if (_isOfflineOrNetworkError(null, e)) {
+        if (mounted) {
+          final userProvider =
+              Provider.of<UserProvider>(context, listen: false);
+          await _saveOfflinePunch(
+            action: widget.presetAction ?? 'Check-In',
+            employeeId: userProvider.employeeId ?? '',
+            workplace: "N/A",
+            branch: "N/A",
+            locationRaw: '0.0,0.0',
+            qrSecret: '',
+            qrLocationId: 0,
+          );
+        }
+      } else {
+        _showError("កំហុស៖ $e");
+      }
     } finally {
       setState(() {
         _isLoading = false;

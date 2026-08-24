@@ -42,9 +42,7 @@ class _DesktopDashboardViewState extends State<DesktopDashboardView> {
     'unread_notifications': 0,
     'annual_leave_remaining': 0,
   };
-  bool _isLoadingStats = true;
   String _nextAction = 'Check-In';
-  bool _isLoadingNextAction = true;
   List<dynamic> _banners = [];
 
   // Live Timer
@@ -89,14 +87,9 @@ class _DesktopDashboardViewState extends State<DesktopDashboardView> {
           if (result['stats'] is Map) {
             _stats = Map<String, dynamic>.from(result['stats']);
           }
-          _isLoadingStats = false;
         });
-      } else {
-        if (mounted) setState(() => _isLoadingStats = false);
       }
-    } catch (_) {
-      if (mounted) setState(() => _isLoadingStats = false);
-    }
+    } catch (_) {}
   }
 
   Future<void> _loadNextAction() async {
@@ -107,14 +100,9 @@ class _DesktopDashboardViewState extends State<DesktopDashboardView> {
         final last = result['last_action'] ?? 'Check-Out';
         setState(() {
           _nextAction = (last == 'Check-In') ? 'Check-Out' : 'Check-In';
-          _isLoadingNextAction = false;
         });
-      } else {
-        setState(() => _isLoadingNextAction = false);
       }
-    } catch (_) {
-      if (mounted) setState(() => _isLoadingNextAction = false);
-    }
+    } catch (_) {}
   }
 
   Future<void> _loadCheckInTime() async {
