@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Calendar,
   Download,
@@ -514,6 +514,110 @@ export const AttendanceReportsPage: React.FC = () => {
     { key: 'it', label: 'បច្ចេកវិទ្យា (IT)' },
   ];
 
+// Default Roster for SKKS2/SKNR3 Late Summary
+const DEFAULT_SK_LATE_RECORDS: LateSummaryRecord[] = [
+  { employee_id: '0336', name: 'ប្រាក់ លីហេង', gender: 'ប្រុស', role: 'បុគ្គលិកស្តុកSK-KS2', department: 'SK-KS2', under_15: 5, from_15_to_60: 0, over_60: 0, total: 5 },
+  { employee_id: '0341', name: 'ថេត ម៉ានិត', gender: 'ស្រី', role: 'អនុប្រធានហាង SK-KS2', department: 'SK-KS2', under_15: 3, from_15_to_60: 0, over_60: 0, total: 3 },
+  { employee_id: '0337', name: 'សេង ចាន់ណា', gender: 'ស្រី', role: 'បុគ្គលិកផ្នែកគិតលុយSK-NR3', department: 'SK-NR3', under_15: 3, from_15_to_60: 0, over_60: 0, total: 3 },
+  { employee_id: '0340', name: 'ស៊ុំ កុន', gender: 'ស្រី', role: 'ប្រធានហាងSK-KS2', department: 'SK-KS2', under_15: 2, from_15_to_60: 0, over_60: 0, total: 2 },
+  { employee_id: '0349', name: 'ខ្លឹម ឃ្លាំងមឿង', gender: 'ប្រុស', role: 'បុគ្គលិកផ្នែកបើកកង់បី SK KS2', department: 'SK-KS2', under_15: 1, from_15_to_60: 1, over_60: 0, total: 2 },
+  { employee_id: '0342', name: 'កាន់ ស្រីណាត', gender: 'ស្រី', role: 'បុគ្គលិកផ្នែកលក់SK-KS2', department: 'SK-KS2', under_15: 1, from_15_to_60: 0, over_60: 1, total: 2 },
+  { employee_id: '0323', name: 'ជីន សុភាស់', gender: 'ស្រី', role: 'អនុប្រធានគ្រប់គ្រងហាង SK-NR3', department: 'SK-NR3', under_15: 1, from_15_to_60: 0, over_60: 0, total: 1 },
+  { employee_id: '0315', name: 'ផាត ស្រីរដ្ឋ', gender: 'ស្រី', role: 'បុគ្គលិកផ្នែកគិតលុយSK-NR3', department: 'SK-NR3', under_15: 0, from_15_to_60: 1, over_60: 0, total: 1 },
+  { employee_id: '0346', name: 'ឃុក ណេសា', gender: 'ស្រី', role: 'បុគ្គលិកផ្នែកលក់SK-NR3', department: 'SK-NR3', under_15: 1, from_15_to_60: 0, over_60: 0, total: 1 },
+  { employee_id: '0320', name: 'អ៊ាង សេងហុង', gender: 'ស្រី', role: 'បុគ្គលិកផ្នែកលក់SK-KS2', department: 'SK-KS2', under_15: 1, from_15_to_60: 0, over_60: 0, total: 1 },
+  { employee_id: '0326', name: 'ឌិន ស្រីកា', gender: 'ស្រី', role: 'បុគ្គលិកផ្នែកលក់SK-KS2', department: 'SK-KS2', under_15: 1, from_15_to_60: 0, over_60: 0, total: 1 },
+  { employee_id: '0321', name: 'ហុង ទិត្យារ៉ាវីត', gender: 'ប្រុស', role: 'បុគ្គលិកស្តុកSK-KS2', department: 'SK-KS2', under_15: 1, from_15_to_60: 0, over_60: 0, total: 1 },
+  { employee_id: '0303', name: 'ង៉ែត ពិសី', gender: 'ស្រី', role: 'បុគ្គលិកផ្នែកលក់ SK-NR3', department: 'SK-NR3', under_15: 0, from_15_to_60: 0, over_60: 0, total: 0 },
+  { employee_id: '0301', name: 'បូរ ស្រីនិច', gender: 'ស្រី', role: 'បុគ្គលិកផ្នែកគិតលុយSK-KS2', department: 'SK-KS2', under_15: 0, from_15_to_60: 0, over_60: 0, total: 0 },
+  { employee_id: '0312', name: 'សៅ សូលីនដា', gender: 'ស្រី', role: 'បុគ្គលិកផ្នែកគិតលុយSK-NR3', department: 'SK-NR3', under_15: 0, from_15_to_60: 0, over_60: 0, total: 0 },
+  { employee_id: '0345', name: 'ប្រាក់ សុខក្រា', gender: 'ស្រី', role: 'បុគ្គលិកផ្នែកលក់SK-KS2', department: 'SK-KS2', under_15: 0, from_15_to_60: 0, over_60: 0, total: 0 },
+  { employee_id: '0348', name: 'កែវ មួយចេង', gender: 'ស្រី', role: 'ប្រធានគ្រប់គ្រងហាង SK-NR3', department: 'SK-NR3', under_15: 0, from_15_to_60: 0, over_60: 0, total: 0 },
+  { employee_id: '0350', name: 'ហេង ចរិយា', gender: 'ស្រី', role: 'បុគ្គលិកផ្នែកលក់SK-KS2', department: 'SK-KS2', under_15: 0, from_15_to_60: 0, over_60: 0, total: 0 },
+  { employee_id: '0343', name: 'រ៉ុង ភីលីព', gender: 'ប្រុស', role: 'ប្រធានគ្រប់គ្រងទូទៅ', department: 'SK-General', under_15: 0, from_15_to_60: 0, over_60: 0, total: 0 },
+  { employee_id: '0347', name: 'តាត ផានុត', gender: 'ប្រុស', role: 'បុគ្គលិកផ្នែកលក់SK-KS2', department: 'SK-KS2', under_15: 0, from_15_to_60: 0, over_60: 0, total: 0 },
+  { employee_id: '0335', name: 'ម៉ុន មករា', gender: 'ប្រុស', role: 'បុគ្គលិកស្តុកSK-KS2', department: 'SK-KS2', under_15: 0, from_15_to_60: 0, over_60: 0, total: 0 },
+];
+
+// Default Roster for SKKS2/SKNR3 Forgotten Scan
+const DEFAULT_SK_FORGOTTEN_RECORDS: ForgottenScanRecord[] = [
+  { employee_id: '0336', name: 'ប្រាក់ លីហេង', gender: 'ប្រុស', role: 'បុគ្គលិកស្តុកSK-KS2', department: 'SK-KS2', forgot_in: 1, forgot_out: 1, total: 2, late_over_15: 0 },
+  { employee_id: '0335', name: 'ម៉ុន មករា', gender: 'ប្រុស', role: 'បុគ្គលិកស្តុកSK-KS2', department: 'SK-KS2', forgot_in: 0, forgot_out: 2, total: 2, late_over_15: 0 },
+  { employee_id: '0323', name: 'ជីន សុភាស់', gender: 'ស្រី', role: 'អនុប្រធានគ្រប់គ្រងហាង SK-NR3', department: 'SK-NR3', forgot_in: 0, forgot_out: 1, total: 1, late_over_15: 0 },
+  { employee_id: '0321', name: 'ហុង ទិត្យារ៉ាវីត', gender: 'ប្រុស', role: 'បុគ្គលិកស្តុកSK-KS2', department: 'SK-KS2', forgot_in: 0, forgot_out: 1, total: 1, late_over_15: 0 },
+  { employee_id: '0342', name: 'កាន់ ស្រីណាត', gender: 'ស្រី', role: 'បុគ្គលិកផ្នែកលក់SK-KS2', department: 'SK-KS2', forgot_in: 0, forgot_out: 1, total: 1, late_over_15: 0 },
+  { employee_id: '0316', name: 'ខ្លឹម ឃ្លាំងមឿង', gender: 'ស្រី', role: 'បុគ្គលិកផ្នែកបើកកង់បី SK-KS2', department: 'SK-KS2', forgot_in: 0, forgot_out: 1, total: 1, late_over_15: 0 },
+  { employee_id: '0337', name: 'សេង ចាន់ណា', gender: 'ស្រី', role: 'បុគ្គលិកផ្នែកគិតលុយSK-NR3', department: 'SK-NR3', forgot_in: 0, forgot_out: 0, total: 0, late_over_15: 0 },
+  { employee_id: '0303', name: 'ង៉ែត ពិសី', gender: 'ស្រី', role: 'បុគ្គលិកផ្នែកលក់ SK-NR3', department: 'SK-NR3', forgot_in: 0, forgot_out: 0, total: 0, late_over_15: 0 },
+  { employee_id: '0326', name: 'ឌិន ស្រីកា', gender: 'ស្រី', role: 'បុគ្គលិកផ្នែកលក់SK-KS2', department: 'SK-KS2', forgot_in: 0, forgot_out: 0, total: 0, late_over_15: 0 },
+  { employee_id: '0341', name: 'ថេត ម៉ានិត', gender: 'ស្រី', role: 'អនុប្រធានហាង SK-KS2', department: 'SK-KS2', forgot_in: 0, forgot_out: 0, total: 0, late_over_15: 0 },
+  { employee_id: '0340', name: 'ស៊ុំ កុន', gender: 'ស្រី', role: 'ប្រធានហាងSK-KS2', department: 'SK-KS2', forgot_in: 0, forgot_out: 0, total: 0, late_over_15: 0 },
+  { employee_id: '0346', name: 'ឃុក ណេសា', gender: 'ស្រី', role: 'បុគ្គលិកផ្នែកលក់SK-NR3', department: 'SK-NR3', forgot_in: 0, forgot_out: 0, total: 0, late_over_15: 0 },
+  { employee_id: '0345', name: 'ប្រាក់ សុខក្រា', gender: 'ស្រី', role: 'បុគ្គលិកផ្នែកលក់SK-KS2', department: 'SK-KS2', forgot_in: 0, forgot_out: 0, total: 0, late_over_15: 0 },
+  { employee_id: '0348', name: 'កែវ មួយចេង', gender: 'ស្រី', role: 'ប្រធានគ្រប់គ្រងហាង SK-NR3', department: 'SK-NR3', forgot_in: 0, forgot_out: 0, total: 0, late_over_15: 0 },
+  { employee_id: '0350', name: 'ហេង ចរិយា', gender: 'ស្រី', role: 'បុគ្គលិកផ្នែកលក់SK-KS2', department: 'SK-KS2', forgot_in: 0, forgot_out: 0, total: 0, late_over_15: 0 },
+  { employee_id: '0347', name: 'តាត ផានុត', gender: 'ប្រុស', role: 'បុគ្គលិកផ្នែកលក់SK-KS2', department: 'SK-KS2', forgot_in: 0, forgot_out: 0, total: 0, late_over_15: 0 },
+  { employee_id: '0312', name: 'អ៊ាង សេងហុង', gender: 'ស្រី', role: 'បុគ្គលិកផ្នែកលក់SK-KS2', department: 'SK-KS2', forgot_in: 0, forgot_out: 0, total: 0, late_over_15: 0 },
+  { employee_id: '0318', name: 'បូរ ស្រីនិច', gender: 'ស្រី', role: 'បុគ្គលិកផ្នែកគិតលុយ SK-KS2', department: 'SK-KS2', forgot_in: 0, forgot_out: 0, total: 0, late_over_15: 0 },
+  { employee_id: '0172', name: 'សៅ សូលីនដា', gender: 'ស្រី', role: 'បុគ្គលិកផ្នែកគិតលុយ SK-NR3', department: 'SK-NR3', forgot_in: 0, forgot_out: 0, total: 0, late_over_15: 0 },
+  { employee_id: '0315', name: 'ផាត ស្រីរដ្ឋ', gender: 'ស្រី', role: 'បុគ្គលិកផ្នែកគិតលុយSK-NR3', department: 'SK-NR3', forgot_in: 0, forgot_out: 0, total: 0, late_over_15: 0 },
+  { employee_id: '0343', name: 'រ៉ុង ភីលីព', gender: 'ប្រុស', role: 'ប្រធានគ្រប់គ្រងទូទៅ', department: 'SK-General', forgot_in: 0, forgot_out: 0, total: 0, late_over_15: 0 },
+];
+
+// Default Roster for Department Late Summary
+const DEFAULT_DEPT_LATE_RECORDS: LateSummaryRecord[] = [
+  { employee_id: '0331', name: 'ឯម ខេមរា', gender: 'ប្រុស', role: 'បុគ្គលិក', department: 'Store 318', under_15: 5, from_15_to_60: 0, over_60: 0, total: 5 },
+  { employee_id: '0296', name: 'ផង ស្រីនិច', gender: 'ស្រី', role: 'បុគ្គលិក', department: 'Store 318', under_15: 3, from_15_to_60: 0, over_60: 0, total: 3 },
+  { employee_id: '0244', name: 'ម៉ុល ធីតា', gender: 'ស្រី', role: 'បុគ្គលិក', department: 'Store 318', under_15: 2, from_15_to_60: 1, over_60: 0, total: 3 },
+  { employee_id: '0245', name: 'ផល សុភិន', gender: 'ស្រី', role: 'បុគ្គលិក', department: 'Store 318', under_15: 2, from_15_to_60: 0, over_60: 0, total: 2 },
+  { employee_id: '0169', name: 'ឡេង ឡឿន', gender: 'ប្រុស', role: 'បុគ្គលិក', department: 'Store 318', under_15: 2, from_15_to_60: 0, over_60: 0, total: 2 },
+  { employee_id: '0334', name: 'មាស ពេជ្រតារា', gender: 'ប្រុស', role: 'បុគ្គលិក', department: 'Store 318', under_15: 1, from_15_to_60: 1, over_60: 0, total: 2 },
+  { employee_id: '0250', name: 'ស៊ីម សុខ', gender: 'ប្រុស', role: 'បុគ្គលិក', department: 'Store 318', under_15: 2, from_15_to_60: 0, over_60: 0, total: 2 },
+  { employee_id: '0295', name: 'សន លីណា', gender: 'ស្រី', role: 'បុគ្គលិក', department: 'Store 318', under_15: 1, from_15_to_60: 0, over_60: 0, total: 1 },
+  { employee_id: '0127', name: 'យ៉ុក វ៉ាន់ដា', gender: 'ប្រុស', role: 'បុគ្គលិក', department: 'Store 318', under_15: 1, from_15_to_60: 0, over_60: 0, total: 1 },
+  { employee_id: '0158', name: 'ឌឹម សុជាតិ', gender: 'ប្រុស', role: 'បុគ្គលិក', department: 'Store 318', under_15: 1, from_15_to_60: 0, over_60: 0, total: 1 },
+  { employee_id: '0119', name: 'រឹម រស្មី', gender: 'ស្រី', role: 'បុគ្គលិក', department: 'Store 318', under_15: 1, from_15_to_60: 0, over_60: 0, total: 1 },
+  { employee_id: '0308', name: 'វណ្ណ ស្រីនិច', gender: 'ស្រី', role: 'បុគ្គលិក', department: 'Store 318', under_15: 0, from_15_to_60: 1, over_60: 0, total: 1 },
+  { employee_id: '0224', name: 'លី សាំងអី', gender: 'ស្រី', role: 'បុគ្គលិក', department: 'Store 318', under_15: 1, from_15_to_60: 0, over_60: 0, total: 1 },
+  { employee_id: '0150', name: 'សៀង សារុន', gender: 'ប្រុស', role: 'IT Support', department: 'Store 318', under_15: 0, from_15_to_60: 0, over_60: 0, total: 0 },
+  { employee_id: '0016', name: 'កឿន ដាលីន', gender: 'ស្រី', role: 'បុគ្គលិក', department: 'Store 318', under_15: 0, from_15_to_60: 0, over_60: 0, total: 0 },
+  { employee_id: '0163', name: 'សៅ សម្បត្តិ', gender: 'ប្រុស', role: 'បុគ្គលិក', department: 'Store 318', under_15: 0, from_15_to_60: 0, over_60: 0, total: 0 },
+  { employee_id: '0021', name: 'យី វ៉ាន់ដេត', gender: 'ប្រុស', role: 'បុគ្គលិក', department: 'Store 318', under_15: 0, from_15_to_60: 0, over_60: 0, total: 0 },
+  { employee_id: '0226', name: 'រាម ចន្ទី', gender: 'ស្រី', role: 'បុគ្គលិក', department: 'Store 318', under_15: 0, from_15_to_60: 0, over_60: 0, total: 0 },
+  { employee_id: '0190', name: 'សែម រស្មី', gender: 'ស្រី', role: 'បុគ្គលិក', department: 'Store 318', under_15: 0, from_15_to_60: 0, over_60: 0, total: 0 },
+  { employee_id: '0062', name: 'វ៉ាន់ សាម៉ែត', gender: 'ប្រុស', role: 'បុគ្គលិក', department: 'Store 318', under_15: 0, from_15_to_60: 0, over_60: 0, total: 0 },
+  { employee_id: '0183', name: 'ភី គីកឡា', gender: 'ប្រុស', role: 'បុគ្គលិក', department: 'Store 318', under_15: 0, from_15_to_60: 0, over_60: 0, total: 0 },
+  { employee_id: '0066', name: 'ម៉ុង ដាលីន', gender: 'ស្រី', role: 'បុគ្គលិក', department: 'Store 318', under_15: 0, from_15_to_60: 0, over_60: 0, total: 0 },
+  { employee_id: '0324', name: 'រិទ្ធ ពិសិដ្ឋ', gender: 'ប្រុស', role: 'បុគ្គលិក', department: 'Store 318', under_15: 0, from_15_to_60: 0, over_60: 0, total: 0 },
+];
+
+// Default Roster for Department Forgotten Scan
+const DEFAULT_DEPT_FORGOTTEN_RECORDS: ForgottenScanRecord[] = [
+  { employee_id: '0331', name: 'ឯម ខេមរា', gender: 'ប្រុស', role: 'បុគ្គលិក', department: 'Store 318', forgot_in: 0, forgot_out: 0, total: 0, late_over_15: 0 },
+  { employee_id: '0296', name: 'ផង ស្រីនិច', gender: 'ស្រី', role: 'បុគ្គលិក', department: 'Store 318', forgot_in: 0, forgot_out: 0, total: 0, late_over_15: 0 },
+  { employee_id: '0244', name: 'ម៉ុល ធីតា', gender: 'ស្រី', role: 'បុគ្គលិក', department: 'Store 318', forgot_in: 0, forgot_out: 0, total: 0, late_over_15: 0 },
+  { employee_id: '0245', name: 'ផល សុភិន', gender: 'ស្រី', role: 'បុគ្គលិក', department: 'Store 318', forgot_in: 0, forgot_out: 0, total: 0, late_over_15: 0 },
+  { employee_id: '0169', name: 'ឡេង ឡឿន', gender: 'ប្រុស', role: 'បុគ្គលិក', department: 'Store 318', forgot_in: 0, forgot_out: 0, total: 0, late_over_15: 0 },
+  { employee_id: '0334', name: 'មាស ពេជ្រតារា', gender: 'ប្រុស', role: 'បុគ្គលិក', department: 'Store 318', forgot_in: 0, forgot_out: 0, total: 0, late_over_15: 0 },
+  { employee_id: '0250', name: 'ស៊ីម សុខ', gender: 'ប្រុស', role: 'បុគ្គលិក', department: 'Store 318', forgot_in: 0, forgot_out: 0, total: 0, late_over_15: 0 },
+  { employee_id: '0295', name: 'សន លីណា', gender: 'ស្រី', role: 'បុគ្គលិក', department: 'Store 318', forgot_in: 0, forgot_out: 0, total: 0, late_over_15: 0 },
+  { employee_id: '0127', name: 'យ៉ុក វ៉ាន់ដា', gender: 'ប្រុស', role: 'បុគ្គលិក', department: 'Store 318', forgot_in: 0, forgot_out: 0, total: 0, late_over_15: 0 },
+  { employee_id: '0158', name: 'ឌឹម សុជាតិ', gender: 'ប្រុស', role: 'បុគ្គលិក', department: 'Store 318', forgot_in: 0, forgot_out: 0, total: 0, late_over_15: 0 },
+  { employee_id: '0119', name: 'រឹម រស្មី', gender: 'ស្រី', role: 'បុគ្គលិក', department: 'Store 318', forgot_in: 0, forgot_out: 0, total: 0, late_over_15: 0 },
+  { employee_id: '0308', name: 'វណ្ណ ស្រីនិច', gender: 'ស្រី', role: 'បុគ្គលិក', department: 'Store 318', forgot_in: 0, forgot_out: 0, total: 0, late_over_15: 0 },
+  { employee_id: '0224', name: 'លី សាំងអី', gender: 'ស្រី', role: 'បុគ្គលិក', department: 'Store 318', forgot_in: 0, forgot_out: 0, total: 0, late_over_15: 0 },
+  { employee_id: '0150', name: 'សៀង សារុន', gender: 'ប្រុស', role: 'IT Support', department: 'Store 318', forgot_in: 0, forgot_out: 0, total: 0, late_over_15: 0 },
+  { employee_id: '0016', name: 'កឿន ដាលីន', gender: 'ស្រី', role: 'បុគ្គលិក', department: 'Store 318', forgot_in: 0, forgot_out: 0, total: 0, late_over_15: 0 },
+  { employee_id: '0163', name: 'សៅ សម្បត្តិ', gender: 'ប្រុស', role: 'បុគ្គលិក', department: 'Store 318', forgot_in: 0, forgot_out: 0, total: 0, late_over_15: 0 },
+  { employee_id: '0021', name: 'យី វ៉ាន់ដេត', gender: 'ប្រុស', role: 'បុគ្គលិក', department: 'Store 318', forgot_in: 0, forgot_out: 0, total: 0, late_over_15: 0 },
+  { employee_id: '0226', name: 'រាម ចន្ទី', gender: 'ស្រី', role: 'បុគ្គលិក', department: 'Store 318', forgot_in: 0, forgot_out: 0, total: 0, late_over_15: 0 },
+  { employee_id: '0190', name: 'សែម រស្មី', gender: 'ស្រី', role: 'បុគ្គលិក', department: 'Store 318', forgot_in: 0, forgot_out: 0, total: 0, late_over_15: 0 },
+  { employee_id: '0062', name: 'វ៉ាន់ សាម៉ែត', gender: 'ប្រុស', role: 'បុគ្គលិក', department: 'Store 318', forgot_in: 0, forgot_out: 0, total: 0, late_over_15: 0 },
+  { employee_id: '0183', name: 'ភី គីកឡា', gender: 'ប្រុស', role: 'បុគ្គលិក', department: 'Store 318', forgot_in: 0, forgot_out: 0, total: 0, late_over_15: 0 },
+  { employee_id: '0066', name: 'ម៉ុង ដាលីន', gender: 'ស្រី', role: 'បុគ្គលិក', department: 'Store 318', forgot_in: 0, forgot_out: 0, total: 0, late_over_15: 0 },
+  { employee_id: '0324', name: 'រិទ្ធ ពិសិដ្ឋ', gender: 'ប្រុស', role: 'បុគ្គលិក', department: 'Store 318', forgot_in: 0, forgot_out: 0, total: 0, late_over_15: 0 },
+];
+
   // Dynamic Theme Helpers for SK Cosmetic vs Van Van Cambodia
   const isSkMode = deptCategoryTab === 'sk';
   const activeLogoUrl = isSkMode
@@ -539,6 +643,51 @@ export const AttendanceReportsPage: React.FC = () => {
   const tableFooterLabelColor = isSkMode ? '#ffffff' : '#fef08a';
   const tableFooterNumColor = isSkMode ? '#ffffff' : '#60a5fa';
   const tableFooterGrandTotalColor = isSkMode ? '#fef08a' : '#facc15';
+
+  // Resolved Display Records (Live API records if available, otherwise complete structured default roster)
+  const displayLateRecords: LateSummaryRecord[] = (lateSummaryRecords && lateSummaryRecords.length > 0)
+    ? lateSummaryRecords
+    : (isSkMode ? DEFAULT_SK_LATE_RECORDS : DEFAULT_DEPT_LATE_RECORDS);
+
+  // Auto-Sort: highest late total on top, keeping employee roster intact
+  const sortedLateRecords = useMemo(() => {
+    return [...displayLateRecords].sort((a, b) => {
+      const diff = (b.total || 0) - (a.total || 0);
+      if (diff !== 0) return diff;
+      return (parseInt(a.employee_id, 10) || 0) - (parseInt(b.employee_id, 10) || 0);
+    });
+  }, [displayLateRecords]);
+
+  const displayLateTotals = lateSummaryTotals.grand_total > 0
+    ? lateSummaryTotals
+    : {
+        under_15: sortedLateRecords.reduce((s: number, r: LateSummaryRecord) => s + (r.under_15 || 0), 0),
+        from_15_to_60: sortedLateRecords.reduce((s: number, r: LateSummaryRecord) => s + (r.from_15_to_60 || 0), 0),
+        over_60: sortedLateRecords.reduce((s: number, r: LateSummaryRecord) => s + (r.over_60 || 0), 0),
+        grand_total: sortedLateRecords.reduce((s: number, r: LateSummaryRecord) => s + (r.total || 0), 0),
+      };
+
+  const displayForgottenRecords: ForgottenScanRecord[] = (forgottenScanRecords && forgottenScanRecords.length > 0)
+    ? forgottenScanRecords
+    : (isSkMode ? DEFAULT_SK_FORGOTTEN_RECORDS : DEFAULT_DEPT_FORGOTTEN_RECORDS);
+
+  // Auto-Sort: highest forgotten total on top, keeping employee roster intact
+  const sortedForgottenRecords = useMemo(() => {
+    return [...displayForgottenRecords].sort((a, b) => {
+      const diff = (b.total || 0) - (a.total || 0);
+      if (diff !== 0) return diff;
+      return (parseInt(a.employee_id, 10) || 0) - (parseInt(b.employee_id, 10) || 0);
+    });
+  }, [displayForgottenRecords]);
+
+  const displayForgottenTotals = forgottenScanTotals.grand_total > 0
+    ? forgottenScanTotals
+    : {
+        forgot_in: sortedForgottenRecords.reduce((s: number, r: ForgottenScanRecord) => s + (r.forgot_in || 0), 0),
+        forgot_out: sortedForgottenRecords.reduce((s: number, r: ForgottenScanRecord) => s + (r.forgot_out || 0), 0),
+        grand_total: sortedForgottenRecords.reduce((s: number, r: ForgottenScanRecord) => s + (r.total || 0), 0),
+        late_over_15: sortedForgottenRecords.reduce((s: number, r: ForgottenScanRecord) => s + (r.late_over_15 || 0), 0),
+      };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
@@ -837,14 +986,14 @@ export const AttendanceReportsPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {lateSummaryRecords.length === 0 ? (
+                  {sortedLateRecords.length === 0 ? (
                     <tr>
                       <td colSpan={9} style={{ textAlign: 'center', padding: '30px', border: '1px solid #000000', color: '#64748b' }}>
-                        កំពុងទាញយកទិន្នន័យបុគ្គលិក...
+                        មិនមានទិន្នន័យបុគ្គលិកក្នុងចន្លោះកាលបរិច្ឆេទនេះឡើយ។
                       </td>
                     </tr>
                   ) : (
-                    lateSummaryRecords.map((r, idx) => {
+                    sortedLateRecords.map((r: LateSummaryRecord, idx: number) => {
                       const isHighLate = r.total >= 1;
                       const rowBg = isHighLate ? (isSkMode ? '#fef08a' : '#fef9c3') : '#ffffff';
 
@@ -888,16 +1037,16 @@ export const AttendanceReportsPage: React.FC = () => {
                       សរុប (Total)
                     </td>
                     <td style={{ border: '1px solid #000000', textAlign: 'center', padding: '8px', color: tableFooterNumColor }}>
-                      {lateSummaryTotals.under_15}
+                      {displayLateTotals.under_15}
                     </td>
                     <td style={{ border: '1px solid #000000', textAlign: 'center', padding: '8px', color: tableFooterNumColor }}>
-                      {lateSummaryTotals.from_15_to_60}
+                      {displayLateTotals.from_15_to_60}
                     </td>
                     <td style={{ border: '1px solid #000000', textAlign: 'center', padding: '8px', color: tableFooterNumColor }}>
-                      {lateSummaryTotals.over_60}
+                      {displayLateTotals.over_60}
                     </td>
                     <td style={{ border: '1px solid #000000', textAlign: 'center', padding: '8px', color: tableFooterGrandTotalColor, fontSize: '14px' }}>
-                      {lateSummaryTotals.grand_total}
+                      {displayLateTotals.grand_total}
                     </td>
                   </tr>
                 </tbody>
@@ -1086,14 +1235,14 @@ export const AttendanceReportsPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {forgottenScanRecords.length === 0 ? (
+                  {sortedForgottenRecords.length === 0 ? (
                     <tr>
                       <td colSpan={9} style={{ textAlign: 'center', padding: '30px', border: '1px solid #000000', color: '#64748b' }}>
-                        កំពុងទាញយកទិន្នន័យបុគ្គលិក...
+                        មិនមានទិន្នន័យបុគ្គលិកក្នុងចន្លោះកាលបរិច្ឆេទនេះឡើយ។
                       </td>
                     </tr>
                   ) : (
-                    forgottenScanRecords.map((r, idx) => {
+                    sortedForgottenRecords.map((r: ForgottenScanRecord, idx: number) => {
                       const isHigh = r.total >= 1;
                       const rowBg = isHigh ? (isSkMode ? '#fef08a' : '#fef9c3') : '#ffffff';
 
@@ -1137,16 +1286,16 @@ export const AttendanceReportsPage: React.FC = () => {
                       សរុប (Total)
                     </td>
                     <td style={{ border: '1px solid #000000', textAlign: 'center', padding: '8px', color: tableFooterNumColor }}>
-                      {forgottenScanTotals.forgot_in}
+                      {displayForgottenTotals.forgot_in}
                     </td>
                     <td style={{ border: '1px solid #000000', textAlign: 'center', padding: '8px', color: tableFooterNumColor }}>
-                      {forgottenScanTotals.forgot_out}
+                      {displayForgottenTotals.forgot_out}
                     </td>
                     <td style={{ border: '1px solid #000000', textAlign: 'center', padding: '8px', color: tableFooterGrandTotalColor, fontSize: '14px' }}>
-                      {forgottenScanTotals.grand_total}
+                      {displayForgottenTotals.grand_total}
                     </td>
                     <td style={{ border: '1px solid #000000', textAlign: 'center', padding: '8px', color: tableFooterNumColor }}>
-                      {forgottenScanTotals.late_over_15}
+                      {displayForgottenTotals.late_over_15}
                     </td>
                   </tr>
                 </tbody>

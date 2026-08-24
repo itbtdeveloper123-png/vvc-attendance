@@ -873,8 +873,6 @@ try {
             $startDt = $startDate . ' 00:00:00';
             $endDt = $endDate . ' 23:59:59';
 
-            $skEmployeeIds = ['0336','0341','0337','0340','0349','0342','0323','0315','0346','0320','0326','0321','0303','0301','0312','0345','0348','0350','0343','0347','0335','0318','0172'];
-
             // 1. Fetch All Users from users table and checkin_logs
             $rawUsers = dbQuery("SELECT * FROM users ORDER BY CAST(employee_id AS UNSIGNED) ASC, name ASC");
             if (empty($rawUsers)) {
@@ -895,8 +893,46 @@ try {
                 $empPos = (string)($u['position'] ?? $custom['position'] ?? $u['role'] ?? '');
                 $empRole = (string)($u['user_role'] ?? $custom['role'] ?? '');
 
-                $isWorker = (stripos($empDept, 'worker') !== false || stripos($empDept, 'កម្មករ') !== false || stripos($empPos, 'worker') !== false || stripos($empRole, 'worker') !== false);
-                $isSk = (in_array($empId, $skEmployeeIds, true) || stripos($empDept, 'sk') !== false || stripos($empDept, 'ks2') !== false || stripos($empDept, 'nr3') !== false || stripos($empDept, 'psp') !== false || stripos($empDept, 'prv') !== false || stripos($empPos, 'sk') !== false);
+                // Exclude system/admin login accounts (e.g. admin, superadmin, Sarun, Vvc, IT-DEMO, etc.)
+                $empIdLower = strtolower(trim($empId));
+                $empNameLower = strtolower(trim((string)($u['name'] ?? '')));
+                $empUserLower = strtolower(trim((string)($u['username'] ?? '')));
+                $systemAccounts = ['admin', 'admin-1', 'admin1', 'superadmin', 'vvc', 'sarun', 'it-demo', 'demo', 'test', 'system', 'root'];
+
+                if (in_array($empIdLower, $systemAccounts, true) || in_array($empUserLower, $systemAccounts, true)) {
+                    continue;
+                }
+                if (stripos($empNameLower, 'it-demo') !== false || stripos($empNameLower, 'it-by-vvc') !== false || stripos($empNameLower, 'superadmin') !== false) {
+                    continue;
+                }
+                if ($empIdLower === 'admin' || $empNameLower === 'admin' || ($empNameLower === 'user' && $empIdLower === 'admin')) {
+                    continue;
+                }
+                if (!empty($u['is_admin']) && $u['is_admin'] == 1 && !preg_match('/^\d+$/', $empId)) {
+                    continue;
+                }
+
+                $searchStr = strtolower(implode(' ', [
+                    $empDept,
+                    $empPos,
+                    $empRole,
+                    (string)($u['location_name'] ?? ''),
+                    (string)($u['branch'] ?? ''),
+                    (string)($u['store'] ?? ''),
+                    (string)($custom['branch'] ?? ''),
+                    (string)($custom['location'] ?? ''),
+                    (string)($custom['store'] ?? '')
+                ]));
+
+                $isWorker = (stripos($searchStr, 'worker') !== false || stripos($searchStr, 'កម្មករ') !== false);
+                $isSk = (
+                    stripos($searchStr, 'sk') !== false || 
+                    stripos($searchStr, 'sk2') !== false || 
+                    stripos($searchStr, 'ks2') !== false || 
+                    stripos($searchStr, 'nr3') !== false || 
+                    stripos($searchStr, 'skks2') !== false || 
+                    stripos($searchStr, 'sknr3') !== false
+                );
 
                 if ($deptCategory === 'worker' && !$isWorker) continue;
                 if ($deptCategory === 'sk' && !$isSk) continue;
@@ -1104,8 +1140,6 @@ try {
             $startDt = $startDate . ' 00:00:00';
             $endDt = $endDate . ' 23:59:59';
 
-            $skEmployeeIds = ['0336','0341','0337','0340','0349','0342','0323','0315','0346','0320','0326','0321','0303','0301','0312','0345','0348','0350','0343','0347','0335','0318','0172'];
-
             // 1. Fetch Users
             $rawUsers = dbQuery("SELECT * FROM users ORDER BY CAST(employee_id AS UNSIGNED) ASC, name ASC");
             if (empty($rawUsers)) {
@@ -1126,8 +1160,46 @@ try {
                 $empPos = (string)($u['position'] ?? $custom['position'] ?? $u['role'] ?? '');
                 $empRole = (string)($u['user_role'] ?? $custom['role'] ?? '');
 
-                $isWorker = (stripos($empDept, 'worker') !== false || stripos($empDept, 'កម្មករ') !== false || stripos($empPos, 'worker') !== false || stripos($empRole, 'worker') !== false);
-                $isSk = (in_array($empId, $skEmployeeIds, true) || stripos($empDept, 'sk') !== false || stripos($empDept, 'ks2') !== false || stripos($empDept, 'nr3') !== false || stripos($empDept, 'psp') !== false || stripos($empDept, 'prv') !== false || stripos($empPos, 'sk') !== false);
+                // Exclude system/admin login accounts (e.g. admin, superadmin, Sarun, Vvc, IT-DEMO, etc.)
+                $empIdLower = strtolower(trim($empId));
+                $empNameLower = strtolower(trim((string)($u['name'] ?? '')));
+                $empUserLower = strtolower(trim((string)($u['username'] ?? '')));
+                $systemAccounts = ['admin', 'admin-1', 'admin1', 'superadmin', 'vvc', 'sarun', 'it-demo', 'demo', 'test', 'system', 'root'];
+
+                if (in_array($empIdLower, $systemAccounts, true) || in_array($empUserLower, $systemAccounts, true)) {
+                    continue;
+                }
+                if (stripos($empNameLower, 'it-demo') !== false || stripos($empNameLower, 'it-by-vvc') !== false || stripos($empNameLower, 'superadmin') !== false) {
+                    continue;
+                }
+                if ($empIdLower === 'admin' || $empNameLower === 'admin' || ($empNameLower === 'user' && $empIdLower === 'admin')) {
+                    continue;
+                }
+                if (!empty($u['is_admin']) && $u['is_admin'] == 1 && !preg_match('/^\d+$/', $empId)) {
+                    continue;
+                }
+
+                $searchStr = strtolower(implode(' ', [
+                    $empDept,
+                    $empPos,
+                    $empRole,
+                    (string)($u['location_name'] ?? ''),
+                    (string)($u['branch'] ?? ''),
+                    (string)($u['store'] ?? ''),
+                    (string)($custom['branch'] ?? ''),
+                    (string)($custom['location'] ?? ''),
+                    (string)($custom['store'] ?? '')
+                ]));
+
+                $isWorker = (stripos($searchStr, 'worker') !== false || stripos($searchStr, 'កម្មករ') !== false);
+                $isSk = (
+                    stripos($searchStr, 'sk') !== false || 
+                    stripos($searchStr, 'sk2') !== false || 
+                    stripos($searchStr, 'ks2') !== false || 
+                    stripos($searchStr, 'nr3') !== false || 
+                    stripos($searchStr, 'skks2') !== false || 
+                    stripos($searchStr, 'sknr3') !== false
+                );
 
                 if ($deptCategory === 'worker' && !$isWorker) continue;
                 if ($deptCategory === 'sk' && !$isSk) continue;
