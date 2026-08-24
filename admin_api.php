@@ -1160,42 +1160,39 @@ try {
         case 'get_tokens':
         case 'fetch_tokens':
         case 'active_sessions':
-            dbQuery("CREATE TABLE IF NOT EXISTS active_tokens (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                employee_id VARCHAR(50) NOT NULL,
-                auth_token VARCHAR(255) NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                last_used TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                INDEX idx_emp (employee_id)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
-
-            dbQuery("CREATE TABLE IF NOT EXISTS user_skill_groups (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                group_name VARCHAR(255) NOT NULL,
-                sort_order INT DEFAULT 0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
-
-            $groups = dbQuery("SELECT id, group_name, sort_order FROM user_skill_groups ORDER BY sort_order ASC, group_name ASC");
-
-            // Collation-safe LEFT JOIN query
-            $sessions = dbQuery("
-                SELECT at.id, at.employee_id, 
-                       COALESCE(at.auth_token, '') as auth_token, 
-                       at.created_at, at.last_used,
-                       COALESCE(u.name, at.employee_id) as user_name, 
-                       COALESCE(u.name, at.employee_id) as name, 
-                       COALESCE(u.user_role, 'Employee') as user_role, 
-                       COALESCE(u.department, '') as department, 
-                       COALESCE(u.position, '') as position, 
+            $active_sessions_sql = "
+                SELECT at.*, 
+                       u.name as user_name, 
+                       u.employee_id, 
+                       u.user_role, 
+                       u.department, 
+                       u.position, 
                        u.custom_data, 
                        u.avatar
                 FROM active_tokens at
-                LEFT JOIN users u ON CONVERT(at.employee_id USING utf8mb4) = CONVERT(u.employee_id USING utf8mb4)
-                ORDER BY at.id DESC
-            ");
+                JOIN users u ON at.employee_id = u.employee_id
+                ORDER BY at.created_at DESC
+            ";
+            $sessions = dbQuery($active_sessions_sql);
 
-            // If empty or query issue, try fallback query with in-memory map
+            // Fallback if JOIN returned empty (e.g. collation difference)
+            if (empty($sessions)) {
+                $sessions = dbQuery("
+                    SELECT at.*, 
+                           COALESCE(u.name, at.employee_id) as user_name, 
+                           COALESCE(u.employee_id, at.employee_id) as employee_id, 
+                           COALESCE(u.user_role, 'Employee') as user_role, 
+                           u.department, 
+                           u.position, 
+                           u.custom_data, 
+                           u.avatar
+                    FROM active_tokens at
+                    LEFT JOIN users u ON at.employee_id = u.employee_id
+                    ORDER BY at.created_at DESC
+                ");
+            }
+
+            // Fallback: in-memory map
             if (empty($sessions)) {
                 $rawTokens = dbQuery("SELECT * FROM active_tokens ORDER BY id DESC");
                 if (!empty($rawTokens)) {
@@ -1209,11 +1206,12 @@ try {
                         $eid = $rt['employee_id'] ?? '';
                         $u = $userMap[$eid] ?? [];
                         $sessions[] = [
-                            'id' => (int)($rt['id'] ?? 0),
+                            'id' => $rt['id'] ?? 0,
                             'employee_id' => $eid,
                             'auth_token' => $rt['auth_token'] ?? $rt['token'] ?? '',
-                            'created_at' => $rt['created_at'] ?? date('Y-m-d H:i:s'),
-                            'last_used' => $rt['last_used'] ?? date('Y-m-d H:i:s'),
+                            'created_at' => $rt['created_at'] ?? '',
+                            'last_used' => $rt['last_used'] ?? '',
+                            'scan_user_type' => $rt['scan_user_type'] ?? 'N/A',
                             'user_name' => $u['name'] ?? $eid,
                             'name' => $u['name'] ?? $eid,
                             'user_role' => $u['user_role'] ?? 'Employee',
@@ -1226,15 +1224,31 @@ try {
                 }
             }
 
+            // Ensure auth_token and scan_user_type are always present
+            foreach ($sessions as &$s) {
+                if (empty($s['auth_token']) && !empty($s['token'])) {
+                    $s['auth_token'] = $s['token'];
+                }
+                if (empty($s['scan_user_type'])) {
+                    $s['scan_user_type'] = 'N/A';
+                }
+                if (empty($s['user_name']) && !empty($s['name'])) {
+                    $s['user_name'] = $s['name'];
+                }
+            }
+            unset($s);
+
+            $groups = dbQuery("SELECT id, group_name, sort_order FROM user_skill_groups ORDER BY sort_order ASC, group_name ASC");
+
             $globalMaxRow = dbQuery("SELECT setting_value FROM app_settings WHERE setting_key = 'global_max_tokens' LIMIT 1");
             $globalMaxTokens = !empty($globalMaxRow) ? (int)$globalMaxRow[0]['setting_value'] : 1;
             if ($globalMaxTokens < 1) $globalMaxTokens = 1;
 
             sendJson([
-                'success' => true, 
-                'sessions' => $sessions, 
-                'tokens' => $sessions, 
-                'groups' => $groups, 
+                'success' => true,
+                'sessions' => $sessions,
+                'tokens' => $sessions,
+                'groups' => $groups,
                 'global_max_tokens' => $globalMaxTokens,
                 'count' => count($sessions)
             ]);

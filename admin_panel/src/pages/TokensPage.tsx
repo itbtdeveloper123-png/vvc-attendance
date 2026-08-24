@@ -15,9 +15,31 @@ import {
   Copy,
   Power,
   Layers,
+  Laptop,
+  MoreVertical,
 } from 'lucide-react';
 import { StatCard } from '../components/common/StatCard';
 import { adminApi, SessionItem, SessionGroup } from '../api/adminApi';
+
+const formatSessionDate = (dateStr?: string) => {
+  if (!dateStr) return { date: '-', time: '' };
+  try {
+    const parts = dateStr.trim().split(' ');
+    const datePart = parts[0];
+    const timePart = parts[1] || '';
+
+    const d = new Date(dateStr.replace(' ', 'T'));
+    if (isNaN(d.getTime())) {
+      return { date: datePart || '-', time: timePart };
+    }
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const formattedDate = `${d.getDate()} ${months[d.getMonth()]}, ${d.getFullYear()}`;
+    const formattedTime = timePart || `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
+    return { date: formattedDate, time: formattedTime };
+  } catch (e) {
+    return { date: dateStr.split(' ')[0] || '-', time: dateStr.split(' ')[1] || '' };
+  }
+};
 
 export const TokensPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'active_sessions' | 'global_settings'>('active_sessions');
@@ -44,8 +66,8 @@ export const TokensPage: React.FC = () => {
     try {
       const res = await adminApi.fetchActiveSessions();
       if (res) {
-        const rawSessions = Array.isArray(res) 
-          ? res 
+        const rawSessions = Array.isArray(res)
+          ? res
           : (Array.isArray(res.sessions) ? res.sessions : (Array.isArray(res.tokens) ? res.tokens : (Array.isArray(res.data) ? res.data : [])));
         setSessions(rawSessions);
 
@@ -95,12 +117,12 @@ export const TokensPage: React.FC = () => {
   };
 
   const handleRevokeSingle = async (session: SessionItem) => {
-    if (!window.confirm(`តើអ្នកពិតជាចង់ផ្តាច់ Session របស់ "${session.user_name || session.name || session.employee_id}" មែនទេ?`)) return;
+    if (!window.confirm(`តើអ្នកពិតជាចង់លុប Session នេះមែនទេ?`)) return;
     try {
       const tokenOrId = session.auth_token || session.id;
       const res = await adminApi.revokeSession(tokenOrId);
       if (res && res.success) {
-        showBanner('success', res.message || 'បានផ្តាច់ Session ជោគជ័យ!');
+        showBanner('success', res.message || 'បានផ្តាច់ Token ជោគជ័យ!');
         setSelectedTokens(selectedTokens.filter((t) => t !== session.auth_token && t !== String(session.id)));
         loadSessions();
       } else {
@@ -113,7 +135,7 @@ export const TokensPage: React.FC = () => {
 
   const handleBulkRevoke = async () => {
     if (selectedTokens.length === 0) return;
-    if (!window.confirm(`តើអ្នកពិតជាចង់ផ្តាច់ Session ចំនួន ${selectedTokens.length} ដែលបានជ្រើសរើសមែនទេ?`)) return;
+    if (!window.confirm(`តើអ្នកពិតជាចង់លុប Token ចំនួន ${selectedTokens.length} ដែលបានជ្រើសរើសមែនទេ?`)) return;
     try {
       const res = await adminApi.revokeBulkTokens(selectedTokens);
       if (res && res.success) {
@@ -129,11 +151,11 @@ export const TokensPage: React.FC = () => {
   };
 
   const handleRevokeAll = async () => {
-    if (!window.confirm('⚠️ ការព្រមាន: តើអ្នកពិតជាចង់ផ្តាច់ Session ទាំងអស់ (Revoke All Sessions) ក្នុងប្រព័ន្ធមែនទេ? បុគ្គលិកទាំងអស់នឹងត្រូវ Login ឡើងវិញ។')) return;
+    if (!window.confirm('តើអ្នកពិតជាចង់ផ្តាច់ Session ទាំងអស់ (Revoke All Sessions) ក្នុងប្រព័ន្ធមែនទេ?')) return;
     try {
       const res = await adminApi.revokeAllSessions();
       if (res && res.success) {
-        showBanner('success', res.message || 'បានផ្តាច់គ្រប់ Session ទាំងអស់ដោយជោគជ័យ!');
+        showBanner('success', res.message || 'All sessions have been revoked.');
         setSelectedTokens([]);
         loadSessions();
       } else {
@@ -171,17 +193,16 @@ export const TokensPage: React.FC = () => {
     const name = (s.user_name || s.name || '').toLowerCase();
     const eid = (s.employee_id || '').toLowerCase();
     const token = (s.auth_token || '').toLowerCase();
-    const dept = (s.department || '').toLowerCase();
 
-    const matchesQuery = name.includes(q) || eid.includes(q) || token.includes(q) || dept.includes(q);
+    const matchesQuery = name.includes(q) || eid.includes(q) || token.includes(q);
 
     if (!selectedGroup) return matchesQuery;
 
     let userGroupId = '';
     if (s.custom_data) {
       try {
-        const parsed = JSON.parse(s.custom_data);
-        userGroupId = String(parsed.group_id || '');
+        const parsed = typeof s.custom_data === 'string' ? JSON.parse(s.custom_data) : s.custom_data;
+        userGroupId = String(parsed?.group_id || '');
       } catch (e) {
         // ignore
       }
@@ -196,7 +217,7 @@ export const TokensPage: React.FC = () => {
         <div>
           <h2 style={{ fontSize: '22px', fontWeight: 800, color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
             <KeyRound size={24} color="#6366f1" />
-            គ្រប់គ្រង Session & Token សុវត្ថិភាព (Token & Session Control)
+            គ្រប់គ្រង Token និង Session (Token & Session Control)
           </h2>
           <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '4px 0 0' }}>
             តាមដាន Active Tokens បុគ្គលិកលើទូរស័ព្ទ App ផ្តាច់ Session (Revoke) និងកំណត់ចំនួន Login អតិបរមា (Max Tokens)
@@ -259,29 +280,22 @@ export const TokensPage: React.FC = () => {
       {/* ========================================================================= */}
       {activeTab === 'active_sessions' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          {/* KPI Stat Cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
-            <StatCard
-              title="Session កំពុងសកម្ម (Active Tokens)"
-              value={`${sessions.length} ឧបករណ៍`}
-              subtitle="បាន Login លើ App / Web"
-              icon={<KeyRound size={22} />}
-              variant="primary"
-            />
-            <StatCard
-              title="កម្រិតកំណត់ Session (Max Tokens)"
-              value={`${globalMaxTokens} ឧបករណ៍ / នាក់`}
-              subtitle="កំណត់ការ Login ស្របគ្នា"
-              icon={<Shield size={22} />}
-              variant="gold"
-            />
-          </div>
-
           {/* Action Header & Bulk Controls */}
-          <div className="hrm-card" style={{ padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '15px', fontWeight: 800, color: 'var(--text-primary)' }}>
+          <div
+            className="hrm-card"
+            style={{
+              padding: '18px 24px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '14px',
+              borderRadius: '16px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '16px', fontWeight: 800, color: 'var(--text-primary)' }}>
               <Users size={18} color="var(--primary)" />
-              <span>បញ្ជី Session សកម្ម ({filteredSessions.length})</span>
+              <span>បញ្ជី Session សកម្ម (Active Sessions: {sessions.length})</span>
               {selectedTokens.length > 0 && (
                 <span className="badge badge-primary" style={{ marginLeft: '6px' }}>
                   បានជ្រើសរើស {selectedTokens.length}
@@ -294,8 +308,8 @@ export const TokensPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleBulkRevoke}
-                  className="btn btn-warning btn-sm"
-                  style={{ padding: '8px 16px', fontWeight: 700 }}
+                  className="btn btn-warning"
+                  style={{ padding: '8px 18px', fontWeight: 700, borderRadius: '10px' }}
                 >
                   <Trash2 size={14} />
                   <span>លុប Token ដែលបានជ្រើសរើស ({selectedTokens.length})</span>
@@ -304,8 +318,8 @@ export const TokensPage: React.FC = () => {
               <button
                 type="button"
                 onClick={handleRevokeAll}
-                className="btn btn-danger btn-sm"
-                style={{ padding: '8px 16px', fontWeight: 700 }}
+                className="btn btn-danger"
+                style={{ padding: '8px 20px', fontWeight: 700, borderRadius: '10px' }}
               >
                 <Power size={14} />
                 <span>Revoke All Sessions</span>
@@ -317,33 +331,32 @@ export const TokensPage: React.FC = () => {
           <div
             className="hrm-card"
             style={{
-              padding: '14px 20px',
+              padding: '16px 20px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
               gap: '12px',
               flexWrap: 'wrap',
+              borderRadius: '16px',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, flexWrap: 'wrap' }}>
               {/* Group Filter */}
-              {groups.length > 0 && (
-                <div style={{ minWidth: '200px' }}>
-                  <select
-                    className="form-input"
-                    value={selectedGroup}
-                    onChange={(e) => setSelectedGroup(e.target.value)}
-                    style={{ height: '40px', fontWeight: 600 }}
-                  >
-                    <option value="">— គ្រប់ក្រុមទាំងអស់ (All Groups) —</option>
-                    {groups.map((g) => (
-                      <option key={g.id} value={g.id}>
-                        {g.group_name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
+              <div style={{ minWidth: '220px' }}>
+                <select
+                  className="form-input"
+                  value={selectedGroup}
+                  onChange={(e) => setSelectedGroup(e.target.value)}
+                  style={{ height: '44px', fontWeight: 700, borderRadius: '12px' }}
+                >
+                  <option value="">— គ្រប់ក្រុមទាំងអស់ (All Groups) —</option>
+                  {groups.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.group_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
               {/* Search Box */}
               <div
@@ -352,56 +365,61 @@ export const TokensPage: React.FC = () => {
                   alignItems: 'center',
                   background: 'var(--surface-alt)',
                   border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius)',
-                  padding: '7px 12px',
+                  borderRadius: '12px',
+                  padding: '8px 14px',
                   minWidth: '280px',
                   flex: 1,
                   gap: '8px',
                 }}
               >
-                <Search size={15} color="var(--text-muted)" />
+                <Search size={16} color="var(--text-muted)" />
                 <input
                   type="text"
-                  placeholder="ស្វែងរកតាមឈ្មោះ, ID, Token..."
+                  placeholder="ស្វែងរកតាមឈ្មោះ ឬ ID..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   style={{
                     background: 'transparent',
                     border: 'none',
                     outline: 'none',
-                    fontSize: '13px',
+                    fontSize: '13.5px',
                     color: 'var(--text-primary)',
                     fontFamily: 'inherit',
                     width: '100%',
                   }}
                 />
               </div>
-            </div>
 
-            <button type="button" onClick={loadSessions} className="btn btn-secondary btn-sm" style={{ height: '40px' }}>
-              <RotateCw size={14} className={loading ? 'animate-spin' : ''} />
-              <span>ធ្វើបច្ចុប្បន្នភាព</span>
-            </button>
+              <button
+                type="button"
+                onClick={loadSessions}
+                className="btn btn-primary"
+                style={{ height: '44px', width: '44px', borderRadius: '12px', padding: 0, justifyContent: 'center' }}
+                title="ស្វែងរក / Refresh"
+              >
+                <Search size={16} />
+              </button>
+            </div>
           </div>
 
           {/* Sessions Table */}
-          <div className="table-container">
+          <div className="table-container" style={{ borderRadius: '16px' }}>
             <table className="hrm-table">
               <thead>
                 <tr>
-                  <th style={{ width: '40px', textAlign: 'center' }}>
+                  <th style={{ width: '44px', textAlign: 'center' }}>
                     <input
                       type="checkbox"
                       checked={selectedTokens.length > 0 && selectedTokens.length === filteredSessions.length}
                       onChange={handleToggleSelectAll}
-                      style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                      style={{ width: '18px', height: '18px', cursor: 'pointer' }}
                     />
                   </th>
-                  <th>ព័ត៌មានអ្នកប្រើប្រាស់ (User)</th>
-                  <th>តួនាទី / ផ្នែក</th>
-                  <th>Token (សង្ខេប)</th>
-                  <th>បង្កើតនៅ (Created At)</th>
-                  <th>សកម្មភាពចុងក្រោយ (Last Activity)</th>
+                  <th>ព័ត៌មានអ្នកប្រើប្រាស់ (USER)</th>
+                  <th>ប្រភេទ</th>
+                  <th>TOKEN (សង្ខេប)</th>
+                  <th>បង្កើតនៅ (CREATED AT)</th>
+                  <th>សកម្មភាពចុងក្រោយ (LAST ACTIVITY)</th>
                   <th style={{ textAlign: 'right' }}>សកម្មភាព</th>
                 </tr>
               </thead>
@@ -416,6 +434,9 @@ export const TokensPage: React.FC = () => {
                   filteredSessions.map((s) => {
                     const tokenKey = s.auth_token || String(s.id);
                     const isChecked = selectedTokens.includes(tokenKey);
+                    const created = formatSessionDate(s.created_at);
+                    const lastUsed = formatSessionDate(s.last_used);
+
                     return (
                       <tr key={s.id || s.auth_token}>
                         <td style={{ textAlign: 'center' }}>
@@ -423,18 +444,34 @@ export const TokensPage: React.FC = () => {
                             type="checkbox"
                             checked={isChecked}
                             onChange={() => handleToggleToken(tokenKey)}
-                            style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                            style={{ width: '18px', height: '18px', cursor: 'pointer' }}
                           />
                         </td>
                         <td>
-                          <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
-                            {s.user_name || s.name || 'បុគ្គលិក'}
+                          <div style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: '14px' }}>
+                            {s.user_name || s.name || 'User'}
                           </div>
-                          <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>ID: {s.employee_id}</div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                            ID: {s.employee_id}
+                          </div>
                         </td>
                         <td>
-                          <span className="badge badge-primary" style={{ fontSize: '11px' }}>
-                            {s.user_role || s.position || s.department || 'Staff'}
+                          <span
+                            style={{
+                              background: '#f1f5f9',
+                              color: '#475569',
+                              border: '1px solid var(--border)',
+                              fontSize: '11px',
+                              padding: '4px 10px',
+                              borderRadius: '8px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '5px',
+                              fontWeight: 600,
+                            }}
+                          >
+                            <Laptop size={12} />
+                            <span>{(s as any).scan_user_type || 'N/A'}</span>
                           </span>
                         </td>
                         <td>
@@ -446,15 +483,16 @@ export const TokensPage: React.FC = () => {
                                 borderRadius: '6px',
                                 fontSize: '11.5px',
                                 border: '1px solid var(--border)',
+                                color: 'var(--text-secondary)',
                               }}
                             >
-                              {s.auth_token ? `${s.auth_token.substring(0, 16)}...` : 'N/A'}
+                              {s.auth_token ? `${s.auth_token.substring(0, 15)}...` : 'N/A'}
                             </code>
                             {s.auth_token && (
                               <button
                                 type="button"
                                 onClick={() => handleCopyToken(s.auth_token)}
-                                title="Copy Full Token"
+                                title="Copy Token"
                                 style={{
                                   background: 'none',
                                   border: 'none',
@@ -468,21 +506,21 @@ export const TokensPage: React.FC = () => {
                             )}
                           </div>
                         </td>
-                        <td style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                          <div>{s.created_at ? s.created_at.split(' ')[0] : '-'}</div>
-                          <small style={{ color: 'var(--text-muted)' }}>{s.created_at ? s.created_at.split(' ')[1] : ''}</small>
+                        <td style={{ fontSize: '11.5px', color: 'var(--text-secondary)' }}>
+                          <div>{created.date}</div>
+                          <div style={{ color: 'var(--text-muted)', fontSize: '11px' }}>{created.time}</div>
                         </td>
-                        <td style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                          <div>{s.last_used ? s.last_used.split(' ')[0] : '-'}</div>
-                          <small style={{ color: 'var(--text-muted)' }}>{s.last_used ? s.last_used.split(' ')[1] : ''}</small>
+                        <td style={{ fontSize: '11.5px', color: 'var(--text-secondary)' }}>
+                          <div>{lastUsed.date}</div>
+                          <div style={{ color: 'var(--text-muted)', fontSize: '11px' }}>{lastUsed.time}</div>
                         </td>
                         <td style={{ textAlign: 'right' }}>
                           <button
                             type="button"
                             onClick={() => handleRevokeSingle(s)}
                             className="btn btn-danger btn-sm"
-                            title="ផ្តាច់ Session នេះ"
-                            style={{ padding: '4px 10px' }}
+                            title="ផ្តាច់ Session"
+                            style={{ padding: '5px 12px', borderRadius: '8px' }}
                           >
                             <Trash2 size={13} />
                             <span>Revoke</span>
@@ -502,7 +540,7 @@ export const TokensPage: React.FC = () => {
       {/* 2. GLOBAL TOKEN LIMITS TAB */}
       {/* ========================================================================= */}
       {activeTab === 'global_settings' && (
-        <div className="hrm-card" style={{ maxWidth: '650px', padding: '28px' }}>
+        <div className="hrm-card" style={{ maxWidth: '600px', padding: '28px', borderRadius: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
             <Lock size={20} color="var(--primary)" />
             <h3 style={{ fontSize: '17px', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
@@ -512,7 +550,7 @@ export const TokensPage: React.FC = () => {
 
           <form onSubmit={handleSaveGlobalSettings}>
             <div className="form-group">
-              <label className="form-label" style={{ fontWeight: 700 }}>
+              <label className="form-label" style={{ fontWeight: 700, color: 'var(--text-secondary)' }}>
                 ចំនួន Token អតិបរមា (Max Tokens per User):
               </label>
               <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginTop: '8px' }}>
@@ -524,16 +562,17 @@ export const TokensPage: React.FC = () => {
                   value={globalMaxTokens}
                   onChange={(e) => setGlobalMaxTokens(parseInt(e.target.value) || 1)}
                   style={{
-                    maxWidth: '120px',
+                    maxWidth: '140px',
                     fontSize: '1.2rem',
                     fontWeight: 700,
                     textAlign: 'center',
-                    height: '46px',
+                    height: '48px',
+                    borderRadius: '12px',
                   }}
                   required
                 />
                 <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-                  (អនុញ្ញាតចាប់ពី 1 ដល់ 10 ឧបករណ៍ក្នុងពេលតែមួយ)
+                  (អនុញ្ញាតចាប់ពី 1 ដល់ 10)
                 </span>
               </div>
             </div>
@@ -552,14 +591,14 @@ export const TokensPage: React.FC = () => {
             >
               <AlertCircle size={18} color="var(--primary)" style={{ flexShrink: 0, marginTop: '2px' }} />
               <div style={{ fontSize: '12.5px', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
-                <strong>បញ្ជាក់:</strong> ការកំណត់នេះនឹងកំណត់ចំនួនឧបករណ៍ (Devices) ដែល User នីមួយៗអាច Login ប្រើប្រាស់ក្នុងពេលតែមួយ។ ប្រសិនបើ Login លើសពីចំនួនកំណត់នេះ ប្រព័ន្ធនឹងស្វ័យប្រវត្តផ្តាច់ Token ចាស់។
+                <strong>បញ្ជាក់:</strong> ការកំណត់នេះនឹងកំណត់ចំនួនឧបករណ៍ (Devices) ដែល User នីមួយៗអាចប្រើប្រាស់ក្នុងពេលតែមួយ។
               </div>
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '28px' }}>
-              <button type="submit" disabled={savingSettings} className="btn btn-primary" style={{ padding: '10px 24px' }}>
+              <button type="submit" disabled={savingSettings} className="btn btn-primary" style={{ padding: '10px 28px', borderRadius: '12px' }}>
                 <Save size={16} />
-                <span>{savingSettings ? 'កំពុងរក្សាទុក...' : 'រក្សាទុកការកំណត់ (Save)'}</span>
+                <span>{savingSettings ? 'កំពុងរក្សាទុក...' : 'រក្សាទុកការកំណត់'}</span>
               </button>
             </div>
           </form>
