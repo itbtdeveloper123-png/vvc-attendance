@@ -774,8 +774,8 @@ try {
             dbQuery("CREATE TABLE IF NOT EXISTS stock_items (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 code VARCHAR(100) NOT NULL DEFAULT '',
-                name VARCHAR(255) NOT NULL,
-                item_name VARCHAR(255) DEFAULT '',
+                name VARCHAR(255) NOT NULL DEFAULT '',
+                item_name VARCHAR(255) NOT NULL DEFAULT '',
                 category VARCHAR(100) DEFAULT 'General',
                 quantity INT DEFAULT 0,
                 unit VARCHAR(50) DEFAULT 'កញ្ចប់',
@@ -786,6 +786,26 @@ try {
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+            // Safely ensure all columns exist
+            $neededCols = [
+                'code' => "VARCHAR(100) NOT NULL DEFAULT ''",
+                'name' => "VARCHAR(255) NOT NULL DEFAULT ''",
+                'item_name' => "VARCHAR(255) NOT NULL DEFAULT ''",
+                'category' => "VARCHAR(100) DEFAULT 'General'",
+                'quantity' => "INT DEFAULT 0",
+                'unit' => "VARCHAR(50) DEFAULT 'កញ្ចប់'",
+                'price' => "DECIMAL(10, 2) DEFAULT 0.00",
+                'location' => "VARCHAR(100) DEFAULT 'Store 318'",
+                'status' => "VARCHAR(50) DEFAULT 'In Stock'",
+                'image_path' => "VARCHAR(255) DEFAULT NULL",
+            ];
+            foreach ($neededCols as $colName => $colDef) {
+                $colCheck = dbQuery("SHOW COLUMNS FROM stock_items LIKE '$colName'");
+                if (empty($colCheck)) {
+                    dbQuery("ALTER TABLE stock_items ADD COLUMN $colName $colDef");
+                }
+            }
 
             // Create auxiliary tables for stock
             dbQuery("CREATE TABLE IF NOT EXISTS stock_purchases (
@@ -864,28 +884,81 @@ try {
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
             $search = trim($_POST['search'] ?? $_GET['search'] ?? '');
-            if (!empty($search)) {
-                $stockItems = dbQuery("SELECT id, COALESCE(NULLIF(name, ''), item_name, 'Item') as name, COALESCE(NULLIF(item_name, ''), name, 'Item') as item_name, code, category, quantity, unit, price, location, status, image_path, created_at FROM stock_items WHERE name LIKE ? OR item_name LIKE ? OR code LIKE ? OR category LIKE ? ORDER BY id DESC", ["%$search%", "%$search%", "%$search%", "%$search%"]);
-            } else {
-                $stockItems = dbQuery("SELECT id, COALESCE(NULLIF(name, ''), item_name, 'Item') as name, COALESCE(NULLIF(item_name, ''), name, 'Item') as item_name, code, category, quantity, unit, price, location, status, image_path, created_at FROM stock_items ORDER BY id DESC");
-            }
+            $rawItems = dbQuery("SELECT * FROM stock_items ORDER BY id DESC");
 
-            if (empty($stockItems)) {
+            if (empty($rawItems)) {
+                // Seed initial stock items if empty
                 dbQuery("INSERT INTO stock_items (code, name, item_name, category, quantity, unit, price, location, status) VALUES 
                     ('STK-001', 'កាហ្វេគូលែន KouPrey Coffee (250g)', 'កាហ្វេគូលែន KouPrey Coffee (250g)', 'Coffee Beans', 140, 'កញ្ចប់', 6.50, 'Store 318', 'In Stock'),
                     ('STK-002', 'តែបៃតង Green Tea Premium (500g)', 'តែបៃតង Green Tea Premium (500g)', 'Tea & Beverages', 8, 'កញ្ចប់', 8.00, 'Store SKKS2', 'Low Stock'),
                     ('STK-003', 'កែវជ័រ VVC Eco Cup (500ml)', 'កែវជ័រ VVC Eco Cup (500ml)', 'Packaging', 2500, 'កែវ', 0.12, 'Warehouse PSP', 'In Stock'),
                     ('STK-004', 'ទឹកស៊ីរ៉ូវ៉ានីឡា Vanilla Syrup (1L)', 'ទឹកស៊ីរ៉ូវ៉ានីឡា Vanilla Syrup (1L)', 'Ingredients', 0, 'ដប', 12.00, 'Warehouse PSP', 'Out of Stock')");
-                $stockItems = dbQuery("SELECT id, COALESCE(NULLIF(name, ''), item_name, 'Item') as name, COALESCE(NULLIF(item_name, ''), name, 'Item') as item_name, code, category, quantity, unit, price, location, status, image_path, created_at FROM stock_items ORDER BY id DESC");
+                $rawItems = dbQuery("SELECT * FROM stock_items ORDER BY id DESC");
             }
-            sendJson(['success' => true, 'items' => $stockItems]);
+
+            $stockItems = [];
+            foreach ($rawItems as $row) {
+                $itemName = !empty($row['item_name']) ? $row['item_name'] : (!empty($row['name']) ? $row['name'] : 'Item #' . $row['id']);
+                $code = !empty($row['code']) ? $row['code'] : 'STK-' . str_pad((string)$row['id'], 3, '0', STR_PAD_LEFT);
+                $category = !empty($row['category']) ? $row['category'] : 'General';
+                $qty = (int)($row['quantity'] ?? 0);
+                $price = (float)($row['price'] ?? 0);
+                $unit = !empty($row['unit']) ? $row['unit'] : 'កញ្ចប់';
+                $location = !empty($row['location']) ? $row['location'] : 'Store 318';
+                $status = !empty($row['status']) ? $row['status'] : ($qty <= 0 ? 'Out of Stock' : ($qty <= 10 ? 'Low Stock' : 'In Stock'));
+
+                // Apply Search Filter if specified
+                if (!empty($search)) {
+                    $s = mb_strtolower($search);
+                    if (
+                        mb_stripos($itemName, $s) === false &&
+                        mb_stripos($code, $s) === false &&
+                        mb_stripos($category, $s) === false &&
+                        mb_stripos($location, $s) === false
+                    ) {
+                        continue;
+                    }
+                }
+
+                $stockItems[] = [
+                    'id' => (int)$row['id'],
+                    'name' => $itemName,
+                    'item_name' => $itemName,
+                    'code' => $code,
+                    'category' => $category,
+                    'quantity' => $qty,
+                    'unit' => $unit,
+                    'price' => $price,
+                    'location' => $location,
+                    'status' => $status,
+                    'image_path' => $row['image_path'] ?? '',
+                    'created_at' => $row['created_at'] ?? date('Y-m-d H:i:s'),
+                ];
+            }
+
+            sendJson(['success' => true, 'status' => 'success', 'items' => $stockItems, 'data' => $stockItems]);
             break;
 
         case 'get_stock_item':
             $id = (int)($_POST['id'] ?? $_GET['id'] ?? 0);
-            $item = dbQuery("SELECT id, COALESCE(NULLIF(name, ''), item_name, 'Item') as name, COALESCE(NULLIF(item_name, ''), name, 'Item') as item_name, code, category, quantity, unit, price, location, status, image_path FROM stock_items WHERE id = ? LIMIT 1", [$id]);
-            if (!empty($item)) {
-                sendJson(['success' => true, 'data' => $item[0]]);
+            $raw = dbQuery("SELECT * FROM stock_items WHERE id = ? LIMIT 1", [$id]);
+            if (!empty($raw)) {
+                $row = $raw[0];
+                $name = !empty($row['item_name']) ? $row['item_name'] : (!empty($row['name']) ? $row['name'] : 'Item #' . $row['id']);
+                $qty = (int)($row['quantity'] ?? 0);
+                sendJson(['success' => true, 'status' => 'success', 'data' => [
+                    'id' => (int)$row['id'],
+                    'name' => $name,
+                    'item_name' => $name,
+                    'code' => !empty($row['code']) ? $row['code'] : 'STK-' . str_pad((string)$row['id'], 3, '0', STR_PAD_LEFT),
+                    'category' => $row['category'] ?? 'General',
+                    'quantity' => $qty,
+                    'unit' => $row['unit'] ?? 'កញ្ចប់',
+                    'price' => (float)($row['price'] ?? 0),
+                    'location' => $row['location'] ?? 'Store 318',
+                    'status' => !empty($row['status']) ? $row['status'] : ($qty <= 0 ? 'Out of Stock' : ($qty <= 10 ? 'Low Stock' : 'In Stock')),
+                    'image_path' => $row['image_path'] ?? '',
+                ]]);
             }
             sendJson(['success' => false, 'message' => 'ទំនិញរកមិនឃើញ!'], 404);
             break;
@@ -926,10 +999,10 @@ try {
                 } else {
                     dbQuery("UPDATE stock_items SET code = ?, name = ?, item_name = ?, category = ?, quantity = ?, unit = ?, price = ?, location = ?, status = ? WHERE id = ?", [$code, $name, $name, $category, $qty, $unit, $price, $location, $status, $itemId]);
                 }
-                sendJson(['success' => true, 'message' => 'បានកែប្រែទំនិញជោគជ័យ!']);
+                sendJson(['success' => true, 'status' => 'success', 'message' => 'បានកែប្រែទំនិញជោគជ័យ!']);
             } else {
                 dbQuery("INSERT INTO stock_items (code, name, item_name, category, quantity, unit, price, location, status, image_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [$code, $name, $name, $category, $qty, $unit, $price, $location, $status, $imagePath]);
-                sendJson(['success' => true, 'message' => 'បានបញ្ចូលទំនិញថ្មីជោគជ័យ!']);
+                sendJson(['success' => true, 'status' => 'success', 'message' => 'បានបញ្ចូលទំនិញថ្មីជោគជ័យ!']);
             }
             break;
 
@@ -939,12 +1012,12 @@ try {
             if ($itemId <= 0 || $deductQty <= 0) {
                 sendJson(['success' => false, 'message' => 'ចំនួនមិនត្រឹមត្រូវ!'], 400);
             }
-            $itemRows = dbQuery("SELECT id, name, item_name, quantity FROM stock_items WHERE id = ? LIMIT 1", [$itemId]);
+            $itemRows = dbQuery("SELECT * FROM stock_items WHERE id = ? LIMIT 1", [$itemId]);
             if (empty($itemRows)) {
                 sendJson(['success' => false, 'message' => 'រកមិនឃើញទំនិញ!'], 404);
             }
             $item = $itemRows[0];
-            $currentQty = (int)$item['quantity'];
+            $currentQty = (int)($item['quantity'] ?? 0);
             if ($deductQty > $currentQty) {
                 sendJson(['success' => false, 'message' => 'បរិមាណដែលដកចេញ មិនអាចធំជាងបរិមាណក្នុងស្តុកឡើយ!'], 400);
             }
@@ -953,17 +1026,17 @@ try {
             dbQuery("UPDATE stock_items SET quantity = ?, status = ? WHERE id = ?", [$newQty, $newStatus, $itemId]);
 
             // Record movement
-            $itemName = $item['name'] ?: $item['item_name'];
+            $itemName = !empty($item['item_name']) ? $item['item_name'] : (!empty($item['name']) ? $item['name'] : "Item #$itemId");
             dbQuery("INSERT INTO stock_movements (item_id, item_name, movement_type, quantity_change, quantity_before, quantity_after, reference_no, reference_type, actor_name, notes) VALUES (?, ?, 'deduct', ?, ?, ?, 'MANUAL-DEDUCT', 'Manual Action', 'Admin', 'កាត់ចេញពីស្តុកដោយផ្ទាល់')", [$itemId, $itemName, -$deductQty, $currentQty, $newQty]);
 
-            sendJson(['success' => true, 'message' => "បានកាត់បន្ថយចំនួន $deductQty ជោគជ័យ (នៅសល់: $newQty)"]);
+            sendJson(['success' => true, 'status' => 'success', 'message' => "បានកាត់បន្ថយចំនួន $deductQty ជោគជ័យ (នៅសល់: $newQty)"]);
             break;
 
         case 'delete_stock_item':
             $itemId = (int)($_POST['id'] ?? $_POST['item_id'] ?? 0);
             if ($itemId > 0) {
                 dbQuery("DELETE FROM stock_items WHERE id = ?", [$itemId]);
-                sendJson(['success' => true, 'message' => 'បានលុបទំនិញជោគជ័យ!']);
+                sendJson(['success' => true, 'status' => 'success', 'message' => 'បានលុបទំនិញជោគជ័យ!']);
             }
             sendJson(['success' => false, 'message' => 'Invalid Stock Item ID']);
             break;

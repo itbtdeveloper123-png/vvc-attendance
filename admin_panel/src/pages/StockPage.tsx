@@ -122,8 +122,9 @@ export const StockPage: React.FC = () => {
     setLoading(true);
     try {
       const res = await adminApi.fetchStockItems(search);
-      if (res && res.success && Array.isArray(res.items)) {
-        setStockItems(res.items);
+      if (res && (res.success || res.status === 'success')) {
+        const items = Array.isArray(res.items) ? res.items : (Array.isArray(res.data) ? res.data : []);
+        setStockItems(items);
       }
     } catch (err) {
       console.error('Error fetching stock:', err);
@@ -135,9 +136,10 @@ export const StockPage: React.FC = () => {
     setLoadingReport(true);
     try {
       const res = await adminApi.fetchStockReports(tab);
-      if (res && res.success) {
+      if (res && (res.success || res.status === 'success')) {
         if (res.stats) setReportStats(res.stats);
-        if (res.data && Array.isArray(res.data)) setReportData(res.data);
+        const data = Array.isArray(res.data) ? res.data : (Array.isArray(res.items) ? res.items : []);
+        setReportData(data);
       }
     } catch (err) {
       console.error('Error fetching stock reports:', err);
@@ -148,7 +150,7 @@ export const StockPage: React.FC = () => {
   const loadCounting = async (date: string = countingSearchDate) => {
     try {
       const res = await adminApi.fetchStockCounting(date);
-      if (res && res.success) {
+      if (res && (res.success || res.status === 'success')) {
         if (res.items && Array.isArray(res.items) && stockItems.length === 0) {
           setStockItems(res.items);
         }
@@ -165,8 +167,9 @@ export const StockPage: React.FC = () => {
     setLoadingRequests(true);
     try {
       const res = await adminApi.fetchStockRequests(status);
-      if (res && res.success && Array.isArray(res.requests)) {
-        setStockRequests(res.requests);
+      if (res && (res.success || res.status === 'success')) {
+        const reqs = Array.isArray(res.requests) ? res.requests : (Array.isArray(res.data) ? res.data : []);
+        setStockRequests(reqs);
       }
     } catch (err) {
       console.error('Error loading stock requests:', err);
