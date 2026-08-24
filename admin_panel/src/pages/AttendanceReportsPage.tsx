@@ -205,9 +205,7 @@ export const AttendanceReportsPage: React.FC = () => {
           if (cRes && cRes.success) {
             setConsolidatedScans(cRes.scans || []);
             setConsolidatedData(cRes.consolidated || {});
-            if (cRes.staff && Array.isArray(cRes.staff) && cRes.staff.length > 0) {
-              setLeaveDeoRecords(cRes.staff);
-            }
+            setLeaveDeoRecords(Array.isArray(cRes.staff) ? cRes.staff : []);
           }
         } catch (e) {
           console.warn('Failed to fetch consolidated report:', e);
@@ -433,35 +431,41 @@ export const AttendanceReportsPage: React.FC = () => {
   // Add new row in Leave & Deo
   const handleAddNewLeaveDeoRow = async () => {
     const d = getActiveDate();
-    const tempId = Date.now();
-    const newRecord = {
-      id: tempId,
-      number: String(leaveDeoRecords.length + 1),
-      name: '',
-      role: '',
-      note: '',
-      reports_date: d,
-    };
-    setLeaveDeoRecords((prev) => [...prev, newRecord]);
-    setSaveSuccessMsg('បានបន្ថែមជួរថ្មី!');
-    setTimeout(() => setSaveSuccessMsg(null), 2500);
-
     try {
       const res = await adminApi.createLeaveDeoRow(selectedStore, d);
-      if (res && res.success && res.new_id) {
-        setLeaveDeoRecords((prev) =>
-          prev.map((r) => (r.id === tempId ? { ...r, id: res.new_id } : r))
-        );
-      }
+      const newId = (res && res.success && res.new_id) ? res.new_id : Date.now();
+      const newRecord = {
+        id: newId,
+        number: String(leaveDeoRecords.length + 1),
+        name: '',
+        role: '',
+        note: '',
+        reports_date: d,
+      };
+      setLeaveDeoRecords((prev) => [...prev, newRecord]);
+      setSaveSuccessMsg('បានបន្ថែមជួរថ្មី!');
+      setTimeout(() => setSaveSuccessMsg(null), 2500);
     } catch (e) {
       console.error('Failed to create row on server:', e);
+      const tempId = Date.now();
+      setLeaveDeoRecords((prev) => [
+        ...prev,
+        {
+          id: tempId,
+          number: String(prev.length + 1),
+          name: '',
+          role: '',
+          note: '',
+          reports_date: d,
+        },
+      ]);
     }
   };
 
   // Update cell in Leave & Deo
   const handleUpdateLeaveDeoCell = async (id: number | string, column: string, value: string) => {
     setLeaveDeoRecords((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, [column]: value } : r))
+      prev.map((r) => (String(r.id) === String(id) ? { ...r, [column]: value } : r))
     );
     try {
       await adminApi.updateLeaveDeoRow(selectedStore, id, column, value);
@@ -471,13 +475,30 @@ export const AttendanceReportsPage: React.FC = () => {
   };
 
   // Delete row in Leave & Deo
-  const handleDeleteLeaveDeoRow = async (id: number | string) => {
+  const handleDeleteLeaveDeoRow = async (id: number | string, index?: number) => {
     if (!window.confirm('តើអ្នកពិតជាចង់លុបជួរដេកនេះមែនទេ?')) return;
-    setLeaveDeoRecords((prev) => prev.filter((r) => r.id !== id));
+    const d = getActiveDate();
+    setLeaveDeoRecords((prev) => prev.filter((r, idx) => String(r.id) !== String(id) && (index === undefined || idx !== index)));
     try {
-      await adminApi.deleteLeaveDeoRow(selectedStore, id);
+      await adminApi.deleteLeaveDeoRow(selectedStore, id, d);
+      setSaveSuccessMsg('បានលុបជួរដេកជោគជ័យ!');
+      setTimeout(() => setSaveSuccessMsg(null), 2000);
     } catch (e) {
       console.error('Failed to delete leave deo row:', e);
+    }
+  };
+
+  // Clear all rows in Leave & Deo for current date
+  const handleClearAllLeaveDeoRows = async () => {
+    if (!window.confirm('តើអ្នកពិតជាចង់សម្អាតជួរដេកទាំងអស់សម្រាប់ថ្ងៃនេះមែនទេ?')) return;
+    const d = getActiveDate();
+    setLeaveDeoRecords([]);
+    try {
+      await adminApi.clearAllLeaveDeoRows(selectedStore, d);
+      setSaveSuccessMsg('បានសម្អាតជួរដេកទាំងអស់ជោគជ័យ!');
+      setTimeout(() => setSaveSuccessMsg(null), 2500);
+    } catch (e) {
+      console.error('Failed to clear leave deo rows:', e);
     }
   };
 
@@ -1497,7 +1518,7 @@ const DEFAULT_DEPT_FORGOTTEN_RECORDS: ForgottenScanRecord[] = [
                   </tr>
                 ) : (
                   leaveDeoRecords.map((row, idx) => (
-                    <tr key={row.id}>
+                    <tr key={row.id ? `leave-row-${row.id}-${idx}` : `leave-row-idx-${idx}`}>
                       <td style={{ textAlign: 'center' }}>
                         <input
                           type="text"
@@ -2196,7 +2217,7 @@ const DEFAULT_DEPT_FORGOTTEN_RECORDS: ForgottenScanRecord[] = [
                         </tr>
                       ) : (
                         leaveDeoRecords.map((r, i) => (
-                          <tr key={r.id}>
+                          <tr key={r.id ? `leave-deo-${r.id}-${i}` : `leave-deo-idx-${i}`}>
                             <td style={{ border: '1px solid #dee2e6', padding: '4px', textAlign: 'center' }}>
                               <input
                                 type="text"
@@ -2267,7 +2288,7 @@ const DEFAULT_DEPT_FORGOTTEN_RECORDS: ForgottenScanRecord[] = [
                             <td className="no-print" style={{ border: '1px solid #dee2e6', padding: '4px', textAlign: 'center' }}>
                               <button
                                 type="button"
-                                onClick={() => handleDeleteLeaveDeoRow(r.id)}
+                                onClick={() => handleDeleteLeaveDeoRow(r.id, i)}
                                 className="btn btn-danger btn-sm"
                                 style={{ padding: '3px 8px', borderRadius: '6px', fontSize: '11px' }}
                               >
@@ -2281,7 +2302,7 @@ const DEFAULT_DEPT_FORGOTTEN_RECORDS: ForgottenScanRecord[] = [
                   </table>
                 </div>
 
-                <div className="no-print" style={{ marginTop: '14px', display: 'flex', justifyContent: 'flex-start' }}>
+                <div className="no-print" style={{ marginTop: '14px', display: 'flex', justifyContent: 'flex-start', alignItems: 'center', gap: '10px' }}>
                   <button
                     type="button"
                     onClick={handleAddNewLeaveDeoRow}
@@ -2291,6 +2312,16 @@ const DEFAULT_DEPT_FORGOTTEN_RECORDS: ForgottenScanRecord[] = [
                     <Plus size={15} />
                     <span>+ បន្ថែមជួរដេក</span>
                   </button>
+                  {leaveDeoRecords.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleClearAllLeaveDeoRows}
+                      className="btn btn-danger btn-sm"
+                      style={{ borderRadius: '8px', padding: '7px 16px', fontWeight: 700, background: '#ef4444', borderColor: '#ef4444' }}
+                    >
+                      <span>🗑 សម្អាតទាំងអស់</span>
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

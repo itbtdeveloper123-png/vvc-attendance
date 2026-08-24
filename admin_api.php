@@ -818,6 +818,7 @@ try {
         case 'delete_leave_deo_ajax':
             $id = (int)($_POST['id'] ?? $_GET['id'] ?? 0);
             $store = trim((string)($_POST['store'] ?? $_GET['store'] ?? '318'));
+            $date = trim((string)($_POST['date'] ?? $_GET['date'] ?? ''));
             $table_map = [
                 'ks2' => 'ks2_new_staff',
                 'psp' => 'ks2_new_staff',
@@ -827,16 +828,45 @@ try {
             ];
             $table = $table_map[strtolower($store)] ?? 'store_318_new_staff';
 
-            if ($id > 0) {
-                try {
+            try {
+                if ($id > 0) {
                     if ($mysqli) {
                         $mysqli->query("DELETE FROM {$table} WHERE id = " . intval($id));
                     } elseif ($pdo) {
                         $pdo->exec("DELETE FROM {$table} WHERE id = " . intval($id));
                     }
-                } catch (Throwable $e) {}
-            }
+                } else if (!empty($date)) {
+                    $escapedDate = $mysqli ? $mysqli->real_escape_string($date) : addslashes($date);
+                    if ($mysqli) {
+                        $mysqli->query("DELETE FROM {$table} WHERE reports_date = '{$escapedDate}' LIMIT 1");
+                    } elseif ($pdo) {
+                        $pdo->exec("DELETE FROM {$table} WHERE reports_date = '{$escapedDate}' LIMIT 1");
+                    }
+                }
+            } catch (Throwable $e) {}
             sendJson(['success' => true, 'message' => 'លុបជោគជ័យ!']);
+            break;
+
+        case 'clear_all_leave_deo_rows':
+            $store = trim((string)($_POST['store'] ?? $_GET['store'] ?? '318'));
+            $date = trim((string)($_POST['date'] ?? $_GET['date'] ?? date('Y-m-d')));
+            $table_map = [
+                'ks2' => 'ks2_new_staff',
+                'psp' => 'ks2_new_staff',
+                'nr3' => 'nr3_new_staff',
+                'prv' => 'nr3_new_staff',
+                '318' => 'store_318_new_staff'
+            ];
+            $table = $table_map[strtolower($store)] ?? 'store_318_new_staff';
+            try {
+                $escapedDate = $mysqli ? $mysqli->real_escape_string($date) : addslashes($date);
+                if ($mysqli) {
+                    $mysqli->query("DELETE FROM {$table} WHERE reports_date = '{$escapedDate}'");
+                } elseif ($pdo) {
+                    $pdo->exec("DELETE FROM {$table} WHERE reports_date = '{$escapedDate}'");
+                }
+            } catch (Throwable $e) {}
+            sendJson(['success' => true, 'message' => 'បានសម្អាតជួរដេកទាំងអស់សម្រាប់ថ្ងៃនេះ!']);
             break;
 
         case 'update_single_attendance':

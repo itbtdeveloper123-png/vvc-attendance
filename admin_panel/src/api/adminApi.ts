@@ -524,11 +524,22 @@ export const adminApi = {
     return res.data;
   },
 
-  deleteLeaveDeoRow: async (store: string, id: number | string) => {
+  deleteLeaveDeoRow: async (store: string, id: number | string, date?: string) => {
     const params = new URLSearchParams();
     params.append('action', 'delete_leave_deo_row');
+    params.append('ajax_action', 'delete_leave_deo_ajax');
     params.append('store', store);
     params.append('id', String(id));
+    if (date) params.append('date', date);
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  clearAllLeaveDeoRows: async (store: string, date: string) => {
+    const params = new URLSearchParams();
+    params.append('action', 'clear_all_leave_deo_rows');
+    params.append('store', store);
+    params.append('date', date);
     const res = await apiClient.post('', params);
     return res.data;
   },
