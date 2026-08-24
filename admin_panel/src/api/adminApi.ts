@@ -4,13 +4,32 @@ export interface AdminUser {
   id: string | number;
   employee_id: string;
   name: string;
+  latin_name?: string;
   username?: string;
+  password?: string;
+  email?: string;
+  phone?: string;
   user_role: string;
   system_role?: string;
+  system_role_label?: string;
   position?: string;
   department?: string;
+  branch?: string;
+  current_address?: string;
   avatar?: string;
   is_active?: boolean | number;
+  joined_at?: string;
+  marital_status?: string;
+  contract_start?: string;
+  contract_end?: string;
+  contract_type?: string;
+  manager_id?: string;
+  al_total?: number;
+  al_remaining?: number;
+  base_salary?: string | number;
+  nssf_id?: string;
+  bank_data_str?: string;
+  custom_data?: any;
 }
 
 export interface DashboardStats {

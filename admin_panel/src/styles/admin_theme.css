@@ -106,44 +106,6 @@ body {
   transition: background-color 0.25s ease, color 0.25s ease;
 }
 
-/* Layout */
-.admin-app-layout {
-  display: flex;
-  min-height: 100vh;
-  background: var(--background);
-}
-
-.admin-sidebar {
-  width: 280px;
-  background: var(--sidebar-bg);
-  border-right: 1px solid var(--sidebar-border);
-  display: flex;
-  flex-direction: column;
-  position: fixed;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  z-index: 50;
-  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s ease;
-}
-
-.admin-sidebar.collapsed {
-  width: 80px;
-}
-
-.admin-main {
-  flex: 1;
-  margin-left: 280px;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.admin-main.expanded {
-  margin-left: 80px;
-}
-
 /* Header */
 .admin-top-header {
   height: 70px;
@@ -194,6 +156,7 @@ body {
   cursor: pointer;
   transition: all 0.2s ease;
   white-space: nowrap;
+  text-decoration: none;
 }
 
 .btn-primary {
@@ -335,6 +298,8 @@ body {
 /* Form Controls */
 .form-group {
   margin-bottom: 18px;
+  display: flex;
+  flex-direction: column;
 }
 
 .form-label {
@@ -345,22 +310,54 @@ body {
   margin-bottom: 6px;
 }
 
-.form-input, .form-select, .form-textarea {
+.form-control, .form-input, .form-select, .form-textarea {
   width: 100%;
   font-family: inherit;
-  font-size: 14px;
+  font-size: 13.5px;
   padding: 10px 14px;
   background: var(--surface);
   color: var(--text-primary);
-  border: 1px solid var(--border);
+  border: 1.5px solid var(--border);
   border-radius: var(--radius);
   outline: none;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.form-input:focus, .form-select:focus, .form-textarea:focus {
+.form-control:focus, .form-input:focus, .form-select:focus, .form-textarea:focus {
   border-color: var(--primary);
   box-shadow: 0 0 0 3px var(--primary-glow);
+}
+
+/* HRM Tabs */
+.hrm-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.hrm-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface-alt);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.hrm-tab-btn.active {
+  border-color: var(--primary);
+  background: var(--primary-light);
+  color: var(--primary);
+  font-weight: 700;
 }
 
 /* Modals */
