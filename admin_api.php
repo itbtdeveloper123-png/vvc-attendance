@@ -876,24 +876,31 @@ try {
             $endDt = $endDate . ' 23:59:59';
 
             // 1. Fetch all users
-            $userSql = "SELECT employee_id, name, gender, department, position FROM users WHERE 1=1";
+            $userSql = "SELECT * FROM users WHERE 1=1";
             $userParams = [];
 
             if ($deptCategory === 'worker') {
-                $userSql .= " AND (department = 'Worker' OR custom_data LIKE '%Worker%')";
+                $userSql .= " AND (department LIKE '%Worker%' OR department LIKE '%កម្មករ%' OR role LIKE '%Worker%')";
             } elseif ($deptCategory === 'sk') {
-                $userSql .= " AND (department IN ('SKKS2', 'SKNR3') OR custom_data LIKE '%SK%')";
+                $userSql .= " AND (department IN ('SKKS2', 'SKNR3') OR department LIKE '%SK%')";
             } elseif ($deptCategory === 'department') {
-                $userSql .= " AND (department NOT IN ('Worker', 'SKKS2', 'SKNR3') OR department IS NULL)";
+                $userSql .= " AND (department NOT IN ('Worker', 'SKKS2', 'SKNR3') AND department NOT LIKE '%Worker%' AND department NOT LIKE '%កម្មករ%' OR department IS NULL OR department = '')";
             }
 
             if (!empty($department) && $department !== 'all') {
-                $userSql .= " AND department = ?";
+                $userSql .= " AND (department = ? OR workplace = ?)";
+                $userParams[] = $department;
                 $userParams[] = $department;
             }
 
-            $userSql .= " ORDER BY name ASC";
+            $userSql .= " ORDER BY CAST(employee_id AS UNSIGNED) ASC, name ASC";
             $users = dbQuery($userSql, $userParams);
+
+            if (empty($users)) {
+                $users = dbQuery("SELECT DISTINCT employee_id, COALESCE(name, employee_id) as name, 'ប្រុស' as gender, COALESCE(department, location_name, 'បុគ្គលិក') as role, department 
+                                  FROM checkin_logs 
+                                  WHERE employee_id IS NOT NULL AND employee_id != ''");
+            }
 
             // 2. Fetch all late logs in date range
             $lateLogs = dbQuery("SELECT id, employee_id, log_datetime, late_reason, distance_m 
@@ -993,6 +1000,171 @@ try {
                     'from_15_to_60' => $sumFrom15To60,
                     'over_60' => $sumOver60,
                     'grand_total' => $grandTotal,
+                ],
+                'records' => $results
+            ]);
+            break;
+
+        case 'fetch_forgotten_scan_report':
+            $startDate = trim((string)($_POST['start_date'] ?? $_GET['start_date'] ?? ''));
+            $endDate = trim((string)($_POST['end_date'] ?? $_GET['end_date'] ?? ''));
+            $department = trim((string)($_POST['department'] ?? $_GET['department'] ?? 'all'));
+            $deptCategory = trim((string)($_POST['dept_category'] ?? $_GET['dept_category'] ?? 'department'));
+
+            if (empty($startDate)) {
+                $startDate = date('Y-m-01');
+            }
+            if (empty($endDate)) {
+                $endDate = date('Y-m-d');
+            }
+
+            if (preg_match('/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/', $startDate, $m)) {
+                $startDate = sprintf('%04d-%02d-%02d', (int)$m[3], (int)$m[2], (int)$m[1]);
+            }
+            if (preg_match('/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/', $endDate, $m)) {
+                $endDate = sprintf('%04d-%02d-%02d', (int)$m[3], (int)$m[2], (int)$m[1]);
+            }
+
+            $startDt = $startDate . ' 00:00:00';
+            $endDt = $endDate . ' 23:59:59';
+
+            // 1. Fetch Users
+            $userSql = "SELECT * FROM users WHERE 1=1";
+            $userParams = [];
+
+            if ($deptCategory === 'worker') {
+                $userSql .= " AND (department LIKE '%Worker%' OR department LIKE '%កម្មករ%' OR role LIKE '%Worker%')";
+            } elseif ($deptCategory === 'sk') {
+                $userSql .= " AND (department IN ('SKKS2', 'SKNR3') OR department LIKE '%SK%')";
+            } elseif ($deptCategory === 'department') {
+                $userSql .= " AND (department NOT IN ('Worker', 'SKKS2', 'SKNR3') AND department NOT LIKE '%Worker%' AND department NOT LIKE '%កម្មករ%' OR department IS NULL OR department = '')";
+            }
+
+            if (!empty($department) && $department !== 'all') {
+                $userSql .= " AND (department = ? OR workplace = ?)";
+                $userParams[] = $department;
+                $userParams[] = $department;
+            }
+
+            $userSql .= " ORDER BY CAST(employee_id AS UNSIGNED) ASC, name ASC";
+            $users = dbQuery($userSql, $userParams);
+
+            if (empty($users)) {
+                $users = dbQuery("SELECT DISTINCT employee_id, COALESCE(name, employee_id) as name, 'ប្រុស' as gender, COALESCE(department, location_name, 'បុគ្គលិក') as role, department 
+                                  FROM checkin_logs 
+                                  WHERE employee_id IS NOT NULL AND employee_id != ''");
+            }
+
+            // 2. Fetch logs in date range
+            $logs = dbQuery("SELECT id, employee_id, action_type, log_datetime, status 
+                             FROM checkin_logs 
+                             WHERE log_datetime BETWEEN ? AND ?", [$startDt, $endDt]);
+
+            // Group by employee and date
+            $empDailyLogs = [];
+            $lateOver15ByUser = [];
+
+            foreach ($logs as $l) {
+                $empId = (string)$l['employee_id'];
+                $logDate = date('Y-m-d', strtotime($l['log_datetime']));
+                $action = strtolower((string)$l['action_type']);
+
+                if (!isset($empDailyLogs[$empId])) {
+                    $empDailyLogs[$empId] = [];
+                    $lateOver15ByUser[$empId] = 0;
+                }
+                if (!isset($empDailyLogs[$empId][$logDate])) {
+                    $empDailyLogs[$empId][$logDate] = ['in' => 0, 'out' => 0];
+                }
+
+                if (stripos($action, 'in') !== false) {
+                    $empDailyLogs[$empId][$logDate]['in']++;
+                } elseif (stripos($action, 'out') !== false) {
+                    $empDailyLogs[$empId][$logDate]['out']++;
+                }
+
+                if (strcasecmp((string)$l['status'], 'Late') === 0) {
+                    $logTime = strtotime($l['log_datetime']);
+                    $hour = (int)date('H', $logTime);
+                    $minute = (int)date('i', $logTime);
+                    $mins = 0;
+                    if ($hour >= 7 && $hour <= 11) {
+                        $mins = max(1, ($hour - 8) * 60 + $minute);
+                    } elseif ($hour >= 12 && $hour <= 17) {
+                        $mins = max(1, ($hour - 13) * 60 + $minute);
+                    }
+                    if ($mins >= 15) {
+                        $lateOver15ByUser[$empId]++;
+                    }
+                }
+            }
+
+            $results = [];
+            $totalForgotIn = 0;
+            $totalForgotOut = 0;
+            $totalForgotGrand = 0;
+            $totalLateOver15 = 0;
+
+            foreach ($users as $u) {
+                $empId = (string)$u['employee_id'];
+                $daily = $empDailyLogs[$empId] ?? [];
+                
+                $forgotIn = 0;
+                $forgotOut = 0;
+
+                foreach ($daily as $d => $counts) {
+                    if ($counts['in'] > 0 && $counts['out'] === 0) {
+                        $forgotOut += $counts['in'];
+                    }
+                    if ($counts['out'] > 0 && $counts['in'] === 0) {
+                        $forgotIn += $counts['out'];
+                    }
+                }
+
+                $totalForgot = $forgotIn + $forgotOut;
+                $late15 = $lateOver15ByUser[$empId] ?? 0;
+
+                $totalForgotIn += $forgotIn;
+                $totalForgotOut += $forgotOut;
+                $totalForgotGrand += $totalForgot;
+                $totalLateOver15 += $late15;
+
+                $gDisplay = 'ប្រុស';
+                if (!empty($u['gender']) && (stripos($u['gender'], 'f') !== false || stripos($u['gender'], 'ស្រី') !== false)) {
+                    $gDisplay = 'ស្រី';
+                }
+
+                $results[] = [
+                    'employee_id' => $empId,
+                    'name' => (string)($u['name'] ?: $empId),
+                    'gender' => $gDisplay,
+                    'role' => (string)($u['position'] ?: ($u['department'] ?: 'បុគ្គលិក')),
+                    'department' => (string)($u['department'] ?: ''),
+                    'forgot_in' => $forgotIn,
+                    'forgot_out' => $forgotOut,
+                    'total' => $totalForgot,
+                    'late_over_15' => $late15,
+                ];
+            }
+
+            // Sort: highest total forgotten on top
+            usort($results, function($a, $b) {
+                if ($b['total'] !== $a['total']) {
+                    return $b['total'] - $a['total'];
+                }
+                return strcmp($a['employee_id'], $b['employee_id']);
+            });
+
+            sendJson([
+                'success' => true,
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+                'department' => $department,
+                'totals' => [
+                    'forgot_in' => $totalForgotIn,
+                    'forgot_out' => $totalForgotOut,
+                    'grand_total' => $totalForgotGrand,
+                    'late_over_15' => $totalLateOver15,
                 ],
                 'records' => $results
             ]);

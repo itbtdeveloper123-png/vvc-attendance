@@ -553,6 +553,17 @@ export const adminApi = {
     return res.data;
   },
 
+  fetchForgottenScanReport: async (filters?: { start_date?: string; end_date?: string; department?: string; dept_category?: string }) => {
+    const params = new URLSearchParams();
+    params.append('action', 'fetch_forgotten_scan_report');
+    if (filters?.start_date) params.append('start_date', filters.start_date);
+    if (filters?.end_date) params.append('end_date', filters.end_date);
+    if (filters?.department) params.append('department', filters.department);
+    if (filters?.dept_category) params.append('dept_category', filters.dept_category);
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
   // Requests Management
   fetchRequests: async (status?: string, type?: string) => {
     const params = new URLSearchParams();

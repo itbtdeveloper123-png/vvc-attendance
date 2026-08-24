@@ -58,6 +58,18 @@ interface LateSummaryRecord {
   total: number;
 }
 
+interface ForgottenScanRecord {
+  employee_id: string;
+  name: string;
+  gender: string;
+  role: string;
+  department: string;
+  forgot_in: number;
+  forgot_out: number;
+  total: number;
+  late_over_15: number;
+}
+
 export const AttendanceReportsPage: React.FC = () => {
   // Main Report Type Tab (Daily, Late Summary, Forgotten, Leave & Deo, Combined)
   const [activeReportTab, setActiveReportTab] = useState<'daily' | 'late' | 'forgotten' | 'leave_deo' | 'combined'>('daily');
@@ -69,11 +81,11 @@ export const AttendanceReportsPage: React.FC = () => {
   // Store selection for Leave & Deo / Combined reports (318, ks2, nr3, all)
   const [selectedStore, setSelectedStore] = useState<string>('318');
 
-  // Date range filters for Late Summary
-  const [lateStartDate, setLateStartDate] = useState<string>(
+  // Date range filters for Late Summary & Forgotten Scan
+  const [reportStartDate, setReportStartDate] = useState<string>(
     new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]
   );
-  const [lateEndDate, setLateEndDate] = useState<string>(
+  const [reportEndDate, setReportEndDate] = useState<string>(
     new Date().toISOString().split('T')[0]
   );
 
@@ -106,6 +118,16 @@ export const AttendanceReportsPage: React.FC = () => {
     grand_total: 0,
   });
   const [loadingLateSummary, setLoadingLateSummary] = useState(false);
+
+  // Forgotten Scan Report data (A4)
+  const [forgottenScanRecords, setForgottenScanRecords] = useState<ForgottenScanRecord[]>([]);
+  const [forgottenScanTotals, setForgottenScanTotals] = useState({
+    forgot_in: 0,
+    forgot_out: 0,
+    grand_total: 0,
+    late_over_15: 0,
+  });
+  const [loadingForgottenScan, setLoadingForgottenScan] = useState(false);
 
   // Selected checkbox rows
   const [selectedRowIds, setSelectedRowIds] = useState<(string | number)[]>([]);
@@ -187,8 +209,8 @@ export const AttendanceReportsPage: React.FC = () => {
     setLoadingLateSummary(true);
     try {
       const res = await adminApi.fetchLateSummaryReport({
-        start_date: lateStartDate,
-        end_date: lateEndDate,
+        start_date: reportStartDate,
+        end_date: reportEndDate,
         dept_category: deptCategoryTab !== 'all' ? deptCategoryTab : undefined,
       });
       if (res && res.success) {
@@ -203,15 +225,39 @@ export const AttendanceReportsPage: React.FC = () => {
     setLoadingLateSummary(false);
   };
 
+  // Load Forgotten Scan Report data (A4)
+  const loadForgottenScan = async () => {
+    if (activeReportTab !== 'forgotten') return;
+    setLoadingForgottenScan(true);
+    try {
+      const res = await adminApi.fetchForgottenScanReport({
+        start_date: reportStartDate,
+        end_date: reportEndDate,
+        dept_category: deptCategoryTab !== 'all' ? deptCategoryTab : undefined,
+      });
+      if (res && res.success) {
+        setForgottenScanRecords(res.records || []);
+        if (res.totals) {
+          setForgottenScanTotals(res.totals);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    setLoadingForgottenScan(false);
+  };
+
   useEffect(() => {
     if (activeReportTab === 'leave_deo' || activeReportTab === 'combined') {
       loadLeaveDeoAndCombined();
     } else if (activeReportTab === 'late') {
       loadLateSummary();
+    } else if (activeReportTab === 'forgotten') {
+      loadForgottenScan();
     } else {
       loadAttendance();
     }
-  }, [activeReportTab, deptCategoryTab, selectedStore, lateStartDate, lateEndDate, selectedDate, customDate, isCustomDateMode, statusFilter, page]);
+  }, [activeReportTab, deptCategoryTab, selectedStore, reportStartDate, reportEndDate, selectedDate, customDate, isCustomDateMode, statusFilter, page]);
 
   // Format date helper for dropdown display e.g. "14 Aug 2026 (Fri)"
   const formatDateDisplay = (dateStr: string) => {
@@ -278,15 +324,11 @@ export const AttendanceReportsPage: React.FC = () => {
   };
 
   const getKhmerDateRange = () => {
-    return `គិតចាប់ពីថ្ងៃទី ${formatDateOnly(lateStartDate).replace(/\//g, '-')} ដល់ថ្ងៃទី ${formatDateOnly(lateEndDate).replace(/\//g, '-')}`;
+    return `គិតចាប់ពីថ្ងៃទី ${formatDateOnly(reportStartDate).replace(/\//g, '-')} ដល់ថ្ងៃទី ${formatDateOnly(reportEndDate).replace(/\//g, '-')}`;
   };
 
   // Filter records by search
   const filteredRecords = records.filter((r) => {
-    if (activeReportTab === 'forgotten') {
-      if (r.action === 'Check-Out') return false;
-    }
-
     if (!search) return true;
     const s = search.toLowerCase();
     return (
@@ -405,6 +447,15 @@ export const AttendanceReportsPage: React.FC = () => {
           )
         )
         .join('\n');
+    } else if (activeReportTab === 'forgotten') {
+      csvContent += ['ល.រ,អត្តលេខ,ឈ្មោះ,ភេទ,តួនាទី,ចូល,ចេញ,សរុប,ចំនួនយឺតលើស15នាទី']
+        .concat(
+          forgottenScanRecords.map(
+            (r, i) =>
+              `"${i + 1}","${r.employee_id}","${r.name}","${r.gender}","${r.role}","${r.forgot_in}","${r.forgot_out}","${r.total}","${r.late_over_15}"`
+          )
+        )
+        .join('\n');
     } else if (activeReportTab === 'leave_deo') {
       csvContent += ['ល.រ,ឈ្មោះបុគ្គលិក,តួនាទី,អធិប្បាយ/មូលហេតុ,ថ្ងៃរាយការណ៍']
         .concat(
@@ -471,10 +522,10 @@ export const AttendanceReportsPage: React.FC = () => {
           body * {
             visibility: hidden;
           }
-          #a4-late-summary-report, #a4-late-summary-report * {
+          #a4-printable-report, #a4-printable-report * {
             visibility: visible;
           }
-          #a4-late-summary-report {
+          #a4-printable-report {
             position: absolute;
             left: 0;
             top: 0;
@@ -525,17 +576,18 @@ export const AttendanceReportsPage: React.FC = () => {
             onClick={() => {
               if (activeReportTab === 'leave_deo' || activeReportTab === 'combined') loadLeaveDeoAndCombined();
               else if (activeReportTab === 'late') loadLateSummary();
+              else if (activeReportTab === 'forgotten') loadForgottenScan();
               else loadAttendance();
             }}
             className="btn btn-secondary btn-sm"
             style={{ borderRadius: '10px', padding: '8px 14px' }}
             title="Refresh"
           >
-            <RefreshCw size={14} className={loading || loadingLeaveDeo || loadingLateSummary ? 'fa-spin' : ''} />
+            <RefreshCw size={14} className={loading || loadingLeaveDeo || loadingLateSummary || loadingForgottenScan ? 'fa-spin' : ''} />
             <span>ផ្ទុកឡើងវិញ</span>
           </button>
 
-          {activeReportTab === 'late' && (
+          {(activeReportTab === 'late' || activeReportTab === 'forgotten') && (
             <button
               onClick={handlePrintA4}
               className="btn btn-primary btn-sm"
@@ -555,7 +607,7 @@ export const AttendanceReportsPage: React.FC = () => {
             <span>Excel / CSV ({activeReportTab.toUpperCase()})</span>
           </button>
 
-          {selectedRowIds.length > 0 && activeReportTab !== 'leave_deo' && activeReportTab !== 'combined' && activeReportTab !== 'late' && (
+          {selectedRowIds.length > 0 && activeReportTab !== 'leave_deo' && activeReportTab !== 'combined' && activeReportTab !== 'late' && activeReportTab !== 'forgotten' && (
             <button
               onClick={() => alert(`បានជ្រើសរើស ${selectedRowIds.length} ជួរដើម្បីអនុវត្តសកម្មភាព`)}
               className="btn btn-danger btn-sm"
@@ -591,7 +643,7 @@ export const AttendanceReportsPage: React.FC = () => {
         {[
           { id: 'daily', label: '📅 វត្តមានប្រចាំថ្ងៃ (Daily Log)' },
           { id: 'late', label: '⚠️ មកយឺតសរុប (Late Summary A4)' },
-          { id: 'forgotten', label: '❓ ភ្លេចស្កេន (Forgotten Scan)' },
+          { id: 'forgotten', label: '❓ ភ្លេចស្កេន (Forgotten Scan A4)' },
           { id: 'leave_deo', label: '📝 សុំច្បាប់ & ដេអូស (Leave & Deo)' },
           { id: 'combined', label: '📊 របាយការណ៍រួម (318 / PSP / PRV)' },
         ].map((tab) => (
@@ -651,8 +703,8 @@ export const AttendanceReportsPage: React.FC = () => {
                 <input
                   type="date"
                   className="form-input"
-                  value={lateStartDate}
-                  onChange={(e) => setLateStartDate(e.target.value)}
+                  value={reportStartDate}
+                  onChange={(e) => setReportStartDate(e.target.value)}
                   style={{ height: '36px', borderRadius: '8px', fontSize: '13px', width: '150px' }}
                 />
               </div>
@@ -662,8 +714,8 @@ export const AttendanceReportsPage: React.FC = () => {
                 <input
                   type="date"
                   className="form-input"
-                  value={lateEndDate}
-                  onChange={(e) => setLateEndDate(e.target.value)}
+                  value={reportEndDate}
+                  onChange={(e) => setReportEndDate(e.target.value)}
                   style={{ height: '36px', borderRadius: '8px', fontSize: '13px', width: '150px' }}
                 />
               </div>
@@ -681,7 +733,7 @@ export const AttendanceReportsPage: React.FC = () => {
 
           {/* A4 REPORT PAPER CONTAINER */}
           <div
-            id="a4-late-summary-report"
+            id="a4-printable-report"
             ref={printRef}
             style={{
               background: '#ffffff',
@@ -695,41 +747,17 @@ export const AttendanceReportsPage: React.FC = () => {
               fontFamily: "'Hanuman', 'Khmer OS Battambang', sans-serif",
             }}
           >
-            {/* 1. Header with Logo & Van Van Title */}
+            {/* 1. Header with Clean Logo */}
             <div style={{ textAlign: 'center', marginBottom: '16px' }}>
-              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '14px', marginBottom: '4px' }}>
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: '6px' }}>
                 <img
                   src="https://i.ibb.co/NdJMpN75/Logo-Van-Van-2.png"
                   alt="Van Van Logo"
-                  style={{ height: '62px', objectFit: 'contain' }}
+                  style={{ height: '78px', objectFit: 'contain' }}
                   onError={(e) => {
                     (e.target as HTMLElement).style.display = 'none';
                   }}
                 />
-                <div>
-                  <h1
-                    style={{
-                      fontSize: '28px',
-                      fontWeight: 900,
-                      color: '#b45309',
-                      margin: 0,
-                      letterSpacing: '1px',
-                    }}
-                  >
-                    វ៉ាន់ វ៉ាន់ ខេមបូឌា
-                  </h1>
-                  <div
-                    style={{
-                      fontSize: '13px',
-                      fontWeight: 800,
-                      letterSpacing: '2.5px',
-                      color: '#b45309',
-                      marginTop: '2px',
-                    }}
-                  >
-                    VAN VAN CAMBODIA
-                  </div>
-                </div>
               </div>
 
               {/* Dark Blue Title Banner Box */}
@@ -739,12 +767,12 @@ export const AttendanceReportsPage: React.FC = () => {
                   color: '#ffffff',
                   padding: '12px 20px',
                   borderRadius: '10px',
-                  marginTop: '14px',
+                  marginTop: '10px',
                   boxShadow: '0 4px 12px rgba(30, 58, 138, 0.25)',
                 }}
               >
                 <h2 style={{ fontSize: '18px', fontWeight: 800, margin: '0 0 4px 0', color: '#fef08a' }}>
-                  របាយការណ៍មកយឺតប្រចាំ{getKhmerDateHeader(lateStartDate)}
+                  របាយការណ៍មកយឺតប្រចាំ{getKhmerDateHeader(reportStartDate)}
                 </h2>
                 <h3 style={{ fontSize: '14px', fontWeight: 700, margin: '0 0 4px 0', color: '#ffffff' }}>
                   សម្រាប់បុគ្គលិកជំនាញ និងតាមឃ្លាំង
@@ -880,7 +908,256 @@ export const AttendanceReportsPage: React.FC = () => {
       )}
 
       {/* ========================================================================= */}
-      {/* 2. LEAVE & DEO REPORT VIEW (admin_attendance.php?action=leave_deo_report) */}
+      {/* 2. FORGOTTEN SCAN REPORT A4 VIEW (ភ្លេចស្កេន A4 Table Matching Screenshot) */}
+      {/* ========================================================================= */}
+      {activeReportTab === 'forgotten' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {/* Top Filter Bar for Forgotten Scan */}
+          <div
+            className="hrm-card no-print"
+            style={{
+              padding: '16px 20px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '14px',
+              borderRadius: '16px',
+            }}
+          >
+            {/* Department Category Buttons */}
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              {[
+                { id: 'department', label: '💼 ផ្នែករដ្ឋបាល/ជំនាញ' },
+                { id: 'sk', label: '⭐ SKKS2/SKNR3' },
+                { id: 'worker', label: '👥 ផ្នែកកម្មករ' },
+                { id: 'all', label: '📋 ទាំងអស់ (All)' },
+              ].map((d) => (
+                <button
+                  key={d.id}
+                  type="button"
+                  onClick={() => setDeptCategoryTab(d.id as any)}
+                  className={`btn btn-sm ${deptCategoryTab === d.id ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{ borderRadius: '8px', fontWeight: 700 }}
+                >
+                  <span>{d.label}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Date Range Selector */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)' }}>ចាប់ពីថ្ងៃ:</span>
+                <input
+                  type="date"
+                  className="form-input"
+                  value={reportStartDate}
+                  onChange={(e) => setReportStartDate(e.target.value)}
+                  style={{ height: '36px', borderRadius: '8px', fontSize: '13px', width: '150px' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)' }}>ដល់ថ្ងៃ:</span>
+                <input
+                  type="date"
+                  className="form-input"
+                  value={reportEndDate}
+                  onChange={(e) => setReportEndDate(e.target.value)}
+                  style={{ height: '36px', borderRadius: '8px', fontSize: '13px', width: '150px' }}
+                />
+              </div>
+
+              <button
+                onClick={handlePrintA4}
+                className="btn btn-primary btn-sm"
+                style={{ borderRadius: '8px', padding: '6px 14px', fontWeight: 700 }}
+              >
+                <Printer size={14} />
+                <span>Print A4</span>
+              </button>
+            </div>
+          </div>
+
+          {/* A4 REPORT PAPER CONTAINER */}
+          <div
+            id="a4-printable-report"
+            ref={printRef}
+            style={{
+              background: '#ffffff',
+              color: '#000000',
+              padding: '36px 40px',
+              borderRadius: '16px',
+              boxShadow: '0 8px 30px rgba(0,0,0,0.08)',
+              maxWidth: '900px',
+              margin: '0 auto',
+              width: '100%',
+              fontFamily: "'Hanuman', 'Khmer OS Battambang', sans-serif",
+            }}
+          >
+            {/* 1. Header with Clean Logo */}
+            <div style={{ textAlign: 'center', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: '6px' }}>
+                <img
+                  src="https://i.ibb.co/NdJMpN75/Logo-Van-Van-2.png"
+                  alt="Van Van Logo"
+                  style={{ height: '78px', objectFit: 'contain' }}
+                  onError={(e) => {
+                    (e.target as HTMLElement).style.display = 'none';
+                  }}
+                />
+              </div>
+
+              {/* Dark Blue Title Banner Box */}
+              <div
+                style={{
+                  background: '#1e3a8a',
+                  color: '#ffffff',
+                  padding: '12px 20px',
+                  borderRadius: '10px',
+                  marginTop: '10px',
+                  boxShadow: '0 4px 12px rgba(30, 58, 138, 0.25)',
+                }}
+              >
+                <h2 style={{ fontSize: '18px', fontWeight: 800, margin: '0 0 4px 0', color: '#fef08a' }}>
+                  របាយការណ៍បុគ្គលិកភ្លេចស្កេនលើHR Appប្រចាំ{getKhmerDateHeader(reportStartDate)}
+                </h2>
+                <h3 style={{ fontSize: '14px', fontWeight: 700, margin: '0 0 4px 0', color: '#ffffff' }}>
+                  សម្រាប់បុគ្គលិកជំនាញ
+                </h3>
+                <div style={{ fontSize: '12.5px', color: '#fbbf24', fontWeight: 600 }}>
+                  {getKhmerDateRange()}
+                </div>
+              </div>
+            </div>
+
+            {/* 2. Forgotten Scan A4 Table */}
+            <div style={{ overflowX: 'auto', marginTop: '14px' }}>
+              <table
+                style={{
+                  width: '100%',
+                  borderCollapse: 'collapse',
+                  border: '1.5px solid #000000',
+                  fontSize: '12.5px',
+                }}
+              >
+                <thead>
+                  {/* Top Golden Header identical to Late Summary */}
+                  <tr style={{ background: '#fde047', color: '#000000', textAlign: 'center', fontWeight: 800 }}>
+                    <th rowSpan={2} style={{ border: '1px solid #000000', padding: '6px 4px', width: '40px' }}>ល.រ</th>
+                    <th rowSpan={2} style={{ border: '1px solid #000000', padding: '6px 4px', width: '70px' }}>អត្តលេខ</th>
+                    <th rowSpan={2} style={{ border: '1px solid #000000', padding: '6px 8px', textAlign: 'left', minWidth: '130px' }}>ឈ្មោះ</th>
+                    <th rowSpan={2} style={{ border: '1px solid #000000', padding: '6px 4px', width: '55px' }}>ភេទ</th>
+                    <th rowSpan={2} style={{ border: '1px solid #000000', padding: '6px 8px', textAlign: 'left', minWidth: '160px' }}>តួនាទី</th>
+                    <th colSpan={2} style={{ border: '1px solid #000000', padding: '4px 6px', fontWeight: 900 }}>ភ្លេចស្កេនមេដៃ</th>
+                    <th rowSpan={2} style={{ border: '1px solid #000000', padding: '6px 6px', width: '65px', background: '#facc15' }}>សរុប</th>
+                    <th rowSpan={2} style={{ border: '1px solid #000000', padding: '6px 6px', width: '120px', background: '#fde047' }}>ចំនួនយឺតលើស15នាទី</th>
+                  </tr>
+                  <tr style={{ background: '#fef08a', color: '#000000', textAlign: 'center', fontWeight: 700, fontSize: '11px' }}>
+                    <th style={{ border: '1px solid #000000', padding: '4px 6px', width: '65px' }}>ចូល</th>
+                    <th style={{ border: '1px solid #000000', padding: '4px 6px', width: '65px' }}>ចេញ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {forgottenScanRecords.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} style={{ textAlign: 'center', padding: '30px', border: '1px solid #000000', color: '#64748b' }}>
+                        មិនមានទិន្នន័យបុគ្គលិកភ្លេចស្កេនក្នុងចន្លោះកាលបរិច្ឆេទនេះឡើយ។
+                      </td>
+                    </tr>
+                  ) : (
+                    forgottenScanRecords.map((r, idx) => {
+                      const isHigh = r.total >= 1;
+                      const rowBg = isHigh ? '#fef9c3' : '#ffffff';
+
+                      return (
+                        <tr key={r.employee_id || idx} style={{ background: rowBg }}>
+                          <td style={{ border: '1px solid #000000', textAlign: 'center', fontWeight: 600, padding: '5px 4px' }}>
+                            {idx + 1}
+                          </td>
+                          <td style={{ border: '1px solid #000000', textAlign: 'center', fontFamily: "'Outfit', monospace", fontWeight: 700, padding: '5px 4px' }}>
+                            {r.employee_id}
+                          </td>
+                          <td style={{ border: '1px solid #000000', padding: '5px 8px', fontWeight: 800 }}>
+                            {r.name}
+                          </td>
+                          <td style={{ border: '1px solid #000000', textAlign: 'center', padding: '5px 4px' }}>
+                            {r.gender}
+                          </td>
+                          <td style={{ border: '1px solid #000000', padding: '5px 8px', fontSize: '12px' }}>
+                            {r.role}
+                          </td>
+                          <td style={{ border: '1px solid #000000', textAlign: 'center', fontWeight: 700, color: r.forgot_in > 0 ? '#1e3a8a' : '#ef4444' }}>
+                            {r.forgot_in}
+                          </td>
+                          <td style={{ border: '1px solid #000000', textAlign: 'center', fontWeight: 700, color: r.forgot_out > 0 ? '#1e3a8a' : '#ef4444' }}>
+                            {r.forgot_out}
+                          </td>
+                          <td style={{ border: '1px solid #000000', textAlign: 'center', fontWeight: 900, background: isHigh ? '#fde047' : '#ffffff', color: r.total > 0 ? '#b45309' : '#ef4444' }}>
+                            {r.total}
+                          </td>
+                          <td style={{ border: '1px solid #000000', textAlign: 'center', fontWeight: 700, color: r.late_over_15 > 0 ? '#1e3a8a' : '#ef4444' }}>
+                            {r.late_over_15 > 0 ? r.late_over_15 : 0}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+
+                  {/* Footer Totals Row identical to Late Summary */}
+                  <tr style={{ background: '#1e3a8a', color: '#ffffff', fontWeight: 900, fontSize: '13px' }}>
+                    <td colSpan={5} style={{ border: '1px solid #000000', textAlign: 'center', padding: '8px', color: '#fef08a' }}>
+                      សរុប (Total)
+                    </td>
+                    <td style={{ border: '1px solid #000000', textAlign: 'center', padding: '8px', color: '#60a5fa' }}>
+                      {forgottenScanTotals.forgot_in}
+                    </td>
+                    <td style={{ border: '1px solid #000000', textAlign: 'center', padding: '8px', color: '#60a5fa' }}>
+                      {forgottenScanTotals.forgot_out}
+                    </td>
+                    <td style={{ border: '1px solid #000000', textAlign: 'center', padding: '8px', color: '#facc15', fontSize: '14px' }}>
+                      {forgottenScanTotals.grand_total}
+                    </td>
+                    <td style={{ border: '1px solid #000000', textAlign: 'center', padding: '8px', color: '#60a5fa' }}>
+                      {forgottenScanTotals.late_over_15}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            {/* 3. Bottom Signatures and Date Section */}
+            <div style={{ marginTop: '28px' }}>
+              <div style={{ textAlign: 'right', fontSize: '12px', lineHeight: 1.6, color: '#1e293b' }}>
+                <div>ថ្ងៃចន្ទ ១១កើត ខែស្រាពណ៍ ឆ្នាំម្សាញ់ ឆស័ក ពុទ្ធសករាជ ២៥៧០</div>
+                <div style={{ fontWeight: 700 }}>រាជធានីភ្នំពេញ, ថ្ងៃទី២៤ ខែ សីហា ឆ្នាំ២០២៦</div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '16px', padding: '0 20px', fontSize: '13px' }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontWeight: 800, color: '#1e293b' }}>
+                    ប្រធាននាយកដ្ឋានធនធានមនុស្ស និងរដ្ឋបាល
+                  </div>
+                  <div style={{ height: '70px' }}></div>
+                  <div style={{ fontWeight: 800, color: '#0f172a' }}>លោក ផល សំអេងឡេង</div>
+                </div>
+
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontWeight: 800, color: '#1e293b' }}>
+                    រៀបចំដោយ
+                  </div>
+                  <div style={{ height: '70px' }}></div>
+                  <div style={{ fontWeight: 800, color: '#0f172a' }}>សៀង សារុន</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 3. LEAVE & DEO REPORT VIEW (admin_attendance.php?action=leave_deo_report) */}
       {/* ========================================================================= */}
       {activeReportTab === 'leave_deo' && (
         <div className="hrm-card" style={{ padding: 0, borderRadius: '18px', overflow: 'hidden' }}>
@@ -1072,7 +1349,7 @@ export const AttendanceReportsPage: React.FC = () => {
       )}
 
       {/* ========================================================================= */}
-      {/* 3. COMBINED REPORT VIEW (admin_attendance.php?action=combined_report) */}
+      {/* 4. COMBINED REPORT VIEW (admin_attendance.php?action=combined_report) */}
       {/* ========================================================================= */}
       {activeReportTab === 'combined' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -1279,9 +1556,9 @@ export const AttendanceReportsPage: React.FC = () => {
       )}
 
       {/* ========================================================================= */}
-      {/* 4. DAILY / FORGOTTEN REPORT VIEW */}
+      {/* 5. DAILY REPORT VIEW */}
       {/* ========================================================================= */}
-      {activeReportTab !== 'leave_deo' && activeReportTab !== 'combined' && activeReportTab !== 'late' && (
+      {activeReportTab === 'daily' && (
         <div className="hrm-card" style={{ padding: 0, borderRadius: '18px', overflow: 'hidden' }}>
           {/* Top Department Tabs matching admin_attendance.php */}
           <div
