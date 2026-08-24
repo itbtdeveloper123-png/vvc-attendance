@@ -2418,7 +2418,7 @@ try {
         // 14. PAYROLL MANAGEMENT
         // ==========================================
         // ==========================================
-        // 14. PAYROLL MANAGEMENT & ADJUSTMENTS
+        // 14. PAYROLL MANAGEMENT & ADJUSTMENTS (Matching admin_attendance.php)
         // ==========================================
         case 'fetch_payroll_records':
         case 'fetch_payroll':
@@ -2494,20 +2494,48 @@ try {
             $month = (int)($_POST['month'] ?? $_GET['month'] ?? date('n'));
             $year = (int)($_POST['year'] ?? $_GET['year'] ?? date('Y'));
 
-            $payroll = dbQuery("SELECT p.*, u.name as user_name, u.department, u.position FROM payroll_records p LEFT JOIN users u ON p.employee_id = u.employee_id WHERE p.payroll_month = ? AND p.payroll_year = ? ORDER BY p.id DESC", [$month, $year]);
+            $payroll = dbQuery("SELECT p.*, u.name as user_name, u.department, u.position, u.avatar, pc.bank_name, pc.bank_account_number, pc.bank_qr_file FROM payroll_records p LEFT JOIN users u ON p.employee_id = u.employee_id LEFT JOIN payroll_configs pc ON p.employee_id = pc.employee_id WHERE p.payroll_month = ? AND p.payroll_year = ? ORDER BY p.id DESC", [$month, $year]);
 
             if (empty($payroll)) {
-                $users = dbQuery("SELECT employee_id, name, base_salary, department, position FROM users WHERE is_active = 1");
-                foreach ($users as $u) {
-                    $base = (float)($u['base_salary'] ?? 350.00);
-                    $otHours = 0;
-                    $otAmt = 0;
-                    $ded = 0;
-                    $loan = 0;
-                    $net = $base;
-                    dbQuery("INSERT IGNORE INTO payroll_records (employee_id, name, base_salary, days_present, ot_hours, ot_amount, deductions, loans, net_salary, status, payroll_month, payroll_year) VALUES (?, ?, ?, 26, ?, ?, ?, ?, ?, 'Pending', ?, ?)", [$u['employee_id'], $u['name'], $base, $otHours, $otAmt, $ded, $loan, $net, $month, $year]);
+                $users = dbQuery("SELECT employee_id, name, base_salary, department, position FROM users WHERE employment_status = 'Active' OR employment_status IS NULL OR employment_status = ''");
+                if (empty($users)) {
+                    $users = dbQuery("SELECT employee_id, name, base_salary, department, position FROM users");
                 }
-                $payroll = dbQuery("SELECT p.*, u.name as user_name, u.department, u.position FROM payroll_records p LEFT JOIN users u ON p.employee_id = u.employee_id WHERE p.payroll_month = ? AND p.payroll_year = ? ORDER BY p.id DESC", [$month, $year]);
+
+                foreach ($users as $u) {
+                    $eid = $u['employee_id'];
+                    $base = (float)($u['base_salary'] ?? 0);
+                    if ($base <= 0) {
+                        $pcRow = dbQuery("SELECT base_salary FROM payroll_configs WHERE employee_id = ?", [$eid]);
+                        $base = !empty($pcRow) ? (float)$pcRow[0]['base_salary'] : 350.00;
+                    }
+                    if ($base <= 0) $base = 350.00;
+
+                    // Days present
+                    $days = 26;
+                    $attRow = dbQuery("SELECT COUNT(DISTINCT DATE(created_at)) as cnt FROM attendance WHERE employee_id = ? AND MONTH(created_at) = ? AND YEAR(created_at) = ?", [$eid, $month, $year]);
+                    if (!empty($attRow) && (int)$attRow[0]['cnt'] > 0) {
+                        $days = (int)$attRow[0]['cnt'];
+                    }
+
+                    // Deductions
+                    $dedRow = dbQuery("SELECT SUM(amount) as s FROM payroll_deductions WHERE employee_id = ? AND MONTH(deduction_date) = ? AND YEAR(deduction_date) = ?", [$eid, $month, $year]);
+                    $ded = (float)($dedRow[0]['s'] ?? 0);
+
+                    // OT
+                    $otRow = dbQuery("SELECT SUM(ot_hours) as h, SUM(total_ot_amount) as a FROM payroll_ot WHERE employee_id = ? AND MONTH(ot_date) = ? AND YEAR(ot_date) = ?", [$eid, $month, $year]);
+                    $otHours = (float)($otRow[0]['h'] ?? 0);
+                    $otAmt = (float)($otRow[0]['a'] ?? 0);
+
+                    // Loan
+                    $loanRow = dbQuery("SELECT SUM(monthly_installment) as s FROM payroll_loans WHERE employee_id = ?", [$eid]);
+                    $loan = (float)($loanRow[0]['s'] ?? 0);
+
+                    $net = max(0, $base + $otAmt - $ded - $loan);
+
+                    dbQuery("INSERT IGNORE INTO payroll_records (employee_id, name, base_salary, days_present, ot_hours, ot_amount, deductions, loans, net_salary, status, payroll_month, payroll_year) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending', ?, ?)", [$eid, $u['name'], $base, $days, $otHours, $otAmt, $ded, $loan, $net, $month, $year]);
+                }
+                $payroll = dbQuery("SELECT p.*, u.name as user_name, u.department, u.position, u.avatar, pc.bank_name, pc.bank_account_number, pc.bank_qr_file FROM payroll_records p LEFT JOIN users u ON p.employee_id = u.employee_id LEFT JOIN payroll_configs pc ON p.employee_id = pc.employee_id WHERE p.payroll_month = ? AND p.payroll_year = ? ORDER BY p.id DESC", [$month, $year]);
             }
 
             foreach ($payroll as &$pr) {
@@ -2516,12 +2544,13 @@ try {
                 }
             }
             unset($pr);
-            sendJson(['success' => true, 'salaries' => $payroll, 'month' => $month, 'year' => $year]);
+
+            sendJson(['success' => true, 'status' => 'success', 'salaries' => $payroll, 'data' => $payroll, 'month' => $month, 'year' => $year]);
             break;
 
         case 'fetch_payroll_configs':
-            $configs = dbQuery("SELECT u.employee_id, u.name, COALESCE(pc.base_salary, u.base_salary, 0.00) as base_salary, COALESCE(pc.bank_name, '') as bank_name, COALESCE(pc.bank_account_number, '') as bank_account_number, COALESCE(pc.bank_qr_file, u.bank_qr_code_url, '') as bank_qr_url FROM users u LEFT JOIN payroll_configs pc ON u.employee_id = pc.employee_id ORDER BY u.name ASC");
-            sendJson(['success' => true, 'configs' => $configs]);
+            $configs = dbQuery("SELECT u.employee_id, u.name, u.avatar, u.department, u.position, COALESCE(pc.base_salary, u.base_salary, 350.00) as base_salary, COALESCE(pc.bank_name, '') as bank_name, COALESCE(pc.bank_account_number, '') as bank_account_number, COALESCE(pc.bank_qr_file, u.bank_qr_code_url, '') as bank_qr_url, COALESCE(pc.payment_type, 'Monthly') as payment_type FROM users u LEFT JOIN payroll_configs pc ON u.employee_id = pc.employee_id ORDER BY u.name ASC");
+            sendJson(['success' => true, 'status' => 'success', 'configs' => $configs, 'data' => $configs]);
             break;
 
         case 'save_payroll_config':
@@ -2546,7 +2575,7 @@ try {
             }
 
             if (empty($empId)) {
-                sendJson(['success' => false, 'message' => 'Missing employee_id'], 400);
+                sendJson(['success' => false, 'message' => 'សូមបញ្ចូល Employee ID!'], 400);
             }
 
             if ($qrPath) {
@@ -2557,7 +2586,7 @@ try {
                 dbQuery("UPDATE users SET base_salary = ? WHERE employee_id = ?", [$baseSalary, $empId]);
             }
 
-            sendJson(['success' => true, 'message' => 'បានរក្សាទុកព័ត៌មានប្រាក់បៀវត្ស និងគណនីធនាគារជោគជ័យ!']);
+            sendJson(['success' => true, 'status' => 'success', 'message' => 'បានរក្សាទុកព័ត៌មានប្រាក់បៀវត្ស និងគណនីធនាគារជោគជ័យ!']);
             break;
 
         case 'save_payroll_record':
@@ -2571,7 +2600,7 @@ try {
             $otAmt = (float)($_POST['ot_amount'] ?? 0.00);
             $ded = (float)($_POST['deductions'] ?? 0.00);
             $loan = (float)($_POST['loans'] ?? 0.00);
-            $net = $base + $otAmt - $ded - $loan;
+            $net = max(0, $base + $otAmt - $ded - $loan);
             $status = trim($_POST['status'] ?? 'Paid');
             $month = (int)($_POST['month'] ?? date('n'));
             $year = (int)($_POST['year'] ?? date('Y'));
@@ -2581,21 +2610,36 @@ try {
                 if ($status === 'Paid') {
                     dbQuery("INSERT INTO payroll_history (employee_id, payroll_month, payroll_year, calculated_salary, status) VALUES (?, ?, ?, ?, 'Paid')", [$empId, $month, $year, $net]);
                 }
-                sendJson(['success' => true, 'message' => 'បានកែប្រែទិន្នន័យប្រាក់បៀវត្សជោគជ័យ!']);
+                sendJson(['success' => true, 'status' => 'success', 'message' => 'បានកែប្រែទិន្នន័យប្រាក់បៀវត្សជោគជ័យ!']);
             } else {
                 dbQuery("INSERT INTO payroll_records (employee_id, name, base_salary, days_present, ot_hours, ot_amount, deductions, loans, net_salary, status, payroll_month, payroll_year) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [$empId, $name, $base, $days, $otHours, $otAmt, $ded, $loan, $net, $status, $month, $year]);
-                sendJson(['success' => true, 'message' => 'បានបង្កើតកំណត់ត្រាប្រាក់បៀវត្សជោគជ័យ!']);
+                sendJson(['success' => true, 'status' => 'success', 'message' => 'បានបង្កើតកំណត់ត្រាប្រាក់បៀវត្សជោគជ័យ!']);
             }
             break;
 
         case 'calculate_payroll':
             $month = (int)($_POST['month'] ?? date('n'));
             $year = (int)($_POST['year'] ?? date('Y'));
-            $users = dbQuery("SELECT employee_id, name, base_salary FROM users WHERE is_active = 1");
+            $users = dbQuery("SELECT employee_id, name, base_salary FROM users WHERE employment_status = 'Active' OR employment_status IS NULL OR employment_status = ''");
+            if (empty($users)) {
+                $users = dbQuery("SELECT employee_id, name, base_salary FROM users");
+            }
 
             foreach ($users as $u) {
                 $eid = $u['employee_id'];
-                $base = (float)($u['base_salary'] ?? 350);
+                $base = (float)($u['base_salary'] ?? 0);
+                if ($base <= 0) {
+                    $pcRow = dbQuery("SELECT base_salary FROM payroll_configs WHERE employee_id = ?", [$eid]);
+                    $base = !empty($pcRow) ? (float)$pcRow[0]['base_salary'] : 350.00;
+                }
+                if ($base <= 0) $base = 350.00;
+
+                // Days present
+                $days = 26;
+                $attRow = dbQuery("SELECT COUNT(DISTINCT DATE(created_at)) as cnt FROM attendance WHERE employee_id = ? AND MONTH(created_at) = ? AND YEAR(created_at) = ?", [$eid, $month, $year]);
+                if (!empty($attRow) && (int)$attRow[0]['cnt'] > 0) {
+                    $days = (int)$attRow[0]['cnt'];
+                }
 
                 // Fetch total deductions for this employee
                 $dedRow = dbQuery("SELECT SUM(amount) as s FROM payroll_deductions WHERE employee_id = ? AND MONTH(deduction_date) = ? AND YEAR(deduction_date) = ?", [$eid, $month, $year]);
@@ -2610,21 +2654,21 @@ try {
                 $loanRow = dbQuery("SELECT SUM(monthly_installment) as s FROM payroll_loans WHERE employee_id = ?", [$eid]);
                 $loan = (float)($loanRow[0]['s'] ?? 0);
 
-                $net = $base + $otAmt - $ded - $loan;
+                $net = max(0, $base + $otAmt - $ded - $loan);
 
                 dbQuery("INSERT INTO payroll_records (employee_id, name, base_salary, days_present, ot_hours, ot_amount, deductions, loans, net_salary, status, payroll_month, payroll_year) 
-                    VALUES (?, ?, ?, 26, ?, ?, ?, ?, ?, 'Pending', ?, ?) 
-                    ON DUPLICATE KEY UPDATE base_salary = VALUES(base_salary), ot_hours = VALUES(ot_hours), ot_amount = VALUES(ot_amount), deductions = VALUES(deductions), loans = VALUES(loans), net_salary = VALUES(net_salary)",
-                    [$eid, $u['name'], $base, $otHours, $otAmt, $ded, $loan, $net, $month, $year]);
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending', ?, ?) 
+                    ON DUPLICATE KEY UPDATE base_salary = VALUES(base_salary), days_present = VALUES(days_present), ot_hours = VALUES(ot_hours), ot_amount = VALUES(ot_amount), deductions = VALUES(deductions), loans = VALUES(loans), net_salary = VALUES(net_salary)",
+                    [$eid, $u['name'], $base, $days, $otHours, $otAmt, $ded, $loan, $net, $month, $year]);
             }
-            sendJson(['success' => true, 'message' => "បានគណនាប្រាក់បៀវត្សសម្រាប់ខែ $month/$year ដោយជោគជ័យ!"]);
+            sendJson(['success' => true, 'status' => 'success', 'message' => "បានគណនាប្រាក់បៀវត្សសម្រាប់ខែ $month/$year ដោយជោគជ័យ!"]);
             break;
 
         case 'fetch_payroll_adjustments':
             $deductions = dbQuery("SELECT d.*, u.name as emp_name FROM payroll_deductions d LEFT JOIN users u ON d.employee_id = u.employee_id ORDER BY d.id DESC LIMIT 50");
             $ots = dbQuery("SELECT o.*, u.name as emp_name FROM payroll_ot o LEFT JOIN users u ON o.employee_id = u.employee_id ORDER BY o.id DESC LIMIT 50");
             $loans = dbQuery("SELECT l.*, u.name as emp_name FROM payroll_loans l LEFT JOIN users u ON l.employee_id = u.employee_id ORDER BY l.id DESC LIMIT 50");
-            sendJson(['success' => true, 'deductions' => $deductions, 'ots' => $ots, 'loans' => $loans]);
+            sendJson(['success' => true, 'status' => 'success', 'deductions' => $deductions, 'ots' => $ots, 'loans' => $loans]);
             break;
 
         case 'save_payroll_deduction':
@@ -2634,7 +2678,7 @@ try {
             $date = trim($_POST['deduction_date'] ?? date('Y-m-d'));
             if (empty($empId) || $amt <= 0) sendJson(['success' => false, 'message' => 'សូមបញ្ចូលព័ត៌មានឱ្យបានត្រឹមត្រូវ!'], 400);
             dbQuery("INSERT INTO payroll_deductions (employee_id, amount, reason, deduction_date) VALUES (?, ?, ?, ?)", [$empId, $amt, $reason, $date]);
-            sendJson(['success' => true, 'message' => 'បានរក្សាទុកការកាត់ប្រាក់ជោគជ័យ!']);
+            sendJson(['success' => true, 'status' => 'success', 'message' => 'បានរក្សាទុកការកាត់ប្រាក់ជោគជ័យ!']);
             break;
 
         case 'save_payroll_ot':
@@ -2646,7 +2690,7 @@ try {
             $date = trim($_POST['ot_date'] ?? date('Y-m-d'));
             if (empty($empId) || $hours <= 0) sendJson(['success' => false, 'message' => 'សូមបញ្ចូលព័ត៌មានឱ្យបានត្រឹមត្រូវ!'], 400);
             dbQuery("INSERT INTO payroll_ot (employee_id, ot_hours, ot_rate, total_ot_amount, reason, ot_date) VALUES (?, ?, ?, ?, ?, ?)", [$empId, $hours, $rate, $amt, $reason, $date]);
-            sendJson(['success' => true, 'message' => 'បានរក្សាទុកប្រាក់ថែមម៉ោងជោគជ័យ!']);
+            sendJson(['success' => true, 'status' => 'success', 'message' => 'បានរក្សាទុកប្រាក់ថែមម៉ោងជោគជ័យ!']);
             break;
 
         case 'save_payroll_loan':
@@ -2656,12 +2700,12 @@ try {
             $reason = trim($_POST['reason'] ?? '');
             if (empty($empId) || $totalLoan <= 0) sendJson(['success' => false, 'message' => 'សូមបញ្ចូលព័ត៌មានឱ្យបានត្រឹមត្រូវ!'], 400);
             dbQuery("INSERT INTO payroll_loans (employee_id, total_loan, monthly_installment, reason) VALUES (?, ?, ?, ?)", [$empId, $totalLoan, $installment, $reason]);
-            sendJson(['success' => true, 'message' => 'បានរក្សាទុកបំណុល/ប្រាក់កម្ចីជោគជ័យ!']);
+            sendJson(['success' => true, 'status' => 'success', 'message' => 'បានរក្សាទុកបំណុល/ប្រាក់កម្ចីជោគជ័យ!']);
             break;
 
         case 'fetch_payroll_history':
-            $history = dbQuery("SELECT h.*, u.name as emp_name FROM payroll_history h LEFT JOIN users u ON h.employee_id = u.employee_id ORDER BY h.id DESC LIMIT 50");
-            sendJson(['success' => true, 'history' => $history]);
+            $history = dbQuery("SELECT h.*, u.name as emp_name, u.avatar, u.department FROM payroll_history h LEFT JOIN users u ON h.employee_id = u.employee_id ORDER BY h.id DESC LIMIT 50");
+            sendJson(['success' => true, 'status' => 'success', 'history' => $history, 'data' => $history]);
             break;
 
         // ==========================================
