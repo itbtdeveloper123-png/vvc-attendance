@@ -498,15 +498,20 @@ try {
         case 'get_locations':
             dbQuery("CREATE TABLE IF NOT EXISTS locations (
                 id INT AUTO_INCREMENT PRIMARY KEY,
-                name VARCHAR(255) NOT NULL,
-                location_name VARCHAR(255) DEFAULT NULL,
-                address TEXT,
-                latitude DECIMAL(10, 8) DEFAULT 11.5564,
-                longitude DECIMAL(11, 8) DEFAULT 104.9282,
+                location_name VARCHAR(255) NOT NULL,
+                name VARCHAR(255) DEFAULT NULL,
+                address TEXT DEFAULT NULL,
+                latitude DECIMAL(20, 14) DEFAULT 11.55640000000000,
+                longitude DECIMAL(20, 14) DEFAULT 104.92820000000000,
                 radius_meters INT DEFAULT 100,
                 qr_secret VARCHAR(100) DEFAULT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+            @dbQuery("ALTER TABLE locations ADD COLUMN IF NOT EXISTS location_name VARCHAR(255) DEFAULT NULL");
+            @dbQuery("ALTER TABLE locations ADD COLUMN IF NOT EXISTS name VARCHAR(255) DEFAULT NULL");
+            @dbQuery("ALTER TABLE locations ADD COLUMN IF NOT EXISTS address TEXT DEFAULT NULL");
+            @dbQuery("ALTER TABLE locations ADD COLUMN IF NOT EXISTS qr_secret VARCHAR(100) DEFAULT NULL");
 
             dbQuery("CREATE TABLE IF NOT EXISTS user_locations (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -517,17 +522,25 @@ try {
                 UNIQUE KEY unique_user_loc (employee_id, location_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
-            $locations = dbQuery("SELECT id, COALESCE(NULLIF(name, ''), location_name, 'សាខា') as name, COALESCE(NULLIF(name, ''), location_name, 'សាខា') as location_name, address, latitude, longitude, radius_meters, qr_secret, created_at FROM locations ORDER BY id ASC");
-            if (empty($locations)) {
-                // Seed default branches
-                dbQuery("INSERT INTO locations (name, location_name, address, latitude, longitude, radius_meters, qr_secret) VALUES 
-                    ('ការិយាល័យកណ្តាល (Store 318)', 'Store 318', 'ផ្ទះលេខ 318 ផ្លូវកម្ពុជាក្រោម រាជធានីភ្នំពេញ', 11.56830000, 104.91250000, 100, 'vvc_318_secure_qr_2026'),
-                    ('សាខា SKKS2', 'Store SKKS2', 'ផ្លូវ 271 រាជធានីភ្នំពេញ', 11.54210000, 104.90120000, 100, 'vvc_skks2_secure_qr_2026'),
-                    ('ឃ្លាំងទំនិញ PSP (Warehouse)', 'Warehouse PSP', 'ផ្លូវជាតិលេខ ៤ រាជធានីភ្នំពេញ', 11.51240000, 104.82110000, 150, 'vvc_psp_warehouse_qr_2026')");
-                $locations = dbQuery("SELECT id, name, location_name, address, latitude, longitude, radius_meters, qr_secret, created_at FROM locations ORDER BY id ASC");
+            $rawLocations = dbQuery("SELECT * FROM locations ORDER BY id DESC");
+            $locations = [];
+            foreach ($rawLocations as $r) {
+                $locName = !empty($r['location_name']) ? $r['location_name'] : (!empty($r['name']) ? $r['name'] : 'ទីតាំង #' . $r['id']);
+                $locations[] = [
+                    'id' => (int)$r['id'],
+                    'name' => $locName,
+                    'location_name' => $locName,
+                    'address' => $r['address'] ?? '',
+                    'latitude' => $r['latitude'] ?? '11.5564',
+                    'longitude' => $r['longitude'] ?? '104.9282',
+                    'radius_meters' => (int)($r['radius_meters'] ?? 100),
+                    'qr_secret' => $r['qr_secret'] ?? '',
+                    'created_at' => $r['created_at'] ?? '',
+                    'assigned_employees_count' => 0,
+                ];
             }
 
-            // Also attach assignments count
+            // Attach assignments count
             foreach ($locations as &$loc) {
                 $countRes = dbQuery("SELECT COUNT(*) as total FROM user_locations WHERE location_id = ?", [$loc['id']]);
                 $loc['assigned_employees_count'] = (int)($countRes[0]['total'] ?? 0);
@@ -552,11 +565,22 @@ try {
                 sendJson(['success' => false, 'message' => 'សូមបញ្ចូលឈ្មោះទីតាំង!'], 400);
             }
 
+            @dbQuery("ALTER TABLE locations ADD COLUMN IF NOT EXISTS location_name VARCHAR(255) DEFAULT NULL");
+            @dbQuery("ALTER TABLE locations ADD COLUMN IF NOT EXISTS name VARCHAR(255) DEFAULT NULL");
+            @dbQuery("ALTER TABLE locations ADD COLUMN IF NOT EXISTS address TEXT DEFAULT NULL");
+            @dbQuery("ALTER TABLE locations ADD COLUMN IF NOT EXISTS qr_secret VARCHAR(100) DEFAULT NULL");
+
             if ($locId > 0) {
-                dbQuery("UPDATE locations SET name = ?, location_name = ?, address = ?, latitude = ?, longitude = ?, radius_meters = ?, qr_secret = ? WHERE id = ?", [$name, $name, $addr, $lat, $lng, $radius, $qrSecret, $locId]);
+                dbQuery("UPDATE locations SET location_name = ?, latitude = ?, longitude = ?, radius_meters = ?, qr_secret = ? WHERE id = ?", [$name, $lat, $lng, $radius, $qrSecret, $locId]);
+                @dbQuery("UPDATE locations SET name = ?, address = ? WHERE id = ?", [$name, $addr, $locId]);
                 sendJson(['success' => true, 'message' => 'បានកែប្រែទីតាំងជោគជ័យ!']);
             } else {
-                dbQuery("INSERT INTO locations (name, location_name, address, latitude, longitude, radius_meters, qr_secret) VALUES (?, ?, ?, ?, ?, ?, ?)", [$name, $name, $addr, $lat, $lng, $radius, $qrSecret]);
+                dbQuery("INSERT INTO locations (location_name, latitude, longitude, radius_meters, qr_secret) VALUES (?, ?, ?, ?, ?)", [$name, $lat, $lng, $radius, $qrSecret]);
+                $lastRes = dbQuery("SELECT LAST_INSERT_ID() as id");
+                $newId = (int)($lastRes[0]['id'] ?? 0);
+                if ($newId > 0) {
+                    @dbQuery("UPDATE locations SET name = ?, address = ? WHERE id = ?", [$name, $addr, $newId]);
+                }
                 sendJson(['success' => true, 'message' => 'បានបង្កើតទីតាំងថ្មីជោគជ័យ!']);
             }
             break;
@@ -585,11 +609,11 @@ try {
             $assignments = dbQuery("
                 SELECT ul.id as assign_id, ul.id, ul.employee_id, ul.location_id, ul.custom_radius_meters, ul.created_at,
                        COALESCE(u.name, ul.employee_id) as user_name, u.department, u.system_role, u.avatar,
-                       COALESCE(NULLIF(l.name, ''), l.location_name, 'ទីតាំង') as location_name, l.latitude, l.longitude
+                       COALESCE(l.location_name, l.name, 'ទីតាំង') as location_name, l.latitude, l.longitude
                 FROM user_locations ul
                 LEFT JOIN users u ON ul.employee_id = u.employee_id
                 LEFT JOIN locations l ON ul.location_id = l.id
-                ORDER BY u.name ASC, l.name ASC
+                ORDER BY u.name ASC, l.id DESC
             ");
             sendJson(['success' => true, 'assignments' => $assignments, 'data' => $assignments]);
             break;
@@ -668,7 +692,21 @@ try {
 
         case 'fetch_locations_meta':
             $users = dbQuery("SELECT employee_id, name, department, system_role, avatar FROM users WHERE user_role != 'Inactive' ORDER BY name ASC");
-            $locations = dbQuery("SELECT id, COALESCE(NULLIF(name, ''), location_name, 'សាខា') as name, address, latitude, longitude, radius_meters, qr_secret FROM locations ORDER BY id ASC");
+            $rawLocs = dbQuery("SELECT * FROM locations ORDER BY id DESC");
+            $locations = [];
+            foreach ($rawLocs as $r) {
+                $locName = !empty($r['location_name']) ? $r['location_name'] : (!empty($r['name']) ? $r['name'] : 'ទីតាំង #' . $r['id']);
+                $locations[] = [
+                    'id' => (int)$r['id'],
+                    'name' => $locName,
+                    'location_name' => $locName,
+                    'address' => $r['address'] ?? '',
+                    'latitude' => $r['latitude'] ?? '11.5564',
+                    'longitude' => $r['longitude'] ?? '104.9282',
+                    'radius_meters' => (int)($r['radius_meters'] ?? 100),
+                    'qr_secret' => $r['qr_secret'] ?? '',
+                ];
+            }
             sendJson(['success' => true, 'users' => $users, 'locations' => $locations]);
             break;
 
