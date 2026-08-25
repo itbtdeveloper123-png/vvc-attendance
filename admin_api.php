@@ -3047,7 +3047,17 @@ try {
                             break;
                         }
                     } else {
-                        $lastError = "Gemini ($gModel HTTP $httpCode): " . ($err ?: $rawRes);
+                        $decErr = json_decode((string)$rawRes, true);
+                        if (!empty($decErr['error']['message'])) {
+                            $gMsg = $decErr['error']['message'];
+                            if (strpos($gMsg, 'disabled') !== false || strpos($gMsg, 'SERVICE_DISABLED') !== false) {
+                                $lastError = 'Gemini API មិនទាន់ត្រូវបានបើកដំណើរការ (Enable) នៅក្នុង Google Cloud Project ឡើយ។ សូមចូលទៅកាន់តំណភ្ជាប់នេះដើម្បីបើក (ENABLE)៖ https://console.developers.google.com/apis/api/generativelanguage.googleapis.com/overview?project=810457009665 ឬបង្កើត Key ថ្មីពី https://aistudio.google.com/app/apikey';
+                            } else {
+                                $lastError = 'Gemini: ' . $gMsg;
+                            }
+                        } else {
+                            $lastError = "Gemini ($gModel HTTP $httpCode): " . ($err ?: $rawRes);
+                        }
                     }
                 }
             }
