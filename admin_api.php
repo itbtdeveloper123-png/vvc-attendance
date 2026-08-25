@@ -11,10 +11,18 @@ if (ob_get_level() === 0) {
 date_default_timezone_set('Asia/Phnom_Penh');
 
 // 2. CORS & Response Headers
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization, X-CSRF-Token, X-Requested-With, Accept, Origin');
-header('Content-Type: application/json; charset=utf-8');
+$origin = $_SERVER['HTTP_ORIGIN'] ?? '*';
+if (function_exists('header_remove')) {
+    @header_remove('Access-Control-Allow-Origin');
+    @header_remove('Access-Control-Allow-Methods');
+    @header_remove('Access-Control-Allow-Headers');
+    @header_remove('Access-Control-Allow-Credentials');
+}
+header("Access-Control-Allow-Origin: $origin", true);
+header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS', true);
+header('Access-Control-Allow-Headers: Content-Type, Authorization, X-CSRF-Token, X-Requested-With, Accept, Origin', true);
+header('Access-Control-Allow-Credentials: true', true);
+header('Content-Type: application/json; charset=utf-8', true);
 
 if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
@@ -30,10 +38,7 @@ function sendJson(array $data, int $statusCode = 200): void {
         ob_end_clean();
     }
     http_response_code($statusCode);
-    header('Access-Control-Allow-Origin: *');
-    header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-    header('Access-Control-Allow-Headers: Content-Type, Authorization, X-CSRF-Token, X-Requested-With, Accept, Origin');
-    header('Content-Type: application/json; charset=utf-8');
+    header('Content-Type: application/json; charset=utf-8', true);
     echo json_encode($data, JSON_UNESCAPED_UNICODE);
     exit;
 }

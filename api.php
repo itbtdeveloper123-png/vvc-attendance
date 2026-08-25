@@ -40,8 +40,18 @@ error_reporting(E_ALL);
 ini_set('display_errors', 0); // Don't display errors to client, log them instead
 date_default_timezone_set('Asia/Phnom_Penh');
 
-header('Content-Type: application/json; charset=UTF-8');
-header('Access-Control-Allow-Origin: *');
+$origin = $_SERVER['HTTP_ORIGIN'] ?? '*';
+if (function_exists('header_remove')) {
+    @header_remove('Access-Control-Allow-Origin');
+    @header_remove('Access-Control-Allow-Methods');
+    @header_remove('Access-Control-Allow-Headers');
+    @header_remove('Access-Control-Allow-Credentials');
+}
+header("Access-Control-Allow-Origin: $origin", true);
+header('Access-Control-Allow-Methods: POST, GET, OPTIONS, PUT, DELETE', true);
+header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, X-CSRF-Token, Accept, Origin', true);
+header('Access-Control-Allow-Credentials: true', true);
+header('Content-Type: application/json; charset=UTF-8', true);
 
 // Force UTF-8 encoding for internal functions
 mb_internal_encoding('UTF-8');
@@ -49,8 +59,6 @@ mb_http_output('UTF-8');
 
 // Disable mysqli exceptions to handle missing tables gracefully (return false instead of fatal error)
 mysqli_report(MYSQLI_REPORT_OFF);
-header('Access-Control-Allow-Methods: POST, GET, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
 
 if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(204);
