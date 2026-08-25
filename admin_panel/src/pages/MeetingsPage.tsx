@@ -86,6 +86,21 @@ export const MeetingsPage: React.FC = () => {
   const [aiModalTab, setAiModalTab] = useState<'summary' | 'transcript'>('summary');
   const [copiedText, setCopiedText] = useState(false);
 
+  // Karaoke Audio-Transcript Sync State
+  const [aiModalAudioCurrentTime, setAiModalAudioCurrentTime] = useState<number>(0);
+  const [aiModalAudioDuration, setAiModalAudioDuration] = useState<number>(0);
+  const [aiModalAudioPlaying, setAiModalAudioPlaying] = useState<boolean>(false);
+  const [aiModalPlaybackRate, setAiModalPlaybackRate] = useState<number>(1);
+  const aiModalAudioRef = useRef<HTMLAudioElement | null>(null);
+  const activeTranscriptRef = useRef<HTMLDivElement | null>(null);
+
+  // Auto-scroll active dialogue into view when playing
+  useEffect(() => {
+    if (aiModalAudioPlaying && activeTranscriptRef.current && aiModalTab === 'transcript') {
+      activeTranscriptRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [aiModalAudioCurrentTime, aiModalAudioPlaying, aiModalTab]);
+
   // Create Form State
   const [createForm, setCreateForm] = useState({
     topic: '',
@@ -465,6 +480,221 @@ export const MeetingsPage: React.FC = () => {
 
     flushList();
     return <div style={{ display: 'flex', flexDirection: 'column' }}>{elements}</div>;
+  };
+
+  const formatSecondsToTime = (totalSeconds: number) => {
+    const s = Math.max(0, Math.floor(totalSeconds));
+    const mins = Math.floor(s / 60);
+    const secs = s % 60;
+    const hours = Math.floor(mins / 60);
+    if (hours > 0) {
+      const remMins = mins % 60;
+      return `${hours}:${remMins < 10 ? '0' : ''}${remMins}:${secs < 10 ? '0' : ''}${secs}`;
+    }
+    return `${mins < 10 ? '0' : ''}${mins}:${secs < 10 ? '0' : ''}${secs}`;
+  };
+
+  const renderKaraokeTranscript = (rawTranscript: string) => {
+    if (!rawTranscript) return null;
+
+    const rawLines = rawTranscript.split('\n').map(l => l.trim()).filter(Boolean);
+    if (rawLines.length === 0) return null;
+
+    interface TranscriptBlock {
+      id: number;
+      startTime: number;
+      endTime: number;
+      speaker: string;
+      text: string;
+      raw: string;
+    }
+
+    const blocks: TranscriptBlock[] = [];
+
+    rawLines.forEach((line, idx) => {
+      const timeMatch = line.match(/^\[?\(?(\d{1,2}):(\d{2})(?::(\d{2}))?\]?\)?\s*(.*)/);
+      let startTime = -1;
+      let lineBody = line;
+
+      if (timeMatch) {
+        if (timeMatch[3] !== undefined) {
+          startTime = parseInt(timeMatch[1], 10) * 3600 + parseInt(timeMatch[2], 10) * 60 + parseInt(timeMatch[3], 10);
+        } else {
+          startTime = parseInt(timeMatch[1], 10) * 60 + parseInt(timeMatch[2], 10);
+        }
+        lineBody = timeMatch[4] || line;
+      }
+
+      const speakerMatch = lineBody.match(/^(\*\*.*?\*\*|[\u1780-\u17FF\w\s\(\)]+)\s*[:៖]\s*(.*)/);
+      let speaker = '';
+      let dialogue = lineBody;
+
+      if (speakerMatch) {
+        speaker = speakerMatch[1].replace(/\*\*/g, '').trim();
+        dialogue = speakerMatch[2].trim();
+      }
+
+      blocks.push({
+        id: idx,
+        startTime: startTime,
+        endTime: -1,
+        speaker: speaker,
+        text: dialogue,
+        raw: line
+      });
+    });
+
+    const totalAudioSecs = aiModalAudioDuration > 0 ? aiModalAudioDuration : (blocks.length * 15);
+    const hasAnyRealTimestamps = blocks.some(b => b.startTime >= 0);
+
+    if (!hasAnyRealTimestamps) {
+      const step = totalAudioSecs / Math.max(1, blocks.length);
+      blocks.forEach((b, i) => {
+        b.startTime = i * step;
+        b.endTime = (i + 1) * step;
+      });
+    } else {
+      for (let i = 0; i < blocks.length; i++) {
+        if (blocks[i].startTime < 0) {
+          blocks[i].startTime = i > 0 ? blocks[i - 1].endTime : 0;
+        }
+        if (i < blocks.length - 1 && blocks[i + 1].startTime >= 0) {
+          blocks[i].endTime = blocks[i + 1].startTime;
+        } else {
+          blocks[i].endTime = blocks[i].startTime + 25;
+        }
+      }
+    }
+
+    let activeIdx = -1;
+    for (let i = 0; i < blocks.length; i++) {
+      if (aiModalAudioCurrentTime >= blocks[i].startTime && (i === blocks.length - 1 || aiModalAudioCurrentTime < blocks[i + 1].startTime)) {
+        activeIdx = i;
+        break;
+      }
+    }
+
+    const handleSeekTo = (timeSecs: number) => {
+      if (aiModalAudioRef.current) {
+        aiModalAudioRef.current.currentTime = timeSecs;
+        aiModalAudioRef.current.play();
+        setAiModalAudioPlaying(true);
+      }
+    };
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        {/* Karaoke Interactive Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', background: 'rgba(99, 102, 241, 0.08)', borderRadius: '10px', border: '1px solid rgba(99, 102, 241, 0.2)', fontSize: '12.5px', flexWrap: 'wrap', gap: '6px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--primary)', fontWeight: 700 }}>
+            <Sparkles size={15} />
+            <span>Karaoke Audio-Transcript Sync</span>
+          </div>
+          <div style={{ color: 'var(--text-muted)', fontSize: '12px' }}>
+            💡 ចុចលើអត្ថបទសន្ទនាណាមួយ ដើម្បីចាក់សំឡេងត្រង់ចំណុចនោះភ្លាមៗ
+          </div>
+        </div>
+
+        {blocks.map((block, idx) => {
+          const isActive = idx === activeIdx;
+
+          return (
+            <div
+              key={block.id}
+              ref={isActive ? activeTranscriptRef : undefined}
+              onClick={() => handleSeekTo(block.startTime)}
+              title="ចុចដើម្បីស្តាប់ត្រង់ចំណុចនេះ"
+              style={{
+                padding: '14px 18px',
+                borderRadius: '12px',
+                cursor: 'pointer',
+                transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                background: isActive
+                  ? 'linear-gradient(135deg, rgba(99, 102, 241, 0.18) 0%, rgba(168, 85, 247, 0.14) 100%)'
+                  : 'rgba(255, 255, 255, 0.02)',
+                border: isActive ? '1px solid rgba(99, 102, 241, 0.45)' : '1px solid rgba(255, 255, 255, 0.05)',
+                borderLeft: isActive ? '5px solid #6366f1' : '5px solid transparent',
+                boxShadow: isActive ? '0 6px 20px rgba(99, 102, 241, 0.22)' : 'none',
+                transform: isActive ? 'scale(1.01)' : 'scale(1)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px'
+              }}
+            >
+              {/* Top metadata line: Speaker + Timestamp badge */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {block.speaker ? (
+                    <span
+                      style={{
+                        fontSize: '13.5px',
+                        fontWeight: 800,
+                        color: isActive ? '#4f46e5' : 'var(--text-primary)',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}
+                    >
+                      <span>🗣️</span>
+                      <span>{block.speaker}</span>
+                    </span>
+                  ) : (
+                    <span style={{ fontSize: '12.5px', color: 'var(--text-muted)' }}>ចំណុចពិភាក្សា</span>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {isActive && (
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        padding: '3px 10px',
+                        borderRadius: '12px',
+                        background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+                        color: '#fff',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        boxShadow: '0 2px 8px rgba(99, 102, 241, 0.35)'
+                      }}
+                    >
+                      <Volume2 size={12} className="fa-spin" />
+                      <span>កំពុងនិយាយ</span>
+                    </span>
+                  )}
+                  <span
+                    style={{
+                      fontSize: '11.5px',
+                      color: isActive ? 'var(--primary)' : 'var(--text-muted)',
+                      fontWeight: isActive ? 700 : 500,
+                      background: isActive ? 'rgba(99, 102, 241, 0.15)' : 'rgba(0, 0, 0, 0.05)',
+                      padding: '3px 8px',
+                      borderRadius: '6px'
+                    }}
+                  >
+                    ⏱️ {formatSecondsToTime(block.startTime)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Dialogue Text with bold parsing */}
+              <div
+                style={{
+                  fontSize: '14.5px',
+                  lineHeight: 1.95,
+                  color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)',
+                  fontWeight: isActive ? 600 : 400,
+                  fontFamily: "'Kantumruy Pro', 'Inter', system-ui, sans-serif"
+                }}
+              >
+                {parseInlineBold(block.text || block.raw)}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
   };
 
   const handleToggleAudio = (rawAudioUrl: string) => {
@@ -2043,29 +2273,57 @@ export const MeetingsPage: React.FC = () => {
                   style={{
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: '8px',
-                    padding: '12px 16px',
-                    background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(168, 85, 247, 0.05) 100%)',
+                    gap: '10px',
+                    padding: '14px 16px',
+                    background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.09) 0%, rgba(168, 85, 247, 0.06) 100%)',
                     borderRadius: '12px',
-                    border: '1px solid rgba(99, 102, 241, 0.2)'
+                    border: '1px solid rgba(99, 102, 241, 0.25)',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '13px', fontWeight: 700, color: 'var(--primary)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '13px', fontWeight: 700, color: 'var(--primary)', flexWrap: 'wrap', gap: '8px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <Volume2 size={16} />
-                      <span>សំឡេងកិច្ចប្រជុំ (Meeting Audio Recording) {aiModalMeeting.duration ? `— ${aiModalMeeting.duration}` : ''}</span>
+                      <Volume2 size={16} style={{ color: aiModalAudioPlaying ? '#6366f1' : 'inherit' }} />
+                      <span>សំឡេងកិច្ចប្រជុំ (Audio Recording) {aiModalMeeting.duration ? `— ${aiModalMeeting.duration}` : ''}</span>
                     </div>
-                    <span style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: 500 }}>
-                      ស្តាប់ផ្ទៀងផ្ទាត់ជាមួយខ្លឹមសារសរសេរ
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginRight: '4px' }}>ល្បឿន:</span>
+                      {[1, 1.25, 1.5, 2].map((rate) => (
+                        <button
+                          key={rate}
+                          type="button"
+                          onClick={() => {
+                            setAiModalPlaybackRate(rate);
+                            if (aiModalAudioRef.current) aiModalAudioRef.current.playbackRate = rate;
+                          }}
+                          style={{
+                            padding: '2px 7px',
+                            borderRadius: '6px',
+                            border: 'none',
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            background: aiModalPlaybackRate === rate ? 'var(--primary)' : 'rgba(255,255,255,0.06)',
+                            color: aiModalPlaybackRate === rate ? '#fff' : 'var(--text-muted)'
+                          }}
+                        >
+                          {rate}x
+                        </button>
+                      ))}
+                    </div>
                   </div>
                   <audio
+                    ref={aiModalAudioRef}
                     controls
                     preload="metadata"
                     src={audioSrc}
+                    onTimeUpdate={(e) => setAiModalAudioCurrentTime(e.currentTarget.currentTime)}
+                    onLoadedMetadata={(e) => setAiModalAudioDuration(e.currentTarget.duration || 0)}
+                    onPlay={() => setAiModalAudioPlaying(true)}
+                    onPause={() => setAiModalAudioPlaying(false)}
                     style={{
                       width: '100%',
-                      height: '36px',
+                      height: '38px',
                       borderRadius: '8px'
                     }}
                   >
@@ -2158,7 +2416,7 @@ export const MeetingsPage: React.FC = () => {
                       </div>
                     )
                   ) : aiModalTranscript ? (
-                    renderKhmerFormattedText(aiModalTranscript)
+                    renderKaraokeTranscript(aiModalTranscript)
                   ) : (
                     <div style={{ textAlign: 'center', padding: '36px 16px', color: 'var(--text-muted)' }}>
                       <Volume2 size={36} style={{ margin: '0 auto 12px auto', opacity: 0.4, color: 'var(--primary)' }} />
