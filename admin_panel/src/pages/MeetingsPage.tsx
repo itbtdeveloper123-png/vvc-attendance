@@ -2564,7 +2564,7 @@ export const MeetingsPage: React.FC = () => {
                     {/* Metadata Footer */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '2px' }}>
                       <span>⏱️ រយៈពេលដំណើរការ: {aiProgressElapsed} វិនាទី</span>
-                      <span>⚡ Google Gemini & Whisper AI</span>
+                      <span>⚡ Google Gemini AI</span>
                     </div>
                   </div>
                 </div>

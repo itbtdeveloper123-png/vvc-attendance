@@ -2966,110 +2966,154 @@ try {
                 }
             }
 
-            $audioForWhisper = $localAudioFile;
-            $tempCompressedAudio = '';
-
-            // If audio file is large (> 24MB), downsample with FFmpeg or slice safely in pure PHP
-            if ($localAudioFile !== '' && file_exists($localAudioFile)) {
-                $rawSize = filesize($localAudioFile);
-                if ($rawSize > 24 * 1024 * 1024) {
-                    if (function_exists('exec')) {
-                        $ffmpegBin = defined('FFMPEG_BINARY') ? FFMPEG_BINARY : (file_exists('E:\24-ffmpeg\ffmpeg\bin\ffmpeg.exe') ? 'E:\24-ffmpeg\ffmpeg\bin\ffmpeg.exe' : 'ffmpeg');
-                        $tempCompressedAudio = tempnam(sys_get_temp_dir(), 'vvc_wcomp_') . '.mp3';
-                        $cmd = escapeshellcmd($ffmpegBin) . " -y -i " . escapeshellarg($localAudioFile) . " -vn -ar 16000 -ac 1 -b:a 32k " . escapeshellarg($tempCompressedAudio) . " 2>&1";
-                        @exec($cmd);
-                        if (file_exists($tempCompressedAudio) && filesize($tempCompressedAudio) > 1000) {
-                            $audioForWhisper = $tempCompressedAudio;
-                        }
-                    }
-                    
-                    // Pure PHP fallback if exec() is disabled or FFmpeg unavailable
-                    if ($audioForWhisper === $localAudioFile && $rawSize > 24 * 1024 * 1024) {
-                        $tempSlice = tempnam(sys_get_temp_dir(), 'vvc_slice_') . '.mp3';
-                        $inFp = fopen($localAudioFile, 'rb');
-                        $outFp = fopen($tempSlice, 'wb');
-                        if ($inFp && $outFp) {
-                            $copied = 0;
-                            $targetBytes = 23 * 1024 * 1024;
-                            while (!feof($inFp) && $copied < $targetBytes) {
-                                $buf = fread($inFp, 65536);
-                                if ($buf === false || $buf === '') break;
-                                fwrite($outFp, $buf);
-                                $copied += strlen($buf);
-                            }
-                            fclose($inFp);
-                            fclose($outFp);
-                            if (file_exists($tempSlice) && filesize($tempSlice) > 1000) {
-                                $audioForWhisper = $tempSlice;
-                                $tempCompressedAudio = $tempSlice;
-                            }
-                        }
-                    }
-                }
-            }
-
-            // 2. High-Accuracy Speech Transcription with Groq Whisper Engine (verbose_json timestamps)
-            if ($audioForWhisper !== '' && $groqKey !== '' && file_exists($audioForWhisper) && filesize($audioForWhisper) < 25 * 1024 * 1024) {
+            // 2. Multimodal Audio Analysis with Google Gemini
+            if ($localAudioFile !== '' && $geminiKey !== '' && file_exists($localAudioFile)) {
                 try {
-                    $absAudio = realpath($audioForWhisper) ?: $audioForWhisper;
-                    $ch = curl_init('https://api.groq.com/openai/v1/audio/transcriptions');
+                    $fSize = filesize($localAudioFile);
+                    if (preg_match('/\.wav$/i', $localAudioFile)) $fileMime = 'audio/wav';
+                    elseif (preg_match('/\.m4a$/i', $localAudioFile)) $fileMime = 'audio/m4a';
+                    elseif (preg_match('/\.ogg$/i', $localAudioFile)) $fileMime = 'audio/ogg';
+
+                    // Upload audio to Gemini File API (supports files up to 2GB)
+                    $uploadUrl = "https://generativelanguage.googleapis.com/upload/v1beta/files?key=" . urlencode($geminiKey);
+                    $ch = curl_init($uploadUrl);
                     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                     curl_setopt($ch, CURLOPT_POST, true);
-                    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Authorization: Bearer ' . $groqKey]);
-                    $cFile = class_exists('CURLFile') ? new CURLFile($absAudio, 'audio/mp3', basename($absAudio)) : ('@' . $absAudio);
-                    curl_setopt($ch, CURLOPT_POSTFIELDS, [
-                        'file' => $cFile,
-                        'model' => 'whisper-large-v3',
-                        'language' => 'km',
-                        'response_format' => 'verbose_json',
+                    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                        "X-Goog-Upload-Command: start, upload, finalize",
+                        "X-Goog-Upload-Header-Content-Length: " . $fSize,
+                        "X-Goog-Upload-Header-Content-Type: " . $fileMime,
+                        "Content-Type: " . $fileMime
                     ]);
-                    curl_setopt($ch, CURLOPT_TIMEOUT, 120);
+                    $fileHandle = fopen($localAudioFile, 'rb');
+                    curl_setopt($ch, CURLOPT_INFILE, $fileHandle);
+                    curl_setopt($ch, CURLOPT_INFILESIZE, $fSize);
+                    curl_setopt($ch, CURLOPT_TIMEOUT, 90);
                     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-                    $tRaw = curl_exec($ch);
+                    $upRes = curl_exec($ch);
                     curl_close($ch);
-                    $tDec = json_decode((string)$tRaw, true);
-                    if (!empty($tDec['segments']) && is_array($tDec['segments'])) {
-                        $dialogueLines = [];
-                        foreach ($tDec['segments'] as $seg) {
-                            $startSec = (float)($seg['start'] ?? 0);
-                            $txt = trim((string)($seg['text'] ?? ''));
-                            if ($txt === '') continue;
-                            $mins = floor($startSec / 60);
-                            $secs = floor($startSec % 60);
-                            $dialogueLines[] = sprintf("[%02d:%02d] **អ្នកនិយាយ ៖** %s", $mins, $secs, $txt);
-                        }
-                        if (!empty($dialogueLines)) {
-                            $transcriptText = implode("\n\n", $dialogueLines);
-                        }
-                    } elseif (!empty($tDec['text'])) {
-                        $transcriptText = trim($tDec['text']);
-                    }
-                } catch (Throwable $we) {
-                    $lastError = 'Whisper: ' . $we->getMessage();
-                }
-            }
+                    if (is_resource($fileHandle)) fclose($fileHandle);
 
-            if ($tempCompressedAudio !== '' && file_exists($tempCompressedAudio)) {
-                @unlink($tempCompressedAudio);
+                    $upDec = json_decode((string)$upRes, true);
+                    $uploadedAudioUri = $upDec['file']['uri'] ?? '';
+                    $fileState = $upDec['file']['state'] ?? 'ACTIVE';
+                    $fileName = $upDec['file']['name'] ?? '';
+
+                    if ($uploadedAudioUri !== '') {
+                        // Wait for ACTIVE state if large audio file is processing
+                        if ($fileState === 'PROCESSING' && $fileName !== '') {
+                            $checkUrl = "https://generativelanguage.googleapis.com/v1beta/{$fileName}?key=" . urlencode($geminiKey);
+                            for ($poll = 0; $poll < 10; $poll++) {
+                                sleep(2);
+                                $ch = curl_init($checkUrl);
+                                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                                $chkRes = curl_exec($ch);
+                                curl_close($ch);
+                                $chkDec = json_decode((string)$chkRes, true);
+                                if (($chkDec['state'] ?? '') === 'ACTIVE') break;
+                                if (($chkDec['state'] ?? '') === 'FAILED') break;
+                            }
+                        }
+
+                        $audioPrompt = "អ្នកជាជំនួយការ AI សម្រាប់កត់ត្រាកំណត់ហេតុកិច្ចប្រជុំ និងស្តាប់សំឡេងកិច្ចប្រជុំផ្ទាល់ជាភាសាខ្មែរ (Executive Minutes & Full Dialogue Transcript from Audio)។\n\n"
+                            . "ព័ត៌មានកិច្ចប្រជុំ:\n"
+                            . "- ប្រធានបទ: {$topic}\n"
+                            . "- ផ្នែក/ក្រុម: {$dept}\n"
+                            . "- កាលបរិច្ឆេទ: {$date}\n\n"
+                            . "សូមស្តាប់សំឡេងនេះដោយហ្មត់ចត់ ហើយឆ្លើយតបជា ២ ផ្នែកដាច់ដោយឡែកពីគ្នា ដូចខាងក្រោម៖\n\n"
+                            . "===SUMMARY_START===\n"
+                            . "📌 ១. សេចក្តីសង្ខេបរួមពីសំឡេង (Executive Summary from Audio)\n"
+                            . "🎯 ២. ចំណុចសំខាន់ៗដែលបានពិភាក្សាជាក់ស្តែងក្នុងសំឡេង (Key Discussion Points)\n"
+                            . "✅ ៣. ការសម្រេចចិត្តរួម (Decisions Made)\n"
+                            . "📋 ៤. ផែនការសកម្មភាព និងជំហានបន្ទាប់ (Action Items & Next Steps)\n"
+                            . "===SUMMARY_END===\n\n"
+                            . "===TRANSCRIPT_START===\n"
+                            . "សូមសរសេរអត្ថបទសន្ទនាការនិយាយជាក់ស្តែងទាំងអស់ពីសំឡេង (Full Dialogue Transcript) តាមលំដាប់លំដោយនៃអ្នកនិយាយ ដោយបំបែកជាឃ្លាខ្លីៗ និងដាក់ Timestamp [MM:SS] នៅដើមឃ្លានីមួយៗជានិច្ច (ឧទាហរណ៍៖\n"
+                            . "[00:00] **អ្នកនិយាយ ៖** ពាក្យសម្តីនិយាយជាក់ស្តែងពីសំឡេង...\n"
+                            . "[00:15] **អ្នកនិយាយ ៖** ពាក្យសម្តីបន្ទាប់...\n"
+                            . ")\n"
+                            . "===TRANSCRIPT_END===\n\n"
+                            . "សូមឆ្លើយតបជាភាសាខ្មែរ។";
+
+                        $genUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=" . urlencode($geminiKey);
+                        $ch = curl_init($genUrl);
+                        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                        curl_setopt($ch, CURLOPT_POST, true);
+                        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json; charset=utf-8']);
+                        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
+                            'contents' => [
+                                [
+                                    'parts' => [
+                                        [
+                                            'file_data' => [
+                                                'mime_type' => $fileMime,
+                                                'file_uri' => $uploadedAudioUri
+                                            ]
+                                        ],
+                                        [
+                                            'text' => $audioPrompt
+                                        ]
+                                    ]
+                                ]
+                            ],
+                            'generationConfig' => [
+                                'temperature' => 0.2,
+                                'maxOutputTokens' => 8192
+                            ]
+                        ], JSON_UNESCAPED_UNICODE));
+                        curl_setopt($ch, CURLOPT_TIMEOUT, 90);
+                        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                        $audioRaw = curl_exec($ch);
+                        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                        curl_close($ch);
+
+                        if ($audioRaw && $httpCode === 200) {
+                            $audioDec = json_decode((string)$audioRaw, true);
+                            if (!empty($audioDec['candidates'][0]['content']['parts'][0]['text'])) {
+                                $fullAudioResponse = trim($audioDec['candidates'][0]['content']['parts'][0]['text']);
+                                $usedProvider = 'gemini';
+                                $usedModel = 'gemini-3.6-flash';
+
+                                // Extract Transcript section
+                                if (preg_match('/===TRANSCRIPT_START===(.*?)(?:===TRANSCRIPT_END===|$)/s', $fullAudioResponse, $mTrans)) {
+                                    $transcriptText = trim($mTrans[1]);
+                                } elseif (preg_match('/===TRANSCRIPT===(.*?)(?:===|$)/s', $fullAudioResponse, $mTrans)) {
+                                    $transcriptText = trim($mTrans[1]);
+                                } elseif (preg_match('/(\[(?:00:00|00:01|00:02|0:00|\d{1,2}:\d{2})\].*)/s', $fullAudioResponse, $mTrans)) {
+                                    $transcriptText = trim($mTrans[1]);
+                                }
+
+                                // Extract Summary section
+                                if (preg_match('/===SUMMARY_START===(.*?)(?:===SUMMARY_END===|===TRANSCRIPT|$)/s', $fullAudioResponse, $mSum)) {
+                                    $summaryText = trim($mSum[1]);
+                                } elseif ($transcriptText !== '' && strpos($fullAudioResponse, $transcriptText) !== false) {
+                                    $summaryText = trim(substr($fullAudioResponse, 0, strpos($fullAudioResponse, $transcriptText)));
+                                    $summaryText = trim(str_replace(['===SUMMARY_START===', '===SUMMARY_END===', '===TRANSCRIPT_START==='], '', $summaryText));
+                                } else {
+                                    $summaryText = trim(str_replace(['===SUMMARY_START===', '===SUMMARY_END===', '===TRANSCRIPT_START===', '===TRANSCRIPT_END==='], '', $fullAudioResponse));
+                                }
+                            }
+                        }
+                    }
+                } catch (Throwable $ae) {
+                    $lastError = 'Gemini Audio: ' . $ae->getMessage();
+                }
             }
 
             if ($tempAudio !== '' && file_exists($tempAudio)) {
                 @unlink($tempAudio);
             }
 
-            if ($transcriptText === '') {
-                $transcriptText = trim((string)($meeting['description'] ?? ''));
-            }
-
-            // 3. Generate Executive Khmer Meeting Summary using Gemini 3.5 Flash / Groq LLM
-            if ($summaryText === '') {
+            // 3. Fallback: Text-based Google Gemini Summary (for meetings without audio)
+            if ($summaryText === '' && $geminiKey !== '') {
                 $prompt = "អ្នកជាជំនួយការ AI សម្រាប់សង្ខេបកិច្ចប្រជុំ និងធ្វើកំណត់ហេតុកិច្ចប្រជុំជាភាសាខ្មែរ (Executive Minutes of Meeting)។\n\n"
                     . "ព័ត៌មានកិច្ចប្រជុំ:\n"
                     . "- ប្រធានបទ: {$topic}\n"
                     . "- ផ្នែក/ក្រុម: {$dept}\n"
                     . "- កាលបរិច្ឆេទ: {$date}\n"
                     . "- ការពិពណ៌នាសង្ខេប: " . ($desc !== '' ? $desc : 'មិនមាន') . "\n\n"
-                    . "ខ្លឹមសារកិច្ចប្រជុំ / Transcript:\n" . ($transcriptText !== '' ? $transcriptText : ($desc !== '' ? $desc : $topic)) . "\n\n"
+                    . "ខ្លឹមសារកិច្ចប្រជុំ:\n" . ($transcriptText !== '' ? $transcriptText : ($desc !== '' ? $desc : $topic)) . "\n\n"
                     . "សូមរៀបចំសេចក្តីសង្ខេប និងកំណត់ហេតុកិច្ចប្រជុំជាភាសាខ្មែរឱ្យមានរបៀបរៀបរយ ច្បាស់លាស់ និងមានលក្ខណៈវិជ្ជាជីវៈខ្ពស់ ដោយបែងចែកជាផ្នែកៗដូចខាងក្រោម៖\n"
                     . "📌 ១. សេចក្តីសង្ខេបរួម (Executive Summary)\n"
                     . "🎯 ២. ចំណុចសំខាន់ៗដែលបានលើកឡើង (Key Discussion Points)\n"
@@ -3077,89 +3121,44 @@ try {
                     . "📋 ៤. ផែនការសកម្មភាព និងជំហានបន្ទាប់ (Action Items & Next Steps)\n\n"
                     . "សូមឆ្លើយតបជាភាសាខ្មែរដោយផ្ទាល់។";
 
-                // Native Google Gemini REST Endpoint (Try 3.5-flash first to avoid 429 quota limits)
-                if ($geminiKey !== '') {
-                    $geminiModels = ['gemini-3.5-flash', 'gemini-3.6-flash'];
-                    foreach ($geminiModels as $gModel) {
-                        try {
-                            $nativeUrl = "https://generativelanguage.googleapis.com/v1beta/models/{$gModel}:generateContent?key=" . urlencode($geminiKey);
-                            $ch = curl_init($nativeUrl);
-                            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                            curl_setopt($ch, CURLOPT_POST, true);
-                            curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json; charset=utf-8']);
-                            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
-                                'contents' => [
-                                    [
-                                        'parts' => [
-                                            ['text' => $prompt]
-                                        ]
+                $geminiModels = ['gemini-3.5-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite'];
+                foreach ($geminiModels as $gModel) {
+                    try {
+                        $nativeUrl = "https://generativelanguage.googleapis.com/v1beta/models/{$gModel}:generateContent?key=" . urlencode($geminiKey);
+                        $ch = curl_init($nativeUrl);
+                        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                        curl_setopt($ch, CURLOPT_POST, true);
+                        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json; charset=utf-8']);
+                        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
+                            'contents' => [
+                                [
+                                    'parts' => [
+                                        ['text' => $prompt]
                                     ]
-                                ],
-                                'generationConfig' => [
-                                    'temperature' => 0.25,
-                                    'maxOutputTokens' => 4096
                                 ]
-                            ], JSON_UNESCAPED_UNICODE));
-                            curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-                            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-                            $rawRes = curl_exec($ch);
-                            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                            curl_close($ch);
+                            ],
+                            'generationConfig' => [
+                                'temperature' => 0.25,
+                                'maxOutputTokens' => 4096
+                            ]
+                        ], JSON_UNESCAPED_UNICODE));
+                        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+                        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                        $rawRes = curl_exec($ch);
+                        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                        curl_close($ch);
 
-                            if ($rawRes && $httpCode === 200) {
-                                $dec = json_decode($rawRes, true);
-                                if (!empty($dec['candidates'][0]['content']['parts'][0]['text'])) {
-                                    $summaryText = trim($dec['candidates'][0]['content']['parts'][0]['text']);
-                                    $usedProvider = 'gemini';
-                                    $usedModel = $gModel;
-                                    break;
-                                }
+                        if ($rawRes && $httpCode === 200) {
+                            $dec = json_decode($rawRes, true);
+                            if (!empty($dec['candidates'][0]['content']['parts'][0]['text'])) {
+                                $summaryText = trim($dec['candidates'][0]['content']['parts'][0]['text']);
+                                $usedProvider = 'gemini';
+                                $usedModel = $gModel;
+                                break;
                             }
-                        } catch (Throwable $ge) {
-                            $lastError = 'Gemini: ' . $ge->getMessage();
                         }
-                    }
-                }
-
-                // Attempt 2: Groq High-Power Model Fallback (openai/gpt-oss-120b)
-                if ($summaryText === '' && $groqKey !== '') {
-                    $groqModels = ['openai/gpt-oss-120b', 'qwen/qwen3.6-27b', 'openai/gpt-oss-20b'];
-                    foreach ($groqModels as $gqModel) {
-                        try {
-                            $ch = curl_init('https://api.groq.com/openai/v1/chat/completions');
-                            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                            curl_setopt($ch, CURLOPT_POST, true);
-                            curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                                'Content-Type: application/json; charset=utf-8',
-                                'Authorization: Bearer ' . $groqKey
-                            ]);
-                            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
-                                'model' => $gqModel,
-                                'messages' => [
-                                    ['role' => 'system', 'content' => 'You are an executive Khmer AI meeting minutes assistant.'],
-                                    ['role' => 'user', 'content' => $prompt]
-                                ],
-                                'temperature' => 0.3
-                            ], JSON_UNESCAPED_UNICODE));
-                            curl_setopt($ch, CURLOPT_TIMEOUT, 60);
-                            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-                            $rawRes = curl_exec($ch);
-                            curl_close($ch);
-
-                            if ($rawRes) {
-                                $dec = json_decode((string)$rawRes, true);
-                                if (!empty($dec['choices'][0]['message']['content'])) {
-                                    $summaryText = trim($dec['choices'][0]['message']['content']);
-                                    $usedProvider = 'groq';
-                                    $usedModel = $gqModel;
-                                    break;
-                                } elseif (!empty($dec['error']['message'])) {
-                                    $lastError = 'Groq (' . $gqModel . '): ' . $dec['error']['message'];
-                                }
-                            }
-                        } catch (Throwable $gqe) {
-                            $lastError = 'Groq: ' . $gqe->getMessage();
-                        }
+                    } catch (Throwable $ge) {
+                        $lastError = 'Gemini: ' . $ge->getMessage();
                     }
                 }
             }
