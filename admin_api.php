@@ -3062,20 +3062,25 @@ try {
                         $usedProvider = 'gemini-audio';
                         $usedModel = 'gemini-3.6-flash';
 
-                        // Parse Summary section
-                        if (preg_match('/===SUMMARY_START===(.*?)===SUMMARY_END===/s', $fullAudioResponse, $mSum)) {
-                            $summaryText = trim($mSum[1]);
-                        } else {
-                            $parts = explode('===TRANSCRIPT_START===', $fullAudioResponse);
-                            $summaryText = trim(str_replace(['===SUMMARY_START===', '===SUMMARY_END==='], '', $parts[0] ?? $fullAudioResponse));
+                        // Parse Transcript section with multiple fallback patterns
+                        if (preg_match('/===TRANSCRIPT_START===(.*?)(?:===TRANSCRIPT_END===|$)/s', $fullAudioResponse, $mTrans)) {
+                            $transcriptText = trim($mTrans[1]);
+                        } elseif (preg_match('/===TRANSCRIPT===(.*?)(?:===|$)/s', $fullAudioResponse, $mTrans)) {
+                            $transcriptText = trim($mTrans[1]);
+                        } elseif (preg_match('/(?:###?|\*\*)\s*(?:អត្ថបទសន្ទនា|Full Transcript|Dialogue Transcript|Transcript)[^\n]*\n(.*)/si', $fullAudioResponse, $mTrans)) {
+                            $transcriptText = trim($mTrans[1]);
+                        } elseif (preg_match('/(\[(?:00:00|00:01|00:02|0:00|\d{1,2}:\d{2})\].*)/s', $fullAudioResponse, $mTrans)) {
+                            $transcriptText = trim($mTrans[1]);
                         }
 
-                        // Parse Transcript section
-                        if (preg_match('/===TRANSCRIPT_START===(.*?)===TRANSCRIPT_END===/s', $fullAudioResponse, $mTrans)) {
-                            $transcriptText = trim($mTrans[1]);
-                        } elseif (strpos($fullAudioResponse, '===TRANSCRIPT_START===') !== false) {
-                            $parts = explode('===TRANSCRIPT_START===', $fullAudioResponse);
-                            $transcriptText = trim(str_replace('===TRANSCRIPT_END===', '', $parts[1] ?? ''));
+                        // Parse Summary section
+                        if (preg_match('/===SUMMARY_START===(.*?)(?:===SUMMARY_END===|===TRANSCRIPT|$)/s', $fullAudioResponse, $mSum)) {
+                            $summaryText = trim($mSum[1]);
+                        } elseif ($transcriptText !== '' && strpos($fullAudioResponse, $transcriptText) !== false) {
+                            $summaryText = trim(substr($fullAudioResponse, 0, strpos($fullAudioResponse, $transcriptText)));
+                            $summaryText = trim(str_replace(['===SUMMARY_START===', '===SUMMARY_END===', '===TRANSCRIPT_START==='], '', $summaryText));
+                        } else {
+                            $summaryText = trim(str_replace(['===SUMMARY_START===', '===SUMMARY_END==='], '', $fullAudioResponse));
                         }
                     }
                 }
@@ -3127,49 +3132,41 @@ try {
                     . "📋 ៤. ផែនការសកម្មភាព និងជំហានបន្ទាប់ (Action Items & Next Steps)\n\n"
                     . "សូមឆ្លើយតបជាភាសាខ្មែរដោយផ្ទាល់។";
 
-                // Attempt 1: Gemini (gemini-3.6-flash / gemini-3.5-flash)
+                // Native Google Gemini REST Endpoint
                 if ($geminiKey !== '') {
-                    $geminiModels = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite'];
+                    $geminiModels = ['gemini-3.6-flash', 'gemini-3.5-flash'];
                     foreach ($geminiModels as $gModel) {
-                        $ch = curl_init('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions');
+                        $nativeUrl = "https://generativelanguage.googleapis.com/v1beta/models/{$gModel}:generateContent?key=" . urlencode($geminiKey);
+                        $ch = curl_init($nativeUrl);
                         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                         curl_setopt($ch, CURLOPT_POST, true);
-                        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                            'Content-Type: application/json; charset=utf-8',
-                            'Authorization: Bearer ' . $geminiKey
-                        ]);
+                        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json; charset=utf-8']);
                         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
-                            'model'    => $gModel,
-                            'messages' => [
-                                ['role' => 'system', 'content' => 'You are an executive Khmer AI meeting minutes assistant.'],
-                                ['role' => 'user',   'content' => $prompt]
+                            'contents' => [
+                                [
+                                    'parts' => [
+                                        ['text' => $prompt]
+                                    ]
+                                ]
                             ],
-                            'temperature'  => 0.3,
-                            'max_tokens'   => 4096
+                            'generationConfig' => [
+                                'temperature' => 0.25,
+                                'maxOutputTokens' => 4096
+                            ]
                         ], JSON_UNESCAPED_UNICODE));
                         curl_setopt($ch, CURLOPT_TIMEOUT, 30);
                         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-                        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
-                        $rawRes  = curl_exec($ch);
-                        $err     = curl_error($ch);
+                        $rawRes = curl_exec($ch);
                         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
                         curl_close($ch);
 
                         if ($rawRes && $httpCode === 200) {
                             $dec = json_decode($rawRes, true);
-                            if (!empty($dec['choices'][0]['message']['content'])) {
-                                $summaryText = trim($dec['choices'][0]['message']['content']);
+                            if (!empty($dec['candidates'][0]['content']['parts'][0]['text'])) {
+                                $summaryText = trim($dec['candidates'][0]['content']['parts'][0]['text']);
                                 $usedProvider = 'gemini';
-                                $usedModel    = $gModel;
+                                $usedModel = $gModel;
                                 break;
-                            }
-                        } else {
-                            $decErr = json_decode((string)$rawRes, true);
-                            $gMsg   = $decErr['error']['message'] ?? '';
-                            if ($gMsg !== '') {
-                                $lastError = "Gemini ($gModel): $gMsg";
-                            } else {
-                                $lastError = "Gemini ($gModel HTTP $httpCode): " . ($err ?: substr((string)$rawRes, 0, 200));
                             }
                         }
                     }
