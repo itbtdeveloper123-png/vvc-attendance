@@ -2904,8 +2904,9 @@ try {
 
             $existingSummary = trim((string)($meeting['summary'] ?? ''));
             $existingTranscript = trim((string)($meeting['transcript_text'] ?? ''));
+            $audioPath = trim((string)($meeting['audio_url'] ?? $meeting['mp3_url'] ?? $meeting['audio_file_path'] ?? $meeting['audio_path'] ?? ''));
 
-            if (!$force && $existingSummary !== '') {
+            if (!$force && $existingSummary !== '' && ($existingTranscript !== '' || $audioPath === '')) {
                 sendJson([
                     'success' => true,
                     'status' => 'success',
@@ -2917,7 +2918,6 @@ try {
 
             // 1. Resolve Audio / Transcript
             $transcriptText = $existingTranscript;
-            $audioPath = trim((string)($meeting['audio_url'] ?? $meeting['mp3_url'] ?? $meeting['audio_file_path'] ?? $meeting['audio_path'] ?? ''));
             $geminiKey = trim((string)(defined('GEMINI_API_KEY') ? GEMINI_API_KEY : ''));
             $groqKey = trim((string)(defined('GROQ_API_KEY') ? GROQ_API_KEY : ''));
             $openAiKey = trim((string)(defined('OPENAI_API_KEY') ? OPENAI_API_KEY : ''));
