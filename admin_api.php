@@ -2929,17 +2929,29 @@ try {
             $localAudioFile = '';
             $tempAudio = '';
             if ($audioPath !== '') {
-                if (file_exists($audioPath)) {
-                    $localAudioFile = $audioPath;
-                } elseif (file_exists(__DIR__ . '/' . ltrim($audioPath, '/\\'))) {
-                    $localAudioFile = __DIR__ . '/' . ltrim($audioPath, '/\\');
-                } else {
+                $possiblePaths = [
+                    $audioPath,
+                    __DIR__ . '/' . ltrim($audioPath, '/\\'),
+                    __DIR__ . '/flutter/' . ltrim($audioPath, '/\\'),
+                    __DIR__ . '/uploads/meetings/audio/' . basename($audioPath),
+                    __DIR__ . '/uploads/meetings/' . basename($audioPath),
+                    __DIR__ . '/flutter/uploads/meetings/audio/' . basename($audioPath),
+                    __DIR__ . '/flutter/uploads/meetings/' . basename($audioPath),
+                ];
+                foreach ($possiblePaths as $pp) {
+                    if (file_exists($pp) && is_file($pp) && filesize($pp) > 1000) {
+                        $localAudioFile = $pp;
+                        break;
+                    }
+                }
+
+                if ($localAudioFile === '') {
                     $audioPublicUrl = preg_match('#^https?://#i', $audioPath) ? $audioPath : ('https://app.vvc.asia/flutter/' . ltrim($audioPath, '/\\'));
                     $tempAudio = tempnam(sys_get_temp_dir(), 'vvc_meet_') . '.mp3';
                     $fp = fopen($tempAudio, 'w+');
                     $ch = curl_init($audioPublicUrl);
                     curl_setopt($ch, CURLOPT_FILE, $fp);
-                    curl_setopt($ch, CURLOPT_TIMEOUT, 180);
+                    curl_setopt($ch, CURLOPT_TIMEOUT, 60);
                     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
                     curl_exec($ch);
                     curl_close($ch);
@@ -2967,7 +2979,7 @@ try {
                 elseif (preg_match('/\.m4a$/i', $localAudioFile)) $fileMime = 'audio/m4a';
                 elseif (preg_match('/\.ogg$/i', $localAudioFile)) $fileMime = 'audio/ogg';
 
-                // Upload to Gemini File API
+                // Upload to Gemini File API using streaming for maximum speed
                 $uploadUrl = "https://generativelanguage.googleapis.com/upload/v1beta/files?key=" . urlencode($geminiKey);
                 $ch = curl_init($uploadUrl);
                 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -2978,11 +2990,14 @@ try {
                     "X-Goog-Upload-Header-Content-Type: " . $fileMime,
                     "Content-Type: " . $fileMime
                 ]);
-                curl_setopt($ch, CURLOPT_POSTFIELDS, file_get_contents($localAudioFile));
-                curl_setopt($ch, CURLOPT_TIMEOUT, 180);
+                $fileHandle = fopen($localAudioFile, 'rb');
+                curl_setopt($ch, CURLOPT_INFILE, $fileHandle);
+                curl_setopt($ch, CURLOPT_INFILESIZE, $fSize);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 90);
                 curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
                 $upRes = curl_exec($ch);
                 curl_close($ch);
+                if (is_resource($fileHandle)) fclose($fileHandle);
 
                 $upDec = json_decode((string)$upRes, true);
                 $uploadedAudioUri = $upDec['file']['uri'] ?? '';
