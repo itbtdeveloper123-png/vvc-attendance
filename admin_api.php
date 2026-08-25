@@ -3010,12 +3010,12 @@ try {
 
             $summaryText = '';
             $usedProvider = 'gemini';
-            $usedModel = 'gemini-2.5-flash';
+            $usedModel = 'gemini-3.6-flash';
             $lastError = '';
 
-            // Attempt 1: Gemini (OpenAI and REST endpoints)
+            // Attempt 1: Gemini (gemini-3.6-flash / gemini-3.5-flash)
             if ($geminiKey !== '') {
-                $geminiModels = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-3.6-flash', 'gemini-flash-latest', 'gemini-1.5-flash'];
+                $geminiModels = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite'];
                 foreach ($geminiModels as $gModel) {
                     $ch = curl_init('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions');
                     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
