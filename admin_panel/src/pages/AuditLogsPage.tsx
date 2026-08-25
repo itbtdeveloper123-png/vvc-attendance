@@ -41,8 +41,65 @@ interface GeoInfo {
   isp?: string;
 }
 
-// Geo Cache
+// Geo Cache (Module-level, persists across renders)
 const geoCache: Record<string, GeoInfo> = {};
+
+// Standalone Helper: Fetch GeoIP Location for an IP address
+const resolveIpLocation = async (ip: string): Promise<GeoInfo> => {
+  if (!ip || ip === '127.0.0.1' || ip === '::1' || ip.startsWith('192.168.') || ip.startsWith('10.')) {
+    return {
+      city: 'Phnom Penh',
+      country: 'Cambodia',
+      countryCode: 'KH',
+      lat: 11.5564,
+      lng: 104.9282,
+      isp: 'Local / Office Network',
+    };
+  }
+
+  if (geoCache[ip]) {
+    return geoCache[ip];
+  }
+
+  try {
+    const res = await fetch(`https://freeipapi.com/api/json/${ip}`, { signal: AbortSignal.timeout(3000) });
+    if (res.ok) {
+      const data = await res.json();
+      const info: GeoInfo = {
+        city: data.cityName && data.cityName !== '-' ? data.cityName : 'Phnom Penh',
+        country: data.countryName || 'Cambodia',
+        countryCode: data.countryCode || 'KH',
+        lat: typeof data.latitude === 'number' && data.latitude !== 0 ? data.latitude : 11.5564,
+        lng: typeof data.longitude === 'number' && data.longitude !== 0 ? data.longitude : 104.9282,
+        isp: data.ipVersion ? 'ISP Broadband' : undefined,
+      };
+      geoCache[ip] = info;
+      return info;
+    }
+  } catch {
+    // Fallback Phnom Penh coordinates for Cambodia IPs
+    const info: GeoInfo = {
+      city: 'Phnom Penh',
+      country: 'Cambodia',
+      countryCode: 'KH',
+      lat: 11.5564,
+      lng: 104.9282,
+      isp: 'Cambodia ISP',
+    };
+    geoCache[ip] = info;
+    return info;
+  }
+
+  const fallbackInfo: GeoInfo = {
+    city: 'Phnom Penh',
+    country: 'Cambodia',
+    countryCode: 'KH',
+    lat: 11.5564,
+    lng: 104.9282,
+  };
+  geoCache[ip] = fallbackInfo;
+  return fallbackInfo;
+};
 
 export const AuditLogsPage: React.FC = () => {
   const { admin } = useAuth();
@@ -87,63 +144,6 @@ export const AuditLogsPage: React.FC = () => {
   const [isBlocking, setIsBlocking] = useState<boolean>(false);
   const [showBlockedIpsModal, setShowBlockedIpsModal] = useState<boolean>(false);
 
-  // Fetch GeoIP Location for an IP address
-  const resolveIpLocation = useCallback(async (ip: string): Promise<GeoInfo> => {
-    if (!ip || ip === '127.0.0.1' || ip === '::1' || ip.startsWith('192.168.') || ip.startsWith('10.')) {
-      return {
-        city: 'Phnom Penh',
-        country: 'Cambodia',
-        countryCode: 'KH',
-        lat: 11.5564,
-        lng: 104.9282,
-        isp: 'Local / Office Network',
-      };
-    }
-
-    if (geoCache[ip]) {
-      return geoCache[ip];
-    }
-
-    try {
-      const res = await fetch(`https://freeipapi.com/api/json/${ip}`, { signal: AbortSignal.timeout(3000) });
-      if (res.ok) {
-        const data = await res.json();
-        const info: GeoInfo = {
-          city: data.cityName && data.cityName !== '-' ? data.cityName : 'Phnom Penh',
-          country: data.countryName || 'Cambodia',
-          countryCode: data.countryCode || 'KH',
-          lat: typeof data.latitude === 'number' && data.latitude !== 0 ? data.latitude : 11.5564,
-          lng: typeof data.longitude === 'number' && data.longitude !== 0 ? data.longitude : 104.9282,
-          isp: data.ipVersion ? 'ISP Broadband' : undefined,
-        };
-        geoCache[ip] = info;
-        return info;
-      }
-    } catch {
-      // Fallback Phnom Penh coordinates for Cambodia IPs (like 124.248.x.x, 114.119.x.x, 203.x.x)
-      const info: GeoInfo = {
-        city: 'Phnom Penh',
-        country: 'Cambodia',
-        countryCode: 'KH',
-        lat: 11.5564,
-        lng: 104.9282,
-        isp: 'Cambodia ISP',
-      };
-      geoCache[ip] = info;
-      return info;
-    }
-
-    const fallbackInfo: GeoInfo = {
-      city: 'Phnom Penh',
-      country: 'Cambodia',
-      countryCode: 'KH',
-      lat: 11.5564,
-      lng: 104.9282,
-    };
-    geoCache[ip] = fallbackInfo;
-    return fallbackInfo;
-  }, []);
-
   // Fetch Logs & Blocked IPs
   const loadLogs = useCallback(
     async (isSilent = false) => {
@@ -173,16 +173,20 @@ export const AuditLogsPage: React.FC = () => {
             setBlockedList(res.blocked_details);
           }
 
-          // Resolve Geo Location for all unique IPs in the list
+          // Asynchronously resolve Geo Location for IPs without blocking UI
           const uniqueIps = Array.from(new Set(logList.map((l) => l.ip_address).filter(Boolean))) as string[];
-          const geoMap: Record<string, GeoInfo> = { ...geoLocations };
+          const newGeos: Record<string, GeoInfo> = {};
+          let hasNew = false;
           for (const ip of uniqueIps) {
-            if (!geoMap[ip]) {
+            if (!geoCache[ip]) {
               const geo = await resolveIpLocation(ip);
-              geoMap[ip] = geo;
+              newGeos[ip] = geo;
+              hasNew = true;
             }
           }
-          setGeoLocations(geoMap);
+          if (hasNew) {
+            setGeoLocations((prev) => ({ ...prev, ...geoCache, ...newGeos }));
+          }
         }
       } catch (err) {
         console.error('Error fetching audit logs:', err);
@@ -190,7 +194,7 @@ export const AuditLogsPage: React.FC = () => {
         if (!isSilent) setLoading(false);
       }
     },
-    [search, selectedModule, selectedSeverity, startDate, endDate, page, pageSize, resolveIpLocation, geoLocations]
+    [search, selectedModule, selectedSeverity, startDate, endDate, page, pageSize]
   );
 
   useEffect(() => {

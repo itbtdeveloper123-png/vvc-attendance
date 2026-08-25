@@ -37,10 +37,26 @@ export interface AdminUser {
 
 export interface DashboardStats {
   total_employees: number;
+  total_admins?: number;
   today_good: number;
   today_late: number;
+  today_scans_count?: number;
   pending_requests: number;
+  total_locations?: number;
+  total_categories?: number;
+  total_tokens?: number;
+  total_notifications?: number;
+  total_payroll?: number;
+  total_stock?: number;
+  low_stock?: number;
+  total_meetings?: number;
+  active_trips?: number;
+  total_training?: number;
+  total_polls?: number;
+  total_audit_logs?: number;
+  today_threats?: number;
   today_scans?: any[];
+  success?: boolean;
 }
 
 export type DashboardSummary = DashboardStats;

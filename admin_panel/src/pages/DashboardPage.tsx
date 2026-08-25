@@ -24,16 +24,31 @@ export const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const [summary, setSummary] = useState<DashboardSummary>({
     total_employees: 76,
+    total_admins: 6,
     today_good: 0,
     today_late: 0,
-    pending_requests: 2,
+    today_scans_count: 0,
+    pending_requests: 0,
+    total_locations: 0,
+    total_categories: 0,
+    total_tokens: 0,
+    total_notifications: 0,
+    total_payroll: 0,
+    total_stock: 0,
+    low_stock: 0,
+    total_meetings: 0,
+    active_trips: 0,
+    total_training: 0,
+    total_polls: 0,
+    total_audit_logs: 0,
+    today_threats: 0,
     today_scans: [],
   });
 
   const loadData = async () => {
     try {
       const data = await adminApi.getDashboardSummary();
-      if (data && data.success) {
+      if (data && (data.success || (data as any).status === 'success')) {
         setSummary(data);
       }
     } catch {}
@@ -41,6 +56,8 @@ export const DashboardPage: React.FC = () => {
 
   useEffect(() => {
     loadData();
+    const interval = setInterval(loadData, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   const workspaceApps = [
@@ -68,8 +85,8 @@ export const DashboardPage: React.FC = () => {
       path: '/reports',
       icon: BarChart3,
       color: '#8b5cf6',
-      badge: null,
-      badgeColor: '#ef4444',
+      badge: summary.today_scans_count !== undefined && summary.today_scans_count > 0 ? `${summary.today_scans_count}` : (summary.today_good || summary.today_late ? `${summary.today_good + summary.today_late}` : null),
+      badgeColor: '#8b5cf6',
     },
     {
       id: 'requests',
@@ -77,8 +94,8 @@ export const DashboardPage: React.FC = () => {
       path: '/requests',
       icon: FileCheck2,
       color: '#f97316',
-      badge: '2',
-      badgeColor: '#ef4444',
+      badge: summary.pending_requests !== undefined && summary.pending_requests > 0 ? String(summary.pending_requests) : null,
+      badgeColor: '#f97316',
     },
     {
       id: 'locations',
@@ -86,8 +103,8 @@ export const DashboardPage: React.FC = () => {
       path: '/locations',
       icon: MapPin,
       color: '#f43f5e',
-      badge: '14',
-      badgeColor: '#3b82f6',
+      badge: summary.total_locations !== undefined && summary.total_locations > 0 ? String(summary.total_locations) : null,
+      badgeColor: '#f43f5e',
     },
     {
       id: 'categories',
@@ -95,8 +112,8 @@ export const DashboardPage: React.FC = () => {
       path: '/categories',
       icon: FolderTree,
       color: '#64748b',
-      badge: null,
-      badgeColor: '#ef4444',
+      badge: summary.total_categories !== undefined && summary.total_categories > 0 ? String(summary.total_categories) : null,
+      badgeColor: '#6366f1',
     },
     {
       id: 'tokens',
@@ -104,7 +121,7 @@ export const DashboardPage: React.FC = () => {
       path: '/tokens',
       icon: KeyRound,
       color: '#3b82f6',
-      badge: '259',
+      badge: summary.total_tokens !== undefined && summary.total_tokens > 0 ? String(summary.total_tokens) : null,
       badgeColor: '#3b82f6',
     },
     {
@@ -113,17 +130,17 @@ export const DashboardPage: React.FC = () => {
       path: '/notifications',
       icon: Bell,
       color: '#ec4899',
-      badge: null,
-      badgeColor: '#ef4444',
+      badge: summary.total_notifications !== undefined && summary.total_notifications > 0 ? String(summary.total_notifications) : null,
+      badgeColor: '#ec4899',
     },
     {
       id: 'payroll',
       title: 'Payroll',
       path: '/payroll',
       icon: Banknote,
-      color: '#64748b',
-      badge: null,
-      badgeColor: '#ef4444',
+      color: '#10b981',
+      badge: summary.total_payroll !== undefined && summary.total_payroll > 0 ? String(summary.total_payroll) : null,
+      badgeColor: '#10b981',
     },
     {
       id: 'stock',
@@ -131,8 +148,8 @@ export const DashboardPage: React.FC = () => {
       path: '/stock',
       icon: Package,
       color: '#f97316',
-      badge: '2',
-      badgeColor: '#ef4444',
+      badge: summary.low_stock ? `${summary.low_stock} Low` : (summary.total_stock !== undefined && summary.total_stock > 0 ? String(summary.total_stock) : null),
+      badgeColor: summary.low_stock ? '#ef4444' : '#f97316',
     },
     {
       id: 'meetings',
@@ -140,8 +157,8 @@ export const DashboardPage: React.FC = () => {
       path: '/meetings',
       icon: Handshake,
       color: '#0d9488',
-      badge: null,
-      badgeColor: '#ef4444',
+      badge: summary.total_meetings !== undefined && summary.total_meetings > 0 ? String(summary.total_meetings) : null,
+      badgeColor: '#0d9488',
     },
     {
       id: 'gps',
@@ -149,8 +166,8 @@ export const DashboardPage: React.FC = () => {
       path: '/gps',
       icon: Send,
       color: '#2563eb',
-      badge: null,
-      badgeColor: '#ef4444',
+      badge: summary.active_trips !== undefined && summary.active_trips > 0 ? `${summary.active_trips} Active` : null,
+      badgeColor: '#2563eb',
     },
     {
       id: 'training',
@@ -158,8 +175,8 @@ export const DashboardPage: React.FC = () => {
       path: '/training',
       icon: GraduationCap,
       color: '#ea580c',
-      badge: null,
-      badgeColor: '#ef4444',
+      badge: summary.total_training !== undefined && summary.total_training > 0 ? String(summary.total_training) : null,
+      badgeColor: '#ea580c',
     },
     {
       id: 'settings',
@@ -176,8 +193,8 @@ export const DashboardPage: React.FC = () => {
       path: '/polls',
       icon: Vote,
       color: '#4f46e5',
-      badge: null,
-      badgeColor: '#ef4444',
+      badge: summary.total_polls !== undefined && summary.total_polls > 0 ? String(summary.total_polls) : null,
+      badgeColor: '#4f46e5',
     },
     {
       id: 'audit-logs',
@@ -185,7 +202,7 @@ export const DashboardPage: React.FC = () => {
       path: '/audit-logs',
       icon: ShieldAlert,
       color: '#dc2626',
-      badge: 'Security',
+      badge: summary.today_threats !== undefined && summary.today_threats > 0 ? `${summary.today_threats} Threats` : (summary.total_audit_logs !== undefined && summary.total_audit_logs > 0 ? String(summary.total_audit_logs) : 'Security'),
       badgeColor: '#dc2626',
     },
   ];
@@ -249,7 +266,7 @@ export const DashboardPage: React.FC = () => {
             { label: 'GOOD', value: summary.today_good },
             { label: 'LATE', value: summary.today_late },
             { label: 'USERS', value: summary.total_employees || 76 },
-            { label: 'ADMINS', value: 6 },
+            { label: 'ADMINS', value: summary.total_admins || 6 },
           ].map((stat, i) => (
             <div
               key={i}

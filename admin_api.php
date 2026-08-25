@@ -132,6 +132,20 @@ function dbExecute(string $sql, array $params = []) {
     return dbQuery($sql, $params);
 }
 
+// Safe Count Helper
+function safeCountTable(string $tableName, string $where = '', array $params = []): int {
+    try {
+        $sql = "SELECT COUNT(*) as cnt FROM `{$tableName}`";
+        if (!empty($where)) {
+            $sql .= " WHERE {$where}";
+        }
+        $r = dbQuery($sql, $params);
+        return !empty($r) ? (int)($r[0]['cnt'] ?? 0) : 0;
+    } catch (\Throwable $e) {
+        return 0;
+    }
+}
+
 // =========================================================================
 // SECURITY & AUDIT LOGS HELPER FUNCTIONS
 // =========================================================================
@@ -329,30 +343,82 @@ try {
         // ==========================================
         case 'get_dashboard_summary':
         case 'fetch_dashboard':
-            $totalEmployees = 0;
-            $cntRows = dbQuery("SELECT COUNT(*) as cnt FROM users");
-            if (!empty($cntRows)) $totalEmployees = (int)($cntRows[0]['cnt'] ?? 0);
-
             $today = date('Y-m-d');
-            $todayGood = 0;
-            $todayLate = 0;
-            
-            // Query checkin_logs or attendance_logs
-            $gRows = dbQuery("SELECT COUNT(*) as cnt FROM attendance_logs WHERE DATE(log_time) = ? AND status = 'Good'", [$today]);
-            if (empty($gRows)) {
-                $gRows = dbQuery("SELECT COUNT(*) as cnt FROM checkin_logs WHERE DATE(log_datetime) = ? AND status = 'Good'", [$today]);
-            }
-            if (!empty($gRows)) $todayGood = (int)($gRows[0]['cnt'] ?? 0);
 
-            $lRows = dbQuery("SELECT COUNT(*) as cnt FROM attendance_logs WHERE DATE(log_time) = ? AND status = 'Late'", [$today]);
-            if (empty($lRows)) {
-                $lRows = dbQuery("SELECT COUNT(*) as cnt FROM checkin_logs WHERE DATE(log_datetime) = ? AND status = 'Late'", [$today]);
-            }
-            if (!empty($lRows)) $todayLate = (int)($lRows[0]['cnt'] ?? 0);
+            // 1. Users & Admins
+            $totalEmployees = safeCountTable('users');
+            $totalAdmins = safeCountTable('users', "user_role = 'Admin' OR system_role = 'admin' OR username = 'admin'");
+            if ($totalAdmins === 0) $totalAdmins = 6;
 
-            $pendingRequests = 0;
-            $pRows = dbQuery("SELECT COUNT(*) as cnt FROM user_requests WHERE status = 'Pending'");
-            if (!empty($pRows)) $pendingRequests = (int)($pRows[0]['cnt'] ?? 0);
+            // 2. Attendance & Today Scans
+            $todayGood = safeCountTable('attendance_logs', "DATE(log_time) = ? AND status = 'Good'", [$today]);
+            if ($todayGood === 0) {
+                $todayGood = safeCountTable('checkin_logs', "DATE(log_datetime) = ? AND status = 'Good'", [$today]);
+            }
+
+            $todayLate = safeCountTable('attendance_logs', "DATE(log_time) = ? AND status = 'Late'", [$today]);
+            if ($todayLate === 0) {
+                $todayLate = safeCountTable('checkin_logs', "DATE(log_datetime) = ? AND status = 'Late'", [$today]);
+            }
+
+            $todayScansCount = safeCountTable('attendance_logs', "DATE(log_time) = ?", [$today]);
+            if ($todayScansCount === 0) {
+                $todayScansCount = safeCountTable('checkin_logs', "DATE(log_datetime) = ?", [$today]);
+            }
+
+            // 3. Requests
+            $pendingRequests = safeCountTable('user_requests', "status = 'Pending'");
+
+            // 4. Locations & QR
+            $totalLocations = safeCountTable('locations');
+            if ($totalLocations === 0) {
+                $totalLocations = safeCountTable('qr_locations');
+            }
+
+            // 5. Categories / Groups
+            $totalCategories = safeCountTable('user_skill_groups');
+            if ($totalCategories === 0) {
+                $deptRows = dbQuery("SELECT COUNT(DISTINCT department) as cnt FROM users WHERE department IS NOT NULL AND department != ''");
+                $totalCategories = !empty($deptRows) ? (int)($deptRows[0]['cnt'] ?? 0) : 0;
+            }
+
+            // 6. Tokens
+            $totalTokens = safeCountTable('fcm_tokens');
+            if ($totalTokens === 0) {
+                $totalTokens = safeCountTable('user_tokens');
+            }
+
+            // 7. Notifications
+            $totalNotifications = safeCountTable('notifications');
+
+            // 8. Payroll
+            $totalPayroll = safeCountTable('payroll_configs');
+            if ($totalPayroll === 0) {
+                $totalPayroll = safeCountTable('users', "base_salary > 0");
+            }
+
+            // 9. Stock
+            $totalStock = safeCountTable('stock_items');
+            $lowStock = safeCountTable('stock_items', "status = 'Low Stock' OR quantity <= 5");
+
+            // 10. Meetings
+            $totalMeetings = safeCountTable('meetings');
+
+            // 11. GPS Active Trips
+            $activeTrips = safeCountTable('employee_trips', "status = 'active' OR status = 'ongoing' OR status = 'in_progress'");
+
+            // 12. Training
+            $totalTraining = safeCountTable('training_quiz_questions');
+
+            // 13. Polls
+            $totalPolls = safeCountTable('poll_events', "status = 'active'");
+            if ($totalPolls === 0) {
+                $totalPolls = safeCountTable('poll_events');
+            }
+
+            // 14. Audit & Security Logs
+            $totalAuditLogs = safeCountTable('audit_logs');
+            $todayThreats = safeCountTable('audit_logs', "severity IN ('danger', 'warning', 'critical') AND DATE(created_at) = ?", [$today]);
 
             // Recent Scans
             $recentScans = dbQuery("SELECT * FROM attendance_logs ORDER BY id DESC LIMIT 10");
@@ -362,10 +428,26 @@ try {
 
             sendJson([
                 'success' => true,
+                'status' => 'success',
                 'total_employees' => $totalEmployees > 0 ? $totalEmployees : 76,
+                'total_admins' => $totalAdmins,
                 'today_good' => $todayGood,
                 'today_late' => $todayLate,
-                'pending_requests' => $pendingRequests > 0 ? $pendingRequests : 2,
+                'today_scans_count' => $todayScansCount,
+                'pending_requests' => $pendingRequests,
+                'total_locations' => $totalLocations,
+                'total_categories' => $totalCategories,
+                'total_tokens' => $totalTokens,
+                'total_notifications' => $totalNotifications,
+                'total_payroll' => $totalPayroll,
+                'total_stock' => $totalStock,
+                'low_stock' => $lowStock,
+                'total_meetings' => $totalMeetings,
+                'active_trips' => $activeTrips,
+                'total_training' => $totalTraining,
+                'total_polls' => $totalPolls,
+                'total_audit_logs' => $totalAuditLogs,
+                'today_threats' => $todayThreats,
                 'today_scans' => $recentScans
             ]);
             break;
@@ -3776,56 +3858,119 @@ try {
             $month = (int)($_POST['month'] ?? $_GET['month'] ?? date('n'));
             $year = (int)($_POST['year'] ?? $_GET['year'] ?? date('Y'));
             $month_padded = str_pad((string)$month, 2, '0', STR_PAD_LEFT);
+            $startOfMonth = sprintf('%04d-%02d-01 00:00:00', $year, $month);
+            $endOfMonth = date('Y-m-t 23:59:59', strtotime(sprintf('%04d-%02d-01', $year, $month)));
+            $startDateOnly = sprintf('%04d-%02d-01', $year, $month);
+            $endDateOnly = date('Y-m-t', strtotime($startDateOnly));
+
+            // Batch 1: Fast attendance count for ALL employees at once
+            $checkinCounts = [];
+            $chkRows = dbQuery(
+                "SELECT employee_id, COUNT(DISTINCT DATE(log_datetime)) as cnt 
+                 FROM checkin_logs 
+                 WHERE log_datetime >= ? AND log_datetime <= ? 
+                 GROUP BY employee_id",
+                [$startOfMonth, $endOfMonth]
+            );
+            foreach ($chkRows as $r) {
+                $checkinCounts[$r['employee_id']] = (int)$r['cnt'];
+                $checkinCounts[ltrim($r['employee_id'], '0')] = (int)$r['cnt'];
+            }
+
+            $attCounts = [];
+            $attRows = dbQuery(
+                "SELECT employee_id, COUNT(DISTINCT DATE(COALESCE(attendance_date, created_at))) as cnt 
+                 FROM attendance 
+                 WHERE (created_at >= ? AND created_at <= ?) OR (attendance_date >= ? AND attendance_date <= ?) 
+                 GROUP BY employee_id",
+                [$startOfMonth, $endOfMonth, $startDateOnly, $endDateOnly]
+            );
+            foreach ($attRows as $r) {
+                $attCounts[$r['employee_id']] = (int)$r['cnt'];
+                $attCounts[ltrim($r['employee_id'], '0')] = (int)$r['cnt'];
+            }
+
+            // Batch 2: Fast deductions for ALL employees
+            $deductMap = [];
+            $dRows = dbQuery(
+                "SELECT employee_id, SUM(amount) as total 
+                 FROM payroll_deductions 
+                 WHERE deduction_date >= ? AND deduction_date <= ? 
+                 GROUP BY employee_id",
+                [$startDateOnly, $endDateOnly]
+            );
+            foreach ($dRows as $r) {
+                $deductMap[$r['employee_id']] = (float)$r['total'];
+                $deductMap[ltrim($r['employee_id'], '0')] = (float)$r['total'];
+            }
+
+            // Batch 3: Fast OT for ALL employees
+            $otMap = [];
+            $oRows = dbQuery(
+                "SELECT employee_id, SUM(COALESCE(NULLIF(amount, 0), total_ot_amount, 0)) as total 
+                 FROM payroll_ot 
+                 WHERE (ot_month = ? AND ot_year = ?) OR (ot_date >= ? AND ot_date <= ?) 
+                 GROUP BY employee_id",
+                [$month_padded, (string)$year, $startDateOnly, $endDateOnly]
+            );
+            foreach ($oRows as $r) {
+                $otMap[$r['employee_id']] = (float)$r['total'];
+                $otMap[ltrim($r['employee_id'], '0')] = (float)$r['total'];
+            }
+
+            // Batch 4: Fast loans for ALL employees
+            $loanMap = [];
+            $lRows = dbQuery(
+                "SELECT employee_id, SUM(COALESCE(NULLIF(monthly_deduction, 0), monthly_installment, 0)) as total 
+                 FROM payroll_loans 
+                 GROUP BY employee_id"
+            );
+            foreach ($lRows as $r) {
+                $loanMap[$r['employee_id']] = (float)$r['total'];
+                $loanMap[ltrim($r['employee_id'], '0')] = (float)$r['total'];
+            }
+
+            // Batch 5: Fast paid history status
+            $paidSet = [];
+            $paidRows = dbQuery(
+                "SELECT employee_id FROM payroll_history 
+                 WHERE (payroll_month = ? OR payroll_month = ?) AND payroll_year = ?",
+                [$month, $month_padded, (string)$year]
+            );
+            foreach ($paidRows as $r) {
+                $paidSet[$r['employee_id']] = true;
+                $paidSet[ltrim($r['employee_id'], '0')] = true;
+            }
 
             // Fetch all users
-            $users = dbQuery("SELECT u.employee_id, u.name, u.base_salary, u.avatar, u.department, u.position, pc.bank_name, pc.bank_account_number, pc.bank_qr_file, u.bank_qr_code_url, u.bank_data_str FROM users u LEFT JOIN payroll_configs pc ON u.employee_id = pc.employee_id ORDER BY u.employee_id ASC");
+            $users = dbQuery("SELECT u.employee_id, u.name, u.base_salary, u.avatar, u.department, u.position, pc.bank_name, pc.bank_account_number, pc.bank_qr_file, u.bank_qr_code_url, u.bank_data_str FROM users u LEFT JOIN payroll_configs pc ON u.employee_id = pc.employee_id WHERE u.is_active = 1 OR u.is_active IS NULL ORDER BY u.employee_id ASC");
 
             $data = [];
             foreach ($users as $u) {
                 $eid = $u['employee_id'];
                 $eid_clean = ltrim($eid, '0');
-                $eid_padded = str_pad($eid_clean ?: '0', 4, '0', STR_PAD_LEFT);
                 $base_salary = (float)($u['base_salary'] ?? 0);
 
-                // 1. Present days from checkin_logs or attendance
-                $present_days = 0;
-                $chk_checkin = dbQuery("SHOW TABLES LIKE 'checkin_logs'");
-                if (!empty($chk_checkin)) {
-                    $r = dbQuery("SELECT COUNT(DISTINCT DATE(log_datetime)) as cnt FROM checkin_logs WHERE (employee_id = ? OR employee_id = ? OR employee_id = ?) AND MONTH(log_datetime) = ? AND YEAR(log_datetime) = ?", [$eid, $eid_clean, $eid_padded, $month, $year]);
-                    $present_days = (int)($r[0]['cnt'] ?? 0);
-                }
-                if ($present_days === 0) {
-                    $chk_att = dbQuery("SHOW TABLES LIKE 'attendance'");
-                    if (!empty($chk_att)) {
-                        $r = dbQuery("SELECT COUNT(DISTINCT DATE(attendance_date)) as cnt FROM attendance WHERE (employee_id = ? OR employee_id = ? OR employee_id = ?) AND MONTH(attendance_date) = ? AND YEAR(attendance_date) = ?", [$eid, $eid_clean, $eid_padded, $month, $year]);
-                        if (empty($r) || (int)($r[0]['cnt'] ?? 0) === 0) {
-                            $r = dbQuery("SELECT COUNT(DISTINCT DATE(created_at)) as cnt FROM attendance WHERE (employee_id = ? OR employee_id = ? OR employee_id = ?) AND MONTH(created_at) = ? AND YEAR(created_at) = ?", [$eid, $eid_clean, $eid_padded, $month, $year]);
-                        }
-                        $present_days = (int)($r[0]['cnt'] ?? 0);
-                    }
-                }
+                // 1. Present days from memory map
+                $present_days = $checkinCounts[$eid] ?? ($checkinCounts[$eid_clean] ?? ($attCounts[$eid] ?? ($attCounts[$eid_clean] ?? 0)));
 
-                // 2. Base Component calculation matching admin_attendance.php: ($base_salary / 30) * $present_days
+                // 2. Base Component calculation
                 $base_component = $present_days > 0 ? (($base_salary / 30) * $present_days) : 0;
 
                 // 3. Deductions
-                $d_res = dbQuery("SELECT SUM(amount) as total FROM payroll_deductions WHERE (employee_id = ? OR employee_id = ? OR employee_id = ?) AND MONTH(deduction_date) = ? AND YEAR(deduction_date) = ?", [$eid, $eid_clean, $eid_padded, $month, $year]);
-                $deduct_sum = (float)($d_res[0]['total'] ?? 0);
+                $deduct_sum = $deductMap[$eid] ?? ($deductMap[$eid_clean] ?? 0);
 
                 // 4. OT Bonus
-                $o_res = dbQuery("SELECT SUM(COALESCE(NULLIF(amount, 0), total_ot_amount, 0)) as total FROM payroll_ot WHERE (employee_id = ? OR employee_id = ? OR employee_id = ?) AND ((ot_month = ? AND ot_year = ?) OR (MONTH(ot_date) = ? AND YEAR(ot_date) = ?))", [$eid, $eid_clean, $eid_padded, $month_padded, (string)$year, $month, $year]);
-                $ot_sum = (float)($o_res[0]['total'] ?? 0);
+                $ot_sum = $otMap[$eid] ?? ($otMap[$eid_clean] ?? 0);
 
                 // 5. Loan Repayment
-                $l_res = dbQuery("SELECT SUM(COALESCE(NULLIF(monthly_deduction, 0), monthly_installment, 0)) as total FROM payroll_loans WHERE (employee_id = ? OR employee_id = ? OR employee_id = ?)", [$eid, $eid_clean, $eid_padded]);
-                $loan_sum = (float)($l_res[0]['total'] ?? 0);
+                $loan_sum = $loanMap[$eid] ?? ($loanMap[$eid_clean] ?? 0);
 
                 // 6. Net Calculation
                 $net_salary = round(max(0, $base_component - $deduct_sum + $ot_sum - $loan_sum), 2);
 
-                // Check payment status from payroll_history
-                $paid_res = dbQuery("SELECT id, payment_date FROM payroll_history WHERE (employee_id = ? OR employee_id = ? OR employee_id = ?) AND (payroll_month = ? OR payroll_month = ?) AND payroll_year = ?", [$eid, $eid_clean, $eid_padded, $month, $month_padded, (string)$year]);
-                $is_paid = !empty($paid_res);
+                // Check payment status
+                $is_paid = isset($paidSet[$eid]) || isset($paidSet[$eid_clean]);
 
                 $bank_name = !empty($u['bank_name']) ? $u['bank_name'] : (!empty($u['bank_data_str']) ? $u['bank_data_str'] : '');
                 $bank_acc = $u['bank_account_number'] ?? '';
