@@ -2969,16 +2969,41 @@ try {
             $audioForWhisper = $localAudioFile;
             $tempCompressedAudio = '';
 
-            // If audio file is large (> 20MB, e.g. 52min meeting), downsample to 32kbps mono to fit under Groq 25MB limit
+            // If audio file is large (> 24MB), downsample with FFmpeg or slice safely in pure PHP
             if ($localAudioFile !== '' && file_exists($localAudioFile)) {
                 $rawSize = filesize($localAudioFile);
-                if ($rawSize > 20 * 1024 * 1024) {
-                    $ffmpegBin = defined('FFMPEG_BINARY') ? FFMPEG_BINARY : (file_exists('E:\24-ffmpeg\ffmpeg\bin\ffmpeg.exe') ? 'E:\24-ffmpeg\ffmpeg\bin\ffmpeg.exe' : 'ffmpeg');
-                    $tempCompressedAudio = tempnam(sys_get_temp_dir(), 'vvc_wcomp_') . '.mp3';
-                    $cmd = escapeshellcmd($ffmpegBin) . " -y -i " . escapeshellarg($localAudioFile) . " -vn -ar 16000 -ac 1 -b:a 32k " . escapeshellarg($tempCompressedAudio) . " 2>&1";
-                    @exec($cmd);
-                    if (file_exists($tempCompressedAudio) && filesize($tempCompressedAudio) > 1000) {
-                        $audioForWhisper = $tempCompressedAudio;
+                if ($rawSize > 24 * 1024 * 1024) {
+                    if (function_exists('exec')) {
+                        $ffmpegBin = defined('FFMPEG_BINARY') ? FFMPEG_BINARY : (file_exists('E:\24-ffmpeg\ffmpeg\bin\ffmpeg.exe') ? 'E:\24-ffmpeg\ffmpeg\bin\ffmpeg.exe' : 'ffmpeg');
+                        $tempCompressedAudio = tempnam(sys_get_temp_dir(), 'vvc_wcomp_') . '.mp3';
+                        $cmd = escapeshellcmd($ffmpegBin) . " -y -i " . escapeshellarg($localAudioFile) . " -vn -ar 16000 -ac 1 -b:a 32k " . escapeshellarg($tempCompressedAudio) . " 2>&1";
+                        @exec($cmd);
+                        if (file_exists($tempCompressedAudio) && filesize($tempCompressedAudio) > 1000) {
+                            $audioForWhisper = $tempCompressedAudio;
+                        }
+                    }
+                    
+                    // Pure PHP fallback if exec() is disabled or FFmpeg unavailable
+                    if ($audioForWhisper === $localAudioFile && $rawSize > 24 * 1024 * 1024) {
+                        $tempSlice = tempnam(sys_get_temp_dir(), 'vvc_slice_') . '.mp3';
+                        $inFp = fopen($localAudioFile, 'rb');
+                        $outFp = fopen($tempSlice, 'wb');
+                        if ($inFp && $outFp) {
+                            $copied = 0;
+                            $targetBytes = 23 * 1024 * 1024;
+                            while (!feof($inFp) && $copied < $targetBytes) {
+                                $buf = fread($inFp, 65536);
+                                if ($buf === false || $buf === '') break;
+                                fwrite($outFp, $buf);
+                                $copied += strlen($buf);
+                            }
+                            fclose($inFp);
+                            fclose($outFp);
+                            if (file_exists($tempSlice) && filesize($tempSlice) > 1000) {
+                                $audioForWhisper = $tempSlice;
+                                $tempCompressedAudio = $tempSlice;
+                            }
+                        }
                     }
                 }
             }
