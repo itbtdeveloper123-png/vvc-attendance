@@ -255,6 +255,11 @@ try {
                     $token = bin2hex(random_bytes(32));
                     unset($user['password']);
                     log_audit_event('LOGIN_SUCCESS', 'auth', $user['name'] ?? $adminId, 'ចូលប្រើប្រាស់ Admin Panel ជោគជ័យ', 'info', $user['name'] ?? $adminId, $user['employee_id'] ?? $adminId, $user['user_role'] ?? 'Admin');
+                    if (function_exists('security_send_telegram_alert')) {
+                        security_send_telegram_alert('ADMIN_LOGIN_SUCCESS', "មានការចូលប្រើប្រាស់ Admin Panel ដោយគណនី [{$user['name']}]", 'info', [
+                            'actor' => $user['name'] ?? $adminId,
+                        ]);
+                    }
                     sendJson([
                         'success' => true,
                         'token' => $token,
@@ -272,6 +277,11 @@ try {
                 }
                 $token = 'admin_jwt_' . bin2hex(random_bytes(16));
                 log_audit_event('LOGIN_SUCCESS', 'auth', 'Super Administrator', 'ចូលប្រើប្រាស់ Admin Panel ជោគជ័យ (Default Admin)', 'info', 'Super Administrator', 'ADMIN01', 'SuperAdmin');
+                if (function_exists('security_send_telegram_alert')) {
+                    security_send_telegram_alert('ADMIN_LOGIN_SUCCESS', "មានការចូលប្រើប្រាស់ Admin Panel ដោយគណនី Super Administrator", 'info', [
+                        'actor' => 'Super Administrator',
+                    ]);
+                }
                 sendJson([
                     'success' => true,
                     'token' => $token,
@@ -292,6 +302,11 @@ try {
                 security_record_login_result($adminId, false);
             }
             log_audit_event('LOGIN_FAILED', 'auth', $adminId, 'ការប៉ុនប៉ងចូលប្រើប្រាស់មិនជោគជ័យ (លេខសម្ងាត់មិនត្រឹមត្រូវ)', 'warning', $adminId, $adminId, 'guest');
+            if (function_exists('security_send_telegram_alert')) {
+                security_send_telegram_alert('SUSPICIOUS_LOGIN_ATTEMPT', "ការប៉ុនប៉ងចូល Login Admin Panel មិនជោគជ័យដោយឈ្មោះ [{$adminId}]", 'warning', [
+                    'actor' => $adminId,
+                ]);
+            }
 
             sendJson(['success' => false, 'message' => 'ឈ្មោះគណនី ឬលេខសម្ងាត់មិនត្រឹមត្រូវឡើយ!'], 401);
             break;

@@ -20,6 +20,8 @@ const routeTitleMap: Record<string, { module: string; action?: string }> = {
   '/categories': { module: 'គ្រប់គ្រងប្រភេទ', action: 'បញ្ជីប្រភេទមុខទំនិញ' },
   '/tokens': { module: 'Session & សុវត្ថិភាព', action: 'Session សកម្ម' },
   '/training': { module: 'Quiz & បណ្តុះបណ្តាល', action: 'កម្រងសំណួរ Quiz' },
+  '/audit-logs': { module: 'សុវត្ថិភាព & WAF', action: 'Audit Logs & Threat Tracking' },
+  '/logs': { module: 'សុវត្ថិភាព & WAF', action: 'Audit Logs & Threat Tracking' },
   '/settings': { module: 'ការកំណត់ Panel', action: 'ការកំណត់ទូទៅ' },
 };
 

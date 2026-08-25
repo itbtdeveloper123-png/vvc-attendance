@@ -16,6 +16,7 @@ import {
   GraduationCap,
   SlidersHorizontal,
   Vote,
+  ShieldAlert,
 } from 'lucide-react';
 import { adminApi, DashboardSummary } from '../api/adminApi';
 
@@ -177,6 +178,15 @@ export const DashboardPage: React.FC = () => {
       color: '#4f46e5',
       badge: null,
       badgeColor: '#ef4444',
+    },
+    {
+      id: 'audit-logs',
+      title: 'Audit Logs (សុវត្ថិភាព)',
+      path: '/audit-logs',
+      icon: ShieldAlert,
+      color: '#dc2626',
+      badge: 'Security',
+      badgeColor: '#dc2626',
     },
   ];
 

@@ -58,6 +58,81 @@ if (!function_exists('security_get_client_ip')) {
 // =========================================================================
 // 3. AUDIT LOGGING HOOK (For Security Threat Events)
 // =========================================================================
+if (!function_exists('security_send_telegram_alert')) {
+    /**
+     * Send Real-Time Security Incident & Threat Alerts to Telegram Bot
+     */
+    function security_send_telegram_alert(string $title, string $details, string $severity = 'warning', array $meta = []): bool {
+        $botToken = '8658826552:AAFTR4ix-lKua_Zrt_B3ljy1VLVd9M2C1Yo';
+        $chatId = null;
+
+        // Try getting chat_id from database settings
+        if (function_exists('dbQuery')) {
+            try {
+                $dr = dbQuery("SELECT chat_id FROM daily_report_telegram_settings WHERE chat_id != '' LIMIT 1");
+                if (!empty($dr) && !empty($dr[0]['chat_id'])) {
+                    $chatId = trim($dr[0]['chat_id']);
+                }
+                if (!$chatId) {
+                    $st = dbQuery("SELECT setting_value FROM app_settings WHERE setting_key IN ('daily_report_telegram_chat_id', 'security_telegram_chat_id', 'telegram_chat_id') AND setting_value != '' LIMIT 1");
+                    if (!empty($st) && !empty($st[0]['setting_value'])) {
+                        $chatId = trim($st[0]['setting_value']);
+                    }
+                }
+            } catch (Throwable $e) {}
+        }
+
+        if (empty($chatId)) {
+            return false;
+        }
+
+        $ip = $meta['ip'] ?? security_get_client_ip();
+        $ua = $meta['user_agent'] ?? substr($_SERVER['HTTP_USER_AGENT'] ?? 'Unknown', 0, 150);
+        $timeStr = date('d-M-Y H:i:s');
+
+        $icon = '⚠️';
+        if (in_array($severity, ['critical', 'danger'])) {
+            $icon = '🚨';
+        } elseif ($severity === 'info') {
+            $icon = 'ℹ️';
+        }
+
+        $text = "<b>{$icon} VVC SECURITY ALERT {$icon}</b>\n";
+        $text .= "<b>📌 ព្រឹត្តិការណ៍:</b> " . htmlspecialchars($title) . "\n";
+        $text .= "<b>⚡ កម្រិត:</b> " . strtoupper($severity) . "\n";
+        $text .= "<b>🌐 អាសយដ្ឋាន IP:</b> <code>" . htmlspecialchars($ip) . "</code>\n";
+        $text .= "<b>💻 ឧបករណ៍/Browser:</b> <code>" . htmlspecialchars($ua) . "</code>\n";
+        if (!empty($meta['actor'])) {
+            $text .= "<b>👤 គណនី/User:</b> " . htmlspecialchars($meta['actor']) . "\n";
+        }
+        $text .= "<b>📝 ព័ត៌មានលម្អិត:</b> " . htmlspecialchars($details) . "\n";
+        $text .= "<b>🕒 ពេលវេលា:</b> {$timeStr}\n";
+
+        $apiUrl = "https://api.telegram.org/bot{$botToken}/sendMessage";
+        $payload = [
+            'chat_id' => $chatId,
+            'text' => $text,
+            'parse_mode' => 'HTML',
+            'disable_web_page_preview' => true,
+        ];
+
+        // Send via cURL
+        $ch = curl_init($apiUrl);
+        curl_setopt_array($ch, [
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => http_build_query($payload),
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 5,
+            CURLOPT_CONNECTTIMEOUT => 3,
+            CURLOPT_SSL_VERIFYPEER => false,
+        ]);
+        $res = curl_exec($ch);
+        curl_close($ch);
+
+        return !empty($res);
+    }
+}
+
 if (!function_exists('security_log_threat')) {
     function security_log_threat(string $threatType, string $details, string $severity = 'danger'): void {
         $ip = security_get_client_ip();
@@ -76,6 +151,14 @@ if (!function_exists('security_log_threat')) {
                     [$threatType, $uri, $uri, $details, $severity, $ip, $ua]
                 );
             } catch (Throwable $e) {}
+        }
+
+        // Send instant Telegram alert for dangerous/critical security threats
+        if (in_array($severity, ['critical', 'danger', 'warning'])) {
+            security_send_telegram_alert($threatType, $details, $severity, [
+                'ip' => $ip,
+                'user_agent' => $ua,
+            ]);
         }
     }
 }
