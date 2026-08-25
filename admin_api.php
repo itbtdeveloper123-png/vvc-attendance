@@ -3060,84 +3060,13 @@ try {
                 }
             }
 
-            // Attempt 2: Groq (llama3-70b-8192 fallback)
-            if ($summaryText === '' && $groqKey !== '') {
-                $groqModels = ['llama3-70b-8192', 'llama3-8b-8192', 'mixtral-8x7b-32768'];
-                foreach ($groqModels as $gqModel) {
-                    $ch = curl_init('https://api.groq.com/openai/v1/chat/completions');
-                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                    curl_setopt($ch, CURLOPT_POST, true);
-                    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                        'Content-Type: application/json; charset=utf-8',
-                        'Authorization: Bearer ' . $groqKey
-                    ]);
-                    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
-                        'model' => $gqModel,
-                        'messages' => [
-                            ['role' => 'system', 'content' => 'You are an executive Khmer AI meeting minutes assistant.'],
-                            ['role' => 'user', 'content' => $prompt]
-                        ],
-                        'temperature' => 0.3
-                    ], JSON_UNESCAPED_UNICODE));
-                    curl_setopt($ch, CURLOPT_TIMEOUT, 60);
-                    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-                    $rawRes = curl_exec($ch);
-                    curl_close($ch);
-
-                    if ($rawRes) {
-                        $dec = json_decode((string)$rawRes, true);
-                        if (!empty($dec['choices'][0]['message']['content'])) {
-                            $summaryText = trim($dec['choices'][0]['message']['content']);
-                            $usedProvider = 'groq';
-                            $usedModel = $gqModel;
-                            break;
-                        } elseif (!empty($dec['error']['message'])) {
-                            $lastError = 'Groq (' . $gqModel . '): ' . $dec['error']['message'];
-                        }
-                    }
-                }
-            }
-
-            // Attempt 3: OpenAI GPT-4o-mini
-            if ($summaryText === '' && $openAiKey !== '') {
-                $ch = curl_init('https://api.openai.com/v1/chat/completions');
-                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                curl_setopt($ch, CURLOPT_POST, true);
-                curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                    'Content-Type: application/json; charset=utf-8',
-                    'Authorization: Bearer ' . $openAiKey
-                ]);
-                curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
-                    'model' => 'gpt-4o-mini',
-                    'messages' => [
-                        ['role' => 'system', 'content' => 'You are an executive Khmer AI meeting minutes assistant.'],
-                        ['role' => 'user', 'content' => $prompt]
-                    ],
-                    'temperature' => 0.3
-                ], JSON_UNESCAPED_UNICODE));
-                curl_setopt($ch, CURLOPT_TIMEOUT, 60);
-                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-                $rawRes = curl_exec($ch);
-                curl_close($ch);
-
-                if ($rawRes) {
-                    $dec = json_decode((string)$rawRes, true);
-                    if (!empty($dec['choices'][0]['message']['content'])) {
-                        $summaryText = trim($dec['choices'][0]['message']['content']);
-                        $usedProvider = 'openai';
-                        $usedModel = 'gpt-4o-mini';
-                    } elseif (!empty($dec['error']['message'])) {
-                        $lastError = 'OpenAI: ' . $dec['error']['message'];
-                    }
-                }
-            }
-
             if ($summaryText === '') {
                 sendJson([
                     'success' => false,
-                    'message' => 'មិនអាចទាញយកសេចក្តីសង្ខេប AI បានទេ៖ ' . ($lastError ?: 'សូមពិនិត្យមើល GEMINI_API_KEY ឬ GROQ_API_KEY។')
+                    'message' => 'មិនអាចទាញយកសេចក្តីសង្ខេប AI បានទេ៖ ' . ($lastError ?: 'សូមពិនិត្យមើល GEMINI_API_KEY នៅក្នុង .env')
                 ]);
             }
+
 
             // 3. Save to database
             dbQuery("UPDATE meetings SET summary = ?, transcript_text = ?, summary_generated_at = NOW(), summary_provider = ?, summary_model = ? WHERE id = ?", [
