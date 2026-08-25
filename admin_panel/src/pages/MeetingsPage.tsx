@@ -112,10 +112,10 @@ export const MeetingsPage: React.FC = () => {
     };
   }, [aiModalAudioPlaying]);
 
-  // Auto-scroll active dialogue into view when playing
+  // Auto-scroll active dialogue to top of viewport when playing
   useEffect(() => {
     if (aiModalAudioPlaying && activeTranscriptRef.current && aiModalTab === 'transcript') {
-      activeTranscriptRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      activeTranscriptRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   }, [aiModalAudioCurrentTime, aiModalAudioPlaying, aiModalTab]);
 
@@ -640,6 +640,7 @@ export const MeetingsPage: React.FC = () => {
               onClick={() => handleSeekTo(block.startTime)}
               title="ចុចដើម្បីស្តាប់ត្រង់ចំណុចនេះ"
               style={{
+                scrollMarginTop: '14px',
                 padding: '14px 18px',
                 borderRadius: '12px',
                 cursor: 'pointer',
