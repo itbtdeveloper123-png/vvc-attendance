@@ -3001,29 +3001,49 @@ try {
 
                 $upDec = json_decode((string)$upRes, true);
                 $uploadedAudioUri = $upDec['file']['uri'] ?? '';
+                $fileState = $upDec['file']['state'] ?? 'ACTIVE';
+                $fileName = $upDec['file']['name'] ?? '';
 
                 if ($uploadedAudioUri !== '') {
-                    $audioPrompt = "អ្នកជាជំនួយការ AI សម្រាប់កត់ត្រាកំណត់ហេតុកិច្ចប្រជុំ និងសង្ខេបកិច្ចប្រជុំពីសំឡេងផ្ទាល់ជាភាសាខ្មែរ (Executive Minutes of Meeting & Full Transcript from Audio)។\n\n"
+                    // For large audio files, wait until file state transitions from PROCESSING to ACTIVE
+                    if ($fileState === 'PROCESSING' && $fileName !== '') {
+                        $checkUrl = "https://generativelanguage.googleapis.com/v1beta/{$fileName}?key=" . urlencode($geminiKey);
+                        for ($poll = 0; $poll < 12; $poll++) {
+                            sleep(2);
+                            $ch = curl_init($checkUrl);
+                            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                            $chkRes = curl_exec($ch);
+                            curl_close($ch);
+                            $chkDec = json_decode((string)$chkRes, true);
+                            if (($chkDec['state'] ?? '') === 'ACTIVE') {
+                                break;
+                            }
+                            if (($chkDec['state'] ?? '') === 'FAILED') {
+                                break;
+                            }
+                        }
+                    }
+
+                    $audioPrompt = "អ្នកជាជំនួយការ AI សម្រាប់កត់ត្រាកំណត់ហេតុកិច្ចប្រជុំ និងស្តាប់សំឡេងកិច្ចប្រជុំផ្ទាល់ជាភាសាខ្មែរ (Executive Minutes & Full Dialogue Transcript from Audio)។\n\n"
                         . "ព័ត៌មានកិច្ចប្រជុំ:\n"
                         . "- ប្រធានបទ: {$topic}\n"
                         . "- ផ្នែក/ក្រុម: {$dept}\n"
                         . "- កាលបរិច្ឆេទ: {$date}\n\n"
-                        . "សូមស្តាប់សំឡេងកិច្ចប្រជុំនេះដោយយកចិត្តទុកដាក់ និងលម្អិតបំផុត រួចរៀបចំចម្លើយជាពីរផ្នែកយ៉ាងច្បាស់លាស់ ដោយដាក់ Tag ដូចខាងក្រោម៖\n\n"
+                        . "សូមស្តាប់សំឡេងនេះដោយហ្មត់ចត់ ហើយឆ្លើយតបជា ២ ផ្នែកដាច់ដោយឡែកពីគ្នា ដូចខាងក្រោម៖\n\n"
                         . "===SUMMARY_START===\n"
                         . "📌 ១. សេចក្តីសង្ខេបរួមពីសំឡេង (Executive Summary from Audio)\n"
-                        . "🎯 ២. ចំណុចសំខាន់ៗដែលបានលើកឡើង និងពិភាក្សាជាក់ស្តែងក្នុងសំឡេង (Key Discussion Points from Audio)\n"
+                        . "🎯 ២. ចំណុចសំខាន់ៗដែលបានពិភាក្សាជាក់ស្តែងក្នុងសំឡេង (Key Discussion Points from Audio)\n"
                         . "✅ ៣. ការសម្រេចចិត្តរួម (Decisions Made)\n"
                         . "📋 ៤. ផែនការសកម្មភាព និងជំហានបន្ទាប់ (Action Items & Next Steps)\n"
                         . "===SUMMARY_END===\n\n"
                         . "===TRANSCRIPT_START===\n"
-                        . "សូមសរសេរអត្ថបទសន្ទនាទាំងស្រុង (Full Dialogue Transcript) តាមលំដាប់លំដោយនៃអ្នកនិយាយ ដោយបំបែកជាឃ្លាខ្លីៗតាមប្រយោគនិយាយជាក់ស្តែង និងដាក់ Timestamp ពេលវេលា [MM:SS] នៅដើមឃ្លានីមួយៗឱ្យបានច្បាស់លាស់បំផុត (ឧទាហរណ៍៖\n"
-                        . "[00:00] **អ្នកគ្រប់គ្រង (វិច) ៖** អូខេ! ជាដំបូងសូមជម្រាបសួរ...\n"
-                        . "[00:08] **អ្នកគ្រប់គ្រង (វិច) ៖** សម្រាប់ថ្ងៃនេះគឺយើងដល់ពេលត្រូវប្រជុំ...\n"
-                        . "[00:15] **អ្នកគ្រប់គ្រង (វិច) ៖** ១. បើកអង្គប្រជុំដោយនាងខ្ញុំផ្ទាល់\n"
-                        . "[00:20] **អ្នកគ្រប់គ្រង (វិច) ៖** ២. ទាក់ទងជាមួយនិងការរាយតម្លៃ...\n"
+                        . "សូមសរសេរអត្ថបទសន្ទនាការនិយាយជាក់ស្តែងទាំងអស់ពីសំឡេង (Full Dialogue Transcript) តាមលំដាប់លំដោយនៃអ្នកនិយាយ ដោយបំបែកជាឃ្លាខ្លីៗ និងដាក់ Timestamp [MM:SS] នៅដើមឃ្លានីមួយៗជានិច្ច (ឧទាហរណ៍៖\n"
+                        . "[00:00] **អ្នកនិយាយ ៖** ពាក្យសម្តីនិយាយជាក់ស្តែងពីសំឡេង...\n"
+                        . "[00:15] **អ្នកនិយាយ ៖** ពាក្យសម្តីបន្ទាប់...\n"
                         . ")\n"
                         . "===TRANSCRIPT_END===\n\n"
-                        . "សូមឆ្លើយតបជាភាសាខ្មែរដោយផ្ទាល់។";
+                        . "សូមឆ្លើយតបជាភាសាខ្មែរ។";
 
                     $genUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=" . urlencode($geminiKey);
                     $ch = curl_init($genUrl);
