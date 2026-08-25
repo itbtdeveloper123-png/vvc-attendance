@@ -2398,7 +2398,7 @@ class _MeetingsScreenState extends State<MeetingsScreen>
     final int meetingId = int.tryParse(m['id']?.toString() ?? '0') ?? 0;
     final String topic = m['topic']?.toString() ?? 'កិច្ចប្រជុំ';
     final String dept = m['department']?.toString() ?? '';
-    final String audioPath = (m['audio_path'] ?? m['audio_file_path'] ?? '').toString();
+    final String audioPath = (m['audio_url'] ?? m['mp3_url'] ?? m['audio_path'] ?? m['audio_file_path'] ?? '').toString();
 
     showModalBottomSheet(
       context: context,
@@ -2451,21 +2451,68 @@ class _AiMeetingMinutesSheet extends StatefulWidget {
 }
 
 class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
+  final MeetingAudioPlayerService _audioService = MeetingAudioPlayerService.instance;
+  final ScrollController _scrollController = ScrollController();
+
   bool _isLoading = false;
   String? _summary;
   String? _transcript;
   String? _error;
   int _selectedTab = 0;
+  int _lastActiveIndex = -1;
 
   @override
   void initState() {
     super.initState();
     _summary = widget.initialSummary;
     _transcript = widget.initialTranscript;
+    _audioService.addListener(_onAudioStateChanged);
 
     if ((_summary == null || _summary!.isEmpty) && widget.meetingId > 0) {
       _loadOrGenerateSummary();
     }
+  }
+
+  @override
+  void dispose() {
+    _audioService.removeListener(_onAudioStateChanged);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onAudioStateChanged() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  String _resolveAudioUrl(String path) {
+    if (path.isEmpty) return '';
+    if (path.startsWith('http://') || path.startsWith('https://')) return path;
+    final clean = path.startsWith('/') ? path.substring(1) : path;
+    return 'https://app.vvc.asia/flutter/$clean';
+  }
+
+  String _formatDuration(Duration d) {
+    final hours = d.inHours;
+    final minutes = d.inMinutes.remainder(60);
+    final seconds = d.inSeconds.remainder(60);
+    if (hours > 0) {
+      return '$hours:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+    }
+    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+  }
+
+  String _formatSeconds(int totalSecs) {
+    final s = totalSecs < 0 ? 0 : totalSecs;
+    final mins = s ~/ 60;
+    final secs = s % 60;
+    final hours = mins ~/ 60;
+    if (hours > 0) {
+      final remMins = mins % 60;
+      return '$hours:${remMins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
+    }
+    return '${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
   }
 
   Future<void> _loadOrGenerateSummary({bool force = false}) async {
@@ -2502,25 +2549,33 @@ class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
   }
 
   void _copyToClipboard() {
-    final textToCopy = "📝 សេចក្តីសង្ខេបកិច្ចប្រជុំ៖ ${widget.topic}\n\n${_summary ?? ''}";
-    Clipboard.setData(ClipboardData(text: textToCopy));
+    final text = _selectedTab == 0 ? (_summary ?? '') : (_transcript ?? '');
+    Clipboard.setData(ClipboardData(text: text));
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('បានចម្លងសេចក្តីសង្ខេបទៅកាន់ Clipboard')),
+      SnackBar(
+        content: Text(
+          _selectedTab == 0 ? 'បានចម្លងសេចក្តីសង្ខេប' : 'បានចម្លងអត្ថបទសន្ទនា',
+          style: GoogleFonts.kantumruyPro(),
+        ),
+        backgroundColor: const Color(0xFF6366F1),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
     );
   }
 
   void _shareSummary() {
-    final textToShare = "📝 សេចក្តីសង្ខេបកិច្ចប្រជុំ៖ ${widget.topic}\nផ្នែក៖ ${widget.department}\n\n${_summary ?? ''}";
+    final textToShare = "📝 AI កំណត់ហេតុកិច្ចប្រជុំ៖ ${widget.topic}\nផ្នែក៖ ${widget.department}\n\n${_selectedTab == 0 ? (_summary ?? '') : (_transcript ?? '')}";
     Share.share(textToShare);
   }
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: MediaQuery.of(context).size.height * 0.88,
-      decoration: BoxDecoration(
-        color: AppTheme.bgDark,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+      height: MediaQuery.of(context).size.height * 0.90,
+      decoration: const BoxDecoration(
+        color: Color(0xFF0F172A),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
       ),
       child: Column(
         children: [
@@ -2533,8 +2588,8 @@ class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
               borderRadius: BorderRadius.circular(10),
             ),
           ),
-          const SizedBox(height: 16),
-          // Header
+          const SizedBox(height: 14),
+          // Modal Header
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Row(
@@ -2543,12 +2598,13 @@ class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
                     color: Colors.amber.withValues(alpha: 0.15),
-                    shape: BoxShape.circle,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
                   ),
                   child: const Icon(
                     Icons.auto_awesome_rounded,
                     color: Colors.amber,
-                    size: 24,
+                    size: 22,
                   ),
                 ),
                 const SizedBox(width: 14),
@@ -2583,8 +2639,13 @@ class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
               ],
             ),
           ),
-          const SizedBox(height: 12),
-          // Tab switcher
+          const SizedBox(height: 10),
+
+          // Audio Player Card (at the Top)
+          _buildAudioPlayerCard(),
+
+          const SizedBox(height: 10),
+          // Tab Switcher
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Row(
@@ -2599,19 +2660,19 @@ class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
               ],
             ),
           ),
-          const Divider(height: 24),
-          // Content
+          const SizedBox(height: 10),
+          // Main Body Content
           Expanded(
             child: _isLoading
                 ? _buildLoadingState()
                 : (_error != null ? _buildErrorState() : _buildContentState()),
           ),
-          // Bottom action bar
-          if (!_isLoading && _summary != null && _summary!.isNotEmpty)
+          // Bottom Action Bar
+          if (!_isLoading && ((_summary != null && _summary!.isNotEmpty) || (_transcript != null && _transcript!.isNotEmpty)))
             Container(
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
               decoration: BoxDecoration(
-                color: AppTheme.bgCard,
+                color: const Color(0xFF1E293B),
                 border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.08))),
               ),
               child: Row(
@@ -2622,9 +2683,9 @@ class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
                       icon: const Icon(Icons.copy_rounded, size: 18),
                       label: Text("ចម្លង", style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold)),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: AppTheme.primary,
-                        side: BorderSide(color: AppTheme.primary.withValues(alpha: 0.5)),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        foregroundColor: const Color(0xFF6366F1),
+                        side: BorderSide(color: const Color(0xFF6366F1).withValues(alpha: 0.5)),
+                        padding: const EdgeInsets.symmetric(vertical: 13),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                       ),
                     ),
@@ -2636,9 +2697,9 @@ class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
                       icon: const Icon(Icons.share_rounded, size: 18),
                       label: Text("ចែករំលែក", style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold)),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.primary,
+                        backgroundColor: const Color(0xFF6366F1),
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        padding: const EdgeInsets.symmetric(vertical: 13),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                       ),
                     ),
@@ -2657,6 +2718,158 @@ class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
     );
   }
 
+  Widget _buildAudioPlayerCard() {
+    final audioUrl = _resolveAudioUrl(widget.audioPath);
+    if (audioUrl.isEmpty) return const SizedBox.shrink();
+
+    final isCurrentAudio = _audioService.currentPath == audioUrl;
+    final isPlaying = isCurrentAudio && _audioService.isPlaying;
+    final pos = isCurrentAudio ? _audioService.position : Duration.zero;
+    final dur = isCurrentAudio ? _audioService.duration : Duration.zero;
+    final maxSeconds = dur.inSeconds > 0 ? dur.inSeconds.toDouble() : 100.0;
+    final currentSeconds = pos.inSeconds.toDouble().clamp(0.0, maxSeconds);
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFF6366F1).withValues(alpha: 0.12),
+            const Color(0xFFA855F7).withValues(alpha: 0.08),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF6366F1).withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.volume_up_rounded,
+                    color: isPlaying ? const Color(0xFF6366F1) : Colors.white70,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    "សំឡេងកិច្ចប្រជុំ (Audio Recording)",
+                    style: GoogleFonts.kantumruyPro(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF818CF8),
+                    ),
+                  ),
+                ],
+              ),
+              // Speed buttons
+              Row(
+                children: [1.0, 1.25, 1.5, 2.0].map((speed) {
+                  final isCur = (_audioService.playbackSpeed - speed).abs() < 0.05;
+                  return Padding(
+                    padding: const EdgeInsets.only(left: 4),
+                    child: InkWell(
+                      onTap: () => _audioService.setPlaybackSpeed(speed),
+                      borderRadius: BorderRadius.circular(6),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: isCur ? const Color(0xFF6366F1) : Colors.white.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          '${speed == 1.0 || speed == 2.0 ? speed.toInt() : speed}x',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: isCur ? Colors.white : Colors.white60,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              // Play / Pause Button
+              InkWell(
+                onTap: () async {
+                  if (isPlaying) {
+                    await _audioService.pause();
+                  } else {
+                    await _audioService.playPath(audioUrl, title: widget.topic);
+                  }
+                },
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  padding: const EdgeInsets.all(7),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF6366F1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                    color: Colors.white,
+                    size: 18,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Current Pos
+              Text(
+                _formatDuration(pos),
+                style: GoogleFonts.inter(
+                  fontSize: 10.5,
+                  color: Colors.white70,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              // Slider
+              Expanded(
+                child: SliderTheme(
+                  data: SliderTheme.of(context).copyWith(
+                    trackHeight: 3,
+                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
+                    overlayShape: const RoundSliderOverlayShape(overlayRadius: 10),
+                    activeTrackColor: const Color(0xFF6366F1),
+                    inactiveTrackColor: Colors.white12,
+                    thumbColor: Colors.white,
+                  ),
+                  child: Slider(
+                    value: currentSeconds,
+                    min: 0.0,
+                    max: maxSeconds,
+                    onChanged: (val) {
+                      _audioService.seek(Duration(seconds: val.toInt()));
+                    },
+                  ),
+                ),
+              ),
+              // Total Duration
+              Text(
+                _formatDuration(dur),
+                style: GoogleFonts.inter(
+                  fontSize: 10.5,
+                  color: Colors.white70,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildTabBtn(int index, String label, IconData icon) {
     final bool isSelected = _selectedTab == index;
     return GestureDetector(
@@ -2664,23 +2877,23 @@ class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
-          color: isSelected ? AppTheme.primary.withValues(alpha: 0.15) : Colors.transparent,
+          color: isSelected ? const Color(0xFF6366F1) : const Color(0xFF1E293B),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isSelected ? AppTheme.primary : Colors.white12,
+            color: isSelected ? const Color(0xFF6366F1) : Colors.white12,
           ),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 16, color: isSelected ? AppTheme.primary : Colors.white60),
+            Icon(icon, size: 16, color: isSelected ? Colors.white : Colors.white60),
             const SizedBox(width: 6),
             Text(
               label,
               style: GoogleFonts.kantumruyPro(
                 fontSize: 12,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                color: isSelected ? AppTheme.primary : Colors.white60,
+                color: isSelected ? Colors.white : Colors.white60,
               ),
             ),
           ],
@@ -2736,7 +2949,7 @@ class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
               onPressed: () => _loadOrGenerateSummary(force: true),
               icon: const Icon(Icons.refresh_rounded),
               label: Text("ព្យាយាមម្ដងទៀត", style: GoogleFonts.kantumruyPro()),
-              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF6366F1)),
             ),
           ],
         ),
@@ -2745,26 +2958,595 @@ class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
   }
 
   Widget _buildContentState() {
-    final text = _selectedTab == 0 ? (_summary ?? 'មិនទាន់មានសេចក្តីសង្ខេបទេ') : (_transcript ?? 'មិនទាន់មានអត្ថបទសន្ទនាទេ');
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: AppTheme.bgCard,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
-        ),
-        child: SelectableText(
-          text,
+    if (_selectedTab == 0) {
+      final text = _summary?.trim() ?? '';
+      if (text.isEmpty) {
+        return Center(
+          child: Text(
+            'មិនទាន់មានសេចក្តីសង្ខេបនៅឡើយទេ',
+            style: GoogleFonts.kantumruyPro(color: AppTheme.textSecondary),
+          ),
+        );
+      }
+      return _buildFormattedSummary(text);
+    } else {
+      final transcript = _transcript?.trim() ?? '';
+      if (transcript.isEmpty) {
+        return Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.mic_none_rounded, size: 40, color: Colors.white24),
+              const SizedBox(height: 12),
+              Text(
+                'មិនទាន់មានអត្ថបទសន្ទនា (Transcript) នៅឡើយទេ',
+                style: GoogleFonts.kantumruyPro(color: AppTheme.textSecondary, fontSize: 13.5),
+              ),
+              const SizedBox(height: 14),
+              ElevatedButton.icon(
+                onPressed: () => _loadOrGenerateSummary(force: true),
+                icon: const Icon(Icons.refresh_rounded, size: 16),
+                label: Text("ទាញយកពីសំឡេងប្រជុំ", style: GoogleFonts.kantumruyPro(fontSize: 12.5)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF6366F1),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+      return _buildKaraokeTranscript(transcript);
+    }
+  }
+
+  List<InlineSpan> _parseInlineSpans(String text, {Color? defaultColor, double fontSize = 13.5}) {
+    final List<InlineSpan> spans = [];
+    final regex = RegExp(r'\*\*(.*?)\*\*');
+    int lastMatchEnd = 0;
+
+    for (final match in regex.allMatches(text)) {
+      if (match.start > lastMatchEnd) {
+        spans.add(TextSpan(
+          text: text.substring(lastMatchEnd, match.start),
           style: GoogleFonts.kantumruyPro(
-            color: AppTheme.textPrimary,
-            fontSize: 14,
-            height: 1.7,
+            fontSize: fontSize,
+            color: defaultColor ?? AppTheme.textPrimary,
+            height: 1.85,
+          ),
+        ));
+      }
+      spans.add(TextSpan(
+        text: match.group(1),
+        style: GoogleFonts.kantumruyPro(
+          fontSize: fontSize,
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+          height: 1.85,
+        ),
+      ));
+      lastMatchEnd = match.end;
+    }
+
+    if (lastMatchEnd < text.length) {
+      spans.add(TextSpan(
+        text: text.substring(lastMatchEnd),
+        style: GoogleFonts.kantumruyPro(
+          fontSize: fontSize,
+          color: defaultColor ?? AppTheme.textPrimary,
+          height: 1.85,
+        ),
+      ));
+    }
+
+    return spans;
+  }
+
+  Widget _buildFormattedSummary(String rawText) {
+    final lines = rawText.split('\n');
+    final List<Widget> widgets = [];
+
+    for (int i = 0; i < lines.length; i++) {
+      final line = lines[i].trim();
+      if (line.isEmpty) continue;
+
+      if (line == '---' || line == '***' || line == '___') {
+        widgets.add(const Divider(color: Colors.white12, height: 24));
+        continue;
+      }
+
+      // Title #
+      if (line.startsWith('# ') || line.startsWith('## ')) {
+        final title = line.replaceAll(RegExp(r'^#+\s*'), '');
+        widgets.add(
+          Container(
+            margin: const EdgeInsets.symmetric(vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  const Color(0xFF6366F1).withValues(alpha: 0.18),
+                  const Color(0xFFA855F7).withValues(alpha: 0.10),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(10),
+              border: const Border(left: BorderSide(color: Color(0xFF6366F1), width: 4)),
+            ),
+            child: Text.rich(
+              TextSpan(
+                children: _parseInlineSpans(title, defaultColor: const Color(0xFF818CF8), fontSize: 14.5),
+              ),
+            ),
+          ),
+        );
+        continue;
+      }
+
+      // Section Headings ### 📌, 🎯, ✅, 📋
+      if (line.startsWith('### ') || RegExp(r'^(📌|🎯|✅|📋|📝|💡)\s*').hasMatch(line)) {
+        final heading = line.replaceAll(RegExp(r'^###\s*'), '');
+        Color badgeBg = const Color(0xFF3B82F6).withValues(alpha: 0.15);
+        Color badgeColor = const Color(0xFF60A5FA);
+        Color borderClr = const Color(0xFF3B82F6).withValues(alpha: 0.35);
+
+        if (heading.contains('២.') || heading.contains('🎯') || heading.contains('ចំណុច')) {
+          badgeBg = const Color(0xFFF59E0B).withValues(alpha: 0.15);
+          badgeColor = const Color(0xFFFBBF24);
+          borderClr = const Color(0xFFF59E0B).withValues(alpha: 0.35);
+        } else if (heading.contains('៣.') || heading.contains('✅') || heading.contains('សម្រេច')) {
+          badgeBg = const Color(0xFF10B981).withValues(alpha: 0.15);
+          badgeColor = const Color(0xFF34D399);
+          borderClr = const Color(0xFF10B981).withValues(alpha: 0.35);
+        } else if (heading.contains('៤.') || heading.contains('📋') || heading.contains('សកម្មភាព')) {
+          badgeBg = const Color(0xFF8B5CF6).withValues(alpha: 0.15);
+          badgeColor = const Color(0xFFA78BFA);
+          borderClr = const Color(0xFF8B5CF6).withValues(alpha: 0.35);
+        }
+
+        widgets.add(
+          Container(
+            margin: const EdgeInsets.only(top: 14, bottom: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: badgeBg,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: borderClr),
+            ),
+            child: Text.rich(
+              TextSpan(
+                children: _parseInlineSpans(heading, defaultColor: badgeColor, fontSize: 13.5),
+              ),
+            ),
+          ),
+        );
+        continue;
+      }
+
+      // Metadata bullet point (* **Key:** Value)
+      final metaMatch = RegExp(r'^[\*\-]\s+\*\*(.*?)\*\*\s*[:៖]\s*(.*)').firstMatch(line);
+      if (metaMatch != null) {
+        final key = metaMatch.group(1) ?? '';
+        final val = metaMatch.group(2) ?? '';
+        widgets.add(
+          Container(
+            margin: const EdgeInsets.only(bottom: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.03),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: 105,
+                  child: Text(
+                    "$key:",
+                    style: GoogleFonts.kantumruyPro(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF818CF8),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Text.rich(
+                    TextSpan(children: _parseInlineSpans(val, fontSize: 12.5)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+        continue;
+      }
+
+      // Numbered List Items
+      final numMatch = RegExp(r'^(\d+)[\.\)]\s+(.*)').firstMatch(line);
+      if (numMatch != null) {
+        final num = numMatch.group(1) ?? '1';
+        final content = numMatch.group(2) ?? '';
+        widgets.add(
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  margin: const EdgeInsets.only(top: 3, right: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF6366F1).withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                  child: Text(
+                    num,
+                    style: GoogleFonts.kantumruyPro(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF818CF8),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Text.rich(
+                    TextSpan(children: _parseInlineSpans(content, fontSize: 13.5)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+        continue;
+      }
+
+      // Bullet List Items
+      final bulletMatch = RegExp(r'^[\*\-]\s+(.*)').firstMatch(line);
+      if (bulletMatch != null) {
+        final content = bulletMatch.group(1) ?? '';
+        widgets.add(
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.only(top: 5, right: 8),
+                  child: Icon(Icons.circle, size: 6, color: Colors.amber),
+                ),
+                Expanded(
+                  child: Text.rich(
+                    TextSpan(children: _parseInlineSpans(content, fontSize: 13.5)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+        continue;
+      }
+
+      // Normal Paragraph
+      widgets.add(
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Text.rich(
+            TextSpan(children: _parseInlineSpans(line, fontSize: 13.5)),
           ),
         ),
+      );
+    }
+
+    return SingleChildScrollView(
+      controller: _scrollController,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: widgets,
       ),
     );
   }
+
+  Widget _buildKaraokeTranscript(String rawTranscript) {
+    // Filter non-dialogue lines
+    final rawLines = rawTranscript
+        .split('\n')
+        .map((l) => l.trim())
+        .where((l) {
+          if (l.isEmpty) return false;
+          if (l == '---' || l == '***' || l == '___') return false;
+          if (l.startsWith('###') || l.startsWith('#')) return false;
+          if (l.startsWith('===') && l.endsWith('===')) return false;
+          if (l.contains('នេះជាអត្ថបទសន្ទនា') || l.contains('Full Transcript')) return false;
+          return true;
+        })
+        .toList();
+
+    if (rawLines.isEmpty) {
+      return Center(
+        child: Text('មិនទាន់មានទិន្នន័យ', style: GoogleFonts.kantumruyPro(color: Colors.white60)),
+      );
+    }
+
+    final List<_TranscriptBlock> blocks = [];
+
+    for (int i = 0; i < rawLines.length; i++) {
+      final line = rawLines[i];
+      int startTime = -1;
+      String lineBody = line;
+
+      // Timestamp matching: [00:15], (00:15), 00:15
+      final timeMatch = RegExp(r'(?:^|\[|\(|\*\*|\s)(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\]|\)|\*\*|\s)?\s*(.*)').firstMatch(lineBody);
+      if (timeMatch != null && !timeMatch.group(4)!.startsWith(':') && !timeMatch.group(4)!.startsWith('៖')) {
+        if (timeMatch.group(3) != null) {
+          startTime = int.parse(timeMatch.group(1)!) * 3600 + int.parse(timeMatch.group(2)!) * 60 + int.parse(timeMatch.group(3)!);
+        } else {
+          startTime = int.parse(timeMatch.group(1)!) * 60 + int.parse(timeMatch.group(2)!);
+        }
+        lineBody = timeMatch.group(4) ?? lineBody;
+      }
+
+      final speakerMatch = RegExp(r'^(\*\*.*?\*\*|[\u1780-\u17FF\w\s\(\)]+)\s*[:៖]\s*(.*)').firstMatch(lineBody);
+      String speaker = '';
+      String dialogue = lineBody;
+
+      if (speakerMatch != null) {
+        speaker = speakerMatch.group(1)!.replaceAll('**', '').trim();
+        dialogue = speakerMatch.group(2)!.trim();
+      }
+
+      blocks.add(_TranscriptBlock(
+        id: i,
+        startTime: startTime,
+        endTime: -1,
+        speaker: speaker,
+        text: dialogue,
+        raw: line,
+      ));
+    }
+
+    final hasRealTimestamps = blocks.any((b) => b.startTime >= 0);
+
+    if (!hasRealTimestamps) {
+      // Natural Khmer meeting pacing: ~9.5 characters per second + 1.2s pause between sentences
+      int runningTime = 0;
+      for (final b in blocks) {
+        final charLen = b.text.length < 12 ? 12 : b.text.length;
+        final durationSecs = ((charLen / 9.5) + 1.2).clamp(2.5, 45.0).toInt();
+        b.startTime = runningTime;
+        b.endTime = runningTime + durationSecs;
+        runningTime += durationSecs;
+      }
+    } else {
+      for (int i = 0; i < blocks.length; i++) {
+        if (blocks[i].startTime < 0) {
+          blocks[i].startTime = i > 0 ? blocks[i - 1].endTime : 0;
+        }
+        if (i < blocks.length - 1 && blocks[i + 1].startTime >= 0) {
+          blocks[i].endTime = blocks[i + 1].startTime;
+        } else {
+          final charLen = blocks[i].text.length < 12 ? 12 : blocks[i].text.length;
+          blocks[i].endTime = blocks[i].startTime + ((charLen / 9.5) + 1.2).clamp(2.5, 45.0).toInt();
+        }
+      }
+    }
+
+    final audioUrl = _resolveAudioUrl(widget.audioPath);
+    final isCurrentAudio = _audioService.currentPath == audioUrl;
+    final currentAudioSecs = isCurrentAudio ? _audioService.position.inSeconds : 0;
+
+    int activeIndex = -1;
+    for (int i = 0; i < blocks.length; i++) {
+      if (currentAudioSecs >= blocks[i].startTime && (i == blocks.length - 1 || currentAudioSecs < blocks[i + 1].startTime)) {
+        activeIndex = i;
+        break;
+      }
+    }
+
+    // Auto-scroll on index change
+    if (activeIndex != -1 && activeIndex != _lastActiveIndex && _audioService.isPlaying && isCurrentAudio) {
+      _lastActiveIndex = activeIndex;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_scrollController.hasClients) {
+          final targetOffset = (activeIndex * 85.0).clamp(0.0, _scrollController.position.maxScrollExtent);
+          _scrollController.animateTo(
+            targetOffset,
+            duration: const Duration(milliseconds: 350),
+            curve: Curves.easeInOut,
+          );
+        }
+      });
+    }
+
+    return Column(
+      children: [
+        // Helper hint header
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: const Color(0xFF6366F1).withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: const Color(0xFF6366F1).withValues(alpha: 0.2)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.auto_awesome_rounded, size: 14, color: Color(0xFF818CF8)),
+                  const SizedBox(width: 6),
+                  Text(
+                    "Karaoke Transcript Sync",
+                    style: GoogleFonts.kantumruyPro(fontSize: 11.5, fontWeight: FontWeight.bold, color: const Color(0xFF818CF8)),
+                  ),
+                ],
+              ),
+              Text(
+                "ចុចលើអត្ថបទដើម្បីចាក់សំឡេង",
+                style: GoogleFonts.kantumruyPro(fontSize: 10.5, color: Colors.white60),
+              ),
+            ],
+          ),
+        ),
+
+        Expanded(
+          child: ListView.builder(
+            controller: _scrollController,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+            itemCount: blocks.length,
+            itemBuilder: (ctx, idx) {
+              final block = blocks[idx];
+              final isActive = idx == activeIndex && isCurrentAudio;
+
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: InkWell(
+                  onTap: () async {
+                    if (!isCurrentAudio) {
+                      await _audioService.playPath(audioUrl, title: widget.topic);
+                    }
+                    await _audioService.seek(Duration(seconds: block.startTime));
+                    if (!_audioService.isPlaying) {
+                      await _audioService.resume();
+                    }
+                  },
+                  borderRadius: BorderRadius.circular(14),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 250),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      gradient: isActive
+                          ? LinearGradient(
+                              colors: [
+                                const Color(0xFF6366F1).withValues(alpha: 0.22),
+                                const Color(0xFFA855F7).withValues(alpha: 0.16),
+                              ],
+                            )
+                          : null,
+                      color: isActive ? null : const Color(0xFF1E293B).withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: isActive ? const Color(0xFF6366F1).withValues(alpha: 0.6) : Colors.white.withValues(alpha: 0.05),
+                        width: isActive ? 1.5 : 1,
+                      ),
+                      boxShadow: isActive
+                          ? [
+                              BoxShadow(
+                                color: const Color(0xFF6366F1).withValues(alpha: 0.2),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ]
+                          : null,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Top info: Speaker + Timestamp
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            if (block.speaker.isNotEmpty)
+                              Row(
+                                children: [
+                                  const Text("🗣️ ", style: TextStyle(fontSize: 12)),
+                                  Text(
+                                    block.speaker,
+                                    style: GoogleFonts.kantumruyPro(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.bold,
+                                      color: isActive ? const Color(0xFF818CF8) : Colors.white70,
+                                    ),
+                                  ),
+                                ],
+                              )
+                            else
+                              Text(
+                                "ចំណុចពិភាក្សា",
+                                style: GoogleFonts.kantumruyPro(fontSize: 11.5, color: Colors.white54),
+                              ),
+                            Row(
+                              children: [
+                                if (isActive)
+                                  Container(
+                                    margin: const EdgeInsets.only(right: 6),
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF6366F1),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        const Icon(Icons.graphic_eq_rounded, size: 12, color: Colors.white),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          "កំពុងនិយាយ",
+                                          style: GoogleFonts.kantumruyPro(fontSize: 9.5, fontWeight: FontWeight.bold, color: Colors.white),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: isActive ? const Color(0xFF6366F1).withValues(alpha: 0.2) : Colors.black26,
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    "⏱️ ${_formatSeconds(block.startTime)}",
+                                    style: GoogleFonts.inter(
+                                      fontSize: 10.5,
+                                      fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
+                                      color: isActive ? const Color(0xFF818CF8) : Colors.white54,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        // Dialogue text
+                        Text.rich(
+                          TextSpan(
+                            children: _parseInlineSpans(
+                              block.text.isNotEmpty ? block.text : block.raw,
+                              defaultColor: isActive ? Colors.white : Colors.white70,
+                              fontSize: 13.5,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
 }
+
+class _TranscriptBlock {
+  final int id;
+  int startTime;
+  int endTime;
+  final String speaker;
+  final String text;
+  final String raw;
+
+  _TranscriptBlock({
+    required this.id,
+    required this.startTime,
+    required this.endTime,
+    required this.speaker,
+    required this.text,
+    required this.raw,
+  });
+}
+
