@@ -693,19 +693,44 @@ class _MeetingsScreenState extends State<MeetingsScreen>
         photoPaths: _selectedPhotos.map((v) => v.path).toList(),
       );
 
-      if (res['status'] == 'success') {
+      if (res['status'] == 'success' || res['success'] == true) {
+        final bool hadAudio = (_recordedPath != null && _recordedPath!.isNotEmpty) ||
+            (_selectedAudioBytes != null && _selectedAudioBytes!.isNotEmpty) ||
+            (res['has_audio'] == true);
+        final int newMeetingId = int.tryParse(res['meeting_id']?.toString() ?? res['id']?.toString() ?? '0') ?? 0;
+
         if (draftIdToRemove != null) {
           await MeetingAudioDraftService.deleteDraftById(draftIdToRemove);
           await _loadAudioDrafts();
         }
         if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('បង្ហោះជោគជ័យ')));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                hadAudio
+                    ? 'បង្ហោះជោគជ័យ! AI កំពុងសង្ខេបស្វ័យប្រវត្តិក្នង Background...'
+                    : 'បង្ហោះជោគជ័យ',
+              ),
+              backgroundColor: hadAudio ? Colors.teal.shade700 : null,
+            ),
+          );
         }
         _resetForm();
         _tabController.animateTo(1);
         _loadMeetings();
+
+        // ដំណើរការ AI សង្ខេបស្វ័យប្រវត្តិតែលើកិច្ចប្រជុំថ្មីដែលមានសំឡេងប៉ុណ្ណោះ (Background Task)
+        if (newMeetingId > 0 && hadAudio) {
+          unawaited(
+            _api.summarizeMeeting(newMeetingId).then((_) {
+              if (mounted) {
+                _loadMeetingsSilently();
+              }
+            }).catchError((e) {
+              debugPrint('Auto summarize error: $e');
+            }),
+          );
+        }
       } else {
         if (mounted) {
           ScaffoldMessenger.of(

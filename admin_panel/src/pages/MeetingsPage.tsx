@@ -15,16 +15,19 @@ import {
   ExternalLink,
   Volume2,
   Image as ImageIcon,
+  Table as TableIcon,
   Layers,
   LayoutGrid,
-  Table as TableIcon,
   X,
   Upload,
   Clock,
   Building2,
   ChevronRight,
   Eye,
-  Edit3
+  Edit3,
+  Copy,
+  RefreshCw,
+  Bot
 } from 'lucide-react';
 import { Modal } from '../components/common/Modal';
 import { ViewModeToggle, ViewMode } from '../components/common/ViewModeToggle';
@@ -42,6 +45,21 @@ const DEFAULT_DEPARTMENTS = [
   'General'
 ];
 
+const getFullMediaUrl = (url?: string | null): string => {
+  if (!url) return '';
+  const trimmed = url.trim();
+  if (!trimmed) return '';
+  if (
+    trimmed.startsWith('http://') ||
+    trimmed.startsWith('https://') ||
+    trimmed.startsWith('blob:') ||
+    trimmed.startsWith('data:')
+  ) {
+    return trimmed;
+  }
+  return `https://app.vvc.asia/flutter/${trimmed.replace(/^\/+/, '')}`;
+};
+
 export const MeetingsPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'list' | 'create'>('list');
   const [meetings, setMeetings] = useState<MeetingItem[]>([]);
@@ -58,6 +76,15 @@ export const MeetingsPage: React.FC = () => {
   // Audio Playback State in Cards
   const [currentlyPlayingAudio, setCurrentlyPlayingAudio] = useState<string | null>(null);
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
+
+  // AI Summary Modal State
+  const [aiModalMeeting, setAiModalMeeting] = useState<MeetingItem | null>(null);
+  const [aiModalSummary, setAiModalSummary] = useState<string | null>(null);
+  const [aiModalTranscript, setAiModalTranscript] = useState<string | null>(null);
+  const [aiModalLoading, setAiModalLoading] = useState(false);
+  const [aiModalError, setAiModalError] = useState<string | null>(null);
+  const [aiModalTab, setAiModalTab] = useState<'summary' | 'transcript'>('summary');
+  const [copiedText, setCopiedText] = useState(false);
 
   // Create Form State
   const [createForm, setCreateForm] = useState({
@@ -117,7 +144,54 @@ export const MeetingsPage: React.FC = () => {
     loadMeetings();
   }, []);
 
-  const handleToggleAudio = (audioUrl: string) => {
+  const handleOpenAiModal = async (m: MeetingItem, force = false) => {
+    setAiModalMeeting(m);
+    setAiModalTab('summary');
+    setAiModalError(null);
+    setCopiedText(false);
+
+    const existingSummary = m.summary?.trim() || '';
+    const existingTranscript = (m.transcript_text || (m as any).transcript)?.trim() || '';
+
+    if (!force && existingSummary) {
+      setAiModalSummary(existingSummary);
+      setAiModalTranscript(existingTranscript || null);
+      setAiModalLoading(false);
+      return;
+    }
+
+    setAiModalLoading(true);
+    try {
+      const res = await adminApi.summarizeMeeting(m.id, force);
+      if (res && (res.success || res.status === 'success')) {
+        const summaryText = res.summary || '';
+        const transcriptText = res.transcript || res.transcript_text || '';
+        setAiModalSummary(summaryText);
+        setAiModalTranscript(transcriptText);
+
+        // Update in meetings list state
+        setMeetings(prev => prev.map(item => item.id === m.id ? { ...item, summary: summaryText, transcript_text: transcriptText } : item));
+      } else {
+        setAiModalError(res?.message || 'មិនអាចទាញយកសេចក្តីសង្ខេប AI បានទេ។');
+      }
+    } catch (err: any) {
+      setAiModalError(err?.message || 'កំហុសក្នុងការតភ្ជាប់ AI Service');
+    } finally {
+      setAiModalLoading(false);
+    }
+  };
+
+  const handleCopyAiContent = () => {
+    const text = aiModalTab === 'summary' ? (aiModalSummary || '') : (aiModalTranscript || '');
+    if (text) {
+      navigator.clipboard.writeText(text);
+      setCopiedText(true);
+      setTimeout(() => setCopiedText(false), 2000);
+    }
+  };
+
+  const handleToggleAudio = (rawAudioUrl: string) => {
+    const audioUrl = getFullMediaUrl(rawAudioUrl);
     if (!audioUrl) return;
     if (currentlyPlayingAudio === audioUrl) {
       if (audioPlayerRef.current) {
@@ -128,7 +202,11 @@ export const MeetingsPage: React.FC = () => {
       setCurrentlyPlayingAudio(audioUrl);
       if (audioPlayerRef.current) {
         audioPlayerRef.current.src = audioUrl;
-        audioPlayerRef.current.play().catch(e => console.log('Audio autoplay prevented', e));
+        audioPlayerRef.current.load();
+        const playPromise = audioPlayerRef.current.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(e => console.log('Audio autoplay prevented or source not reachable', e));
+        }
       }
     }
   };
@@ -538,9 +616,11 @@ export const MeetingsPage: React.FC = () => {
                 </div>
               ) : (
                 filteredMeetings.map((m) => {
-                  const cover = m.photo_url || (Array.isArray(m.photos) && m.photos[0]) || (Array.isArray(m.related_photos) && m.related_photos[0]) || null;
+                  const coverRaw = m.photo_url || (Array.isArray(m.photos) && m.photos[0]) || (Array.isArray(m.related_photos) && m.related_photos[0]) || null;
+                  const cover = coverRaw ? getFullMediaUrl(coverRaw) : null;
                   const photosCount = (Array.isArray(m.photos) ? m.photos.length : 0) || (Array.isArray(m.related_photos) ? m.related_photos.length : 0) || (cover ? 1 : 0);
-                  const audio = m.audio_url || m.mp3_url || m.audio_file_path || null;
+                  const rawAudio = m.audio_url || m.mp3_url || m.audio_file_path || (m as any).audio_path || null;
+                  const audio = rawAudio ? getFullMediaUrl(rawAudio) : null;
                   const isAudioPlaying = audio && currentlyPlayingAudio === audio;
 
                   return (
@@ -738,18 +818,44 @@ export const MeetingsPage: React.FC = () => {
                             justifyContent: 'space-between',
                             paddingTop: '14px',
                             borderTop: '1px solid #f1f5f9',
-                            marginTop: 'auto'
+                            marginTop: 'auto',
+                            gap: '6px',
+                            flexWrap: 'wrap'
                           }}
                         >
-                          <button
-                            type="button"
-                            onClick={() => setViewModalMeeting(m)}
-                            className="btn btn-secondary btn-sm"
-                            style={{ borderRadius: '8px' }}
-                          >
-                            <Eye size={14} />
-                            <span>មើលលម្អិត</span>
-                          </button>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenAiModal(m)}
+                              style={{
+                                borderRadius: '8px',
+                                padding: '6px 12px',
+                                fontSize: '12px',
+                                fontWeight: 700,
+                                border: 'none',
+                                cursor: 'pointer',
+                                background: (m.summary && m.summary.trim()) ? '#0d9488' : '#d97706',
+                                color: '#fff',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                                transition: 'all 0.2s ease'
+                              }}
+                            >
+                              <Sparkles size={13} />
+                              <span>{(m.summary && m.summary.trim()) ? 'មើលសង្ខេប AI' : 'AI សង្ខេប'}</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setViewModalMeeting(m)}
+                              className="btn btn-secondary btn-sm"
+                              style={{ borderRadius: '8px' }}
+                            >
+                              <Eye size={14} />
+                              <span>មើលលម្អិត</span>
+                            </button>
+                          </div>
 
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                             <button
@@ -810,8 +916,10 @@ export const MeetingsPage: React.FC = () => {
                       </tr>
                     ) : (
                       filteredMeetings.map((m) => {
-                        const cover = m.photo_url || (Array.isArray(m.photos) && m.photos[0]) || null;
-                        const audio = m.audio_url || m.mp3_url || m.audio_file_path || null;
+                        const coverRaw = m.photo_url || (Array.isArray(m.photos) && m.photos[0]) || (Array.isArray(m.related_photos) && m.related_photos[0]) || null;
+                        const cover = coverRaw ? getFullMediaUrl(coverRaw) : null;
+                        const rawAudio = m.audio_url || m.mp3_url || m.audio_file_path || (m as any).audio_path || null;
+                        const audio = rawAudio ? getFullMediaUrl(rawAudio) : null;
                         const isAudioPlaying = audio && currentlyPlayingAudio === audio;
 
                         return (
@@ -890,6 +998,26 @@ export const MeetingsPage: React.FC = () => {
                             </td>
                             <td style={{ textAlign: 'right' }}>
                               <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenAiModal(m)}
+                                  style={{
+                                    border: 'none',
+                                    borderRadius: '6px',
+                                    padding: '4px 8px',
+                                    fontSize: '11px',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    background: (m.summary && m.summary.trim()) ? '#ccfbf1' : '#fef3c7',
+                                    color: (m.summary && m.summary.trim()) ? '#0f766e' : '#b45309',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px'
+                                  }}
+                                >
+                                  <Sparkles size={12} />
+                                  <span>{(m.summary && m.summary.trim()) ? 'មើលសង្ខេប AI' : 'AI សង្ខេប'}</span>
+                                </button>
                                 <button
                                   type="button"
                                   onClick={() => setViewModalMeeting(m)}
@@ -1271,31 +1399,39 @@ export const MeetingsPage: React.FC = () => {
             )}
 
             {/* Audio Recording Player */}
-            {(viewModalMeeting.audio_url || viewModalMeeting.mp3_url || viewModalMeeting.audio_file_path) && (
-              <div style={{ background: '#eef2ff', padding: '16px', borderRadius: '14px', border: '1px solid #c7d2fe' }}>
-                <div style={{ fontSize: '13px', fontWeight: 700, color: '#3730a3', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Volume2 size={16} />
-                  <span>សំឡេងកិច្ចប្រជុំ (Meeting Audio Recording)</span>
+            {(() => {
+              const viewAudioRaw = viewModalMeeting.audio_url || viewModalMeeting.mp3_url || viewModalMeeting.audio_file_path || (viewModalMeeting as any).audio_path;
+              const viewAudio = viewAudioRaw ? getFullMediaUrl(viewAudioRaw) : null;
+              if (!viewAudio) return null;
+              return (
+                <div style={{ background: '#eef2ff', padding: '16px', borderRadius: '14px', border: '1px solid #c7d2fe' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#3730a3', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Volume2 size={16} />
+                    <span>សំឡេងកិច្ចប្រជុំ (Meeting Audio Recording)</span>
+                  </div>
+                  <audio
+                    controls
+                    style={{ width: '100%' }}
+                    src={viewAudio}
+                  >
+                    Your browser does not support audio.
+                  </audio>
                 </div>
-                <audio
-                  controls
-                  style={{ width: '100%' }}
-                  src={viewModalMeeting.audio_url || viewModalMeeting.mp3_url || viewModalMeeting.audio_file_path}
-                >
-                  Your browser does not support audio.
-                </audio>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Photo Gallery */}
             {(() => {
               const photos: string[] = [];
-              if (viewModalMeeting.photo_url && !photos.includes(viewModalMeeting.photo_url)) {
-                photos.push(viewModalMeeting.photo_url);
+              if (viewModalMeeting.photo_url) {
+                photos.push(getFullMediaUrl(viewModalMeeting.photo_url));
               }
               const related = Array.isArray(viewModalMeeting.photos) ? viewModalMeeting.photos : (Array.isArray(viewModalMeeting.related_photos) ? viewModalMeeting.related_photos : []);
               related.forEach(p => {
-                if (p && !photos.includes(p)) photos.push(p);
+                if (p) {
+                  const full = getFullMediaUrl(p);
+                  if (!photos.includes(full)) photos.push(full);
+                }
               });
 
               if (photos.length === 0) return null;
@@ -1329,26 +1465,53 @@ export const MeetingsPage: React.FC = () => {
             })()}
 
             {/* Footer Modal Actions */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', borderTop: '1px solid #f1f5f9', paddingTop: '16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', borderTop: '1px solid #f1f5f9', paddingTop: '16px', flexWrap: 'wrap' }}>
               <button
                 type="button"
                 onClick={() => {
                   const m = viewModalMeeting;
                   setViewModalMeeting(null);
-                  handleOpenEdit(m);
+                  handleOpenAiModal(m);
                 }}
-                className="btn btn-primary"
+                style={{
+                  background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '10px',
+                  padding: '8px 14px',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  cursor: 'pointer'
+                }}
               >
-                <Edit3 size={15} />
-                <span>កែប្រែកិច្ចប្រជុំ</span>
+                <Sparkles size={15} />
+                <span>AI កំណត់ហេតុ & សង្ខេប</span>
               </button>
-              <button
-                type="button"
-                onClick={() => setViewModalMeeting(null)}
-                className="btn btn-secondary"
-              >
-                បិទ
-              </button>
+
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const m = viewModalMeeting;
+                    setViewModalMeeting(null);
+                    handleOpenEdit(m);
+                  }}
+                  className="btn btn-primary"
+                >
+                  <Edit3 size={15} />
+                  <span>កែប្រែកិច្ចប្រជុំ</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewModalMeeting(null)}
+                  className="btn btn-secondary"
+                >
+                  បិទ
+                </button>
+              </div>
             </div>
           </div>
         </Modal>
@@ -1563,6 +1726,157 @@ export const MeetingsPage: React.FC = () => {
             }}
           />
         </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* AI MEETING MINUTES & SUMMARY MODAL                                        */}
+      {/* ========================================================================= */}
+      {aiModalMeeting && (
+        <Modal
+          isOpen={!!aiModalMeeting}
+          onClose={() => setAiModalMeeting(null)}
+          title="AI កំណត់ហេតុ & សង្ខេបកិច្ចប្រជុំ (AI Minutes)"
+          maxWidth="750px"
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {/* Header with Meeting Topic */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', background: 'rgba(245, 158, 11, 0.08)', borderRadius: '12px', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
+              <div style={{ padding: '8px', background: '#f59e0b', borderRadius: '10px', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Sparkles size={20} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {aiModalMeeting.topic || aiModalMeeting.title}
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', display: 'flex', gap: '8px', marginTop: '2px' }}>
+                  <span>{aiModalMeeting.department || aiModalMeeting.category || 'General'}</span>
+                  <span>•</span>
+                  <span>{aiModalMeeting.meeting_date || aiModalMeeting.date || '—'}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Tab Switcher */}
+            <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
+              <button
+                type="button"
+                onClick={() => setAiModalTab('summary')}
+                style={{
+                  flex: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  padding: '10px',
+                  borderRadius: '10px',
+                  border: 'none',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  background: aiModalTab === 'summary' ? 'var(--primary)' : 'var(--bg-secondary)',
+                  color: aiModalTab === 'summary' ? '#fff' : 'var(--text-secondary)',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <FileText size={16} />
+                <span>សេចក្តីសង្ខេប (Summary)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setAiModalTab('transcript')}
+                style={{
+                  flex: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  padding: '10px',
+                  borderRadius: '10px',
+                  border: 'none',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  background: aiModalTab === 'transcript' ? 'var(--primary)' : 'var(--bg-secondary)',
+                  color: aiModalTab === 'transcript' ? '#fff' : 'var(--text-secondary)',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <Volume2 size={16} />
+                <span>អត្ថបទសន្ទនា (Transcript)</span>
+              </button>
+            </div>
+
+            {/* Content Body */}
+            <div style={{ minHeight: '260px', maxHeight: '420px', overflowY: 'auto', padding: '16px', borderRadius: '12px', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)' }}>
+              {aiModalLoading ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '220px', gap: '14px', textAlign: 'center' }}>
+                  <RotateCw size={32} className="fa-spin" style={{ color: '#f59e0b' }} />
+                  <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                    AI កំពុងវិភាគ និងសង្ខេបកិច្ចប្រជុំ...
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                    ដំណើរការដោយ Google Gemini & Whisper AI
+                  </div>
+                </div>
+              ) : aiModalError ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '220px', gap: '12px', textAlign: 'center', color: '#ef4444' }}>
+                  <div style={{ fontSize: '14px', fontWeight: 700 }}>{aiModalError}</div>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenAiModal(aiModalMeeting, true)}
+                    className="btn btn-primary btn-sm"
+                    style={{ marginTop: '8px' }}
+                  >
+                    <RefreshCw size={14} /> ព្យាយាមម្តងទៀត
+                  </button>
+                </div>
+              ) : (
+                <div style={{ fontSize: '13.5px', lineHeight: 1.8, color: 'var(--text-primary)', whiteSpace: 'pre-wrap', userSelect: 'text' }}>
+                  {aiModalTab === 'summary'
+                    ? (aiModalSummary || 'មិនទាន់មានសេចក្តីសង្ខេបនៅឡើយទេ។')
+                    : (aiModalTranscript || 'មិនទាន់មានអត្ថបទសន្ទនានៅឡើយទេ។')}
+                </div>
+              )}
+            </div>
+
+            {/* Footer Actions */}
+            {!aiModalLoading && !aiModalError && (aiModalSummary || aiModalTranscript) && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-color)', paddingTop: '14px', flexWrap: 'wrap', gap: '10px' }}>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={handleCopyAiContent}
+                    className="btn btn-secondary btn-sm"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                  >
+                    {copiedText ? <Check size={14} style={{ color: '#10b981' }} /> : <Copy size={14} />}
+                    <span>{copiedText ? 'បានចម្លងរួចរាល់!' : 'ចម្លងអត្ថបទ'}</span>
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenAiModal(aiModalMeeting, true)}
+                    className="btn btn-secondary btn-sm"
+                    title="បង្កើតសេចក្តីសង្ខេបសារជាថ្មី"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: '#d97706' }}
+                  >
+                    <RefreshCw size={14} />
+                    <span>បង្កើតសារជាថ្មី</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAiModalMeeting(null)}
+                    className="btn btn-primary btn-sm"
+                  >
+                    រួចរាល់
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </Modal>
       )}
     </div>
   );

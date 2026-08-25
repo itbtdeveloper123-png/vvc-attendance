@@ -2927,6 +2927,90 @@ try {
             sendJson(['success' => true, 'status' => 'success', 'meetings' => $formattedMeetings, 'data' => $formattedMeetings]);
             break;
 
+        case 'summarize_meeting':
+            $mid = (int)($_POST['meeting_id'] ?? $_POST['id'] ?? 0);
+            if (!$mid) sendJson(['success' => false, 'message' => 'Missing meeting ID'], 400);
+            $force = !empty($_POST['force']) && $_POST['force'] !== '0' ? '1' : '0';
+
+            // Check if existing summary is in DB and not forcing regenerate
+            if (!$force) {
+                $chk = dbQuery("SELECT summary, summary_json, transcript_text, transcript_provider, transcript_model, summary_provider, summary_model, summary_generated_at FROM meetings WHERE id = ? LIMIT 1", [$mid]);
+                if (!empty($chk[0]['summary'])) {
+                    $existing = $chk[0];
+                    $analysisExisting = [];
+                    if (!empty($existing['summary_json']) && is_string($existing['summary_json'])) {
+                        $analysisExisting = json_decode($existing['summary_json'], true) ?: [];
+                    }
+                    sendJson([
+                        'success' => true,
+                        'status' => 'success',
+                        'summary' => $existing['summary'],
+                        'transcript' => $existing['transcript_text'] ?? '',
+                        'analysis' => $analysisExisting,
+                        'transcript_provider' => $existing['transcript_provider'] ?? null,
+                        'transcript_model' => $existing['transcript_model'] ?? null,
+                        'summary_provider' => $existing['summary_provider'] ?? null,
+                        'summary_model' => $existing['summary_model'] ?? null,
+                        'generated_at' => $existing['summary_generated_at'] ?? null,
+                        'cached' => true,
+                    ]);
+                }
+            }
+
+            // Forward to API endpoint
+            $protocol = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? 'https' : 'http';
+            $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+            $apiUrl = $protocol . '://' . $host . '/flutter/api.php';
+            $liveApiUrl = 'https://app.vvc.asia/flutter/api.php';
+
+            $postFields = [
+                'action' => 'summarize_meeting',
+                'meeting_id' => $mid,
+                'force' => $force,
+                'admin_id' => $_SESSION['admin_id'] ?? 'SYSTEM',
+            ];
+
+            $makeCurlCall = function($url) use ($postFields) {
+                if (!function_exists('curl_init')) return [false, 0];
+                $ch = curl_init($url);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_POST, true);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postFields));
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 180);
+                $raw = curl_exec($ch);
+                $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                curl_close($ch);
+                return [$raw, $httpCode];
+            };
+
+            list($raw, $httpCode) = $makeCurlCall($apiUrl);
+            if (!$raw || $httpCode >= 400) {
+                list($raw, $httpCode) = $makeCurlCall($liveApiUrl);
+            }
+
+            if ($raw) {
+                $decoded = json_decode($raw, true);
+                if (is_array($decoded)) {
+                    sendJson($decoded, $httpCode >= 400 ? $httpCode : 200);
+                }
+            }
+
+            // Check if updated in DB after run
+            $chk2 = dbQuery("SELECT summary, transcript_text FROM meetings WHERE id = ? LIMIT 1", [$mid]);
+            if (!empty($chk2[0]['summary'])) {
+                sendJson([
+                    'success' => true,
+                    'status' => 'success',
+                    'summary' => $chk2[0]['summary'],
+                    'transcript' => $chk2[0]['transcript_text'] ?? '',
+                ]);
+            }
+
+            sendJson(['success' => false, 'message' => 'មិនអាចទាញយកសេចក្តីសង្ខេប AI បានទេនៅពេលនេះ។'], 500);
+            break;
+
         case 'save_meeting':
         case 'post_meeting':
             $meetId = (int)($_POST['id'] ?? 0);

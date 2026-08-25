@@ -178,6 +178,10 @@ export interface MeetingItem {
   photo_url?: string;
   photos?: string[];
   related_photos?: string[];
+  transcript_text?: string;
+  transcript?: string;
+  summary_json?: string;
+  summary_generated_at?: string;
   created_at?: string;
 }
 
@@ -922,6 +926,15 @@ export const adminApi = {
     const params = new URLSearchParams();
     params.append('action', 'delete_meeting');
     params.append('id', String(id));
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  summarizeMeeting: async (meetingId: number | string, force: boolean = false) => {
+    const params = new URLSearchParams();
+    params.append('action', 'summarize_meeting');
+    params.append('meeting_id', String(meetingId));
+    if (force) params.append('force', '1');
     const res = await apiClient.post('', params);
     return res.data;
   },

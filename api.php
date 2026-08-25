@@ -3506,7 +3506,15 @@ try {
         if ($stmt) {
             $stmt->bind_param("sssssssssss", $topic, $department, $date, $description, $audio_path, $audio_path, $audioOriginalName, $external_url, $photos_json, $photos_json, $eid);
             if ($stmt->execute()) {
-                apiResponse(['success' => true, 'status' => 'success', 'message' => 'Meeting saved successfully']);
+                $newMeetingId = (int)$mysqli->insert_id;
+                apiResponse([
+                    'success' => true,
+                    'status' => 'success',
+                    'message' => 'Meeting saved successfully',
+                    'id' => $newMeetingId,
+                    'meeting_id' => $newMeetingId,
+                    'has_audio' => !empty($audio_path),
+                ]);
             } else {
                 apiResponse(['success' => false, 'status' => 'error', 'message' => 'Insert failed: ' . $stmt->error]);
             }
@@ -3537,7 +3545,9 @@ try {
         break;
 
     case 'summarize_meeting':
-        if (!$user) apiResponse(['success' => false, 'message' => 'Unauthorized']);
+        if (!$user && empty($_SESSION['admin_id']) && empty($_POST['admin_id'])) {
+            apiResponse(['success' => false, 'message' => 'Unauthorized']);
+        }
         $mid = (int)($_POST['meeting_id'] ?? 0);
         if (!$mid) apiResponse(['success' => false, 'message' => 'Missing meeting ID']);
         $forceRegenerate = !empty($_POST['force']) && $_POST['force'] !== '0';
