@@ -338,7 +338,11 @@ define('OPENAI_API_KEY', getenv('OPENAI_API_KEY') ?: '');
 define('GROQ_API_KEY', getenv('GROQ_API_KEY') ?: '');
 define('GEMINI_API_KEY', getenv('GEMINI_API_KEY') ?: 'AIzaSyCapkUfrmUZT5NrRpUlqa0dhfVusSuG3_k');
 define('GITHUB_TOKEN', getenv('GITHUB_TOKEN') ?: '');
-define('MEETING_AI_WORKER_URL', getenv('MEETING_AI_WORKER_URL') ?: '');
+$rawWorkerUrl = trim((string)(getenv('MEETING_AI_WORKER_URL') ?: ''));
+if (strpos($rawWorkerUrl, 'airports-event-savings-florist') !== false || strpos($rawWorkerUrl, 'trycloudflare.com') !== false) {
+    $rawWorkerUrl = '';
+}
+define('MEETING_AI_WORKER_URL', $rawWorkerUrl);
 define('MEETING_AI_WORKER_TOKEN', getenv('MEETING_AI_WORKER_TOKEN') ?: '');
 define('MEETING_AI_WORKER_TIMEOUT', (int)(getenv('MEETING_AI_WORKER_TIMEOUT') ?: 600));
 define('MEETING_AI_LOCAL_ONLY', getenv('MEETING_AI_LOCAL_ONLY') ?: '0');

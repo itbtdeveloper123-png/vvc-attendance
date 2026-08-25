@@ -3713,9 +3713,6 @@ try {
 
                     if (!$transcription['success']) {
                         $message = $transcription['message'] ?? 'Transcription failed.';
-                        if ($workerError !== '') {
-                            $message = 'AI Worker failed: ' . $workerError . ' Fallback provider failed: ' . $message;
-                        }
                         apiResponse([
                             'success' => false,
                             'message' => $message,
@@ -3733,22 +3730,15 @@ try {
             }
 
             if ($transcriptText === '') {
-                $message = 'No transcript text could be created from this meeting.';
-                if ($workerError !== '') {
-                    $message = 'AI Worker failed: ' . $workerError . ' Fallback provider failed: ' . $message;
-                }
                 apiResponse([
                     'success' => false,
-                    'message' => $message,
+                    'message' => 'មិនមានសំឡេង ឬអត្ថបទសន្ទនាសម្រាប់ធ្វើការសង្ខេបឡើយ។',
                 ]);
             }
 
             $summaryPayload = meeting_ai_generate_summary_payload($meeting, $transcriptText);
             if (!$summaryPayload['success']) {
                 $message = $summaryPayload['message'] ?? 'Summary generation failed.';
-                if ($workerError !== '') {
-                    $message = 'AI Worker failed: ' . $workerError . ' Fallback provider failed: ' . $message;
-                }
                 apiResponse([
                     'success' => false,
                     'message' => $message,
