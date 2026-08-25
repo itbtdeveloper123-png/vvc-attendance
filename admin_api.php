@@ -2985,8 +2985,9 @@ try {
                 $transcriptText = trim((string)($meeting['description'] ?? ''));
             }
 
-            // 2. Direct Gemini AI Summarization
+            // 2. Multi-Provider AI Summarization (Native Gemini -> OpenAI -> Groq)
             $geminiKey = trim((string)(defined('GEMINI_API_KEY') ? GEMINI_API_KEY : ''));
+            $openAiKey = trim((string)(defined('OPENAI_API_KEY') ? OPENAI_API_KEY : ''));
             $topic = trim((string)($meeting['topic'] ?? $meeting['title'] ?? 'កិច្ចប្រជុំ'));
             $dept = trim((string)($meeting['department'] ?? $meeting['category'] ?? 'General'));
             $date = trim((string)($meeting['meeting_date'] ?? $meeting['date'] ?? date('Y-m-d')));
@@ -3007,43 +3008,123 @@ try {
                 . "សូមឆ្លើយតបជាភាសាខ្មែរដោយផ្ទាល់។";
 
             $summaryText = '';
+            $usedProvider = 'gemini';
+            $usedModel = 'gemini-2.0-flash';
+            $lastError = '';
+
+            // Attempt 1: Gemini Native API (gemini-2.0-flash / gemini-1.5-flash)
             if ($geminiKey !== '') {
-                $endpoint = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
-                $ch = curl_init($endpoint);
+                $geminiModels = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.5-flash'];
+                foreach ($geminiModels as $gModel) {
+                    $url = "https://generativelanguage.googleapis.com/v1beta/models/{$gModel}:generateContent?key=" . urlencode($geminiKey);
+                    $ch = curl_init($url);
+                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                    curl_setopt($ch, CURLOPT_POST, true);
+                    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json; charset=utf-8']);
+                    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
+                        'contents' => [
+                            ['parts' => [['text' => $prompt]]]
+                        ],
+                        'generationConfig' => [
+                            'temperature' => 0.3,
+                            'maxOutputTokens' => 4096
+                        ]
+                    ], JSON_UNESCAPED_UNICODE));
+                    curl_setopt($ch, CURLOPT_TIMEOUT, 60);
+                    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+                    $rawRes = curl_exec($ch);
+                    $err = curl_error($ch);
+                    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                    curl_close($ch);
+
+                    if ($rawRes && $httpCode === 200) {
+                        $dec = json_decode($rawRes, true);
+                        if (!empty($dec['candidates'][0]['content']['parts'][0]['text'])) {
+                            $summaryText = trim($dec['candidates'][0]['content']['parts'][0]['text']);
+                            $usedProvider = 'gemini';
+                            $usedModel = $gModel;
+                            break;
+                        }
+                    } else {
+                        $lastError = "Gemini ($gModel HTTP $httpCode): " . ($err ?: $rawRes);
+                    }
+                }
+            }
+
+            // Attempt 2: Groq Llama 3.3
+            if ($summaryText === '' && $groqKey !== '') {
+                $ch = curl_init('https://api.groq.com/openai/v1/chat/completions');
                 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                 curl_setopt($ch, CURLOPT_POST, true);
                 curl_setopt($ch, CURLOPT_HTTPHEADER, [
                     'Content-Type: application/json; charset=utf-8',
-                    'Authorization: Bearer ' . $geminiKey
+                    'Authorization: Bearer ' . $groqKey
                 ]);
                 curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
-                    'model' => 'gemini-2.5-flash',
+                    'model' => 'llama-3.3-70b-versatile',
                     'messages' => [
                         ['role' => 'system', 'content' => 'You are an executive Khmer AI meeting minutes assistant.'],
                         ['role' => 'user', 'content' => $prompt]
                     ],
                     'temperature' => 0.3
                 ], JSON_UNESCAPED_UNICODE));
-                curl_setopt($ch, CURLOPT_TIMEOUT, 90);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 60);
                 curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-                curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
                 $rawRes = curl_exec($ch);
                 curl_close($ch);
 
-                $decRes = json_decode((string)$rawRes, true);
-                if (!empty($decRes['choices'][0]['message']['content'])) {
-                    $summaryText = trim($decRes['choices'][0]['message']['content']);
+                $dec = json_decode((string)$rawRes, true);
+                if (!empty($dec['choices'][0]['message']['content'])) {
+                    $summaryText = trim($dec['choices'][0]['message']['content']);
+                    $usedProvider = 'groq';
+                    $usedModel = 'llama-3.3-70b-versatile';
+                }
+            }
+
+            // Attempt 3: OpenAI GPT-4o-mini
+            if ($summaryText === '' && $openAiKey !== '') {
+                $ch = curl_init('https://api.openai.com/v1/chat/completions');
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_POST, true);
+                curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                    'Content-Type: application/json; charset=utf-8',
+                    'Authorization: Bearer ' . $openAiKey
+                ]);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
+                    'model' => 'gpt-4o-mini',
+                    'messages' => [
+                        ['role' => 'system', 'content' => 'You are an executive Khmer AI meeting minutes assistant.'],
+                        ['role' => 'user', 'content' => $prompt]
+                    ],
+                    'temperature' => 0.3
+                ], JSON_UNESCAPED_UNICODE));
+                curl_setopt($ch, CURLOPT_TIMEOUT, 60);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                $rawRes = curl_exec($ch);
+                curl_close($ch);
+
+                $dec = json_decode((string)$rawRes, true);
+                if (!empty($dec['choices'][0]['message']['content'])) {
+                    $summaryText = trim($dec['choices'][0]['message']['content']);
+                    $usedProvider = 'openai';
+                    $usedModel = 'gpt-4o-mini';
                 }
             }
 
             if ($summaryText === '') {
-                sendJson(['success' => false, 'message' => 'មិនអាចទាញយកសេចក្តីសង្ខេប AI បានទេ សូមពិនិត្យមើល GEMINI_API_KEY។'], 500);
+                sendJson([
+                    'success' => false,
+                    'message' => 'មិនអាចទាញយកសេចក្តីសង្ខេប AI បានទេ៖ ' . ($lastError ?: 'សូមពិនិត្យមើល GEMINI_API_KEY។')
+                ]);
             }
 
             // 3. Save to database
-            dbQuery("UPDATE meetings SET summary = ?, transcript_text = ?, summary_generated_at = NOW(), summary_provider = 'gemini', summary_model = 'gemini-2.5-flash' WHERE id = ?", [
+            dbQuery("UPDATE meetings SET summary = ?, transcript_text = ?, summary_generated_at = NOW(), summary_provider = ?, summary_model = ? WHERE id = ?", [
                 $summaryText,
                 $transcriptText,
+                $usedProvider,
+                $usedModel,
                 $mid
             ]);
 
@@ -3052,6 +3133,8 @@ try {
                 'status' => 'success',
                 'summary' => $summaryText,
                 'transcript' => $transcriptText,
+                'provider' => $usedProvider,
+                'model' => $usedModel,
                 'cached' => false,
             ]);
             break;

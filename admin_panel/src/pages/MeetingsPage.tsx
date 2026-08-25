@@ -175,7 +175,8 @@ export const MeetingsPage: React.FC = () => {
         setAiModalError(res?.message || 'មិនអាចទាញយកសេចក្តីសង្ខេប AI បានទេ។');
       }
     } catch (err: any) {
-      setAiModalError(err?.message || 'កំហុសក្នុងការតភ្ជាប់ AI Service');
+      const serverMsg = err?.response?.data?.message || err?.message || 'កំហុសក្នុងការតភ្ជាប់ AI Service';
+      setAiModalError(serverMsg);
     } finally {
       setAiModalLoading(false);
     }
