@@ -2797,7 +2797,7 @@ try {
                             } else {
                                 $trimmed = trim($raw);
                                 if ($trimmed !== '' && !in_array($trimmed, $photos)) $photos[] = $trimmed;
-                            }
+}
                         } elseif (is_array($raw)) {
                             foreach ($raw as $p) {
                                 $p = trim((string)$p);
@@ -2966,19 +2966,36 @@ try {
                 }
             }
 
+            $audioForWhisper = $localAudioFile;
+            $tempCompressedAudio = '';
+
+            // If audio file is large (> 20MB, e.g. 52min meeting), downsample to 32kbps mono to fit under Groq 25MB limit
+            if ($localAudioFile !== '' && file_exists($localAudioFile)) {
+                $rawSize = filesize($localAudioFile);
+                if ($rawSize > 20 * 1024 * 1024) {
+                    $ffmpegBin = defined('FFMPEG_BINARY') ? FFMPEG_BINARY : (file_exists('E:\24-ffmpeg\ffmpeg\bin\ffmpeg.exe') ? 'E:\24-ffmpeg\ffmpeg\bin\ffmpeg.exe' : 'ffmpeg');
+                    $tempCompressedAudio = tempnam(sys_get_temp_dir(), 'vvc_wcomp_') . '.mp3';
+                    $cmd = escapeshellcmd($ffmpegBin) . " -y -i " . escapeshellarg($localAudioFile) . " -vn -ar 16000 -ac 1 -b:a 32k " . escapeshellarg($tempCompressedAudio) . " 2>&1";
+                    @exec($cmd);
+                    if (file_exists($tempCompressedAudio) && filesize($tempCompressedAudio) > 1000) {
+                        $audioForWhisper = $tempCompressedAudio;
+                    }
+                }
+            }
+
             // 2. High-Accuracy Speech Transcription with Groq Whisper Engine (verbose_json timestamps)
-            if ($localAudioFile !== '' && $groqKey !== '' && file_exists($localAudioFile) && filesize($localAudioFile) < 25 * 1024 * 1024) {
+            if ($audioForWhisper !== '' && $groqKey !== '' && file_exists($audioForWhisper) && filesize($audioForWhisper) < 25 * 1024 * 1024) {
                 $ch = curl_init('https://api.groq.com/openai/v1/audio/transcriptions');
                 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                 curl_setopt($ch, CURLOPT_POST, true);
                 curl_setopt($ch, CURLOPT_HTTPHEADER, ['Authorization: Bearer ' . $groqKey]);
                 curl_setopt($ch, CURLOPT_POSTFIELDS, [
-                    'file' => new CURLFile($localAudioFile, $fileMime, basename($localAudioFile)),
+                    'file' => new CURLFile($audioForWhisper, 'audio/mp3', basename($audioForWhisper)),
                     'model' => 'whisper-large-v3',
                     'language' => 'km',
                     'response_format' => 'verbose_json',
                 ]);
-                curl_setopt($ch, CURLOPT_TIMEOUT, 90);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 120);
                 curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
                 $tRaw = curl_exec($ch);
                 curl_close($ch);
@@ -3001,131 +3018,8 @@ try {
                 }
             }
 
-            // Fallback: Multimodal Audio Analysis with Google Gemini File API (if Whisper didn't transcribe)
-            if ($transcriptText === '' && $localAudioFile !== '' && $geminiKey !== '' && file_exists($localAudioFile)) {
-                $fSize = filesize($localAudioFile);
-                if (preg_match('/\.wav$/i', $localAudioFile)) $fileMime = 'audio/wav';
-                elseif (preg_match('/\.m4a$/i', $localAudioFile)) $fileMime = 'audio/m4a';
-                elseif (preg_match('/\.ogg$/i', $localAudioFile)) $fileMime = 'audio/ogg';
-
-                $uploadUrl = "https://generativelanguage.googleapis.com/upload/v1beta/files?key=" . urlencode($geminiKey);
-                $ch = curl_init($uploadUrl);
-                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                curl_setopt($ch, CURLOPT_POST, true);
-                curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                    "X-Goog-Upload-Command: start, upload, finalize",
-                    "X-Goog-Upload-Header-Content-Length: " . $fSize,
-                    "X-Goog-Upload-Header-Content-Type: " . $fileMime,
-                    "Content-Type: " . $fileMime
-                ]);
-                $fileHandle = fopen($localAudioFile, 'rb');
-                curl_setopt($ch, CURLOPT_INFILE, $fileHandle);
-                curl_setopt($ch, CURLOPT_INFILESIZE, $fSize);
-                curl_setopt($ch, CURLOPT_TIMEOUT, 90);
-                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-                $upRes = curl_exec($ch);
-                curl_close($ch);
-                if (is_resource($fileHandle)) fclose($fileHandle);
-
-                $upDec = json_decode((string)$upRes, true);
-                $uploadedAudioUri = $upDec['file']['uri'] ?? '';
-
-                if ($uploadedAudioUri !== '') {
-                    $audioPrompt = "អ្នកជាជំនួយការ AI សម្រាប់កត់ត្រាកំណត់ហេតុកិច្ចប្រជុំ និងស្តាប់សំឡេងកិច្ចប្រជុំផ្ទាល់ជាភាសាខ្មែរ (Executive Minutes & Full Dialogue Transcript from Audio)។\n\n"
-                        . "សូមស្តាប់សំឡេងនេះ ហើយសរសេរអត្ថបទសន្ទនាការនិយាយជាក់ស្តែងទាំងអស់ពីសំឡេង (Full Dialogue Transcript) តាមលំដាប់លំដោយនៃអ្នកនិយាយ ដោយបំបែកជាឃ្លាខ្លីៗ និងដាក់ Timestamp [MM:SS] នៅដើមឃ្លានីមួយៗជានិច្ច (ឧទាហរណ៍៖\n"
-                        . "[00:00] **អ្នកនិយាយ ៖** ពាក្យសម្តីនិយាយជាក់ស្តែងពីសំឡេង...\n"
-                        . "[00:15] **អ្នកនិយាយ ៖** ពាក្យសម្តីបន្ទាប់...\n"
-                        . ")\n"
-                        . "សូមឆ្លើយតបជាភាសាខ្មែរ។";
-
-                    $geminiAudioModels = ['gemini-3.5-flash', 'gemini-3.6-flash'];
-                    foreach ($geminiAudioModels as $gAudioModel) {
-                        $genUrl = "https://generativelanguage.googleapis.com/v1beta/models/{$gAudioModel}:generateContent?key=" . urlencode($geminiKey);
-                        $ch = curl_init($genUrl);
-                        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                        curl_setopt($ch, CURLOPT_POST, true);
-                        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json; charset=utf-8']);
-                        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
-                            'contents' => [
-                                [
-                                    'parts' => [
-                                        [
-                                            'file_data' => [
-                                                'mime_type' => $fileMime,
-                                                'file_uri' => $uploadedAudioUri
-                                            ]
-                                        ],
-                                        [
-                                            'text' => $audioPrompt
-                                        ]
-                                    ]
-                                ]
-                            ],
-                            'generationConfig' => [
-                                'temperature' => 0.2,
-                                'maxOutputTokens' => 8192
-                            ]
-                        ], JSON_UNESCAPED_UNICODE));
-                        curl_setopt($ch, CURLOPT_TIMEOUT, 90);
-                        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-                        $audioRaw = curl_exec($ch);
-                        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                        curl_close($ch);
-
-                        if ($audioRaw && $httpCode === 200) {
-                            $audioDec = json_decode((string)$audioRaw, true);
-                            if (!empty($audioDec['candidates'][0]['content']['parts'][0]['text'])) {
-                                $fullAudioResponse = trim($audioDec['candidates'][0]['content']['parts'][0]['text']);
-                                $usedProvider = 'gemini-audio';
-                                $usedModel = $gAudioModel;
-
-                                // Parse Transcript section with multiple fallback patterns
-                                if (preg_match('/===TRANSCRIPT_START===(.*?)(?:===TRANSCRIPT_END===|$)/s', $fullAudioResponse, $mTrans)) {
-                                    $transcriptText = trim($mTrans[1]);
-                                } elseif (preg_match('/===TRANSCRIPT===(.*?)(?:===|$)/s', $fullAudioResponse, $mTrans)) {
-                                    $transcriptText = trim($mTrans[1]);
-                                } elseif (preg_match('/(?:###?|\*\*)\s*(?:អត្ថបទសន្ទនា|Full Transcript|Dialogue Transcript|Transcript)[^\n]*\n(.*)/si', $fullAudioResponse, $mTrans)) {
-                                    $transcriptText = trim($mTrans[1]);
-                                } elseif (preg_match('/(\[(?:00:00|00:01|00:02|0:00|\d{1,2}:\d{2})\].*)/s', $fullAudioResponse, $mTrans)) {
-                                    $transcriptText = trim($mTrans[1]);
-                                }
-
-                                // Parse Summary section
-                                if (preg_match('/===SUMMARY_START===(.*?)(?:===SUMMARY_END===|===TRANSCRIPT|$)/s', $fullAudioResponse, $mSum)) {
-                                    $summaryText = trim($mSum[1]);
-                                } elseif ($transcriptText !== '' && strpos($fullAudioResponse, $transcriptText) !== false) {
-                                    $summaryText = trim(substr($fullAudioResponse, 0, strpos($fullAudioResponse, $transcriptText)));
-                                    $summaryText = trim(str_replace(['===SUMMARY_START===', '===SUMMARY_END===', '===TRANSCRIPT_START==='], '', $summaryText));
-                                } else {
-                                    $summaryText = trim(str_replace(['===SUMMARY_START===', '===SUMMARY_END==='], '', $fullAudioResponse));
-                                }
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Fallback: Groq Whisper for audio transcription
-            if ($summaryText === '' && $transcriptText === '' && $groqKey !== '' && $localAudioFile !== '' && filesize($localAudioFile) < 25 * 1024 * 1024) {
-                $ch = curl_init('https://api.groq.com/openai/v1/audio/transcriptions');
-                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                curl_setopt($ch, CURLOPT_POST, true);
-                curl_setopt($ch, CURLOPT_HTTPHEADER, ['Authorization: Bearer ' . $groqKey]);
-                curl_setopt($ch, CURLOPT_POSTFIELDS, [
-                    'file' => new CURLFile($localAudioFile, $fileMime, basename($localAudioFile)),
-                    'model' => 'whisper-large-v3',
-                    'language' => 'km',
-                    'response_format' => 'json',
-                ]);
-                curl_setopt($ch, CURLOPT_TIMEOUT, 120);
-                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-                $tRaw = curl_exec($ch);
-                curl_close($ch);
-                $tDec = json_decode((string)$tRaw, true);
-                if (!empty($tDec['text'])) {
-                    $transcriptText = trim($tDec['text']);
-                }
+            if ($tempCompressedAudio !== '' && file_exists($tempCompressedAudio)) {
+                @unlink($tempCompressedAudio);
             }
 
             if ($tempAudio !== '' && file_exists($tempAudio)) {
@@ -3136,7 +3030,7 @@ try {
                 $transcriptText = trim((string)($meeting['description'] ?? ''));
             }
 
-            // 3. Text-based AI Summarization (if Audio processing didn't produce summary)
+            // 3. Generate Executive Khmer Meeting Summary using Gemini 3.5 Flash / Groq LLM
             if ($summaryText === '') {
                 $prompt = "អ្នកជាជំនួយការ AI សម្រាប់សង្ខេបកិច្ចប្រជុំ និងធ្វើកំណត់ហេតុកិច្ចប្រជុំជាភាសាខ្មែរ (Executive Minutes of Meeting)។\n\n"
                     . "ព័ត៌មានកិច្ចប្រជុំ:\n"
