@@ -191,6 +191,282 @@ export const MeetingsPage: React.FC = () => {
     }
   };
 
+  const parseInlineBold = (text: string) => {
+    const parts = text.split(/(\*\*.*?\*\*)/g);
+    return parts.map((part, idx) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return (
+          <strong key={idx} style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
+            {part.slice(2, -2)}
+          </strong>
+        );
+      }
+      return part;
+    });
+  };
+
+  const renderKhmerFormattedText = (rawText: string) => {
+    if (!rawText) return null;
+
+    const lines = rawText.split('\n');
+    const elements: React.ReactNode[] = [];
+
+    let currentListItems: React.ReactNode[] = [];
+    let listKey = 0;
+
+    const flushList = () => {
+      if (currentListItems.length > 0) {
+        elements.push(
+          <div key={`list-${listKey++}`} style={{ display: 'flex', flexDirection: 'column', gap: '6px', margin: '6px 0 14px 0' }}>
+            {currentListItems}
+          </div>
+        );
+        currentListItems = [];
+      }
+    };
+
+    lines.forEach((line, idx) => {
+      const trimmed = line.trim();
+
+      if (!trimmed) {
+        flushList();
+        return;
+      }
+
+      // Divider line
+      if (trimmed === '---' || trimmed === '***' || trimmed === '___') {
+        flushList();
+        elements.push(
+          <hr key={`hr-${idx}`} style={{ border: 'none', height: '1px', background: 'var(--border-color)', margin: '16px 0', opacity: 0.8 }} />
+        );
+        return;
+      }
+
+      // Main Header #
+      if (trimmed.startsWith('# ') || trimmed.startsWith('## ')) {
+        flushList();
+        const titleText = trimmed.replace(/^#+\s*/, '');
+        elements.push(
+          <div
+            key={`h1-${idx}`}
+            style={{
+              margin: '14px 0 12px 0',
+              padding: '10px 16px',
+              background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(168, 85, 247, 0.08) 100%)',
+              borderLeft: '4px solid var(--primary)',
+              borderRadius: '8px',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
+            }}
+          >
+            <div style={{ margin: 0, fontSize: '15.5px', fontWeight: 800, color: 'var(--primary)', fontFamily: "'Kantumruy Pro', 'Inter', sans-serif" }}>
+              {parseInlineBold(titleText)}
+            </div>
+          </div>
+        );
+        return;
+      }
+
+      // Section Subheaders ### 📌, 🎯, ✅, 📋, 1., 2.
+      if (trimmed.startsWith('### ') || trimmed.match(/^(📌|🎯|✅|📋|📝|💡|⚠️)\s*/)) {
+        flushList();
+        const sectionTitle = trimmed.replace(/^###\s*/, '');
+        let badgeBg = 'rgba(59, 130, 246, 0.1)';
+        let badgeColor = '#2563eb';
+        let borderClr = 'rgba(59, 130, 246, 0.25)';
+
+        if (sectionTitle.includes('២.') || sectionTitle.includes('🎯') || sectionTitle.includes('ចំណុច')) {
+          badgeBg = 'rgba(245, 158, 11, 0.1)';
+          badgeColor = '#d97706';
+          borderClr = 'rgba(245, 158, 11, 0.25)';
+        } else if (sectionTitle.includes('៣.') || sectionTitle.includes('✅') || sectionTitle.includes('សម្រេច')) {
+          badgeBg = 'rgba(16, 185, 129, 0.1)';
+          badgeColor = '#059669';
+          borderClr = 'rgba(16, 185, 129, 0.25)';
+        } else if (sectionTitle.includes('៤.') || sectionTitle.includes('📋') || sectionTitle.includes('សកម្មភាព') || sectionTitle.includes('Next Steps')) {
+          badgeBg = 'rgba(139, 92, 246, 0.1)';
+          badgeColor = '#7c3aed';
+          borderClr = 'rgba(139, 92, 246, 0.25)';
+        }
+
+        elements.push(
+          <div
+            key={`sec-${idx}`}
+            style={{
+              margin: '18px 0 10px 0',
+              padding: '8px 14px',
+              background: badgeBg,
+              border: `1px solid ${borderClr}`,
+              borderRadius: '10px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}
+          >
+            <div style={{ fontSize: '14.5px', fontWeight: 800, color: badgeColor, fontFamily: "'Kantumruy Pro', 'Inter', sans-serif" }}>
+              {parseInlineBold(sectionTitle)}
+            </div>
+          </div>
+        );
+        return;
+      }
+
+      // Metadata bullet point (* **Key:** Value)
+      const metaMatch = trimmed.match(/^[\*\-]\s+\*\*(.*?)\*\*\s*[:៖]\s*(.*)/);
+      if (metaMatch) {
+        const key = metaMatch[1];
+        const val = metaMatch[2];
+        currentListItems.push(
+          <div
+            key={`meta-${idx}`}
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '8px',
+              padding: '6px 12px',
+              background: 'rgba(255, 255, 255, 0.03)',
+              borderRadius: '8px',
+              border: '1px solid rgba(255, 255, 255, 0.05)',
+              fontSize: '13.5px',
+              lineHeight: 1.8,
+              fontFamily: "'Kantumruy Pro', 'Inter', sans-serif"
+            }}
+          >
+            <span style={{ fontWeight: 700, color: 'var(--primary)', flexShrink: 0, minWidth: '110px' }}>
+              {key}:
+            </span>
+            <span style={{ color: 'var(--text-primary)', flex: 1 }}>
+              {parseInlineBold(val)}
+            </span>
+          </div>
+        );
+        return;
+      }
+
+      // List items (* or -)
+      const bulletMatch = trimmed.match(/^[\*\-]\s+(.*)/);
+      if (bulletMatch) {
+        const content = bulletMatch[1];
+        currentListItems.push(
+          <div
+            key={`li-${idx}`}
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '10px',
+              padding: '4px 0',
+              lineHeight: 1.85,
+              fontSize: '14px',
+              color: 'var(--text-primary)',
+              fontFamily: "'Kantumruy Pro', 'Inter', sans-serif"
+            }}
+          >
+            <span style={{ color: '#f59e0b', fontSize: '16px', lineHeight: 1.4, flexShrink: 0 }}>•</span>
+            <div style={{ flex: 1 }}>{parseInlineBold(content)}</div>
+          </div>
+        );
+        return;
+      }
+
+      // Numbered items (1. 2.)
+      const numMatch = trimmed.match(/^(\d+)[\.\)]\s+(.*)/);
+      if (numMatch) {
+        const num = numMatch[1];
+        const content = numMatch[2];
+        currentListItems.push(
+          <div
+            key={`num-${idx}`}
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '10px',
+              padding: '6px 10px',
+              background: 'rgba(255, 255, 255, 0.02)',
+              borderRadius: '8px',
+              marginBottom: '4px',
+              lineHeight: 1.85,
+              fontSize: '14px',
+              color: 'var(--text-primary)',
+              fontFamily: "'Kantumruy Pro', 'Inter', sans-serif"
+            }}
+          >
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minWidth: '22px',
+                height: '22px',
+                borderRadius: '6px',
+                background: 'rgba(99, 102, 241, 0.15)',
+                color: 'var(--primary)',
+                fontSize: '12px',
+                fontWeight: 700,
+                flexShrink: 0,
+                marginTop: '3px'
+              }}
+            >
+              {num}
+            </span>
+            <div style={{ flex: 1 }}>{parseInlineBold(content)}</div>
+          </div>
+        );
+        return;
+      }
+
+      // Speaker Dialogue formatting in Transcript (e.g. "ឈ្មោះ: ខ្លឹមសារ")
+      const speakerMatch = trimmed.match(/^([\u1780-\u17FF\w\s\(\)]+)\s*[:៖]\s*(.*)/);
+      if (speakerMatch && aiModalTab === 'transcript') {
+        flushList();
+        const speaker = speakerMatch[1];
+        const dialogue = speakerMatch[2];
+        elements.push(
+          <div
+            key={`dlg-${idx}`}
+            style={{
+              margin: '8px 0',
+              padding: '10px 14px',
+              background: 'rgba(99, 102, 241, 0.04)',
+              border: '1px solid rgba(99, 102, 241, 0.12)',
+              borderRadius: '10px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '4px',
+              fontFamily: "'Kantumruy Pro', 'Inter', sans-serif"
+            }}
+          >
+            <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--primary)' }}>
+              🗣️ {speaker}
+            </span>
+            <span style={{ fontSize: '14px', lineHeight: 1.85, color: 'var(--text-primary)' }}>
+              {parseInlineBold(dialogue)}
+            </span>
+          </div>
+        );
+        return;
+      }
+
+      // Normal Paragraph
+      flushList();
+      elements.push(
+        <p
+          key={`p-${idx}`}
+          style={{
+            margin: '0 0 10px 0',
+            lineHeight: 1.9,
+            fontSize: '14px',
+            color: 'var(--text-primary)',
+            fontFamily: "'Kantumruy Pro', 'Inter', sans-serif"
+          }}
+        >
+          {parseInlineBold(trimmed)}
+        </p>
+      );
+    });
+
+    flushList();
+    return <div style={{ display: 'flex', flexDirection: 'column' }}>{elements}</div>;
+  };
+
   const handleToggleAudio = (rawAudioUrl: string) => {
     const audioUrl = getFullMediaUrl(rawAudioUrl);
     if (!audioUrl) return;
@@ -1832,21 +2108,26 @@ export const MeetingsPage: React.FC = () => {
                   </button>
                 </div>
               ) : (
-                <div style={{ fontSize: '13.5px', lineHeight: 1.8, color: 'var(--text-primary)', whiteSpace: 'pre-wrap', userSelect: 'text' }}>
+                <div style={{ fontSize: '14px', lineHeight: 1.9, color: 'var(--text-primary)', userSelect: 'text', fontFamily: "'Kantumruy Pro', 'Inter', system-ui, sans-serif" }}>
                   {aiModalTab === 'summary' ? (
-                    aiModalSummary || 'មិនទាន់មានសេចក្តីសង្ខេបនៅឡើយទេ។'
+                    aiModalSummary ? renderKhmerFormattedText(aiModalSummary) : (
+                      <div style={{ textAlign: 'center', padding: '30px 16px', color: 'var(--text-muted)' }}>
+                        មិនទាន់មានសេចក្តីសង្ខេបនៅឡើយទេ។
+                      </div>
+                    )
                   ) : aiModalTranscript ? (
-                    aiModalTranscript
+                    renderKhmerFormattedText(aiModalTranscript)
                   ) : (
-                    <div style={{ textAlign: 'center', padding: '30px 16px', color: 'var(--text-muted)' }}>
-                      <p style={{ marginBottom: '14px', fontSize: '14px' }}>មិនទាន់មានអត្ថបទសន្ទនា (Transcript) ពីសំឡេងប្រជុំនៅឡើយទេ។</p>
+                    <div style={{ textAlign: 'center', padding: '36px 16px', color: 'var(--text-muted)' }}>
+                      <Volume2 size={36} style={{ margin: '0 auto 12px auto', opacity: 0.4, color: 'var(--primary)' }} />
+                      <p style={{ marginBottom: '16px', fontSize: '14.5px', fontWeight: 600 }}>មិនទាន់មានអត្ថបទសន្ទនា (Transcript) ពីសំឡេងប្រជុំនៅឡើយទេ។</p>
                       <button
                         type="button"
                         onClick={() => handleOpenAiModal(aiModalMeeting, true)}
                         className="btn btn-primary btn-sm"
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 16px', borderRadius: '10px' }}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 20px', borderRadius: '10px', fontWeight: 700 }}
                       >
-                        <RefreshCw size={14} /> ចុចត្រង់នេះដើម្បីឱ្យ AI ស្តាប់ និងទាញយក Transcript ពីសំឡេងឡើងវិញ
+                        <RefreshCw size={15} /> ចុចត្រង់នេះដើម្បីឱ្យ AI ស្តាប់ និងទាញយក Transcript ពីសំឡេងឡើងវិញ
                       </button>
                     </div>
                   )}
