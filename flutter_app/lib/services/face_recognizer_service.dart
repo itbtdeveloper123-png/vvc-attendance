@@ -261,9 +261,58 @@ class FaceRecognizerService {
     if (norm == 0) return vector;
     return vector.map((v) => v / norm).toList();
   }
+
+  /// Detect face and inspect liveness metrics (eye blink / smile probability)
+  Future<FaceLivenessResult> checkImageLiveness(String imagePath) async {
+    try {
+      final inputImage = InputImage.fromFilePath(imagePath);
+      final faceDetector = FaceDetector(
+        options: FaceDetectorOptions(
+          performanceMode: FaceDetectorMode.accurate,
+          enableClassification: true, // enables eye open & smile probabilities
+          enableLandmarks: true,
+        ),
+      );
+      final faces = await faceDetector.processImage(inputImage);
+      await faceDetector.close();
+
+      if (faces.isEmpty) {
+        return const FaceLivenessResult(
+          isLive: false,
+          feedbackMessage: 'មិនបានរកឃើញផ្ទៃមុខច្បាស់លាស់ទេ សូមតម្រង់មុខចំកាមេរ៉ា',
+        );
+      }
+
+      final face = faces.first;
+      final leftEye = face.leftEyeOpenProbability ?? 1.0;
+      final rightEye = face.rightEyeOpenProbability ?? 1.0;
+      final smile = face.smilingProbability ?? 0.0;
+
+      final bool eyeBlinked = (leftEye < 0.25 || rightEye < 0.25);
+      final bool isSmiling = smile > 0.45;
+
+      return FaceLivenessResult(
+        isLive: true,
+        hasBlinked: eyeBlinked,
+        hasSmiled: isSmiling,
+        leftEyeOpenProb: leftEye,
+        rightEyeOpenProb: rightEye,
+        smileProb: smile,
+        feedbackMessage: eyeBlinked
+            ? 'បានរកឃើញចលនាព្រិចភ្នែក ✅'
+            : (isSmiling ? 'បានរកឃើញស្នាមញញឹម ✅' : 'ផ្ទៃមុខធម្មជាតិ'),
+      );
+    } catch (e) {
+      debugPrint('[FaceRecognizer] Liveness error: $e');
+      return FaceLivenessResult(
+        isLive: false,
+        feedbackMessage: 'កំហុសក្នុងការត្រួតពិនិត្យភាពរស់រវើក៖ $e',
+      );
+    }
+  }
 }
 
-// Result model
+// Result models
 class FaceVerifyResult {
   final bool matched;
   final String? matchedUserId;
@@ -273,5 +322,25 @@ class FaceVerifyResult {
     required this.matched,
     this.matchedUserId,
     this.error,
+  });
+}
+
+class FaceLivenessResult {
+  final bool isLive;
+  final bool hasBlinked;
+  final bool hasSmiled;
+  final double? leftEyeOpenProb;
+  final double? rightEyeOpenProb;
+  final double? smileProb;
+  final String? feedbackMessage;
+
+  const FaceLivenessResult({
+    required this.isLive,
+    this.hasBlinked = false,
+    this.hasSmiled = false,
+    this.leftEyeOpenProb,
+    this.rightEyeOpenProb,
+    this.smileProb,
+    this.feedbackMessage,
   });
 }

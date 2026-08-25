@@ -7504,6 +7504,51 @@ try {
         $stmt->close();
         break;
 
+    case 'batch_update_trip_locations':
+        if (!$user) apiResponse(['success' => false, 'message' => 'Unauthorized']);
+
+        $points_json = $_POST['points'] ?? '';
+        $points = json_decode($points_json, true);
+
+        if (!is_array($points) || empty($points)) {
+            apiResponse(['success' => false, 'message' => 'No points provided for batch sync']);
+        }
+
+        $inserted = 0;
+        $stmt = $mysqli->prepare("INSERT INTO trip_locations (trip_id, latitude, longitude, speed, accuracy, recorded_at) VALUES (?, ?, ?, ?, ?, ?)");
+        
+        $affected_trip_ids = [];
+
+        foreach ($points as $pt) {
+            $t_id = (int)($pt['trip_id'] ?? 0);
+            $lat = (float)($pt['latitude'] ?? 0);
+            $lng = (float)($pt['longitude'] ?? 0);
+            $spd = (float)($pt['speed'] ?? 0);
+            $acc = (float)($pt['accuracy'] ?? 0);
+            $rec_time = !empty($pt['recorded_at']) ? $pt['recorded_at'] : date('Y-m-d H:i:s');
+
+            if ($t_id > 0 && $lat != 0 && $lng != 0) {
+                $stmt->bind_param('idddds', $t_id, $lat, $lng, $spd, $acc, $rec_time);
+                if ($stmt->execute()) {
+                    $inserted++;
+                    $affected_trip_ids[$t_id] = true;
+                }
+            }
+        }
+        $stmt->close();
+
+        // Recalculate duration & distance for affected trips
+        foreach (array_keys($affected_trip_ids) as $t_id) {
+            $mysqli->query("UPDATE employee_trips SET duration_minutes = TIMESTAMPDIFF(MINUTE, started_at, NOW()) WHERE id = $t_id");
+        }
+
+        apiResponse([
+            'success' => true,
+            'message' => "Synced $inserted GPS locations successfully",
+            'synced_count' => $inserted
+        ]);
+        break;
+
     case 'end_trip':
         if (!$user) apiResponse(['success' => false, 'message' => 'Unauthorized']);
 

@@ -540,7 +540,13 @@ class _PayrollScreenState extends State<PayrollScreen> {
               valueColor: Colors.redAccent,
             ),
           ],
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
+          _buildPayrollBreakdownBar(
+            baseSalary: baseSalary,
+            allowancesAndOt: otPay + allowances,
+            deductions: lateDeductions + nssfDeductions + taxDeductions,
+          ),
+          const SizedBox(height: 14),
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -614,6 +620,114 @@ class _PayrollScreenState extends State<PayrollScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildPayrollBreakdownBar({
+    required double baseSalary,
+    required double allowancesAndOt,
+    required double deductions,
+  }) {
+    final double totalPositive = (baseSalary + allowancesAndOt) > 0 ? (baseSalary + allowancesAndOt) : 1.0;
+    final int basePct = ((baseSalary / totalPositive) * 100).round();
+    final int extraPct = ((allowancesAndOt / totalPositive) * 100).round();
+    final int deductPct = ((deductions / totalPositive) * 100).round();
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.03),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                "សមាមាត្រប្រាក់ចំណូល (Visual Breakdown)",
+                style: GoogleFonts.kantumruyPro(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textSecondary,
+                ),
+              ),
+              Text(
+                "100%",
+                style: GoogleFonts.poppins(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.primary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: SizedBox(
+              height: 10,
+              child: Row(
+                children: [
+                  if (baseSalary > 0)
+                    Expanded(
+                      flex: (baseSalary * 100).toInt(),
+                      child: Container(color: AppTheme.primary),
+                    ),
+                  if (allowancesAndOt > 0)
+                    Expanded(
+                      flex: (allowancesAndOt * 100).toInt(),
+                      child: Container(color: const Color(0xFF10B981)),
+                    ),
+                  if (deductions > 0)
+                    Expanded(
+                      flex: (deductions * 100).toInt(),
+                      child: Container(color: const Color(0xFFEF4444)),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 12,
+            runSpacing: 4,
+            children: [
+              _buildBreakdownChip('ប្រាក់គោល ($basePct%)', AppTheme.primary),
+              if (allowancesAndOt > 0)
+                _buildBreakdownChip('បន្ថែម/OT ($extraPct%)', const Color(0xFF10B981)),
+              if (deductions > 0)
+                _buildBreakdownChip('កាត់ប្រាក់ ($deductPct%)', const Color(0xFFEF4444)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBreakdownChip(String label, Color color) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 5),
+        Text(
+          label,
+          style: GoogleFonts.kantumruyPro(
+            fontSize: 11,
+            color: AppTheme.textSecondary,
+          ),
+        ),
+      ],
     );
   }
 

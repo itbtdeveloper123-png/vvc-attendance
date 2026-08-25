@@ -70,31 +70,41 @@ class OfflineSyncService {
 
     debugPrint('Syncing ${unsyncedPoints.length} offline GPS trip points...');
 
-    for (final point in unsyncedPoints) {
-      try {
-        final res = await _apiService.updateTripLocation(
-          tripId: point['trip_id'] as int,
-          latitude: (point['latitude'] as num).toDouble(),
-          longitude: (point['longitude'] as num).toDouble(),
-          speed: (point['speed'] as num?)?.toDouble() ?? 0,
-          accuracy: (point['accuracy'] as num?)?.toDouble() ?? 0,
-        );
+    try {
+      final List<Map<String, dynamic>> pointsPayload = unsyncedPoints.map((p) => {
+        'trip_id': p['trip_id'],
+        'latitude': (p['latitude'] as num).toDouble(),
+        'longitude': (p['longitude'] as num).toDouble(),
+        'speed': (p['speed'] as num?)?.toDouble() ?? 0,
+        'accuracy': (p['accuracy'] as num?)?.toDouble() ?? 0,
+        'recorded_at': p['recorded_at'] ?? DateTime.now().toIso8601String(),
+      }).toList();
 
-        if (res['success'] == true) {
+      final res = await _apiService.batchUpdateTripLocations(pointsPayload);
+      if (res['success'] == true) {
+        for (final point in unsyncedPoints) {
           await _localDb.markTripPointSynced(point['id'] as int);
-          debugPrint(
-            'Synced trip GPS point ID: ${point['id']} (trip #${point['trip_id']})',
-          );
-        } else {
-          debugPrint(
-            'Failed to sync GPS point ID: ${point['id']}: ${res['message']}',
-          );
-          break;
         }
-      } catch (e) {
-        debugPrint('Error syncing GPS point ID: ${point['id']}, Error: $e');
-        break;
+        debugPrint('Successfully batch-synced ${unsyncedPoints.length} GPS trip points');
+      } else {
+        // Fallback to sequential sync
+        for (final point in unsyncedPoints) {
+          final singleRes = await _apiService.updateTripLocation(
+            tripId: point['trip_id'] as int,
+            latitude: (point['latitude'] as num).toDouble(),
+            longitude: (point['longitude'] as num).toDouble(),
+            speed: (point['speed'] as num?)?.toDouble() ?? 0,
+            accuracy: (point['accuracy'] as num?)?.toDouble() ?? 0,
+          );
+          if (singleRes['success'] == true) {
+            await _localDb.markTripPointSynced(point['id'] as int);
+          } else {
+            break;
+          }
+        }
       }
+    } catch (e) {
+      debugPrint('Error syncing GPS trip points batch: $e');
     }
 
     await _localDb.clearSyncedTripPoints();

@@ -1645,6 +1645,17 @@ class ApiService {
     );
   }
 
+  Future<Map<String, dynamic>> batchUpdateTripLocations(List<Map<String, dynamic>> points) async {
+    final headers = await _authHeaders();
+    return _processRequest(
+      'batch_update_trip_locations',
+      headers: headers,
+      body: {
+        'points': jsonEncode(points),
+      },
+    );
+  }
+
   Future<Map<String, dynamic>> endTrip(int tripId, {String notes = ''}) async {
     final headers = await _authHeaders();
     return _processRequest(

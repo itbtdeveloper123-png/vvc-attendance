@@ -12,6 +12,7 @@ import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform;
 import 'package:http/http.dart' as http;
 import '../providers/user_provider.dart';
 import '../services/api_service.dart';
+import '../services/face_recognizer_service.dart';
 import '../services/notification_service.dart';
 import '../utils/app_theme.dart';
 import '../utils/image_compress.dart';
@@ -125,13 +126,35 @@ class _OutsideAttendanceScreenState extends State<OutsideAttendanceScreen> {
     final picker = ImagePicker();
     final pickedFile = await picker.pickImage(
       source: ImageSource.camera,
-      imageQuality: 50,
+      preferredCameraDevice: CameraDevice.front,
+      imageQuality: 60,
       maxWidth: 800,
     );
     if (pickedFile != null) {
-      setState(() {
-        _capturedImage = pickedFile;
-      });
+      try {
+        final liveness = await FaceRecognizerService().checkImageLiveness(pickedFile.path);
+        if (!liveness.isLive) {
+          if (mounted) _showError(liveness.feedbackMessage ?? 'រូបថតមិនឆ្លងកាត់ការត្រួតពិនិត្យផ្ទៃមុខទេ សូមថតសារជាថ្មី');
+          return;
+        }
+        setState(() {
+          _capturedImage = pickedFile;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(liveness.feedbackMessage ?? 'បានផ្ទៀងផ្ទាត់ផ្ទៃមុខជោគជ័យ ✅'),
+              backgroundColor: const Color(0xFF10B981),
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      } catch (_) {
+        setState(() {
+          _capturedImage = pickedFile;
+        });
+      }
     }
   }
 
@@ -177,6 +200,11 @@ class _OutsideAttendanceScreenState extends State<OutsideAttendanceScreen> {
           timeLimit: Duration(seconds: 15),
         ),
       );
+
+      if (position.isMocked) {
+        if (mounted) _showError('⚠️ រកឃើញការក្លែងបន្លំទីតាំង (Fake GPS)! សូមបិទ Mock Location មុនពេលស្កេនវត្តមាន។');
+        return;
+      }
 
       if (!mounted) return;
       setState(() {
