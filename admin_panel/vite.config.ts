@@ -24,9 +24,19 @@ export default defineConfig({
       },
     },
   },
+  esbuild: {
+    drop: process.env.NODE_ENV === 'production' ? ['console', 'debugger'] : [],
+    legalComments: 'none',
+  },
   build: {
     outDir: 'dist',
     sourcemap: false,
+    minify: 'esbuild',
     chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks: undefined,
+      },
+    },
   },
 });

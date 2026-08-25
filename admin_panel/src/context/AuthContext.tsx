@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { adminApi, AdminUser } from '../api/adminApi';
+import { setDevToolsUnlocked } from '../utils/antiInspect';
 
 interface AuthContextType {
   admin: AdminUser | null;
@@ -93,6 +94,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.removeItem('admin_token');
     setToken(null);
     setAdmin(null);
+    setDevToolsUnlocked(false);
     window.location.href = '/login';
   };
 

@@ -4,6 +4,12 @@
   Header set Access-Control-Allow-Headers "Origin, X-Requested-With, Content-Type, Accept"
 </IfModule>
 
+# ០. ការពារ Source Code & Config Files (Block direct access to source files & sourcemaps)
+<FilesMatch "\.(ts|tsx|map|env|json|lock|sql|git|md|yml|yaml|config|sh|bat)$">
+  Order Allow,Deny
+  Deny from all
+</FilesMatch>
+
 # ១. បើកដំណើរការ Rewrite Engine
 RewriteEngine On
 

@@ -457,3 +457,121 @@ if (!function_exists('security_check_ownership')) {
         return false;
     }
 }
+
+// =========================================================================
+// 11. LINK & URL ATTACK DEFENSE (Open Redirect, Traversal, Phishing, Dangerous Schemes)
+// =========================================================================
+if (!function_exists('security_inspect_url_attacks')) {
+    /**
+     * Scan incoming URI and Query String for Path Traversal, Null Bytes, and Malicious Link exploits.
+     */
+    function security_inspect_url_attacks(): void {
+        $rawUri = $_SERVER['REQUEST_URI'] ?? '';
+        $queryString = $_SERVER['QUERY_STRING'] ?? '';
+        $pathInfo = $_SERVER['PATH_INFO'] ?? '';
+
+        $targets = [$rawUri, $queryString, $pathInfo];
+
+        // Dangerous URL patterns
+        $dangerousPatterns = [
+            '/\.\.[\/\\]/i',                      // Directory Traversal ../ or ..\
+            '/%2e%2e(%2f|%5c)/i',                 // URL Encoded Traversal %2e%2e%2f
+            '/%252e%252e/i',                      // Double URL Encoded Traversal
+            '/\x00|%00/i',                         // Null Byte Injection
+            '/(etc\/passwd|etc\/shadow|win\.ini|boot\.ini)/i', // Sensitive System Files
+            '/\b(javascript|vbscript|data):/i',   // Dangerous URL schemes in URI
+            '/(<|>|\"|\'|%3C|%3E|%22)/i',         // Raw HTML / Quotes in Query String
+            '/\b(cmd\.exe|powershell|bin\/sh|bin\/bash)\b/i', // Command execution in URI
+        ];
+
+        foreach ($targets as $target) {
+            if (empty($target)) continue;
+            foreach ($dangerousPatterns as $pattern) {
+                if (preg_match($pattern, $target)) {
+                    $threatDetail = "Malicious Link/URL pattern detected: " . substr($target, 0, 150);
+                    security_log_threat('URL_ATTACK_BLOCKED', $threatDetail, 'critical');
+
+                    http_response_code(403);
+                    header('Content-Type: application/json; charset=utf-8');
+                    echo json_encode([
+                        'success' => false,
+                        'error' => 'MALICIOUS_LINK_BLOCKED',
+                        'message' => 'ការវាយប្រហារតាម Link/URL ត្រូវបានរារាំងដោយប្រព័ន្ធសុវត្ថិភាព (Malicious Link Blocked)',
+                    ], JSON_UNESCAPED_UNICODE);
+                    exit;
+                }
+            }
+        }
+    }
+}
+
+// Automatically inspect incoming request URI & query string on every request
+security_inspect_url_attacks();
+
+if (!function_exists('security_validate_redirect_url')) {
+    /**
+     * Prevent Open Redirect vulnerabilities (Phishing via Redirect Links).
+     * Only allows safe relative paths or trusted company domains.
+     */
+    function security_validate_redirect_url(?string $url, string $defaultFallback = '/'): string {
+        if (empty($url)) {
+            return $defaultFallback;
+        }
+
+        $url = trim($url);
+
+        // Disallow dangerous schemes like javascript:, data:, vbscript:
+        if (preg_match('/^\s*(javascript|data|vbscript|file):/i', $url)) {
+            return $defaultFallback;
+        }
+
+        // Relative paths starting with a single '/' (e.g. /dashboard, /reports) are safe
+        if (preg_match('/^\/[^\/\\]/', $url)) {
+            return $url;
+        }
+
+        // Parse Absolute URL
+        $parsed = parse_url($url);
+        if (!$parsed || empty($parsed['host'])) {
+            return $defaultFallback;
+        }
+
+        $host = strtolower($parsed['host']);
+        $allowedDomains = [
+            'app.vvc.asia',
+            'vvc.asia',
+            'kouprey.asia',
+            'sksk.asia',
+            'localhost',
+            '127.0.0.1',
+        ];
+
+        foreach ($allowedDomains as $allowed) {
+            if ($host === $allowed || str_ends_with($host, '.' . $allowed)) {
+                return $url;
+            }
+        }
+
+        // Untrusted / Phishing domain -> fallback to default
+        security_log_threat('OPEN_REDIRECT_BLOCKED', "Blocked suspicious redirect to external domain: $url", 'warning');
+        return $defaultFallback;
+    }
+}
+
+if (!function_exists('safe_url')) {
+    /**
+     * Sanitize user-provided links (e.g. avatar URLs, external links, social links).
+     */
+    function safe_url(?string $url): string {
+        if (empty($url)) return '';
+        $url = trim($url);
+        
+        // Only allow http, https, mailto, tel
+        if (preg_match('/^(https?:\/\/|mailto:|tel:|\/)/i', $url)) {
+            return filter_var($url, FILTER_SANITIZE_URL) ?: '';
+        }
+        
+        return '';
+    }
+}
+
