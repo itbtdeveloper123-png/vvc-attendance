@@ -94,6 +94,24 @@ export const MeetingsPage: React.FC = () => {
   const aiModalAudioRef = useRef<HTMLAudioElement | null>(null);
   const activeTranscriptRef = useRef<HTMLDivElement | null>(null);
 
+  // Real-time smooth timer ticker while audio is playing
+  useEffect(() => {
+    let timer: any = null;
+    if (aiModalAudioPlaying && aiModalAudioRef.current) {
+      timer = setInterval(() => {
+        if (aiModalAudioRef.current) {
+          const ct = aiModalAudioRef.current.currentTime || 0;
+          setAiModalAudioCurrentTime(ct);
+          const dur = aiModalAudioRef.current.duration || 0;
+          if (dur > 0) setAiModalAudioDuration(dur);
+        }
+      }, 150);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [aiModalAudioPlaying]);
+
   // Auto-scroll active dialogue into view when playing
   useEffect(() => {
     if (aiModalAudioPlaying && activeTranscriptRef.current && aiModalTab === 'transcript') {
@@ -497,7 +515,19 @@ export const MeetingsPage: React.FC = () => {
   const renderKaraokeTranscript = (rawTranscript: string) => {
     if (!rawTranscript) return null;
 
-    const rawLines = rawTranscript.split('\n').map(l => l.trim()).filter(Boolean);
+    // Filter out non-dialogue header lines
+    const rawLines = rawTranscript
+      .split('\n')
+      .map(l => l.trim())
+      .filter(l => {
+        if (!l) return false;
+        if (l === '---' || l === '***' || l === '___') return false;
+        if (l.startsWith('###') || l.startsWith('#')) return false;
+        if (l.startsWith('===') && l.endsWith('===')) return false;
+        if (l.includes('នេះជាអត្ថបទសន្ទនា') || l.includes('Full Transcript') || l.includes('Full Meeting Transcript')) return false;
+        return true;
+      });
+
     if (rawLines.length === 0) return null;
 
     interface TranscriptBlock {
@@ -544,14 +574,20 @@ export const MeetingsPage: React.FC = () => {
       });
     });
 
-    const totalAudioSecs = aiModalAudioDuration > 0 ? aiModalAudioDuration : (blocks.length * 15);
     const hasAnyRealTimestamps = blocks.some(b => b.startTime >= 0);
 
     if (!hasAnyRealTimestamps) {
-      const step = totalAudioSecs / Math.max(1, blocks.length);
-      blocks.forEach((b, i) => {
-        b.startTime = i * step;
-        b.endTime = (i + 1) * step;
+      // Natural speech pacing based on character length of each sentence
+      const totalChars = blocks.reduce((sum, b) => sum + Math.max(20, b.text.length), 0);
+      const totalSecs = aiModalAudioDuration > 0 ? aiModalAudioDuration : (totalChars * 0.12);
+      let runningTime = 0;
+
+      blocks.forEach((b) => {
+        const charLen = Math.max(20, b.text.length);
+        const duration = (charLen / totalChars) * totalSecs;
+        b.startTime = runningTime;
+        b.endTime = runningTime + duration;
+        runningTime += duration;
       });
     } else {
       for (let i = 0; i < blocks.length; i++) {
