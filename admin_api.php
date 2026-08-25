@@ -2985,8 +2985,9 @@ try {
                 $transcriptText = trim((string)($meeting['description'] ?? ''));
             }
 
-            // 2. Multi-Provider AI Summarization (Native Gemini -> OpenAI -> Groq)
+            // 2. Multi-Provider AI Summarization (Gemini -> Groq -> OpenAI)
             $geminiKey = trim((string)(defined('GEMINI_API_KEY') ? GEMINI_API_KEY : ''));
+            $groqKey = trim((string)(defined('GROQ_API_KEY') ? GROQ_API_KEY : ''));
             $openAiKey = trim((string)(defined('OPENAI_API_KEY') ? OPENAI_API_KEY : ''));
             $topic = trim((string)($meeting['topic'] ?? $meeting['title'] ?? 'កិច្ចប្រជុំ'));
             $dept = trim((string)($meeting['department'] ?? $meeting['category'] ?? 'General'));
@@ -3012,9 +3013,9 @@ try {
             $usedModel = 'gemini-2.5-flash';
             $lastError = '';
 
-            // Attempt 1: Gemini via OpenAI-Compatible Endpoint (works with both AIzaSy and AQ. key types)
+            // Attempt 1: Gemini (OpenAI and REST endpoints)
             if ($geminiKey !== '') {
-                $geminiModels = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-pro'];
+                $geminiModels = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-3.6-flash', 'gemini-flash-latest', 'gemini-1.5-flash'];
                 foreach ($geminiModels as $gModel) {
                     $ch = curl_init('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions');
                     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -3032,7 +3033,7 @@ try {
                         'temperature'  => 0.3,
                         'max_tokens'   => 4096
                     ], JSON_UNESCAPED_UNICODE));
-                    curl_setopt($ch, CURLOPT_TIMEOUT, 60);
+                    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
                     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
                     curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
                     $rawRes  = curl_exec($ch);
@@ -3060,10 +3061,48 @@ try {
                 }
             }
 
+            // Attempt 2: Groq High-Power Model Fallback (openai/gpt-oss-120b, qwen/qwen3.6-27b)
+            if ($summaryText === '' && $groqKey !== '') {
+                $groqModels = ['openai/gpt-oss-120b', 'qwen/qwen3.6-27b', 'openai/gpt-oss-20b'];
+                foreach ($groqModels as $gqModel) {
+                    $ch = curl_init('https://api.groq.com/openai/v1/chat/completions');
+                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                    curl_setopt($ch, CURLOPT_POST, true);
+                    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                        'Content-Type: application/json; charset=utf-8',
+                        'Authorization: Bearer ' . $groqKey
+                    ]);
+                    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
+                        'model' => $gqModel,
+                        'messages' => [
+                            ['role' => 'system', 'content' => 'You are an executive Khmer AI meeting minutes assistant.'],
+                            ['role' => 'user', 'content' => $prompt]
+                        ],
+                        'temperature' => 0.3
+                    ], JSON_UNESCAPED_UNICODE));
+                    curl_setopt($ch, CURLOPT_TIMEOUT, 60);
+                    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                    $rawRes = curl_exec($ch);
+                    curl_close($ch);
+
+                    if ($rawRes) {
+                        $dec = json_decode((string)$rawRes, true);
+                        if (!empty($dec['choices'][0]['message']['content'])) {
+                            $summaryText = trim($dec['choices'][0]['message']['content']);
+                            $usedProvider = 'groq';
+                            $usedModel = $gqModel;
+                            break;
+                        } elseif (!empty($dec['error']['message'])) {
+                            $lastError = 'Groq (' . $gqModel . '): ' . $dec['error']['message'];
+                        }
+                    }
+                }
+            }
+
             if ($summaryText === '') {
                 sendJson([
                     'success' => false,
-                    'message' => 'មិនអាចទាញយកសេចក្តីសង្ខេប AI បានទេ៖ ' . ($lastError ?: 'សូមពិនិត្យមើល GEMINI_API_KEY នៅក្នុង .env')
+                    'message' => 'មិនអាចទាញយកសេចក្តីសង្ខេប AI បានទេ៖ ' . ($lastError ?: 'សូមពិនិត្យមើល API Key នៅក្នុង .env')
                 ]);
             }
 
