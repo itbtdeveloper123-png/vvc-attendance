@@ -233,19 +233,16 @@ if (!function_exists('security_clean_xss')) {
             return $data;
         }
 
-        // Dangerous XSS injection markers
+        // Dangerous XSS injection markers (quoted and unquoted handlers, scripts, objects)
         $dangerousPatterns = [
             '/<script\b[^>]*>(.*?)<\/script>/is',
             '/javascript:[^\'"\s]*/i',
             '/vbscript:[^\'"\s]*/i',
-            '/onload\s*=\s*[\'"][^\'"]*[\'"]/i',
-            '/onerror\s*=\s*[\'"][^\'"]*[\'"]/i',
-            '/onclick\s*=\s*[\'"][^\'"]*[\'"]/i',
-            '/onmouseover\s*=\s*[\'"][^\'"]*[\'"]/i',
+            '/\bon\w+\s*=\s*(?:[^\s>]+|[\'"][^\'"]*[\'"])/i', // Catches all onload, onerror, onclick with/without quotes
             '/<iframe\b[^>]*>(.*?)<\/iframe>/is',
             '/<object\b[^>]*>(.*?)<\/object>/is',
             '/<embed\b[^>]*>/i',
-            '/<svg\b[^>]*\bonload\b[^>]*>/is',
+            '/<svg\b[^>]*>/is',
         ];
 
         return preg_replace($dangerousPatterns, '', $data);
@@ -608,8 +605,8 @@ if (!function_exists('security_validate_redirect_url')) {
             return $defaultFallback;
         }
 
-        // Relative paths starting with a single '/' (e.g. /dashboard, /reports) are safe
-        if (preg_match('/^\/[^\/\\]/', $url)) {
+        // Relative paths starting with a single '/' (e.g. '/', '/dashboard', '/attendance-reports') are safe
+        if ($url === '/' || (strncmp($url, '/', 1) === 0 && strncmp($url, '//', 2) !== 0 && strncmp($url, '/\\', 2) !== 0)) {
             return $url;
         }
 
