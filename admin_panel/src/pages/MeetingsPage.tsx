@@ -2455,8 +2455,8 @@ export const MeetingsPage: React.FC = () => {
                         មិនទាន់មានសេចក្តីសង្ខេបនៅឡើយទេ។
                       </div>
                     )
-                  ) : aiModalTranscript ? (
-                    renderKaraokeTranscript(aiModalTranscript)
+                  ) : (aiModalTranscript || aiModalSummary) ? (
+                    renderKaraokeTranscript(aiModalTranscript || aiModalSummary || '')
                   ) : (
                     <div style={{ textAlign: 'center', padding: '36px 16px', color: 'var(--text-muted)' }}>
                       <Volume2 size={36} style={{ margin: '0 auto 12px auto', opacity: 0.4, color: 'var(--primary)' }} />
