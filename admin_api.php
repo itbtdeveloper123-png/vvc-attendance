@@ -3046,9 +3046,9 @@ try {
                                 [
                                     'parts' => [
                                         [
-                                            'file_data' => [
-                                                'mime_type' => $fileMime,
-                                                'file_uri' => $uploadedAudioUri
+                                            'fileData' => [
+                                                'mimeType' => $fileMime,
+                                                'fileUri' => $uploadedAudioUri
                                             ]
                                         ],
                                         [
