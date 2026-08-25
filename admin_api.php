@@ -3045,62 +3045,69 @@ try {
                         . "===TRANSCRIPT_END===\n\n"
                         . "សូមឆ្លើយតបជាភាសាខ្មែរ។";
 
-                    $genUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=" . urlencode($geminiKey);
-                    $ch = curl_init($genUrl);
-                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                    curl_setopt($ch, CURLOPT_POST, true);
-                    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json; charset=utf-8']);
-                    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
-                        'contents' => [
-                            [
-                                'parts' => [
-                                    [
-                                        'file_data' => [
-                                            'mime_type' => $fileMime,
-                                            'file_uri' => $uploadedAudioUri
+                    $geminiAudioModels = ['gemini-3.5-flash', 'gemini-3.6-flash'];
+                    foreach ($geminiAudioModels as $gAudioModel) {
+                        $genUrl = "https://generativelanguage.googleapis.com/v1beta/models/{$gAudioModel}:generateContent?key=" . urlencode($geminiKey);
+                        $ch = curl_init($genUrl);
+                        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                        curl_setopt($ch, CURLOPT_POST, true);
+                        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json; charset=utf-8']);
+                        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
+                            'contents' => [
+                                [
+                                    'parts' => [
+                                        [
+                                            'file_data' => [
+                                                'mime_type' => $fileMime,
+                                                'file_uri' => $uploadedAudioUri
+                                            ]
+                                        ],
+                                        [
+                                            'text' => $audioPrompt
                                         ]
-                                    ],
-                                    [
-                                        'text' => $audioPrompt
                                     ]
                                 ]
+                            ],
+                            'generationConfig' => [
+                                'temperature' => 0.2,
+                                'maxOutputTokens' => 8192
                             ]
-                        ],
-                        'generationConfig' => [
-                            'temperature' => 0.2,
-                            'maxOutputTokens' => 8192
-                        ]
-                    ], JSON_UNESCAPED_UNICODE));
-                    curl_setopt($ch, CURLOPT_TIMEOUT, 60);
-                    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-                    $audioRaw = curl_exec($ch);
-                    curl_close($ch);
+                        ], JSON_UNESCAPED_UNICODE));
+                        curl_setopt($ch, CURLOPT_TIMEOUT, 90);
+                        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                        $audioRaw = curl_exec($ch);
+                        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                        curl_close($ch);
 
-                    $audioDec = json_decode((string)$audioRaw, true);
-                    if (!empty($audioDec['candidates'][0]['content']['parts'][0]['text'])) {
-                        $fullAudioResponse = trim($audioDec['candidates'][0]['content']['parts'][0]['text']);
-                        $usedProvider = 'gemini-audio';
-                        $usedModel = 'gemini-3.6-flash';
+                        if ($audioRaw && $httpCode === 200) {
+                            $audioDec = json_decode((string)$audioRaw, true);
+                            if (!empty($audioDec['candidates'][0]['content']['parts'][0]['text'])) {
+                                $fullAudioResponse = trim($audioDec['candidates'][0]['content']['parts'][0]['text']);
+                                $usedProvider = 'gemini-audio';
+                                $usedModel = $gAudioModel;
 
-                        // Parse Transcript section with multiple fallback patterns
-                        if (preg_match('/===TRANSCRIPT_START===(.*?)(?:===TRANSCRIPT_END===|$)/s', $fullAudioResponse, $mTrans)) {
-                            $transcriptText = trim($mTrans[1]);
-                        } elseif (preg_match('/===TRANSCRIPT===(.*?)(?:===|$)/s', $fullAudioResponse, $mTrans)) {
-                            $transcriptText = trim($mTrans[1]);
-                        } elseif (preg_match('/(?:###?|\*\*)\s*(?:អត្ថបទសន្ទនា|Full Transcript|Dialogue Transcript|Transcript)[^\n]*\n(.*)/si', $fullAudioResponse, $mTrans)) {
-                            $transcriptText = trim($mTrans[1]);
-                        } elseif (preg_match('/(\[(?:00:00|00:01|00:02|0:00|\d{1,2}:\d{2})\].*)/s', $fullAudioResponse, $mTrans)) {
-                            $transcriptText = trim($mTrans[1]);
-                        }
+                                // Parse Transcript section with multiple fallback patterns
+                                if (preg_match('/===TRANSCRIPT_START===(.*?)(?:===TRANSCRIPT_END===|$)/s', $fullAudioResponse, $mTrans)) {
+                                    $transcriptText = trim($mTrans[1]);
+                                } elseif (preg_match('/===TRANSCRIPT===(.*?)(?:===|$)/s', $fullAudioResponse, $mTrans)) {
+                                    $transcriptText = trim($mTrans[1]);
+                                } elseif (preg_match('/(?:###?|\*\*)\s*(?:អត្ថបទសន្ទនា|Full Transcript|Dialogue Transcript|Transcript)[^\n]*\n(.*)/si', $fullAudioResponse, $mTrans)) {
+                                    $transcriptText = trim($mTrans[1]);
+                                } elseif (preg_match('/(\[(?:00:00|00:01|00:02|0:00|\d{1,2}:\d{2})\].*)/s', $fullAudioResponse, $mTrans)) {
+                                    $transcriptText = trim($mTrans[1]);
+                                }
 
-                        // Parse Summary section
-                        if (preg_match('/===SUMMARY_START===(.*?)(?:===SUMMARY_END===|===TRANSCRIPT|$)/s', $fullAudioResponse, $mSum)) {
-                            $summaryText = trim($mSum[1]);
-                        } elseif ($transcriptText !== '' && strpos($fullAudioResponse, $transcriptText) !== false) {
-                            $summaryText = trim(substr($fullAudioResponse, 0, strpos($fullAudioResponse, $transcriptText)));
-                            $summaryText = trim(str_replace(['===SUMMARY_START===', '===SUMMARY_END===', '===TRANSCRIPT_START==='], '', $summaryText));
-                        } else {
-                            $summaryText = trim(str_replace(['===SUMMARY_START===', '===SUMMARY_END==='], '', $fullAudioResponse));
+                                // Parse Summary section
+                                if (preg_match('/===SUMMARY_START===(.*?)(?:===SUMMARY_END===|===TRANSCRIPT|$)/s', $fullAudioResponse, $mSum)) {
+                                    $summaryText = trim($mSum[1]);
+                                } elseif ($transcriptText !== '' && strpos($fullAudioResponse, $transcriptText) !== false) {
+                                    $summaryText = trim(substr($fullAudioResponse, 0, strpos($fullAudioResponse, $transcriptText)));
+                                    $summaryText = trim(str_replace(['===SUMMARY_START===', '===SUMMARY_END===', '===TRANSCRIPT_START==='], '', $summaryText));
+                                } else {
+                                    $summaryText = trim(str_replace(['===SUMMARY_START===', '===SUMMARY_END==='], '', $fullAudioResponse));
+                                }
+                                break;
+                            }
                         }
                     }
                 }
