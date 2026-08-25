@@ -4721,12 +4721,25 @@ try {
             $topActors = dbQuery("SELECT actor_name, COUNT(*) as count FROM audit_logs GROUP BY actor_name ORDER BY count DESC LIMIT 5");
             $moduleBreakdown = dbQuery("SELECT module, COUNT(*) as count FROM audit_logs GROUP BY module ORDER BY count DESC");
 
+            // Fetch currently blocked IPs
+            $blockedIpsRows = [];
+            try {
+                if (function_exists('ensure_blocked_ips_table')) {
+                    ensure_blocked_ips_table();
+                }
+                $blockedIpsRows = dbQuery("SELECT ip_address, reason, blocked_by, created_at FROM blocked_ips ORDER BY created_at DESC");
+            } catch (Throwable $e) {}
+
+            $blockedList = array_map(function($r) { return $r['ip_address']; }, $blockedIpsRows);
+
             sendJson([
                 'success' => true,
                 'logs' => $logs,
                 'total' => $total,
                 'page' => $page,
                 'limit' => $limit,
+                'blocked_ips' => $blockedList,
+                'blocked_details' => $blockedIpsRows,
                 'stats' => [
                     'total_logs' => $total,
                     'today_count' => (int)($statsToday[0]['c'] ?? 0),
@@ -4736,6 +4749,55 @@ try {
                     'module_breakdown' => $moduleBreakdown,
                 ]
             ]);
+            break;
+
+        case 'block_ip':
+            $targetIp = trim($_POST['ip_address'] ?? $_POST['ip'] ?? '');
+            $reason = trim($_POST['reason'] ?? 'សកម្មភាពគួរឱ្យសង្ស័យ (Suspicious Activity)');
+            $admin_name = trim($_POST['admin_name'] ?? 'Super Admin');
+
+            if (empty($targetIp) || $targetIp === '127.0.0.1' || $targetIp === '::1') {
+                sendJson(['success' => false, 'message' => 'អាសយដ្ឋាន IP មិនត្រឹមត្រូវ ឬជា Localhost មិនអាច Block បានឡើយ!'], 400);
+            }
+
+            if (function_exists('security_block_ip')) {
+                security_block_ip($targetIp, $reason, $admin_name);
+            }
+
+            log_audit_event('BLOCK_IP', 'security', $targetIp, "បាន Block អាសយដ្ឋាន IP [{$targetIp}] មូលហេតុ: {$reason}", 'danger', $admin_name);
+            if (function_exists('security_send_telegram_alert')) {
+                security_send_telegram_alert('IP_BLOCKED_MANUAL', "Admin [{$admin_name}] បានធ្វើការ Block អាសយដ្ឋាន IP [{$targetIp}] ដោយផ្ទាល់។ មូលហេតុ: {$reason}", 'danger', [
+                    'ip' => $targetIp,
+                    'actor' => $admin_name,
+                ]);
+            }
+
+            sendJson(['success' => true, 'message' => "បាន Block អាសយដ្ឋាន IP [{$targetIp}] ជោគជ័យ!"]);
+            break;
+
+        case 'unblock_ip':
+            $targetIp = trim($_POST['ip_address'] ?? $_POST['ip'] ?? '');
+            $admin_name = trim($_POST['admin_name'] ?? 'Super Admin');
+
+            if (empty($targetIp)) {
+                sendJson(['success' => false, 'message' => 'សូមបញ្ជាក់អាសយដ្ឋាន IP ដែលត្រូវដោះ Block!'], 400);
+            }
+
+            if (function_exists('security_unblock_ip')) {
+                security_unblock_ip($targetIp);
+            }
+
+            log_audit_event('UNBLOCK_IP', 'security', $targetIp, "បានដោះ Block អាសយដ្ឋាន IP [{$targetIp}]", 'info', $admin_name);
+
+            sendJson(['success' => true, 'message' => "បានដោះ Block អាសយដ្ឋាន IP [{$targetIp}] ជោគជ័យ!"]);
+            break;
+
+        case 'fetch_blocked_ips':
+            if (function_exists('ensure_blocked_ips_table')) {
+                ensure_blocked_ips_table();
+            }
+            $rows = dbQuery("SELECT * FROM blocked_ips ORDER BY created_at DESC");
+            sendJson(['success' => true, 'blocked_ips' => $rows]);
             break;
 
         case 'clear_audit_logs':

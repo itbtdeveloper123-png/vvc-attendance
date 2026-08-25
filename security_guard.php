@@ -56,6 +56,94 @@ if (!function_exists('security_get_client_ip')) {
 }
 
 // =========================================================================
+// 2.5. IP BLACKLIST & BLOCKING ENGINE (Manual & Automatic Banning)
+// =========================================================================
+if (!function_exists('ensure_blocked_ips_table')) {
+    function ensure_blocked_ips_table(): void {
+        static $checked = false;
+        if ($checked) return;
+        $checked = true;
+        if (function_exists('dbQuery')) {
+            try {
+                dbQuery("CREATE TABLE IF NOT EXISTS blocked_ips (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    ip_address VARCHAR(45) NOT NULL UNIQUE,
+                    reason VARCHAR(255) DEFAULT 'Suspicious / Unknown Activity',
+                    blocked_by VARCHAR(100) DEFAULT 'Admin',
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_ip (ip_address)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+            } catch (Throwable $e) {}
+        }
+    }
+}
+
+if (!function_exists('security_check_ip_blocklist')) {
+    function security_check_ip_blocklist(): void {
+        $ip = security_get_client_ip();
+        if ($ip === '127.0.0.1' || $ip === '::1') return;
+
+        if (function_exists('dbQuery')) {
+            try {
+                ensure_blocked_ips_table();
+                $rows = dbQuery("SELECT * FROM blocked_ips WHERE ip_address = ? LIMIT 1", [$ip]);
+                if (!empty($rows)) {
+                    $reason = $rows[0]['reason'] ?? 'IP ត្រូវបាន Block ដោយ Admin';
+                    http_response_code(403);
+                    header('Content-Type: application/json; charset=utf-8');
+                    echo json_encode([
+                        'success' => false,
+                        'error' => 'IP_BLOCKED',
+                        'message' => "អាសយដ្ឋាន IP [$ip] របស់អ្នកត្រូវបានរារាំង (Blocked): $reason",
+                    ], JSON_UNESCAPED_UNICODE);
+                    exit;
+                }
+            } catch (Throwable $e) {}
+        }
+    }
+}
+
+// Automatically enforce IP Blocklist on every incoming request
+security_check_ip_blocklist();
+
+if (!function_exists('security_block_ip')) {
+    function security_block_ip(string $ip, string $reason = 'Manual Block', string $blockedBy = 'Admin'): bool {
+        $ip = trim($ip);
+        if (empty($ip) || $ip === '127.0.0.1' || $ip === '::1') return false;
+        if (function_exists('dbQuery')) {
+            try {
+                ensure_blocked_ips_table();
+                dbQuery(
+                    "INSERT INTO blocked_ips (ip_address, reason, blocked_by, created_at) VALUES (?, ?, ?, NOW()) ON DUPLICATE KEY UPDATE reason = VALUES(reason), blocked_by = VALUES(blocked_by), created_at = NOW()",
+                    [$ip, $reason, $blockedBy]
+                );
+                return true;
+            } catch (Throwable $e) {
+                return false;
+            }
+        }
+        return false;
+    }
+}
+
+if (!function_exists('security_unblock_ip')) {
+    function security_unblock_ip(string $ip): bool {
+        $ip = trim($ip);
+        if (empty($ip)) return false;
+        if (function_exists('dbQuery')) {
+            try {
+                ensure_blocked_ips_table();
+                dbQuery("DELETE FROM blocked_ips WHERE ip_address = ?", [$ip]);
+                return true;
+            } catch (Throwable $e) {
+                return false;
+            }
+        }
+        return false;
+    }
+}
+
+// =========================================================================
 // 3. AUDIT LOGGING HOOK (For Security Threat Events)
 // =========================================================================
 if (!function_exists('security_send_telegram_alert')) {

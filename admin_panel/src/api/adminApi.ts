@@ -1523,6 +1523,33 @@ export const adminApi = {
     const res = await apiClient.post('', params);
     return res.data;
   },
+
+  // IP Blocklist Management
+  blockIp: async (ip: string, reason = 'Suspicious Activity', adminName = 'Super Admin') => {
+    const params = new URLSearchParams();
+    params.append('action', 'block_ip');
+    params.append('ip_address', ip);
+    params.append('reason', reason);
+    params.append('admin_name', adminName);
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  unblockIp: async (ip: string, adminName = 'Super Admin') => {
+    const params = new URLSearchParams();
+    params.append('action', 'unblock_ip');
+    params.append('ip_address', ip);
+    params.append('admin_name', adminName);
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  fetchBlockedIps: async () => {
+    const params = new URLSearchParams();
+    params.append('action', 'fetch_blocked_ips');
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
 };
 
 export interface AuditLog {
@@ -1538,6 +1565,14 @@ export interface AuditLog {
   severity: 'info' | 'warning' | 'danger' | 'critical';
   ip_address?: string;
   user_agent?: string;
+  created_at: string;
+}
+
+export interface BlockedIp {
+  id: number;
+  ip_address: string;
+  reason?: string;
+  blocked_by?: string;
   created_at: string;
 }
 
