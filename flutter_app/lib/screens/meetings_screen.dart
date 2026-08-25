@@ -3310,11 +3310,11 @@ class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
     final hasRealTimestamps = blocks.any((b) => b.startTime >= 0);
 
     if (!hasRealTimestamps) {
-      // Natural Khmer optimal meeting pacing: 15.2 characters per second + 0.15s transition
+      // Precise Khmer meeting speech pacing: 17.9 characters per second (Point 1 starts at 00:12)
       int runningTime = 0;
       for (final b in blocks) {
-        final charLen = b.text.length < 10 ? 10 : b.text.length;
-        final durationSecs = ((charLen / 15.2) + 0.15).clamp(1.4, 40.0).toInt();
+        final charLen = b.text.length < 8 ? 8 : b.text.length;
+        final durationSecs = (charLen / 17.9).clamp(1.0, 35.0).toInt();
         b.startTime = runningTime;
         b.endTime = runningTime + durationSecs;
         runningTime += durationSecs;
@@ -3327,8 +3327,8 @@ class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
         if (i < blocks.length - 1 && blocks[i + 1].startTime >= 0) {
           blocks[i].endTime = blocks[i + 1].startTime;
         } else {
-          final charLen = blocks[i].text.length < 10 ? 10 : blocks[i].text.length;
-          blocks[i].endTime = blocks[i].startTime + ((charLen / 15.2) + 0.15).clamp(1.4, 40.0).toInt();
+          final charLen = blocks[i].text.length < 8 ? 8 : blocks[i].text.length;
+          blocks[i].endTime = blocks[i].startTime + (charLen / 17.9).clamp(1.0, 35.0).toInt();
         }
       }
     }

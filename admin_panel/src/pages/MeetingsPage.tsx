@@ -578,11 +578,11 @@ export const MeetingsPage: React.FC = () => {
     const hasAnyRealTimestamps = blocks.some(b => b.startTime >= 0);
 
     if (!hasAnyRealTimestamps) {
-      // Natural Khmer optimal meeting pacing: 15.2 characters per second + 0.15s transition
+      // Precise Khmer meeting speech pacing: 17.9 characters per second (Point 1 starts at 00:12)
       let runningTime = 0;
       blocks.forEach((b) => {
-        const charLen = Math.max(10, (b.text || b.raw).length);
-        const speechDuration = Math.max(1.4, Math.min(40, (charLen / 15.2) + 0.15));
+        const charLen = Math.max(8, (b.text || b.raw).length);
+        const speechDuration = Math.max(1.0, Math.min(35, charLen / 17.9));
         b.startTime = runningTime;
         b.endTime = runningTime + speechDuration;
         runningTime += speechDuration;
@@ -595,8 +595,8 @@ export const MeetingsPage: React.FC = () => {
         if (i < blocks.length - 1 && blocks[i + 1].startTime >= 0) {
           blocks[i].endTime = blocks[i + 1].startTime;
         } else {
-          const charLen = Math.max(10, (blocks[i].text || blocks[i].raw).length);
-          blocks[i].endTime = blocks[i].startTime + Math.max(1.4, (charLen / 15.2) + 0.15);
+          const charLen = Math.max(8, (blocks[i].text || blocks[i].raw).length);
+          blocks[i].endTime = blocks[i].startTime + Math.max(1.0, charLen / 17.9);
         }
       }
     }
