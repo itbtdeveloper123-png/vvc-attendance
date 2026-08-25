@@ -542,17 +542,18 @@ export const MeetingsPage: React.FC = () => {
     const blocks: TranscriptBlock[] = [];
 
     rawLines.forEach((line, idx) => {
-      const timeMatch = line.match(/^\[?\(?(\d{1,2}):(\d{2})(?::(\d{2}))?\]?\)?\s*(.*)/);
       let startTime = -1;
       let lineBody = line;
 
-      if (timeMatch) {
+      // Flexible timestamp match: [00:15], (00:15), [00:15:30], **[00:15]**, 00:15
+      const timeMatch = lineBody.match(/(?:^|\[|\(|\*\*|\s)(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\]|\)|\*\*|\s)?\s*(.*)/);
+      if (timeMatch && !timeMatch[4]?.startsWith(':') && !timeMatch[4]?.startsWith('៖')) {
         if (timeMatch[3] !== undefined) {
           startTime = parseInt(timeMatch[1], 10) * 3600 + parseInt(timeMatch[2], 10) * 60 + parseInt(timeMatch[3], 10);
         } else {
           startTime = parseInt(timeMatch[1], 10) * 60 + parseInt(timeMatch[2], 10);
         }
-        lineBody = timeMatch[4] || line;
+        lineBody = timeMatch[4] || lineBody;
       }
 
       const speakerMatch = lineBody.match(/^(\*\*.*?\*\*|[\u1780-\u17FF\w\s\(\)]+)\s*[:៖]\s*(.*)/);
@@ -577,11 +578,11 @@ export const MeetingsPage: React.FC = () => {
     const hasAnyRealTimestamps = blocks.some(b => b.startTime >= 0);
 
     if (!hasAnyRealTimestamps) {
-      // Natural Khmer conversational speech pacing: ~21 characters per second + 0.25s pause
+      // Natural Khmer meeting pacing: ~9.5 characters per second + 1.2s pause between sentences
       let runningTime = 0;
       blocks.forEach((b) => {
         const charLen = Math.max(12, (b.text || b.raw).length);
-        const speechDuration = Math.max(1.6, Math.min(30, (charLen / 21.0) + 0.25));
+        const speechDuration = Math.max(2.5, Math.min(45, (charLen / 9.5) + 1.2));
         b.startTime = runningTime;
         b.endTime = runningTime + speechDuration;
         runningTime += speechDuration;
@@ -595,7 +596,7 @@ export const MeetingsPage: React.FC = () => {
           blocks[i].endTime = blocks[i + 1].startTime;
         } else {
           const charLen = Math.max(12, (blocks[i].text || blocks[i].raw).length);
-          blocks[i].endTime = blocks[i].startTime + Math.max(2.0, (charLen / 21.0) + 0.25);
+          blocks[i].endTime = blocks[i].startTime + Math.max(2.5, (charLen / 9.5) + 1.2);
         }
       }
     }
