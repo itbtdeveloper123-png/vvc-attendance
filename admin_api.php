@@ -3088,15 +3088,14 @@ try {
                 $rawRes = curl_exec($ch);
                 curl_close($ch);
 
-                    if ($rawRes) {
-                        $dec = json_decode((string)$rawRes, true);
-                        if (!empty($dec['choices'][0]['message']['content'])) {
-                            $summaryText = trim($dec['choices'][0]['message']['content']);
-                            $usedProvider = 'groq';
-                            $usedModel = 'llama-3.3-70b-versatile';
-                        } elseif (!empty($dec['error']['message'])) {
-                            $lastError = 'Groq: ' . $dec['error']['message'];
-                        }
+                if ($rawRes) {
+                    $dec = json_decode((string)$rawRes, true);
+                    if (!empty($dec['choices'][0]['message']['content'])) {
+                        $summaryText = trim($dec['choices'][0]['message']['content']);
+                        $usedProvider = 'groq';
+                        $usedModel = 'llama-3.3-70b-versatile';
+                    } elseif (!empty($dec['error']['message'])) {
+                        $lastError = 'Groq: ' . $dec['error']['message'];
                     }
                 }
             }
