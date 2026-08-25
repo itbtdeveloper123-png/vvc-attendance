@@ -1708,8 +1708,12 @@ class _MeetingsScreenState extends State<MeetingsScreen>
                   const SizedBox(width: 8),
                   _buildActionBtn(
                     Icons.auto_awesome_rounded,
-                    "AI សង្ខេប",
-                    Colors.amber.shade800,
+                    (m['summary'] != null && m['summary'].toString().trim().isNotEmpty)
+                        ? "មើលសង្ខេប AI"
+                        : "AI សង្ខេប",
+                    (m['summary'] != null && m['summary'].toString().trim().isNotEmpty)
+                        ? Colors.teal.shade700
+                        : Colors.amber.shade800,
                     () => _openAiMinutesModal(m),
                   ),
                   const SizedBox(width: 8),
@@ -2383,6 +2387,14 @@ class _MeetingsScreenState extends State<MeetingsScreen>
         initialSummary: m['summary']?.toString(),
         initialTranscript: m['transcript_text']?.toString(),
         api: _api,
+        onGenerated: (summary, transcript) {
+          if (mounted) {
+            setState(() {
+              m['summary'] = summary;
+              m['transcript_text'] = transcript;
+            });
+          }
+        },
       ),
     );
   }
@@ -2396,6 +2408,7 @@ class _AiMeetingMinutesSheet extends StatefulWidget {
   final String? initialSummary;
   final String? initialTranscript;
   final ApiService api;
+  final Function(String summary, String? transcript)? onGenerated;
 
   const _AiMeetingMinutesSheet({
     required this.meetingId,
@@ -2405,6 +2418,7 @@ class _AiMeetingMinutesSheet extends StatefulWidget {
     this.initialSummary,
     this.initialTranscript,
     required this.api,
+    this.onGenerated,
   });
 
   @override
@@ -2438,11 +2452,16 @@ class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
     try {
       final res = await widget.api.summarizeMeeting(widget.meetingId, force: force);
       if (res['success'] == true || res['status'] == 'success') {
+        final summaryStr = res['summary']?.toString();
+        final transcriptStr = res['transcript']?.toString() ?? res['transcript_text']?.toString();
         setState(() {
-          _summary = res['summary']?.toString();
-          _transcript = res['transcript']?.toString() ?? res['transcript_text']?.toString();
+          _summary = summaryStr;
+          _transcript = transcriptStr;
           _isLoading = false;
         });
+        if (summaryStr != null && summaryStr.isNotEmpty) {
+          widget.onGenerated?.call(summaryStr, transcriptStr);
+        }
       } else {
         setState(() {
           _error = res['message']?.toString() ?? 'មិនអាចទាញយកសេចក្តីសង្ខេប AI បានទេ';

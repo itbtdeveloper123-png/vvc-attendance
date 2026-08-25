@@ -3549,7 +3549,7 @@ try {
         $existingSummary = trim((string)($meeting['summary'] ?? ''));
         $existingTranscript = trim((string)($meeting['transcript_text'] ?? ''));
 
-        if (!$forceRegenerate && $existingSummary !== '' && $existingTranscript !== '') {
+        if (!$forceRegenerate && ($existingSummary !== '' || $existingTranscript !== '')) {
             $analysisExisting = [];
             $summaryJsonRaw = $meeting['summary_json'] ?? '';
             if (is_string($summaryJsonRaw) && trim($summaryJsonRaw) !== '') {
@@ -3559,18 +3559,21 @@ try {
                 }
             }
 
-            apiResponse([
-                'success' => true,
-                'summary' => $existingSummary,
-                'transcript' => $existingTranscript,
-                'analysis' => $analysisExisting,
-                'transcript_provider' => $meeting['transcript_provider'] ?? null,
-                'transcript_model' => $meeting['transcript_model'] ?? null,
-                'summary_provider' => $meeting['summary_provider'] ?? null,
-                'summary_model' => $meeting['summary_model'] ?? null,
-                'generated_at' => $meeting['summary_generated_at'] ?? null,
-                'cached' => true,
-            ]);
+            // If summary exists, return cached data immediately
+            if ($existingSummary !== '') {
+                apiResponse([
+                    'success' => true,
+                    'summary' => $existingSummary,
+                    'transcript' => $existingTranscript,
+                    'analysis' => $analysisExisting,
+                    'transcript_provider' => $meeting['transcript_provider'] ?? null,
+                    'transcript_model' => $meeting['transcript_model'] ?? null,
+                    'summary_provider' => $meeting['summary_provider'] ?? null,
+                    'summary_model' => $meeting['summary_model'] ?? null,
+                    'generated_at' => $meeting['summary_generated_at'] ?? null,
+                    'cached' => true,
+                ]);
+            }
         }
 
         $localOnly = meeting_ai_local_only_enabled();
