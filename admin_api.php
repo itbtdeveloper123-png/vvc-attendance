@@ -2935,85 +2935,125 @@ try {
         case 'summarize_meeting':
             $mid = (int)($_POST['meeting_id'] ?? $_POST['id'] ?? 0);
             if (!$mid) sendJson(['success' => false, 'message' => 'Missing meeting ID'], 400);
-            $force = !empty($_POST['force']) && $_POST['force'] !== '0' ? '1' : '0';
+            $force = !empty($_POST['force']) && $_POST['force'] !== '0';
 
-            // Check if existing summary is in DB and not forcing regenerate
-            if (!$force) {
-                $chk = dbQuery("SELECT summary, summary_json, transcript_text, transcript_provider, transcript_model, summary_provider, summary_model, summary_generated_at FROM meetings WHERE id = ? LIMIT 1", [$mid]);
-                if (!empty($chk[0]['summary'])) {
-                    $existing = $chk[0];
-                    $analysisExisting = [];
-                    if (!empty($existing['summary_json']) && is_string($existing['summary_json'])) {
-                        $analysisExisting = json_decode($existing['summary_json'], true) ?: [];
-                    }
-                    sendJson([
-                        'success' => true,
-                        'status' => 'success',
-                        'summary' => $existing['summary'],
-                        'transcript' => $existing['transcript_text'] ?? '',
-                        'analysis' => $analysisExisting,
-                        'transcript_provider' => $existing['transcript_provider'] ?? null,
-                        'transcript_model' => $existing['transcript_model'] ?? null,
-                        'summary_provider' => $existing['summary_provider'] ?? null,
-                        'summary_model' => $existing['summary_model'] ?? null,
-                        'generated_at' => $existing['summary_generated_at'] ?? null,
-                        'cached' => true,
-                    ]);
-                }
-            }
+            $res = dbQuery("SELECT * FROM meetings WHERE id = ? LIMIT 1", [$mid]);
+            $meeting = $res[0] ?? null;
+            if (!$meeting) sendJson(['success' => false, 'message' => 'រកមិនឃើញទិន្នន័យកិច្ចប្រជុំឡើយ (Meeting not found)'], 404);
 
-            // Forward to API endpoint
-            $protocol = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? 'https' : 'http';
-            $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-            $apiUrl = $protocol . '://' . $host . '/flutter/api.php';
-            $liveApiUrl = 'https://app.vvc.asia/flutter/api.php';
+            $existingSummary = trim((string)($meeting['summary'] ?? ''));
+            $existingTranscript = trim((string)($meeting['transcript_text'] ?? ''));
 
-            $postFields = [
-                'action' => 'summarize_meeting',
-                'meeting_id' => $mid,
-                'force' => $force,
-                'admin_id' => $_SESSION['admin_id'] ?? 'SYSTEM',
-            ];
-
-            $makeCurlCall = function($url) use ($postFields) {
-                if (!function_exists('curl_init')) return [false, 0];
-                $ch = curl_init($url);
-                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                curl_setopt($ch, CURLOPT_POST, true);
-                curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postFields));
-                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-                curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
-                curl_setopt($ch, CURLOPT_TIMEOUT, 180);
-                $raw = curl_exec($ch);
-                $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                curl_close($ch);
-                return [$raw, $httpCode];
-            };
-
-            list($raw, $httpCode) = $makeCurlCall($apiUrl);
-            if (!$raw || $httpCode >= 400) {
-                list($raw, $httpCode) = $makeCurlCall($liveApiUrl);
-            }
-
-            if ($raw) {
-                $decoded = json_decode($raw, true);
-                if (is_array($decoded)) {
-                    sendJson($decoded, $httpCode >= 400 ? $httpCode : 200);
-                }
-            }
-
-            // Check if updated in DB after run
-            $chk2 = dbQuery("SELECT summary, transcript_text FROM meetings WHERE id = ? LIMIT 1", [$mid]);
-            if (!empty($chk2[0]['summary'])) {
+            if (!$force && $existingSummary !== '') {
                 sendJson([
                     'success' => true,
                     'status' => 'success',
-                    'summary' => $chk2[0]['summary'],
-                    'transcript' => $chk2[0]['transcript_text'] ?? '',
+                    'summary' => $existingSummary,
+                    'transcript' => $existingTranscript,
+                    'cached' => true,
                 ]);
             }
 
-            sendJson(['success' => false, 'message' => 'មិនអាចទាញយកសេចក្តីសង្ខេប AI បានទេនៅពេលនេះ។'], 500);
+            // 1. Resolve Audio / Transcript
+            $transcriptText = $existingTranscript;
+            $audioPath = trim((string)($meeting['audio_url'] ?? $meeting['mp3_url'] ?? $meeting['audio_file_path'] ?? $meeting['audio_path'] ?? ''));
+
+            $groqKey = trim((string)(defined('GROQ_API_KEY') ? GROQ_API_KEY : ''));
+            if ($transcriptText === '' && $audioPath !== '' && $groqKey !== '') {
+                $audioPublicUrl = preg_match('#^https?://#i', $audioPath) ? $audioPath : ('https://app.vvc.asia/flutter/' . ltrim($audioPath, '/\\'));
+                $ch = curl_init('https://api.groq.com/openai/v1/audio/transcriptions');
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_POST, true);
+                curl_setopt($ch, CURLOPT_HTTPHEADER, ['Authorization: Bearer ' . $groqKey]);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, [
+                    'url' => $audioPublicUrl,
+                    'model' => 'whisper-large-v3',
+                    'language' => 'km',
+                    'response_format' => 'json',
+                ]);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 90);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                $tRaw = curl_exec($ch);
+                curl_close($ch);
+                $tDec = json_decode((string)$tRaw, true);
+                if (!empty($tDec['text'])) {
+                    $transcriptText = trim($tDec['text']);
+                }
+            }
+
+            if ($transcriptText === '') {
+                $transcriptText = trim((string)($meeting['description'] ?? ''));
+            }
+
+            // 2. Direct Gemini AI Summarization
+            $geminiKey = trim((string)(defined('GEMINI_API_KEY') ? GEMINI_API_KEY : ''));
+            $topic = trim((string)($meeting['topic'] ?? $meeting['title'] ?? 'កិច្ចប្រជុំ'));
+            $dept = trim((string)($meeting['department'] ?? $meeting['category'] ?? 'General'));
+            $date = trim((string)($meeting['meeting_date'] ?? $meeting['date'] ?? date('Y-m-d')));
+            $desc = trim((string)($meeting['description'] ?? ''));
+
+            $prompt = "អ្នកជាជំនួយការ AI សម្រាប់សង្ខេបកិច្ចប្រជុំ និងធ្វើកំណត់ហេតុកិច្ចប្រជុំជាភាសាខ្មែរ (Executive Minutes of Meeting)។\n\n"
+                . "ព័ត៌មានកិច្ចប្រជុំ:\n"
+                . "- ប្រធានបទ: {$topic}\n"
+                . "- ផ្នែក/ក្រុម: {$dept}\n"
+                . "- កាលបរិច្ឆេទ: {$date}\n"
+                . "- ការពិពណ៌នាសង្ខេប: " . ($desc !== '' ? $desc : 'មិនមាន') . "\n\n"
+                . "ខ្លឹមសារកិច្ចប្រជុំ / Transcript:\n" . ($transcriptText !== '' ? $transcriptText : ($desc !== '' ? $desc : $topic)) . "\n\n"
+                . "សូមរៀបចំសេចក្តីសង្ខេប និងកំណត់ហេតុកិច្ចប្រជុំជាភាសាខ្មែរឱ្យមានរបៀបរៀបរយ ច្បាស់លាស់ និងមានលក្ខណៈវិជ្ជាជីវៈខ្ពស់ ដោយបែងចែកជាផ្នែកៗដូចខាងក្រោម៖\n"
+                . "📌 ១. សេចក្តីសង្ខេបរួម (Executive Summary)\n"
+                . "🎯 ២. ចំណុចសំខាន់ៗដែលបានលើកឡើង (Key Discussion Points)\n"
+                . "✅ ៣. ការសម្រេចចិត្តរួម (Decisions Made)\n"
+                . "📋 ៤. ផែនការសកម្មភាព និងជំហានបន្ទាប់ (Action Items & Next Steps)\n\n"
+                . "សូមឆ្លើយតបជាភាសាខ្មែរដោយផ្ទាល់។";
+
+            $summaryText = '';
+            if ($geminiKey !== '') {
+                $endpoint = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
+                $ch = curl_init($endpoint);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_POST, true);
+                curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                    'Content-Type: application/json; charset=utf-8',
+                    'Authorization: Bearer ' . $geminiKey
+                ]);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
+                    'model' => 'gemini-2.5-flash',
+                    'messages' => [
+                        ['role' => 'system', 'content' => 'You are an executive Khmer AI meeting minutes assistant.'],
+                        ['role' => 'user', 'content' => $prompt]
+                    ],
+                    'temperature' => 0.3
+                ], JSON_UNESCAPED_UNICODE));
+                curl_setopt($ch, CURLOPT_TIMEOUT, 90);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+                $rawRes = curl_exec($ch);
+                curl_close($ch);
+
+                $decRes = json_decode((string)$rawRes, true);
+                if (!empty($decRes['choices'][0]['message']['content'])) {
+                    $summaryText = trim($decRes['choices'][0]['message']['content']);
+                }
+            }
+
+            if ($summaryText === '') {
+                sendJson(['success' => false, 'message' => 'មិនអាចទាញយកសេចក្តីសង្ខេប AI បានទេ សូមពិនិត្យមើល GEMINI_API_KEY។'], 500);
+            }
+
+            // 3. Save to database
+            dbQuery("UPDATE meetings SET summary = ?, transcript_text = ?, summary_generated_at = NOW(), summary_provider = 'gemini', summary_model = 'gemini-2.5-flash' WHERE id = ?", [
+                $summaryText,
+                $transcriptText,
+                $mid
+            ]);
+
+            sendJson([
+                'success' => true,
+                'status' => 'success',
+                'summary' => $summaryText,
+                'transcript' => $transcriptText,
+                'cached' => false,
+            ]);
             break;
 
         case 'save_meeting':
