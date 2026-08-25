@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:animate_do/animate_do.dart';
@@ -8,6 +9,7 @@ import 'dart:ui' as ui;
 import 'dart:typed_data';
 import 'package:flutter/rendering.dart';
 import 'package:pasteboard/pasteboard.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
 import '../utils/app_theme.dart';
 import '../providers/user_provider.dart';
@@ -70,16 +72,137 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
     return lower.contains('it') || lower.contains('admin');
   }
 
+  Timer? _draftTimer;
+  bool _hasRestoredDraft = false;
+
+  void _onFieldChanged() {
+    _draftTimer?.cancel();
+    _draftTimer = Timer(const Duration(milliseconds: 600), _saveDraft);
+  }
+
+  Future<void> _saveDraft() async {
+    try {
+      final user = Provider.of<UserProvider>(context, listen: false);
+      final key = 'daily_report_draft_${user.employeeId ?? "guest"}';
+      final prefs = await SharedPreferences.getInstance();
+
+      final tasksList = _tasks.map((t) => {
+        'time': t['time']?.text ?? '',
+        'task': t['task']?.text ?? '',
+        'status': t['status']?.text ?? '',
+        'dueDate': t['dueDate']?.text ?? '',
+        'description': t['description']?.text ?? '',
+        'problem': t['problem']?.text ?? '',
+        'solution': t['solution']?.text ?? '',
+      }).toList();
+
+      final data = {
+        'content': _contentController.text,
+        'nextPlan': _nextPlanDetailsController.text,
+        'position': _selectedPosition,
+        'tasks': tasksList,
+        'savedAt': DateTime.now().toIso8601String(),
+      };
+
+      await prefs.setString(key, jsonEncode(data));
+    } catch (_) {}
+  }
+
+  Future<void> _restoreDraft() async {
+    try {
+      final user = Provider.of<UserProvider>(context, listen: false);
+      final key = 'daily_report_draft_${user.employeeId ?? "guest"}';
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(key);
+      if (raw == null || raw.isEmpty) return;
+
+      final data = jsonDecode(raw);
+      if (data is Map<String, dynamic>) {
+        final content = data['content']?.toString() ?? '';
+        final nextPlan = data['nextPlan']?.toString() ?? '';
+        final tasksRaw = data['tasks'] as List<dynamic>? ?? [];
+
+        bool hasMeaningfulContent = content.trim().isNotEmpty || nextPlan.trim().isNotEmpty;
+        if (!hasMeaningfulContent && tasksRaw.isNotEmpty) {
+          hasMeaningfulContent = tasksRaw.any((t) => (t['task'] ?? '').toString().trim().isNotEmpty);
+        }
+
+        if (hasMeaningfulContent && mounted) {
+          setState(() {
+            if (content.isNotEmpty) _contentController.text = content;
+            if (nextPlan.isNotEmpty) _nextPlanDetailsController.text = nextPlan;
+            if (data['position'] != null && data['position'].toString().isNotEmpty) {
+              _selectedPosition = data['position'].toString();
+            }
+
+            if (tasksRaw.isNotEmpty) {
+              for (var t in _tasks) {
+                for (var c in t.values) {
+                  c.dispose();
+                }
+              }
+              _tasks.clear();
+
+              for (var item in tasksRaw) {
+                if (item is Map) {
+                  final timeC = TextEditingController(text: item['time']?.toString() ?? '')..addListener(_onFieldChanged);
+                  final taskC = TextEditingController(text: item['task']?.toString() ?? '')..addListener(_onFieldChanged);
+                  final statC = TextEditingController(text: item['status']?.toString() ?? '100%')..addListener(_onFieldChanged);
+                  final dueC = TextEditingController(text: item['dueDate']?.toString() ?? '')..addListener(_onFieldChanged);
+                  final descC = TextEditingController(text: item['description']?.toString() ?? '')..addListener(_onFieldChanged);
+                  final probC = TextEditingController(text: item['problem']?.toString() ?? '')..addListener(_onFieldChanged);
+                  final solC = TextEditingController(text: item['solution']?.toString() ?? '')..addListener(_onFieldChanged);
+
+                  _tasks.add({
+                    'time': timeC,
+                    'task': taskC,
+                    'status': statC,
+                    'dueDate': dueC,
+                    'description': descC,
+                    'problem': probC,
+                    'solution': solC,
+                  });
+                }
+              }
+              if (_tasks.isEmpty) _addTaskRow();
+            }
+            _hasRestoredDraft = true;
+          });
+        }
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _clearDraft() async {
+    try {
+      final user = Provider.of<UserProvider>(context, listen: false);
+      final key = 'daily_report_draft_${user.employeeId ?? "guest"}';
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(key);
+      if (mounted) {
+        setState(() => _hasRestoredDraft = false);
+      }
+    } catch (_) {}
+  }
+
   void _addTaskRow() {
     setState(() {
+      final timeC = TextEditingController()..addListener(_onFieldChanged);
+      final taskC = TextEditingController()..addListener(_onFieldChanged);
+      final statC = TextEditingController(text: '100%')..addListener(_onFieldChanged);
+      final dueC = TextEditingController()..addListener(_onFieldChanged);
+      final descC = TextEditingController()..addListener(_onFieldChanged);
+      final probC = TextEditingController()..addListener(_onFieldChanged);
+      final solC = TextEditingController()..addListener(_onFieldChanged);
+
       _tasks.add({
-        'time': TextEditingController(),
-        'task': TextEditingController(),
-        'status': TextEditingController(text: '100%'),
-        'dueDate': TextEditingController(),
-        'description': TextEditingController(),
-        'problem': TextEditingController(),
-        'solution': TextEditingController(),
+        'time': timeC,
+        'task': taskC,
+        'status': statC,
+        'dueDate': dueC,
+        'description': descC,
+        'problem': probC,
+        'solution': solC,
       });
     });
   }
@@ -92,16 +215,20 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
         }
         _tasks.removeAt(index);
       });
+      _onFieldChanged();
     }
   }
 
   @override
   void initState() {
     super.initState();
+    _contentController.addListener(_onFieldChanged);
+    _nextPlanDetailsController.addListener(_onFieldChanged);
     _addTaskRow();
     // Initialize data immediately from provider to avoid loading state
     _initializeLocalUserData();
     _loadData();
+    _restoreDraft();
     _pollingTimer = Timer.periodic(const Duration(seconds: 10), (_) {
       if (mounted) _fetchReports();
     });
@@ -109,6 +236,7 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
 
   @override
   void dispose() {
+    _draftTimer?.cancel();
     _pollingTimer?.cancel();
     _contentController.dispose();
     _emailController.dispose();
@@ -259,6 +387,7 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
         chatId: chatId,
       );
       if (res['status'] == 'success') {
+        _clearDraft();
         _contentController.clear();
         _nextPlanDetailsController.clear();
         for (var t in _tasks) {
@@ -503,6 +632,65 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    if (_hasRestoredDraft)
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 16),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: Colors.amber.withValues(alpha: 0.4),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.history_edu_rounded,
+                              color: Colors.amber,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                "បានស្ដារពង្រាងស្វ័យប្រវត្តដែលបានរក្សាទុក (Draft Restored)",
+                                style: GoogleFonts.kantumruyPro(
+                                  color: Colors.amber,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            InkWell(
+                              onTap: () {
+                                _clearDraft();
+                                _contentController.clear();
+                                _nextPlanDetailsController.clear();
+                                for (var t in _tasks) {
+                                  for (var c in t.values) {
+                                    c.clear();
+                                  }
+                                  t['status']!.text = '100%';
+                                }
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.all(4.0),
+                                child: Text(
+                                  "សម្អាតពង្រាង",
+                                  style: GoogleFonts.kantumruyPro(
+                                    color: Colors.redAccent,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     Row(
                       children: [
                         Expanded(

@@ -7,7 +7,7 @@ import 'package:intl/intl.dart';
 class ExportModal extends StatefulWidget {
   final List<String> imagePaths;
   final String? ocrText;
-  final Function(String, ExportFormat) onExport;
+  final Function(String fileName, ExportFormat format, {bool includeWatermark, String watermarkText}) onExport;
 
   const ExportModal({
     super.key,
@@ -22,7 +22,9 @@ class ExportModal extends StatefulWidget {
 
 class _ExportModalState extends State<ExportModal> {
   late TextEditingController _nameController;
+  late TextEditingController _watermarkController;
   ExportFormat _selectedFormat = ExportFormat.pdf;
+  bool _includeWatermark = true;
 
   @override
   void initState() {
@@ -30,11 +32,15 @@ class _ExportModalState extends State<ExportModal> {
     _nameController = TextEditingController(
       text: _generateDefaultName(),
     );
+    _watermarkController = TextEditingController(
+      text: 'VVC OFFICIAL DOCUMENT',
+    );
   }
 
   @override
   void dispose() {
     _nameController.dispose();
+    _watermarkController.dispose();
     super.dispose();
   }
 
@@ -182,7 +188,91 @@ class _ExportModalState extends State<ExportModal> {
               ],
             ),
           ),
-          const SizedBox(height: 24),
+          // Watermark Option (for PDF)
+          if (_selectedFormat == ExportFormat.pdf) ...[
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: _includeWatermark
+                        ? Colors.orange.withValues(alpha: 0.5)
+                        : Colors.white.withValues(alpha: 0.1),
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.verified_user_outlined,
+                          color: Colors.orange,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Official Watermark (ត្រាទឹកផ្លូវការ)',
+                                style: GoogleFonts.kantumruyPro(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              Text(
+                                'បោះត្រាទឹកសម្គាល់ភាពស្របច្បាប់លើក្រដាស PDF',
+                                style: GoogleFonts.kantumruyPro(
+                                  color: Colors.white54,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Switch(
+                          value: _includeWatermark,
+                          activeThumbColor: Colors.orange,
+                          onChanged: (v) => setState(() => _includeWatermark = v),
+                        ),
+                      ],
+                    ),
+                    if (_includeWatermark) ...[
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: _watermarkController,
+                        style: GoogleFonts.inter(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: 'Watermark Text',
+                          hintStyle: GoogleFonts.inter(color: Colors.grey, fontSize: 13),
+                          isDense: true,
+                          filled: true,
+                          fillColor: Colors.black26,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(
+                              color: Colors.white.withValues(alpha: 0.1),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+          const SizedBox(height: 20),
           // Page count info
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -362,7 +452,16 @@ class _ExportModalState extends State<ExportModal> {
       return;
     }
 
-    widget.onExport(fileName, _selectedFormat);
+    final watermarkText = _watermarkController.text.trim().isNotEmpty
+        ? _watermarkController.text.trim()
+        : 'VVC OFFICIAL DOCUMENT';
+
+    widget.onExport(
+      fileName,
+      _selectedFormat,
+      includeWatermark: _selectedFormat == ExportFormat.pdf && _includeWatermark,
+      watermarkText: watermarkText,
+    );
     Navigator.pop(context);
   }
 }

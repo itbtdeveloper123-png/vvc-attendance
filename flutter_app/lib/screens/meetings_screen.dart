@@ -14,6 +14,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:intl/intl.dart';
 import 'package:path/path.dart' as p;
+import 'package:share_plus/share_plus.dart';
 import '../services/api_service.dart';
 import '../services/meeting_audio_draft_service.dart';
 import '../services/meeting_audio_player_service.dart';
@@ -1704,7 +1705,14 @@ class _MeetingsScreenState extends State<MeetingsScreen>
                       () =>
                           _playAudio(audioPath, title: m['topic']?.toString()),
                     ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 8),
+                  _buildActionBtn(
+                    Icons.auto_awesome_rounded,
+                    "AI សង្ខេប",
+                    Colors.amber.shade800,
+                    () => _openAiMinutesModal(m),
+                  ),
+                  const SizedBox(width: 8),
                   _buildActionBtn(
                     Icons.info_outline_rounded,
                     "លម្អិត",
@@ -1927,6 +1935,34 @@ class _MeetingsScreenState extends State<MeetingsScreen>
                             ),
                           ),
                         ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 55,
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            _openAiMinutesModal(m);
+                          },
+                          icon: const Icon(
+                            Icons.auto_awesome_rounded,
+                            color: Colors.white,
+                          ),
+                          label: Text(
+                            "AI សង្ខេបកិច្ចប្រជុំ (AI Minutes)",
+                            style: GoogleFonts.kantumruyPro(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.amber.shade800,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(15),
+                            ),
+                          ),
+                        ),
+                      ),
                       const SizedBox(height: 50),
                     ],
                   ),
@@ -2327,5 +2363,364 @@ class _MeetingsScreenState extends State<MeetingsScreen>
 
   Future<void> _openUrl(String? url) async {
     // implementation for url launcher if needed
+  }
+
+  void _openAiMinutesModal(dynamic m) {
+    final int meetingId = int.tryParse(m['id']?.toString() ?? '0') ?? 0;
+    final String topic = m['topic']?.toString() ?? 'កិច្ចប្រជុំ';
+    final String dept = m['department']?.toString() ?? '';
+    final String audioPath = (m['audio_path'] ?? m['audio_file_path'] ?? '').toString();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _AiMeetingMinutesSheet(
+        meetingId: meetingId,
+        topic: topic,
+        department: dept,
+        audioPath: audioPath,
+        initialSummary: m['summary']?.toString(),
+        initialTranscript: m['transcript_text']?.toString(),
+        api: _api,
+      ),
+    );
+  }
+}
+
+class _AiMeetingMinutesSheet extends StatefulWidget {
+  final int meetingId;
+  final String topic;
+  final String department;
+  final String audioPath;
+  final String? initialSummary;
+  final String? initialTranscript;
+  final ApiService api;
+
+  const _AiMeetingMinutesSheet({
+    required this.meetingId,
+    required this.topic,
+    required this.department,
+    required this.audioPath,
+    this.initialSummary,
+    this.initialTranscript,
+    required this.api,
+  });
+
+  @override
+  State<_AiMeetingMinutesSheet> createState() => _AiMeetingMinutesSheetState();
+}
+
+class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
+  bool _isLoading = false;
+  String? _summary;
+  String? _transcript;
+  String? _error;
+  int _selectedTab = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _summary = widget.initialSummary;
+    _transcript = widget.initialTranscript;
+
+    if ((_summary == null || _summary!.isEmpty) && widget.meetingId > 0) {
+      _loadOrGenerateSummary();
+    }
+  }
+
+  Future<void> _loadOrGenerateSummary({bool force = false}) async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final res = await widget.api.summarizeMeeting(widget.meetingId, force: force);
+      if (res['success'] == true || res['status'] == 'success') {
+        setState(() {
+          _summary = res['summary']?.toString();
+          _transcript = res['transcript']?.toString() ?? res['transcript_text']?.toString();
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _error = res['message']?.toString() ?? 'មិនអាចទាញយកសេចក្តីសង្ខេប AI បានទេ';
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _error = 'កំហុសបច្ចេកវិទ្យា AI៖ $e';
+        _isLoading = false;
+      });
+    }
+  }
+
+  void _copyToClipboard() {
+    final textToCopy = "📝 សេចក្តីសង្ខេបកិច្ចប្រជុំ៖ ${widget.topic}\n\n${_summary ?? ''}";
+    Clipboard.setData(ClipboardData(text: textToCopy));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('បានចម្លងសេចក្តីសង្ខេបទៅកាន់ Clipboard')),
+    );
+  }
+
+  void _shareSummary() {
+    final textToShare = "📝 សេចក្តីសង្ខេបកិច្ចប្រជុំ៖ ${widget.topic}\nផ្នែក៖ ${widget.department}\n\n${_summary ?? ''}";
+    Share.share(textToShare);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.88,
+      decoration: BoxDecoration(
+        color: AppTheme.bgDark,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+      ),
+      child: Column(
+        children: [
+          const SizedBox(height: 12),
+          Container(
+            width: 44,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.white24,
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Header
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.auto_awesome_rounded,
+                    color: Colors.amber,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "AI កំណត់ហេតុ & សង្ខេបប្រជុំ",
+                        style: GoogleFonts.kantumruyPro(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.textPrimary,
+                        ),
+                      ),
+                      Text(
+                        widget.topic,
+                        style: GoogleFonts.kantumruyPro(
+                          fontSize: 12.5,
+                          color: AppTheme.textSecondary,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close_rounded, color: Colors.white70),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          // Tab switcher
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _buildTabBtn(0, "សេចក្តីសង្ខេប (Summary)", Icons.summarize_rounded),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _buildTabBtn(1, "អត្ថបទសន្ទនា (Transcript)", Icons.record_voice_over_rounded),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 24),
+          // Content
+          Expanded(
+            child: _isLoading
+                ? _buildLoadingState()
+                : (_error != null ? _buildErrorState() : _buildContentState()),
+          ),
+          // Bottom action bar
+          if (!_isLoading && _summary != null && _summary!.isNotEmpty)
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+              decoration: BoxDecoration(
+                color: AppTheme.bgCard,
+                border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.08))),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _copyToClipboard,
+                      icon: const Icon(Icons.copy_rounded, size: 18),
+                      label: Text("ចម្លង", style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold)),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppTheme.primary,
+                        side: BorderSide(color: AppTheme.primary.withValues(alpha: 0.5)),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _shareSummary,
+                      icon: const Icon(Icons.share_rounded, size: 18),
+                      label: Text("ចែករំលែក", style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  IconButton(
+                    onPressed: () => _loadOrGenerateSummary(force: true),
+                    tooltip: "បង្កើតសារជាថ្មី",
+                    icon: const Icon(Icons.refresh_rounded, color: Colors.amber),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTabBtn(int index, String label, IconData icon) {
+    final bool isSelected = _selectedTab == index;
+    return GestureDetector(
+      onTap: () => setState(() => _selectedTab = index),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected ? AppTheme.primary.withValues(alpha: 0.15) : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? AppTheme.primary : Colors.white12,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 16, color: isSelected ? AppTheme.primary : Colors.white60),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: GoogleFonts.kantumruyPro(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                color: isSelected ? AppTheme.primary : Colors.white60,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLoadingState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const CircularProgressIndicator(color: Colors.amber),
+          const SizedBox(height: 18),
+          Text(
+            "AI កំពុងវិភាគ និងសង្ខេបកិច្ចប្រជុំ...",
+            style: GoogleFonts.kantumruyPro(
+              color: AppTheme.textPrimary,
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            "ដំណើរការដោយ Google Gemini / Whisper AI",
+            style: GoogleFonts.inter(
+              color: AppTheme.textSecondary,
+              fontSize: 11,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline_rounded, color: Colors.redAccent.shade200, size: 48),
+            const SizedBox(height: 14),
+            Text(
+              _error ?? 'មានកំហុស',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.kantumruyPro(color: Colors.redAccent, fontSize: 13),
+            ),
+            const SizedBox(height: 18),
+            ElevatedButton.icon(
+              onPressed: () => _loadOrGenerateSummary(force: true),
+              icon: const Icon(Icons.refresh_rounded),
+              label: Text("ព្យាយាមម្ដងទៀត", style: GoogleFonts.kantumruyPro()),
+              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContentState() {
+    final text = _selectedTab == 0 ? (_summary ?? 'មិនទាន់មានសេចក្តីសង្ខេបទេ') : (_transcript ?? 'មិនទាន់មានអត្ថបទសន្ទនាទេ');
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: AppTheme.bgCard,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+        ),
+        child: SelectableText(
+          text,
+          style: GoogleFonts.kantumruyPro(
+            color: AppTheme.textPrimary,
+            fontSize: 14,
+            height: 1.7,
+          ),
+        ),
+      ),
+    );
   }
 }

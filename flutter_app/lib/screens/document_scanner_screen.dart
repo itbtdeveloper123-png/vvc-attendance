@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cunning_document_scanner/cunning_document_scanner.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:path_provider/path_provider.dart';
@@ -485,14 +486,22 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
         builder: (context) => ExportModal(
           imagePaths: imagePaths,
           ocrText: _ocrResult?.fullText,
-          onExport: (fileName, format) => _handleExport(fileName, format, imagePaths),
+          onExport: (fileName, format, {includeWatermark = false, watermarkText = 'VVC OFFICIAL DOCUMENT'}) =>
+              _handleExport(fileName, format, imagePaths,
+                  includeWatermark: includeWatermark, watermarkText: watermarkText),
         ),
       );
     }
   }
 
   /// Handle export based on selected format
-  Future<void> _handleExport(String fileName, ExportFormat format, List<String> imagePaths) async {
+  Future<void> _handleExport(
+    String fileName,
+    ExportFormat format,
+    List<String> imagePaths, {
+    bool includeWatermark = false,
+    String watermarkText = 'VVC OFFICIAL DOCUMENT',
+  }) async {
     setState(() {
       _isProcessing = true;
       _errorMessage = null;
@@ -503,7 +512,12 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
 
       switch (format) {
         case ExportFormat.pdf:
-          await _exportAsPDF(fileName, processedPaths);
+          await _exportAsPDF(
+            fileName,
+            processedPaths,
+            includeWatermark: includeWatermark,
+            watermarkText: watermarkText,
+          );
           break;
         case ExportFormat.images:
           await _exportAsImages(fileName, processedPaths);
@@ -543,8 +557,13 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
     }
   }
 
-  /// Export as multi-page PDF
-  Future<void> _exportAsPDF(String fileName, List<String> imagePaths) async {
+  /// Export as multi-page PDF with optional official watermark
+  Future<void> _exportAsPDF(
+    String fileName,
+    List<String> imagePaths, {
+    bool includeWatermark = false,
+    String watermarkText = 'VVC OFFICIAL DOCUMENT',
+  }) async {
     final pdf = pw.Document();
 
     for (final imagePath in imagePaths) {
@@ -555,11 +574,53 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
       pdf.addPage(
         pw.Page(
           build: (pw.Context context) {
-            return pw.Center(
-              child: pw.Image(
-                pdfImage,
-                fit: pw.BoxFit.contain,
-              ),
+            return pw.Stack(
+              alignment: pw.Alignment.center,
+              children: [
+                pw.Center(
+                  child: pw.Image(
+                    pdfImage,
+                    fit: pw.BoxFit.contain,
+                  ),
+                ),
+                if (includeWatermark)
+                  pw.Transform.rotate(
+                    angle: -0.45,
+                    child: pw.Container(
+                      padding: const pw.EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      decoration: pw.BoxDecoration(
+                        border: pw.Border.all(
+                          color: const PdfColor(0.85, 0.2, 0.2, 0.28),
+                          width: 2.5,
+                        ),
+                        borderRadius: const pw.BorderRadius.all(pw.Radius.circular(10)),
+                      ),
+                      child: pw.Column(
+                        mainAxisSize: pw.MainAxisSize.min,
+                        children: [
+                          pw.Text(
+                            watermarkText.toUpperCase(),
+                            style: pw.TextStyle(
+                              fontSize: 26,
+                              fontWeight: pw.FontWeight.bold,
+                              color: const PdfColor(0.85, 0.2, 0.2, 0.28),
+                            ),
+                          ),
+                          pw.SizedBox(height: 4),
+                          pw.Text(
+                            "VERIFIED & PROTECTED",
+                            style: pw.TextStyle(
+                              fontSize: 10,
+                              fontWeight: pw.FontWeight.bold,
+                              letterSpacing: 2,
+                              color: const PdfColor(0.85, 0.2, 0.2, 0.22),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
             );
           },
         ),
