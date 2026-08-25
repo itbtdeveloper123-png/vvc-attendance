@@ -3009,57 +3009,52 @@ try {
 
             $summaryText = '';
             $usedProvider = 'gemini';
-            $usedModel = 'gemini-2.0-flash';
+            $usedModel = 'gemini-2.5-flash';
             $lastError = '';
 
-            // Attempt 1: Gemini Native API (gemini-2.0-flash / gemini-1.5-flash)
+            // Attempt 1: Gemini via OpenAI-Compatible Endpoint (works with both AIzaSy and AQ. key types)
             if ($geminiKey !== '') {
                 $geminiModels = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-pro'];
                 foreach ($geminiModels as $gModel) {
-                    $url = "https://generativelanguage.googleapis.com/v1beta/models/{$gModel}:generateContent?key=" . urlencode($geminiKey);
-                    $ch = curl_init($url);
+                    $ch = curl_init('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions');
                     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                     curl_setopt($ch, CURLOPT_POST, true);
                     curl_setopt($ch, CURLOPT_HTTPHEADER, [
                         'Content-Type: application/json; charset=utf-8',
-                        'x-goog-api-key: ' . $geminiKey
+                        'Authorization: Bearer ' . $geminiKey
                     ]);
                     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
-                        'contents' => [
-                            ['parts' => [['text' => $prompt]]]
+                        'model'    => $gModel,
+                        'messages' => [
+                            ['role' => 'system', 'content' => 'You are an executive Khmer AI meeting minutes assistant.'],
+                            ['role' => 'user',   'content' => $prompt]
                         ],
-                        'generationConfig' => [
-                            'temperature' => 0.3,
-                            'maxOutputTokens' => 4096
-                        ]
+                        'temperature'  => 0.3,
+                        'max_tokens'   => 4096
                     ], JSON_UNESCAPED_UNICODE));
                     curl_setopt($ch, CURLOPT_TIMEOUT, 60);
                     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
                     curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
-                    $rawRes = curl_exec($ch);
-                    $err = curl_error($ch);
+                    $rawRes  = curl_exec($ch);
+                    $err     = curl_error($ch);
                     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
                     curl_close($ch);
 
                     if ($rawRes && $httpCode === 200) {
                         $dec = json_decode($rawRes, true);
-                        if (!empty($dec['candidates'][0]['content']['parts'][0]['text'])) {
-                            $summaryText = trim($dec['candidates'][0]['content']['parts'][0]['text']);
+                        if (!empty($dec['choices'][0]['message']['content'])) {
+                            $summaryText = trim($dec['choices'][0]['message']['content']);
                             $usedProvider = 'gemini';
-                            $usedModel = $gModel;
+                            $usedModel    = $gModel;
                             break;
                         }
                     } else {
                         $decErr = json_decode((string)$rawRes, true);
-                        if (!empty($decErr['error']['message'])) {
-                            $gMsg = $decErr['error']['message'];
-                            if (strpos($gMsg, 'disabled') !== false || strpos($gMsg, 'SERVICE_DISABLED') !== false) {
-                                $lastError = 'Gemini API មិនទាន់ត្រូវបានបើកដំណើរការ (Enable) នៅក្នុង Google Cloud Project ឡើយ។ សូមចូលទៅកាន់តំណភ្ជាប់នេះដើម្បីបើក (ENABLE)៖ https://console.developers.google.com/apis/api/generativelanguage.googleapis.com/overview?project=810457009665 ឬបង្កើត Key ថ្មីពី https://aistudio.google.com/app/apikey';
-                            } else {
-                                $lastError = 'Gemini: ' . $gMsg;
-                            }
+                        $gMsg   = $decErr['error']['message'] ?? '';
+                        if ($gMsg !== '') {
+                            $lastError = "Gemini ($gModel): $gMsg";
                         } else {
-                            $lastError = "Gemini ($gModel HTTP $httpCode): " . ($err ?: $rawRes);
+                            $lastError = "Gemini ($gModel HTTP $httpCode): " . ($err ?: substr((string)$rawRes, 0, 200));
                         }
                     }
                 }
