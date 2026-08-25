@@ -2033,6 +2033,48 @@ export const MeetingsPage: React.FC = () => {
               </div>
             </div>
 
+            {/* Audio Recording Player Bar (if available) */}
+            {(() => {
+              const rawAudio = aiModalMeeting.audio_url || aiModalMeeting.mp3_url || aiModalMeeting.audio_file_path || (aiModalMeeting as any).audio_path;
+              const audioSrc = rawAudio ? getFullMediaUrl(rawAudio) : null;
+              if (!audioSrc) return null;
+              return (
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px',
+                    padding: '12px 16px',
+                    background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(168, 85, 247, 0.05) 100%)',
+                    borderRadius: '12px',
+                    border: '1px solid rgba(99, 102, 241, 0.2)'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '13px', fontWeight: 700, color: 'var(--primary)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Volume2 size={16} />
+                      <span>សំឡេងកិច្ចប្រជុំ (Meeting Audio Recording) {aiModalMeeting.duration ? `— ${aiModalMeeting.duration}` : ''}</span>
+                    </div>
+                    <span style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: 500 }}>
+                      ស្តាប់ផ្ទៀងផ្ទាត់ជាមួយខ្លឹមសារសរសេរ
+                    </span>
+                  </div>
+                  <audio
+                    controls
+                    preload="metadata"
+                    src={audioSrc}
+                    style={{
+                      width: '100%',
+                      height: '36px',
+                      borderRadius: '8px'
+                    }}
+                  >
+                    Your browser does not support audio.
+                  </audio>
+                </div>
+              );
+            })()}
+
             {/* Tab Switcher */}
             <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
               <button
