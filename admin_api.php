@@ -3020,7 +3020,11 @@ try {
                     $ch = curl_init($url);
                     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                     curl_setopt($ch, CURLOPT_POST, true);
-                    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json; charset=utf-8']);
+                    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                        'Content-Type: application/json; charset=utf-8',
+                        'x-goog-api-key: ' . $geminiKey,
+                        'Authorization: Bearer ' . $geminiKey
+                    ]);
                     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
                         'contents' => [
                             ['parts' => [['text' => $prompt]]]
