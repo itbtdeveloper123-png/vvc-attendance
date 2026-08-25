@@ -85,6 +85,9 @@ export const MeetingsPage: React.FC = () => {
   const [aiModalError, setAiModalError] = useState<string | null>(null);
   const [aiModalTab, setAiModalTab] = useState<'summary' | 'transcript'>('summary');
   const [copiedText, setCopiedText] = useState(false);
+  const [aiProgress, setAiProgress] = useState<number>(0);
+  const [aiProgressStep, setAiProgressStep] = useState<string>('');
+  const [aiProgressElapsed, setAiProgressElapsed] = useState<number>(0);
 
   // Karaoke Audio-Transcript Sync State
   const [aiModalAudioCurrentTime, setAiModalAudioCurrentTime] = useState<number>(0);
@@ -198,9 +201,43 @@ export const MeetingsPage: React.FC = () => {
     setAiModalSummary(existingSummary || null);
     setAiModalTranscript(existingTranscript || null);
     setAiModalLoading(true);
+    setAiProgress(10);
+    setAiProgressStep('📤 កំពុងរៀបចំ និងផ្ទុកទិន្នន័យសំឡេងកិច្ចប្រជុំ...');
+    setAiProgressElapsed(0);
+
+    let progressVal = 10;
+    let elapsedVal = 0;
+    const progressTimer = setInterval(() => {
+      elapsedVal += 1;
+      setAiProgressElapsed(elapsedVal);
+
+      if (progressVal < 35) {
+        progressVal += 4;
+        setAiProgress(progressVal);
+        setAiProgressStep('📤 កំពុងផ្ទុកទិន្នន័យសំឡេង និងបញ្ជូនទៅកាន់ AI Engine...');
+      } else if (progressVal < 70) {
+        progressVal += 2;
+        setAiProgress(Math.floor(progressVal));
+        setAiProgressStep('🎙️ AI កំពុងស្តាប់សំឡេង និងស្រង់យកពាក្យសម្តីនិយាយ (Transcribing Audio)...');
+      } else if (progressVal < 90) {
+        progressVal += 1;
+        setAiProgress(Math.floor(progressVal));
+        setAiProgressStep('🧠 AI កំពុងវិភាគ និងរៀបចំកំណត់ហេតុសង្ខេប (Summarizing Minutes)...');
+      } else if (progressVal < 98) {
+        progressVal += 0.4;
+        setAiProgress(Math.floor(progressVal));
+        setAiProgressStep('✨ កំពុងផ្គូផ្គង Karaoke Timestamps & រក្សាទុកទិន្នន័យ...');
+      }
+    }, 1000);
+
     try {
       const res = await adminApi.summarizeMeeting(m.id, force);
       if (res && (res.success || res.status === 'success')) {
+        clearInterval(progressTimer);
+        setAiProgress(100);
+        setAiProgressStep('🚀 រួចរាល់ ១០០%!');
+        await new Promise(r => setTimeout(r, 450));
+
         const summaryText = res.summary || '';
         const transcriptText = res.transcript || res.transcript_text || '';
         setAiModalSummary(summaryText);
@@ -209,12 +246,15 @@ export const MeetingsPage: React.FC = () => {
         // Update in meetings list state
         setMeetings(prev => prev.map(item => item.id === m.id ? { ...item, summary: summaryText, transcript_text: transcriptText } : item));
       } else {
+        clearInterval(progressTimer);
         setAiModalError(res?.message || 'មិនអាចទាញយកសេចក្តីសង្ខេប AI បានទេ។');
       }
     } catch (err: any) {
+      clearInterval(progressTimer);
       const serverMsg = err?.response?.data?.message || err?.message || 'កំហុសក្នុងការតភ្ជាប់ AI Service';
       setAiModalError(serverMsg);
     } finally {
+      clearInterval(progressTimer);
       setAiModalLoading(false);
     }
   };
@@ -2426,13 +2466,106 @@ export const MeetingsPage: React.FC = () => {
             {/* Content Body */}
             <div style={{ minHeight: '260px', maxHeight: '420px', overflowY: 'auto', padding: '16px', borderRadius: '12px', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)' }}>
               {aiModalLoading ? (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '220px', gap: '14px', textAlign: 'center' }}>
-                  <RotateCw size={32} className="fa-spin" style={{ color: '#f59e0b' }} />
-                  <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>
-                    AI កំពុងវិភាគ និងសង្ខេបកិច្ចប្រជុំ...
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '30px 16px',
+                    textAlign: 'center',
+                    gap: '18px',
+                    background: 'linear-gradient(180deg, rgba(99, 102, 241, 0.04) 0%, rgba(168, 85, 247, 0.03) 100%)',
+                    borderRadius: '14px',
+                    border: '1px solid rgba(99, 102, 241, 0.15)'
+                  }}
+                >
+                  {/* Glowing Pulse Icon */}
+                  <div style={{ position: 'relative', width: '58px', height: '58px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div
+                      style={{
+                        position: 'absolute',
+                        inset: 0,
+                        borderRadius: '50%',
+                        background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+                        opacity: 0.3,
+                        animation: 'pulse 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite'
+                      }}
+                    />
+                    <div
+                      style={{
+                        width: '48px',
+                        height: '48px',
+                        borderRadius: '50%',
+                        background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxShadow: '0 6px 16px rgba(99, 102, 241, 0.4)',
+                        color: '#fff'
+                      }}
+                    >
+                      <Sparkles size={24} className="fa-spin" style={{ animationDuration: '4s' }} />
+                    </div>
                   </div>
-                  <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                    ដំណើរការដោយ Google Gemini & Whisper AI
+
+                  {/* Stage Headline */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxWidth: '420px' }}>
+                    <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text-primary)' }}>
+                      AI កំពុងវិភាគ និងស្រង់ទិន្នន័យកិច្ចប្រជុំ
+                    </div>
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--primary)', minHeight: '20px' }}>
+                      {aiProgressStep}
+                    </div>
+                  </div>
+
+                  {/* Modern Progress Bar */}
+                  <div style={{ width: '100%', maxWidth: '440px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                      <span>វឌ្ឍនភាព (Progress)</span>
+                      <span
+                        style={{
+                          background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+                          color: '#fff',
+                          padding: '2px 10px',
+                          borderRadius: '12px',
+                          fontSize: '12px',
+                          fontWeight: 800,
+                          boxShadow: '0 2px 6px rgba(99, 102, 241, 0.25)'
+                        }}
+                      >
+                        {Math.min(100, Math.max(0, aiProgress))}%
+                      </span>
+                    </div>
+
+                    <div
+                      style={{
+                        width: '100%',
+                        height: '11px',
+                        borderRadius: '8px',
+                        background: 'rgba(0, 0, 0, 0.08)',
+                        overflow: 'hidden',
+                        position: 'relative',
+                        boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.1)'
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: `${Math.min(100, Math.max(0, aiProgress))}%`,
+                          height: '100%',
+                          borderRadius: '8px',
+                          background: 'linear-gradient(90deg, #6366f1 0%, #a855f7 50%, #ec4899 100%)',
+                          transition: 'width 0.4s ease-out',
+                          boxShadow: '0 0 12px rgba(168, 85, 247, 0.5)'
+                        }}
+                      />
+                    </div>
+
+                    {/* Metadata Footer */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                      <span>⏱️ រយៈពេលដំណើរការ: {aiProgressElapsed} វិនាទី</span>
+                      <span>⚡ Google Gemini & Whisper AI</span>
+                    </div>
                   </div>
                 </div>
               ) : aiModalError ? (
