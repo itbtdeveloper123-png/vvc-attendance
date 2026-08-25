@@ -2779,44 +2779,6 @@ try {
         // ==========================================
         case 'fetch_meetings':
         case 'get_meetings':
-            if ($mysqli) {
-                // Ensure required columns
-                $cols_to_add = [
-                    'topic' => "VARCHAR(255) DEFAULT ''",
-                    'title' => "VARCHAR(255) DEFAULT ''",
-                    'department' => "VARCHAR(100) DEFAULT 'General'",
-                    'category' => "VARCHAR(100) DEFAULT 'General'",
-                    'meeting_date' => "DATE DEFAULT NULL",
-                    'duration' => "VARCHAR(50) DEFAULT '30 នាទី'",
-                    'summary' => "TEXT DEFAULT NULL",
-                    'description' => "TEXT DEFAULT NULL",
-                    'external_url' => "TEXT DEFAULT NULL",
-                    'photo_url' => "VARCHAR(255) DEFAULT NULL",
-                    'mp3_url' => "VARCHAR(255) DEFAULT NULL",
-                    'audio_path' => "VARCHAR(255) DEFAULT NULL",
-                    'audio_file_path' => "VARCHAR(255) DEFAULT NULL",
-                    'audio_url' => "VARCHAR(255) DEFAULT NULL",
-                    'photos' => "LONGTEXT DEFAULT NULL",
-                    'related_photos' => "LONGTEXT DEFAULT NULL",
-                    'admin_id' => "VARCHAR(64) DEFAULT NULL",
-                    'created_by' => "VARCHAR(64) DEFAULT NULL"
-                ];
-                $mysqli->query("CREATE TABLE IF NOT EXISTS meetings (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    topic VARCHAR(255) NOT NULL,
-                    title VARCHAR(255) DEFAULT NULL,
-                    department VARCHAR(100) DEFAULT 'General',
-                    category VARCHAR(100) DEFAULT 'General',
-                    meeting_date DATE,
-                    duration VARCHAR(50) DEFAULT '30 នាទី',
-                    summary TEXT,
-                    description TEXT,
-                    external_url TEXT,
-                    audio_url VARCHAR(255) DEFAULT NULL,
-                    photo_url VARCHAR(255) DEFAULT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-
             $rawMeetings = dbQuery("SELECT * FROM meetings ORDER BY meeting_date DESC, id DESC");
             $formattedMeetings = [];
             foreach ($rawMeetings as $row) {
