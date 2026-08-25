@@ -2817,14 +2817,6 @@ try {
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
-                foreach ($cols_to_add as $cName => $cDef) {
-                    $chk = $mysqli->query("SHOW COLUMNS FROM meetings LIKE '$cName'");
-                    if ($chk && $chk->num_rows === 0) {
-                        @$mysqli->query("ALTER TABLE meetings ADD COLUMN $cName $cDef");
-                    }
-                }
-            }
-
             $rawMeetings = dbQuery("SELECT * FROM meetings ORDER BY meeting_date DESC, id DESC");
             $formattedMeetings = [];
             foreach ($rawMeetings as $row) {
@@ -2879,7 +2871,7 @@ try {
 
                 $desc = trim((string)($row['description'] ?? ''));
                 $sum = trim((string)($row['summary'] ?? ''));
-                $displaySummary = $desc !== '' ? $desc : $sum;
+                $transcript = trim((string)($row['transcript_text'] ?? $row['transcript'] ?? ''));
 
                 $formattedMeetings[] = [
                     'id' => (int)$row['id'],
@@ -2890,8 +2882,13 @@ try {
                     'date' => $row['meeting_date'] ?? date('Y-m-d'),
                     'meeting_date' => $row['meeting_date'] ?? date('Y-m-d'),
                     'duration' => $row['duration'] ?? '30 នាទី',
-                    'summary' => $displaySummary,
-                    'description' => $displaySummary,
+                    'summary' => $sum !== '' ? $sum : $desc,
+                    'description' => $desc !== '' ? $desc : $sum,
+                    'transcript_text' => $transcript,
+                    'transcript' => $transcript,
+                    'summary_generated_at' => $row['summary_generated_at'] ?? '',
+                    'summary_provider' => $row['summary_provider'] ?? '',
+                    'summary_model' => $row['summary_model'] ?? '',
                     'external_url' => trim((string)($row['external_url'] ?? '')),
                     'audio_url' => $audioUrl,
                     'audio_file_path' => $audioUrl,

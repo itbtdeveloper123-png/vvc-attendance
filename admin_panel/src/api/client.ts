@@ -8,7 +8,7 @@ const BASE_URL = import.meta.env.DEV ? '/admin_api.php' : (import.meta.env.VITE_
 
 export const apiClient = axios.create({
   baseURL: BASE_URL,
-  timeout: 30000,
+  timeout: 60000,
   headers: {
     'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
     'Accept': 'application/json',
