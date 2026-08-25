@@ -1833,9 +1833,23 @@ export const MeetingsPage: React.FC = () => {
                 </div>
               ) : (
                 <div style={{ fontSize: '13.5px', lineHeight: 1.8, color: 'var(--text-primary)', whiteSpace: 'pre-wrap', userSelect: 'text' }}>
-                  {aiModalTab === 'summary'
-                    ? (aiModalSummary || 'មិនទាន់មានសេចក្តីសង្ខេបនៅឡើយទេ។')
-                    : (aiModalTranscript || 'មិនទាន់មានអត្ថបទសន្ទនានៅឡើយទេ។')}
+                  {aiModalTab === 'summary' ? (
+                    aiModalSummary || 'មិនទាន់មានសេចក្តីសង្ខេបនៅឡើយទេ។'
+                  ) : aiModalTranscript ? (
+                    aiModalTranscript
+                  ) : (
+                    <div style={{ textAlign: 'center', padding: '30px 16px', color: 'var(--text-muted)' }}>
+                      <p style={{ marginBottom: '14px', fontSize: '14px' }}>មិនទាន់មានអត្ថបទសន្ទនា (Transcript) ពីសំឡេងប្រជុំនៅឡើយទេ។</p>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenAiModal(aiModalMeeting, true)}
+                        className="btn btn-primary btn-sm"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 16px', borderRadius: '10px' }}
+                      >
+                        <RefreshCw size={14} /> ចុចត្រង់នេះដើម្បីឱ្យ AI ស្តាប់ និងទាញយក Transcript ពីសំឡេងឡើងវិញ
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
