@@ -3065,36 +3065,40 @@ try {
                 }
             }
 
-            // Attempt 2: Groq Llama 3.3
+            // Attempt 2: Groq (llama3-70b-8192 fallback)
             if ($summaryText === '' && $groqKey !== '') {
-                $ch = curl_init('https://api.groq.com/openai/v1/chat/completions');
-                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                curl_setopt($ch, CURLOPT_POST, true);
-                curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                    'Content-Type: application/json; charset=utf-8',
-                    'Authorization: Bearer ' . $groqKey
-                ]);
-                curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
-                    'model' => 'llama-3.3-70b-versatile',
-                    'messages' => [
-                        ['role' => 'system', 'content' => 'You are an executive Khmer AI meeting minutes assistant.'],
-                        ['role' => 'user', 'content' => $prompt]
-                    ],
-                    'temperature' => 0.3
-                ], JSON_UNESCAPED_UNICODE));
-                curl_setopt($ch, CURLOPT_TIMEOUT, 60);
-                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-                $rawRes = curl_exec($ch);
-                curl_close($ch);
+                $groqModels = ['llama3-70b-8192', 'llama3-8b-8192', 'mixtral-8x7b-32768'];
+                foreach ($groqModels as $gqModel) {
+                    $ch = curl_init('https://api.groq.com/openai/v1/chat/completions');
+                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                    curl_setopt($ch, CURLOPT_POST, true);
+                    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                        'Content-Type: application/json; charset=utf-8',
+                        'Authorization: Bearer ' . $groqKey
+                    ]);
+                    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
+                        'model' => $gqModel,
+                        'messages' => [
+                            ['role' => 'system', 'content' => 'You are an executive Khmer AI meeting minutes assistant.'],
+                            ['role' => 'user', 'content' => $prompt]
+                        ],
+                        'temperature' => 0.3
+                    ], JSON_UNESCAPED_UNICODE));
+                    curl_setopt($ch, CURLOPT_TIMEOUT, 60);
+                    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                    $rawRes = curl_exec($ch);
+                    curl_close($ch);
 
-                if ($rawRes) {
-                    $dec = json_decode((string)$rawRes, true);
-                    if (!empty($dec['choices'][0]['message']['content'])) {
-                        $summaryText = trim($dec['choices'][0]['message']['content']);
-                        $usedProvider = 'groq';
-                        $usedModel = 'llama-3.3-70b-versatile';
-                    } elseif (!empty($dec['error']['message'])) {
-                        $lastError = 'Groq: ' . $dec['error']['message'];
+                    if ($rawRes) {
+                        $dec = json_decode((string)$rawRes, true);
+                        if (!empty($dec['choices'][0]['message']['content'])) {
+                            $summaryText = trim($dec['choices'][0]['message']['content']);
+                            $usedProvider = 'groq';
+                            $usedModel = $gqModel;
+                            break;
+                        } elseif (!empty($dec['error']['message'])) {
+                            $lastError = 'Groq (' . $gqModel . '): ' . $dec['error']['message'];
+                        }
                     }
                 }
             }
