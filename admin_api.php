@@ -3088,11 +3088,16 @@ try {
                 $rawRes = curl_exec($ch);
                 curl_close($ch);
 
-                $dec = json_decode((string)$rawRes, true);
-                if (!empty($dec['choices'][0]['message']['content'])) {
-                    $summaryText = trim($dec['choices'][0]['message']['content']);
-                    $usedProvider = 'groq';
-                    $usedModel = 'llama-3.3-70b-versatile';
+                    if ($rawRes) {
+                        $dec = json_decode((string)$rawRes, true);
+                        if (!empty($dec['choices'][0]['message']['content'])) {
+                            $summaryText = trim($dec['choices'][0]['message']['content']);
+                            $usedProvider = 'groq';
+                            $usedModel = 'llama-3.3-70b-versatile';
+                        } elseif (!empty($dec['error']['message'])) {
+                            $lastError = 'Groq: ' . $dec['error']['message'];
+                        }
+                    }
                 }
             }
 
@@ -3118,18 +3123,22 @@ try {
                 $rawRes = curl_exec($ch);
                 curl_close($ch);
 
-                $dec = json_decode((string)$rawRes, true);
-                if (!empty($dec['choices'][0]['message']['content'])) {
-                    $summaryText = trim($dec['choices'][0]['message']['content']);
-                    $usedProvider = 'openai';
-                    $usedModel = 'gpt-4o-mini';
+                if ($rawRes) {
+                    $dec = json_decode((string)$rawRes, true);
+                    if (!empty($dec['choices'][0]['message']['content'])) {
+                        $summaryText = trim($dec['choices'][0]['message']['content']);
+                        $usedProvider = 'openai';
+                        $usedModel = 'gpt-4o-mini';
+                    } elseif (!empty($dec['error']['message'])) {
+                        $lastError = 'OpenAI: ' . $dec['error']['message'];
+                    }
                 }
             }
 
             if ($summaryText === '') {
                 sendJson([
                     'success' => false,
-                    'message' => 'មិនអាចទាញយកសេចក្តីសង្ខេប AI បានទេ៖ ' . ($lastError ?: 'សូមពិនិត្យមើល GEMINI_API_KEY។')
+                    'message' => 'មិនអាចទាញយកសេចក្តីសង្ខេប AI បានទេ៖ ' . ($lastError ?: 'សូមពិនិត្យមើល GEMINI_API_KEY ឬ GROQ_API_KEY។')
                 ]);
             }
 
