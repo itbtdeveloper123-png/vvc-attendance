@@ -2920,7 +2920,6 @@ try {
             $transcriptText = $existingTranscript;
             $geminiKey = trim((string)(defined('GEMINI_API_KEY') ? GEMINI_API_KEY : ''));
             $groqKey = trim((string)(defined('GROQ_API_KEY') ? GROQ_API_KEY : ''));
-            $openAiKey = trim((string)(defined('OPENAI_API_KEY') ? OPENAI_API_KEY : ''));
             $topic = trim((string)($meeting['topic'] ?? $meeting['title'] ?? 'កិច្ចប្រជុំ'));
             $dept = trim((string)($meeting['department'] ?? $meeting['category'] ?? 'General'));
             $date = trim((string)($meeting['meeting_date'] ?? $meeting['date'] ?? date('Y-m-d')));
@@ -2928,6 +2927,8 @@ try {
 
             $localAudioFile = '';
             $tempAudio = '';
+            $fileMime = 'audio/mp3';
+
             if ($audioPath !== '') {
                 $possiblePaths = [
                     $audioPath,
@@ -2965,21 +2966,48 @@ try {
                 }
             }
 
-            $summaryText = '';
-            $usedProvider = 'gemini';
-            $usedModel = 'gemini-3.6-flash';
-            $lastError = '';
-            $uploadedAudioUri = '';
-            $fileMime = 'audio/mp3';
+            // 2. High-Accuracy Speech Transcription with Groq Whisper Engine (verbose_json timestamps)
+            if ($localAudioFile !== '' && $groqKey !== '' && file_exists($localAudioFile) && filesize($localAudioFile) < 25 * 1024 * 1024) {
+                $ch = curl_init('https://api.groq.com/openai/v1/audio/transcriptions');
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_POST, true);
+                curl_setopt($ch, CURLOPT_HTTPHEADER, ['Authorization: Bearer ' . $groqKey]);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, [
+                    'file' => new CURLFile($localAudioFile, $fileMime, basename($localAudioFile)),
+                    'model' => 'whisper-large-v3',
+                    'language' => 'km',
+                    'response_format' => 'verbose_json',
+                ]);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 90);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                $tRaw = curl_exec($ch);
+                curl_close($ch);
+                $tDec = json_decode((string)$tRaw, true);
+                if (!empty($tDec['segments']) && is_array($tDec['segments'])) {
+                    $dialogueLines = [];
+                    foreach ($tDec['segments'] as $seg) {
+                        $startSec = (float)($seg['start'] ?? 0);
+                        $txt = trim((string)($seg['text'] ?? ''));
+                        if ($txt === '') continue;
+                        $mins = floor($startSec / 60);
+                        $secs = floor($startSec % 60);
+                        $dialogueLines[] = sprintf("[%02d:%02d] **អ្នកនិយាយ ៖** %s", $mins, $secs, $txt);
+                    }
+                    if (!empty($dialogueLines)) {
+                        $transcriptText = implode("\n\n", $dialogueLines);
+                    }
+                } elseif (!empty($tDec['text'])) {
+                    $transcriptText = trim($tDec['text']);
+                }
+            }
 
-            // 2. Direct Audio Multimodal Analysis with Google Gemini
-            if ($localAudioFile !== '' && $geminiKey !== '' && file_exists($localAudioFile)) {
+            // Fallback: Multimodal Audio Analysis with Google Gemini File API (if Whisper didn't transcribe)
+            if ($transcriptText === '' && $localAudioFile !== '' && $geminiKey !== '' && file_exists($localAudioFile)) {
                 $fSize = filesize($localAudioFile);
                 if (preg_match('/\.wav$/i', $localAudioFile)) $fileMime = 'audio/wav';
                 elseif (preg_match('/\.m4a$/i', $localAudioFile)) $fileMime = 'audio/m4a';
                 elseif (preg_match('/\.ogg$/i', $localAudioFile)) $fileMime = 'audio/ogg';
 
-                // Upload to Gemini File API using streaming for maximum speed
                 $uploadUrl = "https://generativelanguage.googleapis.com/upload/v1beta/files?key=" . urlencode($geminiKey);
                 $ch = curl_init($uploadUrl);
                 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -3001,48 +3029,13 @@ try {
 
                 $upDec = json_decode((string)$upRes, true);
                 $uploadedAudioUri = $upDec['file']['uri'] ?? '';
-                $fileState = $upDec['file']['state'] ?? 'ACTIVE';
-                $fileName = $upDec['file']['name'] ?? '';
 
                 if ($uploadedAudioUri !== '') {
-                    // For large audio files, wait until file state transitions from PROCESSING to ACTIVE
-                    if ($fileState === 'PROCESSING' && $fileName !== '') {
-                        $checkUrl = "https://generativelanguage.googleapis.com/v1beta/{$fileName}?key=" . urlencode($geminiKey);
-                        for ($poll = 0; $poll < 12; $poll++) {
-                            sleep(2);
-                            $ch = curl_init($checkUrl);
-                            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-                            $chkRes = curl_exec($ch);
-                            curl_close($ch);
-                            $chkDec = json_decode((string)$chkRes, true);
-                            if (($chkDec['state'] ?? '') === 'ACTIVE') {
-                                break;
-                            }
-                            if (($chkDec['state'] ?? '') === 'FAILED') {
-                                break;
-                            }
-                        }
-                    }
-
                     $audioPrompt = "អ្នកជាជំនួយការ AI សម្រាប់កត់ត្រាកំណត់ហេតុកិច្ចប្រជុំ និងស្តាប់សំឡេងកិច្ចប្រជុំផ្ទាល់ជាភាសាខ្មែរ (Executive Minutes & Full Dialogue Transcript from Audio)។\n\n"
-                        . "ព័ត៌មានកិច្ចប្រជុំ:\n"
-                        . "- ប្រធានបទ: {$topic}\n"
-                        . "- ផ្នែក/ក្រុម: {$dept}\n"
-                        . "- កាលបរិច្ឆេទ: {$date}\n\n"
-                        . "សូមស្តាប់សំឡេងនេះដោយហ្មត់ចត់ ហើយឆ្លើយតបជា ២ ផ្នែកដាច់ដោយឡែកពីគ្នា ដូចខាងក្រោម៖\n\n"
-                        . "===SUMMARY_START===\n"
-                        . "📌 ១. សេចក្តីសង្ខេបរួមពីសំឡេង (Executive Summary from Audio)\n"
-                        . "🎯 ២. ចំណុចសំខាន់ៗដែលបានពិភាក្សាជាក់ស្តែងក្នុងសំឡេង (Key Discussion Points from Audio)\n"
-                        . "✅ ៣. ការសម្រេចចិត្តរួម (Decisions Made)\n"
-                        . "📋 ៤. ផែនការសកម្មភាព និងជំហានបន្ទាប់ (Action Items & Next Steps)\n"
-                        . "===SUMMARY_END===\n\n"
-                        . "===TRANSCRIPT_START===\n"
-                        . "សូមសរសេរអត្ថបទសន្ទនាការនិយាយជាក់ស្តែងទាំងអស់ពីសំឡេង (Full Dialogue Transcript) តាមលំដាប់លំដោយនៃអ្នកនិយាយ ដោយបំបែកជាឃ្លាខ្លីៗ និងដាក់ Timestamp [MM:SS] នៅដើមឃ្លានីមួយៗជានិច្ច (ឧទាហរណ៍៖\n"
+                        . "សូមស្តាប់សំឡេងនេះ ហើយសរសេរអត្ថបទសន្ទនាការនិយាយជាក់ស្តែងទាំងអស់ពីសំឡេង (Full Dialogue Transcript) តាមលំដាប់លំដោយនៃអ្នកនិយាយ ដោយបំបែកជាឃ្លាខ្លីៗ និងដាក់ Timestamp [MM:SS] នៅដើមឃ្លានីមួយៗជានិច្ច (ឧទាហរណ៍៖\n"
                         . "[00:00] **អ្នកនិយាយ ៖** ពាក្យសម្តីនិយាយជាក់ស្តែងពីសំឡេង...\n"
                         . "[00:15] **អ្នកនិយាយ ៖** ពាក្យសម្តីបន្ទាប់...\n"
                         . ")\n"
-                        . "===TRANSCRIPT_END===\n\n"
                         . "សូមឆ្លើយតបជាភាសាខ្មែរ។";
 
                     $geminiAudioModels = ['gemini-3.5-flash', 'gemini-3.6-flash'];
