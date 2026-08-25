@@ -2933,6 +2933,8 @@ try {
             break;
 
         case 'summarize_meeting':
+            @set_time_limit(300);
+            @ini_set('max_execution_time', '300');
             $mid = (int)($_POST['meeting_id'] ?? $_POST['id'] ?? 0);
             if (!$mid) sendJson(['success' => false, 'message' => 'Missing meeting ID'], 400);
             $force = !empty($_POST['force']) && $_POST['force'] !== '0';

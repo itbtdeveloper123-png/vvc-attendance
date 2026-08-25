@@ -935,7 +935,7 @@ export const adminApi = {
     params.append('action', 'summarize_meeting');
     params.append('meeting_id', String(meetingId));
     if (force) params.append('force', '1');
-    const res = await apiClient.post('', params);
+    const res = await apiClient.post('', params, { timeout: 300000 });
     return res.data;
   },
 
