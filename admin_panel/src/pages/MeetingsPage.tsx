@@ -2455,12 +2455,12 @@ export const MeetingsPage: React.FC = () => {
                         មិនទាន់មានសេចក្តីសង្ខេបនៅឡើយទេ។
                       </div>
                     )
-                  ) : (aiModalTranscript || aiModalSummary) ? (
-                    renderKaraokeTranscript(aiModalTranscript || aiModalSummary || '')
+                  ) : aiModalTranscript ? (
+                    renderKaraokeTranscript(aiModalTranscript)
                   ) : (
                     <div style={{ textAlign: 'center', padding: '36px 16px', color: 'var(--text-muted)' }}>
                       <Volume2 size={36} style={{ margin: '0 auto 12px auto', opacity: 0.4, color: 'var(--primary)' }} />
-                      <p style={{ marginBottom: '16px', fontSize: '14.5px', fontWeight: 600 }}>មិនទាន់មានអត្ថបទសន្ទនា (Transcript) ពីសំឡេងប្រជុំនៅឡើយទេ។</p>
+                      <p style={{ marginBottom: '16px', fontSize: '14.5px', fontWeight: 600 }}>មិនទាន់មានអត្ថបទសន្ទនាការនិយាយពិត (Transcript) ពីសំឡេងប្រជុំនៅឡើយទេ។</p>
                       <button
                         type="button"
                         onClick={() => handleOpenAiModal(aiModalMeeting, true)}

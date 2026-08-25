@@ -3239,27 +3239,6 @@ try {
             }
 
 
-            // Auto-generate structured dialogue transcript from summary if separate transcript was missing
-            if ($transcriptText === '' && $summaryText !== '') {
-                $lines = explode("\n", $summaryText);
-                $structuredBlocks = [];
-                $sec = 0;
-                foreach ($lines as $ln) {
-                    $cleanLn = trim($ln);
-                    if ($cleanLn === '' || $cleanLn === '---' || strpos($cleanLn, '===') !== false) continue;
-                    if (preg_match('/^(?:###?|\*\*|📌|🎯|✅|📋|📝|\d+[\.\)])\s*(.*)/u', $cleanLn)) {
-                        $mins = floor($sec / 60);
-                        $remSecs = $sec % 60;
-                        $timeStr = sprintf("[%02d:%02d]", $mins, $remSecs);
-                        $structuredBlocks[] = "$timeStr **ខ្លឹមសារប្រជុំ ៖** $cleanLn";
-                        $sec += max(12, min(90, ceil(mb_strlen($cleanLn, 'UTF-8') / 16)));
-                    }
-                }
-                if (!empty($structuredBlocks)) {
-                    $transcriptText = implode("\n\n", $structuredBlocks);
-                }
-            }
-
             // 3. Save to database
             dbQuery("UPDATE meetings SET summary = ?, transcript_text = ?, summary_generated_at = NOW(), summary_provider = ?, summary_model = ? WHERE id = ?", [
                 $summaryText,
