@@ -3014,7 +3014,7 @@ try {
 
             // Attempt 1: Gemini Native API (gemini-2.0-flash / gemini-1.5-flash)
             if ($geminiKey !== '') {
-                $geminiModels = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.5-flash'];
+                $geminiModels = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-pro'];
                 foreach ($geminiModels as $gModel) {
                     $url = "https://generativelanguage.googleapis.com/v1beta/models/{$gModel}:generateContent?key=" . urlencode($geminiKey);
                     $ch = curl_init($url);
@@ -3022,8 +3022,7 @@ try {
                     curl_setopt($ch, CURLOPT_POST, true);
                     curl_setopt($ch, CURLOPT_HTTPHEADER, [
                         'Content-Type: application/json; charset=utf-8',
-                        'x-goog-api-key: ' . $geminiKey,
-                        'Authorization: Bearer ' . $geminiKey
+                        'x-goog-api-key: ' . $geminiKey
                     ]);
                     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
                         'contents' => [
