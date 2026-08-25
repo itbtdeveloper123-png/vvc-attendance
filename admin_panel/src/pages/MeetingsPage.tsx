@@ -185,14 +185,18 @@ export const MeetingsPage: React.FC = () => {
 
     const existingSummary = m.summary?.trim() || '';
     const existingTranscript = (m.transcript_text || (m as any).transcript)?.trim() || '';
+    const hasAudio = !!(m.hasAudio || m.audio_url || (m as any).mp3_url || (m as any).audio_file_path || (m as any).audio_path);
 
-    if (!force && existingSummary) {
+    // If both summary and transcript exist (or meeting has no audio), use cache
+    if (!force && existingSummary && (existingTranscript || !hasAudio)) {
       setAiModalSummary(existingSummary);
       setAiModalTranscript(existingTranscript || null);
       setAiModalLoading(false);
       return;
     }
 
+    setAiModalSummary(existingSummary || null);
+    setAiModalTranscript(existingTranscript || null);
     setAiModalLoading(true);
     try {
       const res = await adminApi.summarizeMeeting(m.id, force);
