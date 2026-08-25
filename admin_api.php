@@ -2957,21 +2957,169 @@ try {
             // 1. Resolve Audio / Transcript
             $transcriptText = $existingTranscript;
             $audioPath = trim((string)($meeting['audio_url'] ?? $meeting['mp3_url'] ?? $meeting['audio_file_path'] ?? $meeting['audio_path'] ?? ''));
-
+            $geminiKey = trim((string)(defined('GEMINI_API_KEY') ? GEMINI_API_KEY : ''));
             $groqKey = trim((string)(defined('GROQ_API_KEY') ? GROQ_API_KEY : ''));
-            if ($transcriptText === '' && $audioPath !== '' && $groqKey !== '') {
-                $audioPublicUrl = preg_match('#^https?://#i', $audioPath) ? $audioPath : ('https://app.vvc.asia/flutter/' . ltrim($audioPath, '/\\'));
+            $openAiKey = trim((string)(defined('OPENAI_API_KEY') ? OPENAI_API_KEY : ''));
+            $topic = trim((string)($meeting['topic'] ?? $meeting['title'] ?? 'កិច្ចប្រជុំ'));
+            $dept = trim((string)($meeting['department'] ?? $meeting['category'] ?? 'General'));
+            $date = trim((string)($meeting['meeting_date'] ?? $meeting['date'] ?? date('Y-m-d')));
+            $desc = trim((string)($meeting['description'] ?? ''));
+
+            $localAudioFile = '';
+            $tempAudio = '';
+            if ($audioPath !== '') {
+                if (file_exists($audioPath)) {
+                    $localAudioFile = $audioPath;
+                } elseif (file_exists(__DIR__ . '/' . ltrim($audioPath, '/\\'))) {
+                    $localAudioFile = __DIR__ . '/' . ltrim($audioPath, '/\\');
+                } else {
+                    $audioPublicUrl = preg_match('#^https?://#i', $audioPath) ? $audioPath : ('https://app.vvc.asia/flutter/' . ltrim($audioPath, '/\\'));
+                    $tempAudio = tempnam(sys_get_temp_dir(), 'vvc_meet_') . '.mp3';
+                    $fp = fopen($tempAudio, 'w+');
+                    $ch = curl_init($audioPublicUrl);
+                    curl_setopt($ch, CURLOPT_FILE, $fp);
+                    curl_setopt($ch, CURLOPT_TIMEOUT, 180);
+                    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                    curl_exec($ch);
+                    curl_close($ch);
+                    fclose($fp);
+                    if (file_exists($tempAudio) && filesize($tempAudio) > 1000) {
+                        $localAudioFile = $tempAudio;
+                    } else {
+                        @unlink($tempAudio);
+                        $tempAudio = '';
+                    }
+                }
+            }
+
+            $summaryText = '';
+            $usedProvider = 'gemini';
+            $usedModel = 'gemini-3.6-flash';
+            $lastError = '';
+            $uploadedAudioUri = '';
+            $fileMime = 'audio/mp3';
+
+            // 2. Direct Audio Multimodal Analysis with Google Gemini
+            if ($localAudioFile !== '' && $geminiKey !== '' && file_exists($localAudioFile)) {
+                $fSize = filesize($localAudioFile);
+                if (preg_match('/\.wav$/i', $localAudioFile)) $fileMime = 'audio/wav';
+                elseif (preg_match('/\.m4a$/i', $localAudioFile)) $fileMime = 'audio/m4a';
+                elseif (preg_match('/\.ogg$/i', $localAudioFile)) $fileMime = 'audio/ogg';
+
+                // Upload to Gemini File API
+                $uploadUrl = "https://generativelanguage.googleapis.com/upload/v1beta/files?key=" . urlencode($geminiKey);
+                $ch = curl_init($uploadUrl);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_POST, true);
+                curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                    "X-Goog-Upload-Command: start, upload, finalize",
+                    "X-Goog-Upload-Header-Content-Length: " . $fSize,
+                    "X-Goog-Upload-Header-Content-Type: " . $fileMime,
+                    "Content-Type: " . $fileMime
+                ]);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, file_get_contents($localAudioFile));
+                curl_setopt($ch, CURLOPT_TIMEOUT, 180);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                $upRes = curl_exec($ch);
+                curl_close($ch);
+
+                $upDec = json_decode((string)$upRes, true);
+                $uploadedAudioUri = $upDec['file']['uri'] ?? '';
+
+                if ($uploadedAudioUri !== '') {
+                    $audioPrompt = "អ្នកជាជំនួយការ AI សម្រាប់កត់ត្រាកំណត់ហេតុកិច្ចប្រជុំ និងសង្ខេបកិច្ចប្រជុំពីសំឡេងផ្ទាល់ជាភាសាខ្មែរ (Executive Minutes of Meeting from Audio Recording)។\n\n"
+                        . "ព័ត៌មានកិច្ចប្រជុំ:\n"
+                        . "- ប្រធានបទ: {$topic}\n"
+                        . "- ផ្នែក/ក្រុម: {$dept}\n"
+                        . "- កាលបរិច្ឆេទ: {$date}\n\n"
+                        . "សូមស្តាប់សំឡេងកិច្ចប្រជុំនេះដោយយកចិត្តទុកដាក់ និងលម្អិតបំផុត រួចធ្វើការកត់ត្រា និងសង្ខេបជាភាសាខ្មែរដោយផ្អែកលើខ្លឹមសារសន្ទនាជាក់ស្តែងក្នុងសំឡេងប្រជុំដូចខាងក្រោម៖\n\n"
+                        . "📌 ១. សេចក្តីសង្ខេបរួមពីសំឡេង (Executive Summary from Audio)\n"
+                        . "🎯 ២. ចំណុចសំខាន់ៗដែលបានលើកឡើង និងពិភាក្សាជាក់ស្តែងក្នុងសំឡេង (Key Discussion Points from Audio)\n"
+                        . "✅ ៣. ការសម្រេចចិត្តរួម (Decisions Made)\n"
+                        . "📋 ៤. ផែនការសកម្មភាព និងជំហានបន្ទាប់ (Action Items & Next Steps)\n\n"
+                        . "សូមឆ្លើយតបជាភាសាខ្មែរដោយផ្ទាល់។";
+
+                    $genUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=" . urlencode($geminiKey);
+                    $ch = curl_init($genUrl);
+                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                    curl_setopt($ch, CURLOPT_POST, true);
+                    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json; charset=utf-8']);
+                    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
+                        'contents' => [
+                            [
+                                'parts' => [
+                                    [
+                                        'file_data' => [
+                                            'mime_type' => $fileMime,
+                                            'file_uri' => $uploadedAudioUri
+                                        ]
+                                    ],
+                                    [
+                                        'text' => $audioPrompt
+                                    ]
+                                ]
+                            ]
+                        ],
+                        'generationConfig' => [
+                            'temperature' => 0.2,
+                            'maxOutputTokens' => 8192
+                        ]
+                    ], JSON_UNESCAPED_UNICODE));
+                    curl_setopt($ch, CURLOPT_TIMEOUT, 180);
+                    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                    $audioRaw = curl_exec($ch);
+                    curl_close($ch);
+
+                    $audioDec = json_decode((string)$audioRaw, true);
+                    if (!empty($audioDec['candidates'][0]['content']['parts'][0]['text'])) {
+                        $summaryText = trim($audioDec['candidates'][0]['content']['parts'][0]['text']);
+                        $usedProvider = 'gemini-audio';
+                        $usedModel = 'gemini-3.6-flash';
+                    }
+
+                    // Extract Transcript from Audio
+                    if ($transcriptText === '') {
+                        $tPrompt = "សូមស្តាប់សំឡេងកិច្ចប្រជុំនេះ ហើយធ្វើការសរសេរជាអត្ថបទសន្ទនាទាំងស្រុង (Full Transcript / Dialogue) ជាភាសាខ្មែរ ដោយរៀបរាប់តាមលំដាប់លំដោយនៃអ្នកនិយាយ និងការពិភាក្សា។";
+                        $ch = curl_init($genUrl);
+                        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                        curl_setopt($ch, CURLOPT_POST, true);
+                        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json; charset=utf-8']);
+                        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
+                            'contents' => [
+                                [
+                                    'parts' => [
+                                        ['file_data' => ['mime_type' => $fileMime, 'file_uri' => $uploadedAudioUri]],
+                                        ['text' => $tPrompt]
+                                    ]
+                                ]
+                            ],
+                            'generationConfig' => ['temperature' => 0.2, 'maxOutputTokens' => 8192]
+                        ], JSON_UNESCAPED_UNICODE));
+                        curl_setopt($ch, CURLOPT_TIMEOUT, 180);
+                        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                        $tRaw = curl_exec($ch);
+                        curl_close($ch);
+                        $tDec = json_decode((string)$tRaw, true);
+                        if (!empty($tDec['candidates'][0]['content']['parts'][0]['text'])) {
+                            $transcriptText = trim($tDec['candidates'][0]['content']['parts'][0]['text']);
+                        }
+                    }
+                }
+            }
+
+            // Fallback: Groq Whisper for audio transcription
+            if ($summaryText === '' && $transcriptText === '' && $groqKey !== '' && $localAudioFile !== '' && filesize($localAudioFile) < 25 * 1024 * 1024) {
                 $ch = curl_init('https://api.groq.com/openai/v1/audio/transcriptions');
                 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                 curl_setopt($ch, CURLOPT_POST, true);
                 curl_setopt($ch, CURLOPT_HTTPHEADER, ['Authorization: Bearer ' . $groqKey]);
                 curl_setopt($ch, CURLOPT_POSTFIELDS, [
-                    'url' => $audioPublicUrl,
+                    'file' => new CURLFile($localAudioFile, $fileMime, basename($localAudioFile)),
                     'model' => 'whisper-large-v3',
                     'language' => 'km',
                     'response_format' => 'json',
                 ]);
-                curl_setopt($ch, CURLOPT_TIMEOUT, 90);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 120);
                 curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
                 $tRaw = curl_exec($ch);
                 curl_close($ch);
@@ -2981,119 +3129,112 @@ try {
                 }
             }
 
+            if ($tempAudio !== '' && file_exists($tempAudio)) {
+                @unlink($tempAudio);
+            }
+
             if ($transcriptText === '') {
                 $transcriptText = trim((string)($meeting['description'] ?? ''));
             }
 
-            // 2. Multi-Provider AI Summarization (Gemini -> Groq -> OpenAI)
-            $geminiKey = trim((string)(defined('GEMINI_API_KEY') ? GEMINI_API_KEY : ''));
-            $groqKey = trim((string)(defined('GROQ_API_KEY') ? GROQ_API_KEY : ''));
-            $openAiKey = trim((string)(defined('OPENAI_API_KEY') ? OPENAI_API_KEY : ''));
-            $topic = trim((string)($meeting['topic'] ?? $meeting['title'] ?? 'កិច្ចប្រជុំ'));
-            $dept = trim((string)($meeting['department'] ?? $meeting['category'] ?? 'General'));
-            $date = trim((string)($meeting['meeting_date'] ?? $meeting['date'] ?? date('Y-m-d')));
-            $desc = trim((string)($meeting['description'] ?? ''));
+            // 3. Text-based AI Summarization (if Audio processing didn't produce summary)
+            if ($summaryText === '') {
+                $prompt = "អ្នកជាជំនួយការ AI សម្រាប់សង្ខេបកិច្ចប្រជុំ និងធ្វើកំណត់ហេតុកិច្ចប្រជុំជាភាសាខ្មែរ (Executive Minutes of Meeting)។\n\n"
+                    . "ព័ត៌មានកិច្ចប្រជុំ:\n"
+                    . "- ប្រធានបទ: {$topic}\n"
+                    . "- ផ្នែក/ក្រុម: {$dept}\n"
+                    . "- កាលបរិច្ឆេទ: {$date}\n"
+                    . "- ការពិពណ៌នាសង្ខេប: " . ($desc !== '' ? $desc : 'មិនមាន') . "\n\n"
+                    . "ខ្លឹមសារកិច្ចប្រជុំ / Transcript:\n" . ($transcriptText !== '' ? $transcriptText : ($desc !== '' ? $desc : $topic)) . "\n\n"
+                    . "សូមរៀបចំសេចក្តីសង្ខេប និងកំណត់ហេតុកិច្ចប្រជុំជាភាសាខ្មែរឱ្យមានរបៀបរៀបរយ ច្បាស់លាស់ និងមានលក្ខណៈវិជ្ជាជីវៈខ្ពស់ ដោយបែងចែកជាផ្នែកៗដូចខាងក្រោម៖\n"
+                    . "📌 ១. សេចក្តីសង្ខេបរួម (Executive Summary)\n"
+                    . "🎯 ២. ចំណុចសំខាន់ៗដែលបានលើកឡើង (Key Discussion Points)\n"
+                    . "✅ ៣. ការសម្រេចចិត្តរួម (Decisions Made)\n"
+                    . "📋 ៤. ផែនការសកម្មភាព និងជំហានបន្ទាប់ (Action Items & Next Steps)\n\n"
+                    . "សូមឆ្លើយតបជាភាសាខ្មែរដោយផ្ទាល់។";
 
-            $prompt = "អ្នកជាជំនួយការ AI សម្រាប់សង្ខេបកិច្ចប្រជុំ និងធ្វើកំណត់ហេតុកិច្ចប្រជុំជាភាសាខ្មែរ (Executive Minutes of Meeting)។\n\n"
-                . "ព័ត៌មានកិច្ចប្រជុំ:\n"
-                . "- ប្រធានបទ: {$topic}\n"
-                . "- ផ្នែក/ក្រុម: {$dept}\n"
-                . "- កាលបរិច្ឆេទ: {$date}\n"
-                . "- ការពិពណ៌នាសង្ខេប: " . ($desc !== '' ? $desc : 'មិនមាន') . "\n\n"
-                . "ខ្លឹមសារកិច្ចប្រជុំ / Transcript:\n" . ($transcriptText !== '' ? $transcriptText : ($desc !== '' ? $desc : $topic)) . "\n\n"
-                . "សូមរៀបចំសេចក្តីសង្ខេប និងកំណត់ហេតុកិច្ចប្រជុំជាភាសាខ្មែរឱ្យមានរបៀបរៀបរយ ច្បាស់លាស់ និងមានលក្ខណៈវិជ្ជាជីវៈខ្ពស់ ដោយបែងចែកជាផ្នែកៗដូចខាងក្រោម៖\n"
-                . "📌 ១. សេចក្តីសង្ខេបរួម (Executive Summary)\n"
-                . "🎯 ២. ចំណុចសំខាន់ៗដែលបានលើកឡើង (Key Discussion Points)\n"
-                . "✅ ៣. ការសម្រេចចិត្តរួម (Decisions Made)\n"
-                . "📋 ៤. ផែនការសកម្មភាព និងជំហានបន្ទាប់ (Action Items & Next Steps)\n\n"
-                . "សូមឆ្លើយតបជាភាសាខ្មែរដោយផ្ទាល់។";
+                // Attempt 1: Gemini (gemini-3.6-flash / gemini-3.5-flash)
+                if ($geminiKey !== '') {
+                    $geminiModels = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite'];
+                    foreach ($geminiModels as $gModel) {
+                        $ch = curl_init('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions');
+                        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                        curl_setopt($ch, CURLOPT_POST, true);
+                        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                            'Content-Type: application/json; charset=utf-8',
+                            'Authorization: Bearer ' . $geminiKey
+                        ]);
+                        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
+                            'model'    => $gModel,
+                            'messages' => [
+                                ['role' => 'system', 'content' => 'You are an executive Khmer AI meeting minutes assistant.'],
+                                ['role' => 'user',   'content' => $prompt]
+                            ],
+                            'temperature'  => 0.3,
+                            'max_tokens'   => 4096
+                        ], JSON_UNESCAPED_UNICODE));
+                        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+                        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+                        $rawRes  = curl_exec($ch);
+                        $err     = curl_error($ch);
+                        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                        curl_close($ch);
 
-            $summaryText = '';
-            $usedProvider = 'gemini';
-            $usedModel = 'gemini-3.6-flash';
-            $lastError = '';
-
-            // Attempt 1: Gemini (gemini-3.6-flash / gemini-3.5-flash)
-            if ($geminiKey !== '') {
-                $geminiModels = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite'];
-                foreach ($geminiModels as $gModel) {
-                    $ch = curl_init('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions');
-                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                    curl_setopt($ch, CURLOPT_POST, true);
-                    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                        'Content-Type: application/json; charset=utf-8',
-                        'Authorization: Bearer ' . $geminiKey
-                    ]);
-                    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
-                        'model'    => $gModel,
-                        'messages' => [
-                            ['role' => 'system', 'content' => 'You are an executive Khmer AI meeting minutes assistant.'],
-                            ['role' => 'user',   'content' => $prompt]
-                        ],
-                        'temperature'  => 0.3,
-                        'max_tokens'   => 4096
-                    ], JSON_UNESCAPED_UNICODE));
-                    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-                    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-                    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
-                    $rawRes  = curl_exec($ch);
-                    $err     = curl_error($ch);
-                    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                    curl_close($ch);
-
-                    if ($rawRes && $httpCode === 200) {
-                        $dec = json_decode($rawRes, true);
-                        if (!empty($dec['choices'][0]['message']['content'])) {
-                            $summaryText = trim($dec['choices'][0]['message']['content']);
-                            $usedProvider = 'gemini';
-                            $usedModel    = $gModel;
-                            break;
-                        }
-                    } else {
-                        $decErr = json_decode((string)$rawRes, true);
-                        $gMsg   = $decErr['error']['message'] ?? '';
-                        if ($gMsg !== '') {
-                            $lastError = "Gemini ($gModel): $gMsg";
+                        if ($rawRes && $httpCode === 200) {
+                            $dec = json_decode($rawRes, true);
+                            if (!empty($dec['choices'][0]['message']['content'])) {
+                                $summaryText = trim($dec['choices'][0]['message']['content']);
+                                $usedProvider = 'gemini';
+                                $usedModel    = $gModel;
+                                break;
+                            }
                         } else {
-                            $lastError = "Gemini ($gModel HTTP $httpCode): " . ($err ?: substr((string)$rawRes, 0, 200));
+                            $decErr = json_decode((string)$rawRes, true);
+                            $gMsg   = $decErr['error']['message'] ?? '';
+                            if ($gMsg !== '') {
+                                $lastError = "Gemini ($gModel): $gMsg";
+                            } else {
+                                $lastError = "Gemini ($gModel HTTP $httpCode): " . ($err ?: substr((string)$rawRes, 0, 200));
+                            }
                         }
                     }
                 }
-            }
 
-            // Attempt 2: Groq High-Power Model Fallback (openai/gpt-oss-120b, qwen/qwen3.6-27b)
-            if ($summaryText === '' && $groqKey !== '') {
-                $groqModels = ['openai/gpt-oss-120b', 'qwen/qwen3.6-27b', 'openai/gpt-oss-20b'];
-                foreach ($groqModels as $gqModel) {
-                    $ch = curl_init('https://api.groq.com/openai/v1/chat/completions');
-                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                    curl_setopt($ch, CURLOPT_POST, true);
-                    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                        'Content-Type: application/json; charset=utf-8',
-                        'Authorization: Bearer ' . $groqKey
-                    ]);
-                    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
-                        'model' => $gqModel,
-                        'messages' => [
-                            ['role' => 'system', 'content' => 'You are an executive Khmer AI meeting minutes assistant.'],
-                            ['role' => 'user', 'content' => $prompt]
-                        ],
-                        'temperature' => 0.3
-                    ], JSON_UNESCAPED_UNICODE));
-                    curl_setopt($ch, CURLOPT_TIMEOUT, 60);
-                    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-                    $rawRes = curl_exec($ch);
-                    curl_close($ch);
+                // Attempt 2: Groq High-Power Model Fallback (openai/gpt-oss-120b)
+                if ($summaryText === '' && $groqKey !== '') {
+                    $groqModels = ['openai/gpt-oss-120b', 'qwen/qwen3.6-27b', 'openai/gpt-oss-20b'];
+                    foreach ($groqModels as $gqModel) {
+                        $ch = curl_init('https://api.groq.com/openai/v1/chat/completions');
+                        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                        curl_setopt($ch, CURLOPT_POST, true);
+                        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                            'Content-Type: application/json; charset=utf-8',
+                            'Authorization: Bearer ' . $groqKey
+                        ]);
+                        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
+                            'model' => $gqModel,
+                            'messages' => [
+                                ['role' => 'system', 'content' => 'You are an executive Khmer AI meeting minutes assistant.'],
+                                ['role' => 'user', 'content' => $prompt]
+                            ],
+                            'temperature' => 0.3
+                        ], JSON_UNESCAPED_UNICODE));
+                        curl_setopt($ch, CURLOPT_TIMEOUT, 60);
+                        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                        $rawRes = curl_exec($ch);
+                        curl_close($ch);
 
-                    if ($rawRes) {
-                        $dec = json_decode((string)$rawRes, true);
-                        if (!empty($dec['choices'][0]['message']['content'])) {
-                            $summaryText = trim($dec['choices'][0]['message']['content']);
-                            $usedProvider = 'groq';
-                            $usedModel = $gqModel;
-                            break;
-                        } elseif (!empty($dec['error']['message'])) {
-                            $lastError = 'Groq (' . $gqModel . '): ' . $dec['error']['message'];
+                        if ($rawRes) {
+                            $dec = json_decode((string)$rawRes, true);
+                            if (!empty($dec['choices'][0]['message']['content'])) {
+                                $summaryText = trim($dec['choices'][0]['message']['content']);
+                                $usedProvider = 'groq';
+                                $usedModel = $gqModel;
+                                break;
+                            } elseif (!empty($dec['error']['message'])) {
+                                $lastError = 'Groq (' . $gqModel . '): ' . $dec['error']['message'];
+                            }
                         }
                     }
                 }
