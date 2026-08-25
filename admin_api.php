@@ -2988,16 +2988,21 @@ try {
                 $uploadedAudioUri = $upDec['file']['uri'] ?? '';
 
                 if ($uploadedAudioUri !== '') {
-                    $audioPrompt = "អ្នកជាជំនួយការ AI សម្រាប់កត់ត្រាកំណត់ហេតុកិច្ចប្រជុំ និងសង្ខេបកិច្ចប្រជុំពីសំឡេងផ្ទាល់ជាភាសាខ្មែរ (Executive Minutes of Meeting from Audio Recording)។\n\n"
+                    $audioPrompt = "អ្នកជាជំនួយការ AI សម្រាប់កត់ត្រាកំណត់ហេតុកិច្ចប្រជុំ និងសង្ខេបកិច្ចប្រជុំពីសំឡេងផ្ទាល់ជាភាសាខ្មែរ (Executive Minutes of Meeting & Full Transcript from Audio)។\n\n"
                         . "ព័ត៌មានកិច្ចប្រជុំ:\n"
                         . "- ប្រធានបទ: {$topic}\n"
                         . "- ផ្នែក/ក្រុម: {$dept}\n"
                         . "- កាលបរិច្ឆេទ: {$date}\n\n"
-                        . "សូមស្តាប់សំឡេងកិច្ចប្រជុំនេះដោយយកចិត្តទុកដាក់ និងលម្អិតបំផុត រួចធ្វើការកត់ត្រា និងសង្ខេបជាភាសាខ្មែរដោយផ្អែកលើខ្លឹមសារសន្ទនាជាក់ស្តែងក្នុងសំឡេងប្រជុំដូចខាងក្រោម៖\n\n"
+                        . "សូមស្តាប់សំឡេងកិច្ចប្រជុំនេះដោយយកចិត្តទុកដាក់ និងលម្អិតបំផុត រួចរៀបចំចម្លើយជាពីរផ្នែកយ៉ាងច្បាស់លាស់ ដោយដាក់ Tag ដូចខាងក្រោម៖\n\n"
+                        . "===SUMMARY_START===\n"
                         . "📌 ១. សេចក្តីសង្ខេបរួមពីសំឡេង (Executive Summary from Audio)\n"
                         . "🎯 ២. ចំណុចសំខាន់ៗដែលបានលើកឡើង និងពិភាក្សាជាក់ស្តែងក្នុងសំឡេង (Key Discussion Points from Audio)\n"
                         . "✅ ៣. ការសម្រេចចិត្តរួម (Decisions Made)\n"
-                        . "📋 ៤. ផែនការសកម្មភាព និងជំហានបន្ទាប់ (Action Items & Next Steps)\n\n"
+                        . "📋 ៤. ផែនការសកម្មភាព និងជំហានបន្ទាប់ (Action Items & Next Steps)\n"
+                        . "===SUMMARY_END===\n\n"
+                        . "===TRANSCRIPT_START===\n"
+                        . "អត្ថបទសន្ទនាទាំងស្រុង (Full Transcript & Dialogue) តាមលំដាប់លំដោយនៃអ្នកនិយាយ និងការពិភាក្សាជាក់ស្តែង\n"
+                        . "===TRANSCRIPT_END===\n\n"
                         . "សូមឆ្លើយតបជាភាសាខ្មែរដោយផ្ទាល់។";
 
                     $genUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=" . urlencode($geminiKey);
@@ -3026,43 +3031,31 @@ try {
                             'maxOutputTokens' => 8192
                         ]
                     ], JSON_UNESCAPED_UNICODE));
-                    curl_setopt($ch, CURLOPT_TIMEOUT, 180);
+                    curl_setopt($ch, CURLOPT_TIMEOUT, 60);
                     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
                     $audioRaw = curl_exec($ch);
                     curl_close($ch);
 
                     $audioDec = json_decode((string)$audioRaw, true);
                     if (!empty($audioDec['candidates'][0]['content']['parts'][0]['text'])) {
-                        $summaryText = trim($audioDec['candidates'][0]['content']['parts'][0]['text']);
+                        $fullAudioResponse = trim($audioDec['candidates'][0]['content']['parts'][0]['text']);
                         $usedProvider = 'gemini-audio';
                         $usedModel = 'gemini-3.6-flash';
-                    }
 
-                    // Extract Transcript from Audio
-                    if ($transcriptText === '') {
-                        $tPrompt = "សូមស្តាប់សំឡេងកិច្ចប្រជុំនេះ ហើយធ្វើការសរសេរជាអត្ថបទសន្ទនាទាំងស្រុង (Full Transcript / Dialogue) ជាភាសាខ្មែរ ដោយរៀបរាប់តាមលំដាប់លំដោយនៃអ្នកនិយាយ និងការពិភាក្សា។";
-                        $ch = curl_init($genUrl);
-                        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                        curl_setopt($ch, CURLOPT_POST, true);
-                        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json; charset=utf-8']);
-                        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
-                            'contents' => [
-                                [
-                                    'parts' => [
-                                        ['file_data' => ['mime_type' => $fileMime, 'file_uri' => $uploadedAudioUri]],
-                                        ['text' => $tPrompt]
-                                    ]
-                                ]
-                            ],
-                            'generationConfig' => ['temperature' => 0.2, 'maxOutputTokens' => 8192]
-                        ], JSON_UNESCAPED_UNICODE));
-                        curl_setopt($ch, CURLOPT_TIMEOUT, 180);
-                        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-                        $tRaw = curl_exec($ch);
-                        curl_close($ch);
-                        $tDec = json_decode((string)$tRaw, true);
-                        if (!empty($tDec['candidates'][0]['content']['parts'][0]['text'])) {
-                            $transcriptText = trim($tDec['candidates'][0]['content']['parts'][0]['text']);
+                        // Parse Summary section
+                        if (preg_match('/===SUMMARY_START===(.*?)===SUMMARY_END===/s', $fullAudioResponse, $mSum)) {
+                            $summaryText = trim($mSum[1]);
+                        } else {
+                            $parts = explode('===TRANSCRIPT_START===', $fullAudioResponse);
+                            $summaryText = trim(str_replace(['===SUMMARY_START===', '===SUMMARY_END==='], '', $parts[0] ?? $fullAudioResponse));
+                        }
+
+                        // Parse Transcript section
+                        if (preg_match('/===TRANSCRIPT_START===(.*?)===TRANSCRIPT_END===/s', $fullAudioResponse, $mTrans)) {
+                            $transcriptText = trim($mTrans[1]);
+                        } elseif (strpos($fullAudioResponse, '===TRANSCRIPT_START===') !== false) {
+                            $parts = explode('===TRANSCRIPT_START===', $fullAudioResponse);
+                            $transcriptText = trim(str_replace('===TRANSCRIPT_END===', '', $parts[1] ?? ''));
                         }
                     }
                 }
