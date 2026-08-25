@@ -4,10 +4,21 @@ if (!function_exists('ai_chat_resolve_provider_config')) {
     function ai_chat_resolve_provider_config()
     {
         $preferred = strtolower(trim((string)(defined('AI_CHAT_PROVIDER') ? AI_CHAT_PROVIDER : '')));
+        $geminiKey = trim((string)(defined('GEMINI_API_KEY') ? GEMINI_API_KEY : ''));
         $openAiKey = trim((string)(defined('OPENAI_API_KEY') ? OPENAI_API_KEY : ''));
         $groqKey = trim((string)(defined('GROQ_API_KEY') ? GROQ_API_KEY : ''));
         $modelOverride = trim((string)(defined('AI_CHAT_MODEL') ? AI_CHAT_MODEL : ''));
         $reasoningEffort = strtolower(trim((string)(defined('AI_CHAT_REASONING_EFFORT') ? AI_CHAT_REASONING_EFFORT : '')));
+
+        if ($preferred === 'gemini' && $geminiKey !== '') {
+            return [
+                'provider' => 'gemini',
+                'endpoint' => 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+                'api_key' => $geminiKey,
+                'model' => $modelOverride !== '' ? $modelOverride : 'gemini-2.5-flash',
+                'reasoning_effort' => $reasoningEffort,
+            ];
+        }
 
         if ($preferred === 'openai' && $openAiKey !== '') {
             return [
@@ -25,6 +36,16 @@ if (!function_exists('ai_chat_resolve_provider_config')) {
                 'endpoint' => 'https://api.groq.com/openai/v1/chat/completions',
                 'api_key' => $groqKey,
                 'model' => $modelOverride !== '' ? $modelOverride : 'llama-3.3-70b-versatile',
+                'reasoning_effort' => $reasoningEffort,
+            ];
+        }
+
+        if ($geminiKey !== '') {
+            return [
+                'provider' => 'gemini',
+                'endpoint' => 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+                'api_key' => $geminiKey,
+                'model' => $modelOverride !== '' ? $modelOverride : 'gemini-2.5-flash',
                 'reasoning_effort' => $reasoningEffort,
             ];
         }

@@ -2080,10 +2080,21 @@ function meeting_ai_store_completed_summary($mysqli, $meetingId, array $result) 
 
 function meeting_ai_resolve_transcription_provider_config($preferredProvider = null) {
     $preferredProvider = strtolower(trim((string)$preferredProvider));
+    $geminiKey = trim((string)(defined('GEMINI_API_KEY') ? GEMINI_API_KEY : ''));
     $groqKey = trim((string)(defined('GROQ_API_KEY') ? GROQ_API_KEY : ''));
     $openAiKey = trim((string)(defined('OPENAI_API_KEY') ? OPENAI_API_KEY : ''));
 
     $providers = [];
+    if ($geminiKey !== '') {
+        $providers['gemini'] = [
+            'provider' => 'gemini',
+            'endpoint' => 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' . $geminiKey,
+            'api_key' => $geminiKey,
+            'model' => 'gemini-2.5-flash',
+            'max_bytes_hard' => 100 * 1024 * 1024,
+            'max_bytes_soft' => 50 * 1024 * 1024,
+        ];
+    }
     if ($groqKey !== '') {
         $providers['groq'] = [
             'provider' => 'groq',
@@ -2108,6 +2119,9 @@ function meeting_ai_resolve_transcription_provider_config($preferredProvider = n
     if ($preferredProvider !== '' && isset($providers[$preferredProvider])) {
         return $providers[$preferredProvider];
     }
+    if (isset($providers['gemini'])) {
+        return $providers['gemini'];
+    }
     if (isset($providers['groq'])) {
         return $providers['groq'];
     }
@@ -2120,11 +2134,14 @@ function meeting_ai_resolve_transcription_provider_config($preferredProvider = n
 
 function meeting_ai_resolve_transcription_fallback_config(array $currentConfig) {
     $provider = strtolower(trim((string)($currentConfig['provider'] ?? '')));
+    if ($provider === 'gemini') {
+        return meeting_ai_resolve_transcription_provider_config('groq') ?: meeting_ai_resolve_transcription_provider_config('openai');
+    }
     if ($provider === 'groq') {
-        return meeting_ai_resolve_transcription_provider_config('openai');
+        return meeting_ai_resolve_transcription_provider_config('gemini') ?: meeting_ai_resolve_transcription_provider_config('openai');
     }
     if ($provider === 'openai') {
-        return meeting_ai_resolve_transcription_provider_config('groq');
+        return meeting_ai_resolve_transcription_provider_config('gemini') ?: meeting_ai_resolve_transcription_provider_config('groq');
     }
     return null;
 }
