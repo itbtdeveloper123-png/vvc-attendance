@@ -577,17 +577,14 @@ export const MeetingsPage: React.FC = () => {
     const hasAnyRealTimestamps = blocks.some(b => b.startTime >= 0);
 
     if (!hasAnyRealTimestamps) {
-      // Natural speech pacing based on character length of each sentence
-      const totalChars = blocks.reduce((sum, b) => sum + Math.max(20, b.text.length), 0);
-      const totalSecs = aiModalAudioDuration > 0 ? aiModalAudioDuration : (totalChars * 0.12);
+      // Natural Khmer speech pacing: ~13 characters per second + 1.2s pause between sentences
       let runningTime = 0;
-
       blocks.forEach((b) => {
-        const charLen = Math.max(20, b.text.length);
-        const duration = (charLen / totalChars) * totalSecs;
+        const charLen = Math.max(15, (b.text || b.raw).length);
+        const speechDuration = Math.max(2.5, Math.min(45, (charLen / 13) + 1.2));
         b.startTime = runningTime;
-        b.endTime = runningTime + duration;
-        runningTime += duration;
+        b.endTime = runningTime + speechDuration;
+        runningTime += speechDuration;
       });
     } else {
       for (let i = 0; i < blocks.length; i++) {
@@ -597,7 +594,8 @@ export const MeetingsPage: React.FC = () => {
         if (i < blocks.length - 1 && blocks[i + 1].startTime >= 0) {
           blocks[i].endTime = blocks[i + 1].startTime;
         } else {
-          blocks[i].endTime = blocks[i].startTime + 25;
+          const charLen = Math.max(15, (blocks[i].text || blocks[i].raw).length);
+          blocks[i].endTime = blocks[i].startTime + Math.max(3, (charLen / 13) + 1.2);
         }
       }
     }
