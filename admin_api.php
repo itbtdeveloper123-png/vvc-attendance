@@ -2927,6 +2927,10 @@ try {
 
             // 1. Resolve Audio / Transcript
             $transcriptText = $existingTranscript;
+            $summaryText    = '';   // ← FIX: initialize to '' (not NULL) — NULL==='' is FALSE in PHP!
+            $usedProvider   = '';
+            $usedModel      = '';
+            $lastError      = '';
             $geminiKey = trim((string)(defined('GEMINI_API_KEY') ? GEMINI_API_KEY : ''));
             $groqKey = trim((string)(defined('GROQ_API_KEY') ? GROQ_API_KEY : ''));
             $topic = trim((string)($meeting['topic'] ?? $meeting['title'] ?? 'កិច្ចប្រជុំ'));
@@ -3067,8 +3071,8 @@ try {
                 @unlink($tempAudio);
             }
 
-            // 3. High-Speed Google Gemini 3.5 Flash Executive Minutes Generator (< 2 seconds)
-            if ($summaryText === '' && $geminiKey !== '') {
+            // 3. Text-Based Executive Minutes Generator (Gemini → Groq fallback)
+            if ($summaryText === '') {
                 $prompt = "អ្នកជាជំនួយការ AI សម្រាប់កត់ត្រាកំណត់ហេតុកិច្ចប្រជុំ និងធ្វើសេចក្តីសង្ខេបកិច្ចប្រជុំកម្រិតប្រតិបត្តិជាភាសាខ្មែរ (Executive Minutes of Meeting)។\n\n"
                     . "ព័ត៌មានកិច្ចប្រជុំ:\n"
                     . "- ប្រធានបទ: {$topic}\n"
@@ -3082,44 +3086,93 @@ try {
                     . "📋 ៤. ផែនការសកម្មភាព និងជំហានបន្ទាប់ (Action Items & Next Steps)\n\n"
                     . "សូមឆ្លើយតបជាភាសាខ្មែរដោយផ្ទាល់។";
 
-                $geminiModels = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.6-flash-lite'];
-                foreach ($geminiModels as $gModel) {
+                // 3a. Try Gemini first
+                if ($geminiKey !== '') {
+                    $geminiModels = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.6-flash-lite'];
+                    foreach ($geminiModels as $gModel) {
+                        try {
+                            $nativeUrl = "https://generativelanguage.googleapis.com/v1beta/models/{$gModel}:generateContent?key=" . urlencode($geminiKey);
+                            $ch = curl_init($nativeUrl);
+                            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                            curl_setopt($ch, CURLOPT_POST, true);
+                            curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json; charset=utf-8']);
+                            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
+                                'contents' => [
+                                    [
+                                        'parts' => [
+                                            ['text' => $prompt]
+                                        ]
+                                    ]
+                                ],
+                                'generationConfig' => [
+                                    'temperature' => 0.25,
+                                    'maxOutputTokens' => 4096
+                                ]
+                            ], JSON_UNESCAPED_UNICODE));
+                            curl_setopt($ch, CURLOPT_TIMEOUT, 45);  // increased from 20s → 45s
+                            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                            $rawRes = curl_exec($ch);
+                            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                            curl_close($ch);
+
+                            if ($rawRes && $httpCode === 200) {
+                                $dec = json_decode($rawRes, true);
+                                if (!empty($dec['candidates'][0]['content']['parts'][0]['text'])) {
+                                    $summaryText = trim($dec['candidates'][0]['content']['parts'][0]['text']);
+                                    $usedProvider = 'gemini';
+                                    $usedModel = $gModel;
+                                    break;
+                                }
+                            } elseif ($rawRes) {
+                                $errDec = json_decode($rawRes, true);
+                                $lastError = 'Gemini ' . $gModel . ': ' . ($errDec['error']['message'] ?? "HTTP {$httpCode}");
+                            }
+                        } catch (Throwable $ge) {
+                            $lastError = 'Gemini: ' . $ge->getMessage();
+                        }
+                    }
+                }
+
+                // 3b. Fallback to Groq API if Gemini failed (quota/rate-limit/error)
+                if ($summaryText === '' && $groqKey !== '') {
                     try {
-                        $nativeUrl = "https://generativelanguage.googleapis.com/v1beta/models/{$gModel}:generateContent?key=" . urlencode($geminiKey);
-                        $ch = curl_init($nativeUrl);
+                        $groqUrl = 'https://api.groq.com/openai/v1/chat/completions';
+                        $groqModel = 'llama-3.3-70b-versatile';
+                        $ch = curl_init($groqUrl);
                         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                         curl_setopt($ch, CURLOPT_POST, true);
-                        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json; charset=utf-8']);
+                        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                            'Content-Type: application/json; charset=utf-8',
+                            'Authorization: Bearer ' . $groqKey
+                        ]);
                         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
-                            'contents' => [
-                                [
-                                    'parts' => [
-                                        ['text' => $prompt]
-                                    ]
-                                ]
+                            'model' => $groqModel,
+                            'messages' => [
+                                ['role' => 'system', 'content' => 'You are an expert AI meeting minutes assistant. Always respond in Khmer language.'],
+                                ['role' => 'user', 'content' => $prompt]
                             ],
-                            'generationConfig' => [
-                                'temperature' => 0.25,
-                                'maxOutputTokens' => 4096
-                            ]
+                            'temperature' => 0.25,
+                            'max_tokens' => 4096
                         ], JSON_UNESCAPED_UNICODE));
-                        curl_setopt($ch, CURLOPT_TIMEOUT, 20);
+                        curl_setopt($ch, CURLOPT_TIMEOUT, 45);
                         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-                        $rawRes = curl_exec($ch);
-                        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                        $groqRaw = curl_exec($ch);
+                        $groqHttp = curl_getinfo($ch, CURLINFO_HTTP_CODE);
                         curl_close($ch);
 
-                        if ($rawRes && $httpCode === 200) {
-                            $dec = json_decode($rawRes, true);
-                            if (!empty($dec['candidates'][0]['content']['parts'][0]['text'])) {
-                                $summaryText = trim($dec['candidates'][0]['content']['parts'][0]['text']);
-                                $usedProvider = 'gemini';
-                                $usedModel = $gModel;
-                                break;
+                        if ($groqRaw && $groqHttp === 200) {
+                            $groqDec = json_decode($groqRaw, true);
+                            if (!empty($groqDec['choices'][0]['message']['content'])) {
+                                $summaryText = trim($groqDec['choices'][0]['message']['content']);
+                                $usedProvider = 'groq';
+                                $usedModel = $groqModel;
                             }
+                        } else {
+                            $errDec = json_decode((string)$groqRaw, true);
+                            $lastError = 'Groq: ' . ($errDec['error']['message'] ?? "HTTP {$groqHttp}");
                         }
-                    } catch (Throwable $ge) {
-                        $lastError = 'Gemini: ' . $ge->getMessage();
+                    } catch (Throwable $gre) {
+                        $lastError = 'Groq: ' . $gre->getMessage();
                     }
                 }
             }
