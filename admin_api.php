@@ -2961,12 +2961,15 @@ try {
 
                 if ($localAudioFile === '') {
                     $audioPublicUrl = preg_match('#^https?://#i', $audioPath) ? $audioPath : ('https://app.vvc.asia/flutter/' . ltrim($audioPath, '/\\'));
-                    $tempAudio = tempnam(sys_get_temp_dir(), 'vvc_meet_') . '.mp3';
+                    // preserve original extension so MIME detection works correctly
+                    $origExt = strtolower(pathinfo($audioPath, PATHINFO_EXTENSION)) ?: 'mp3';
+                    $tempAudio = tempnam(sys_get_temp_dir(), 'vvc_meet_') . '.' . $origExt;
                     $fp = fopen($tempAudio, 'w+');
                     $ch = curl_init($audioPublicUrl);
                     curl_setopt($ch, CURLOPT_FILE, $fp);
-                    curl_setopt($ch, CURLOPT_TIMEOUT, 60);
+                    curl_setopt($ch, CURLOPT_TIMEOUT, 300);  // 300s for large audio files
                     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
                     curl_exec($ch);
                     curl_close($ch);
                     fclose($fp);
@@ -2979,8 +2982,8 @@ try {
                 }
             }
 
-            // 2. Multimodal Audio Analysis with Google Gemini (for files < 25MB)
-            if ($localAudioFile !== '' && $geminiKey !== '' && file_exists($localAudioFile) && filesize($localAudioFile) < 25 * 1024 * 1024) {
+            // 2. Multimodal Audio Analysis with Google Gemini Files API (supports up to 2GB)
+            if ($localAudioFile !== '' && $geminiKey !== '' && file_exists($localAudioFile) && filesize($localAudioFile) < 500 * 1024 * 1024) {
                 try {
                     $fSize = filesize($localAudioFile);
                     if (preg_match('/\.wav$/i', $localAudioFile)) $fileMime = 'audio/wav';
@@ -3000,7 +3003,7 @@ try {
                     $fileHandle = fopen($localAudioFile, 'rb');
                     curl_setopt($ch, CURLOPT_INFILE, $fileHandle);
                     curl_setopt($ch, CURLOPT_INFILESIZE, $fSize);
-                    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+                    curl_setopt($ch, CURLOPT_TIMEOUT, 300);  // 300s for large audio upload
                     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
                     $upRes = curl_exec($ch);
                     curl_close($ch);
