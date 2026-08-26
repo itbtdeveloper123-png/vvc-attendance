@@ -2456,15 +2456,12 @@ class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
 
   bool _isLoading = false;
   String? _summary;
-  String? _transcript;
   String? _error;
-  int _lastActiveIndex = -1;
 
   @override
   void initState() {
     super.initState();
     _summary = widget.initialSummary;
-    _transcript = widget.initialTranscript;
     _audioService.addListener(_onAudioStateChanged);
 
     if ((_summary == null || _summary!.isEmpty) && widget.meetingId > 0) {
@@ -2502,18 +2499,6 @@ class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
     return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
   }
 
-  String _formatSeconds(int totalSecs) {
-    final s = totalSecs < 0 ? 0 : totalSecs;
-    final mins = s ~/ 60;
-    final secs = s % 60;
-    final hours = mins ~/ 60;
-    if (hours > 0) {
-      final remMins = mins % 60;
-      return '$hours:${remMins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
-    }
-    return '${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
-  }
-
   Future<void> _loadOrGenerateSummary({bool force = false}) async {
     setState(() {
       _isLoading = true;
@@ -2527,7 +2512,6 @@ class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
         final transcriptStr = res['transcript']?.toString() ?? res['transcript_text']?.toString();
         setState(() {
           _summary = summaryStr;
-          _transcript = transcriptStr;
           _isLoading = false;
         });
         if (summaryStr != null && summaryStr.isNotEmpty) {
@@ -3191,8 +3175,6 @@ class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
         children: widgets,
       ),
     );
-  }
-
   }
 }
 
