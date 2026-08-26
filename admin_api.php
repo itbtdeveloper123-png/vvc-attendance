@@ -2982,68 +2982,9 @@ try {
                 }
             }
 
-            // 2a. Groq Whisper — Primary Audio Transcription (files < 25MB, fastest)
-            if ($localAudioFile !== '' && $groqKey !== '' && file_exists($localAudioFile) && filesize($localAudioFile) < 25 * 1024 * 1024) {
-                try {
-                    $fSize = filesize($localAudioFile);
-                    if (preg_match('/\.wav$/i', $localAudioFile)) $fileMime = 'audio/wav';
-                    elseif (preg_match('/\.m4a$/i', $localAudioFile)) $fileMime = 'audio/mp4';
-                    elseif (preg_match('/\.ogg$/i', $localAudioFile)) $fileMime = 'audio/ogg';
-                    elseif (preg_match('/\.webm$/i', $localAudioFile)) $fileMime = 'audio/webm';
-                    else $fileMime = 'audio/mpeg';
 
-                    $ch = curl_init('https://api.groq.com/openai/v1/audio/transcriptions');
-                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                    curl_setopt($ch, CURLOPT_POST, true);
-                    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Authorization: Bearer ' . $groqKey]);
-                    curl_setopt($ch, CURLOPT_POSTFIELDS, [
-                        'file'            => new CURLFile($localAudioFile, $fileMime, basename($localAudioFile)),
-                        'model'           => 'whisper-large-v3-turbo',
-                        'language'        => 'km',
-                        'response_format' => 'verbose_json',
-                        'timestamp_granularities[]' => 'segment',
-                    ]);
-                    curl_setopt($ch, CURLOPT_TIMEOUT, 300);
-                    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-                    $whisperRaw  = curl_exec($ch);
-                    $whisperHttp = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                    curl_close($ch);
-
-                    if ($whisperRaw && $whisperHttp === 200) {
-                        $wDec = json_decode($whisperRaw, true);
-                        if (!empty($wDec['segments'])) {
-                            // Build karaoke-style transcript with timestamps
-                            $lines = [];
-                            foreach ($wDec['segments'] as $seg) {
-                                $sec  = (int)($seg['start'] ?? 0);
-                                $mm   = str_pad((int)($sec / 60), 2, '0', STR_PAD_LEFT);
-                                $ss   = str_pad($sec % 60, 2, '0', STR_PAD_LEFT);
-                                $text = trim($seg['text'] ?? '');
-                                if ($text !== '') {
-                                    $lines[] = "[{$mm}:{$ss}] **អ្នកនិយាយ ៖** {$text}";
-                                }
-                            }
-                            if ($lines) {
-                                $transcriptText = implode("\n\n", $lines);
-                                $usedProvider   = 'groq-whisper';
-                                $usedModel      = 'whisper-large-v3-turbo';
-                            }
-                        } elseif (!empty($wDec['text'])) {
-                            $transcriptText = trim($wDec['text']);
-                            $usedProvider   = 'groq-whisper';
-                            $usedModel      = 'whisper-large-v3-turbo';
-                        }
-                    } else {
-                        $errDec    = json_decode((string)$whisperRaw, true);
-                        $lastError = 'Groq Whisper: ' . ($errDec['error']['message'] ?? "HTTP {$whisperHttp}");
-                    }
-                } catch (Throwable $we) {
-                    $lastError = 'Groq Whisper: ' . $we->getMessage();
-                }
-            }
-
-            // 2b. Gemini Files API — Audio Transcription + Summary (files < 500MB)
-            if ($localAudioFile !== '' && $geminiKey !== '' && file_exists($localAudioFile) && filesize($localAudioFile) < 500 * 1024 * 1024) {
+            // 2. Gemini Files API — Audio Transcription + Summary (any size up to 2GB)
+            if ($localAudioFile !== '' && $geminiKey !== '' && file_exists($localAudioFile)) {
                 try {
                     $fSize = filesize($localAudioFile);
                     if (preg_match('/\.wav$/i', $localAudioFile)) $fileMime = 'audio/wav';
