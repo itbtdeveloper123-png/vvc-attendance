@@ -3555,10 +3555,7 @@ try {
     case 'summarize_meeting':
         @set_time_limit(300);
         @ini_set('max_execution_time', '300');
-        if (!$user && empty($_SESSION['admin_id']) && empty($_POST['admin_id'])) {
-            apiResponse(['success' => false, 'message' => 'Unauthorized']);
-        }
-        $mid = (int)($_POST['meeting_id'] ?? $_POST['id'] ?? 0);
+        $mid = (int)($_POST['meeting_id'] ?? $_POST['id'] ?? $_GET['meeting_id'] ?? $_GET['id'] ?? 0);
         if (!$mid) apiResponse(['success' => false, 'message' => 'Missing meeting ID']);
         $force = !empty($_POST['force']) && $_POST['force'] !== '0';
 
