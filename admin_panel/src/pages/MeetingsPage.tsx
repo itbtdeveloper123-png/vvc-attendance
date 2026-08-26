@@ -2584,8 +2584,17 @@ export const MeetingsPage: React.FC = () => {
                 <div style={{ fontSize: '14px', lineHeight: 1.9, color: 'var(--text-primary)', userSelect: 'text', fontFamily: "'Kantumruy Pro', 'Inter', system-ui, sans-serif" }}>
                   {aiModalTab === 'summary' ? (
                     aiModalSummary ? renderKhmerFormattedText(aiModalSummary) : (
-                      <div style={{ textAlign: 'center', padding: '30px 16px', color: 'var(--text-muted)' }}>
-                        មិនទាន់មានសេចក្តីសង្ខេបនៅឡើយទេ។
+                      <div style={{ textAlign: 'center', padding: '36px 16px', color: 'var(--text-muted)' }}>
+                        <Sparkles size={36} style={{ margin: '0 auto 12px auto', opacity: 0.4, color: 'var(--primary)' }} />
+                        <p style={{ marginBottom: '16px', fontSize: '14.5px', fontWeight: 600 }}>មិនទាន់មានសេចក្តីសង្ខេបនៅឡើយទេ។</p>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenAiModal(aiModalMeeting, true)}
+                          className="btn btn-primary btn-sm"
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 20px', borderRadius: '10px', fontWeight: 700 }}
+                        >
+                          <Sparkles size={15} /> បង្កើតសេចក្តីសង្ខេប AI ឥឡូវនេះ
+                        </button>
                       </div>
                     )
                   ) : aiModalTranscript ? (
