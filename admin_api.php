@@ -8,7 +8,16 @@
 if (ob_get_level() === 0) {
     ob_start();
 }
+error_reporting(E_ALL);
+ini_set('display_errors', 0);
 date_default_timezone_set('Asia/Phnom_Penh');
+
+set_exception_handler(function($e) {
+    while (ob_get_level() > 0) { ob_end_clean(); }
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['success' => false, 'status' => 'error', 'message' => $e->getMessage()]);
+    exit;
+});
 
 // 2. CORS & Response Headers
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '*';
