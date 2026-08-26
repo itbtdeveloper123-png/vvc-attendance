@@ -3017,7 +3017,7 @@ try {
                             . "===TRANSCRIPT_START===\nសូមសរសេរអត្ថបទសន្ទនាការនិយាយជាក់ស្តែងទាំងអស់ពីសំឡេង (Full Dialogue Transcript) តាមលំដាប់លំដោយនៃអ្នកនិយាយ ដោយបំបែកជាឃ្លាខ្លីៗ និងដាក់ Timestamp [MM:SS] នៅដើមឃ្លានីមួយៗជានិច្ច (ឧទាហរណ៍៖ [00:00] **អ្នកនិយាយ ៖** ពាក្យសម្តី...)\n===TRANSCRIPT_END===\n\n"
                             . "សូមឆ្លើយតបជាភាសាខ្មែរ។";
 
-                        $genUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=" . urlencode($geminiKey);
+                        $genUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" . urlencode($geminiKey);
                         $ch = curl_init($genUrl);
                         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                         curl_setopt($ch, CURLOPT_POST, true);
@@ -3044,7 +3044,7 @@ try {
                             if (!empty($audioDec['candidates'][0]['content']['parts'][0]['text'])) {
                                 $fullAudioResponse = trim($audioDec['candidates'][0]['content']['parts'][0]['text']);
                                 $usedProvider = 'gemini';
-                                $usedModel = 'gemini-3.6-flash';
+                                $usedModel = 'gemini-2.5-flash';
 
                                 // Extract Transcript section
                                 if (preg_match('/===TRANSCRIPT_START===(.*?)(?:===TRANSCRIPT_END===|$)/s', $fullAudioResponse, $mTrans)) {
@@ -3088,7 +3088,7 @@ try {
 
                 // 3a. Try Gemini first
                 if ($geminiKey !== '') {
-                    $geminiModels = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.6-flash-lite'];
+                    $geminiModels = ['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-3.6-flash'];
                     foreach ($geminiModels as $gModel) {
                         try {
                             $nativeUrl = "https://generativelanguage.googleapis.com/v1beta/models/{$gModel}:generateContent?key=" . urlencode($geminiKey);
@@ -3188,7 +3188,7 @@ try {
                     . "សេចក្តីសង្ខេប:\n{$summaryText}";
 
                 try {
-                    $nativeUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=" . urlencode($geminiKey);
+                    $nativeUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" . urlencode($geminiKey);
                     $ch = curl_init($nativeUrl);
                     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                     curl_setopt($ch, CURLOPT_POST, true);
