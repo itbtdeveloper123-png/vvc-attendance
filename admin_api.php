@@ -3082,7 +3082,7 @@ try {
                     . "📋 ៤. ផែនការសកម្មភាព និងជំហានបន្ទាប់ (Action Items & Next Steps)\n\n"
                     . "សូមឆ្លើយតបជាភាសាខ្មែរដោយផ្ទាល់។";
 
-                $geminiModels = ['gemini-3.5-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite'];
+                $geminiModels = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.6-flash-lite'];
                 foreach ($geminiModels as $gModel) {
                     try {
                         $nativeUrl = "https://generativelanguage.googleapis.com/v1beta/models/{$gModel}:generateContent?key=" . urlencode($geminiKey);
@@ -3134,7 +3134,7 @@ try {
                     . "សេចក្តីសង្ខេប:\n{$summaryText}";
 
                 try {
-                    $nativeUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=" . urlencode($geminiKey);
+                    $nativeUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=" . urlencode($geminiKey);
                     $ch = curl_init($nativeUrl);
                     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                     curl_setopt($ch, CURLOPT_POST, true);
