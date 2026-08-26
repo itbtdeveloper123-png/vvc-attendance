@@ -3553,242 +3553,309 @@ try {
         break;
 
     case 'summarize_meeting':
+        @set_time_limit(300);
+        @ini_set('max_execution_time', '300');
         if (!$user && empty($_SESSION['admin_id']) && empty($_POST['admin_id'])) {
             apiResponse(['success' => false, 'message' => 'Unauthorized']);
         }
-        $mid = (int)($_POST['meeting_id'] ?? 0);
+        $mid = (int)($_POST['meeting_id'] ?? $_POST['id'] ?? 0);
         if (!$mid) apiResponse(['success' => false, 'message' => 'Missing meeting ID']);
-        $forceRegenerate = !empty($_POST['force']) && $_POST['force'] !== '0';
+        $force = !empty($_POST['force']) && $_POST['force'] !== '0';
 
         $res = $mysqli->query("SELECT * FROM meetings WHERE id = $mid LIMIT 1");
         $meeting = $res ? $res->fetch_assoc() : null;
-        if (!$meeting) apiResponse(['success' => false, 'message' => 'Meeting not found']);
+        if (!$meeting) apiResponse(['success' => false, 'message' => 'រកមិនឃើញទិន្នន័យកិច្ចប្រជុំឡើយ (Meeting not found)']);
 
         $existingSummary = trim((string)($meeting['summary'] ?? ''));
         $existingTranscript = trim((string)($meeting['transcript_text'] ?? ''));
+        $audioPath = trim((string)($meeting['audio_url'] ?? $meeting['mp3_url'] ?? $meeting['audio_file_path'] ?? $meeting['audio_path'] ?? ''));
 
-        if (!$forceRegenerate && ($existingSummary !== '' || $existingTranscript !== '')) {
-            $analysisExisting = [];
-            $summaryJsonRaw = $meeting['summary_json'] ?? '';
-            if (is_string($summaryJsonRaw) && trim($summaryJsonRaw) !== '') {
-                $decoded = json_decode($summaryJsonRaw, true);
-                if (is_array($decoded)) {
-                    $analysisExisting = $decoded;
+        if (!$force && $existingSummary !== '') {
+            apiResponse([
+                'success' => true,
+                'status' => 'success',
+                'summary' => $existingSummary,
+                'transcript' => $existingTranscript,
+                'cached' => true,
+            ]);
+        }
+
+        // 1. Resolve Parameters
+        $transcriptText = $existingTranscript;
+        $summaryText    = '';
+        $usedProvider   = '';
+        $usedModel      = '';
+        $lastError      = '';
+        $geminiKey = trim((string)(defined('GEMINI_API_KEY') ? GEMINI_API_KEY : ''));
+        $groqKey = trim((string)(defined('GROQ_API_KEY') ? GROQ_API_KEY : ''));
+        $topic = trim((string)($meeting['topic'] ?? $meeting['title'] ?? 'កិច្ចប្រជុំ'));
+        $dept = trim((string)($meeting['department'] ?? $meeting['category'] ?? 'General'));
+        $date = trim((string)($meeting['meeting_date'] ?? $meeting['date'] ?? date('Y-m-d')));
+        $desc = trim((string)($meeting['description'] ?? ''));
+
+        $localAudioFile = '';
+        $tempAudio = '';
+        $fileMime = 'audio/mp3';
+
+        if ($audioPath !== '') {
+            $possiblePaths = [
+                $audioPath,
+                __DIR__ . '/' . ltrim($audioPath, '/\\'),
+                __DIR__ . '/flutter/' . ltrim($audioPath, '/\\'),
+                __DIR__ . '/uploads/meetings/audio/' . basename($audioPath),
+                __DIR__ . '/uploads/meetings/' . basename($audioPath),
+                __DIR__ . '/flutter/uploads/meetings/audio/' . basename($audioPath),
+                __DIR__ . '/flutter/uploads/meetings/' . basename($audioPath),
+            ];
+            foreach ($possiblePaths as $pp) {
+                if (file_exists($pp) && is_file($pp) && filesize($pp) > 1000) {
+                    $localAudioFile = $pp;
+                    break;
                 }
             }
 
-            // If summary exists, return cached data immediately
-            if ($existingSummary !== '') {
-                apiResponse([
-                    'success' => true,
-                    'summary' => $existingSummary,
-                    'transcript' => $existingTranscript,
-                    'analysis' => $analysisExisting,
-                    'transcript_provider' => $meeting['transcript_provider'] ?? null,
-                    'transcript_model' => $meeting['transcript_model'] ?? null,
-                    'summary_provider' => $meeting['summary_provider'] ?? null,
-                    'summary_model' => $meeting['summary_model'] ?? null,
-                    'generated_at' => $meeting['summary_generated_at'] ?? null,
-                    'cached' => true,
-                ]);
+            if ($localAudioFile === '') {
+                $audioPublicUrl = preg_match('#^https?://#i', $audioPath) ? $audioPath : ('https://app.vvc.asia/flutter/' . ltrim($audioPath, '/\\'));
+                $origExt = strtolower(pathinfo($audioPath, PATHINFO_EXTENSION)) ?: 'mp3';
+                $tempAudio = tempnam(sys_get_temp_dir(), 'vvc_meet_') . '.' . $origExt;
+                $fp = fopen($tempAudio, 'w+');
+                $ch = curl_init($audioPublicUrl);
+                curl_setopt($ch, CURLOPT_FILE, $fp);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 300);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+                curl_exec($ch);
+                curl_close($ch);
+                fclose($fp);
+                if (file_exists($tempAudio) && filesize($tempAudio) > 1000) {
+                    $localAudioFile = $tempAudio;
+                } else {
+                    @unlink($tempAudio);
+                    $tempAudio = '';
+                }
             }
         }
 
-        $localOnly = meeting_ai_local_only_enabled();
-        $workerConfig = meeting_ai_get_worker_config();
-        $summaryJobId = trim((string)($meeting['summary_job_id'] ?? ''));
-        $summaryJobStatus = strtolower(trim((string)($meeting['summary_job_status'] ?? '')));
-        $summaryJobMessage = trim((string)($meeting['summary_job_message'] ?? ''));
+        // 2. Gemini Files API — Audio Transcription + Summary (any size up to 2GB)
+        if ($localAudioFile !== '' && $geminiKey !== '' && file_exists($localAudioFile)) {
+            try {
+                $fSize = filesize($localAudioFile);
+                if (preg_match('/\.wav$/i', $localAudioFile)) $fileMime = 'audio/wav';
+                elseif (preg_match('/\.m4a$/i', $localAudioFile)) $fileMime = 'audio/m4a';
+                elseif (preg_match('/\.ogg$/i', $localAudioFile)) $fileMime = 'audio/ogg';
+                else $fileMime = 'audio/mp3';
 
-        if ($localOnly) {
-            if (empty($workerConfig['enabled'])) {
-                apiResponse([
-                    'success' => false,
-                    'message' => 'Local AI mode is enabled, but MEETING_AI_WORKER_URL is not configured yet.',
+                $uploadUrl = "https://generativelanguage.googleapis.com/upload/v1beta/files?key=" . urlencode($geminiKey);
+                $ch = curl_init($uploadUrl);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_POST, true);
+                curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                    "X-Goog-Upload-Command: start, upload, finalize",
+                    "X-Goog-Upload-Header-Content-Length: " . $fSize,
+                    "X-Goog-Upload-Header-Content-Type: " . $fileMime,
+                    "Content-Type: " . $fileMime,
+                    "Content-Length: " . $fSize,
                 ]);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, file_get_contents($localAudioFile));
+                curl_setopt($ch, CURLOPT_TIMEOUT, 300);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                $upRes = curl_exec($ch);
+                curl_close($ch);
+
+                $upDec = json_decode((string)$upRes, true);
+                $uploadedAudioUri = $upDec['file']['uri'] ?? '';
+
+                if ($uploadedAudioUri !== '') {
+                    $audioPrompt = "អ្នកជាជំនួយការ AI សម្រាប់កត់ត្រាកំណត់ហេតុកិច្ចប្រជុំ និងស្តាប់សំឡេងកិច្ចប្រជុំផ្ទាល់ជាភាសាខ្មែរ (Executive Minutes & Full Dialogue Transcript from Audio)។\n\n"
+                        . "ព័ត៌មានកិច្ចប្រជុំ:\n- ប្រធានបទ: {$topic}\n- ផ្នែក/ក្រុម: {$dept}\n- កាលបរិច្ឆេទ: {$date}\n\n"
+                        . "សូមស្តាប់សំឡេងនេះដោយហ្មត់ចត់ ហើយឆ្លើយតបជា ២ ផ្នែកដាច់ដោយឡែកពីគ្នា ដូចខាងក្រោម៖\n\n"
+                        . "===SUMMARY_START===\n📌 ១. សេចក្តីសង្ខេបរួមពីសំឡេង (Executive Summary)\n🎯 ២. ចំណុចសំខាន់ៗដែលបានពិភាក្សាជាក់ស្តែងក្នុងសំឡេង (Key Discussion Points)\n✅ ៣. ការសម្រេចចិត្តរួម (Decisions Made)\n📋 ៤. ផែនការសកម្មភាព និងជំហានបន្ទាប់ (Action Items & Next Steps)\n===SUMMARY_END===\n\n"
+                        . "===TRANSCRIPT_START===\nសូមសរសេរអត្ថបទសន្ទនាការនិយាយជាក់ស្តែងទាំងអស់ពីសំឡេង (Full Dialogue Transcript) តាមលំដាប់លំដោយនៃអ្នកនិយាយ ដោយបំបែកជាឃ្លាខ្លីៗ និងដាក់ Timestamp [MM:SS] នៅដើមឃ្លានីមួយៗជានិច្ច (ឧទាហរណ៍៖ [00:00] **អ្នកនិយាយ ៖** ពាក្យសម្តី...)\n===TRANSCRIPT_END===\n\n"
+                        . "សូមឆ្លើយតបជាភាសាខ្មែរ។";
+
+                    $genUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" . urlencode($geminiKey);
+                    $ch = curl_init($genUrl);
+                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                    curl_setopt($ch, CURLOPT_POST, true);
+                    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json; charset=utf-8']);
+                    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
+                        'contents' => [
+                            [
+                                'parts' => [
+                                    ['fileData' => ['mimeType' => $fileMime, 'fileUri' => $uploadedAudioUri]],
+                                    ['text' => $audioPrompt]
+                                ]
+                            ]
+                        ],
+                        'generationConfig' => ['temperature' => 0.2, 'maxOutputTokens' => 4096]
+                    ], JSON_UNESCAPED_UNICODE));
+                    curl_setopt($ch, CURLOPT_TIMEOUT, 35);
+                    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                    $audioRaw = curl_exec($ch);
+                    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                    curl_close($ch);
+
+                    if ($audioRaw && $httpCode === 200) {
+                        $audioDec = json_decode((string)$audioRaw, true);
+                        if (!empty($audioDec['candidates'][0]['content']['parts'][0]['text'])) {
+                            $fullAudioResponse = trim($audioDec['candidates'][0]['content']['parts'][0]['text']);
+                            $usedProvider = 'gemini';
+                            $usedModel = 'gemini-2.5-flash';
+
+                            // Extract Transcript section
+                            if (preg_match('/===TRANSCRIPT_START===(.*?)(?:===TRANSCRIPT_END===|$)/s', $fullAudioResponse, $mTrans)) {
+                                $transcriptText = trim($mTrans[1]);
+                            } elseif (preg_match('/(\[(?:00:00|00:01|00:02|0:00|\d{1,2}:\d{2})\].*)/s', $fullAudioResponse, $mTrans)) {
+                                $transcriptText = trim($mTrans[1]);
+                            }
+
+                            // Extract Summary section
+                            if (preg_match('/===SUMMARY_START===(.*?)(?:===SUMMARY_END===|===TRANSCRIPT|$)/s', $fullAudioResponse, $mSum)) {
+                                $summaryText = trim($mSum[1]);
+                            } else {
+                                $summaryText = trim(str_replace(['===SUMMARY_START===', '===SUMMARY_END===', '===TRANSCRIPT_START===', '===TRANSCRIPT_END==='], '', $fullAudioResponse));
+                            }
+                        }
+                    }
+                }
+            } catch (Throwable $ae) {
+                $lastError = 'Gemini Audio: ' . $ae->getMessage();
             }
-
-            if ($forceRegenerate) {
-                meeting_ai_reset_meeting_summary_state($mysqli, $mid);
-                $meeting['summary'] = '';
-                $meeting['summary_json'] = null;
-                $meeting['transcript_text'] = '';
-                $existingTranscript = '';
-                $summaryJobId = '';
-                $summaryJobStatus = '';
-                $summaryJobMessage = '';
-            }
-
-            if ($summaryJobId !== '' && in_array($summaryJobStatus, ['queued', 'running'], true)) {
-                apiResponse([
-                    'success' => true,
-                    'processing' => true,
-                    'job_id' => $summaryJobId,
-                    'job_status' => $summaryJobStatus,
-                    'message' => $summaryJobMessage !== '' ? $summaryJobMessage : 'Local AI worker is still processing this meeting.',
-                ]);
-            }
-
-            $jobStart = meeting_ai_start_worker_summary_job($meeting, $existingTranscript);
-            if (!$jobStart['attempted'] || !$jobStart['success']) {
-                apiResponse([
-                    'success' => false,
-                    'message' => $jobStart['message'] ?? 'Unable to start local AI worker job.',
-                    'local_only' => true,
-                ]);
-            }
-
-            meeting_ai_update_meeting_job_state(
-                $mysqli,
-                $mid,
-                (string)$jobStart['job_id'],
-                (string)($jobStart['job_status'] ?? 'queued'),
-                (string)($jobStart['message'] ?? '')
-            );
-
-            apiResponse([
-                'success' => true,
-                'processing' => true,
-                'job_id' => $jobStart['job_id'],
-                'job_status' => $jobStart['job_status'] ?? 'queued',
-                'message' => $jobStart['message'] ?? 'Meeting summary job started.',
-                'local_only' => true,
-            ]);
         }
 
-        $audioPath = trim((string)($meeting['audio_path'] ?? $meeting['audio_file_path'] ?? ''));
-        $transcriptText = $existingTranscript;
-        $transcriptProvider = trim((string)($meeting['transcript_provider'] ?? ''));
-        $transcriptModel = trim((string)($meeting['transcript_model'] ?? ''));
-        $summaryText = '';
-        $analysis = [];
-        $summaryProvider = '';
-        $summaryModel = '';
-        $workerError = '';
-
-        $workerSummary = meeting_ai_request_worker_summary($meeting, $existingTranscript);
-        if (!empty($workerSummary['attempted'])) {
-            if (!empty($workerSummary['success'])) {
-                $transcriptText = trim((string)($workerSummary['transcript'] ?? $transcriptText));
-                $transcriptProvider = trim((string)($workerSummary['transcript_provider'] ?? 'local-worker'));
-                $transcriptModel = trim((string)($workerSummary['transcript_model'] ?? 'faster-whisper'));
-                $summaryText = trim((string)($workerSummary['summary'] ?? ''));
-                $analysis = is_array($workerSummary['analysis'] ?? null) ? $workerSummary['analysis'] : [];
-                $summaryProvider = trim((string)($workerSummary['summary_provider'] ?? 'local-worker'));
-                $summaryModel = trim((string)($workerSummary['summary_model'] ?? 'ollama'));
-            } else {
-                $workerError = trim((string)($workerSummary['message'] ?? ''));
-            }
+        if ($tempAudio !== '' && file_exists($tempAudio)) {
+            @unlink($tempAudio);
         }
 
-        if ($localOnly && $summaryText === '') {
-            $message = 'Local AI worker could not summarize this meeting.';
-            if ($workerError !== '') {
-                $message = 'Local AI worker failed: ' . $workerError;
-            } elseif ($audioPath === '' && $existingTranscript === '' && trim((string)($meeting['description'] ?? '')) === '') {
-                $message = 'Local AI worker could not summarize this meeting because no audio, transcript, or description was available.';
+        // 3. Text-Based Executive Minutes Generator (Gemini -> Groq fallback)
+        if ($summaryText === '') {
+            $prompt = "អ្នកជាជំនួយការ AI សម្រាប់កត់ត្រាកំណត់ហេតុកិច្ចប្រជុំ និងធ្វើសេចក្តីសង្ខេបកិច្ចប្រជុំកម្រិតប្រតិបត្តិជាភាសាខ្មែរ (Executive Minutes of Meeting)។\n\n"
+                . "ព័ត៌មានកិច្ចប្រជុំ:\n"
+                . "- ប្រធានបទ: {$topic}\n"
+                . "- ផ្នែក/ក្រុម: {$dept}\n"
+                . "- កាលបរិច្ឆេទ: {$date}\n"
+                . "- ការពិពណ៌នាកិច្ចប្រជុំ: " . ($desc !== '' ? $desc : $topic) . "\n\n"
+                . "សូមរៀបចំសេចក្តីសង្ខេប និងកំណត់ហេតុកិច្ចប្រជុំជាភាសាខ្មែរឱ្យមានរបៀបរៀបរយ ច្បាស់លាស់ និងមានលក្ខណៈវិជ្ជាជីវៈខ្ពស់ ដោយបែងចែកជា ៤ ផ្នែកដាច់ដោយឡែកដូចខាងក្រោម៖\n"
+                . "📌 ១. សេចក្តីសង្ខេបរួម (Executive Summary)\n"
+                . "🎯 ២. ចំណុចសំខាន់ៗដែលបានលើកឡើង (Key Discussion Points)\n"
+                . "✅ ៣. ការសម្រេចចិត្តរួម (Decisions Made)\n"
+                . "📋 ៤. ផែនការសកម្មភាព និងជំហានបន្ទាប់ (Action Items & Next Steps)\n\n"
+                . "សូមឆ្លើយតបជាភាសាខ្មែរដោយផ្ទាល់។";
+
+            // 3a. Try Gemini first
+            if ($geminiKey !== '') {
+                $geminiModels = ['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-3.6-flash'];
+                foreach ($geminiModels as $gModel) {
+                    try {
+                        $nativeUrl = "https://generativelanguage.googleapis.com/v1beta/models/{$gModel}:generateContent?key=" . urlencode($geminiKey);
+                        $ch = curl_init($nativeUrl);
+                        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                        curl_setopt($ch, CURLOPT_POST, true);
+                        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json; charset=utf-8']);
+                        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
+                            'contents' => [
+                                [
+                                    'parts' => [
+                                        ['text' => $prompt]
+                                    ]
+                                ]
+                            ],
+                            'generationConfig' => [
+                                'temperature' => 0.25,
+                                'maxOutputTokens' => 4096
+                            ]
+                        ], JSON_UNESCAPED_UNICODE));
+                        curl_setopt($ch, CURLOPT_TIMEOUT, 45);
+                        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                        $rawRes = curl_exec($ch);
+                        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                        curl_close($ch);
+
+                        if ($rawRes && $httpCode === 200) {
+                            $dec = json_decode($rawRes, true);
+                            if (!empty($dec['candidates'][0]['content']['parts'][0]['text'])) {
+                                $summaryText = trim($dec['candidates'][0]['content']['parts'][0]['text']);
+                                $usedProvider = 'gemini';
+                                $usedModel = $gModel;
+                                break;
+                            }
+                        } elseif ($rawRes) {
+                            $errDec = json_decode($rawRes, true);
+                            $lastError = 'Gemini ' . $gModel . ': ' . ($errDec['error']['message'] ?? "HTTP {$httpCode}");
+                        }
+                    } catch (Throwable $ge) {
+                        $lastError = 'Gemini: ' . $ge->getMessage();
+                    }
+                }
             }
-            apiResponse([
-                'success' => false,
-                'message' => $message,
-                'local_only' => true,
-            ]);
+
+            // 3b. Fallback to Groq API if Gemini failed
+            if ($summaryText === '' && $groqKey !== '') {
+                try {
+                    $groqUrl = 'https://api.groq.com/openai/v1/chat/completions';
+                    $groqModel = 'openai/gpt-oss-120b';
+                    $ch = curl_init($groqUrl);
+                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                    curl_setopt($ch, CURLOPT_POST, true);
+                    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                        'Content-Type: application/json; charset=utf-8',
+                        'Authorization: Bearer ' . $groqKey
+                    ]);
+                    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
+                        'model' => $groqModel,
+                        'messages' => [
+                            ['role' => 'system', 'content' => 'You are an expert AI meeting minutes assistant. Always respond in Khmer language.'],
+                            ['role' => 'user', 'content' => $prompt]
+                        ],
+                        'temperature' => 0.25,
+                        'max_tokens' => 4096
+                    ], JSON_UNESCAPED_UNICODE));
+                    curl_setopt($ch, CURLOPT_TIMEOUT, 45);
+                    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                    curl_setopt($ch, CURLOPT_ENCODING, '');
+                    $groqRaw = curl_exec($ch);
+                    $groqHttp = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                    curl_close($ch);
+
+                    if ($groqRaw && $groqHttp === 200) {
+                        $groqDec = json_decode($groqRaw, true);
+                        if (!empty($groqDec['choices'][0]['message']['content'])) {
+                            $summaryText = trim($groqDec['choices'][0]['message']['content']);
+                            $usedProvider = 'groq';
+                            $usedModel = $groqModel;
+                        }
+                    } else {
+                        $errDec = json_decode((string)$groqRaw, true);
+                        $lastError = 'Groq: ' . ($errDec['error']['message'] ?? "HTTP {$groqHttp}");
+                    }
+                } catch (Throwable $gre) {
+                    $lastError = 'Groq: ' . $gre->getMessage();
+                }
+            }
         }
 
         if ($summaryText === '') {
-            if ($forceRegenerate || $transcriptText === '') {
-                if ($audioPath !== '') {
-                    $resolvedAudio = meeting_ai_resolve_audio_path($audioPath);
-                    if (!$resolvedAudio['ok']) {
-                        apiResponse([
-                            'success' => false,
-                            'message' => $resolvedAudio['message'] ?? 'Unable to locate meeting audio.',
-                        ]);
-                    }
-
-                    $transcription = meeting_ai_transcribe_audio_file($resolvedAudio['path'], $meeting);
-                    if (!empty($resolvedAudio['cleanup']) && !empty($resolvedAudio['path']) && is_file($resolvedAudio['path'])) {
-                        @unlink($resolvedAudio['path']);
-                    }
-
-                    if (!$transcription['success']) {
-                        $message = $transcription['message'] ?? 'Transcription failed.';
-                        apiResponse([
-                            'success' => false,
-                            'message' => $message,
-                        ]);
-                    }
-
-                    $transcriptText = trim((string)($transcription['text'] ?? ''));
-                    $transcriptProvider = trim((string)($transcription['provider'] ?? ''));
-                    $transcriptModel = trim((string)($transcription['model'] ?? ''));
-                } else {
-                    $transcriptText = trim((string)($meeting['description'] ?? ''));
-                    $transcriptProvider = 'local';
-                    $transcriptModel = 'description-fallback';
-                }
-            }
-
-            if ($transcriptText === '') {
-                apiResponse([
-                    'success' => false,
-                    'message' => 'មិនមានសំឡេង ឬអត្ថបទសន្ទនាសម្រាប់ធ្វើការសង្ខេបឡើយ។',
-                ]);
-            }
-
-            $summaryPayload = meeting_ai_generate_summary_payload($meeting, $transcriptText);
-            if (!$summaryPayload['success']) {
-                $message = $summaryPayload['message'] ?? 'Summary generation failed.';
-                apiResponse([
-                    'success' => false,
-                    'message' => $message,
-                ]);
-            }
-
-            $summaryText = trim((string)($summaryPayload['summary'] ?? ''));
-            $analysis = is_array($summaryPayload['analysis'] ?? null) ? $summaryPayload['analysis'] : [];
-            $summaryProvider = trim((string)($summaryPayload['provider'] ?? ''));
-            $summaryModel = trim((string)($summaryPayload['model'] ?? ''));
+            apiResponse([
+                'success' => false,
+                'message' => 'មិនអាចទាញយកសេចក្តីសង្ខេប AI បានទេ៖ ' . ($lastError ?: 'សូមពិនិត្យមើល API Key នៅក្នុង .env')
+            ]);
         }
 
-        $summaryJson = json_encode($analysis, JSON_UNESCAPED_UNICODE);
-
-        $stmt = $mysqli->prepare("UPDATE meetings
-            SET transcript_text = ?,
-                transcript_provider = ?,
-                transcript_model = ?,
-                summary = ?,
-                summary_json = ?,
-                summary_generated_at = NOW(),
-                summary_provider = ?,
-                summary_model = ?
-            WHERE id = ?");
+        // 4. Save to database
+        $stmt = $mysqli->prepare("UPDATE meetings SET summary = ?, transcript_text = ?, summary_generated_at = NOW(), summary_provider = ?, summary_model = ? WHERE id = ?");
         if ($stmt) {
-            $stmt->bind_param(
-                "sssssssi",
-                $transcriptText,
-                $transcriptProvider,
-                $transcriptModel,
-                $summaryText,
-                $summaryJson,
-                $summaryProvider,
-                $summaryModel,
-                $mid
-            );
+            $stmt->bind_param("sssssi", $summaryText, $transcriptText, $usedProvider, $usedModel, $mid);
             $stmt->execute();
             $stmt->close();
         }
 
         apiResponse([
             'success' => true,
+            'status' => 'success',
             'summary' => $summaryText,
             'transcript' => $transcriptText,
-            'analysis' => $analysis,
-            'transcript_provider' => $transcriptProvider,
-            'transcript_model' => $transcriptModel,
-            'summary_provider' => $summaryProvider,
-            'summary_model' => $summaryModel,
-            'generated_at' => date('Y-m-d H:i:s'),
+            'provider' => $usedProvider,
+            'model' => $usedModel,
             'cached' => false,
         ]);
         break;

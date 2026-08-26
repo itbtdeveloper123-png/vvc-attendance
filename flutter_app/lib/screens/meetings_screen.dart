@@ -2458,7 +2458,6 @@ class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
   String? _summary;
   String? _transcript;
   String? _error;
-  int _selectedTab = 0;
   int _lastActiveIndex = -1;
 
   @override
@@ -2549,12 +2548,13 @@ class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
   }
 
   void _copyToClipboard() {
-    final text = _selectedTab == 0 ? (_summary ?? '') : (_transcript ?? '');
+    final text = _summary ?? '';
+    if (text.isEmpty) return;
     Clipboard.setData(ClipboardData(text: text));
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          _selectedTab == 0 ? 'បានចម្លងសេចក្តីសង្ខេប' : 'បានចម្លងអត្ថបទសន្ទនា',
+          'បានចម្លងសេចក្តីសង្ខេប',
           style: GoogleFonts.kantumruyPro(),
         ),
         backgroundColor: const Color(0xFF6366F1),
@@ -2565,7 +2565,7 @@ class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
   }
 
   void _shareSummary() {
-    final textToShare = "📝 AI កំណត់ហេតុកិច្ចប្រជុំ៖ ${widget.topic}\nផ្នែក៖ ${widget.department}\n\n${_selectedTab == 0 ? (_summary ?? '') : (_transcript ?? '')}";
+    final textToShare = "📝 AI កំណត់ហេតុកិច្ចប្រជុំ៖ ${widget.topic}\nផ្នែក៖ ${widget.department}\n\n${_summary ?? ''}";
     Share.share(textToShare);
   }
 
@@ -2579,35 +2579,39 @@ class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
       ),
       child: Column(
         children: [
-          const SizedBox(height: 12),
-          Container(
-            width: 44,
-            height: 4,
-            decoration: BoxDecoration(
-              color: Colors.white24,
-              borderRadius: BorderRadius.circular(10),
+          // Drag Handle
+          Center(
+            child: Container(
+              margin: const EdgeInsets.only(top: 12, bottom: 8),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
           ),
-          const SizedBox(height: 14),
-          // Modal Header
+          // Header
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
             child: Row(
               children: [
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: Colors.amber.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
+                    color: const Color(0xFF6366F1).withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: const Color(0xFF6366F1).withValues(alpha: 0.3),
+                    ),
                   ),
                   child: const Icon(
                     Icons.auto_awesome_rounded,
-                    color: Colors.amber,
+                    color: Color(0xFF818CF8),
                     size: 22,
                   ),
                 ),
-                const SizedBox(width: 14),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -2617,17 +2621,18 @@ class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
                         style: GoogleFonts.kantumruyPro(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: AppTheme.textPrimary,
+                          color: Colors.white,
                         ),
                       ),
+                      const SizedBox(height: 2),
                       Text(
                         widget.topic,
-                        style: GoogleFonts.kantumruyPro(
-                          fontSize: 12.5,
-                          color: AppTheme.textSecondary,
-                        ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.kantumruyPro(
+                          fontSize: 12,
+                          color: Colors.white60,
+                        ),
                       ),
                     ],
                   ),
@@ -2645,22 +2650,6 @@ class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
           _buildAudioPlayerCard(),
 
           const SizedBox(height: 10),
-          // Tab Switcher
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _buildTabBtn(0, "សេចក្តីសង្ខេប (Summary)", Icons.summarize_rounded),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _buildTabBtn(1, "អត្ថបទសន្ទនា (Transcript)", Icons.record_voice_over_rounded),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 10),
           // Main Body Content
           Expanded(
             child: _isLoading
@@ -2668,7 +2657,7 @@ class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
                 : (_error != null ? _buildErrorState() : _buildContentState()),
           ),
           // Bottom Action Bar
-          if (!_isLoading && ((_summary != null && _summary!.isNotEmpty) || (_transcript != null && _transcript!.isNotEmpty)))
+          if (!_isLoading && _summary != null && _summary!.isNotEmpty)
             Container(
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
               decoration: BoxDecoration(
@@ -2870,38 +2859,6 @@ class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
     );
   }
 
-  Widget _buildTabBtn(int index, String label, IconData icon) {
-    final bool isSelected = _selectedTab == index;
-    return GestureDetector(
-      onTap: () => setState(() => _selectedTab = index),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF6366F1) : const Color(0xFF1E293B),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected ? const Color(0xFF6366F1) : Colors.white12,
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 16, color: isSelected ? Colors.white : Colors.white60),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: GoogleFonts.kantumruyPro(
-                fontSize: 12,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                color: isSelected ? Colors.white : Colors.white60,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildLoadingState() {
     return Center(
       child: Column(
@@ -2958,47 +2915,34 @@ class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
   }
 
   Widget _buildContentState() {
-    if (_selectedTab == 0) {
-      final text = _summary?.trim() ?? '';
-      if (text.isEmpty) {
-        return Center(
-          child: Text(
-            'មិនទាន់មានសេចក្តីសង្ខេបនៅឡើយទេ',
-            style: GoogleFonts.kantumruyPro(color: AppTheme.textSecondary),
-          ),
-        );
-      }
-      return _buildFormattedSummary(text);
-    } else {
-      final transcript = _transcript?.trim() ?? '';
-      if (transcript.isEmpty) {
-        return Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.mic_none_rounded, size: 40, color: Colors.white24),
-              const SizedBox(height: 12),
-              Text(
-                'មិនទាន់មានអត្ថបទសន្ទនា (Transcript) នៅឡើយទេ',
-                style: GoogleFonts.kantumruyPro(color: AppTheme.textSecondary, fontSize: 13.5),
+    final text = _summary?.trim() ?? '';
+    if (text.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.auto_awesome_rounded, size: 40, color: Colors.white24),
+            const SizedBox(height: 12),
+            Text(
+              'មិនទាន់មានសេចក្តីសង្ខេបនៅឡើយទេ',
+              style: GoogleFonts.kantumruyPro(color: AppTheme.textSecondary),
+            ),
+            const SizedBox(height: 14),
+            ElevatedButton.icon(
+              onPressed: () => _loadOrGenerateSummary(force: true),
+              icon: const Icon(Icons.auto_awesome_rounded, size: 16),
+              label: Text("បង្កើតសេចក្តីសង្ខេប AI ឥឡូវនេះ", style: GoogleFonts.kantumruyPro(fontSize: 12.5)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF6366F1),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
-              const SizedBox(height: 14),
-              ElevatedButton.icon(
-                onPressed: () => _loadOrGenerateSummary(force: true),
-                icon: const Icon(Icons.refresh_rounded, size: 16),
-                label: Text("ទាញយកពីសំឡេងប្រជុំ", style: GoogleFonts.kantumruyPro(fontSize: 12.5)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF6366F1),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-              ),
-            ],
-          ),
-        );
-      }
-      return _buildKaraokeTranscript(transcript);
+            ),
+          ],
+        ),
+      );
     }
+    return _buildFormattedSummary(text);
   }
 
   List<InlineSpan> _parseInlineSpans(String text, {Color? defaultColor, double fontSize = 13.5}) {

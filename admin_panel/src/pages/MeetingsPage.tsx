@@ -260,7 +260,7 @@ export const MeetingsPage: React.FC = () => {
   };
 
   const handleCopyAiContent = () => {
-    const text = aiModalTab === 'summary' ? (aiModalSummary || '') : (aiModalTranscript || '');
+    const text = aiModalSummary || '';
     if (text) {
       navigator.clipboard.writeText(text);
       setCopiedText(true);
@@ -2413,58 +2413,8 @@ export const MeetingsPage: React.FC = () => {
               );
             })()}
 
-            {/* Tab Switcher */}
-            <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
-              <button
-                type="button"
-                onClick={() => setAiModalTab('summary')}
-                style={{
-                  flex: 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px',
-                  padding: '10px',
-                  borderRadius: '10px',
-                  border: 'none',
-                  fontSize: '13px',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  background: aiModalTab === 'summary' ? 'var(--primary)' : 'var(--bg-secondary)',
-                  color: aiModalTab === 'summary' ? '#fff' : 'var(--text-secondary)',
-                  transition: 'all 0.2s ease'
-                }}
-              >
-                <FileText size={16} />
-                <span>សេចក្តីសង្ខេប (Summary)</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setAiModalTab('transcript')}
-                style={{
-                  flex: 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px',
-                  padding: '10px',
-                  borderRadius: '10px',
-                  border: 'none',
-                  fontSize: '13px',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  background: aiModalTab === 'transcript' ? 'var(--primary)' : 'var(--bg-secondary)',
-                  color: aiModalTab === 'transcript' ? '#fff' : 'var(--text-secondary)',
-                  transition: 'all 0.2s ease'
-                }}
-              >
-                <Volume2 size={16} />
-                <span>អត្ថបទសន្ទនា (Transcript)</span>
-              </button>
-            </div>
-
             {/* Content Body */}
-            <div style={{ minHeight: '260px', maxHeight: '420px', overflowY: 'auto', padding: '16px', borderRadius: '12px', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)' }}>
+            <div style={{ minHeight: '260px', maxHeight: '440px', overflowY: 'auto', padding: '16px', borderRadius: '12px', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)' }}>
               {aiModalLoading ? (
                 <div
                   style={{
@@ -2582,34 +2532,19 @@ export const MeetingsPage: React.FC = () => {
                 </div>
               ) : (
                 <div style={{ fontSize: '14px', lineHeight: 1.9, color: 'var(--text-primary)', userSelect: 'text', fontFamily: "'Kantumruy Pro', 'Inter', system-ui, sans-serif" }}>
-                  {aiModalTab === 'summary' ? (
-                    aiModalSummary ? renderKhmerFormattedText(aiModalSummary) : (
-                      <div style={{ textAlign: 'center', padding: '36px 16px', color: 'var(--text-muted)' }}>
-                        <Sparkles size={36} style={{ margin: '0 auto 12px auto', opacity: 0.4, color: 'var(--primary)' }} />
-                        <p style={{ marginBottom: '16px', fontSize: '14.5px', fontWeight: 600 }}>មិនទាន់មានសេចក្តីសង្ខេបនៅឡើយទេ។</p>
-                        <button
-                          type="button"
-                          onClick={() => handleOpenAiModal(aiModalMeeting, true)}
-                          className="btn btn-primary btn-sm"
-                          style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 20px', borderRadius: '10px', fontWeight: 700 }}
-                        >
-                          <Sparkles size={15} /> បង្កើតសេចក្តីសង្ខេប AI ឥឡូវនេះ
-                        </button>
-                      </div>
-                    )
-                  ) : aiModalTranscript ? (
-                    renderKaraokeTranscript(aiModalTranscript)
+                  {aiModalSummary ? (
+                    renderKhmerFormattedText(aiModalSummary)
                   ) : (
                     <div style={{ textAlign: 'center', padding: '36px 16px', color: 'var(--text-muted)' }}>
-                      <Volume2 size={36} style={{ margin: '0 auto 12px auto', opacity: 0.4, color: 'var(--primary)' }} />
-                      <p style={{ marginBottom: '16px', fontSize: '14.5px', fontWeight: 600 }}>មិនទាន់មានអត្ថបទសន្ទនាការនិយាយពិត (Transcript) ពីសំឡេងប្រជុំនៅឡើយទេ។</p>
+                      <Sparkles size={36} style={{ margin: '0 auto 12px auto', opacity: 0.4, color: 'var(--primary)' }} />
+                      <p style={{ marginBottom: '16px', fontSize: '14.5px', fontWeight: 600 }}>មិនទាន់មានសេចក្តីសង្ខេបនៅឡើយទេ។</p>
                       <button
                         type="button"
                         onClick={() => handleOpenAiModal(aiModalMeeting, true)}
                         className="btn btn-primary btn-sm"
                         style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 20px', borderRadius: '10px', fontWeight: 700 }}
                       >
-                        <RefreshCw size={15} /> ចុចត្រង់នេះដើម្បីឱ្យ AI ស្តាប់ និងទាញយក Transcript ពីសំឡេងឡើងវិញ
+                        <Sparkles size={15} /> បង្កើតសេចក្តីសង្ខេប AI ឥឡូវនេះ
                       </button>
                     </div>
                   )}
