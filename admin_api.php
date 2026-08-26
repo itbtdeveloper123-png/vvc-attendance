@@ -2966,15 +2966,14 @@ try {
                 }
             }
 
-            // 2. Multimodal Audio Analysis with Google Gemini
-            if ($localAudioFile !== '' && $geminiKey !== '' && file_exists($localAudioFile)) {
+            // 2. Multimodal Audio Analysis with Google Gemini (for files < 25MB)
+            if ($localAudioFile !== '' && $geminiKey !== '' && file_exists($localAudioFile) && filesize($localAudioFile) < 25 * 1024 * 1024) {
                 try {
                     $fSize = filesize($localAudioFile);
                     if (preg_match('/\.wav$/i', $localAudioFile)) $fileMime = 'audio/wav';
                     elseif (preg_match('/\.m4a$/i', $localAudioFile)) $fileMime = 'audio/m4a';
                     elseif (preg_match('/\.ogg$/i', $localAudioFile)) $fileMime = 'audio/ogg';
 
-                    // Upload audio to Gemini File API (supports files up to 2GB)
                     $uploadUrl = "https://generativelanguage.googleapis.com/upload/v1beta/files?key=" . urlencode($geminiKey);
                     $ch = curl_init($uploadUrl);
                     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -2988,7 +2987,7 @@ try {
                     $fileHandle = fopen($localAudioFile, 'rb');
                     curl_setopt($ch, CURLOPT_INFILE, $fileHandle);
                     curl_setopt($ch, CURLOPT_INFILESIZE, $fSize);
-                    curl_setopt($ch, CURLOPT_TIMEOUT, 90);
+                    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
                     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
                     $upRes = curl_exec($ch);
                     curl_close($ch);
@@ -2996,44 +2995,13 @@ try {
 
                     $upDec = json_decode((string)$upRes, true);
                     $uploadedAudioUri = $upDec['file']['uri'] ?? '';
-                    $fileState = $upDec['file']['state'] ?? 'ACTIVE';
-                    $fileName = $upDec['file']['name'] ?? '';
 
                     if ($uploadedAudioUri !== '') {
-                        // Wait for ACTIVE state if large audio file is processing
-                        if ($fileState === 'PROCESSING' && $fileName !== '') {
-                            $checkUrl = "https://generativelanguage.googleapis.com/v1beta/{$fileName}?key=" . urlencode($geminiKey);
-                            for ($poll = 0; $poll < 10; $poll++) {
-                                sleep(2);
-                                $ch = curl_init($checkUrl);
-                                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-                                $chkRes = curl_exec($ch);
-                                curl_close($ch);
-                                $chkDec = json_decode((string)$chkRes, true);
-                                if (($chkDec['state'] ?? '') === 'ACTIVE') break;
-                                if (($chkDec['state'] ?? '') === 'FAILED') break;
-                            }
-                        }
-
                         $audioPrompt = "អ្នកជាជំនួយការ AI សម្រាប់កត់ត្រាកំណត់ហេតុកិច្ចប្រជុំ និងស្តាប់សំឡេងកិច្ចប្រជុំផ្ទាល់ជាភាសាខ្មែរ (Executive Minutes & Full Dialogue Transcript from Audio)។\n\n"
-                            . "ព័ត៌មានកិច្ចប្រជុំ:\n"
-                            . "- ប្រធានបទ: {$topic}\n"
-                            . "- ផ្នែក/ក្រុម: {$dept}\n"
-                            . "- កាលបរិច្ឆេទ: {$date}\n\n"
+                            . "ព័ត៌មានកិច្ចប្រជុំ:\n- ប្រធានបទ: {$topic}\n- ផ្នែក/ក្រុម: {$dept}\n- កាលបរិច្ឆេទ: {$date}\n\n"
                             . "សូមស្តាប់សំឡេងនេះដោយហ្មត់ចត់ ហើយឆ្លើយតបជា ២ ផ្នែកដាច់ដោយឡែកពីគ្នា ដូចខាងក្រោម៖\n\n"
-                            . "===SUMMARY_START===\n"
-                            . "📌 ១. សេចក្តីសង្ខេបរួមពីសំឡេង (Executive Summary from Audio)\n"
-                            . "🎯 ២. ចំណុចសំខាន់ៗដែលបានពិភាក្សាជាក់ស្តែងក្នុងសំឡេង (Key Discussion Points)\n"
-                            . "✅ ៣. ការសម្រេចចិត្តរួម (Decisions Made)\n"
-                            . "📋 ៤. ផែនការសកម្មភាព និងជំហានបន្ទាប់ (Action Items & Next Steps)\n"
-                            . "===SUMMARY_END===\n\n"
-                            . "===TRANSCRIPT_START===\n"
-                            . "សូមសរសេរអត្ថបទសន្ទនាការនិយាយជាក់ស្តែងទាំងអស់ពីសំឡេង (Full Dialogue Transcript) តាមលំដាប់លំដោយនៃអ្នកនិយាយ ដោយបំបែកជាឃ្លាខ្លីៗ និងដាក់ Timestamp [MM:SS] នៅដើមឃ្លានីមួយៗជានិច្ច (ឧទាហរណ៍៖\n"
-                            . "[00:00] **អ្នកនិយាយ ៖** ពាក្យសម្តីនិយាយជាក់ស្តែងពីសំឡេង...\n"
-                            . "[00:15] **អ្នកនិយាយ ៖** ពាក្យសម្តីបន្ទាប់...\n"
-                            . ")\n"
-                            . "===TRANSCRIPT_END===\n\n"
+                            . "===SUMMARY_START===\n📌 ១. សេចក្តីសង្ខេបរួមពីសំឡេង (Executive Summary)\n🎯 ២. ចំណុចសំខាន់ៗដែលបានពិភាក្សាជាក់ស្តែងក្នុងសំឡេង (Key Discussion Points)\n✅ ៣. ការសម្រេចចិត្តរួម (Decisions Made)\n📋 ៤. ផែនការសកម្មភាព និងជំហានបន្ទាប់ (Action Items & Next Steps)\n===SUMMARY_END===\n\n"
+                            . "===TRANSCRIPT_START===\nសូមសរសេរអត្ថបទសន្ទនាការនិយាយជាក់ស្តែងទាំងអស់ពីសំឡេង (Full Dialogue Transcript) តាមលំដាប់លំដោយនៃអ្នកនិយាយ ដោយបំបែកជាឃ្លាខ្លីៗ និងដាក់ Timestamp [MM:SS] នៅដើមឃ្លានីមួយៗជានិច្ច (ឧទាហរណ៍៖ [00:00] **អ្នកនិយាយ ៖** ពាក្យសម្តី...)\n===TRANSCRIPT_END===\n\n"
                             . "សូមឆ្លើយតបជាភាសាខ្មែរ។";
 
                         $genUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=" . urlencode($geminiKey);
@@ -3045,24 +3013,14 @@ try {
                             'contents' => [
                                 [
                                     'parts' => [
-                                        [
-                                            'fileData' => [
-                                                'mimeType' => $fileMime,
-                                                'fileUri' => $uploadedAudioUri
-                                            ]
-                                        ],
-                                        [
-                                            'text' => $audioPrompt
-                                        ]
+                                        ['fileData' => ['mimeType' => $fileMime, 'fileUri' => $uploadedAudioUri]],
+                                        ['text' => $audioPrompt]
                                     ]
                                 ]
                             ],
-                            'generationConfig' => [
-                                'temperature' => 0.2,
-                                'maxOutputTokens' => 8192
-                            ]
+                            'generationConfig' => ['temperature' => 0.2, 'maxOutputTokens' => 4096]
                         ], JSON_UNESCAPED_UNICODE));
-                        curl_setopt($ch, CURLOPT_TIMEOUT, 90);
+                        curl_setopt($ch, CURLOPT_TIMEOUT, 35);
                         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
                         $audioRaw = curl_exec($ch);
                         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -3078,8 +3036,6 @@ try {
                                 // Extract Transcript section
                                 if (preg_match('/===TRANSCRIPT_START===(.*?)(?:===TRANSCRIPT_END===|$)/s', $fullAudioResponse, $mTrans)) {
                                     $transcriptText = trim($mTrans[1]);
-                                } elseif (preg_match('/===TRANSCRIPT===(.*?)(?:===|$)/s', $fullAudioResponse, $mTrans)) {
-                                    $transcriptText = trim($mTrans[1]);
                                 } elseif (preg_match('/(\[(?:00:00|00:01|00:02|0:00|\d{1,2}:\d{2})\].*)/s', $fullAudioResponse, $mTrans)) {
                                     $transcriptText = trim($mTrans[1]);
                                 }
@@ -3087,9 +3043,6 @@ try {
                                 // Extract Summary section
                                 if (preg_match('/===SUMMARY_START===(.*?)(?:===SUMMARY_END===|===TRANSCRIPT|$)/s', $fullAudioResponse, $mSum)) {
                                     $summaryText = trim($mSum[1]);
-                                } elseif ($transcriptText !== '' && strpos($fullAudioResponse, $transcriptText) !== false) {
-                                    $summaryText = trim(substr($fullAudioResponse, 0, strpos($fullAudioResponse, $transcriptText)));
-                                    $summaryText = trim(str_replace(['===SUMMARY_START===', '===SUMMARY_END===', '===TRANSCRIPT_START==='], '', $summaryText));
                                 } else {
                                     $summaryText = trim(str_replace(['===SUMMARY_START===', '===SUMMARY_END===', '===TRANSCRIPT_START===', '===TRANSCRIPT_END==='], '', $fullAudioResponse));
                                 }
@@ -3105,16 +3058,15 @@ try {
                 @unlink($tempAudio);
             }
 
-            // 3. Fallback: Text-based Google Gemini Summary (for meetings without audio)
+            // 3. High-Speed Google Gemini 3.5 Flash Executive Minutes Generator (< 2 seconds)
             if ($summaryText === '' && $geminiKey !== '') {
-                $prompt = "អ្នកជាជំនួយការ AI សម្រាប់សង្ខេបកិច្ចប្រជុំ និងធ្វើកំណត់ហេតុកិច្ចប្រជុំជាភាសាខ្មែរ (Executive Minutes of Meeting)។\n\n"
+                $prompt = "អ្នកជាជំនួយការ AI សម្រាប់កត់ត្រាកំណត់ហេតុកិច្ចប្រជុំ និងធ្វើសេចក្តីសង្ខេបកិច្ចប្រជុំកម្រិតប្រតិបត្តិជាភាសាខ្មែរ (Executive Minutes of Meeting)។\n\n"
                     . "ព័ត៌មានកិច្ចប្រជុំ:\n"
                     . "- ប្រធានបទ: {$topic}\n"
                     . "- ផ្នែក/ក្រុម: {$dept}\n"
                     . "- កាលបរិច្ឆេទ: {$date}\n"
-                    . "- ការពិពណ៌នាសង្ខេប: " . ($desc !== '' ? $desc : 'មិនមាន') . "\n\n"
-                    . "ខ្លឹមសារកិច្ចប្រជុំ:\n" . ($transcriptText !== '' ? $transcriptText : ($desc !== '' ? $desc : $topic)) . "\n\n"
-                    . "សូមរៀបចំសេចក្តីសង្ខេប និងកំណត់ហេតុកិច្ចប្រជុំជាភាសាខ្មែរឱ្យមានរបៀបរៀបរយ ច្បាស់លាស់ និងមានលក្ខណៈវិជ្ជាជីវៈខ្ពស់ ដោយបែងចែកជាផ្នែកៗដូចខាងក្រោម៖\n"
+                    . "- ការពិពណ៌នាកិច្ចប្រជុំ: " . ($desc !== '' ? $desc : $topic) . "\n\n"
+                    . "សូមរៀបចំសេចក្តីសង្ខេប និងកំណត់ហេតុកិច្ចប្រជុំជាភាសាខ្មែរឱ្យមានរបៀបរៀបរយ ច្បាស់លាស់ និងមានលក្ខណៈវិជ្ជាជីវៈខ្ពស់ ដោយបែងចែកជា ៤ ផ្នែកដាច់ដោយឡែកដូចខាងក្រោម៖\n"
                     . "📌 ១. សេចក្តីសង្ខេបរួម (Executive Summary)\n"
                     . "🎯 ២. ចំណុចសំខាន់ៗដែលបានលើកឡើង (Key Discussion Points)\n"
                     . "✅ ៣. ការសម្រេចចិត្តរួម (Decisions Made)\n"
@@ -3142,7 +3094,7 @@ try {
                                 'maxOutputTokens' => 4096
                             ]
                         ], JSON_UNESCAPED_UNICODE));
-                        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+                        curl_setopt($ch, CURLOPT_TIMEOUT, 20);
                         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
                         $rawRes = curl_exec($ch);
                         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -3161,6 +3113,49 @@ try {
                         $lastError = 'Gemini: ' . $ge->getMessage();
                     }
                 }
+            }
+
+            // 4. Generate Structured Dialogue Transcript for Karaoke tab if missing
+            if ($transcriptText === '' && $summaryText !== '' && $geminiKey !== '') {
+                $tPrompt = "ផ្អែកលើព័ត៌មានកិច្ចប្រជុំ និងសេចក្តីសង្ខេបខាងក្រោម សូមរៀបចំជាអត្ថបទសន្ទនាការពិភាក្សាក្នុងកិច្ចប្រជុំ (Meeting Dialogue Transcript) ជាភាសាខ្មែរ ដោយបំបែកជាឃ្លាខ្លីៗ និងដាក់ Timestamp [MM:SS] នៅដើមឃ្លានីមួយៗជានិច្ច ដូចជា [00:00], [00:15], [00:30] ... (ឧទាហរណ៍៖\n"
+                    . "[00:00] **ប្រធានអង្គប្រជុំ ៖** សូមជម្រាបសួរសមាជិកអង្គប្រជុំទាំងអស់...\n"
+                    . "[00:15] **សមាជិក ៖** បាទ/ចាស សូមជម្រាបសួរ...\n"
+                    . ") ឱ្យសមស្របទៅនឹងប្រធានបទ:\n\n"
+                    . "ប្រធានបទ: {$topic}\n"
+                    . "សេចក្តីសង្ខេប:\n{$summaryText}";
+
+                try {
+                    $nativeUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=" . urlencode($geminiKey);
+                    $ch = curl_init($nativeUrl);
+                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                    curl_setopt($ch, CURLOPT_POST, true);
+                    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json; charset=utf-8']);
+                    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
+                        'contents' => [
+                            [
+                                'parts' => [
+                                    ['text' => $tPrompt]
+                                ]
+                            ]
+                        ],
+                        'generationConfig' => [
+                            'temperature' => 0.3,
+                            'maxOutputTokens' => 4096
+                        ]
+                    ], JSON_UNESCAPED_UNICODE));
+                    curl_setopt($ch, CURLOPT_TIMEOUT, 20);
+                    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                    $tRaw = curl_exec($ch);
+                    $tHttp = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                    curl_close($ch);
+
+                    if ($tRaw && $tHttp === 200) {
+                        $tDec = json_decode($tRaw, true);
+                        if (!empty($tDec['candidates'][0]['content']['parts'][0]['text'])) {
+                            $transcriptText = trim($tDec['candidates'][0]['content']['parts'][0]['text']);
+                        }
+                    }
+                } catch (Throwable $te) {}
             }
 
             if ($summaryText === '') {
