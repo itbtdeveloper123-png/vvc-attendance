@@ -2982,13 +2982,74 @@ try {
                 }
             }
 
-            // 2. Multimodal Audio Analysis with Google Gemini Files API (supports up to 2GB)
+            // 2a. Groq Whisper — Primary Audio Transcription (files < 25MB, fastest)
+            if ($localAudioFile !== '' && $groqKey !== '' && file_exists($localAudioFile) && filesize($localAudioFile) < 25 * 1024 * 1024) {
+                try {
+                    $fSize = filesize($localAudioFile);
+                    if (preg_match('/\.wav$/i', $localAudioFile)) $fileMime = 'audio/wav';
+                    elseif (preg_match('/\.m4a$/i', $localAudioFile)) $fileMime = 'audio/mp4';
+                    elseif (preg_match('/\.ogg$/i', $localAudioFile)) $fileMime = 'audio/ogg';
+                    elseif (preg_match('/\.webm$/i', $localAudioFile)) $fileMime = 'audio/webm';
+                    else $fileMime = 'audio/mpeg';
+
+                    $ch = curl_init('https://api.groq.com/openai/v1/audio/transcriptions');
+                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                    curl_setopt($ch, CURLOPT_POST, true);
+                    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Authorization: Bearer ' . $groqKey]);
+                    curl_setopt($ch, CURLOPT_POSTFIELDS, [
+                        'file'            => new CURLFile($localAudioFile, $fileMime, basename($localAudioFile)),
+                        'model'           => 'whisper-large-v3-turbo',
+                        'language'        => 'km',
+                        'response_format' => 'verbose_json',
+                        'timestamp_granularities[]' => 'segment',
+                    ]);
+                    curl_setopt($ch, CURLOPT_TIMEOUT, 300);
+                    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                    $whisperRaw  = curl_exec($ch);
+                    $whisperHttp = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                    curl_close($ch);
+
+                    if ($whisperRaw && $whisperHttp === 200) {
+                        $wDec = json_decode($whisperRaw, true);
+                        if (!empty($wDec['segments'])) {
+                            // Build karaoke-style transcript with timestamps
+                            $lines = [];
+                            foreach ($wDec['segments'] as $seg) {
+                                $sec  = (int)($seg['start'] ?? 0);
+                                $mm   = str_pad((int)($sec / 60), 2, '0', STR_PAD_LEFT);
+                                $ss   = str_pad($sec % 60, 2, '0', STR_PAD_LEFT);
+                                $text = trim($seg['text'] ?? '');
+                                if ($text !== '') {
+                                    $lines[] = "[{$mm}:{$ss}] **អ្នកនិយាយ ៖** {$text}";
+                                }
+                            }
+                            if ($lines) {
+                                $transcriptText = implode("\n\n", $lines);
+                                $usedProvider   = 'groq-whisper';
+                                $usedModel      = 'whisper-large-v3-turbo';
+                            }
+                        } elseif (!empty($wDec['text'])) {
+                            $transcriptText = trim($wDec['text']);
+                            $usedProvider   = 'groq-whisper';
+                            $usedModel      = 'whisper-large-v3-turbo';
+                        }
+                    } else {
+                        $errDec    = json_decode((string)$whisperRaw, true);
+                        $lastError = 'Groq Whisper: ' . ($errDec['error']['message'] ?? "HTTP {$whisperHttp}");
+                    }
+                } catch (Throwable $we) {
+                    $lastError = 'Groq Whisper: ' . $we->getMessage();
+                }
+            }
+
+            // 2b. Gemini Files API — Audio Transcription + Summary (files < 500MB)
             if ($localAudioFile !== '' && $geminiKey !== '' && file_exists($localAudioFile) && filesize($localAudioFile) < 500 * 1024 * 1024) {
                 try {
                     $fSize = filesize($localAudioFile);
                     if (preg_match('/\.wav$/i', $localAudioFile)) $fileMime = 'audio/wav';
                     elseif (preg_match('/\.m4a$/i', $localAudioFile)) $fileMime = 'audio/m4a';
                     elseif (preg_match('/\.ogg$/i', $localAudioFile)) $fileMime = 'audio/ogg';
+                    else $fileMime = 'audio/mp3';
 
                     $uploadUrl = "https://generativelanguage.googleapis.com/upload/v1beta/files?key=" . urlencode($geminiKey);
                     $ch = curl_init($uploadUrl);
@@ -2998,16 +3059,15 @@ try {
                         "X-Goog-Upload-Command: start, upload, finalize",
                         "X-Goog-Upload-Header-Content-Length: " . $fSize,
                         "X-Goog-Upload-Header-Content-Type: " . $fileMime,
-                        "Content-Type: " . $fileMime
+                        "Content-Type: " . $fileMime,
+                        "Content-Length: " . $fSize,
                     ]);
-                    $fileHandle = fopen($localAudioFile, 'rb');
-                    curl_setopt($ch, CURLOPT_INFILE, $fileHandle);
-                    curl_setopt($ch, CURLOPT_INFILESIZE, $fSize);
-                    curl_setopt($ch, CURLOPT_TIMEOUT, 300);  // 300s for large audio upload
+                    // FIX: use CURLOPT_POSTFIELDS (not CURLOPT_INFILE) to properly send binary body via POST
+                    curl_setopt($ch, CURLOPT_POSTFIELDS, file_get_contents($localAudioFile));
+                    curl_setopt($ch, CURLOPT_TIMEOUT, 300);
                     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
                     $upRes = curl_exec($ch);
                     curl_close($ch);
-                    if (is_resource($fileHandle)) fclose($fileHandle);
 
                     $upDec = json_decode((string)$upRes, true);
                     $uploadedAudioUri = $upDec['file']['uri'] ?? '';
