@@ -2906,7 +2906,7 @@ try {
             $existingTranscript = trim((string)($meeting['transcript_text'] ?? ''));
             $audioPath = trim((string)($meeting['audio_url'] ?? $meeting['mp3_url'] ?? $meeting['audio_file_path'] ?? $meeting['audio_path'] ?? ''));
 
-            if (!$force && $existingSummary !== '' && ($existingTranscript !== '' || $audioPath === '')) {
+            if (!$force && $existingSummary !== '') {
                 sendJson([
                     'success' => true,
                     'status' => 'success',

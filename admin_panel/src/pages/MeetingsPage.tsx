@@ -190,8 +190,8 @@ export const MeetingsPage: React.FC = () => {
     const existingTranscript = (m.transcript_text || (m as any).transcript)?.trim() || '';
     const hasAudio = !!(m.hasAudio || m.audio_url || (m as any).mp3_url || (m as any).audio_file_path || (m as any).audio_path);
 
-    // If both summary and transcript exist (or meeting has no audio), use cache
-    if (!force && existingSummary && (existingTranscript || !hasAudio)) {
+    // If summary exists and not forcing regeneration, display immediately
+    if (!force && existingSummary) {
       setAiModalSummary(existingSummary);
       setAiModalTranscript(existingTranscript || null);
       setAiModalLoading(false);
