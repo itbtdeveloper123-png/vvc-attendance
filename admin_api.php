@@ -3137,7 +3137,7 @@ try {
                 if ($summaryText === '' && $groqKey !== '') {
                     try {
                         $groqUrl = 'https://api.groq.com/openai/v1/chat/completions';
-                        $groqModel = 'llama-3.3-70b-versatile';
+                        $groqModel = 'openai/gpt-oss-120b';  // confirmed available model
                         $ch = curl_init($groqUrl);
                         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                         curl_setopt($ch, CURLOPT_POST, true);
@@ -3156,6 +3156,7 @@ try {
                         ], JSON_UNESCAPED_UNICODE));
                         curl_setopt($ch, CURLOPT_TIMEOUT, 45);
                         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                        curl_setopt($ch, CURLOPT_ENCODING, '');  // handle UTF-8/gzip properly
                         $groqRaw = curl_exec($ch);
                         $groqHttp = curl_getinfo($ch, CURLINFO_HTTP_CODE);
                         curl_close($ch);
