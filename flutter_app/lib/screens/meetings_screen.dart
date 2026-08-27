@@ -1727,8 +1727,7 @@ class _MeetingsScreenState extends State<MeetingsScreen>
                       Icons.play_circle_fill,
                       "ស្តាប់",
                       Colors.green,
-                      () =>
-                          _playAudio(audioPath, title: m['topic']?.toString()),
+                      () => _openAiMinutesModal(m, autoPlayAudio: true),
                     ),
                   const SizedBox(width: 8),
                   _buildActionBtn(
@@ -1940,10 +1939,7 @@ class _MeetingsScreenState extends State<MeetingsScreen>
                           child: ElevatedButton.icon(
                             onPressed: () {
                               Navigator.pop(context);
-                              _playAudio(
-                                audioPath,
-                                title: m['topic']?.toString(),
-                              );
+                              _openAiMinutesModal(m, autoPlayAudio: true);
                             },
                             icon: const Icon(
                               Icons.play_circle_fill_rounded,
@@ -2100,36 +2096,6 @@ class _MeetingsScreenState extends State<MeetingsScreen>
 
   bool _isAudioModalOpen = false;
 
-  Future<void> _playAudio(String path, {String? title}) async {
-    try {
-      final String fullUrl = ApiService.getFullImageUrl(path);
-      debugPrint("PLAY_REQ: $fullUrl (display: $path)");
-
-      _showAudioPlayerModal();
-
-      if (_audioPlayerService.currentPath == path) {
-        if (_audioPlayerService.isPlaying) {
-          await _audioPlayerService.pause();
-        } else {
-          await _audioPlayerService.resume();
-        }
-      } else {
-        await _audioPlayerService.playPath(
-          fullUrl,
-          title: title,
-          forceRemote: true,
-          displayPath: path,
-        );
-      }
-    } catch (e) {
-      debugPrint("Audio playback error: $e");
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('កំហុសចាក់សំឡេង: $e')));
-      }
-    }
-  }
 
   void _showAudioPlayerModal() {
     if (!mounted || _isAudioModalOpen) return;
@@ -2394,7 +2360,7 @@ class _MeetingsScreenState extends State<MeetingsScreen>
     // implementation for url launcher if needed
   }
 
-  void _openAiMinutesModal(dynamic m) {
+  void _openAiMinutesModal(dynamic m, {bool autoPlayAudio = false}) {
     final int meetingId = int.tryParse(m['id']?.toString() ?? '0') ?? 0;
     final String topic = m['topic']?.toString() ?? 'កិច្ចប្រជុំ';
     final String dept = m['department']?.toString() ?? '';
@@ -2412,6 +2378,7 @@ class _MeetingsScreenState extends State<MeetingsScreen>
         initialSummary: m['summary']?.toString(),
         initialTranscript: m['transcript_text']?.toString(),
         api: _api,
+        autoPlayAudio: autoPlayAudio,
         onGenerated: (summary, transcript) {
           if (mounted) {
             setState(() {
@@ -2433,6 +2400,7 @@ class _AiMeetingMinutesSheet extends StatefulWidget {
   final String? initialSummary;
   final String? initialTranscript;
   final ApiService api;
+  final bool autoPlayAudio;
   final Function(String summary, String? transcript)? onGenerated;
 
   const _AiMeetingMinutesSheet({
@@ -2443,6 +2411,7 @@ class _AiMeetingMinutesSheet extends StatefulWidget {
     this.initialSummary,
     this.initialTranscript,
     required this.api,
+    this.autoPlayAudio = false,
     this.onGenerated,
   });
 
@@ -2458,11 +2427,24 @@ class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
   String? _summary;
   String? _error;
 
+  Timer? _progressTimer;
+  double _loadingProgress = 0.08;
+  int _loadingSeconds = 0;
+
   @override
   void initState() {
     super.initState();
     _summary = widget.initialSummary;
     _audioService.addListener(_onAudioStateChanged);
+
+    if (widget.autoPlayAudio && widget.audioPath.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final url = _resolveAudioUrl(widget.audioPath);
+        if (url.isNotEmpty) {
+          _audioService.playPath(url, title: widget.topic);
+        }
+      });
+    }
 
     if ((_summary == null || _summary!.isEmpty) && widget.meetingId > 0) {
       _loadOrGenerateSummary();
@@ -2471,6 +2453,7 @@ class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
 
   @override
   void dispose() {
+    _progressTimer?.cancel();
     _audioService.removeListener(_onAudioStateChanged);
     _scrollController.dispose();
     super.dispose();
@@ -2485,8 +2468,7 @@ class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
   String _resolveAudioUrl(String path) {
     if (path.isEmpty) return '';
     if (path.startsWith('http://') || path.startsWith('https://')) return path;
-    final clean = path.startsWith('/') ? path.substring(1) : path;
-    return 'https://app.vvc.asia/flutter/$clean';
+    return ApiService.getFullImageUrl(path);
   }
 
   String _formatDuration(Duration d) {
@@ -2499,18 +2481,46 @@ class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
     return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
   }
 
+  void _startProgressTimer() {
+    _progressTimer?.cancel();
+    _loadingProgress = 0.08;
+    _loadingSeconds = 0;
+    _progressTimer = Timer.periodic(const Duration(milliseconds: 300), (timer) {
+      if (!mounted || !_isLoading) {
+        timer.cancel();
+        return;
+      }
+      setState(() {
+        _loadingSeconds++;
+        if (_loadingProgress < 0.25) {
+          _loadingProgress += 0.015;
+        } else if (_loadingProgress < 0.65) {
+          _loadingProgress += 0.008;
+        } else if (_loadingProgress < 0.88) {
+          _loadingProgress += 0.004;
+        } else if (_loadingProgress < 0.95) {
+          _loadingProgress += 0.0015;
+        }
+        _loadingProgress = _loadingProgress.clamp(0.0, 0.95);
+      });
+    });
+  }
+
   Future<void> _loadOrGenerateSummary({bool force = false}) async {
     setState(() {
       _isLoading = true;
       _error = null;
     });
+    _startProgressTimer();
 
     try {
       final res = await widget.api.summarizeMeeting(widget.meetingId, force: force);
+      _progressTimer?.cancel();
       if (res['success'] == true || res['status'] == 'success') {
         final summaryStr = res['summary']?.toString();
         final transcriptStr = res['transcript']?.toString() ?? res['transcript_text']?.toString();
         setState(() {
+          _loadingProgress = 1.0;
           _summary = summaryStr;
           _isLoading = false;
         });
@@ -2524,6 +2534,7 @@ class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
         });
       }
     } catch (e) {
+      _progressTimer?.cancel();
       setState(() {
         _error = 'កំហុសបច្ចេកវិទ្យា AI៖ $e';
         _isLoading = false;
@@ -2844,29 +2855,214 @@ class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
   }
 
   Widget _buildLoadingState() {
+    final pct = (_loadingProgress * 100).toInt().clamp(5, 99);
+    String stepBadge = "ដំណាក់កាលទី ១/៤";
+    String stepTitle = "កំពុងទាញយកទិន្នន័យ & ឯកសារកិច្ចប្រជុំ...";
+    IconData stepIcon = Icons.cloud_download_rounded;
+
+    if (_loadingProgress >= 0.25 && _loadingProgress < 0.60) {
+      stepBadge = "ដំណាក់កាលទី ២/៤";
+      stepTitle = "AI កំពុងស្តាប់ & វិភាគខ្លឹមសារកិច្ចប្រជុំ...";
+      stepIcon = Icons.graphic_eq_rounded;
+    } else if (_loadingProgress >= 0.60 && _loadingProgress < 0.85) {
+      stepBadge = "ដំណាក់កាលទី ៣/៤";
+      stepTitle = "កំពុងស្រង់ចំណុចសំខាន់ និងការសម្រេចចិត្ត...";
+      stepIcon = Icons.psychology_rounded;
+    } else if (_loadingProgress >= 0.85) {
+      stepBadge = "ដំណាក់កាលទី ៤/៤";
+      stepTitle = "កំពុងរៀបចំកំណត់ហេតុប្រតិបត្តិ (Executive Minutes)...";
+      stepIcon = Icons.auto_awesome_rounded;
+    }
+
+    final elapsedSeconds = _loadingSeconds ~/ 3;
+    final elapsedStr = "${(elapsedSeconds ~/ 60).toString().padLeft(2, '0')}:${(elapsedSeconds % 60).toString().padLeft(2, '0')}";
+
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const CircularProgressIndicator(color: Colors.amber),
-          const SizedBox(height: 18),
-          Text(
-            "AI កំពុងវិភាគ និងសង្ខេបកិច្ចប្រជុំ...",
-            style: GoogleFonts.kantumruyPro(
-              color: AppTheme.textPrimary,
-              fontWeight: FontWeight.w600,
-              fontSize: 14,
-            ),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E293B).withValues(alpha: 0.7),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: const Color(0xFF6366F1).withValues(alpha: 0.3)),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF6366F1).withValues(alpha: 0.15),
+                blurRadius: 30,
+                offset: const Offset(0, 10),
+              ),
+            ],
           ),
-          const SizedBox(height: 6),
-          Text(
-            "ដំណើរការដោយ Google Gemini AI",
-            style: GoogleFonts.inter(
-              color: AppTheme.textSecondary,
-              fontSize: 11,
-            ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Glowing Animated AI Icon
+              Container(
+                width: 68,
+                height: 68,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF6366F1), Color(0xFFA855F7), Color(0xFFEC4899)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF6366F1).withValues(alpha: 0.5),
+                      blurRadius: 20,
+                      spreadRadius: 2,
+                    ),
+                  ],
+                ),
+                child: Center(
+                  child: Icon(stepIcon, color: Colors.white, size: 34),
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Title
+              Text(
+                "AI កំពុងវិភាគ និងសង្ខេបកិច្ចប្រជុំ",
+                textAlign: TextAlign.center,
+                style: GoogleFonts.kantumruyPro(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 6),
+
+              // Subtitle
+              Text(
+                "ដំណើរការដោយ Google Gemini AI & Advanced Models",
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  color: Colors.white60,
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Step Badge & Percentage
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF6366F1).withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: const Color(0xFF6366F1).withValues(alpha: 0.4)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.bolt_rounded, color: Color(0xFF818CF8), size: 14),
+                        const SizedBox(width: 4),
+                        Text(
+                          stepBadge,
+                          style: GoogleFonts.kantumruyPro(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.bold,
+                            color: const Color(0xFF818CF8),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Text(
+                    "$pct%",
+                    style: GoogleFonts.outfit(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFFFBBF24),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+
+              // Modern Progress Bar
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: SizedBox(
+                  height: 10,
+                  child: Stack(
+                    children: [
+                      // Background Track
+                      Container(color: Colors.white.withValues(alpha: 0.08)),
+                      // Animated Fill
+                      LayoutBuilder(
+                        builder: (ctx, constraints) {
+                          return AnimatedContainer(
+                            duration: const Duration(milliseconds: 300),
+                            curve: Curves.easeOutQuad,
+                            width: constraints.maxWidth * _loadingProgress,
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFF6366F1), Color(0xFFA855F7), Color(0xFFEC4899)],
+                              ),
+                              borderRadius: BorderRadius.circular(10),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFFEC4899).withValues(alpha: 0.5),
+                                  blurRadius: 8,
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // Step Detail Text
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 250),
+                child: Text(
+                  stepTitle,
+                  key: ValueKey(stepTitle),
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.kantumruyPro(
+                    fontSize: 12.5,
+                    color: const Color(0xFF94A3B8),
+                    height: 1.4,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+
+              // Timer Ticker Badge
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.04),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.timer_outlined, size: 14, color: Colors.white54),
+                    const SizedBox(width: 6),
+                    Text(
+                      "រយៈពេលដំណើរការ៖ $elapsedStr",
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: Colors.white70,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -2875,24 +3071,58 @@ class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.error_outline_rounded, color: Colors.redAccent.shade200, size: 48),
-            const SizedBox(height: 14),
-            Text(
-              _error ?? 'មានកំហុស',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.kantumruyPro(color: Colors.redAccent, fontSize: 13),
-            ),
-            const SizedBox(height: 18),
-            ElevatedButton.icon(
-              onPressed: () => _loadOrGenerateSummary(force: true),
-              icon: const Icon(Icons.refresh_rounded),
-              label: Text("ព្យាយាមម្ដងទៀត", style: GoogleFonts.kantumruyPro()),
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF6366F1)),
-            ),
-          ],
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E293B).withValues(alpha: 0.8),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: Colors.redAccent.withValues(alpha: 0.3)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.redAccent.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 42),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                "មិនអាចទាញយកសេចក្តីសង្ខេបបានទេ",
+                style: GoogleFonts.kantumruyPro(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _error ?? 'មានកំហុសក្នុងការតភ្ជាប់ Server',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.kantumruyPro(
+                  color: Colors.redAccent.shade100,
+                  fontSize: 12.5,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton.icon(
+                onPressed: () => _loadOrGenerateSummary(force: true),
+                icon: const Icon(Icons.refresh_rounded, size: 18),
+                label: Text("ព្យាយាមម្ដងទៀត (Retry)", style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF6366F1),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

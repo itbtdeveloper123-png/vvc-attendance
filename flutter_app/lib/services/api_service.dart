@@ -1526,7 +1526,7 @@ class ApiService {
     return _processRequest(
       'summarize_meeting',
       headers: headers,
-      timeout: const Duration(seconds: 45),
+      timeout: const Duration(seconds: 120),
       body: {'meeting_id': meetingId.toString(), if (force) 'force': '1'},
     );
   }
