@@ -440,3 +440,219 @@ div {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-muted);
 }
+
+/* =========================================================
+   LOGIN PAGE LUXURY & MODERN AESTHETIC ENHANCEMENTS
+   ========================================================= */
+
+@keyframes floatSlow1 {
+  0%, 100% {
+    transform: translate(0px, 0px) scale(1);
+  }
+  50% {
+    transform: translate(30px, -25px) scale(1.08);
+  }
+}
+
+@keyframes floatSlow2 {
+  0%, 100% {
+    transform: translate(0px, 0px) scale(1);
+  }
+  50% {
+    transform: translate(-25px, 35px) scale(1.12);
+  }
+}
+
+@keyframes floatSlow3 {
+  0%, 100% {
+    transform: translate(0px, 0px) scale(1);
+  }
+  50% {
+    transform: translate(20px, 20px) scale(0.95);
+  }
+}
+
+@keyframes pulseGlowRing {
+  0% {
+    box-shadow: 0 0 0 0 rgba(212, 175, 55, 0.5), 0 0 25px rgba(212, 175, 55, 0.35);
+  }
+  70% {
+    box-shadow: 0 0 0 16px rgba(212, 175, 55, 0), 0 0 35px rgba(212, 175, 55, 0.5);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(212, 175, 55, 0), 0 0 25px rgba(212, 175, 55, 0.35);
+  }
+}
+
+@keyframes shimmerEffect {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes shakeError {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-6px); }
+  40%, 80% { transform: translateX(6px); }
+}
+
+@keyframes spinSlow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.login-bg-grid {
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 40px 40px;
+  mask-image: radial-gradient(circle at 50% 45%, black 40%, transparent 85%);
+  -webkit-mask-image: radial-gradient(circle at 50% 45%, black 40%, transparent 85%);
+}
+
+.login-glass-card {
+  background: rgba(15, 23, 42, 0.78);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 
+    0 0 0 1px rgba(212, 175, 55, 0.15),
+    0 25px 60px -15px rgba(0, 0, 0, 0.75),
+    0 0 45px rgba(79, 70, 229, 0.12);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.login-glass-card:hover {
+  border-color: rgba(212, 175, 55, 0.3);
+  box-shadow: 
+    0 0 0 1px rgba(212, 175, 55, 0.25),
+    0 30px 70px -15px rgba(0, 0, 0, 0.8),
+    0 0 60px rgba(212, 175, 55, 0.15);
+}
+
+.gold-text-gradient {
+  background: linear-gradient(135deg, #ffffff 0%, #fde68a 50%, #d4af37 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.login-input-wrapper {
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.login-input-field {
+  width: 100%;
+  padding: 13px 44px 13px 46px;
+  background: rgba(30, 41, 59, 0.65);
+  border: 1.5px solid rgba(255, 255, 255, 0.09);
+  border-radius: 14px;
+  color: #ffffff;
+  font-size: 14px;
+  outline: none;
+  transition: all 0.25s ease;
+}
+
+.login-input-field:focus {
+  background: rgba(30, 41, 59, 0.95);
+  border-color: #d4af37;
+  box-shadow: 0 0 0 3.5px rgba(212, 175, 55, 0.22), 0 4px 14px rgba(0, 0, 0, 0.3);
+}
+
+.login-input-field::placeholder {
+  color: #64748b;
+}
+
+.btn-login-gold {
+  width: 100%;
+  padding: 14px 20px;
+  border-radius: 14px;
+  font-size: 15.5px;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  background: linear-gradient(135deg, #facc15 0%, #d4af37 45%, #b45309 100%);
+  color: #1e1503;
+  box-shadow: 0 4px 20px rgba(212, 175, 55, 0.35), 0 2px 6px rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-login-gold:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(212, 175, 55, 0.5), 0 4px 12px rgba(0, 0, 0, 0.5);
+  filter: brightness(1.06);
+}
+
+.btn-login-gold:active:not(:disabled) {
+  transform: translateY(0px);
+  box-shadow: 0 2px 10px rgba(212, 175, 55, 0.3);
+}
+
+.btn-login-gold:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  filter: grayscale(0.2);
+}
+
+.btn-login-gold::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  transition: left 0.6s ease;
+}
+
+.btn-login-gold:hover::after {
+  left: 100%;
+}
+
+/* 2FA OTP 6-Digit Inputs */
+.otp-input-group {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin: 24px 0 20px;
+}
+
+.otp-box {
+  width: 50px;
+  height: 58px;
+  border-radius: 14px;
+  background: rgba(30, 41, 59, 0.7);
+  border: 1.5px solid rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  font-size: 24px;
+  font-weight: 700;
+  text-align: center;
+  outline: none;
+  font-family: 'JetBrains Mono', 'Outfit', monospace;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.otp-box:focus {
+  background: rgba(30, 41, 59, 0.95);
+  border-color: #d4af37;
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: 0 0 0 3.5px rgba(212, 175, 55, 0.28), 0 8px 20px rgba(0, 0, 0, 0.4);
+}
+
+.otp-box.filled {
+  border-color: rgba(212, 175, 55, 0.5);
+  background: rgba(45, 55, 72, 0.85);
+  color: #fde68a;
+}
+
+

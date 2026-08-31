@@ -1,17 +1,69 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Lock, User, ShieldCheck, ArrowRight, Sparkles } from 'lucide-react';
+import {
+  Lock,
+  User,
+  ShieldCheck,
+  ArrowRight,
+  ArrowLeft,
+  Eye,
+  EyeOff,
+  AlertCircle,
+  Server,
+  Zap,
+  Smartphone,
+  QrCode,
+  Copy,
+  Check,
+  X,
+  KeyRound,
+  RefreshCw,
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export const LoginPage: React.FC = () => {
+  // Step: 'credentials' | '2fa'
+  const [step, setStep] = useState<'credentials' | '2fa'>('credentials');
+
+  // Step 1 Form States
   const [adminId, setAdminId] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
+  const [inputFocused, setInputFocused] = useState<'admin' | 'pass' | null>(null);
+
+  // Step 2 2FA States
+  const [otpDigits, setOtpDigits] = useState<string[]>(['', '', '', '', '', '']);
+  const [tempToken, setTempToken] = useState('');
+  const [adminName, setAdminName] = useState('');
+  const [qrCodeUrl, setQrCodeUrl] = useState('');
+  const [secretKey, setSecretKey] = useState('');
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [copiedKey, setCopiedKey] = useState(false);
+  const [totpSecondsLeft, setTotpSecondsLeft] = useState(30);
+
+  // Common States
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
-  const navigate = useNavigate();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const { login, verify2FA } = useAuth();
+  const navigate = useNavigate();
+  const otpInputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  // 30-Second TOTP Window Countdown Timer
+  useEffect(() => {
+    const updateCountdown = () => {
+      const now = Math.floor(Date.now() / 1000);
+      const remaining = 30 - (now % 30);
+      setTotpSecondsLeft(remaining);
+    };
+    updateCountdown();
+    const timer = setInterval(updateCountdown, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Step 1: Submit Credentials
+  const handleCredentialsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!adminId.trim() || !password.trim()) {
       setError('សូមបញ្ចូលឈ្មោះគណនី និងលេខសម្ងាត់!');
@@ -19,12 +71,106 @@ export const LoginPage: React.FC = () => {
     }
     setError('');
     setLoading(true);
-    const ok = await login(adminId, password);
+    const result = await login(adminId.trim(), password);
     setLoading(false);
-    if (ok) {
+
+    if (result.success) {
+      if (result.require2FA) {
+        setTempToken(result.tempToken || '');
+        setAdminName(result.adminName || 'Admin');
+        setQrCodeUrl(result.qrCodeUrl || '');
+        setSecretKey(result.secretKey || 'VVCATTENDANCE2FAKEY2026');
+        setStep('2fa');
+        setError('');
+        setOtpDigits(['', '', '', '', '', '']);
+        setTimeout(() => {
+          otpInputRefs.current[0]?.focus();
+        }, 150);
+      } else {
+        navigate('/dashboard');
+      }
+    } else {
+      setError(result.message || 'ឈ្មោះគណនី ឬលេខសម្ងាត់មិនត្រឹមត្រូវឡើយ!');
+    }
+  };
+
+  // Step 2: Handle 2FA OTP Input Changes
+  const handleOtpChange = (index: number, value: string) => {
+    const cleaned = value.replace(/\D/g, '');
+    if (!cleaned) {
+      const newDigits = [...otpDigits];
+      newDigits[index] = '';
+      setOtpDigits(newDigits);
+      return;
+    }
+
+    const digit = cleaned.slice(-1);
+    const newDigits = [...otpDigits];
+    newDigits[index] = digit;
+    setOtpDigits(newDigits);
+
+    // Auto advance to next box
+    if (index < 5 && digit) {
+      otpInputRefs.current[index + 1]?.focus();
+    }
+
+    // Auto submit if all 6 digits are entered
+    const fullCode = newDigits.join('');
+    if (fullCode.length === 6 && !newDigits.includes('')) {
+      handleVerifyOtp(fullCode);
+    }
+  };
+
+  const handleOtpKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace' && !otpDigits[index] && index > 0) {
+      otpInputRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handleOtpPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    if (pastedData.length > 0) {
+      const newDigits = ['', '', '', '', '', ''];
+      for (let i = 0; i < pastedData.length; i++) {
+        newDigits[i] = pastedData[i];
+      }
+      setOtpDigits(newDigits);
+      const nextIndex = Math.min(pastedData.length, 5);
+      otpInputRefs.current[nextIndex]?.focus();
+
+      if (pastedData.length === 6) {
+        handleVerifyOtp(pastedData);
+      }
+    }
+  };
+
+  // Verify OTP
+  const handleVerifyOtp = async (codeToVerify?: string) => {
+    const code = codeToVerify || otpDigits.join('');
+    if (code.length !== 6) {
+      setError('សូមបញ្ចូលកូដ ៦ ខ្ទង់ឱ្យបានពេញលេញ!');
+      return;
+    }
+    setError('');
+    setLoading(true);
+    const res = await verify2FA(adminId.trim() || 'ADMIN01', code, tempToken);
+    setLoading(false);
+
+    if (res.success) {
       navigate('/dashboard');
     } else {
-      setError('ឈ្មោះគណនី ឬលេខសម្ងាត់មិនត្រឹមត្រូវឡើយ!');
+      setError(res.message || 'កូដ Google Authenticator មិនត្រឹមត្រូវឡើយ!');
+      setOtpDigits(['', '', '', '', '', '']);
+      otpInputRefs.current[0]?.focus();
+    }
+  };
+
+  const handleCopySecretKey = () => {
+    if (secretKey) {
+      navigator.clipboard.writeText(secretKey);
+      setCopiedKey(true);
+      setTimeout(() => setCopiedKey(false), 2500);
     }
   };
 
@@ -35,196 +181,753 @@ export const LoginPage: React.FC = () => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'radial-gradient(circle at 50% 20%, #1e1b4b 0%, #090d16 100%)',
-        padding: '20px',
+        background: 'radial-gradient(ellipse at 50% -20%, #1e1b4b 0%, #090d16 55%, #040711 100%)',
+        padding: '24px 16px',
         position: 'relative',
         overflow: 'hidden',
       }}
     >
-      {/* Glow Orbs */}
+      {/* Background Grid Pattern */}
       <div
+        className="login-bg-grid"
         style={{
           position: 'absolute',
-          top: '20%',
-          left: '15%',
-          width: '350px',
-          height: '350px',
-          background: 'rgba(79, 70, 229, 0.15)',
-          borderRadius: '50%',
-          filter: 'blur(90px)',
+          inset: 0,
           pointerEvents: 'none',
-        }}
-      />
-      <div
-        style={{
-          position: 'absolute',
-          bottom: '15%',
-          right: '15%',
-          width: '300px',
-          height: '300px',
-          background: 'rgba(212, 175, 55, 0.12)',
-          borderRadius: '50%',
-          filter: 'blur(80px)',
-          pointerEvents: 'none',
+          zIndex: 1,
         }}
       />
 
+      {/* Dynamic Ambient Glowing Orbs */}
       <div
         style={{
-          maxWidth: '440px',
+          position: 'absolute',
+          top: '12%',
+          left: '18%',
+          width: '420px',
+          height: '420px',
+          background: 'radial-gradient(circle, rgba(79, 70, 229, 0.22) 0%, rgba(99, 102, 241, 0.05) 60%, transparent 80%)',
+          borderRadius: '50%',
+          filter: 'blur(70px)',
+          animation: 'floatSlow1 12s ease-in-out infinite',
+          pointerEvents: 'none',
+          zIndex: 1,
+        }}
+      />
+      <div
+        style={{
+          position: 'absolute',
+          bottom: '10%',
+          right: '16%',
+          width: '380px',
+          height: '380px',
+          background: 'radial-gradient(circle, rgba(212, 175, 55, 0.18) 0%, rgba(245, 158, 11, 0.04) 60%, transparent 80%)',
+          borderRadius: '50%',
+          filter: 'blur(65px)',
+          animation: 'floatSlow2 14s ease-in-out infinite',
+          pointerEvents: 'none',
+          zIndex: 1,
+        }}
+      />
+      <div
+        style={{
+          position: 'absolute',
+          top: '45%',
+          right: '25%',
+          width: '280px',
+          height: '280px',
+          background: 'radial-gradient(circle, rgba(6, 182, 212, 0.12) 0%, transparent 75%)',
+          borderRadius: '50%',
+          filter: 'blur(60px)',
+          animation: 'floatSlow3 10s ease-in-out infinite',
+          pointerEvents: 'none',
+          zIndex: 1,
+        }}
+      />
+
+      {/* Main Glassmorphic Card Container */}
+      <div
+        className="login-glass-card"
+        style={{
+          maxWidth: step === '2fa' ? '480px' : '460px',
           width: '100%',
-          background: 'rgba(15, 23, 42, 0.85)',
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
-          border: '1px solid rgba(255, 255, 255, 0.1)',
-          borderRadius: '24px',
-          padding: '40px 36px',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+          borderRadius: '26px',
+          padding: '42px 36px 36px',
           position: 'relative',
           zIndex: 10,
+          transition: 'all 0.3s ease',
         }}
       >
-        {/* Logo & Header */}
-        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+        {/* Top Status Pill */}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'center',
+            marginBottom: '24px',
+          }}
+        >
           <div
             style={{
-              width: '64px',
-              height: '64px',
-              borderRadius: '16px',
-              background: 'linear-gradient(135deg, #d4af37 0%, #b8860b 100%)',
-              display: 'flex',
+              display: 'inline-flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              margin: '0 auto 18px',
-              boxShadow: '0 4px 20px rgba(212, 175, 55, 0.35)',
+              gap: '7px',
+              padding: '5px 14px',
+              borderRadius: '9999px',
+              background: 'rgba(255, 255, 255, 0.06)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              fontSize: '11px',
+              fontWeight: 600,
+              color: '#94a3b8',
+              letterSpacing: '0.4px',
             }}
           >
-            <ShieldCheck size={36} color="#1a1500" />
+            <span
+              style={{
+                width: '7px',
+                height: '7px',
+                borderRadius: '50%',
+                background: step === '2fa' ? '#06b6d4' : '#10b981',
+                boxShadow: step === '2fa' ? '0 0 8px #06b6d4' : '0 0 8px #10b981',
+                display: 'inline-block',
+              }}
+            />
+            <span>
+              {step === '2fa'
+                ? '🔒 2FA AUTHENTICATION REQUIRED'
+                : 'ប្រព័ន្ធដំណើរការសុវត្ថិភាព • VVC HRM 2.6'}
+            </span>
           </div>
-          <h1
-            style={{
-              fontSize: '22px',
-              fontWeight: 800,
-              color: '#ffffff',
-              letterSpacing: '0.3px',
-              marginBottom: '6px',
-            }}
-          >
-            VVC ATTENDANCE
-          </h1>
-          <p style={{ fontSize: '13px', color: '#94a3b8' }}>
-            ផ្ទាំងគ្រប់គ្រងប្រព័ន្ធធនធានមនុស្ស & វត្តមាន
-          </p>
         </div>
 
+        {/* Header Icon & Title */}
+        {step === 'credentials' ? (
+          <div style={{ textAlign: 'center', marginBottom: '28px' }}>
+            <div
+              style={{
+                width: '72px',
+                height: '72px',
+                borderRadius: '20px',
+                background: 'linear-gradient(145deg, #fce074 0%, #d4af37 50%, #996515 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 16px',
+                boxShadow: '0 8px 25px rgba(212, 175, 55, 0.4), inset 0 2px 4px rgba(255, 255, 255, 0.6)',
+                animation: 'pulseGlowRing 3.5s infinite',
+                position: 'relative',
+              }}
+            >
+              <ShieldCheck size={40} color="#151100" strokeWidth={2.4} />
+            </div>
+
+            <h1
+              style={{
+                fontSize: '24px',
+                fontWeight: 800,
+                letterSpacing: '0.8px',
+                marginBottom: '6px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+              }}
+            >
+              <span className="gold-text-gradient">VVC</span>
+              <span style={{ color: '#ffffff' }}>ATTENDANCE</span>
+            </h1>
+            <p style={{ fontSize: '13px', color: '#94a3b8', lineHeight: 1.5, fontWeight: 400 }}>
+              ផ្ទាំងគ្រប់គ្រងប្រព័ន្ធធនធានមនុស្ស & វត្តមានបុគ្គលិក
+            </p>
+          </div>
+        ) : (
+          <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+            <div
+              style={{
+                width: '70px',
+                height: '70px',
+                borderRadius: '20px',
+                background: 'linear-gradient(135deg, #06b6d4 0%, #3b82f6 50%, #6366f1 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 16px',
+                boxShadow: '0 8px 25px rgba(6, 182, 212, 0.4), inset 0 2px 4px rgba(255, 255, 255, 0.5)',
+              }}
+            >
+              <Smartphone size={36} color="#ffffff" strokeWidth={2.2} />
+            </div>
+
+            <h1
+              style={{
+                fontSize: '21px',
+                fontWeight: 800,
+                color: '#ffffff',
+                marginBottom: '6px',
+                letterSpacing: '0.3px',
+              }}
+            >
+              ផ្ទៀងផ្ទាត់សុវត្ថិភាព ២ ជាន់ (2FA)
+            </h1>
+            <p style={{ fontSize: '12.5px', color: '#94a3b8', lineHeight: 1.5 }}>
+              សូមបញ្ចូលកូដ ៦ ខ្ទង់ពីកម្មវិធី <strong style={{ color: '#38bdf8' }}>Google Authenticator</strong>
+            </p>
+          </div>
+        )}
+
+        {/* Error Alert Box */}
         {error && (
           <div
             style={{
               padding: '12px 16px',
-              borderRadius: '10px',
-              background: 'rgba(239, 68, 68, 0.15)',
-              border: '1px solid rgba(239, 68, 68, 0.3)',
-              color: '#f87171',
+              borderRadius: '14px',
+              background: 'rgba(239, 68, 68, 0.12)',
+              border: '1px solid rgba(239, 68, 68, 0.35)',
+              color: '#fca5a5',
               fontSize: '13px',
-              marginBottom: '20px',
+              marginBottom: '22px',
               display: 'flex',
               alignItems: 'center',
-              gap: '8px',
+              gap: '10px',
+              animation: 'shakeError 0.4s ease',
+              boxShadow: '0 4px 14px rgba(239, 68, 68, 0.1)',
             }}
           >
-            <span>{error}</span>
+            <AlertCircle size={18} color="#ef4444" style={{ flexShrink: 0 }} />
+            <span style={{ fontWeight: 500 }}>{error}</span>
           </div>
         )}
 
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label className="form-label" style={{ color: '#cbd5e1' }}>
-              ឈ្មោះគណនី (Admin ID / Email)
-            </label>
-            <div style={{ position: 'relative' }}>
-              <User
-                size={18}
+        {/* STEP 1: CREDENTIALS FORM */}
+        {step === 'credentials' ? (
+          <form onSubmit={handleCredentialsSubmit}>
+            {/* Admin ID / Email */}
+            <div style={{ marginBottom: '18px' }}>
+              <label
                 style={{
-                  position: 'absolute',
-                  top: '12px',
-                  left: '14px',
-                  color: '#64748b',
+                  display: 'block',
+                  fontSize: '12.5px',
+                  fontWeight: 600,
+                  color: inputFocused === 'admin' ? '#d4af37' : '#cbd5e1',
+                  marginBottom: '7px',
+                  transition: 'color 0.2s ease',
+                }}
+              >
+                ឈ្មោះគណនី (Admin ID / Email)
+              </label>
+              <div className="login-input-wrapper">
+                <User
+                  size={18}
+                  style={{
+                    position: 'absolute',
+                    top: '14px',
+                    left: '15px',
+                    color: inputFocused === 'admin' ? '#d4af37' : '#64748b',
+                    transition: 'color 0.2s ease',
+                  }}
+                />
+                <input
+                  type="text"
+                  className="login-input-field"
+                  placeholder="ឧ. admin ឬ អ៊ីមែលអ្នកគ្រប់គ្រង"
+                  value={adminId}
+                  onChange={(e) => setAdminId(e.target.value)}
+                  onFocus={() => setInputFocused('admin')}
+                  onBlur={() => setInputFocused(null)}
+                  autoComplete="username"
+                />
+              </div>
+            </div>
+
+            {/* Password */}
+            <div style={{ marginBottom: '18px' }}>
+              <label
+                style={{
+                  display: 'block',
+                  fontSize: '12.5px',
+                  fontWeight: 600,
+                  color: inputFocused === 'pass' ? '#d4af37' : '#cbd5e1',
+                  marginBottom: '7px',
+                  transition: 'color 0.2s ease',
+                }}
+              >
+                លេខសម្ងាត់ (Password)
+              </label>
+              <div className="login-input-wrapper">
+                <Lock
+                  size={18}
+                  style={{
+                    position: 'absolute',
+                    top: '14px',
+                    left: '15px',
+                    color: inputFocused === 'pass' ? '#d4af37' : '#64748b',
+                    transition: 'color 0.2s ease',
+                  }}
+                />
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  className="login-input-field"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  onFocus={() => setInputFocused('pass')}
+                  onBlur={() => setInputFocused(null)}
+                  autoComplete="current-password"
+                  style={{ paddingRight: '46px' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  style={{
+                    position: 'absolute',
+                    top: '12px',
+                    right: '14px',
+                    background: 'none',
+                    border: 'none',
+                    color: showPassword ? '#d4af37' : '#64748b',
+                    cursor: 'pointer',
+                    padding: '2px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'color 0.2s ease',
+                  }}
+                  title={showPassword ? 'លាក់លេខសម្ងាត់' : 'បង្ហាញលេខសម្ងាត់'}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </div>
+
+            {/* Remember Me */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'flex-start',
+                marginBottom: '26px',
+                fontSize: '12.5px',
+              }}
+            >
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  cursor: 'pointer',
+                  color: '#94a3b8',
+                  userSelect: 'none',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  style={{
+                    accentColor: '#d4af37',
+                    width: '15px',
+                    height: '15px',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                  }}
+                />
+                <span>ចងចាំការចូលប្រើ</span>
+              </label>
+            </div>
+
+            {/* Submit Button */}
+            <button type="submit" disabled={loading} className="btn-login-gold">
+              {loading ? (
+                <>
+                  <div
+                    style={{
+                      width: '18px',
+                      height: '18px',
+                      border: '2.5px solid rgba(21, 17, 0, 0.3)',
+                      borderTopColor: '#151100',
+                      borderRadius: '50%',
+                      animation: 'spinSlow 0.8s linear infinite',
+                    }}
+                  />
+                  <span>កំពុងផ្ទៀងផ្ទាត់សុវត្ថិភាព...</span>
+                </>
+              ) : (
+                <>
+                  <span>បន្តទៅផ្ទៀងផ្ទាត់ 2FA</span>
+                  <ArrowRight size={19} strokeWidth={2.5} />
+                </>
+              )}
+            </button>
+          </form>
+        ) : (
+          /* STEP 2: 2FA GOOGLE AUTHENTICATOR STEP */
+          <div>
+            {/* 6-Digit OTP Box Grid */}
+            <div className="otp-input-group">
+              {otpDigits.map((digit, idx) => (
+                <input
+                  key={idx}
+                  ref={(el) => (otpInputRefs.current[idx] = el)}
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={1}
+                  value={digit}
+                  className={`otp-box ${digit ? 'filled' : ''}`}
+                  onChange={(e) => handleOtpChange(idx, e.target.value)}
+                  onKeyDown={(e) => handleOtpKeyDown(idx, e)}
+                  onPaste={handleOtpPaste}
+                />
+              ))}
+            </div>
+
+            {/* 30-Second Countdown Indicator */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                fontSize: '11.5px',
+                color: totpSecondsLeft <= 5 ? '#f87171' : '#94a3b8',
+                marginBottom: '22px',
+                fontWeight: 500,
+              }}
+            >
+              <RefreshCw
+                size={13}
+                style={{
+                  animation: 'spinSlow 4s linear infinite',
+                  color: totpSecondsLeft <= 5 ? '#ef4444' : '#38bdf8',
                 }}
               />
-              <input
-                type="text"
-                className="form-input"
-                placeholder="ឧ. admin"
-                value={adminId}
-                onChange={(e) => setAdminId(e.target.value)}
-                style={{
-                  paddingLeft: '44px',
-                  background: 'rgba(30, 41, 59, 0.7)',
-                  borderColor: '#334155',
-                  color: '#ffffff',
+              <span>
+                កូដនឹងផ្លាស់ប្តូរក្នុងរយៈពេល៖ <strong>{totpSecondsLeft} វិនាទី</strong>
+              </span>
+            </div>
+
+            {/* Verify 2FA Button */}
+            <button
+              type="button"
+              disabled={loading}
+              onClick={() => handleVerifyOtp()}
+              className="btn-login-gold"
+              style={{
+                background: 'linear-gradient(135deg, #38bdf8 0%, #0284c7 50%, #0369a1 100%)',
+                color: '#ffffff',
+                boxShadow: '0 4px 20px rgba(2, 132, 199, 0.35)',
+                marginBottom: '16px',
+              }}
+            >
+              {loading ? (
+                <>
+                  <div
+                    style={{
+                      width: '18px',
+                      height: '18px',
+                      border: '2.5px solid rgba(255, 255, 255, 0.3)',
+                      borderTopColor: '#ffffff',
+                      borderRadius: '50%',
+                      animation: 'spinSlow 0.8s linear infinite',
+                    }}
+                  />
+                  <span>កំពុងផ្ទៀងផ្ទាត់ 2FA...</span>
+                </>
+              ) : (
+                <>
+                  <ShieldCheck size={19} strokeWidth={2.4} />
+                  <span>ផ្ទៀងផ្ទាត់ និងចូលប្រើប្រាស់</span>
+                </>
+              )}
+            </button>
+
+            {/* Actions: Setup QR Code & Back */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                fontSize: '12.5px',
+                paddingTop: '6px',
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  setStep('credentials');
+                  setError('');
                 }}
-              />
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#94a3b8',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  padding: '4px 0',
+                  transition: 'color 0.2s ease',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = '#ffffff')}
+                onMouseLeave={(e) => (e.currentTarget.style.color = '#94a3b8')}
+              >
+                <ArrowLeft size={15} />
+                <span>ត្រឡប់ក្រោយ</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowQrModal(true)}
+                style={{
+                  background: 'rgba(56, 189, 248, 0.1)',
+                  border: '1px solid rgba(56, 189, 248, 0.25)',
+                  borderRadius: '10px',
+                  color: '#38bdf8',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 12px',
+                  fontSize: '11.5px',
+                  fontWeight: 600,
+                  transition: 'all 0.2s ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'rgba(56, 189, 248, 0.2)';
+                  e.currentTarget.style.borderColor = '#38bdf8';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'rgba(56, 189, 248, 0.1)';
+                  e.currentTarget.style.borderColor = 'rgba(56, 189, 248, 0.25)';
+                }}
+              >
+                <QrCode size={14} />
+                <span>ស្កេន QR Code រៀបចំ 2FA</span>
+              </button>
             </div>
           </div>
+        )}
 
-          <div className="form-group" style={{ marginBottom: '28px' }}>
-            <label className="form-label" style={{ color: '#cbd5e1' }}>
-              លេខសម្ងាត់ (Password)
-            </label>
-            <div style={{ position: 'relative' }}>
-              <Lock
-                size={18}
-                style={{
-                  position: 'absolute',
-                  top: '12px',
-                  left: '14px',
-                  color: '#64748b',
-                }}
-              />
-              <input
-                type="password"
-                className="form-input"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                style={{
-                  paddingLeft: '44px',
-                  background: 'rgba(30, 41, 59, 0.7)',
-                  borderColor: '#334155',
-                  color: '#ffffff',
-                }}
-              />
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="btn btn-gold"
-            style={{ width: '100%', padding: '13px', fontSize: '15px' }}
-          >
-            {loading ? (
-              <span>កំពុងផ្ទៀងផ្ទាត់...</span>
-            ) : (
-              <>
-                <span>ចូលប្រើប្រាស់</span>
-                <ArrowRight size={18} />
-              </>
-            )}
-          </button>
-        </form>
-
+        {/* Security Badges */}
         <div
           style={{
             marginTop: '28px',
-            textAlign: 'center',
-            fontSize: '11.5px',
+            paddingTop: '20px',
+            borderTop: '1px solid rgba(255, 255, 255, 0.07)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-around',
+            fontSize: '11px',
             color: '#64748b',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+            <Zap size={13} color="#eab308" />
+            <span>2FA TOTP RFC 6238</span>
+          </div>
+          <div style={{ width: '3px', height: '3px', borderRadius: '50%', background: '#334155' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+            <ShieldCheck size={13} color="#10b981" />
+            <span>256-Bit SSL</span>
+          </div>
+          <div style={{ width: '3px', height: '3px', borderRadius: '50%', background: '#334155' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+            <Server size={13} color="#6366f1" />
+            <span>Cloud Guard</span>
+          </div>
+        </div>
+
+        {/* Copyright */}
+        <div
+          style={{
+            marginTop: '16px',
+            textAlign: 'center',
+            fontSize: '11px',
+            color: '#475569',
+            letterSpacing: '0.2px',
           }}
         >
           © 2026 VVC Asia. All rights reserved. Ultra-Fast React Admin.
         </div>
       </div>
+
+      {/* QR Code Setup Modal */}
+      {showQrModal && (
+        <div
+          className="modal-backdrop"
+          onClick={() => setShowQrModal(false)}
+          style={{ zIndex: 100 }}
+        >
+          <div
+            className="modal-content"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: '430px',
+              padding: '28px',
+              background: '#0f172a',
+              border: '1px solid rgba(56, 189, 248, 0.3)',
+              borderRadius: '22px',
+              boxShadow: '0 25px 60px rgba(0, 0, 0, 0.75)',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: '18px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div
+                  style={{
+                    width: '38px',
+                    height: '38px',
+                    borderRadius: '10px',
+                    background: 'rgba(6, 182, 212, 0.15)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <QrCode size={20} color="#38bdf8" />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#ffffff' }}>
+                    រៀបចំ Google Authenticator
+                  </h3>
+                  <p style={{ fontSize: '11.5px', color: '#94a3b8' }}>
+                    ស្កេន QR Code ជាមួយទូរស័ព្ទដៃរបស់អ្នក
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowQrModal(false)}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  border: 'none',
+                  borderRadius: '50%',
+                  width: '32px',
+                  height: '32px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#94a3b8',
+                  cursor: 'pointer',
+                }}
+              >
+                <X size={17} />
+              </button>
+            </div>
+
+            {/* QR Code Container */}
+            <div
+              style={{
+                background: '#ffffff',
+                borderRadius: '16px',
+                padding: '16px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 20px',
+                width: '210px',
+                height: '210px',
+                boxShadow: '0 8px 24px rgba(0, 0, 0, 0.3)',
+              }}
+            >
+              {qrCodeUrl ? (
+                <img
+                  src={qrCodeUrl}
+                  alt="2FA QR Code"
+                  style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                />
+              ) : (
+                <div style={{ textAlign: 'center', color: '#0f172a', fontSize: '12px' }}>
+                  កំពុងបង្កើត QR Code...
+                </div>
+              )}
+            </div>
+
+            {/* Secret Key Box */}
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>
+                ឬវាយបញ្ចូលកូដ Secret Key ដោយផ្ទាល់៖
+              </label>
+              <div
+                style={{
+                  background: 'rgba(30, 41, 59, 0.8)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: '10px',
+                  padding: '10px 14px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <span
+                  style={{
+                    fontFamily: 'monospace',
+                    fontSize: '13px',
+                    letterSpacing: '1.5px',
+                    color: '#38bdf8',
+                    fontWeight: 700,
+                  }}
+                >
+                  {secretKey || 'VVCATTENDANCE2FAKEY2026'}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleCopySecretKey}
+                  style={{
+                    background: copiedKey ? '#10b981' : 'rgba(255, 255, 255, 0.1)',
+                    border: 'none',
+                    borderRadius: '7px',
+                    padding: '5px 9px',
+                    color: '#ffffff',
+                    cursor: 'pointer',
+                    fontSize: '11px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  {copiedKey ? <Check size={13} /> : <Copy size={13} />}
+                  <span>{copiedKey ? 'ចម្លងរួច' : 'Copy'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Steps Instructions */}
+            <div
+              style={{
+                fontSize: '12px',
+                color: '#cbd5e1',
+                lineHeight: 1.6,
+                background: 'rgba(15, 23, 42, 0.6)',
+                borderRadius: '12px',
+                padding: '12px 14px',
+                border: '1px solid rgba(255, 255, 255, 0.05)',
+                marginBottom: '20px',
+              }}
+            >
+              <ol style={{ paddingLeft: '18px', margin: 0 }}>
+                <li>បើកកម្មវិធី <strong>Google Authenticator</strong> លើទូរស័ព្ទ</li>
+                <li>ចុចសញ្ញា <strong style={{ color: '#38bdf8' }}>+</strong> រួចជ្រើសរើស <strong>Scan a QR code</strong></li>
+                <li>ស្កេនរូប QR ខាងលើ រួចយកកូដ ៦ ខ្ទង់មកបំពេញដើម្បី Login</li>
+              </ol>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowQrModal(false)}
+              className="btn btn-primary"
+              style={{ width: '100%', borderRadius: '12px', padding: '11px' }}
+            >
+              យល់ព្រម និងបន្ត Login
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

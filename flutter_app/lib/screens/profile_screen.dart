@@ -22,6 +22,7 @@ import '../widgets/khmer_lunar_calendar_card.dart';
 import 'package:flutter_khmer_chankitec/flutter_khmer_chankitec.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/khmer_calendar_notification_service.dart';
+import 'authenticator_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   final String? targetEmployeeId;
@@ -948,6 +949,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
               endIndent: 16,
             ),
           ],
+          _buildMenuItem(
+            icon: Icons.shield_rounded,
+            label: "កូដផ្ទៀងផ្ទាត់ 2FA (Authenticator)",
+            color: const Color(0xFF0284C7),
+            trailingWidget: const Icon(
+              Icons.arrow_forward_ios_rounded,
+              size: 14,
+              color: Colors.grey,
+            ),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AuthenticatorScreen()),
+              );
+            },
+          ),
+          Divider(
+            color: AppTheme.textPrimary.withValues(alpha: 0.12),
+            height: 1,
+            indent: 16,
+            endIndent: 16,
+          ),
           _buildMenuItem(
             icon: Icons.info_outline_rounded,
             label: "អំពីប្រព័ន្ធ",

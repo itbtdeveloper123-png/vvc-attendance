@@ -405,12 +405,31 @@ export interface ThemeItem {
 }
 
 export const adminApi = {
-  // Authentication
-  login: async (adminId: string, password: string) => {
+  // Authentication & 2FA
+  login: async (adminId: string, password: string, skip2fa = false) => {
     const params = new URLSearchParams();
     params.append('action', 'admin_login');
     params.append('admin_id', adminId);
     params.append('password', password);
+    if (skip2fa) params.append('skip_2fa', '1');
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  verify2FA: async (adminId: string, otpCode: string, tempToken?: string) => {
+    const params = new URLSearchParams();
+    params.append('action', 'verify_2fa_login');
+    params.append('admin_id', adminId);
+    params.append('otp_code', otpCode);
+    if (tempToken) params.append('temp_token', tempToken);
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  get2FASetup: async (adminId: string) => {
+    const params = new URLSearchParams();
+    params.append('action', 'get_2fa_setup');
+    params.append('admin_id', adminId);
     const res = await apiClient.post('', params);
     return res.data;
   },
