@@ -62,15 +62,26 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
     final user = Provider.of<UserProvider>(context, listen: false);
     final empId = user.employeeId ?? 'ADMIN01';
 
-    final accounts = await _authService.getAccounts();
-    final is2FaOn = await _authService.get2FaStatus(empId);
+    try {
+      final results = await Future.wait([
+        _authService.getAccounts(),
+        _authService.get2FaStatus(empId),
+      ]);
 
-    if (mounted) {
-      setState(() {
-        _accounts = accounts;
-        _is2FaEnabled = is2FaOn;
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _accounts = results[0] as List<AuthenticatorAccount>;
+          _is2FaEnabled = results[1] as bool;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading 2FA accounts: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 

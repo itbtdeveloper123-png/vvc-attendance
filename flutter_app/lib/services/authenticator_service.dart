@@ -175,8 +175,8 @@ class AuthenticatorService {
   factory AuthenticatorService() => _instance;
   AuthenticatorService._internal();
 
-  /// Load saved accounts
-  Future<List<AuthenticatorAccount>> getAccounts() async {
+  /// Internal helper to read raw accounts list from SharedPreferences without recursion
+  Future<List<AuthenticatorAccount>> _readStoredAccounts() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final jsonStr = prefs.getString(_prefsKey);
@@ -185,7 +185,27 @@ class AuthenticatorService {
         return list.map((e) => AuthenticatorAccount.fromJson(e)).toList();
       }
     } catch (e) {
-      debugPrint('Failed to load accounts: $e');
+      debugPrint('Failed to read stored accounts: $e');
+    }
+    return [];
+  }
+
+  /// Internal helper to write accounts list directly to SharedPreferences
+  Future<void> _writeStoredAccounts(List<AuthenticatorAccount> accounts) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final list = accounts.map((a) => a.toJson()).toList();
+      await prefs.setString(_prefsKey, jsonEncode(list));
+    } catch (e) {
+      debugPrint('Failed to write stored accounts: $e');
+    }
+  }
+
+  /// Load saved accounts (Seeds default account safely if empty)
+  Future<List<AuthenticatorAccount>> getAccounts() async {
+    final stored = await _readStoredAccounts();
+    if (stored.isNotEmpty) {
+      return stored;
     }
 
     // Default Seed Account for VVC Attendance Admin
@@ -196,20 +216,17 @@ class AuthenticatorService {
       secret: 'VVCATTENDANCE2FAKEY2026',
       createdAt: DateTime.now(),
     );
-    await saveAccount(defaultAcc);
+    await _writeStoredAccounts([defaultAcc]);
     return [defaultAcc];
   }
 
   /// Save / Add an account
   Future<void> saveAccount(AuthenticatorAccount account) async {
     try {
-      final accounts = await getAccounts();
+      final accounts = await _readStoredAccounts();
       accounts.removeWhere((a) => a.id == account.id || a.secret == account.secret);
       accounts.insert(0, account);
-
-      final prefs = await SharedPreferences.getInstance();
-      final list = accounts.map((a) => a.toJson()).toList();
-      await prefs.setString(_prefsKey, jsonEncode(list));
+      await _writeStoredAccounts(accounts);
     } catch (e) {
       debugPrint('Failed to save account: $e');
     }
@@ -218,11 +235,9 @@ class AuthenticatorService {
   /// Delete an account
   Future<void> deleteAccount(String id) async {
     try {
-      final accounts = await getAccounts();
+      final accounts = await _readStoredAccounts();
       accounts.removeWhere((a) => a.id == id);
-      final prefs = await SharedPreferences.getInstance();
-      final list = accounts.map((a) => a.toJson()).toList();
-      await prefs.setString(_prefsKey, jsonEncode(list));
+      await _writeStoredAccounts(accounts);
     } catch (e) {
       debugPrint('Failed to delete account: $e');
     }
@@ -230,29 +245,28 @@ class AuthenticatorService {
 
   /// Get 2FA Enabled status from Backend
   Future<bool> get2FaStatus(String employeeId) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final localVal = prefs.getBool('${_twoFaEnabledKey}_$employeeId');
+    final prefs = await SharedPreferences.getInstance();
+    final localVal = prefs.getBool('${_twoFaEnabledKey}_$employeeId') ?? true;
 
+    try {
       final url = Uri.parse(ApiService.baseUrl.replaceAll('api.php', 'admin_api.php'));
       final res = await http.post(url, body: {
         'action': 'get_2fa_status',
         'employee_id': employeeId,
-      }).timeout(const Duration(seconds: 8));
+      }).timeout(const Duration(seconds: 4));
 
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         if (data['success'] == true && data['is_enabled'] != null) {
-          final isEnabled = data['is_enabled'] == 1 || data['is_enabled'] == true;
+          final isEnabled = data['is_enabled'] == 1 || data['is_enabled'] == true || data['is_enabled'] == '1';
           await prefs.setBool('${_twoFaEnabledKey}_$employeeId', isEnabled);
           return isEnabled;
         }
       }
-      return localVal ?? true;
+      return localVal;
     } catch (e) {
       debugPrint('Failed to fetch 2FA status from server: $e');
-      final prefs = await SharedPreferences.getInstance();
-      return prefs.getBool('${_twoFaEnabledKey}_$employeeId') ?? true;
+      return localVal;
     }
   }
 
@@ -267,7 +281,7 @@ class AuthenticatorService {
         'action': 'toggle_2fa_status',
         'employee_id': employeeId,
         'is_enabled': isEnabled ? '1' : '0',
-      }).timeout(const Duration(seconds: 10));
+      }).timeout(const Duration(seconds: 5));
 
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
