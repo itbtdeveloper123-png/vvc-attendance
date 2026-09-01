@@ -20,6 +20,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { adminApi } from '../api/adminApi';
 
 export const LoginPage: React.FC = () => {
   // Step: 'credentials' | '2fa'
@@ -166,13 +167,39 @@ export const LoginPage: React.FC = () => {
     }
   };
 
-  const handleCopySecretKey = () => {
-    if (secretKey) {
-      navigator.clipboard.writeText(secretKey);
-      setCopiedKey(true);
-      setTimeout(() => setCopiedKey(false), 2500);
+  const [loadingQr, setLoadingQr] = useState(false);
+
+  const handleOpenQrModal = async () => {
+    setShowQrModal(true);
+    if (!secretKey || !qrCodeUrl) {
+      setLoadingQr(true);
+      try {
+        const res = await adminApi.get2FASetup(adminId.trim() || 'ADMIN01');
+        if (res && res.success) {
+          if (res.secret_key) setSecretKey(res.secret_key);
+          if (res.qr_code_url) setQrCodeUrl(res.qr_code_url);
+        }
+      } catch (err) {
+        console.warn('Failed to load 2FA setup details from server:', err);
+      } finally {
+        setLoadingQr(false);
+      }
     }
   };
+
+  const handleCopySecretKey = () => {
+    const keyToCopy = secretKey || 'VVCATTENDANCE2FAKEY2026';
+    navigator.clipboard.writeText(keyToCopy);
+    setCopiedKey(true);
+    setTimeout(() => setCopiedKey(false), 2500);
+  };
+
+  const currentSecret = secretKey || 'VVCATTENDANCE2FAKEY2026';
+  const currentIssuer = 'VVC Attendance';
+  const currentAccount = adminName || adminId || 'Super Administrator';
+  const otpauthUri = `otpauth://totp/${encodeURIComponent(currentIssuer)}:${encodeURIComponent(currentAccount)}?secret=${currentSecret}&issuer=${encodeURIComponent(currentIssuer)}`;
+  const displayQrUrl = qrCodeUrl || `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(otpauthUri)}&size=240x240&ecc=M`;
+  const fallbackQrUrl = `https://chart.googleapis.com/chart?chs=240x240&chld=M|0&cht=qr&chl=${encodeURIComponent(otpauthUri)}`;
 
   return (
     <div
@@ -675,31 +702,34 @@ export const LoginPage: React.FC = () => {
 
               <button
                 type="button"
-                onClick={() => setShowQrModal(true)}
+                onClick={handleOpenQrModal}
                 style={{
-                  background: 'rgba(56, 189, 248, 0.1)',
-                  border: '1px solid rgba(56, 189, 248, 0.25)',
+                  background: 'rgba(56, 189, 248, 0.12)',
+                  border: '1px solid rgba(56, 189, 248, 0.35)',
                   borderRadius: '10px',
                   color: '#38bdf8',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '6px',
-                  padding: '6px 12px',
-                  fontSize: '11.5px',
+                  padding: '7px 14px',
+                  fontSize: '12px',
                   fontWeight: 600,
                   transition: 'all 0.2s ease',
+                  boxShadow: '0 2px 8px rgba(56, 189, 248, 0.15)',
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'rgba(56, 189, 248, 0.2)';
+                  e.currentTarget.style.background = 'rgba(56, 189, 248, 0.25)';
                   e.currentTarget.style.borderColor = '#38bdf8';
+                  e.currentTarget.style.transform = 'translateY(-1px)';
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'rgba(56, 189, 248, 0.1)';
-                  e.currentTarget.style.borderColor = 'rgba(56, 189, 248, 0.25)';
+                  e.currentTarget.style.background = 'rgba(56, 189, 248, 0.12)';
+                  e.currentTarget.style.borderColor = 'rgba(56, 189, 248, 0.35)';
+                  e.currentTarget.style.transform = 'translateY(0)';
                 }}
               >
-                <QrCode size={14} />
+                <QrCode size={15} />
                 <span>ស្កេន QR Code រៀបចំ 2FA</span>
               </button>
             </div>
@@ -749,25 +779,40 @@ export const LoginPage: React.FC = () => {
         </div>
       </div>
 
-      {/* QR Code Setup Modal */}
+      {/* QR Code Setup Modal (High z-index fixed overlay) */}
       {showQrModal && (
         <div
-          className="modal-backdrop"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 999999,
+            backgroundColor: 'rgba(2, 6, 23, 0.88)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px',
+            animation: 'fadeIn 0.2s ease',
+          }}
           onClick={() => setShowQrModal(false)}
-          style={{ zIndex: 100 }}
         >
           <div
-            className="modal-content"
             onClick={(e) => e.stopPropagation()}
             style={{
-              maxWidth: '430px',
+              maxWidth: '440px',
+              width: '100%',
+              maxHeight: '92vh',
+              overflowY: 'auto',
               padding: '28px',
               background: '#0f172a',
-              border: '1px solid rgba(56, 189, 248, 0.3)',
-              borderRadius: '22px',
-              boxShadow: '0 25px 60px rgba(0, 0, 0, 0.75)',
+              border: '1px solid rgba(56, 189, 248, 0.35)',
+              borderRadius: '24px',
+              boxShadow: '0 25px 65px rgba(0, 0, 0, 0.85), 0 0 35px rgba(56, 189, 248, 0.15)',
+              color: '#ffffff',
             }}
           >
+            {/* Modal Header */}
             <div
               style={{
                 display: 'flex',
@@ -779,23 +824,24 @@ export const LoginPage: React.FC = () => {
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div
                   style={{
-                    width: '38px',
-                    height: '38px',
-                    borderRadius: '10px',
-                    background: 'rgba(6, 182, 212, 0.15)',
+                    width: '40px',
+                    height: '40px',
+                    borderRadius: '12px',
+                    background: 'rgba(6, 182, 212, 0.18)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
+                    border: '1px solid rgba(56, 189, 248, 0.3)',
                   }}
                 >
-                  <QrCode size={20} color="#38bdf8" />
+                  <QrCode size={22} color="#38bdf8" />
                 </div>
                 <div>
-                  <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#ffffff' }}>
-                    រៀបចំ Google Authenticator
+                  <h3 style={{ fontSize: '16.5px', fontWeight: 700, color: '#ffffff', margin: 0 }}>
+                    រៀបចំ Google Authenticator / 2FA
                   </h3>
-                  <p style={{ fontSize: '11.5px', color: '#94a3b8' }}>
-                    ស្កេន QR Code ជាមួយទូរស័ព្ទដៃរបស់អ្នក
+                  <p style={{ fontSize: '11.5px', color: '#94a3b8', margin: '2px 0 0' }}>
+                    ស្កេនជាមួយ App VVC ឬ Google Authenticator
                   </p>
                 </div>
               </div>
@@ -813,7 +859,10 @@ export const LoginPage: React.FC = () => {
                   justifyContent: 'center',
                   color: '#94a3b8',
                   cursor: 'pointer',
+                  transition: 'background 0.2s ease',
                 }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.15)')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)')}
               >
                 <X size={17} />
               </button>
@@ -823,75 +872,86 @@ export const LoginPage: React.FC = () => {
             <div
               style={{
                 background: '#ffffff',
-                borderRadius: '16px',
+                borderRadius: '18px',
                 padding: '16px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                margin: '0 auto 20px',
-                width: '210px',
-                height: '210px',
-                boxShadow: '0 8px 24px rgba(0, 0, 0, 0.3)',
+                margin: '0 auto 18px',
+                width: '220px',
+                height: '220px',
+                boxShadow: '0 10px 30px rgba(0, 0, 0, 0.4)',
+                position: 'relative',
               }}
             >
-              {qrCodeUrl ? (
+              {loadingQr ? (
+                <div style={{ textAlign: 'center', color: '#0f172a', fontSize: '12px' }}>
+                  <RefreshCw size={24} className="spin-animation" style={{ color: '#0284c7', margin: '0 auto 8px' }} />
+                  <div>កំពុងផ្ទុក QR Code...</div>
+                </div>
+              ) : (
                 <img
-                  src={qrCodeUrl}
+                  src={displayQrUrl}
                   alt="2FA QR Code"
+                  onError={(e) => {
+                    if (e.currentTarget.src !== fallbackQrUrl) {
+                      e.currentTarget.src = fallbackQrUrl;
+                    }
+                  }}
                   style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                 />
-              ) : (
-                <div style={{ textAlign: 'center', color: '#0f172a', fontSize: '12px' }}>
-                  កំពុងបង្កើត QR Code...
-                </div>
               )}
             </div>
 
             {/* Secret Key Box */}
-            <div style={{ marginBottom: '20px' }}>
+            <div style={{ marginBottom: '18px' }}>
               <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>
                 ឬវាយបញ្ចូលកូដ Secret Key ដោយផ្ទាល់៖
               </label>
               <div
                 style={{
-                  background: 'rgba(30, 41, 59, 0.8)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  borderRadius: '10px',
+                  background: 'rgba(30, 41, 59, 0.9)',
+                  border: '1px solid rgba(56, 189, 248, 0.25)',
+                  borderRadius: '12px',
                   padding: '10px 14px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
+                  gap: '8px',
                 }}
               >
                 <span
                   style={{
                     fontFamily: 'monospace',
                     fontSize: '13px',
-                    letterSpacing: '1.5px',
+                    letterSpacing: '1.2px',
                     color: '#38bdf8',
                     fontWeight: 700,
+                    wordBreak: 'break-all',
                   }}
                 >
-                  {secretKey || 'VVCATTENDANCE2FAKEY2026'}
+                  {currentSecret}
                 </span>
                 <button
                   type="button"
                   onClick={handleCopySecretKey}
                   style={{
-                    background: copiedKey ? '#10b981' : 'rgba(255, 255, 255, 0.1)',
-                    border: 'none',
-                    borderRadius: '7px',
-                    padding: '5px 9px',
+                    background: copiedKey ? '#10b981' : 'rgba(56, 189, 248, 0.15)',
+                    border: '1px solid rgba(56, 189, 248, 0.3)',
+                    borderRadius: '8px',
+                    padding: '6px 10px',
                     color: '#ffffff',
                     cursor: 'pointer',
-                    fontSize: '11px',
+                    fontSize: '11.5px',
+                    fontWeight: 600,
                     display: 'flex',
                     alignItems: 'center',
                     gap: '4px',
+                    flexShrink: 0,
                     transition: 'all 0.2s ease',
                   }}
                 >
-                  {copiedKey ? <Check size={13} /> : <Copy size={13} />}
+                  {copiedKey ? <Check size={13} color="#ffffff" /> : <Copy size={13} color="#38bdf8" />}
                   <span>{copiedKey ? 'ចម្លងរួច' : 'Copy'}</span>
                 </button>
               </div>
@@ -902,26 +962,39 @@ export const LoginPage: React.FC = () => {
               style={{
                 fontSize: '12px',
                 color: '#cbd5e1',
-                lineHeight: 1.6,
-                background: 'rgba(15, 23, 42, 0.6)',
-                borderRadius: '12px',
-                padding: '12px 14px',
-                border: '1px solid rgba(255, 255, 255, 0.05)',
+                lineHeight: 1.65,
+                background: 'rgba(15, 23, 42, 0.7)',
+                borderRadius: '14px',
+                padding: '12px 16px',
+                border: '1px solid rgba(255, 255, 255, 0.07)',
                 marginBottom: '20px',
               }}
             >
               <ol style={{ paddingLeft: '18px', margin: 0 }}>
-                <li>បើកកម្មវិធី <strong>Google Authenticator</strong> លើទូរស័ព្ទ</li>
-                <li>ចុចសញ្ញា <strong style={{ color: '#38bdf8' }}>+</strong> រួចជ្រើសរើស <strong>Scan a QR code</strong></li>
-                <li>ស្កេនរូប QR ខាងលើ រួចយកកូដ ៦ ខ្ទង់មកបំពេញដើម្បី Login</li>
+                <li>បើក <strong>VVC Attendance App</strong> (មុខងារ 2FA) ឬ <strong>Google Authenticator</strong></li>
+                <li>ចុចសញ្ញា <strong style={{ color: '#38bdf8' }}>+</strong> រួចជ្រើសរើស <strong>ស្កេន QR Code</strong></li>
+                <li>ស្កេនរូប QR ខាងលើ រួចយកកូដ ៦ ខ្ទង់មកបំពេញដើម្បី Login ភ្លាមៗ</li>
               </ol>
             </div>
 
             <button
               type="button"
               onClick={() => setShowQrModal(false)}
-              className="btn btn-primary"
-              style={{ width: '100%', borderRadius: '12px', padding: '11px' }}
+              style={{
+                width: '100%',
+                borderRadius: '12px',
+                padding: '12px',
+                background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                border: 'none',
+                color: '#ffffff',
+                fontWeight: 700,
+                fontSize: '13.5px',
+                cursor: 'pointer',
+                boxShadow: '0 4px 15px rgba(2, 132, 199, 0.3)',
+                transition: 'all 0.2s ease',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.filter = 'brightness(1.1)')}
+              onMouseLeave={(e) => (e.currentTarget.style.filter = 'brightness(1)')}
             >
               យល់ព្រម និងបន្ត Login
             </button>

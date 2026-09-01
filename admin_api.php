@@ -515,6 +515,7 @@ try {
             ]);
             break;
 
+        case 'get_2fa_setup':
         case 'get_2fa_status':
             $adminId = trim($_POST['admin_id'] ?? $_POST['employee_id'] ?? 'ADMIN01');
             ensure_2fa_table();
