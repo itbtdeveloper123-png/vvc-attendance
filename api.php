@@ -3552,6 +3552,120 @@ try {
         apiResponse(['success' => true, 'status' => 'success', 'meetings' => $meetings, 'data' => $meetings]);
         break;
 
+    case 'remove_background':
+    case 'remove_bg':
+        $bgColor = trim($_POST['bg_color'] ?? '');
+        $size = trim($_POST['size'] ?? 'preview');
+
+        $imageData = null;
+        if (!empty($_FILES['image_file']['tmp_name']) && is_uploaded_file($_FILES['image_file']['tmp_name'])) {
+            $imageData = file_get_contents($_FILES['image_file']['tmp_name']);
+        } elseif (!empty($_POST['image_base64'])) {
+            $rawB64 = $_POST['image_base64'];
+            if (strpos($rawB64, ',') !== false) {
+                $rawB64 = explode(',', $rawB64)[1];
+            }
+            $imageData = base64_decode($rawB64);
+        }
+
+        if (empty($imageData)) {
+            apiResponse(['success' => false, 'message' => 'សូមផ្តល់រូបភាព (image_file ឬ image_base64)'], 400);
+        }
+
+        $keys = [];
+        $res = $mysqli->query("SELECT id, api_key, key_label FROM admin_api_keys WHERE service_name = 'remove_bg' AND is_active = 1 ORDER BY priority ASC, id ASC");
+        if ($res) {
+            while ($r = $res->fetch_assoc()) {
+                $keys[] = $r;
+            }
+        }
+        if (empty($keys)) {
+            $keys = [
+                ['id' => 1, 'api_key' => 'LM9UPg8HqRKeZ89FeM2hhaCR', 'key_label' => 'Key 01'],
+                ['id' => 2, 'api_key' => 'vjGJwAVwwP6sf4jAEPCDBaTk', 'key_label' => 'Key 02'],
+                ['id' => 3, 'api_key' => 'p62EWpwcfDcd1B4qtXukUGwg', 'key_label' => 'Key 03'],
+                ['id' => 4, 'api_key' => 'NKubVSGei8HsVra9WX376EoY', 'key_label' => 'Key 04'],
+                ['id' => 5, 'api_key' => '92T5eCko8pibyavULgw9bHZk', 'key_label' => 'Key 05'],
+                ['id' => 6, 'api_key' => '63PW2Mr8UXx2tMyHY8VT8XQv', 'key_label' => 'Key 06'],
+            ];
+        }
+
+        $tmpFile = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'rmbg_' . uniqid() . '.png';
+        file_put_contents($tmpFile, $imageData);
+
+        $success = false;
+        $resultData = null;
+        $lastErr = 'No API keys';
+
+        foreach ($keys as $kItem) {
+            $apiKey = $kItem['api_key'];
+            $ch = curl_init('https://api.remove.bg/v1.0/removebg');
+            $postFields = [
+                'image_file' => new CURLFile($tmpFile),
+                'size' => $size,
+            ];
+            if (!empty($bgColor) && $bgColor !== 'transparent') {
+                $cleanColor = ltrim($bgColor, '#');
+                if (preg_match('/^[0-9a-fA-F]{6}$/', $cleanColor)) {
+                    $postFields['bg_color'] = $cleanColor;
+                }
+            }
+            curl_setopt($ch, CURLOPT_HTTPHEADER, ['X-Api-Key: ' . $apiKey]);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $postFields);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $err = curl_error($ch);
+            curl_close($ch);
+
+            if ($httpCode === 200 && !empty($response)) {
+                $success = true;
+                $resultData = $response;
+                if (!empty($kItem['id'])) {
+                    $keyId = (int)$kItem['id'];
+                    if ($size === 'preview') {
+                        $mysqli->query("UPDATE admin_api_keys SET free_calls = GREATEST(0, free_calls - 1), last_checked_at = NOW() WHERE id = $keyId");
+                    } else {
+                        $mysqli->query("UPDATE admin_api_keys SET credits = GREATEST(0, credits - 1), last_checked_at = NOW() WHERE id = $keyId");
+                    }
+                }
+                break;
+            }
+
+            if ($httpCode === 402 || $httpCode === 429) {
+                if (!empty($kItem['id'])) {
+                    $keyId = (int)$kItem['id'];
+                    $mysqli->query("UPDATE admin_api_keys SET last_status = 'exhausted', free_calls = 0, last_checked_at = NOW() WHERE id = $keyId");
+                }
+                continue;
+            }
+            $errDecoded = json_decode($response, true);
+            $lastErr = $errDecoded['errors'][0]['title'] ?? $err ?: "HTTP $httpCode";
+        }
+
+        if (file_exists($tmpFile)) {
+            @unlink($tmpFile);
+        }
+
+        if ($success && $resultData) {
+            $b64 = 'data:image/png;base64,' . base64_encode($resultData);
+            apiResponse([
+                'success' => true,
+                'image_base64' => $b64,
+                'message' => 'កាត់ Background រូបភាពដោយជោគជ័យ'
+            ]);
+        } else {
+            apiResponse([
+                'success' => false,
+                'message' => 'មិនអាចកាត់ Background បានទេ៖ ' . $lastErr
+            ], 500);
+        }
+        break;
+
     case 'summarize_meeting':
         @set_time_limit(300);
         @ini_set('max_execution_time', '300');

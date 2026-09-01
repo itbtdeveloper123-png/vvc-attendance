@@ -48,14 +48,15 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
   String? _processedImagePath;
   bool _isProcessing = false;
   String? _statusText;
+  Uint8List? _cutoutForegroundBytes; // Cached transparent PNG from Remove.bg
 
   bool _isFlipped = false;
   Timer? _debounceTimer;
 
-  void _debouncedProcessSegmentation() {
+  void _debouncedRenderComposite() {
     _debounceTimer?.cancel();
     _debounceTimer = Timer(const Duration(milliseconds: 50), () {
-      _processSegmentation();
+      _renderCompositeFromCutout();
     });
   }
 
@@ -150,7 +151,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
     super.initState();
     if (widget.initialImagePath != null) {
       _imagePath = widget.initialImagePath;
-      _processSegmentation();
+      _processAiCloudRemoveBgCutout(showToast: false);
     }
   }
 
@@ -206,10 +207,11 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
         setState(() {
           _imagePath = picked.path;
           _processedImagePath = null;
+          _cutoutForegroundBytes = null;
           _isFlipped = (source == ImageSource.camera); // Auto flip selfie camera photos
           _hasAutoFittedSuit = false;
         });
-        await _processSegmentation();
+        await _processAiCloudRemoveBgCutout(showToast: true);
       }
     } catch (e) {
       if (mounted) {
@@ -220,35 +222,20 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
     }
   }
 
-  Future<void> _processSegmentation() async {
+  /// Composite the transparent Remove.bg cutout foreground onto the selected background & suit
+  Future<void> _renderCompositeFromCutout() async {
     if (_imagePath == null) return;
+    if (_cutoutForegroundBytes == null) {
+      await _processAiCloudRemoveBgCutout(showToast: false);
+      return;
+    }
 
     setState(() {
       _isProcessing = true;
-      _statusText = 'កំពុងបំបែកមនុស្ស និងរៀបចំអាវ...';
+      _statusText = 'កំពុងរៀបចំ និងផ្លាស់ប្តូរ Background...';
     });
 
     try {
-      final result = await _segmentationService.segmentSubject(_imagePath!);
-      
-      Uint8List? fgBytes = result?.foregroundBitmap ??
-          ((result?.subjects.isNotEmpty ?? false) ? result!.subjects.first.bitmap : null);
-
-      List<double>? mask;
-      int? maskW;
-      int? maskH;
-
-      if (result != null) {
-        if (result.foregroundConfidenceMask != null && result.foregroundConfidenceMask!.isNotEmpty) {
-          mask = result.foregroundConfidenceMask;
-        } else if (result.subjects.isNotEmpty && result.subjects.first.confidenceMask != null) {
-          final s = result.subjects.first;
-          mask = s.confidenceMask;
-          maskW = s.width;
-          maskH = s.height;
-        }
-      }
-
       if (_selectedSuitKey != null && !_hasAutoFittedSuit) {
         await _detectFaceAndAutoFitSuit();
       }
@@ -264,17 +251,10 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
         }
       }
 
-      setState(() {
-        _statusText = 'កំពុងបំពាក់អាវ និងផ្លាស់ប្តូរ Background ទៅជាពណ៌ ${_getBgColorName(_selectedBgColor)}...';
-      });
-
       final outFile = await _segmentationService.createPassportBackground(
         imagePath: _imagePath!,
         backgroundColor: _selectedBgColor,
-        foregroundBytes: fgBytes,
-        confidenceMask: mask,
-        maskW: maskW,
-        maskH: maskH,
+        foregroundBytes: _cutoutForegroundBytes,
         flipHorizontal: _isFlipped,
         suitKey: _selectedSuitKey,
         suitBytes: suitBytes,
@@ -283,28 +263,28 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
         suitOffsetY: _suitOffsetY,
       );
 
-      // Crop according to selected preset aspect ratio
       final croppedFile = await _cropToPresetRatio(outFile.path, _selectedPreset);
 
-      setState(() {
-        _processedImagePath = croppedFile.path;
-        _isProcessing = false;
-        _statusText = null;
-      });
-    } catch (e) {
-      setState(() {
-        _isProcessing = false;
-        _statusText = null;
-      });
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('ការបំបែក Background បានបរាជ័យ៖ $e', style: GoogleFonts.kantumruyPro())),
-        );
+        setState(() {
+          _processedImagePath = croppedFile.path;
+          _isProcessing = false;
+          _statusText = null;
+        });
       }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+          _statusText = null;
+        });
+      }
+      debugPrint('Error rendering composite: $e');
     }
   }
 
-  Future<void> _processAiCloudRemoveBgCutout() async {
+  /// Cutout foreground using Remove.bg AI (with automatic failover across 10-key pool)
+  Future<void> _processAiCloudRemoveBgCutout({bool showToast = false}) async {
     if (_imagePath == null) return;
 
     setState(() {
@@ -314,27 +294,19 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
 
     try {
       final rmbgService = RemoveBgService();
-      String? hexColor;
-      if (_selectedBgColor != Colors.transparent) {
-        hexColor = '#${_selectedBgColor.toARGB32().toRadixString(16).padLeft(8, '0').substring(2)}';
-      }
 
       final processedFile = await rmbgService.removeBackgroundFile(
         File(_imagePath!),
-        bgColor: hexColor,
+        bgColor: null, // Transparent cutout so we can swap background colors with 0ms delay
         size: 'preview',
       );
 
       if (processedFile != null && mounted) {
-        final croppedFile = await _cropToPresetRatio(processedFile.path, _selectedPreset);
-        if (!mounted) return;
-        setState(() {
-          _processedImagePath = croppedFile.path;
-          _isProcessing = false;
-          _statusText = null;
-        });
+        _cutoutForegroundBytes = await processedFile.readAsBytes();
+        _segmentationService.clearCache();
+        await _renderCompositeFromCutout();
 
-        if (mounted) {
+        if (showToast && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Row(
@@ -465,15 +437,6 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
     }
   }
 
-  String _getBgColorName(Color c) {
-    if (c == Colors.white) return 'ពណ៌ស (Passport)';
-    if (c == const Color(0xFF0D47A1)) return 'ពណ៌ខៀវចាស់ (ID Card)';
-    if (c == const Color(0xFF29B6F6)) return 'ពណ៌ខៀវខ្ចី';
-    if (c == const Color(0xFFD32F2F)) return 'ពណ៌ក្រហម';
-    if (c == const Color(0xFF2E7D32)) return 'ពណ៌បៃតង';
-    return 'ប្រផេះ';
-  }
-
   @override
   Widget build(BuildContext context) {
     final displayPath = _processedImagePath ?? _imagePath;
@@ -504,7 +467,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
                 setState(() {
                   _isFlipped = !_isFlipped;
                 });
-                _processSegmentation();
+                _renderCompositeFromCutout();
               },
             ),
           if (_processedImagePath != null)
@@ -634,7 +597,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
                               setState(() {
                                 _selectedPreset = preset;
                               });
-                              _processSegmentation();
+                              _renderCompositeFromCutout();
                             },
                             child: Container(
                               margin: const EdgeInsets.symmetric(horizontal: 3),
@@ -675,7 +638,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
                         Material(
                           color: Colors.transparent,
                           child: InkWell(
-                            onTap: _processAiCloudRemoveBgCutout,
+                            onTap: () => _processAiCloudRemoveBgCutout(showToast: true),
                             borderRadius: BorderRadius.circular(8),
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -715,7 +678,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
                             setState(() {
                               _isFlipped = !_isFlipped;
                             });
-                            _processSegmentation();
+                            _renderCompositeFromCutout();
                           },
                           borderRadius: BorderRadius.circular(6),
                           child: Padding(
@@ -758,7 +721,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
                             setState(() {
                               _selectedBgColor = color;
                             });
-                            _processSegmentation();
+                            _renderCompositeFromCutout();
                           },
                           child: Container(
                             width: 38,
@@ -799,7 +762,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
                                 _suitOffsetX = 0.0;
                                 _suitOffsetY = 0.0;
                               });
-                              _processSegmentation();
+                              _renderCompositeFromCutout();
                             },
                             child: Text(
                               'ដោះអាវចេញ',
@@ -837,7 +800,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
                               setState(() {
                                 _selectedSuitKey = null;
                               });
-                              _processSegmentation();
+                              _renderCompositeFromCutout();
                             },
                             child: Container(
                               margin: const EdgeInsets.only(right: 6),
@@ -862,7 +825,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
                                 setState(() {
                                   _selectedSuitKey = entry.key;
                                 });
-                                _processSegmentation();
+                                _renderCompositeFromCutout();
                               },
                               child: Container(
                                 margin: const EdgeInsets.only(right: 6),
@@ -917,7 +880,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
                               icon: const Icon(Icons.remove_circle_outline, color: Colors.tealAccent, size: 18),
                               onPressed: () {
                                 setState(() => _suitScale = (_suitScale - 0.05).clamp(0.5, 2.0));
-                                _debouncedProcessSegmentation();
+                                _debouncedRenderComposite();
                               },
                               tooltip: 'បង្រួមអាវ',
                             ),
@@ -930,7 +893,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
                               icon: const Icon(Icons.add_circle_outline, color: Colors.tealAccent, size: 18),
                               onPressed: () {
                                 setState(() => _suitScale = (_suitScale + 0.05).clamp(0.5, 2.0));
-                                _debouncedProcessSegmentation();
+                                _debouncedRenderComposite();
                               },
                               tooltip: 'ពង្រីកអាវ',
                             ),
@@ -940,7 +903,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
                               icon: const Icon(Icons.arrow_back_rounded, color: Colors.white70, size: 16),
                               onPressed: () {
                                 setState(() => _suitOffsetX -= 1.0);
-                                _debouncedProcessSegmentation();
+                                _debouncedRenderComposite();
                               },
                               tooltip: 'រំកិលទៅឆ្វេង',
                             ),
@@ -949,7 +912,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
                               icon: const Icon(Icons.arrow_forward_rounded, color: Colors.white70, size: 16),
                               onPressed: () {
                                 setState(() => _suitOffsetX += 1.0);
-                                _debouncedProcessSegmentation();
+                                _debouncedRenderComposite();
                               },
                               tooltip: 'រំកិលទៅស្តាំ',
                             ),
@@ -958,7 +921,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
                               icon: const Icon(Icons.arrow_upward_rounded, color: Colors.white70, size: 16),
                               onPressed: () {
                                 setState(() => _suitOffsetY -= 1.0);
-                                _debouncedProcessSegmentation();
+                                _debouncedRenderComposite();
                               },
                               tooltip: 'លើកអាវឡើងលើ',
                             ),
@@ -967,7 +930,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
                               icon: const Icon(Icons.arrow_downward_rounded, color: Colors.white70, size: 16),
                               onPressed: () {
                                 setState(() => _suitOffsetY += 1.0);
-                                _debouncedProcessSegmentation();
+                                _debouncedRenderComposite();
                               },
                               tooltip: 'ទម្លាក់អាវចុះក្រោម',
                             ),
@@ -980,7 +943,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
                                   _suitOffsetX = 0.0;
                                   _suitOffsetY = 0.0;
                                 });
-                                _debouncedProcessSegmentation();
+                                _debouncedRenderComposite();
                               },
                               tooltip: 'កំណត់ទីតាំងឡើងវិញ',
                             ),

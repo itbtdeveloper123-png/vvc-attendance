@@ -513,6 +513,16 @@ function remove_background_with_pool(string $imageBinaryOrPath, ?string $bgColor
                 if ($isTempFile && file_exists($filePath)) {
                     @unlink($filePath);
                 }
+
+                // Deduct in DB immediately in real time
+                if (!empty($keyItem['id'])) {
+                    if ($size === 'preview') {
+                        dbQuery("UPDATE admin_api_keys SET free_calls = GREATEST(0, free_calls - 1), last_checked_at = NOW() WHERE id = ?", [$keyItem['id']]);
+                    } else {
+                        dbQuery("UPDATE admin_api_keys SET credits = GREATEST(0, credits - 1), last_checked_at = NOW() WHERE id = ?", [$keyItem['id']]);
+                    }
+                }
+
                 return [
                     'success' => true,
                     'image_data' => $response,

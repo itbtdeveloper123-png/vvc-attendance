@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:image/image.dart' as img;
 import 'dart:typed_data';
 import '../services/api_service.dart';
+import '../services/remove_bg_service.dart';
 import '../utils/app_theme.dart';
 
 class DeptHeadSelector extends StatefulWidget {
@@ -324,57 +325,55 @@ class _DeptHeadSelectorState extends State<DeptHeadSelector> {
   }
 
   Future<Uint8List?> _processRemoveBackground(Uint8List imageBytes) async {
+    // 1. First attempt with AI Remove.bg for professional crystal-clear signature cutout
+    try {
+      final aiCutout = await RemoveBgService().removeBackgroundBytes(
+        imageBytes,
+        bgColor: null, // Transparent cutout
+        size: 'preview',
+      );
+      if (aiCutout != null && aiCutout.isNotEmpty) {
+        return aiCutout;
+      }
+    } catch (e) {
+      debugPrint("AI Remove.bg signature cutout error, falling back to local filter: $e");
+    }
+
+    // 2. Fallback to Local Luminance Filtering if offline or API pool unavailable
     try {
       final img.Image? originalImage = img.decodeImage(imageBytes);
       if (originalImage == null) return null;
 
-      // 1. Convert to a 32-bit image with Alpha channel
+      // Convert to a 32-bit image with Alpha channel
       final img.Image processedImage = originalImage.convert(
         format: img.Format.uint8,
         numChannels: 4,
       );
 
-      // 2. Advanced Background Removal using Luminance
+      // Advanced Background Removal using Luminance
       for (final frame in processedImage.frames) {
         for (final pixel in frame) {
           final double r = pixel.r.toDouble();
           final double g = pixel.g.toDouble();
           final double b = pixel.b.toDouble();
 
-          // Calculate Perceived Brightness (Luminance)
-          // Using standard weightings for R, G, B
           final double luminance = (0.299 * r + 0.587 * g + 0.114 * b);
 
-          // Algorithm logic:
-          // If luminance is high (white/bright paper), make it transparent.
-          // We use a threshold transition for smoother edges.
-
-          const double lowerThreshold =
-              140.0; // Darker than this is definitely ink
-          const double upperThreshold =
-              200.0; // Brighter than this is definitely paper
+          const double lowerThreshold = 140.0;
+          const double upperThreshold = 200.0;
 
           if (luminance >= upperThreshold) {
-            // Full paper area
             pixel.a = 0;
           } else if (luminance > lowerThreshold) {
-            // Edge/Shadow transition: Partial transparency
-            // Calculate transparency amount based on brightness
             final double ratio =
                 (upperThreshold - luminance) /
                 (upperThreshold - lowerThreshold);
-            // Squaring the ratio makes the ink stand out more against light shadows
             pixel.a = (ratio * ratio * 255).toInt();
-
-            // Optional: Brighten the foreground slightly to hide paper texture
             pixel.r = (r * (1 + (1 - ratio) * 0.2)).clamp(0, 255).toInt();
             pixel.g = (g * (1 + (1 - ratio) * 0.2)).clamp(0, 255).toInt();
             pixel.b = (b * (1 + (1 - ratio) * 0.2)).clamp(0, 255).toInt();
           } else {
-            // Solid ink area
             pixel.a = 255;
-
-            // Enhance contrast: Make the ink slightly darker for a cleaner look
             pixel.r = (r * 0.9).toInt();
             pixel.g = (g * 0.9).toInt();
             pixel.b = (b * 0.9).toInt();
@@ -382,10 +381,9 @@ class _DeptHeadSelectorState extends State<DeptHeadSelector> {
         }
       }
 
-      // Encode back to PNG to maintain transparency
       return Uint8List.fromList(img.encodePng(processedImage));
     } catch (e) {
-      debugPrint("Error removing background: $e");
+      debugPrint("Error removing background locally: $e");
       return imageBytes;
     }
   }
@@ -619,9 +617,22 @@ class _DeptHeadSelectorState extends State<DeptHeadSelector> {
                       ),
                     ),
                   if (isProcessing)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 10),
-                      child: Center(child: LinearProgressIndicator()),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 10),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          LinearProgressIndicator(color: AppTheme.primary),
+                          const SizedBox(height: 6),
+                          Text(
+                            "កំពុងកាត់ផ្ទៃក្រដាសដោយ AI Remove.bg...",
+                            style: GoogleFonts.kantumruyPro(
+                              color: AppTheme.textPrimary.withValues(alpha: 0.7),
+                              fontSize: 11.5,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                 ],
               ),
