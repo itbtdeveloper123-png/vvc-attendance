@@ -3666,6 +3666,138 @@ try {
         }
         break;
 
+    case 'cutout_pro':
+    case 'cutout_pro_matting':
+    case 'cutout_pro_idphoto':
+    case 'cutout_pro_enhance':
+        $taskType = 'matting';
+        if ($action === 'cutout_pro_idphoto' || (isset($_POST['task_type']) && $_POST['task_type'] === 'idphoto')) {
+            $taskType = 'idphoto';
+        } elseif ($action === 'cutout_pro_enhance' || (isset($_POST['task_type']) && in_array($_POST['task_type'], ['enhance', 'photo_enhance']))) {
+            $taskType = 'photo_enhance';
+        }
+
+        $bgColor = trim($_POST['bg_color'] ?? '');
+        $clothId = trim($_POST['cloth_id'] ?? '');
+        $mattingType = (int)($_POST['matting_type'] ?? 6);
+
+        $imageData = null;
+        if (!empty($_FILES['image_file']['tmp_name']) && is_uploaded_file($_FILES['image_file']['tmp_name'])) {
+            $imageData = file_get_contents($_FILES['image_file']['tmp_name']);
+        } elseif (!empty($_POST['image_base64'])) {
+            $rawB64 = $_POST['image_base64'];
+            if (strpos($rawB64, ',') !== false) {
+                $rawB64 = explode(',', $rawB64)[1];
+            }
+            $imageData = base64_decode($rawB64);
+        }
+
+        if (empty($imageData)) {
+            apiResponse(['success' => false, 'message' => 'សូមផ្តល់រូបភាព (image_file ឬ image_base64)'], 400);
+        }
+
+        $keys = [];
+        $res = $mysqli->query("SELECT id, api_key, key_label FROM admin_api_keys WHERE service_name = 'cutout_pro' AND is_active = 1 ORDER BY priority ASC, id ASC");
+        if ($res) {
+            while ($r = $res->fetch_assoc()) {
+                $keys[] = $r;
+            }
+        }
+
+        if (empty($keys)) {
+            apiResponse(['success' => false, 'message' => 'មិនមាន Cutout.pro API Key សកម្មនៅក្នុងប្រព័ន្ធឡើយ សូមបន្ថែម Key ក្នុង Admin Panel!'], 400);
+        }
+
+        $tmpFile = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'cutout_' . uniqid() . '.png';
+        file_put_contents($tmpFile, $imageData);
+
+        $success = false;
+        $resultData = null;
+        $lastErr = 'No Cutout.pro keys responded';
+
+        foreach ($keys as $kItem) {
+            $apiKey = $kItem['api_key'];
+            $url = 'https://www.cutout.pro/api/v1/matting?mattingType=' . $mattingType;
+            if ($taskType === 'idphoto') {
+                $url = 'https://www.cutout.pro/api/v1/idphoto/generateIdphoto';
+            } elseif ($taskType === 'photo_enhance') {
+                $url = 'https://www.cutout.pro/api/v1/photoEnhance';
+            }
+
+            $postFields = [
+                'file' => new CURLFile($tmpFile),
+            ];
+            if (!empty($bgColor) && $bgColor !== 'transparent') {
+                $postFields['bgColor'] = ltrim($bgColor, '#');
+            }
+            if (!empty($clothId)) {
+                $postFields['clothId'] = $clothId;
+            }
+
+            $ch = curl_init($url);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, ['APIKEY: ' . $apiKey]);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $postFields);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 35);
+
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+            $err = curl_error($ch);
+            curl_close($ch);
+
+            $isImage = strpos((string)$contentType, 'image/') !== false || (strlen($response) > 8 && substr($response, 1, 3) === 'PNG');
+
+            if ($httpCode === 200 && ($isImage || !empty($response))) {
+                if (!$isImage) {
+                    $json = json_decode($response, true);
+                    if (isset($json['data']['imageBase64'])) {
+                        $resultData = base64_decode($json['data']['imageBase64']);
+                        $success = true;
+                    } elseif (isset($json['code']) && $json['code'] != 0) {
+                        $lastErr = $json['msg'] ?? 'API error';
+                        continue;
+                    }
+                } else {
+                    $resultData = $response;
+                    $success = true;
+                }
+
+                if ($success && $resultData) {
+                    if (!empty($kItem['id'])) {
+                        $keyId = (int)$kItem['id'];
+                        $mysqli->query("UPDATE admin_api_keys SET credits = GREATEST(0, credits - 1), free_calls = GREATEST(0, free_calls - 1), last_checked_at = NOW() WHERE id = $keyId");
+                    }
+                    break;
+                }
+            }
+
+            $jsonErr = json_decode($response, true);
+            $lastErr = $jsonErr['msg'] ?? $err ?: "HTTP $httpCode";
+        }
+
+        if (file_exists($tmpFile)) {
+            @unlink($tmpFile);
+        }
+
+        if ($success && $resultData) {
+            $b64 = 'data:image/png;base64,' . base64_encode($resultData);
+            apiResponse([
+                'success' => true,
+                'image_base64' => $b64,
+                'task_type' => $taskType,
+                'message' => 'ដំណើរការ Cutout.pro AI ដោយជោគជ័យ'
+            ]);
+        } else {
+            apiResponse([
+                'success' => false,
+                'message' => 'បរាជ័យក្នុងការដំណើរការ Cutout.pro៖ ' . $lastErr
+            ], 500);
+        }
+        break;
+
     case 'summarize_meeting':
         @set_time_limit(300);
         @ini_set('max_execution_time', '300');

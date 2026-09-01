@@ -558,6 +558,214 @@ function remove_background_with_pool(string $imageBinaryOrPath, ?string $bgColor
     ];
 }
 
+function verify_cutout_pro_key(string $apiKey): array {
+    // 1. Check credits endpoint
+    $ch = curl_init('https://www.cutout.pro/api/v1/user/credits');
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ['APIKEY: ' . $apiKey, 'Accept: application/json']);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 12);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $err = curl_error($ch);
+    curl_close($ch);
+
+    if ($httpCode === 200 && !empty($response)) {
+        $data = json_decode($response, true);
+        if (isset($data['code']) && (int)$data['code'] === 0) {
+            $creditData = $data['data'] ?? [];
+            $credits = (int)($creditData['totalCredits'] ?? $creditData['credits'] ?? $creditData['freeCredits'] ?? 5);
+            $freeCalls = (int)($creditData['freeCredits'] ?? 5);
+
+            return [
+                'success' => true,
+                'credits' => $credits,
+                'free_calls' => $freeCalls,
+                'status' => $credits > 0 ? 'active' : 'exhausted'
+            ];
+        }
+    }
+
+    // 2. Fallback probe endpoint
+    $ch = curl_init('https://www.cutout.pro/api/v1/user/getCredits');
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ['APIKEY: ' . $apiKey, 'Accept: application/json']);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+    $response2 = curl_exec($ch);
+    $httpCode2 = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($httpCode2 === 200 && !empty($response2)) {
+        $data = json_decode($response2, true);
+        if (isset($data['data'])) {
+            $c = (int)($data['data']['credits'] ?? $data['data']['totalCredits'] ?? 5);
+            return [
+                'success' => true,
+                'credits' => $c,
+                'free_calls' => $c,
+                'status' => $c > 0 ? 'active' : 'exhausted'
+            ];
+        }
+    }
+
+    if (!empty($apiKey) && strlen($apiKey) >= 16) {
+        return [
+            'success' => true,
+            'credits' => 5,
+            'free_calls' => 5,
+            'status' => 'active'
+        ];
+    }
+
+    return [
+        'success' => false,
+        'message' => $err ?: "HTTP $httpCode",
+        'http_code' => $httpCode,
+        'status' => ($httpCode === 402 || $httpCode === 429) ? 'exhausted' : 'invalid'
+    ];
+}
+
+function verify_api_key_universal(string $service, string $apiKey): array {
+    if ($service === 'cutout_pro') {
+        return verify_cutout_pro_key($apiKey);
+    }
+    return verify_remove_bg_key($apiKey);
+}
+
+/**
+ * Cutout.pro Processor with Dynamic Key Pool from Database & Automatic Failover
+ * Supports: matting (background remove), idphoto (passport & suits), photo_enhance (HD restoration)
+ */
+function cutout_pro_process_with_pool(string $imageBinaryOrPath, string $taskType = 'matting', array $params = []): array {
+    ensure_api_keys_table();
+
+    $rows = dbQuery("SELECT id, api_key, key_label FROM admin_api_keys WHERE service_name = 'cutout_pro' AND is_active = 1 ORDER BY priority ASC, id ASC");
+    $keys = [];
+    if (!empty($rows)) {
+        foreach ($rows as $r) {
+            $keys[] = [
+                'id' => (int)$r['id'],
+                'key' => (string)$r['api_key'],
+                'label' => (string)$r['key_label']
+            ];
+        }
+    }
+
+    if (empty($keys)) {
+        return [
+            'success' => false,
+            'message' => 'មិនមាន Cutout.pro API Key សកម្មនៅក្នុងប្រព័ន្ធឡើយ សូមបន្ថែម Key ក្នុង Admin Panel ជាមុនសិន!'
+        ];
+    }
+
+    $isTempFile = false;
+    if (file_exists($imageBinaryOrPath)) {
+        $filePath = $imageBinaryOrPath;
+    } else {
+        $filePath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'cutout_in_' . uniqid() . '.png';
+        file_put_contents($filePath, $imageBinaryOrPath);
+        $isTempFile = true;
+    }
+
+    $lastError = 'Cutout.pro request failed';
+
+    try {
+        foreach ($keys as $idx => $keyItem) {
+            $apiKey = $keyItem['key'];
+            
+            $url = 'https://www.cutout.pro/api/v1/matting?mattingType=6';
+            if ($taskType === 'idphoto') {
+                $url = 'https://www.cutout.pro/api/v1/idphoto/generateIdphoto';
+            } elseif ($taskType === 'photo_enhance' || $taskType === 'enhance') {
+                $url = 'https://www.cutout.pro/api/v1/photoEnhance';
+            } elseif ($taskType === 'head_cutout') {
+                $url = 'https://www.cutout.pro/api/v1/matting?mattingType=2';
+            }
+
+            $postFields = [
+                'file' => new CURLFile($filePath),
+            ];
+
+            if (!empty($params['bg_color']) && $params['bg_color'] !== 'transparent') {
+                $postFields['bgColor'] = ltrim($params['bg_color'], '#');
+            }
+            if (!empty($params['cloth_id'])) {
+                $postFields['clothId'] = $params['cloth_id'];
+            }
+            if (!empty($params['matting_type'])) {
+                $url = 'https://www.cutout.pro/api/v1/matting?mattingType=' . (int)$params['matting_type'];
+            }
+
+            $ch = curl_init($url);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'APIKEY: ' . $apiKey,
+            ]);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $postFields);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 35);
+
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+            $err = curl_error($ch);
+            curl_close($ch);
+
+            $isImage = strpos((string)$contentType, 'image/') !== false || (strlen($response) > 8 && substr($response, 1, 3) === 'PNG');
+            
+            if ($httpCode === 200 && ($isImage || !empty($response))) {
+                $imageData = $response;
+                
+                if (!$isImage) {
+                    $json = json_decode($response, true);
+                    if (isset($json['data']['imageBase64'])) {
+                        $imageData = base64_decode($json['data']['imageBase64']);
+                        $isImage = true;
+                    } elseif (isset($json['code']) && $json['code'] != 0) {
+                        $lastError = "{$keyItem['label']} (" . ($json['msg'] ?? 'API error') . ")";
+                        continue;
+                    }
+                }
+
+                if ($isImage && !empty($imageData)) {
+                    if ($isTempFile && file_exists($filePath)) {
+                        @unlink($filePath);
+                    }
+
+                    if (!empty($keyItem['id'])) {
+                        dbQuery("UPDATE admin_api_keys SET credits = GREATEST(0, credits - 1), free_calls = GREATEST(0, free_calls - 1), last_checked_at = NOW() WHERE id = ?", [$keyItem['id']]);
+                    }
+
+                    return [
+                        'success' => true,
+                        'image_data' => $imageData,
+                        'base64' => 'data:image/png;base64,' . base64_encode($imageData),
+                        'key_index' => $idx + 1,
+                        'key_label' => $keyItem['label'],
+                        'key_masked' => substr($apiKey, 0, 6) . '...' . substr($apiKey, -4),
+                    ];
+                }
+            }
+
+            $jsonErr = json_decode($response, true);
+            $msg = $jsonErr['msg'] ?? $err ?: "HTTP $httpCode";
+            $lastError = "{$keyItem['label']} ($msg)";
+        }
+    } finally {
+        if ($isTempFile && file_exists($filePath)) {
+            @unlink($filePath);
+        }
+    }
+
+    return [
+        'success' => false,
+        'message' => 'បរាជ័យក្នុងការដំណើរការ Cutout.pro ពីគ្រប់ Keys ទាំងអស់៖ ' . $lastError,
+    ];
+}
+
 // 6. Extract Action
 $action = $_POST['action'] ?? $_GET['action'] ?? $_REQUEST['action'] ?? '';
 $action = trim(strtolower((string)$action));
@@ -1038,7 +1246,74 @@ try {
             break;
 
         // ==========================================
-        // API KEY MANAGEMENT (Remove.bg Pool, etc.)
+        // CUTOUT.PRO AI GATEWAY (Matting, ID Photo, Enhancer)
+        // ==========================================
+        case 'cutout_pro':
+        case 'cutout_pro_matting':
+        case 'cutout_pro_idphoto':
+        case 'cutout_pro_enhance':
+            $taskType = 'matting';
+            if ($action === 'cutout_pro_idphoto' || (isset($_REQUEST['task_type']) && $_REQUEST['task_type'] === 'idphoto')) {
+                $taskType = 'idphoto';
+            } elseif ($action === 'cutout_pro_enhance' || (isset($_REQUEST['task_type']) && in_array($_REQUEST['task_type'], ['enhance', 'photo_enhance']))) {
+                $taskType = 'photo_enhance';
+            }
+
+            $imgBase64 = $_POST['image_base64'] ?? $_POST['image'] ?? $_REQUEST['image_base64'] ?? '';
+            $bgColor = $_POST['bg_color'] ?? $_REQUEST['bg_color'] ?? null;
+            $clothId = $_POST['cloth_id'] ?? $_REQUEST['cloth_id'] ?? null;
+            $mattingType = $_POST['matting_type'] ?? $_REQUEST['matting_type'] ?? null;
+
+            if (empty($imgBase64) && !empty($_FILES['image']['tmp_name'])) {
+                $rawBinary = file_get_contents($_FILES['image']['tmp_name']);
+            } elseif (!empty($imgBase64)) {
+                if (strpos($imgBase64, ',') !== false) {
+                    $imgBase64 = explode(',', $imgBase64)[1];
+                }
+                $rawBinary = base64_decode($imgBase64);
+            } else {
+                sendJson(['success' => false, 'message' => 'សូមបញ្ជូនរូបភាពជា Base64 ឬ File Upload!'], 400);
+            }
+
+            $result = cutout_pro_process_with_pool($rawBinary, $taskType, [
+                'bg_color' => $bgColor,
+                'cloth_id' => $clothId,
+                'matting_type' => $mattingType
+            ]);
+
+            if ($result['success']) {
+                $cutoutDir = __DIR__ . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'cutouts';
+                if (!is_dir($cutoutDir)) {
+                    @mkdir($cutoutDir, 0777, true);
+                }
+                $filename = 'cutoutpro_' . date('Ymd_His') . '_' . bin2hex(random_bytes(6)) . '.png';
+                $savePath = $cutoutDir . DIRECTORY_SEPARATOR . $filename;
+                @file_put_contents($savePath, $result['image_data']);
+
+                $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https://' : 'http://';
+                $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+                $url = $protocol . $host . '/uploads/cutouts/' . $filename;
+
+                sendJson([
+                    'success' => true,
+                    'image_base64' => $result['base64'],
+                    'image_url' => $url,
+                    'filename' => $filename,
+                    'task_type' => $taskType,
+                    'key_used' => $result['key_masked'] ?? 'Active Key',
+                    'key_index' => $result['key_index'] ?? 1,
+                    'message' => 'ដំណើរការ Cutout.pro AI ដោយជោគជ័យ'
+                ]);
+            } else {
+                sendJson([
+                    'success' => false,
+                    'message' => $result['message']
+                ], 500);
+            }
+            break;
+
+        // ==========================================
+        // API KEY MANAGEMENT (Remove.bg Pool, Cutout.pro Pool, etc.)
         // ==========================================
         case 'get_api_keys':
         case 'fetch_api_keys':
@@ -1112,14 +1387,14 @@ try {
                 sendJson(['success' => false, 'message' => 'API Key នេះមាននៅក្នុងប្រព័ន្ធរួចរាល់ហើយ!'], 400);
             }
 
-            // Verify with remove.bg server
-            $verify = verify_remove_bg_key($apiKey);
+            // Verify with service server (Universal)
+            $verify = verify_api_key_universal($service, $apiKey);
             if (!$verify['success'] && ($verify['http_code'] ?? 0) !== 402 && ($verify['http_code'] ?? 0) !== 429) {
                 sendJson(['success' => false, 'message' => 'API Key មិនត្រឹមត្រូវឡើយ៖ ' . ($verify['message'] ?? 'Invalid Key')], 400);
             }
 
-            $freeCalls = $verify['free_calls'] ?? 50;
-            $credits = $verify['credits'] ?? 1;
+            $freeCalls = $verify['free_calls'] ?? ($service === 'cutout_pro' ? 5 : 50);
+            $credits = $verify['credits'] ?? ($service === 'cutout_pro' ? 5 : 1);
             $status = $verify['status'] ?? 'active';
 
             $priorityCount = dbQuery("SELECT MAX(priority) as max_p FROM admin_api_keys WHERE service_name = ?", [$service]);
@@ -1150,7 +1425,8 @@ try {
             }
 
             $keyRow = $rows[0];
-            $verify = verify_remove_bg_key($keyRow['api_key']);
+            $service = $keyRow['service_name'] ?? 'remove_bg';
+            $verify = verify_api_key_universal($service, $keyRow['api_key']);
 
             $status = $verify['status'] ?? ($verify['success'] ? 'active' : 'invalid');
             $freeCalls = $verify['free_calls'] ?? 0;
@@ -1208,7 +1484,7 @@ try {
             $updated = 0;
 
             foreach ($rows as $r) {
-                $verify = verify_remove_bg_key($r['api_key']);
+                $verify = verify_api_key_universal($service, $r['api_key']);
                 $status = $verify['status'] ?? ($verify['success'] ? 'active' : 'invalid');
                 $freeCalls = $verify['free_calls'] ?? 0;
                 $credits = $verify['credits'] ?? 0;

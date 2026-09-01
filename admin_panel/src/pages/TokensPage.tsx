@@ -48,7 +48,7 @@ const formatSessionDate = (dateStr?: string) => {
 };
 
 export const TokensPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'active_sessions' | 'global_settings' | 'remove_bg_keys'>('active_sessions');
+  const [activeTab, setActiveTab] = useState<'active_sessions' | 'global_settings' | 'remove_bg_keys' | 'cutout_pro_keys'>('active_sessions');
   const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [sessions, setSessions] = useState<SessionItem[]>([]);
   const [groups, setGroups] = useState<SessionGroup[]>([]);
@@ -60,7 +60,8 @@ export const TokensPage: React.FC = () => {
   const [savingSettings, setSavingSettings] = useState(false);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
 
-  // Remove.bg API Keys Management State
+  // AI API Keys Management State (Remove.bg & Cutout.pro)
+  const currentServiceName = activeTab === 'cutout_pro_keys' ? 'cutout_pro' : 'remove_bg';
   const [apiKeys, setApiKeys] = useState<any[]>([]);
   const [apiKeyStats, setApiKeyStats] = useState({
     total_keys: 0,
@@ -73,7 +74,6 @@ export const TokensPage: React.FC = () => {
   const [isKeyModalOpen, setIsKeyModalOpen] = useState(false);
   const [newKeyString, setNewKeyString] = useState('');
   const [newKeyLabel, setNewKeyLabel] = useState('');
-  const [isTestingNewKey, setIsTestingNewKey] = useState(false);
   const [isAddingKey, setIsAddingKey] = useState(false);
   const [syncingAllKeys, setSyncingAllKeys] = useState(false);
   const [testingKeyId, setTestingKeyId] = useState<number | null>(null);
@@ -121,10 +121,10 @@ export const TokensPage: React.FC = () => {
     }
   };
 
-  const loadApiKeys = async () => {
+  const loadApiKeys = async (service: string = currentServiceName) => {
     setLoadingKeys(true);
     try {
-      const res = await adminApi.getApiKeys('remove_bg');
+      const res = await adminApi.getApiKeys(service);
       if (res && res.success) {
         setApiKeys(res.keys || []);
         if (res.stats) {
@@ -145,13 +145,13 @@ export const TokensPage: React.FC = () => {
     }
     setIsAddingKey(true);
     try {
-      const res = await adminApi.addApiKey(newKeyString.trim(), newKeyLabel.trim(), 'remove_bg');
+      const res = await adminApi.addApiKey(newKeyString.trim(), newKeyLabel.trim(), currentServiceName);
       if (res && res.success) {
         showBanner('success', res.message || 'បានបន្ថែម API Key ជោគជ័យ!');
         setIsKeyModalOpen(false);
         setNewKeyString('');
         setNewKeyLabel('');
-        loadApiKeys();
+        loadApiKeys(currentServiceName);
       } else {
         showBanner('error', res.message || 'បរាជ័យក្នុងការបន្ថែម API Key');
       }
@@ -167,10 +167,10 @@ export const TokensPage: React.FC = () => {
       const res = await adminApi.testApiKey(id);
       if (res && res.success) {
         showBanner('success', res.message || 'Key ដំណើរការល្អ!');
-        loadApiKeys();
+        loadApiKeys(currentServiceName);
       } else {
         showBanner('error', res.message || 'Key មិនដំណើរការ ឬអស់ Credit');
-        loadApiKeys();
+        loadApiKeys(currentServiceName);
       }
     } catch (err: any) {
       showBanner('error', 'កំហុសពេល Test៖ ' + err.message);
@@ -183,7 +183,7 @@ export const TokensPage: React.FC = () => {
       const res = await adminApi.toggleApiKey(id);
       if (res && res.success) {
         showBanner('success', res.message);
-        loadApiKeys();
+        loadApiKeys(currentServiceName);
       }
     } catch (err: any) {
       showBanner('error', 'កំហុស៖ ' + err.message);
@@ -196,7 +196,7 @@ export const TokensPage: React.FC = () => {
       const res = await adminApi.deleteApiKey(id);
       if (res && res.success) {
         showBanner('success', res.message);
-        loadApiKeys();
+        loadApiKeys(currentServiceName);
       }
     } catch (err: any) {
       showBanner('error', 'កំហុសពេលលុប៖ ' + err.message);
@@ -206,10 +206,10 @@ export const TokensPage: React.FC = () => {
   const handleSyncAllKeys = async () => {
     setSyncingAllKeys(true);
     try {
-      const res = await adminApi.syncAllApiKeys('remove_bg');
+      const res = await adminApi.syncAllApiKeys(currentServiceName);
       if (res && res.success) {
         showBanner('success', res.message);
-        loadApiKeys();
+        loadApiKeys(currentServiceName);
       }
     } catch (err: any) {
       showBanner('error', 'កំហុសពេល Sync៖ ' + err.message);
@@ -894,10 +894,69 @@ export const TokensPage: React.FC = () => {
       )}
 
       {/* ========================================================================= */}
-      {/* 3. REMOVE.BG API KEYS POOL MANAGEMENT TAB */}
+      {/* 3. AI API KEYS POOL MANAGEMENT TAB (Remove.bg & Cutout.pro) */}
       {/* ========================================================================= */}
-      {activeTab === 'remove_bg_keys' && (
+      {(activeTab === 'remove_bg_keys' || activeTab === 'cutout_pro_keys') && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {/* SERVICE BADGE & DESCRIPTION */}
+          <div
+            className="card"
+            style={{
+              padding: '16px 20px',
+              borderRadius: '16px',
+              background: activeTab === 'cutout_pro_keys'
+                ? 'linear-gradient(135deg, rgba(236, 72, 153, 0.08), rgba(168, 85, 247, 0.08))'
+                : 'linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(59, 130, 246, 0.08))',
+              border: activeTab === 'cutout_pro_keys' ? '1px solid rgba(236, 72, 153, 0.25)' : '1px solid rgba(99, 102, 241, 0.25)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '12px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <span
+                style={{
+                  width: '42px',
+                  height: '42px',
+                  borderRadius: '12px',
+                  background: activeTab === 'cutout_pro_keys' ? 'linear-gradient(135deg, #EC4899, #A855F7)' : 'linear-gradient(135deg, #6366F1, #3B82F6)',
+                  color: '#fff',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                }}
+              >
+                {activeTab === 'cutout_pro_keys' ? <Wand2 size={22} /> : <Sparkles size={22} />}
+              </span>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: 'var(--text-primary)' }}>
+                  {activeTab === 'cutout_pro_keys'
+                    ? 'Cutout.pro AI Keys Pool (Passport Studio, AI Suits & Photo Enhancer HD)'
+                    : 'Remove.bg API Keys Pool (Background Cutout & Signatures)'}
+                </h3>
+                <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: 'var(--text-muted)' }}>
+                  {activeTab === 'cutout_pro_keys'
+                    ? 'គណនី Cutout.pro នីមួយៗផ្តល់ជូន 5 Credits ពេញលេញឥតគិតថ្លៃសម្រាប់បំពាក់អាវធំ, ធ្វើរូប Passport និងទាញយករូបថតឱ្យច្បាស់ HD។'
+                    : 'គណនី Remove.bg នីមួយៗផ្តល់ជូន 50 Free Previews / ខែ ដោយប្រព័ន្ធនឹង Auto Failover ទៅ Key បន្ទាប់ពេលអស់ Credit។'}
+                </p>
+              </div>
+            </div>
+
+            <a
+              href={activeTab === 'cutout_pro_keys' ? 'https://www.cutout.pro/user/api-key' : 'https://www.remove.bg/dashboard#api-key'}
+              target="_blank"
+              rel="noreferrer"
+              className="btn btn-secondary btn-sm"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', borderRadius: '10px', padding: '7px 14px' }}
+            >
+              <span>{activeTab === 'cutout_pro_keys' ? 'យក API Key ពី Cutout.pro' : 'យក API Key ពី Remove.bg'}</span>
+              <ExternalLink size={13} />
+            </a>
+          </div>
+
           {/* STAT CARDS */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
             <StatCard
@@ -907,13 +966,13 @@ export const TokensPage: React.FC = () => {
               icon={<Layers size={22} color="var(--primary)" />}
             />
             <StatCard
-              title="Free Calls នៅសល់ / ខែ"
+              title={activeTab === 'cutout_pro_keys' ? 'Free Credits នៅសល់' : 'Free Calls នៅសល់ / ខែ'}
               value={`${apiKeyStats.total_free_calls}`}
-              subtitle="Reset ជារៀងរាល់ខែ"
+              subtitle={activeTab === 'cutout_pro_keys' ? '5 Credits / គណនី' : 'Reset ជារៀងរាល់ខែ'}
               icon={<Wand2 size={22} color="#10B981" />}
             />
             <StatCard
-              title="Full-Res Credits"
+              title={activeTab === 'cutout_pro_keys' ? 'HD Photo Credits' : 'Full-Res Credits'}
               value={`${apiKeyStats.total_credits}`}
               subtitle="កាត់រូបច្បាស់ High-Res"
               icon={<Sparkles size={22} color="#F59E0B" />}
@@ -976,11 +1035,11 @@ export const TokensPage: React.FC = () => {
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '8px',
-                  background: 'linear-gradient(135deg, #6366F1, #8B5CF6)',
+                  background: activeTab === 'cutout_pro_keys' ? 'linear-gradient(135deg, #EC4899, #A855F7)' : 'linear-gradient(135deg, #6366F1, #8B5CF6)',
                 }}
               >
                 <Plus size={16} />
-                <span>+ បន្ថែម API Key ថ្មី</span>
+                <span>+ បន្ថែម {activeTab === 'cutout_pro_keys' ? 'Cutout.pro' : 'Remove.bg'} Key ថ្មី</span>
               </button>
             </div>
           </div>
@@ -994,8 +1053,8 @@ export const TokensPage: React.FC = () => {
                     <th style={{ width: '60px', textAlign: 'center' }}>ល.រ</th>
                     <th>ឈ្មោះសម្គាល់ (Label)</th>
                     <th>API Key (Secret)</th>
-                    <th style={{ textAlign: 'center' }}>Free Calls / ខែ</th>
-                    <th style={{ textAlign: 'center' }}>Full-Res Credits</th>
+                    <th style={{ textAlign: 'center' }}>{activeTab === 'cutout_pro_keys' ? 'Free Credits' : 'Free Calls / ខែ'}</th>
+                    <th style={{ textAlign: 'center' }}>{activeTab === 'cutout_pro_keys' ? 'Paid / Total Credits' : 'Full-Res Credits'}</th>
                     <th style={{ textAlign: 'center' }}>ស្ថានភាព (Status)</th>
                     <th style={{ width: '180px', textAlign: 'center' }}>សកម្មភាព (Actions)</th>
                   </tr>
@@ -1031,8 +1090,10 @@ export const TokensPage: React.FC = () => {
                                     width: '28px',
                                     height: '28px',
                                     borderRadius: '8px',
-                                    background: k.is_active ? 'rgba(99, 102, 241, 0.15)' : 'rgba(148, 163, 184, 0.15)',
-                                    color: k.is_active ? 'var(--primary)' : 'var(--text-muted)',
+                                    background: k.is_active
+                                      ? activeTab === 'cutout_pro_keys' ? 'rgba(236, 72, 153, 0.15)' : 'rgba(99, 102, 241, 0.15)'
+                                      : 'rgba(148, 163, 184, 0.15)',
+                                    color: k.is_active ? (activeTab === 'cutout_pro_keys' ? '#EC4899' : 'var(--primary)') : 'var(--text-muted)',
                                     display: 'inline-flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
@@ -1078,11 +1139,11 @@ export const TokensPage: React.FC = () => {
                                   borderRadius: '20px',
                                   fontSize: '12px',
                                   fontWeight: 700,
-                                  background: k.free_calls > 10 ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
-                                  color: k.free_calls > 10 ? '#10B981' : '#EF4444',
+                                  background: k.free_calls > 0 ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
+                                  color: k.free_calls > 0 ? '#10B981' : '#EF4444',
                                 }}
                               >
-                                {k.free_calls} / 50
+                                {k.free_calls} {activeTab === 'cutout_pro_keys' ? 'Credits' : '/ 50'}
                               </span>
                             </td>
                             <td style={{ textAlign: 'center' }}>
@@ -1184,7 +1245,7 @@ export const TokensPage: React.FC = () => {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <span
                       style={{
-                        background: 'linear-gradient(135deg, #6366F1, #8B5CF6)',
+                        background: activeTab === 'cutout_pro_keys' ? 'linear-gradient(135deg, #EC4899, #A855F7)' : 'linear-gradient(135deg, #6366F1, #8B5CF6)',
                         color: '#fff',
                         width: '34px',
                         height: '34px',
@@ -1197,7 +1258,7 @@ export const TokensPage: React.FC = () => {
                       <Plus size={18} />
                     </span>
                     <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: 'var(--text-primary)' }}>
-                      បន្ថែម Remove.bg API Key ថ្មី
+                      បន្ថែម {activeTab === 'cutout_pro_keys' ? 'Cutout.pro' : 'Remove.bg'} API Key ថ្មី
                     </h3>
                   </div>
                   <button
@@ -1215,7 +1276,7 @@ export const TokensPage: React.FC = () => {
                     <input
                       type="text"
                       className="form-input"
-                      placeholder="ឧ. Account 07 - HR Admin"
+                      placeholder={`ឧ. ${activeTab === 'cutout_pro_keys' ? 'Cutout Key 01' : 'Remove.bg Key 07'}`}
                       value={newKeyLabel}
                       onChange={(e) => setNewKeyLabel(e.target.value)}
                     />
