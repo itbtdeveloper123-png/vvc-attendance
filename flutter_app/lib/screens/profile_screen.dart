@@ -18,6 +18,7 @@ import 'login_screen.dart';
 import 'face_setup_screen.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../services/face_recognizer_service.dart';
+import '../services/cutout_pro_service.dart';
 import '../services/remove_bg_service.dart';
 
 import '../widgets/khmer_lunar_calendar_card.dart';
@@ -1243,8 +1244,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Uint8List bytes = await pickedFile.readAsBytes();
 
         if (choice == 'ai_remove_bg') {
-          final rmbgService = RemoveBgService();
-          final cutoutBytes = await rmbgService.removeBackgroundBytes(bytes, bgColor: 'transparent', size: 'preview');
+          Uint8List? cutoutBytes;
+          try {
+            final rmbgService = RemoveBgService();
+            cutoutBytes = await rmbgService.removeBackgroundBytes(bytes, bgColor: 'transparent', size: 'preview');
+          } catch (_) {}
+
+          if (cutoutBytes == null || cutoutBytes.isEmpty) {
+            try {
+              final cutoutService = CutoutProService();
+              cutoutBytes = await cutoutService.removeBackgroundBytes(bytes);
+            } catch (_) {}
+          }
+
           if (cutoutBytes != null && cutoutBytes.isNotEmpty) {
             bytes = cutoutBytes;
           }

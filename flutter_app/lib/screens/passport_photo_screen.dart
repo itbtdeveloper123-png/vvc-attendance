@@ -312,26 +312,63 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
     }
   }
 
-  /// Cutout foreground using Remove.bg AI (with automatic failover across 10-key pool)
+  /// Cutout foreground with Multi-Engine Fallback: Remove.bg -> Cutout.pro -> ML Kit On-Device
   Future<void> _processAiCloudRemoveBgCutout({bool showToast = false}) async {
     if (_imagePath == null) return;
 
     setState(() {
       _isProcessing = true;
-      _statusText = 'កំពុងកាត់ Background ដោយ AI Remove.bg HD...';
+      _statusText = 'កំពុងកាត់ Background ដោយ AI (Remove.bg / Cutout.pro)...';
     });
 
     try {
-      final rmbgService = RemoveBgService();
+      final imageFile = File(_imagePath!);
+      final imageBytes = await imageFile.readAsBytes();
+      Uint8List? resultBytes;
+      String engineUsed = 'Remove.bg';
 
-      final processedFile = await rmbgService.removeBackgroundFile(
-        File(_imagePath!),
-        bgColor: null, // Transparent cutout so we can swap background colors with 0ms delay
-        size: 'preview',
-      );
+      // 1. Try Remove.bg Pool
+      try {
+        final rmbgService = RemoveBgService();
+        resultBytes = await rmbgService.removeBackgroundBytes(imageBytes, size: 'preview');
+      } catch (e) {
+        debugPrint('Remove.bg error in studio: $e');
+      }
 
-      if (processedFile != null && mounted) {
-        _cutoutForegroundBytes = await processedFile.readAsBytes();
+      // 2. Fallback to Cutout.pro Pool
+      if (resultBytes == null || resultBytes.isEmpty) {
+        try {
+          setState(() {
+            _statusText = 'កំពុងប្តូរទៅប្រើ AI Cutout.pro...';
+          });
+          final cutoutService = CutoutProService();
+          resultBytes = await cutoutService.removeBackgroundBytes(imageBytes);
+          if (resultBytes != null && resultBytes.isNotEmpty) {
+            engineUsed = 'Cutout.pro';
+          }
+        } catch (e) {
+          debugPrint('Cutout.pro fallback error in studio: $e');
+        }
+      }
+
+      // 3. Fallback to On-Device Google ML Kit Segmentation
+      if (resultBytes == null || resultBytes.isEmpty) {
+        try {
+          setState(() {
+            _statusText = 'កំពុងកាត់ Background ដោយ ML Kit On-Device...';
+          });
+          final segResult = await _segmentationService.segmentSubject(_imagePath!);
+          if (segResult != null && segResult.foregroundBitmap != null) {
+            resultBytes = segResult.foregroundBitmap;
+            engineUsed = 'ML Kit (Offline)';
+          }
+        } catch (e) {
+          debugPrint('ML Kit fallback error in studio: $e');
+        }
+      }
+
+      if (resultBytes != null && resultBytes.isNotEmpty && mounted) {
+        _cutoutForegroundBytes = resultBytes;
         _segmentationService.clearCache();
         await _renderCompositeFromCutout();
 
@@ -342,9 +379,11 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
                 children: [
                   const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
                   const SizedBox(width: 8),
-                  Text(
-                    'បានកាត់ Background ដោយ AI Remove.bg ជោគជ័យ!',
-                    style: GoogleFonts.kantumruyPro(fontSize: 13, fontWeight: FontWeight.bold),
+                  Expanded(
+                    child: Text(
+                      'បានកាត់ Background ដោយ AI $engineUsed ជោគជ័យ!',
+                      style: GoogleFonts.kantumruyPro(fontSize: 13, fontWeight: FontWeight.bold),
+                    ),
                   ),
                 ],
               ),
@@ -362,8 +401,8 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
           });
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('មិនអាចកាត់ Background បានទេ សូមព្យាយាមម្តងទៀត', style: GoogleFonts.kantumruyPro()),
-              backgroundColor: Colors.red,
+              content: Text('មិនអាចកាត់ Background បានទេ សូមពិនិត្យ Internet ឬ API Keys', style: GoogleFonts.kantumruyPro()),
+              backgroundColor: Colors.orange,
             ),
           );
         }

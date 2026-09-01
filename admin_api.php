@@ -377,7 +377,7 @@ function ensure_api_keys_table(): void {
         INDEX idx_active (is_active)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
-    // Pre-seed default 6 keys if table is empty
+    // Pre-seed default Remove.bg keys if table is empty
     $count = dbQuery("SELECT COUNT(*) as c FROM admin_api_keys WHERE service_name = 'remove_bg'");
     if (empty($count) || (int)($count[0]['c'] ?? 0) === 0) {
         $defaultKeys = [
@@ -389,10 +389,16 @@ function ensure_api_keys_table(): void {
             ['Key 06 (Account 6)', '63PW2Mr8UXx2tMyHY8VT8XQv', 50, 1, 6],
         ];
         foreach ($defaultKeys as $k) {
-            dbQuery("INSERT IGNORE INTO admin_api_keys (key_label, api_key, free_calls, credits, priority, last_checked_at) VALUES (?, ?, ?, ?, ?, NOW())", [
+            dbQuery("INSERT IGNORE INTO admin_api_keys (service_name, key_label, api_key, free_calls, credits, priority, last_checked_at) VALUES ('remove_bg', ?, ?, ?, ?, ?, NOW())", [
                 $k[0], $k[1], $k[2], $k[3], $k[4]
             ]);
         }
+    }
+
+    // Pre-seed Cutout.pro test key
+    $countCutout = dbQuery("SELECT COUNT(*) as c FROM admin_api_keys WHERE service_name = 'cutout_pro'");
+    if (empty($countCutout) || (int)($countCutout[0]['c'] ?? 0) === 0) {
+        dbQuery("INSERT IGNORE INTO admin_api_keys (service_name, key_label, api_key, free_calls, credits, priority, is_active, last_status, last_checked_at) VALUES ('cutout_pro', 'Key 01 (Cutout.pro Official)', 'd622632ed02e418199c8f41aef263541', 5, 5, 1, 1, 'active', NOW())");
     }
 }
 

@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:image/image.dart' as img;
 import 'dart:typed_data';
 import '../services/api_service.dart';
+import '../services/cutout_pro_service.dart';
 import '../services/remove_bg_service.dart';
 import '../utils/app_theme.dart';
 
@@ -336,10 +337,20 @@ class _DeptHeadSelectorState extends State<DeptHeadSelector> {
         return aiCutout;
       }
     } catch (e) {
-      debugPrint("AI Remove.bg signature cutout error, falling back to local filter: $e");
+      debugPrint("AI Remove.bg signature cutout error, falling back to Cutout.pro: $e");
     }
 
-    // 2. Fallback to Local Luminance Filtering if offline or API pool unavailable
+    // 2. Second attempt with Cutout.pro
+    try {
+      final cutoutResult = await CutoutProService().removeBackgroundBytes(imageBytes);
+      if (cutoutResult != null && cutoutResult.isNotEmpty) {
+        return cutoutResult;
+      }
+    } catch (e) {
+      debugPrint("Cutout.pro signature cutout error, falling back to local filter: $e");
+    }
+
+    // 3. Fallback to Local Luminance Filtering if offline or API pool unavailable
     try {
       final img.Image? originalImage = img.decodeImage(imageBytes);
       if (originalImage == null) return null;
