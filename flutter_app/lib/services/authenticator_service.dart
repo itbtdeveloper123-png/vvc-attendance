@@ -293,4 +293,34 @@ class AuthenticatorService {
       return true; // Saved locally
     }
   }
+
+  /// Approve QR Code Admin Panel Login via Mobile Authenticator
+  Future<Map<String, dynamic>> approveQrLogin({
+    required String qrToken,
+    required String adminId,
+    required String totpCode,
+    String? deviceInfo,
+  }) async {
+    try {
+      final url = Uri.parse(ApiService.baseUrl.replaceAll('api.php', 'admin_api.php'));
+      final res = await http.post(url, body: {
+        'action': 'approve_qr_login',
+        'qr_token': qrToken,
+        'admin_id': adminId,
+        'totp_code': totpCode,
+        'device_info': deviceInfo ?? 'VVC Mobile App Authenticator',
+      }).timeout(const Duration(seconds: 8));
+
+      if (res.statusCode == 200) {
+        final decoded = jsonDecode(res.body);
+        if (decoded is Map<String, dynamic>) {
+          return decoded;
+        }
+      }
+      return {'success': false, 'message': 'HTTP ${res.statusCode}: បរាជ័យក្នុងការផ្ទៀងផ្ទាត់'};
+    } catch (e) {
+      debugPrint('Failed to approve QR login on server: $e');
+      return {'success': false, 'message': 'មិនអាចតភ្ជាប់ទៅកាន់ Server បានឡើយ ($e)'};
+    }
+  }
 }

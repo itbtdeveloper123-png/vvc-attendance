@@ -434,6 +434,34 @@ export const adminApi = {
     return res.data;
   },
 
+  createQrLoginSession: async (adminId: string, tempToken?: string) => {
+    const params = new URLSearchParams();
+    params.append('action', 'create_qr_login_session');
+    params.append('admin_id', adminId);
+    if (tempToken) params.append('temp_token', tempToken);
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  checkQrLoginStatus: async (qrToken: string) => {
+    const params = new URLSearchParams();
+    params.append('action', 'check_qr_login_status');
+    params.append('qr_token', qrToken);
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  approveQrLogin: async (qrToken: string, adminId: string, totpCode?: string, deviceInfo?: string) => {
+    const params = new URLSearchParams();
+    params.append('action', 'approve_qr_login');
+    params.append('qr_token', qrToken);
+    params.append('admin_id', adminId);
+    if (totpCode) params.append('totp_code', totpCode);
+    if (deviceInfo) params.append('device_info', deviceInfo);
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
   getProfile: async () => {
     const params = new URLSearchParams();
     params.append('action', 'get_admin_profile');

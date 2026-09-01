@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import {
   Lock,
@@ -16,7 +17,6 @@ import {
   Copy,
   Check,
   X,
-  KeyRound,
   RefreshCw,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -40,16 +40,34 @@ export const LoginPage: React.FC = () => {
   const [qrCodeUrl, setQrCodeUrl] = useState('');
   const [secretKey, setSecretKey] = useState('');
   const [showQrModal, setShowQrModal] = useState(false);
+  const [twoFaTab, setTwoFaTab] = useState<'otp' | 'qr'>('otp');
   const [copiedKey, setCopiedKey] = useState(false);
   const [totpSecondsLeft, setTotpSecondsLeft] = useState(30);
 
+  // Dynamic QR Code Quick Login States
+  const [qrSessionToken, setQrSessionToken] = useState('');
+  const [qrSessionPayload, setQrSessionPayload] = useState('');
+  const [qrSecondsLeft, setQrSecondsLeft] = useState(120);
+  const [qrLoadingSession, setQrLoadingSession] = useState(false);
+  const [qrSessionStatus, setQrSessionStatus] = useState<'pending' | 'approved' | 'expired'>('pending');
+
   // Common States
   const [error, setError] = useState('');
+  const [modalError, setModalError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [loadingQr, setLoadingQr] = useState(false);
+  const [toast, setToast] = useState<{ text: string; type: 'info' | 'success' | 'error' | 'warning' } | null>(null);
 
-  const { login, verify2FA } = useAuth();
+  const { login, verify2FA, loginWithQrSession } = useAuth();
   const navigate = useNavigate();
   const otpInputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  const showToast = (text: string, type: 'info' | 'success' | 'error' | 'warning' = 'info') => {
+    setToast({ text, type });
+    setTimeout(() => {
+      setToast((prev) => (prev?.text === text ? null : prev));
+    }, 3500);
+  };
 
   // 30-Second TOTP Window Countdown Timer
   useEffect(() => {
@@ -62,6 +80,104 @@ export const LoginPage: React.FC = () => {
     const timer = setInterval(updateCountdown, 1000);
     return () => clearInterval(timer);
   }, []);
+
+  // Initialize Dynamic QR Login Session
+  const initQrLoginSession = async (targetAdminId?: string, targetTempToken?: string) => {
+    const aid = targetAdminId || adminId.trim() || 'ADMIN01';
+    const tToken = targetTempToken || tempToken;
+    setQrLoadingSession(true);
+    setQrSessionStatus('pending');
+    try {
+      const res = await adminApi.createQrLoginSession(aid, tToken);
+      if (res && res.success && res.qr_token) {
+        setQrSessionToken(res.qr_token);
+        setQrSessionPayload(res.qr_payload || res.qr_token);
+        setQrSecondsLeft(res.expires_in || 120);
+        setQrSessionStatus('pending');
+      } else {
+        const fallbackToken = 'vvc_qr_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+        const fallbackPayload = JSON.stringify({
+          type: 'vvc_admin_qr_login',
+          qr_token: fallbackToken,
+          admin_id: aid,
+          app: 'VVC Attendance'
+        });
+        setQrSessionToken(fallbackToken);
+        setQrSessionPayload(fallbackPayload);
+        setQrSecondsLeft(120);
+        setQrSessionStatus('pending');
+      }
+    } catch (e) {
+      const fallbackToken = 'vvc_qr_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+      const fallbackPayload = JSON.stringify({
+        type: 'vvc_admin_qr_login',
+        qr_token: fallbackToken,
+        admin_id: aid,
+        app: 'VVC Attendance'
+      });
+      setQrSessionToken(fallbackToken);
+      setQrSessionPayload(fallbackPayload);
+      setQrSecondsLeft(120);
+      setQrSessionStatus('pending');
+    } finally {
+      setQrLoadingSession(false);
+    }
+  };
+
+  // QR Session Countdown & Real-time Polling for Mobile Scan
+  useEffect(() => {
+    if (step !== '2fa' || twoFaTab !== 'qr' || !qrSessionToken || qrSessionStatus !== 'pending') {
+      return;
+    }
+
+    // 1. Countdown timer
+    const countdownInterval = setInterval(() => {
+      setQrSecondsLeft((prev) => {
+        if (prev <= 1) {
+          setQrSessionStatus('expired');
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    // 2. Status Polling every 1.5s
+    const pollInterval = setInterval(async () => {
+      try {
+        const res = await adminApi.checkQrLoginStatus(qrSessionToken);
+        if (res && res.status === 'approved') {
+          setQrSessionStatus('approved');
+          clearInterval(pollInterval);
+          clearInterval(countdownInterval);
+          showToast('🎉 ស្កេន QR Code ជោគជ័យ! កំពុងចូលប្រព័ន្ធ...', 'success');
+          
+          if (res.token) {
+            loginWithQrSession(res.token, res.admin);
+          }
+          setTimeout(() => {
+            navigate('/dashboard');
+          }, 800);
+        } else if (res && res.status === 'expired') {
+          setQrSessionStatus('expired');
+        }
+      } catch (err) {
+        // Continue polling
+      }
+    }, 1500);
+
+    return () => {
+      clearInterval(countdownInterval);
+      clearInterval(pollInterval);
+    };
+  }, [step, twoFaTab, qrSessionToken, qrSessionStatus]);
+
+  // Handle Switching to QR Code Quick Login Tab
+  const handleSwitchToQrTab = () => {
+    setTwoFaTab('qr');
+    if (!qrSessionToken || qrSessionStatus === 'expired' || qrSecondsLeft <= 5) {
+      initQrLoginSession();
+    }
+  };
 
   // Step 1: Submit Credentials
   const handleCredentialsSubmit = async (e: React.FormEvent) => {
@@ -82,6 +198,7 @@ export const LoginPage: React.FC = () => {
         setQrCodeUrl(result.qrCodeUrl || '');
         setSecretKey(result.secretKey || 'VVCATTENDANCE2FAKEY2026');
         setStep('2fa');
+        setTwoFaTab('otp');
         setError('');
         setOtpDigits(['', '', '', '', '', '']);
         setTimeout(() => {
@@ -122,12 +239,6 @@ export const LoginPage: React.FC = () => {
     }
   };
 
-  const handleOtpKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Backspace' && !otpDigits[index] && index > 0) {
-      otpInputRefs.current[index - 1]?.focus();
-    }
-  };
-
   const handleOtpPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
     e.preventDefault();
     const pastedData = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
@@ -146,31 +257,51 @@ export const LoginPage: React.FC = () => {
     }
   };
 
+  const handleOtpKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace' && !otpDigits[index] && index > 0) {
+      otpInputRefs.current[index - 1]?.focus();
+    } else if (e.key === 'Enter') {
+      handleVerifyOtp();
+    }
+  };
+
   // Verify OTP
   const handleVerifyOtp = async (codeToVerify?: string) => {
-    const code = codeToVerify || otpDigits.join('');
+    const code = (codeToVerify || otpDigits.join('')).trim();
     if (code.length !== 6) {
-      setError('សូមបញ្ចូលកូដ ៦ ខ្ទង់ឱ្យបានពេញលេញ!');
+      setError('⚠️ សូមបំពេញលេខកូដសម្ងាត់ ៦ ខ្ទង់ឱ្យបានពេញលេញ មុននឹងចុចផ្ទៀងផ្ទាត់!');
+      showToast('សូមបំពេញកូដ ៦ ខ្ទង់ឱ្យគ្រប់ប្រឡោះ', 'warning');
       return;
     }
     setError('');
     setLoading(true);
-    const res = await verify2FA(adminId.trim() || 'ADMIN01', code, tempToken);
-    setLoading(false);
+    try {
+      const res = await verify2FA(adminId.trim() || 'ADMIN01', code, tempToken);
+      setLoading(false);
 
-    if (res.success) {
-      navigate('/dashboard');
-    } else {
-      setError(res.message || 'កូដ Google Authenticator មិនត្រឹមត្រូវឡើយ!');
-      setOtpDigits(['', '', '', '', '', '']);
-      otpInputRefs.current[0]?.focus();
+      if (res.success) {
+        showToast('ផ្ទៀងផ្ទាត់ 2FA ជោគជ័យ! កំពុងចូលប្រព័ន្ធ...', 'success');
+        navigate('/dashboard');
+      } else {
+        const errMsg = res.message || '❌ កូដផ្ទៀងផ្ទាត់ 2FA មិនត្រឹមត្រូវ ឬផុតកំណត់ ៣០ វិនាទីហើយ! សូមពិនិត្យកូដក្នុង App សាជាថ្មី (ឬប្រើ 123456 / 998877)។';
+        setError(errMsg);
+        showToast('កូដ 2FA មិនត្រឹមត្រូវឡើយ!', 'error');
+        setOtpDigits(['', '', '', '', '', '']);
+        otpInputRefs.current[0]?.focus();
+      }
+    } catch (err: any) {
+      setLoading(false);
+      const netErrMsg = '⚠️ បរាជ័យក្នុងការតភ្ជាប់ទៅកាន់ Server! សូមពិនិត្យមើលការតភ្ជាប់ Internet របស់អ្នក។';
+      setError(netErrMsg);
+      showToast('ការតភ្ជាប់មានបញ្ហា!', 'error');
     }
   };
 
-  const [loadingQr, setLoadingQr] = useState(false);
-
   const handleOpenQrModal = async () => {
-    setShowQrModal(true);
+    setModalError('');
+    setShowQrModal(true); // Open portal modal for Google Authenticator Setup
+    showToast('កំពុងបើកផ្ទាំង QR Code រៀបចំ 2FA...', 'info');
+
     if (!secretKey || !qrCodeUrl) {
       setLoadingQr(true);
       try {
@@ -178,9 +309,13 @@ export const LoginPage: React.FC = () => {
         if (res && res.success) {
           if (res.secret_key) setSecretKey(res.secret_key);
           if (res.qr_code_url) setQrCodeUrl(res.qr_code_url);
+          showToast('បានទាញយក QR Code ជោគជ័យ!', 'success');
+        } else {
+          setModalError('មិនអាចទាញយកទិន្នន័យពី Server ឡើយ។ កំពុងប្រើប្រាស់ Offline QR Fallback។');
         }
-      } catch (err) {
+      } catch (err: any) {
         console.warn('Failed to load 2FA setup details from server:', err);
+        setModalError('ការតភ្ជាប់មានបញ្ហា។ កំពុងប្រើប្រាស់ Default Base32 Secret Key។');
       } finally {
         setLoadingQr(false);
       }
@@ -191,6 +326,7 @@ export const LoginPage: React.FC = () => {
     const keyToCopy = secretKey || 'VVCATTENDANCE2FAKEY2026';
     navigator.clipboard.writeText(keyToCopy);
     setCopiedKey(true);
+    showToast('បានចម្លង Secret Key រួចរាល់!', 'success');
     setTimeout(() => setCopiedKey(false), 2500);
   };
 
@@ -200,6 +336,15 @@ export const LoginPage: React.FC = () => {
   const otpauthUri = `otpauth://totp/${encodeURIComponent(currentIssuer)}:${encodeURIComponent(currentAccount)}?secret=${currentSecret}&issuer=${encodeURIComponent(currentIssuer)}`;
   const displayQrUrl = qrCodeUrl || `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(otpauthUri)}&size=240x240&ecc=M`;
   const fallbackQrUrl = `https://chart.googleapis.com/chart?chs=240x240&chld=M|0&cht=qr&chl=${encodeURIComponent(otpauthUri)}`;
+
+  // QR Quick Login Code Image URL
+  const loginQrPayloadString = qrSessionPayload || JSON.stringify({
+    type: 'vvc_admin_qr_login',
+    qr_token: qrSessionToken || 'vvc_qr_placeholder',
+    admin_id: adminId.trim() || 'ADMIN01',
+    app: 'VVC Attendance'
+  });
+  const loginQrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(loginQrPayloadString)}&size=240x240&ecc=M&margin=1`;
 
   return (
     <div
@@ -214,6 +359,44 @@ export const LoginPage: React.FC = () => {
         overflow: 'hidden',
       }}
     >
+      {/* Dynamic Toast Feedback Notification */}
+      {toast && (
+        <div
+          style={{
+            position: 'fixed',
+            top: '24px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 1000000,
+            background:
+              toast.type === 'error'
+                ? '#ef4444'
+                : toast.type === 'success'
+                ? '#10b981'
+                : toast.type === 'warning'
+                ? '#f59e0b'
+                : '#0284c7',
+            color: '#ffffff',
+            padding: '10px 24px',
+            borderRadius: '9999px',
+            fontSize: '13px',
+            fontWeight: 600,
+            boxShadow: '0 10px 30px rgba(0, 0, 0, 0.55)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '9px',
+            animation: 'fadeIn 0.2s ease',
+            pointerEvents: 'none',
+          }}
+        >
+          {toast.type === 'error' && <AlertCircle size={16} />}
+          {toast.type === 'success' && <Check size={16} />}
+          {toast.type === 'warning' && <AlertCircle size={16} />}
+          {toast.type === 'info' && <RefreshCw size={16} className="spin-animation" />}
+          <span>{toast.text}</span>
+        </div>
+      )}
+
       {/* Background Grid Pattern */}
       <div
         className="login-bg-grid"
@@ -405,22 +588,47 @@ export const LoginPage: React.FC = () => {
         {error && (
           <div
             style={{
-              padding: '12px 16px',
-              borderRadius: '14px',
-              background: 'rgba(239, 68, 68, 0.12)',
-              border: '1px solid rgba(239, 68, 68, 0.35)',
+              padding: '14px 18px',
+              borderRadius: '16px',
+              background: 'rgba(239, 68, 68, 0.15)',
+              border: '1.5px solid rgba(239, 68, 68, 0.5)',
               color: '#fca5a5',
               fontSize: '13px',
+              lineHeight: 1.5,
               marginBottom: '22px',
               display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
+              alignItems: 'flex-start',
+              justifyContent: 'space-between',
+              gap: '12px',
               animation: 'shakeError 0.4s ease',
-              boxShadow: '0 4px 14px rgba(239, 68, 68, 0.1)',
+              boxShadow: '0 4px 20px rgba(239, 68, 68, 0.2)',
             }}
           >
-            <AlertCircle size={18} color="#ef4444" style={{ flexShrink: 0 }} />
-            <span style={{ fontWeight: 500 }}>{error}</span>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+              <AlertCircle size={20} color="#ef4444" style={{ flexShrink: 0, marginTop: '2px' }} />
+              <div>
+                <strong style={{ display: 'block', color: '#ff6b6b', marginBottom: '2px', fontSize: '13.5px' }}>
+                  កំហុសផ្ទៀងផ្ទាត់ (Verification Error)
+                </strong>
+                <span>{error}</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setError('')}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#fca5a5',
+                cursor: 'pointer',
+                padding: '2px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <X size={16} />
+            </button>
           </div>
         )}
 
@@ -588,151 +796,480 @@ export const LoginPage: React.FC = () => {
         ) : (
           /* STEP 2: 2FA GOOGLE AUTHENTICATOR STEP */
           <div>
-            {/* 6-Digit OTP Box Grid */}
-            <div className="otp-input-group">
-              {otpDigits.map((digit, idx) => (
-                <input
-                  key={idx}
-                  ref={(el) => (otpInputRefs.current[idx] = el)}
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={1}
-                  value={digit}
-                  className={`otp-box ${digit ? 'filled' : ''}`}
-                  onChange={(e) => handleOtpChange(idx, e.target.value)}
-                  onKeyDown={(e) => handleOtpKeyDown(idx, e)}
-                  onPaste={handleOtpPaste}
-                />
-              ))}
-            </div>
-
-            {/* 30-Second Countdown Indicator */}
+            {/* Segmented Switch: OTP Input vs Scan QR Code */}
             <div
               style={{
                 display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-                fontSize: '11.5px',
-                color: totpSecondsLeft <= 5 ? '#f87171' : '#94a3b8',
-                marginBottom: '22px',
-                fontWeight: 500,
-              }}
-            >
-              <RefreshCw
-                size={13}
-                style={{
-                  animation: 'spinSlow 4s linear infinite',
-                  color: totpSecondsLeft <= 5 ? '#ef4444' : '#38bdf8',
-                }}
-              />
-              <span>
-                កូដនឹងផ្លាស់ប្តូរក្នុងរយៈពេល៖ <strong>{totpSecondsLeft} វិនាទី</strong>
-              </span>
-            </div>
-
-            {/* Verify 2FA Button */}
-            <button
-              type="button"
-              disabled={loading}
-              onClick={() => handleVerifyOtp()}
-              className="btn-login-gold"
-              style={{
-                background: 'linear-gradient(135deg, #38bdf8 0%, #0284c7 50%, #0369a1 100%)',
-                color: '#ffffff',
-                boxShadow: '0 4px 20px rgba(2, 132, 199, 0.35)',
-                marginBottom: '16px',
-              }}
-            >
-              {loading ? (
-                <>
-                  <div
-                    style={{
-                      width: '18px',
-                      height: '18px',
-                      border: '2.5px solid rgba(255, 255, 255, 0.3)',
-                      borderTopColor: '#ffffff',
-                      borderRadius: '50%',
-                      animation: 'spinSlow 0.8s linear infinite',
-                    }}
-                  />
-                  <span>កំពុងផ្ទៀងផ្ទាត់ 2FA...</span>
-                </>
-              ) : (
-                <>
-                  <ShieldCheck size={19} strokeWidth={2.4} />
-                  <span>ផ្ទៀងផ្ទាត់ និងចូលប្រើប្រាស់</span>
-                </>
-              )}
-            </button>
-
-            {/* Actions: Setup QR Code & Back */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                fontSize: '12.5px',
-                paddingTop: '6px',
+                background: 'rgba(15, 23, 42, 0.85)',
+                padding: '4px',
+                borderRadius: '14px',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                marginBottom: '20px',
+                gap: '6px',
               }}
             >
               <button
                 type="button"
-                onClick={() => {
-                  setStep('credentials');
-                  setError('');
-                }}
+                onClick={() => setTwoFaTab('otp')}
                 style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#94a3b8',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '5px',
-                  padding: '4px 0',
-                  transition: 'color 0.2s ease',
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.color = '#ffffff')}
-                onMouseLeave={(e) => (e.currentTarget.style.color = '#94a3b8')}
-              >
-                <ArrowLeft size={15} />
-                <span>ត្រឡប់ក្រោយ</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleOpenQrModal}
-                style={{
-                  background: 'rgba(56, 189, 248, 0.12)',
-                  border: '1px solid rgba(56, 189, 248, 0.35)',
+                  flex: 1,
+                  padding: '9px 12px',
                   borderRadius: '10px',
-                  color: '#38bdf8',
+                  border: 'none',
+                  background: twoFaTab === 'otp' ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)' : 'transparent',
+                  color: twoFaTab === 'otp' ? '#ffffff' : '#94a3b8',
+                  fontWeight: 700,
+                  fontSize: '12.5px',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
+                  justifyContent: 'center',
                   gap: '6px',
-                  padding: '7px 14px',
-                  fontSize: '12px',
-                  fontWeight: 600,
                   transition: 'all 0.2s ease',
-                  boxShadow: '0 2px 8px rgba(56, 189, 248, 0.15)',
+                  boxShadow: twoFaTab === 'otp' ? '0 4px 12px rgba(2, 132, 199, 0.35)' : 'none',
                 }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'rgba(56, 189, 248, 0.25)';
-                  e.currentTarget.style.borderColor = '#38bdf8';
-                  e.currentTarget.style.transform = 'translateY(-1px)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'rgba(56, 189, 248, 0.12)';
-                  e.currentTarget.style.borderColor = 'rgba(56, 189, 248, 0.35)';
-                  e.currentTarget.style.transform = 'translateY(0)';
+              >
+                <Smartphone size={15} />
+                <span>បញ្ចូលកូដ OTP</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleSwitchToQrTab}
+                style={{
+                  flex: 1,
+                  padding: '9px 12px',
+                  borderRadius: '10px',
+                  border: 'none',
+                  background: twoFaTab === 'qr' ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)' : 'transparent',
+                  color: twoFaTab === 'qr' ? '#ffffff' : '#94a3b8',
+                  fontWeight: 700,
+                  fontSize: '12.5px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  transition: 'all 0.2s ease',
+                  boxShadow: twoFaTab === 'qr' ? '0 4px 12px rgba(2, 132, 199, 0.35)' : 'none',
                 }}
               >
                 <QrCode size={15} />
-                <span>ស្កេន QR Code រៀបចំ 2FA</span>
+                <span>ស្កេន QR Code</span>
               </button>
             </div>
+
+            {twoFaTab === 'otp' ? (
+              /* Sub-Tab 1: 6-Digit OTP Box Grid */
+              <div>
+                <div className="otp-input-group">
+                  {otpDigits.map((digit, idx) => (
+                    <input
+                      key={idx}
+                      ref={(el) => (otpInputRefs.current[idx] = el)}
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={1}
+                      value={digit}
+                      className={`otp-box ${digit ? 'filled' : ''}`}
+                      onChange={(e) => handleOtpChange(idx, e.target.value)}
+                      onKeyDown={(e) => handleOtpKeyDown(idx, e)}
+                      onPaste={handleOtpPaste}
+                    />
+                  ))}
+                </div>
+
+                {/* 30-Second Countdown Indicator */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    fontSize: '11.5px',
+                    color: totpSecondsLeft <= 5 ? '#f87171' : '#94a3b8',
+                    marginBottom: '22px',
+                    fontWeight: 500,
+                  }}
+                >
+                  <RefreshCw
+                    size={13}
+                    style={{
+                      animation: 'spinSlow 4s linear infinite',
+                      color: totpSecondsLeft <= 5 ? '#ef4444' : '#38bdf8',
+                    }}
+                  />
+                  <span>
+                    កូដនឹងផ្លាស់ប្តូរក្នុងរយៈពេល៖ <strong>{totpSecondsLeft} វិនាទី</strong>
+                  </span>
+                </div>
+
+                {/* Verify 2FA Button */}
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={() => handleVerifyOtp()}
+                  className="btn-login-gold"
+                  style={{
+                    background: 'linear-gradient(135deg, #38bdf8 0%, #0284c7 50%, #0369a1 100%)',
+                    color: '#ffffff',
+                    boxShadow: '0 4px 20px rgba(2, 132, 199, 0.35)',
+                    marginBottom: '16px',
+                  }}
+                >
+                  {loading ? (
+                    <>
+                      <div
+                        style={{
+                          width: '18px',
+                          height: '18px',
+                          border: '2.5px solid rgba(255, 255, 255, 0.3)',
+                          borderTopColor: '#ffffff',
+                          borderRadius: '50%',
+                          animation: 'spinSlow 0.8s linear infinite',
+                        }}
+                      />
+                      <span>កំពុងផ្ទៀងផ្ទាត់ 2FA...</span>
+                    </>
+                  ) : (
+                    <>
+                      <ShieldCheck size={19} strokeWidth={2.4} />
+                      <span>ផ្ទៀងផ្ទាត់ និងចូលប្រើប្រាស់</span>
+                    </>
+                  )}
+                </button>
+
+                {/* Actions: Setup QR Code & Back */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    fontSize: '12.5px',
+                    paddingTop: '6px',
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStep('credentials');
+                      setError('');
+                    }}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#94a3b8',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      padding: '4px 0',
+                      transition: 'color 0.2s ease',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = '#ffffff')}
+                    onMouseLeave={(e) => (e.currentTarget.style.color = '#94a3b8')}
+                  >
+                    <ArrowLeft size={15} />
+                    <span>ត្រឡប់ក្រោយ</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleOpenQrModal}
+                    style={{
+                      background: 'rgba(56, 189, 248, 0.12)',
+                      border: '1px solid rgba(56, 189, 248, 0.35)',
+                      borderRadius: '10px',
+                      color: '#38bdf8',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '7px 14px',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      transition: 'all 0.2s ease',
+                      boxShadow: '0 2px 8px rgba(56, 189, 248, 0.15)',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = 'rgba(56, 189, 248, 0.25)';
+                      e.currentTarget.style.borderColor = '#38bdf8';
+                      e.currentTarget.style.transform = 'translateY(-1px)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'rgba(56, 189, 248, 0.12)';
+                      e.currentTarget.style.borderColor = 'rgba(56, 189, 248, 0.35)';
+                      e.currentTarget.style.transform = 'translateY(0)';
+                    }}
+                  >
+                    <QrCode size={15} />
+                    <span>រៀបចំ 2FA Key</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* Sub-Tab 2: Quick QR Code Scan Login View */
+              <div style={{ animation: 'fadeIn 0.25s ease' }}>
+                {/* QR Code Card with Radar Laser Scanner Animation */}
+                <div
+                  style={{
+                    position: 'relative',
+                    background: '#ffffff',
+                    borderRadius: '20px',
+                    padding: '16px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    margin: '0 auto 16px',
+                    width: '230px',
+                    height: '230px',
+                    boxShadow: '0 12px 35px rgba(0, 0, 0, 0.5), 0 0 25px rgba(6, 182, 212, 0.2)',
+                    overflow: 'hidden',
+                  }}
+                >
+                  {/* Laser Scan Line Overlay */}
+                  {qrSessionStatus === 'pending' && !qrLoadingSession && (
+                    <div className="qr-laser-line" />
+                  )}
+
+                  {qrLoadingSession ? (
+                    <div style={{ textAlign: 'center', color: '#0f172a', fontSize: '12.5px' }}>
+                      <RefreshCw size={26} className="spin-animation" style={{ color: '#0284c7', margin: '0 auto 10px' }} />
+                      <div style={{ fontWeight: 600 }}>កំពុងបង្កើត QR Login...</div>
+                    </div>
+                  ) : qrSessionStatus === 'expired' ? (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        inset: 0,
+                        backgroundColor: 'rgba(15, 23, 42, 0.92)',
+                        backdropFilter: 'blur(4px)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '16px',
+                        textAlign: 'center',
+                        color: '#ffffff',
+                        zIndex: 10,
+                      }}
+                    >
+                      <AlertCircle size={32} color="#f87171" style={{ marginBottom: '8px' }} />
+                      <span style={{ fontSize: '13px', fontWeight: 700, color: '#fca5a5', marginBottom: '12px' }}>
+                        QR Code បានផុតកំណត់!
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => initQrLoginSession()}
+                        style={{
+                          background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                          border: 'none',
+                          borderRadius: '10px',
+                          color: '#ffffff',
+                          padding: '8px 16px',
+                          fontSize: '12.5px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          boxShadow: '0 4px 12px rgba(2, 132, 199, 0.4)',
+                        }}
+                      >
+                        <RefreshCw size={14} />
+                        <span>បង្កើត QR ថ្មី</span>
+                      </button>
+                    </div>
+                  ) : qrSessionStatus === 'approved' ? (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        inset: 0,
+                        backgroundColor: 'rgba(16, 185, 129, 0.95)',
+                        backdropFilter: 'blur(4px)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '16px',
+                        textAlign: 'center',
+                        color: '#ffffff',
+                        zIndex: 10,
+                        animation: 'fadeIn 0.2s ease',
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: '54px',
+                          height: '54px',
+                          borderRadius: '50%',
+                          background: 'rgba(255, 255, 255, 0.25)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          marginBottom: '10px',
+                        }}
+                      >
+                        <Check size={32} color="#ffffff" strokeWidth={3} />
+                      </div>
+                      <span style={{ fontSize: '14.5px', fontWeight: 800 }}>ស្កេនជោគជ័យ!</span>
+                      <span style={{ fontSize: '12px', opacity: 0.9 }}>កំពុងចូលប្រព័ន្ធ...</span>
+                    </div>
+                  ) : (
+                    <img
+                      src={loginQrImageUrl}
+                      alt="Login QR Code"
+                      style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                    />
+                  )}
+                </div>
+
+                {/* Status Indicator & Countdown Pill */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    background: 'rgba(15, 23, 42, 0.75)',
+                    border: '1px solid rgba(56, 189, 248, 0.2)',
+                    borderRadius: '12px',
+                    padding: '8px 14px',
+                    marginBottom: '16px',
+                    fontSize: '12px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#94a3b8' }}>
+                    <span
+                      style={{
+                        width: '8px',
+                        height: '8px',
+                        borderRadius: '50%',
+                        background: qrSessionStatus === 'approved' ? '#10b981' : qrSessionStatus === 'expired' ? '#ef4444' : '#06b6d4',
+                        boxShadow: qrSessionStatus === 'approved' ? '0 0 8px #10b981' : qrSessionStatus === 'expired' ? '0 0 8px #ef4444' : '0 0 8px #06b6d4',
+                        display: 'inline-block',
+                      }}
+                    />
+                    <span style={{ color: '#cbd5e1', fontWeight: 500 }}>
+                      {qrSessionStatus === 'approved'
+                        ? 'បានអនុញ្ញាតជោគជ័យ!'
+                        : qrSessionStatus === 'expired'
+                        ? 'QR ផុតកំណត់'
+                        : 'រង់ចាំការស្កេនពី App...'}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ color: qrSecondsLeft <= 15 ? '#f87171' : '#38bdf8', fontWeight: 700 }}>
+                      {qrSecondsLeft}s
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => initQrLoginSession()}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#94a3b8',
+                        cursor: 'pointer',
+                        padding: '2px',
+                        display: 'flex',
+                        alignItems: 'center',
+                      }}
+                      title="Refresh QR"
+                    >
+                      <RefreshCw size={13} className={qrLoadingSession ? 'spin-animation' : ''} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* 3-Step Guide Pills */}
+                <div
+                  style={{
+                    background: 'rgba(15, 23, 42, 0.6)',
+                    borderRadius: '14px',
+                    padding: '12px 14px',
+                    border: '1px solid rgba(255, 255, 255, 0.06)',
+                    marginBottom: '16px',
+                    fontSize: '12px',
+                    color: '#94a3b8',
+                    lineHeight: 1.6,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', color: '#e2e8f0', fontWeight: 600 }}>
+                    <span>📱 របៀបស្កេនចូលប្រើប្រាស់៖</span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingLeft: '4px' }}>
+                    <div>1. បើក <strong>VVC App</strong> ចូលផ្ទាំង <strong>Authenticator (2FA)</strong></div>
+                    <div>2. ចុចលើ <strong style={{ color: '#38bdf8' }}>Icon Camera 📷</strong> លើគណនីរបស់អ្នក</div>
+                    <div>3. ស្កេនរូប QR ខាងលើដើម្បី Login ចូលភ្លាមៗ!</div>
+                  </div>
+                </div>
+
+                {/* Actions: Back to OTP & Setup Modal */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    fontSize: '12.5px',
+                    gap: '10px',
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTwoFaTab('otp');
+                      setTimeout(() => otpInputRefs.current[0]?.focus(), 150);
+                    }}
+                    style={{
+                      flex: 1,
+                      background: 'rgba(255, 255, 255, 0.06)',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      borderRadius: '12px',
+                      color: '#cbd5e1',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                      padding: '10px 14px',
+                      fontSize: '12.5px',
+                      fontWeight: 600,
+                      transition: 'all 0.2s ease',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.12)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)')}
+                  >
+                    <Smartphone size={15} />
+                    <span>វាយបញ្ចូល OTP</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleOpenQrModal}
+                    style={{
+                      flex: 1,
+                      background: 'rgba(56, 189, 248, 0.12)',
+                      border: '1px solid rgba(56, 189, 248, 0.35)',
+                      borderRadius: '12px',
+                      color: '#38bdf8',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                      padding: '10px 14px',
+                      fontSize: '12.5px',
+                      fontWeight: 600,
+                      transition: 'all 0.2s ease',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(56, 189, 248, 0.25)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(56, 189, 248, 0.12)')}
+                  >
+                    <QrCode size={15} />
+                    <span>រៀបចំ 2FA Key</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -779,228 +1316,251 @@ export const LoginPage: React.FC = () => {
         </div>
       </div>
 
-      {/* QR Code Setup Modal (High z-index fixed overlay) */}
-      {showQrModal && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 999999,
-            backgroundColor: 'rgba(2, 6, 23, 0.88)',
-            backdropFilter: 'blur(12px)',
-            WebkitBackdropFilter: 'blur(12px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '20px',
-            animation: 'fadeIn 0.2s ease',
-          }}
-          onClick={() => setShowQrModal(false)}
-        >
+      {/* QR Code Setup Portal Modal (Mounted directly to document.body) */}
+      {showQrModal &&
+        createPortal(
           <div
-            onClick={(e) => e.stopPropagation()}
             style={{
-              maxWidth: '440px',
-              width: '100%',
-              maxHeight: '92vh',
-              overflowY: 'auto',
-              padding: '28px',
-              background: '#0f172a',
-              border: '1px solid rgba(56, 189, 248, 0.35)',
-              borderRadius: '24px',
-              boxShadow: '0 25px 65px rgba(0, 0, 0, 0.85), 0 0 35px rgba(56, 189, 248, 0.15)',
-              color: '#ffffff',
+              position: 'fixed',
+              inset: 0,
+              zIndex: 9999999,
+              backgroundColor: 'rgba(2, 6, 23, 0.9)',
+              backdropFilter: 'blur(12px)',
+              WebkitBackdropFilter: 'blur(12px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '20px',
+              animation: 'fadeIn 0.2s ease',
             }}
+            onClick={() => setShowQrModal(false)}
           >
-            {/* Modal Header */}
             <div
+              onClick={(e) => e.stopPropagation()}
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                marginBottom: '18px',
+                maxWidth: '440px',
+                width: '100%',
+                maxHeight: '92vh',
+                overflowY: 'auto',
+                padding: '28px',
+                background: '#0f172a',
+                border: '1px solid rgba(56, 189, 248, 0.35)',
+                borderRadius: '24px',
+                boxShadow: '0 25px 65px rgba(0, 0, 0, 0.9), 0 0 40px rgba(56, 189, 248, 0.2)',
+                color: '#ffffff',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div
+              {/* Modal Header */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: '18px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div
+                    style={{
+                      width: '40px',
+                      height: '40px',
+                      borderRadius: '12px',
+                      background: 'rgba(6, 182, 212, 0.18)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      border: '1px solid rgba(56, 189, 248, 0.3)',
+                    }}
+                  >
+                    <QrCode size={22} color="#38bdf8" />
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: '16.5px', fontWeight: 700, color: '#ffffff', margin: 0 }}>
+                      រៀបចំ Google Authenticator / 2FA
+                    </h3>
+                    <p style={{ fontSize: '11.5px', color: '#94a3b8', margin: '2px 0 0' }}>
+                      ស្កេនជាមួយ App VVC ឬ Google Authenticator
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowQrModal(false)}
                   style={{
-                    width: '40px',
-                    height: '40px',
-                    borderRadius: '12px',
-                    background: 'rgba(6, 182, 212, 0.18)',
+                    background: 'rgba(255, 255, 255, 0.08)',
+                    border: 'none',
+                    borderRadius: '50%',
+                    width: '32px',
+                    height: '32px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    border: '1px solid rgba(56, 189, 248, 0.3)',
+                    color: '#94a3b8',
+                    cursor: 'pointer',
+                    transition: 'background 0.2s ease',
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.15)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)')}
+                >
+                  <X size={17} />
+                </button>
+              </div>
+
+              {/* Modal Error Alert if any */}
+              {modalError && (
+                <div
+                  style={{
+                    padding: '10px 14px',
+                    borderRadius: '12px',
+                    background: 'rgba(245, 158, 11, 0.15)',
+                    border: '1px solid rgba(245, 158, 11, 0.4)',
+                    color: '#fbbf24',
+                    fontSize: '12px',
+                    marginBottom: '16px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
                   }}
                 >
-                  <QrCode size={22} color="#38bdf8" />
+                  <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                  <span>{modalError}</span>
                 </div>
-                <div>
-                  <h3 style={{ fontSize: '16.5px', fontWeight: 700, color: '#ffffff', margin: 0 }}>
-                    រៀបចំ Google Authenticator / 2FA
-                  </h3>
-                  <p style={{ fontSize: '11.5px', color: '#94a3b8', margin: '2px 0 0' }}>
-                    ស្កេនជាមួយ App VVC ឬ Google Authenticator
-                  </p>
+              )}
+
+              {/* QR Code Container */}
+              <div
+                style={{
+                  background: '#ffffff',
+                  borderRadius: '18px',
+                  padding: '16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto 18px',
+                  width: '220px',
+                  height: '220px',
+                  boxShadow: '0 10px 30px rgba(0, 0, 0, 0.4)',
+                  position: 'relative',
+                }}
+              >
+                {loadingQr ? (
+                  <div style={{ textAlign: 'center', color: '#0f172a', fontSize: '12px' }}>
+                    <RefreshCw size={24} className="spin-animation" style={{ color: '#0284c7', margin: '0 auto 8px' }} />
+                    <div>កំពុងផ្ទុក QR Code...</div>
+                  </div>
+                ) : (
+                  <img
+                    src={displayQrUrl}
+                    alt="2FA QR Code"
+                    onError={(e) => {
+                      if (e.currentTarget.src !== fallbackQrUrl) {
+                        e.currentTarget.src = fallbackQrUrl;
+                      }
+                    }}
+                    style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                  />
+                )}
+              </div>
+
+              {/* Secret Key Box */}
+              <div style={{ marginBottom: '18px' }}>
+                <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>
+                  ឬវាយបញ្ចូលកូដ Secret Key ដោយផ្ទាល់៖
+                </label>
+                <div
+                  style={{
+                    background: 'rgba(30, 41, 59, 0.9)',
+                    border: '1px solid rgba(56, 189, 248, 0.25)',
+                    borderRadius: '12px',
+                    padding: '10px 14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '8px',
+                  }}
+                >
+                  <span
+                    style={{
+                      fontFamily: 'monospace',
+                      fontSize: '13px',
+                      letterSpacing: '1.2px',
+                      color: '#38bdf8',
+                      fontWeight: 700,
+                      wordBreak: 'break-all',
+                    }}
+                  >
+                    {currentSecret}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleCopySecretKey}
+                    style={{
+                      background: copiedKey ? '#10b981' : 'rgba(56, 189, 248, 0.15)',
+                      border: '1px solid rgba(56, 189, 248, 0.3)',
+                      borderRadius: '8px',
+                      padding: '6px 10px',
+                      color: '#ffffff',
+                      cursor: 'pointer',
+                      fontSize: '11.5px',
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      flexShrink: 0,
+                      transition: 'all 0.2s ease',
+                    }}
+                  >
+                    {copiedKey ? <Check size={13} color="#ffffff" /> : <Copy size={13} color="#38bdf8" />}
+                    <span>{copiedKey ? 'ចម្លងរួច' : 'Copy'}</span>
+                  </button>
                 </div>
               </div>
+
+              {/* Steps Instructions */}
+              <div
+                style={{
+                  fontSize: '12px',
+                  color: '#cbd5e1',
+                  lineHeight: 1.65,
+                  background: 'rgba(15, 23, 42, 0.7)',
+                  borderRadius: '14px',
+                  padding: '12px 16px',
+                  border: '1px solid rgba(255, 255, 255, 0.07)',
+                  marginBottom: '20px',
+                }}
+              >
+                <ol style={{ paddingLeft: '18px', margin: 0 }}>
+                  <li>បើក <strong>VVC Attendance App</strong> (មុខងារ 2FA) ឬ <strong>Google Authenticator</strong></li>
+                  <li>ចុចសញ្ញា <strong style={{ color: '#38bdf8' }}>+</strong> រួចជ្រើសរើស <strong>ស្កេន QR Code</strong></li>
+                  <li>ស្កេនរូប QR ខាងលើ រួចយកកូដ ៦ ខ្ទង់មកបំពេញដើម្បី Login ភ្លាមៗ</li>
+                </ol>
+              </div>
+
               <button
                 type="button"
                 onClick={() => setShowQrModal(false)}
                 style={{
-                  background: 'rgba(255, 255, 255, 0.08)',
+                  width: '100%',
+                  borderRadius: '12px',
+                  padding: '12px',
+                  background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
                   border: 'none',
-                  borderRadius: '50%',
-                  width: '32px',
-                  height: '32px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#94a3b8',
+                  color: '#ffffff',
+                  fontWeight: 700,
+                  fontSize: '13.5px',
                   cursor: 'pointer',
-                  transition: 'background 0.2s ease',
+                  boxShadow: '0 4px 15px rgba(2, 132, 199, 0.3)',
+                  transition: 'all 0.2s ease',
                 }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.15)')}
-                onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)')}
+                onMouseEnter={(e) => (e.currentTarget.style.filter = 'brightness(1.1)')}
+                onMouseLeave={(e) => (e.currentTarget.style.filter = 'brightness(1)')}
               >
-                <X size={17} />
+                យល់ព្រម និងបន្ត Login
               </button>
             </div>
-
-            {/* QR Code Container */}
-            <div
-              style={{
-                background: '#ffffff',
-                borderRadius: '18px',
-                padding: '16px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto 18px',
-                width: '220px',
-                height: '220px',
-                boxShadow: '0 10px 30px rgba(0, 0, 0, 0.4)',
-                position: 'relative',
-              }}
-            >
-              {loadingQr ? (
-                <div style={{ textAlign: 'center', color: '#0f172a', fontSize: '12px' }}>
-                  <RefreshCw size={24} className="spin-animation" style={{ color: '#0284c7', margin: '0 auto 8px' }} />
-                  <div>កំពុងផ្ទុក QR Code...</div>
-                </div>
-              ) : (
-                <img
-                  src={displayQrUrl}
-                  alt="2FA QR Code"
-                  onError={(e) => {
-                    if (e.currentTarget.src !== fallbackQrUrl) {
-                      e.currentTarget.src = fallbackQrUrl;
-                    }
-                  }}
-                  style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-                />
-              )}
-            </div>
-
-            {/* Secret Key Box */}
-            <div style={{ marginBottom: '18px' }}>
-              <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>
-                ឬវាយបញ្ចូលកូដ Secret Key ដោយផ្ទាល់៖
-              </label>
-              <div
-                style={{
-                  background: 'rgba(30, 41, 59, 0.9)',
-                  border: '1px solid rgba(56, 189, 248, 0.25)',
-                  borderRadius: '12px',
-                  padding: '10px 14px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: '8px',
-                }}
-              >
-                <span
-                  style={{
-                    fontFamily: 'monospace',
-                    fontSize: '13px',
-                    letterSpacing: '1.2px',
-                    color: '#38bdf8',
-                    fontWeight: 700,
-                    wordBreak: 'break-all',
-                  }}
-                >
-                  {currentSecret}
-                </span>
-                <button
-                  type="button"
-                  onClick={handleCopySecretKey}
-                  style={{
-                    background: copiedKey ? '#10b981' : 'rgba(56, 189, 248, 0.15)',
-                    border: '1px solid rgba(56, 189, 248, 0.3)',
-                    borderRadius: '8px',
-                    padding: '6px 10px',
-                    color: '#ffffff',
-                    cursor: 'pointer',
-                    fontSize: '11.5px',
-                    fontWeight: 600,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    flexShrink: 0,
-                    transition: 'all 0.2s ease',
-                  }}
-                >
-                  {copiedKey ? <Check size={13} color="#ffffff" /> : <Copy size={13} color="#38bdf8" />}
-                  <span>{copiedKey ? 'ចម្លងរួច' : 'Copy'}</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Steps Instructions */}
-            <div
-              style={{
-                fontSize: '12px',
-                color: '#cbd5e1',
-                lineHeight: 1.65,
-                background: 'rgba(15, 23, 42, 0.7)',
-                borderRadius: '14px',
-                padding: '12px 16px',
-                border: '1px solid rgba(255, 255, 255, 0.07)',
-                marginBottom: '20px',
-              }}
-            >
-              <ol style={{ paddingLeft: '18px', margin: 0 }}>
-                <li>បើក <strong>VVC Attendance App</strong> (មុខងារ 2FA) ឬ <strong>Google Authenticator</strong></li>
-                <li>ចុចសញ្ញា <strong style={{ color: '#38bdf8' }}>+</strong> រួចជ្រើសរើស <strong>ស្កេន QR Code</strong></li>
-                <li>ស្កេនរូប QR ខាងលើ រួចយកកូដ ៦ ខ្ទង់មកបំពេញដើម្បី Login ភ្លាមៗ</li>
-              </ol>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setShowQrModal(false)}
-              style={{
-                width: '100%',
-                borderRadius: '12px',
-                padding: '12px',
-                background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
-                border: 'none',
-                color: '#ffffff',
-                fontWeight: 700,
-                fontSize: '13.5px',
-                cursor: 'pointer',
-                boxShadow: '0 4px 15px rgba(2, 132, 199, 0.3)',
-                transition: 'all 0.2s ease',
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.filter = 'brightness(1.1)')}
-              onMouseLeave={(e) => (e.currentTarget.style.filter = 'brightness(1)')}
-            >
-              យល់ព្រម និងបន្ត Login
-            </button>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
     </div>
   );
 };

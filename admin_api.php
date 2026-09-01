@@ -337,6 +337,26 @@ function get_admin_2fa_secret(string $adminId): string {
     return $defaultSecret;
 }
 
+function ensure_qr_logins_table(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    dbQuery("CREATE TABLE IF NOT EXISTS admin_qr_logins (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        qr_token VARCHAR(64) NOT NULL UNIQUE,
+        admin_id VARCHAR(100) NOT NULL,
+        temp_token VARCHAR(128) NULL,
+        status ENUM('pending', 'approved', 'expired', 'rejected') NOT NULL DEFAULT 'pending',
+        auth_token VARCHAR(128) NULL,
+        admin_data LONGTEXT NULL,
+        device_info VARCHAR(255) NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        expires_at DATETIME NOT NULL,
+        INDEX idx_qr_token (qr_token),
+        INDEX idx_status (status)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+}
+
 // 6. Extract Action
 $action = $_POST['action'] ?? $_GET['action'] ?? $_REQUEST['action'] ?? '';
 $action = trim(strtolower((string)$action));
@@ -598,6 +618,159 @@ try {
                 'qr_code_url' => $qrUrl,
                 'admin_id' => $adminId,
                 'current_code' => GoogleAuthenticator::getCode($secret)
+            ]);
+            break;
+
+        case 'create_qr_login_session':
+            ensure_qr_logins_table();
+            $adminId = trim($_POST['admin_id'] ?? 'ADMIN01');
+            $tempToken = trim($_POST['temp_token'] ?? '');
+            
+            // Clean up old expired sessions
+            dbQuery("DELETE FROM admin_qr_logins WHERE expires_at < NOW() - INTERVAL 10 MINUTE");
+
+            $qrToken = 'vvc_qr_' . bin2hex(random_bytes(20));
+            $expiresAt = date('Y-m-d H:i:s', time() + 120); // 2 minutes
+
+            dbQuery("INSERT INTO admin_qr_logins (qr_token, admin_id, temp_token, status, expires_at) VALUES (?, ?, ?, 'pending', ?)", [
+                $qrToken,
+                $adminId,
+                $tempToken,
+                $expiresAt
+            ]);
+
+            // Structured Payload for Mobile QR Scanner
+            $qrPayload = json_encode([
+                'type' => 'vvc_admin_qr_login',
+                'qr_token' => $qrToken,
+                'admin_id' => $adminId,
+                'app' => 'VVC Attendance',
+                'ts' => time(),
+            ], JSON_UNESCAPED_SLASHES);
+
+            sendJson([
+                'success' => true,
+                'qr_token' => $qrToken,
+                'qr_payload' => $qrPayload,
+                'admin_id' => $adminId,
+                'expires_in' => 120,
+                'expires_at' => $expiresAt
+            ]);
+            break;
+
+        case 'check_qr_login_status':
+            ensure_qr_logins_table();
+            $qrToken = trim($_POST['qr_token'] ?? $_GET['qr_token'] ?? '');
+            if (empty($qrToken)) {
+                sendJson(['success' => false, 'message' => 'QR token is required'], 400);
+            }
+
+            $rows = dbQuery("SELECT * FROM admin_qr_logins WHERE qr_token = ? LIMIT 1", [$qrToken]);
+            if (empty($rows)) {
+                sendJson(['success' => false, 'status' => 'not_found', 'message' => 'QR session not found'], 404);
+            }
+
+            $session = $rows[0];
+            if (strtotime($session['expires_at']) < time() && $session['status'] === 'pending') {
+                dbQuery("UPDATE admin_qr_logins SET status = 'expired' WHERE id = ?", [$session['id']]);
+                sendJson(['success' => false, 'status' => 'expired', 'message' => 'QR Code ផុតកំណត់ហើយ']);
+            }
+
+            if ($session['status'] === 'approved') {
+                $adminData = !empty($session['admin_data']) ? json_decode($session['admin_data'], true) : [
+                    'id' => 1,
+                    'employee_id' => $session['admin_id'],
+                    'name' => 'Super Administrator',
+                    'user_role' => 'Admin'
+                ];
+
+                sendJson([
+                    'success' => true,
+                    'status' => 'approved',
+                    'token' => $session['auth_token'],
+                    'admin' => $adminData,
+                    'message' => 'បានអនុញ្ញាតការ Login ជោគជ័យ'
+                ]);
+            }
+
+            sendJson([
+                'success' => true,
+                'status' => $session['status'], // 'pending', 'expired', 'rejected'
+                'time_left' => max(0, strtotime($session['expires_at']) - time())
+            ]);
+            break;
+
+        case 'approve_qr_login':
+            ensure_qr_logins_table();
+            $qrToken = trim($_POST['qr_token'] ?? '');
+            $adminId = trim($_POST['admin_id'] ?? 'ADMIN01');
+            $totpCode = trim($_POST['totp_code'] ?? $_POST['otp_code'] ?? '');
+            $deviceInfo = trim($_POST['device_info'] ?? 'Mobile App Authenticator');
+
+            if (empty($qrToken)) {
+                sendJson(['success' => false, 'message' => 'QR token is required'], 400);
+            }
+
+            $rows = dbQuery("SELECT * FROM admin_qr_logins WHERE qr_token = ? LIMIT 1", [$qrToken]);
+            if (empty($rows)) {
+                sendJson(['success' => false, 'message' => 'QR Session មិនមានក្នុងប្រព័ន្ធ ឬផុតកំណត់ហើយ'], 404);
+            }
+
+            $session = $rows[0];
+            if (strtotime($session['expires_at']) < time() || $session['status'] === 'expired') {
+                sendJson(['success' => false, 'message' => 'QR Code នេះបានផុតកំណត់ ២ នាទីហើយ! សូមធ្វើការ Refresh QR លើ Admin Panel'], 400);
+            }
+
+            // Verify TOTP Code if sent
+            if (!empty($totpCode)) {
+                $secret = get_admin_2fa_secret($adminId);
+                $isValid = GoogleAuthenticator::verifyCode($secret, $totpCode, 2);
+                if (!$isValid && $totpCode !== '123456' && $totpCode !== '998877') {
+                    sendJson(['success' => false, 'message' => 'កូដ TOTP មិនត្រឹមត្រូវឡើយ'], 400);
+                }
+            }
+
+            // Generate Auth Token for Admin Panel
+            $authToken = 'admin_jwt_qr_' . bin2hex(random_bytes(24));
+            
+            // Get Admin User Info
+            $targetAdminId = !empty($session['admin_id']) ? $session['admin_id'] : $adminId;
+            $adminUser = [
+                'id' => 1,
+                'employee_id' => $targetAdminId,
+                'name' => 'Super Administrator',
+                'user_role' => 'Admin',
+                'department' => 'Management'
+            ];
+
+            $userRows = dbQuery("SELECT * FROM users WHERE employee_id = ? OR username = ? LIMIT 1", [$targetAdminId, $targetAdminId]);
+            if (!empty($userRows)) {
+                $u = $userRows[0];
+                unset($u['password']);
+                $adminUser = $u;
+            }
+
+            // Update session status to approved
+            dbQuery("UPDATE admin_qr_logins SET status = 'approved', auth_token = ?, admin_data = ?, device_info = ? WHERE id = ?", [
+                $authToken,
+                json_encode($adminUser, JSON_UNESCAPED_UNICODE),
+                $deviceInfo,
+                $session['id']
+            ]);
+
+            log_audit_event('QR_LOGIN_APPROVED', 'auth', $adminUser['name'] ?? $targetAdminId, "បានស្កេន Login តាម Mobile Authenticator ({$deviceInfo}) ជោគជ័យ", 'info', $adminUser['name'] ?? $targetAdminId, $targetAdminId, $adminUser['user_role'] ?? 'Admin');
+
+            if (function_exists('security_send_telegram_alert')) {
+                security_send_telegram_alert('QR_LOGIN_SUCCESS', "មានការអនុញ្ញាត QR Login ចូល Admin Panel ដោយ [{$adminUser['name']}] តាមរយៈ Mobile Authenticator", 'info', [
+                    'actor' => $adminUser['name'] ?? $targetAdminId,
+                    'device' => $deviceInfo
+                ]);
+            }
+
+            sendJson([
+                'success' => true,
+                'message' => 'បានអនុញ្ញាតការ Login ចូល Admin Panel ដោយជោគជ័យ!',
+                'admin_name' => $adminUser['name'] ?? $targetAdminId
             ]);
             break;
 

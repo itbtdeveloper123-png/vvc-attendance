@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -307,6 +308,38 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
           );
         }
       }
+    }
+  }
+
+  Future<void> _openAdminLoginCameraScanner(AuthenticatorAccount acc) async {
+    final result = await Navigator.push<Map<String, dynamic>>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _AdminLoginQrScannerView(account: acc),
+      ),
+    );
+
+    if (result != null && result['success'] == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle_rounded, color: Colors.white, size: 22),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'បានអនុញ្ញាតការ Login ចូល Admin Panel ដោយជោគជ័យ!',
+                  style: GoogleFonts.kantumruyPro(fontSize: 13, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: const Color(0xFF10B981),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          duration: const Duration(seconds: 4),
+        ),
+      );
     }
   }
 
@@ -775,10 +808,58 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                   ),
                 ],
               ),
-              IconButton(
-                icon: Icon(Icons.delete_outline_rounded, size: 20, color: Colors.red.shade300),
-                onPressed: () => _confirmDeleteAccount(acc),
-                tooltip: 'លុបចេញ',
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Camera Icon button for QR Admin Login
+                  Tooltip(
+                    message: 'ស្កេន QR Login Admin',
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () => _openAdminLoginCameraScanner(acc),
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5.5),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF0284C7), Color(0xFF0369A1)],
+                            ),
+                            borderRadius: BorderRadius.circular(10),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF0284C7).withValues(alpha: 0.35),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.camera_alt_rounded, size: 15, color: Colors.white),
+                              const SizedBox(width: 4),
+                              Text(
+                                'ស្កេន Login',
+                                style: GoogleFonts.kantumruyPro(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 2),
+                  IconButton(
+                    icon: Icon(Icons.delete_outline_rounded, size: 19, color: Colors.red.shade300),
+                    onPressed: () => _confirmDeleteAccount(acc),
+                    tooltip: 'លុបចេញ',
+                  ),
+                ],
               ),
             ],
           ),
@@ -1064,6 +1145,354 @@ class _AuthenticatorQrScannerViewState extends State<_AuthenticatorQrScannerView
                   child: Text(
                     'សូមតម្រង់កាមេរ៉ាទៅលើ QR Code លើផ្ទាំង Admin',
                     style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 12.5),
+                  ),
+                ),
+
+                const Spacer(flex: 2),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CAMERA QR SCANNER FOR ADMIN PANEL LOGIN
+// ─────────────────────────────────────────────────────────────────────────────
+class _AdminLoginQrScannerView extends StatefulWidget {
+  final AuthenticatorAccount account;
+  const _AdminLoginQrScannerView({required this.account});
+
+  @override
+  State<_AdminLoginQrScannerView> createState() => _AdminLoginQrScannerViewState();
+}
+
+class _AdminLoginQrScannerViewState extends State<_AdminLoginQrScannerView> {
+  final MobileScannerController _controller = MobileScannerController(
+    formats: [BarcodeFormat.qrCode],
+    detectionTimeoutMs: 1200,
+    autoStart: true,
+  );
+  final AuthenticatorService _authService = AuthenticatorService();
+  bool _isProcessing = false;
+  bool _isApproved = false;
+  String? _statusMessage;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleQrData(String rawData) async {
+    if (_isProcessing || _isApproved) return;
+
+    setState(() {
+      _isProcessing = true;
+      _statusMessage = 'កំពុងពិនិត្យមើល QR Code...';
+    });
+
+    HapticFeedback.mediumImpact();
+
+    try {
+      String qrToken = '';
+      String adminId = widget.account.name;
+
+      // 1. Try parsing JSON format: {"type":"vvc_admin_qr_login","qr_token":"...","admin_id":"..."}
+      if (rawData.trim().startsWith('{') && rawData.trim().endsWith('}')) {
+        try {
+          final decoded = jsonDecode(rawData);
+          if (decoded is Map<String, dynamic>) {
+            qrToken = decoded['qr_token'] ?? decoded['token'] ?? '';
+            if (decoded['admin_id'] != null && decoded['admin_id'].toString().isNotEmpty) {
+              adminId = decoded['admin_id'].toString();
+            }
+          }
+        } catch (_) {}
+      }
+
+      // 2. Try URI format: vvcauth://admin-login?token=...&admin_id=...
+      if (qrToken.isEmpty && rawData.contains('token=')) {
+        try {
+          final uri = Uri.parse(rawData);
+          qrToken = uri.queryParameters['token'] ?? uri.queryParameters['qr_token'] ?? '';
+          if (uri.queryParameters['admin_id'] != null) {
+            adminId = uri.queryParameters['admin_id']!;
+          }
+        } catch (_) {}
+      }
+
+      // 3. Raw token fallback
+      if (qrToken.isEmpty && rawData.startsWith('vvc_qr_')) {
+        qrToken = rawData.trim();
+      }
+
+      if (qrToken.isEmpty) {
+        // Not an admin login QR
+        setState(() {
+          _isProcessing = false;
+          _statusMessage = null;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                '⚠️ QR Code នេះមិនមែនសម្រាប់ Admin Panel Login ឡើយ!',
+                style: GoogleFonts.kantumruyPro(),
+              ),
+              backgroundColor: const Color(0xFFEF4444),
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+        return;
+      }
+
+      // Generate live TOTP Code using account secret
+      final totpCode = TotpHelper.generateTotp(widget.account.secret);
+
+      setState(() {
+        _statusMessage = 'កំពុងអនុញ្ញាតការ Login ចូល Admin Panel...';
+      });
+
+      final result = await _authService.approveQrLogin(
+        qrToken: qrToken,
+        adminId: adminId,
+        totpCode: totpCode,
+        deviceInfo: 'Mobile App (${widget.account.issuer})',
+      );
+
+      if (result['success'] == true) {
+        HapticFeedback.heavyImpact();
+        if (mounted) {
+          setState(() {
+            _isProcessing = false;
+            _isApproved = true;
+            _statusMessage = 'អនុញ្ញាតជោគជ័យ!';
+          });
+
+          await Future.delayed(const Duration(milliseconds: 1200));
+          if (mounted) {
+            Navigator.pop(context, {'success': true, 'token': qrToken});
+          }
+        }
+      } else {
+        HapticFeedback.vibrate();
+        final msg = result['message'] ?? 'ការផ្ទៀងផ្ទាត់មិនជោគជ័យឡើយ';
+        if (mounted) {
+          setState(() {
+            _isProcessing = false;
+            _statusMessage = null;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(msg, style: GoogleFonts.kantumruyPro()),
+              backgroundColor: const Color(0xFFEF4444),
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+          _statusMessage = null;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('កំហុស៖ $e', style: GoogleFonts.kantumruyPro()),
+            backgroundColor: const Color(0xFFEF4444),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  void _onDetect(BarcodeCapture capture) {
+    if (_isProcessing || _isApproved) return;
+    for (final barcode in capture.barcodes) {
+      final raw = barcode.rawValue;
+      if (raw != null && raw.isNotEmpty) {
+        _handleQrData(raw);
+        break;
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          // Camera Preview
+          MobileScanner(
+            controller: _controller,
+            onDetect: _onDetect,
+            errorBuilder: (context, error) => Center(
+              child: Text(
+                'កំហុសកាមេរ៉ា៖ ${error.errorCode}',
+                style: GoogleFonts.kantumruyPro(color: Colors.white),
+              ),
+            ),
+          ),
+
+          // Custom Scanner Overlay
+          SafeArea(
+            child: Column(
+              children: [
+                // Top App Bar Controls
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      IconButton(
+                        icon: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: const BoxDecoration(
+                            color: Colors.black54,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 18),
+                        ),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                      Column(
+                        children: [
+                          Text(
+                            'ស្កេន Login Admin Panel',
+                            style: GoogleFonts.kantumruyPro(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            widget.account.issuer,
+                            style: GoogleFonts.kantumruyPro(
+                              color: const Color(0xFF38BDF8),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                      IconButton(
+                        icon: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: const BoxDecoration(
+                            color: Colors.black54,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.flash_on_rounded, color: Colors.white, size: 20),
+                        ),
+                        onPressed: () => _controller.toggleTorch(),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const Spacer(),
+
+                // Target Box with dynamic animations
+                Center(
+                  child: Container(
+                    width: 260,
+                    height: 260,
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: _isApproved
+                            ? const Color(0xFF10B981)
+                            : _isProcessing
+                            ? const Color(0xFFF59E0B)
+                            : const Color(0xFF38BDF8),
+                        width: 3,
+                      ),
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: [
+                        BoxShadow(
+                          color: (_isApproved
+                                  ? const Color(0xFF10B981)
+                                  : _isProcessing
+                                  ? const Color(0xFFF59E0B)
+                                  : const Color(0xFF0284C7))
+                              .withValues(alpha: 0.4),
+                          blurRadius: 25,
+                        ),
+                      ],
+                    ),
+                    child: _isApproved
+                        ? const Center(
+                            child: Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 70),
+                          )
+                        : _isProcessing
+                        ? const Center(
+                            child: CircularProgressIndicator(
+                              color: Color(0xFF38BDF8),
+                              strokeWidth: 3.5,
+                            ),
+                          )
+                        : null,
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                // Status Pill
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  margin: const EdgeInsets.symmetric(horizontal: 24),
+                  decoration: BoxDecoration(
+                    color: Colors.black87,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: _isApproved
+                          ? const Color(0xFF10B981)
+                          : _isProcessing
+                          ? const Color(0xFFF59E0B)
+                          : Colors.white24,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_isProcessing)
+                        const Padding(
+                          padding: EdgeInsets.only(right: 8),
+                          child: SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(color: Color(0xFF38BDF8), strokeWidth: 2),
+                          ),
+                        )
+                      else if (_isApproved)
+                        const Padding(
+                          padding: EdgeInsets.only(right: 8),
+                          child: Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 16),
+                        ),
+                      Flexible(
+                        child: Text(
+                          _statusMessage ?? 'សូមតម្រង់កាមេរ៉ាទៅលើ QR Code លើផ្ទាំង Admin Login',
+                          style: GoogleFonts.kantumruyPro(
+                            color: _isApproved
+                                ? const Color(0xFF34D399)
+                                : _isProcessing
+                                ? const Color(0xFFFCD34D)
+                                : Colors.white,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
 

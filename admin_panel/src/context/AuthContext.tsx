@@ -20,6 +20,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (adminId: string, pass: string) => Promise<LoginResult>;
   verify2FA: (adminId: string, otpCode: string, tempToken?: string) => Promise<{ success: boolean; message?: string }>;
+  loginWithQrSession: (token: string, adminUser?: AdminUser) => void;
   logout: () => void;
 }
 
@@ -157,6 +158,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { success: false, message: 'កូដ Google Authenticator មិនត្រឹមត្រូវឡើយ!' };
   };
 
+  const loginWithQrSession = (authToken: string, adminUser?: AdminUser) => {
+    localStorage.setItem('admin_token', authToken);
+    setToken(authToken);
+    if (adminUser) {
+      setAdmin(adminUser);
+    }
+  };
+
   const logout = () => {
     localStorage.removeItem('admin_token');
     setToken(null);
@@ -174,6 +183,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isLoading,
         login,
         verify2FA,
+        loginWithQrSession,
         logout,
       }}
     >
