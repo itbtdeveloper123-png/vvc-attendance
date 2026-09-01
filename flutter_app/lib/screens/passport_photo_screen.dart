@@ -10,6 +10,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import '../services/cutout_pro_service.dart';
 import '../services/remove_bg_service.dart';
 import '../services/subject_segmentation_service.dart';
 import '../widgets/app_widgets.dart';
@@ -167,7 +168,11 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
     if (_imagePath == null) return;
     try {
       final inputImage = InputImage.fromFilePath(_imagePath!);
-      final options = FaceDetectorOptions(performanceMode: FaceDetectorMode.fast);
+      final options = FaceDetectorOptions(
+        performanceMode: FaceDetectorMode.accurate,
+        enableLandmarks: true,
+        enableContours: true,
+      );
       final faceDetector = FaceDetector(options: options);
       final faces = await faceDetector.processImage(inputImage);
       faceDetector.close();
@@ -179,17 +184,41 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
         final imageBytes = await File(_imagePath!).readAsBytes();
         final decoded = img.decodeImage(imageBytes);
         if (decoded != null) {
-          final double faceRatio = box.width / decoded.width;
-          _suitScale = (faceRatio * 2.35).clamp(0.6, 1.8);
+          // 1. Precise chin point from Face Contour if available
+          double chinY = box.bottom;
+          double chinX = box.left + (box.width / 2.0);
 
-          final double faceCenterX = box.left + (box.width / 2.0);
+          final faceContour = face.contours[FaceContourType.face]?.points;
+          if (faceContour != null && faceContour.isNotEmpty) {
+            double maxContourY = -1;
+            int chinIndex = -1;
+            for (int i = 0; i < faceContour.length; i++) {
+              if (faceContour[i].y.toDouble() > maxContourY) {
+                maxContourY = faceContour[i].y.toDouble();
+                chinIndex = i;
+              }
+            }
+            if (chinIndex != -1) {
+              chinY = maxContourY;
+              chinX = faceContour[chinIndex].x.toDouble();
+            }
+          }
+
+          // 2. Head width & shoulder ratio calculation (Cutout.pro standard: ~2.38x face width)
+          final double faceWidth = box.width;
+          final double targetShoulderW = faceWidth * 2.38;
+          final double suitCanvasTargetW = decoded.width * 0.92;
+          _suitScale = (targetShoulderW / suitCanvasTargetW).clamp(0.70, 1.85);
+
+          // 3. Horizontal centering directly beneath the chin
           final double imageCenterX = decoded.width / 2.0;
-          _suitOffsetX = ((faceCenterX - imageCenterX) / (decoded.width * 0.025)).clamp(-10.0, 10.0);
+          _suitOffsetX = ((chinX - imageCenterX) / (decoded.width * 0.025)).clamp(-12.0, 12.0);
 
-          final double chinY = box.bottom;
-          final double targetY = chinY - (decoded.height * 0.04);
-          final double defaultSuitTopY = decoded.height - (decoded.width * 0.92 * _suitScale * 1.1);
-          _suitOffsetY = ((targetY - defaultSuitTopY) / (decoded.height * 0.025)).clamp(-15.0, 15.0);
+          // 4. Vertical neckline placement (Collar sits right below chin)
+          final double suitHeight = decoded.width * 0.92 * _suitScale * 1.12;
+          final double targetCollarTopY = chinY + (box.height * 0.03);
+          final double defaultSuitTopY = decoded.height - suitHeight;
+          _suitOffsetY = ((targetCollarTopY - defaultSuitTopY) / (decoded.height * 0.025)).clamp(-20.0, 20.0);
           
           _hasAutoFittedSuit = true;
         }
@@ -437,6 +466,77 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
     }
   }
 
+  /// Enhance photo resolution using Cutout.pro AI Enhancer
+  Future<void> _enhancePhotoWithCutoutPro() async {
+    if (_processedImagePath == null && _imagePath == null) return;
+
+    setState(() {
+      _isProcessing = true;
+      _statusText = 'កំពុងទាញរូបថតឱ្យច្បាស់ HD ដោយ AI Cutout.pro...';
+    });
+
+    try {
+      final targetPath = _processedImagePath ?? _imagePath!;
+      final imageBytes = await File(targetPath).readAsBytes();
+      final enhancedBytes = await CutoutProService().enhancePhotoHD(imageBytes);
+
+      if (enhancedBytes != null && enhancedBytes.isNotEmpty) {
+        final tempDir = await getTemporaryDirectory();
+        final outPath = '${tempDir.path}/enhanced_hd_${DateTime.now().millisecondsSinceEpoch}.jpg';
+        final outFile = File(outPath);
+        await outFile.writeAsBytes(enhancedBytes);
+
+        if (!mounted) return;
+
+        setState(() {
+          _processedImagePath = outFile.path;
+          _isProcessing = false;
+          _statusText = null;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.auto_awesome, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  'រូបថតត្រូវបានទាញឱ្យច្បាស់ HD ជោគជ័យ!',
+                  style: GoogleFonts.kantumruyPro(fontSize: 13, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            backgroundColor: const Color(0xFF8B5CF6),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      } else {
+        if (!mounted) return;
+        setState(() {
+          _isProcessing = false;
+          _statusText = null;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('មិនអាចទាញរូបឱ្យច្បាស់បានទេ សូមពិនិត្យ Cutout.pro API Key', style: GoogleFonts.kantumruyPro()),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+          _statusText = null;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('កំហុស៖ $e', style: GoogleFonts.kantumruyPro()), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final displayPath = _processedImagePath ?? _imagePath;
@@ -456,7 +556,12 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
           style: GoogleFonts.kantumruyPro(fontSize: 17, fontWeight: FontWeight.bold, color: Colors.white),
         ),
         actions: [
-          if (_imagePath != null)
+          if (_imagePath != null) ...[
+            IconButton(
+              icon: const Icon(Icons.auto_awesome_rounded, color: Color(0xFFA855F7)),
+              tooltip: 'ទាញរូបថតឱ្យច្បាស់ HD (Cutout.pro)',
+              onPressed: _enhancePhotoWithCutoutPro,
+            ),
             IconButton(
               icon: Icon(
                 Icons.flip_rounded,
@@ -470,6 +575,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
                 _renderCompositeFromCutout();
               },
             ),
+          ],
           if (_processedImagePath != null)
             IconButton(
               icon: const Icon(Icons.print_rounded, color: Colors.tealAccent),

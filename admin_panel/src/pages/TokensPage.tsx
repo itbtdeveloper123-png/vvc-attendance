@@ -63,6 +63,8 @@ export const TokensPage: React.FC = () => {
   // AI API Keys Management State (Remove.bg & Cutout.pro)
   const currentServiceName = activeTab === 'cutout_pro_keys' ? 'cutout_pro' : 'remove_bg';
   const [apiKeys, setApiKeys] = useState<any[]>([]);
+  const [removeBgCount, setRemoveBgCount] = useState<number>(0);
+  const [cutoutProCount, setCutoutProCount] = useState<number>(0);
   const [apiKeyStats, setApiKeyStats] = useState({
     total_keys: 0,
     active_keys: 0,
@@ -121,6 +123,19 @@ export const TokensPage: React.FC = () => {
     }
   };
 
+  const loadCounts = async () => {
+    try {
+      const [rmbg, cutout] = await Promise.all([
+        adminApi.getApiKeys('remove_bg'),
+        adminApi.getApiKeys('cutout_pro'),
+      ]);
+      if (rmbg && rmbg.success) setRemoveBgCount(rmbg.keys?.length || 0);
+      if (cutout && cutout.success) setCutoutProCount(cutout.keys?.length || 0);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const loadApiKeys = async (service: string = currentServiceName) => {
     setLoadingKeys(true);
     try {
@@ -129,6 +144,11 @@ export const TokensPage: React.FC = () => {
         setApiKeys(res.keys || []);
         if (res.stats) {
           setApiKeyStats(res.stats);
+        }
+        if (service === 'remove_bg') {
+          setRemoveBgCount(res.keys?.length || 0);
+        } else if (service === 'cutout_pro') {
+          setCutoutProCount(res.keys?.length || 0);
         }
       }
     } catch (err) {
@@ -220,6 +240,7 @@ export const TokensPage: React.FC = () => {
   useEffect(() => {
     loadSessions();
     loadGlobalSettings();
+    loadCounts();
     loadApiKeys();
   }, []);
 
@@ -318,24 +339,43 @@ export const TokensPage: React.FC = () => {
     const token = (s.auth_token || '').toLowerCase();
 
     const matchesQuery = name.includes(q) || eid.includes(q) || token.includes(q);
+    if (!matchesQuery) return false;
 
-    if (!selectedGroup) return matchesQuery;
-
-    let userGroupId = '';
-    if (s.custom_data) {
-      try {
-        const parsed = typeof s.custom_data === 'string' ? JSON.parse(s.custom_data) : s.custom_data;
-        userGroupId = String(parsed?.group_id || '');
-      } catch (e) {
-        // ignore
-      }
+    if (selectedGroup) {
+      return String((s as any).group_id || s.department || '') === String(selectedGroup);
     }
-    return matchesQuery && userGroupId === String(selectedGroup);
+    return true;
   });
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '22px', maxWidth: '1200px', margin: '0 auto', width: '100%' }}>
-      {/* Header Banner with Clean Sub-Tabs */}
+    <div className="admin-page-container fade-in" style={{ paddingBottom: '60px' }}>
+      {/* Top Banner Alert */}
+      {banner && (
+        <div
+          style={{
+            position: 'fixed',
+            top: '20px',
+            right: '20px',
+            zIndex: 9999,
+            padding: '12px 20px',
+            borderRadius: '12px',
+            background: banner.type === 'success' ? '#10B981' : '#EF4444',
+            color: '#fff',
+            fontWeight: 700,
+            fontSize: '13.5px',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            animation: 'slideDown 0.3s ease',
+          }}
+        >
+          {banner.type === 'success' ? <Check size={18} /> : <AlertCircle size={18} />}
+          <span>{banner.text}</span>
+        </div>
+      )}
+
+      {/* Page Header */}
       <div
         style={{
           display: 'flex',
@@ -343,17 +383,14 @@ export const TokensPage: React.FC = () => {
           justifyContent: 'space-between',
           flexWrap: 'wrap',
           gap: '16px',
-          background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(79, 70, 229, 0.03))',
-          padding: '24px',
-          borderRadius: '18px',
-          border: '1px solid rgba(99, 102, 241, 0.15)',
+          marginBottom: '24px',
         }}
       >
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <span
               style={{
-                background: 'var(--primary)',
+                background: 'linear-gradient(135deg, #6366F1, #8B5CF6)',
                 color: '#fff',
                 width: '36px',
                 height: '36px',
@@ -376,7 +413,7 @@ export const TokensPage: React.FC = () => {
         </div>
 
         {/* Clean Segmented Sub-Tabs */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--surface-subtle, #f1f5f9)', padding: '6px', borderRadius: '14px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--surface-subtle, #f1f5f9)', padding: '6px', borderRadius: '14px', flexWrap: 'wrap' }}>
           <button
             onClick={() => setActiveTab('active_sessions')}
             style={{
@@ -424,7 +461,7 @@ export const TokensPage: React.FC = () => {
           <button
             onClick={() => {
               setActiveTab('remove_bg_keys');
-              loadApiKeys();
+              loadApiKeys('remove_bg');
             }}
             style={{
               display: 'inline-flex',
@@ -443,7 +480,32 @@ export const TokensPage: React.FC = () => {
             }}
           >
             <Sparkles size={15} />
-            <span>Remove.bg Keys Pool ({apiKeys.length || 6})</span>
+            <span>Remove.bg Keys Pool ({removeBgCount || (activeTab === 'remove_bg_keys' ? apiKeys.length : 0)})</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveTab('cutout_pro_keys');
+              loadApiKeys('cutout_pro');
+            }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '9px 16px',
+              borderRadius: '10px',
+              fontWeight: 700,
+              fontSize: '13px',
+              border: 'none',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              background: activeTab === 'cutout_pro_keys' ? '#fff' : 'transparent',
+              color: activeTab === 'cutout_pro_keys' ? '#EC4899' : 'var(--text-secondary)',
+              boxShadow: activeTab === 'cutout_pro_keys' ? '0 4px 12px rgba(0,0,0,0.06)' : 'none',
+            }}
+          >
+            <Wand2 size={15} />
+            <span>Cutout.pro Keys Pool ({cutoutProCount || (activeTab === 'cutout_pro_keys' ? apiKeys.length : 0)})</span>
           </button>
         </div>
       </div>
