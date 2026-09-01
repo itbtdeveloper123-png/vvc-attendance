@@ -175,6 +175,9 @@ export const UsersPage: React.FC = () => {
     },
   });
 
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [isRemovingBg, setIsRemovingBg] = useState(false);
+
   // Close context menu on outside click
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent) => {
@@ -2129,9 +2132,93 @@ export const UsersPage: React.FC = () => {
             {/* TAB 3: ឯកសារ & រូបភាព (Documents & Photos) */}
             {formTab === 'documents' && (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '18px' }}>
-                <div className="form-group">
-                  <label className="form-label">រូបភាព Profile (Avatar)</label>
-                  <input type="file" accept="image/*" className="form-control" />
+                <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                  <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>រូបភាព Profile (Avatar)</span>
+                    {avatarPreview && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!avatarPreview || isRemovingBg) return;
+                          setIsRemovingBg(true);
+                          try {
+                            const res = await adminApi.removeBackground(avatarPreview, 'transparent');
+                            if (res && res.success && res.image_base64) {
+                              setAvatarPreview(res.image_base64);
+                              setFormData((prev: any) => ({ ...prev, avatar: res.image_base64, photo: res.image_base64 }));
+                            }
+                          } catch (err) {
+                            console.error('Failed to remove bg:', err);
+                          }
+                          setIsRemovingBg(false);
+                        }}
+                        disabled={isRemovingBg}
+                        className="btn btn-sm"
+                        style={{
+                          background: 'linear-gradient(135deg, #6366F1, #8B5CF6)',
+                          color: '#fff',
+                          border: 'none',
+                          padding: '4px 10px',
+                          fontSize: '11.5px',
+                          fontWeight: 700,
+                          borderRadius: '8px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          cursor: isRemovingBg ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        {isRemovingBg ? (
+                          <>
+                            <span className="spinner-border spinner-border-sm" style={{ width: '12px', height: '12px' }} />
+                            <span>កំពុងកាត់ Background...</span>
+                          </>
+                        ) : (
+                          <>
+                            <span>✨ កាត់ Background ដោយ AI (Remove.bg)</span>
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="form-control"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = () => {
+                        const b64 = reader.result as string;
+                        setAvatarPreview(b64);
+                        setFormData((prev: any) => ({ ...prev, avatar: b64, photo: b64 }));
+                      };
+                      reader.readAsDataURL(file);
+                    }}
+                  />
+                  {avatarPreview && (
+                    <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '14px' }}>
+                      <div
+                        style={{
+                          width: '64px',
+                          height: '64px',
+                          borderRadius: '12px',
+                          overflow: 'hidden',
+                          border: '2px solid var(--primary)',
+                          background: 'repeating-conic-gradient(#333 0% 25%, #222 0% 50%) 50% / 16px 16px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <img src={avatarPreview} alt="Avatar preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      </div>
+                      <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                        {isRemovingBg ? 'កំពុងកាត់ Background...' : 'រូបភាពបានត្រៀមរួចរាល់សម្រាប់រក្សាទុក'}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="form-group">

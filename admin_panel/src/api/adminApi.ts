@@ -462,6 +462,66 @@ export const adminApi = {
     return res.data;
   },
 
+  removeBackground: async (imageBase64: string, bgColor?: string, size: string = 'preview') => {
+    const params = new URLSearchParams();
+    params.append('action', 'remove_background');
+    params.append('image_base64', imageBase64);
+    if (bgColor) params.append('bg_color', bgColor);
+    params.append('size', size);
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  getApiKeys: async (serviceName: string = 'remove_bg') => {
+    const params = new URLSearchParams();
+    params.append('action', 'get_api_keys');
+    params.append('service_name', serviceName);
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  addApiKey: async (apiKey: string, keyLabel?: string, serviceName: string = 'remove_bg') => {
+    const params = new URLSearchParams();
+    params.append('action', 'add_api_key');
+    params.append('api_key', apiKey);
+    if (keyLabel) params.append('key_label', keyLabel);
+    params.append('service_name', serviceName);
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  testApiKey: async (id: number) => {
+    const params = new URLSearchParams();
+    params.append('action', 'test_api_key');
+    params.append('id', String(id));
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  toggleApiKey: async (id: number) => {
+    const params = new URLSearchParams();
+    params.append('action', 'toggle_api_key');
+    params.append('id', String(id));
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  deleteApiKey: async (id: number) => {
+    const params = new URLSearchParams();
+    params.append('action', 'delete_api_key');
+    params.append('id', String(id));
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  syncAllApiKeys: async (serviceName: string = 'remove_bg') => {
+    const params = new URLSearchParams();
+    params.append('action', 'sync_all_api_keys');
+    params.append('service_name', serviceName);
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
   getProfile: async () => {
     const params = new URLSearchParams();
     params.append('action', 'get_admin_profile');

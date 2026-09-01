@@ -357,6 +357,197 @@ function ensure_qr_logins_table(): void {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 }
 
+function ensure_api_keys_table(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    dbQuery("CREATE TABLE IF NOT EXISTS admin_api_keys (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        service_name VARCHAR(50) NOT NULL DEFAULT 'remove_bg',
+        key_label VARCHAR(100) NOT NULL,
+        api_key VARCHAR(255) NOT NULL UNIQUE,
+        free_calls INT DEFAULT 50,
+        credits INT DEFAULT 1,
+        is_active TINYINT DEFAULT 1,
+        priority INT DEFAULT 0,
+        last_status VARCHAR(50) DEFAULT 'active',
+        last_checked_at DATETIME NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_service (service_name),
+        INDEX idx_active (is_active)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+    // Pre-seed default 6 keys if table is empty
+    $count = dbQuery("SELECT COUNT(*) as c FROM admin_api_keys WHERE service_name = 'remove_bg'");
+    if (empty($count) || (int)($count[0]['c'] ?? 0) === 0) {
+        $defaultKeys = [
+            ['Key 01 (Account 1)', 'LM9UPg8HqRKeZ89FeM2hhaCR', 50, 1, 1],
+            ['Key 02 (Account 2)', 'vjGJwAVwwP6sf4jAEPCDBaTk', 50, 1, 2],
+            ['Key 03 (Account 3)', 'p62EWpwcfDcd1B4qtXukUGwg', 50, 1, 3],
+            ['Key 04 (Account 4)', 'NKubVSGei8HsVra9WX376EoY', 50, 1, 4],
+            ['Key 05 (Account 5)', '92T5eCko8pibyavULgw9bHZk', 50, 1, 5],
+            ['Key 06 (Account 6)', '63PW2Mr8UXx2tMyHY8VT8XQv', 50, 1, 6],
+        ];
+        foreach ($defaultKeys as $k) {
+            dbQuery("INSERT IGNORE INTO admin_api_keys (key_label, api_key, free_calls, credits, priority, last_checked_at) VALUES (?, ?, ?, ?, ?, NOW())", [
+                $k[0], $k[1], $k[2], $k[3], $k[4]
+            ]);
+        }
+    }
+}
+
+function verify_remove_bg_key(string $apiKey): array {
+    $ch = curl_init('https://api.remove.bg/v1.0/account');
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ['X-Api-Key: ' . $apiKey]);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 12);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $err = curl_error($ch);
+    curl_close($ch);
+
+    if ($httpCode === 200) {
+        $data = json_decode($response, true);
+        $attributes = $data['data']['attributes'] ?? [];
+        $credits = $attributes['credits']['total'] ?? 0;
+        $freeCalls = $attributes['api']['free_calls'] ?? 0;
+
+        return [
+            'success' => true,
+            'credits' => (int)$credits,
+            'free_calls' => (int)$freeCalls,
+            'status' => 'active'
+        ];
+    }
+
+    $data = json_decode($response, true);
+    $msg = $data['errors'][0]['title'] ?? $err ?: "HTTP $httpCode";
+    return [
+        'success' => false,
+        'message' => $msg,
+        'http_code' => $httpCode,
+        'status' => ($httpCode === 402 || $httpCode === 429) ? 'exhausted' : 'invalid'
+    ];
+}
+
+/**
+ * Remove background using Dynamic Key Pool from Database with Automatic Failover & Rotation
+ */
+function remove_background_with_pool(string $imageBinaryOrPath, ?string $bgColor = null, string $size = 'preview'): array {
+    ensure_api_keys_table();
+
+    // Fetch active keys from Database sorted by priority
+    $rows = dbQuery("SELECT id, api_key, key_label FROM admin_api_keys WHERE service_name = 'remove_bg' AND is_active = 1 ORDER BY priority ASC, id ASC");
+    $keys = [];
+    if (!empty($rows)) {
+        foreach ($rows as $r) {
+            $keys[] = [
+                'id' => (int)$r['id'],
+                'key' => (string)$r['api_key'],
+                'label' => (string)$r['key_label']
+            ];
+        }
+    }
+
+    // Fallback if DB keys empty
+    if (empty($keys)) {
+        $defaultKeys = [
+            'LM9UPg8HqRKeZ89FeM2hhaCR',
+            'vjGJwAVwwP6sf4jAEPCDBaTk',
+            'p62EWpwcfDcd1B4qtXukUGwg',
+            'NKubVSGei8HsVra9WX376EoY',
+            '92T5eCko8pibyavULgw9bHZk',
+            '63PW2Mr8UXx2tMyHY8VT8XQv',
+        ];
+        foreach ($defaultKeys as $idx => $k) {
+            $keys[] = ['id' => $idx + 1, 'key' => $k, 'label' => "Key " . ($idx + 1)];
+        }
+    }
+
+    $lastError = 'No active API keys available';
+
+    // Temp file if binary was passed
+    $isTempFile = false;
+    if (file_exists($imageBinaryOrPath)) {
+        $filePath = $imageBinaryOrPath;
+    } else {
+        $filePath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'rmbg_in_' . uniqid() . '.png';
+        file_put_contents($filePath, $imageBinaryOrPath);
+        $isTempFile = true;
+    }
+
+    try {
+        foreach ($keys as $idx => $keyItem) {
+            $apiKey = $keyItem['key'];
+            $ch = curl_init('https://api.remove.bg/v1.0/removebg');
+            
+            $postFields = [
+                'image_file' => new CURLFile($filePath),
+                'size' => $size,
+            ];
+
+            if (!empty($bgColor) && $bgColor !== 'transparent') {
+                $cleanColor = ltrim($bgColor, '#');
+                if (preg_match('/^[0-9a-fA-F]{6}$/', $cleanColor)) {
+                    $postFields['bg_color'] = $cleanColor;
+                }
+            }
+
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'X-Api-Key: ' . $apiKey,
+            ]);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $postFields);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $err = curl_error($ch);
+            curl_close($ch);
+
+            if ($httpCode === 200 && !empty($response)) {
+                if ($isTempFile && file_exists($filePath)) {
+                    @unlink($filePath);
+                }
+                return [
+                    'success' => true,
+                    'image_data' => $response,
+                    'base64' => 'data:image/png;base64,' . base64_encode($response),
+                    'key_index' => $idx + 1,
+                    'key_label' => $keyItem['label'],
+                    'key_masked' => substr($apiKey, 0, 6) . '...' . substr($apiKey, -4),
+                ];
+            }
+
+            // Check error
+            $errDetails = json_decode($response, true);
+            $msg = $errDetails['errors'][0]['title'] ?? $err ?: "HTTP $httpCode";
+            $lastError = "{$keyItem['label']} ($msg)";
+
+            // If 402 (Payment Required / Out of Credits) or 429 (Rate Limit), mark as exhausted and proceed
+            if ($httpCode === 402 || $httpCode === 429) {
+                if (!empty($keyItem['id'])) {
+                    dbQuery("UPDATE admin_api_keys SET last_status = 'exhausted', free_calls = 0, last_checked_at = NOW() WHERE id = ?", [$keyItem['id']]);
+                }
+                continue;
+            }
+        }
+    } finally {
+        if ($isTempFile && file_exists($filePath)) {
+            @unlink($filePath);
+        }
+    }
+
+    return [
+        'success' => false,
+        'message' => 'បរាជ័យក្នុងការកាត់ Background ពីគ្រប់ API Keys ទាំងអស់៖ ' . $lastError,
+    ];
+}
+
 // 6. Extract Action
 $action = $_POST['action'] ?? $_GET['action'] ?? $_REQUEST['action'] ?? '';
 $action = trim(strtolower((string)$action));
@@ -771,6 +962,256 @@ try {
                 'success' => true,
                 'message' => 'បានអនុញ្ញាតការ Login ចូល Admin Panel ដោយជោគជ័យ!',
                 'admin_name' => $adminUser['name'] ?? $targetAdminId
+            ]);
+            break;
+
+        case 'remove_background':
+        case 'remove_bg':
+            $bgColor = trim($_POST['bg_color'] ?? '');
+            $size = trim($_POST['size'] ?? 'preview');
+            $imageRaw = null;
+
+            // 1. Check if uploaded file
+            if (!empty($_FILES['image']['tmp_name']) && is_uploaded_file($_FILES['image']['tmp_name'])) {
+                $imageRaw = file_get_contents($_FILES['image']['tmp_name']);
+            } elseif (!empty($_FILES['image_file']['tmp_name']) && is_uploaded_file($_FILES['image_file']['tmp_name'])) {
+                $imageRaw = file_get_contents($_FILES['image_file']['tmp_name']);
+            } elseif (!empty($_POST['image_base64'])) {
+                $base64 = $_POST['image_base64'];
+                if (preg_match('/^data:image\/(\w+);base64,/', $base64)) {
+                    $base64 = substr($base64, strpos($base64, ',') + 1);
+                }
+                $imageRaw = base64_decode($base64);
+            } elseif (!empty($_POST['image'])) {
+                $base64 = $_POST['image'];
+                if (preg_match('/^data:image\/(\w+);base64,/', $base64)) {
+                    $base64 = substr($base64, strpos($base64, ',') + 1);
+                }
+                $imageRaw = base64_decode($base64);
+            }
+
+            if (empty($imageRaw)) {
+                sendJson(['success' => false, 'message' => 'សូមបញ្ជូនរូបភាពជា File ឬ Base64 string!'], 400);
+            }
+
+            $result = remove_background_with_pool($imageRaw, $bgColor, $size);
+
+            if ($result['success']) {
+                // Save to uploads/cutouts directory
+                $cutoutDir = __DIR__ . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'cutouts';
+                if (!is_dir($cutoutDir)) {
+                    @mkdir($cutoutDir, 0777, true);
+                }
+                $filename = 'cutout_' . date('Ymd_His') . '_' . bin2hex(random_bytes(6)) . '.png';
+                $savePath = $cutoutDir . DIRECTORY_SEPARATOR . $filename;
+                @file_put_contents($savePath, $result['image_data']);
+
+                $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https://' : 'http://';
+                $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+                $url = $protocol . $host . '/uploads/cutouts/' . $filename;
+
+                sendJson([
+                    'success' => true,
+                    'image_base64' => $result['base64'],
+                    'image_url' => $url,
+                    'filename' => $filename,
+                    'key_used' => $result['key_masked'] ?? 'Active Key',
+                    'key_index' => $result['key_index'] ?? 1,
+                    'message' => 'កាត់ Background រូបភាពដោយជោគជ័យ'
+                ]);
+            } else {
+                sendJson([
+                    'success' => false,
+                    'message' => $result['message']
+                ], 500);
+            }
+            break;
+
+        // ==========================================
+        // API KEY MANAGEMENT (Remove.bg Pool, etc.)
+        // ==========================================
+        case 'get_api_keys':
+        case 'fetch_api_keys':
+            ensure_api_keys_table();
+            $service = trim($_REQUEST['service_name'] ?? 'remove_bg');
+            $rows = dbQuery("SELECT id, service_name, key_label, api_key, free_calls, credits, is_active, priority, last_status, last_checked_at, created_at FROM admin_api_keys WHERE service_name = ? ORDER BY priority ASC, id ASC", [$service]);
+
+            $totalActive = 0;
+            $totalFreeCalls = 0;
+            $totalCredits = 0;
+
+            $items = [];
+            foreach ($rows as $r) {
+                $isActive = (int)$r['is_active'] === 1;
+                if ($isActive) {
+                    $totalActive++;
+                    $totalFreeCalls += (int)$r['free_calls'];
+                    $totalCredits += (int)$r['credits'];
+                }
+                $k = (string)$r['api_key'];
+                $masked = (strlen($k) > 10) ? substr($k, 0, 6) . '...' . substr($k, -4) : '***';
+                
+                $items[] = [
+                    'id' => (int)$r['id'],
+                    'service_name' => $r['service_name'],
+                    'key_label' => $r['key_label'],
+                    'api_key' => $k,
+                    'masked_key' => $masked,
+                    'free_calls' => (int)$r['free_calls'],
+                    'credits' => (int)$r['credits'],
+                    'is_active' => $isActive,
+                    'priority' => (int)$r['priority'],
+                    'last_status' => $r['last_status'] ?? 'active',
+                    'last_checked_at' => $r['last_checked_at'],
+                    'created_at' => $r['created_at']
+                ];
+            }
+
+            sendJson([
+                'success' => true,
+                'keys' => $items,
+                'stats' => [
+                    'total_keys' => count($items),
+                    'active_keys' => $totalActive,
+                    'total_free_calls' => $totalFreeCalls,
+                    'total_credits' => $totalCredits,
+                    'pool_status' => $totalActive > 0 ? 'Active & Ready' : 'Empty'
+                ]
+            ]);
+            break;
+
+        case 'add_api_key':
+            ensure_api_keys_table();
+            $apiKey = trim($_POST['api_key'] ?? '');
+            $label = trim($_POST['key_label'] ?? '');
+            $service = trim($_POST['service_name'] ?? 'remove_bg');
+
+            if (empty($apiKey)) {
+                sendJson(['success' => false, 'message' => 'សូមបញ្ចូល API Key!'], 400);
+            }
+
+            if (empty($label)) {
+                $count = dbQuery("SELECT COUNT(*) as c FROM admin_api_keys WHERE service_name = ?", [$service]);
+                $c = (int)($count[0]['c'] ?? 0) + 1;
+                $label = "Key " . str_pad((string)$c, 2, '0', STR_PAD_LEFT);
+            }
+
+            // Check if already exists
+            $existing = dbQuery("SELECT id FROM admin_api_keys WHERE api_key = ? LIMIT 1", [$apiKey]);
+            if (!empty($existing)) {
+                sendJson(['success' => false, 'message' => 'API Key នេះមាននៅក្នុងប្រព័ន្ធរួចរាល់ហើយ!'], 400);
+            }
+
+            // Verify with remove.bg server
+            $verify = verify_remove_bg_key($apiKey);
+            if (!$verify['success'] && ($verify['http_code'] ?? 0) !== 402 && ($verify['http_code'] ?? 0) !== 429) {
+                sendJson(['success' => false, 'message' => 'API Key មិនត្រឹមត្រូវឡើយ៖ ' . ($verify['message'] ?? 'Invalid Key')], 400);
+            }
+
+            $freeCalls = $verify['free_calls'] ?? 50;
+            $credits = $verify['credits'] ?? 1;
+            $status = $verify['status'] ?? 'active';
+
+            $priorityCount = dbQuery("SELECT MAX(priority) as max_p FROM admin_api_keys WHERE service_name = ?", [$service]);
+            $priority = (int)($priorityCount[0]['max_p'] ?? 0) + 1;
+
+            dbQuery("INSERT INTO admin_api_keys (service_name, key_label, api_key, free_calls, credits, is_active, priority, last_status, last_checked_at) VALUES (?, ?, ?, ?, ?, 1, ?, ?, NOW())", [
+                $service, $label, $apiKey, $freeCalls, $credits, $priority, $status
+            ]);
+
+            sendJson([
+                'success' => true,
+                'message' => "បានបន្ថែម {$label} ជោគជ័យ! (Free Calls: {$freeCalls}, Credits: {$credits})",
+                'key' => [
+                    'label' => $label,
+                    'free_calls' => $freeCalls,
+                    'credits' => $credits,
+                    'status' => $status
+                ]
+            ]);
+            break;
+
+        case 'test_api_key':
+            ensure_api_keys_table();
+            $id = (int)($_POST['id'] ?? 0);
+            $rows = dbQuery("SELECT * FROM admin_api_keys WHERE id = ? LIMIT 1", [$id]);
+            if (empty($rows)) {
+                sendJson(['success' => false, 'message' => 'រកមិនឃើញ Key នេះឡើយ'], 404);
+            }
+
+            $keyRow = $rows[0];
+            $verify = verify_remove_bg_key($keyRow['api_key']);
+
+            $status = $verify['status'] ?? ($verify['success'] ? 'active' : 'invalid');
+            $freeCalls = $verify['free_calls'] ?? 0;
+            $credits = $verify['credits'] ?? 0;
+
+            dbQuery("UPDATE admin_api_keys SET free_calls = ?, credits = ?, last_status = ?, last_checked_at = NOW() WHERE id = ?", [
+                $freeCalls, $credits, $status, $id
+            ]);
+
+            sendJson([
+                'success' => $verify['success'],
+                'message' => $verify['success'] ? "Key ដំណើរការល្អ! (Free Calls: {$freeCalls}, Credits: {$credits})" : "កំហុស៖ " . ($verify['message'] ?? 'Invalid'),
+                'free_calls' => $freeCalls,
+                'credits' => $credits,
+                'status' => $status
+            ]);
+            break;
+
+        case 'toggle_api_key':
+            ensure_api_keys_table();
+            $id = (int)($_POST['id'] ?? 0);
+            $rows = dbQuery("SELECT is_active, key_label FROM admin_api_keys WHERE id = ? LIMIT 1", [$id]);
+            if (empty($rows)) {
+                sendJson(['success' => false, 'message' => 'រកមិនឃើញ Key នេះឡើយ'], 404);
+            }
+            $nextVal = (int)$rows[0]['is_active'] === 1 ? 0 : 1;
+            dbQuery("UPDATE admin_api_keys SET is_active = ? WHERE id = ?", [$nextVal, $id]);
+
+            sendJson([
+                'success' => true,
+                'is_active' => $nextVal === 1,
+                'message' => $nextVal === 1 ? "បានបើកដំណើរការ {$rows[0]['key_label']}" : "បានផ្អាកដំណើរការ {$rows[0]['key_label']}"
+            ]);
+            break;
+
+        case 'delete_api_key':
+            ensure_api_keys_table();
+            $id = (int)($_POST['id'] ?? 0);
+            $rows = dbQuery("SELECT key_label FROM admin_api_keys WHERE id = ? LIMIT 1", [$id]);
+            if (empty($rows)) {
+                sendJson(['success' => false, 'message' => 'រកមិនឃើញ Key នេះឡើយ'], 404);
+            }
+            dbQuery("DELETE FROM admin_api_keys WHERE id = ?", [$id]);
+
+            sendJson([
+                'success' => true,
+                'message' => "បានលុប {$rows[0]['key_label']} ដោយជោគជ័យ!"
+            ]);
+            break;
+
+        case 'sync_all_api_keys':
+            ensure_api_keys_table();
+            $service = trim($_POST['service_name'] ?? 'remove_bg');
+            $rows = dbQuery("SELECT id, api_key, key_label FROM admin_api_keys WHERE service_name = ?", [$service]);
+            $updated = 0;
+
+            foreach ($rows as $r) {
+                $verify = verify_remove_bg_key($r['api_key']);
+                $status = $verify['status'] ?? ($verify['success'] ? 'active' : 'invalid');
+                $freeCalls = $verify['free_calls'] ?? 0;
+                $credits = $verify['credits'] ?? 0;
+
+                dbQuery("UPDATE admin_api_keys SET free_calls = ?, credits = ?, last_status = ?, last_checked_at = NOW() WHERE id = ?", [
+                    $freeCalls, $credits, $status, $r['id']
+                ]);
+                $updated++;
+            }
+
+            sendJson([
+                'success' => true,
+                'message' => "បានធ្វើបច្ចុប្បន្នភាពតុល្យភាព Keys ទាំង {$updated} ដោយជោគជ័យ!"
             ]);
             break;
 

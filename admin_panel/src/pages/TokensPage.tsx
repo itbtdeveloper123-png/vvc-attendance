@@ -17,6 +17,11 @@ import {
   Layers,
   Laptop,
   MoreVertical,
+  Plus,
+  Wand2,
+  RefreshCcw,
+  Sparkles,
+  ExternalLink,
 } from 'lucide-react';
 import { StatCard } from '../components/common/StatCard';
 import { ViewModeToggle, ViewMode } from '../components/common/ViewModeToggle';
@@ -43,7 +48,7 @@ const formatSessionDate = (dateStr?: string) => {
 };
 
 export const TokensPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'active_sessions' | 'global_settings'>('active_sessions');
+  const [activeTab, setActiveTab] = useState<'active_sessions' | 'global_settings' | 'remove_bg_keys'>('active_sessions');
   const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [sessions, setSessions] = useState<SessionItem[]>([]);
   const [groups, setGroups] = useState<SessionGroup[]>([]);
@@ -54,6 +59,25 @@ export const TokensPage: React.FC = () => {
   const [globalMaxTokens, setGlobalMaxTokens] = useState(1);
   const [savingSettings, setSavingSettings] = useState(false);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
+
+  // Remove.bg API Keys Management State
+  const [apiKeys, setApiKeys] = useState<any[]>([]);
+  const [apiKeyStats, setApiKeyStats] = useState({
+    total_keys: 0,
+    active_keys: 0,
+    total_free_calls: 0,
+    total_credits: 0,
+    pool_status: 'Active & Ready',
+  });
+  const [loadingKeys, setLoadingKeys] = useState(false);
+  const [isKeyModalOpen, setIsKeyModalOpen] = useState(false);
+  const [newKeyString, setNewKeyString] = useState('');
+  const [newKeyLabel, setNewKeyLabel] = useState('');
+  const [isTestingNewKey, setIsTestingNewKey] = useState(false);
+  const [isAddingKey, setIsAddingKey] = useState(false);
+  const [syncingAllKeys, setSyncingAllKeys] = useState(false);
+  const [testingKeyId, setTestingKeyId] = useState<number | null>(null);
+  const [keySearch, setKeySearch] = useState('');
 
   // Banner
   const [banner, setBanner] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -97,9 +121,106 @@ export const TokensPage: React.FC = () => {
     }
   };
 
+  const loadApiKeys = async () => {
+    setLoadingKeys(true);
+    try {
+      const res = await adminApi.getApiKeys('remove_bg');
+      if (res && res.success) {
+        setApiKeys(res.keys || []);
+        if (res.stats) {
+          setApiKeyStats(res.stats);
+        }
+      }
+    } catch (err) {
+      console.error('Error loading API keys:', err);
+    }
+    setLoadingKeys(false);
+  };
+
+  const handleAddNewApiKey = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newKeyString.trim()) {
+      showBanner('error', 'សូមបញ្ចូល API Key!');
+      return;
+    }
+    setIsAddingKey(true);
+    try {
+      const res = await adminApi.addApiKey(newKeyString.trim(), newKeyLabel.trim(), 'remove_bg');
+      if (res && res.success) {
+        showBanner('success', res.message || 'បានបន្ថែម API Key ជោគជ័យ!');
+        setIsKeyModalOpen(false);
+        setNewKeyString('');
+        setNewKeyLabel('');
+        loadApiKeys();
+      } else {
+        showBanner('error', res.message || 'បរាជ័យក្នុងការបន្ថែម API Key');
+      }
+    } catch (err: any) {
+      showBanner('error', 'កំហុស៖ ' + (err?.response?.data?.message || err.message));
+    }
+    setIsAddingKey(false);
+  };
+
+  const handleTestSingleKey = async (id: number) => {
+    setTestingKeyId(id);
+    try {
+      const res = await adminApi.testApiKey(id);
+      if (res && res.success) {
+        showBanner('success', res.message || 'Key ដំណើរការល្អ!');
+        loadApiKeys();
+      } else {
+        showBanner('error', res.message || 'Key មិនដំណើរការ ឬអស់ Credit');
+        loadApiKeys();
+      }
+    } catch (err: any) {
+      showBanner('error', 'កំហុសពេល Test៖ ' + err.message);
+    }
+    setTestingKeyId(null);
+  };
+
+  const handleToggleKeyActive = async (id: number) => {
+    try {
+      const res = await adminApi.toggleApiKey(id);
+      if (res && res.success) {
+        showBanner('success', res.message);
+        loadApiKeys();
+      }
+    } catch (err: any) {
+      showBanner('error', 'កំហុស៖ ' + err.message);
+    }
+  };
+
+  const handleDeleteApiKey = async (id: number, label: string) => {
+    if (!window.confirm(`តើអ្នកពិតជាចង់លុប ${label} ចេញពី Pool មែនទេ?`)) return;
+    try {
+      const res = await adminApi.deleteApiKey(id);
+      if (res && res.success) {
+        showBanner('success', res.message);
+        loadApiKeys();
+      }
+    } catch (err: any) {
+      showBanner('error', 'កំហុសពេលលុប៖ ' + err.message);
+    }
+  };
+
+  const handleSyncAllKeys = async () => {
+    setSyncingAllKeys(true);
+    try {
+      const res = await adminApi.syncAllApiKeys('remove_bg');
+      if (res && res.success) {
+        showBanner('success', res.message);
+        loadApiKeys();
+      }
+    } catch (err: any) {
+      showBanner('error', 'កំហុសពេល Sync៖ ' + err.message);
+    }
+    setSyncingAllKeys(false);
+  };
+
   useEffect(() => {
     loadSessions();
     loadGlobalSettings();
+    loadApiKeys();
   }, []);
 
   const handleToggleSelectAll = () => {
@@ -298,6 +419,31 @@ export const TokensPage: React.FC = () => {
           >
             <Sliders size={15} />
             <span>កំណត់ Token Limits</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveTab('remove_bg_keys');
+              loadApiKeys();
+            }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '9px 16px',
+              borderRadius: '10px',
+              fontWeight: 700,
+              fontSize: '13px',
+              border: 'none',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              background: activeTab === 'remove_bg_keys' ? '#fff' : 'transparent',
+              color: activeTab === 'remove_bg_keys' ? 'var(--primary)' : 'var(--text-secondary)',
+              boxShadow: activeTab === 'remove_bg_keys' ? '0 4px 12px rgba(0,0,0,0.06)' : 'none',
+            }}
+          >
+            <Sparkles size={15} />
+            <span>Remove.bg Keys Pool ({apiKeys.length || 6})</span>
           </button>
         </div>
       </div>
@@ -744,6 +890,385 @@ export const TokensPage: React.FC = () => {
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 3. REMOVE.BG API KEYS POOL MANAGEMENT TAB */}
+      {/* ========================================================================= */}
+      {activeTab === 'remove_bg_keys' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {/* STAT CARDS */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
+            <StatCard
+              title="សរុប Keys ក្នុង Pool"
+              value={`${apiKeyStats.active_keys} / ${apiKeyStats.total_keys}`}
+              subtitle="Keys កំពុងដំណើរការ"
+              icon={<Layers size={22} color="var(--primary)" />}
+            />
+            <StatCard
+              title="Free Calls នៅសល់ / ខែ"
+              value={`${apiKeyStats.total_free_calls}`}
+              subtitle="Reset ជារៀងរាល់ខែ"
+              icon={<Wand2 size={22} color="#10B981" />}
+            />
+            <StatCard
+              title="Full-Res Credits"
+              value={`${apiKeyStats.total_credits}`}
+              subtitle="កាត់រូបច្បាស់ High-Res"
+              icon={<Sparkles size={22} color="#F59E0B" />}
+            />
+            <StatCard
+              title="ស្ថានភាពប្រព័ន្ធ Failover"
+              value={apiKeyStats.pool_status}
+              subtitle="Auto Rotate ពេលអស់ Credit"
+              icon={<Shield size={22} color="#0284C7" />}
+            />
+          </div>
+
+          {/* ACTION TOOLBAR */}
+          <div
+            className="card"
+            style={{
+              padding: '16px 20px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '14px',
+              borderRadius: '16px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: '260px' }}>
+              <div style={{ position: 'relative', width: '100%', maxWidth: '320px' }}>
+                <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                <input
+                  type="text"
+                  placeholder="ស្វែងរកតាមឈ្មោះ ឬ Key..."
+                  className="form-input"
+                  value={keySearch}
+                  onChange={(e) => setKeySearch(e.target.value)}
+                  style={{ paddingLeft: '36px', height: '40px', borderRadius: '10px' }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <button
+                type="button"
+                onClick={handleSyncAllKeys}
+                disabled={syncingAllKeys}
+                className="btn btn-secondary"
+                style={{ padding: '8px 16px', borderRadius: '10px', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+                title="ពិនិត្យ និងធ្វើបច្ចុប្បន្នភាព Credit នៃ Keys ទាំងអស់"
+              >
+                <RefreshCcw size={15} className={syncingAllKeys ? 'animate-spin' : ''} />
+                <span>{syncingAllKeys ? 'កំពុង Sync...' : 'Sync តុល្យភាពទាំងអស់'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsKeyModalOpen(true)}
+                className="btn btn-primary"
+                style={{
+                  padding: '8px 18px',
+                  borderRadius: '10px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  background: 'linear-gradient(135deg, #6366F1, #8B5CF6)',
+                }}
+              >
+                <Plus size={16} />
+                <span>+ បន្ថែម API Key ថ្មី</span>
+              </button>
+            </div>
+          </div>
+
+          {/* KEYS TABLE */}
+          <div className="card" style={{ padding: '0', borderRadius: '16px', overflow: 'hidden' }}>
+            <div className="table-container" style={{ margin: 0 }}>
+              <table className="hrm-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: '60px', textAlign: 'center' }}>ល.រ</th>
+                    <th>ឈ្មោះសម្គាល់ (Label)</th>
+                    <th>API Key (Secret)</th>
+                    <th style={{ textAlign: 'center' }}>Free Calls / ខែ</th>
+                    <th style={{ textAlign: 'center' }}>Full-Res Credits</th>
+                    <th style={{ textAlign: 'center' }}>ស្ថានភាព (Status)</th>
+                    <th style={{ width: '180px', textAlign: 'center' }}>សកម្មភាព (Actions)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loadingKeys ? (
+                    <tr>
+                      <td colSpan={7} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+                        <RotateCw size={24} className="animate-spin" style={{ margin: '0 auto 10px auto', display: 'block' }} />
+                        <span>កំពុងទាញយកបញ្ជី API Keys...</span>
+                      </td>
+                    </tr>
+                  ) : apiKeys.filter((k) => (k.key_label || '').toLowerCase().includes(keySearch.toLowerCase()) || (k.api_key || '').toLowerCase().includes(keySearch.toLowerCase())).length === 0 ? (
+                    <tr>
+                      <td colSpan={7} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+                        មិនមាន API Key ណាត្រូវនឹងការស្វែងរកឡើយ
+                      </td>
+                    </tr>
+                  ) : (
+                    apiKeys
+                      .filter((k) => (k.key_label || '').toLowerCase().includes(keySearch.toLowerCase()) || (k.api_key || '').toLowerCase().includes(keySearch.toLowerCase()))
+                      .map((k, idx) => {
+                        const isTesting = testingKeyId === k.id;
+                        return (
+                          <tr key={k.id}>
+                            <td style={{ textAlign: 'center', fontWeight: 700, color: 'var(--text-muted)' }}>
+                              #{idx + 1}
+                            </td>
+                            <td>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span
+                                  style={{
+                                    width: '28px',
+                                    height: '28px',
+                                    borderRadius: '8px',
+                                    background: k.is_active ? 'rgba(99, 102, 241, 0.15)' : 'rgba(148, 163, 184, 0.15)',
+                                    color: k.is_active ? 'var(--primary)' : 'var(--text-muted)',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    fontSize: '11px',
+                                    fontWeight: 800,
+                                  }}
+                                >
+                                  {idx + 1}
+                                </span>
+                                <div>
+                                  <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '13.5px' }}>
+                                    {k.key_label}
+                                  </div>
+                                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                                    Priority #{k.priority || idx + 1} • បង្កើត៖ {k.created_at ? k.created_at.split(' ')[0] : 'ថ្មី'}
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                            <td>
+                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'var(--surface-alt)', padding: '4px 10px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                                <code style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                                  {k.masked_key}
+                                </code>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(k.api_key);
+                                    showBanner('success', `បានចម្លង ${k.key_label}`);
+                                  }}
+                                  title="Copy Key"
+                                  style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--text-muted)' }}
+                                >
+                                  <Copy size={13} />
+                                </button>
+                              </div>
+                            </td>
+                            <td style={{ textAlign: 'center' }}>
+                              <span
+                                style={{
+                                  display: 'inline-block',
+                                  padding: '3px 10px',
+                                  borderRadius: '20px',
+                                  fontSize: '12px',
+                                  fontWeight: 700,
+                                  background: k.free_calls > 10 ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
+                                  color: k.free_calls > 10 ? '#10B981' : '#EF4444',
+                                }}
+                              >
+                                {k.free_calls} / 50
+                              </span>
+                            </td>
+                            <td style={{ textAlign: 'center' }}>
+                              <span style={{ fontWeight: 700, fontSize: '13px', color: k.credits > 0 ? '#F59E0B' : 'var(--text-muted)' }}>
+                                {k.credits}
+                              </span>
+                            </td>
+                            <td style={{ textAlign: 'center' }}>
+                              {k.is_active ? (
+                                k.last_status === 'exhausted' ? (
+                                  <span className="badge badge-warning" style={{ fontSize: '11.5px' }}>
+                                    ⚠️ អស់ Credit
+                                  </span>
+                                ) : (
+                                  <span className="badge badge-success" style={{ fontSize: '11.5px' }}>
+                                    ✅ សកម្ម (Active)
+                                  </span>
+                                )
+                              ) : (
+                                <span className="badge badge-secondary" style={{ fontSize: '11.5px' }}>
+                                  ⏸️ ផ្អាក (Disabled)
+                                </span>
+                              )}
+                            </td>
+                            <td style={{ textAlign: 'center' }}>
+                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleTestSingleKey(k.id)}
+                                  disabled={isTesting}
+                                  className="btn btn-secondary btn-sm"
+                                  style={{ padding: '5px 8px', borderRadius: '8px' }}
+                                  title="តេស្តផ្ទៀងផ្ទាត់ Key នេះ"
+                                >
+                                  <RotateCw size={13} className={isTesting ? 'animate-spin' : ''} />
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleKeyActive(k.id)}
+                                  className="btn btn-secondary btn-sm"
+                                  style={{
+                                    padding: '5px 8px',
+                                    borderRadius: '8px',
+                                    color: k.is_active ? '#10B981' : 'var(--text-muted)',
+                                  }}
+                                  title={k.is_active ? 'ផ្អាកដំណើរការ' : 'បើកដំណើរការ'}
+                                >
+                                  <Power size={13} />
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteApiKey(k.id, k.key_label)}
+                                  className="btn btn-danger btn-sm"
+                                  style={{ padding: '5px 8px', borderRadius: '8px' }}
+                                  title="លុប Key"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* ADD KEY MODAL */}
+          {isKeyModalOpen && (
+            <div
+              style={{
+                position: 'fixed',
+                inset: 0,
+                backgroundColor: 'rgba(0, 0, 0, 0.65)',
+                backdropFilter: 'blur(6px)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 9999,
+                padding: '20px',
+              }}
+            >
+              <div
+                className="card"
+                style={{
+                  width: '100%',
+                  maxWidth: '500px',
+                  padding: '24px',
+                  borderRadius: '20px',
+                  boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
+                  animation: 'fadeIn 0.2s ease',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span
+                      style={{
+                        background: 'linear-gradient(135deg, #6366F1, #8B5CF6)',
+                        color: '#fff',
+                        width: '34px',
+                        height: '34px',
+                        borderRadius: '10px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Plus size={18} />
+                    </span>
+                    <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: 'var(--text-primary)' }}>
+                      បន្ថែម Remove.bg API Key ថ្មី
+                    </h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsKeyModalOpen(false)}
+                    style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '20px' }}
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <form onSubmit={handleAddNewApiKey}>
+                  <div className="form-group" style={{ marginBottom: '16px' }}>
+                    <label className="form-label">ឈ្មោះសម្គាល់ (Key Label)</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="ឧ. Account 07 - HR Admin"
+                      value={newKeyLabel}
+                      onChange={(e) => setNewKeyLabel(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: '20px' }}>
+                    <label className="form-label">API Key String *</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="ឧ. LM9UPg8HqRKeZ89FeM2hhaCR"
+                      value={newKeyString}
+                      onChange={(e) => setNewKeyString(e.target.value)}
+                      required
+                      style={{ fontFamily: 'monospace' }}
+                    />
+                    <span style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
+                      ប្រព័ន្ធនឹងធ្វើការ Test ផ្ទៀងផ្ទាត់ជាមួយ Server របស់ Remove.bg ដោយស្វ័យប្រវត្តមុនពេល Save។
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', borderTop: '1px solid var(--border)', paddingTop: '16px' }}>
+                    <button type="button" onClick={() => setIsKeyModalOpen(false)} className="btn btn-secondary">
+                      បោះបង់
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isAddingKey}
+                      className="btn btn-primary"
+                      style={{
+                        background: 'linear-gradient(135deg, #6366F1, #8B5CF6)',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                      }}
+                    >
+                      {isAddingKey ? (
+                        <>
+                          <RotateCw size={15} className="animate-spin" />
+                          <span>កំពុងផ្ទៀងផ្ទាត់ & រក្សាទុក...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Check size={15} />
+                          <span>ផ្ទៀងផ្ទាត់ & រក្សាទុក</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -10,6 +10,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import '../services/remove_bg_service.dart';
 import '../services/subject_segmentation_service.dart';
 import '../widgets/app_widgets.dart';
 
@@ -303,6 +304,82 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
     }
   }
 
+  Future<void> _processAiCloudRemoveBgCutout() async {
+    if (_imagePath == null) return;
+
+    setState(() {
+      _isProcessing = true;
+      _statusText = 'កំពុងកាត់ Background ដោយ AI Remove.bg HD...';
+    });
+
+    try {
+      final rmbgService = RemoveBgService();
+      String? hexColor;
+      if (_selectedBgColor != Colors.transparent) {
+        hexColor = '#${_selectedBgColor.toARGB32().toRadixString(16).padLeft(8, '0').substring(2)}';
+      }
+
+      final processedFile = await rmbgService.removeBackgroundFile(
+        File(_imagePath!),
+        bgColor: hexColor,
+        size: 'preview',
+      );
+
+      if (processedFile != null && mounted) {
+        final croppedFile = await _cropToPresetRatio(processedFile.path, _selectedPreset);
+        if (!mounted) return;
+        setState(() {
+          _processedImagePath = croppedFile.path;
+          _isProcessing = false;
+          _statusText = null;
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    'បានកាត់ Background ដោយ AI Remove.bg ជោគជ័យ!',
+                    style: GoogleFonts.kantumruyPro(fontSize: 13, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              backgroundColor: const Color(0xFF10B981),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          );
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _isProcessing = false;
+            _statusText = null;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('មិនអាចកាត់ Background បានទេ សូមព្យាយាមម្តងទៀត', style: GoogleFonts.kantumruyPro()),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+          _statusText = null;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('កំហុស៖ $e', style: GoogleFonts.kantumruyPro()), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
   Future<File> _cropToPresetRatio(String srcPath, PassportPreset preset) async {
     final bytes = await File(srcPath).readAsBytes();
     img.Image? original = img.decodeImage(bytes);
@@ -586,7 +663,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
 
                     const SizedBox(height: 14),
 
-                    // Background Color Selection
+                    // Background Color Selection & AI Remove.bg
                     Row(
                       children: [
                         Text(
@@ -594,6 +671,45 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
                           style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600),
                         ),
                         const Spacer(),
+                        // AI Cloud Remove.bg Button
+                        Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: _processAiCloudRemoveBgCutout,
+                            borderRadius: BorderRadius.circular(8),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+                                ),
+                                borderRadius: BorderRadius.circular(8),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFF6366F1).withValues(alpha: 0.4),
+                                    blurRadius: 6,
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.auto_awesome, color: Colors.white, size: 13),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '✨ AI Remove.bg',
+                                    style: GoogleFonts.kantumruyPro(
+                                      color: Colors.white,
+                                      fontSize: 10.5,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
                         InkWell(
                           onTap: () {
                             setState(() {
@@ -614,7 +730,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
                                 ),
                                 const SizedBox(width: 4),
                                 Text(
-                                  _isFlipped ? 'បញ្ជ្រាស (On)' : 'ត្រឡប់រូប',
+                                  _isFlipped ? 'បញ្ជ្រាស' : 'ត្រឡប់រូប',
                                   style: GoogleFonts.kantumruyPro(
                                     color: _isFlipped ? Colors.tealAccent : Colors.white60,
                                     fontSize: 11,
@@ -624,7 +740,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
                             ),
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 4),
                         IconButton(
                           icon: const Icon(Icons.refresh_rounded, color: Colors.white54, size: 18),
                           onPressed: () => _pickImage(ImageSource.gallery),
@@ -632,7 +748,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 8),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: _presetColors.map((color) {

@@ -55,6 +55,8 @@ export const StockPage: React.FC = () => {
     location: 'Store 318',
   });
   const [itemImageFile, setItemImageFile] = useState<File | null>(null);
+  const [itemImagePreview, setItemImagePreview] = useState<string | null>(null);
+  const [isRemovingStockBg, setIsRemovingStockBg] = useState(false);
 
   // ==========================================
   // 2. STOCK PURCHASE STATE
@@ -1654,13 +1656,93 @@ export const StockPage: React.FC = () => {
               </div>
 
               <div className="form-group">
-                <label className="form-label">រូបភាពទំនិញ (Item Image)</label>
+                <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>រូបភាពទំនិញ (Item Image)</span>
+                  {itemImagePreview && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!itemImagePreview || isRemovingStockBg) return;
+                        setIsRemovingStockBg(true);
+                        try {
+                          const res = await adminApi.removeBackground(itemImagePreview, 'transparent');
+                          if (res && res.success && res.image_base64) {
+                            setItemImagePreview(res.image_base64);
+                          }
+                        } catch (err) {
+                          console.error('Failed to remove bg:', err);
+                        }
+                        setIsRemovingStockBg(false);
+                      }}
+                      disabled={isRemovingStockBg}
+                      className="btn btn-sm"
+                      style={{
+                        background: 'linear-gradient(135deg, #6366F1, #8B5CF6)',
+                        color: '#fff',
+                        border: 'none',
+                        padding: '4px 10px',
+                        fontSize: '11.5px',
+                        fontWeight: 700,
+                        borderRadius: '8px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        cursor: isRemovingStockBg ? 'not-allowed' : 'pointer',
+                      }}
+                    >
+                      {isRemovingStockBg ? (
+                        <>
+                          <span className="spinner-border spinner-border-sm" style={{ width: '12px', height: '12px' }} />
+                          <span>កំពុងកាត់ Background...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>✨ កាត់ Background (AI Cutout)</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                </label>
                 <input
                   type="file"
                   className="form-input"
                   accept="image/*"
-                  onChange={(e) => setItemImageFile(e.target.files ? e.target.files[0] : null)}
+                  onChange={(e) => {
+                    const file = e.target.files ? e.target.files[0] : null;
+                    setItemImageFile(file);
+                    if (file) {
+                      const reader = new FileReader();
+                      reader.onload = () => {
+                        setItemImagePreview(reader.result as string);
+                      };
+                      reader.readAsDataURL(file);
+                    } else {
+                      setItemImagePreview(null);
+                    }
+                  }}
                 />
+                {itemImagePreview && (
+                  <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '14px' }}>
+                    <div
+                      style={{
+                        width: '64px',
+                        height: '64px',
+                        borderRadius: '10px',
+                        overflow: 'hidden',
+                        border: '2px solid var(--primary)',
+                        background: 'repeating-conic-gradient(#333 0% 25%, #222 0% 50%) 50% / 16px 16px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <img src={itemImagePreview} alt="Item preview" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                    </div>
+                    <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                      {isRemovingStockBg ? 'កំពុងកាត់ Background...' : 'រូបភាពទំនិញស្អាតកម្រិត E-commerce'}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
 
