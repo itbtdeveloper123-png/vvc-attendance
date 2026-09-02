@@ -265,16 +265,16 @@ class SubjectSegmentationService {
     final int imgW = bgCanvas.width;
     final int imgH = bgCanvas.height;
 
-    final double targetW = (imgW * 0.92 * suitScale).clamp(40.0, imgW * 2.5);
+    final double targetW = (imgW * 0.95 * suitScale).clamp(40.0, imgW * 3.0);
     final double scaleFactor = targetW / suitImg.width;
     final int targetH = (suitImg.height * scaleFactor).round();
     final int tw = targetW.round();
 
     final resizedSuit = img.copyResize(suitImg, width: tw, height: targetH);
 
-    final int defaultY = imgH - targetH + (imgH * 0.05).round();
-    final int posY = defaultY + (suitOffsetY * (imgH * 0.025)).round();
-    final int posX = (((imgW - tw) / 2) + (suitOffsetX * (imgW * 0.025))).round();
+    // Normalized calculation matching Flutter Stack Positioned coordinates
+    final int posX = (((imgW - tw) / 2.0) + (imgW * (suitOffsetX / 100.0))).round();
+    final int posY = ((imgH - targetH) - (imgH * (suitOffsetY / 100.0))).round();
 
     final Color bgColor = backgroundColor ?? Colors.white;
     final int bgR = (bgColor.r * 255).round().clamp(0, 255);

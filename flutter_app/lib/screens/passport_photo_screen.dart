@@ -33,7 +33,7 @@ class SuitPresetInfo {
   });
 }
 
-/// Passport Photo Studio Screen (Subject Segmentation + 4x6 / 3x4 ID Sizing + Virtual Suit)
+/// Passport Photo Studio Screen (Realtime 120 FPS GPU Stack + Virtual Suit + Print Sheet)
 class PassportPhotoScreen extends StatefulWidget {
   final String? initialImagePath;
 
@@ -43,31 +43,29 @@ class PassportPhotoScreen extends StatefulWidget {
   State<PassportPhotoScreen> createState() => _PassportPhotoScreenState();
 }
 
-class _PassportPhotoScreenState extends State<PassportPhotoScreen> with SingleTickerProviderStateMixin {
+class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
   final SubjectSegmentationService _segmentationService = SubjectSegmentationService();
   final ImagePicker _picker = ImagePicker();
 
   String? _imagePath;
-  String? _processedImagePath;
   bool _isProcessing = false;
   String? _statusText;
   Uint8List? _cutoutForegroundBytes; // Cached transparent PNG from Remove.bg
 
   bool _isFlipped = false;
-  Timer? _debounceTimer;
 
   // Active Control Deck Tab: 0 = Suit, 1 = Background, 2 = Size Preset
   int _activeDeckTab = 0;
 
-  // Virtual Suit Overlay State
+  // Virtual Suit State (Percentage normalized for 100% responsiveness)
   SuitCategory _selectedSuitCategory = SuitCategory.all;
   String? _selectedSuitKey;
   double _suitScale = 1.0;
-  double _suitOffsetY = 0.0;
-  double _suitOffsetX = 0.0;
+  double _suitOffsetY = 0.0; // percentage (-50% to +50%)
+  double _suitOffsetX = 0.0; // percentage (-50% to +50%)
   bool _hasAutoFittedSuit = false;
 
-  // Track gesture scale baseline
+  // Gesture baselines for smooth drag & pinch
   double _baseScale = 1.0;
 
   final Map<String, SuitPresetInfo> _suitPresets = {
@@ -145,7 +143,6 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> with SingleTi
     'cutout_child_16': const SuitPresetInfo(label: 'អាវកុមារទី ១៦', shortLabel: 'សិស្ស ១៦', assetPath: 'assets/suits/cutout_child_16.png', icon: Icons.face_4_rounded, category: SuitCategory.student),
   };
 
-  // Passport presets: 4x6 cm, 3x4 cm, 2x3 cm, 5x5 cm
   PassportPreset _selectedPreset = PassportPreset.size4x6;
   Color _selectedBgColor = Colors.white;
 
@@ -170,17 +167,9 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> with SingleTi
 
   @override
   void dispose() {
-    _debounceTimer?.cancel();
     _segmentationService.clearCache();
     _segmentationService.dispose();
     super.dispose();
-  }
-
-  void _debouncedRenderComposite() {
-    _debounceTimer?.cancel();
-    _debounceTimer = Timer(const Duration(milliseconds: 60), () {
-      _renderCompositeFromCutout();
-    });
   }
 
   /// Accurate face detection & natural neckline auto-alignment
@@ -223,23 +212,24 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> with SingleTi
             }
           }
 
+          final double chinXNorm = chinX / decoded.width;
+          final double chinYNorm = chinY / decoded.height;
+          final double faceWNorm = box.width / decoded.width;
+          final double faceHNorm = box.height / decoded.height;
+
           // 1. Natural shoulder width calculation (~2.25x face width)
-          final double faceWidth = box.width;
-          final double targetShoulderW = faceWidth * 2.25;
-          final double suitCanvasTargetW = decoded.width * 0.92;
-          _suitScale = (targetShoulderW / suitCanvasTargetW).clamp(0.65, 1.85);
+          _suitScale = (faceWNorm * 2.25 / 0.95).clamp(0.70, 1.80);
 
           // 2. Horizontal centering directly beneath chin
-          final double imageCenterX = decoded.width / 2.0;
-          _suitOffsetX = ((chinX - imageCenterX) / (decoded.width * 0.025)).clamp(-18.0, 18.0);
+          _suitOffsetX = ((chinXNorm - 0.5) * 100.0).clamp(-35.0, 35.0);
 
           // 3. Vertical neckline placement (Collar sits at natural base of neck: chin + ~18% face height)
-          final double suitHeight = decoded.width * 0.92 * _suitScale;
-          final double defaultSuitTopY = decoded.height - suitHeight + (decoded.height * 0.05);
-          final double targetCollarTopY = chinY + (box.height * 0.18);
-          _suitOffsetY = ((targetCollarTopY - defaultSuitTopY) / (decoded.height * 0.025)).clamp(-25.0, 25.0);
+          final double targetCollarYNorm = chinYNorm + (faceHNorm * 0.18);
+          const double estimatedSuitHeightNorm = 0.55;
+          _suitOffsetY = ((1.0 - targetCollarYNorm - estimatedSuitHeightNorm) * 100.0).clamp(-35.0, 35.0);
 
           _hasAutoFittedSuit = true;
+          if (mounted) setState(() {});
         }
       }
     } catch (e) {
@@ -254,7 +244,6 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> with SingleTi
         _segmentationService.clearCache();
         setState(() {
           _imagePath = picked.path;
-          _processedImagePath = null;
           _cutoutForegroundBytes = null;
           _isFlipped = (source == ImageSource.camera);
           _hasAutoFittedSuit = false;
@@ -267,67 +256,6 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> with SingleTi
           SnackBar(content: Text('មិនអាចជ្រើសរើសរូបភាពបានទេ៖ $e', style: GoogleFonts.kantumruyPro())),
         );
       }
-    }
-  }
-
-  /// Composite transparent cutout foreground onto selected background & virtual suit
-  Future<void> _renderCompositeFromCutout() async {
-    if (_imagePath == null) return;
-    if (_cutoutForegroundBytes == null) {
-      await _processAiCloudRemoveBgCutout(showToast: false);
-      return;
-    }
-
-    setState(() {
-      _isProcessing = true;
-      _statusText = 'កំពុងតម្រឹម និងរៀបចំរូបថត...';
-    });
-
-    try {
-      if (_selectedSuitKey != null && !_hasAutoFittedSuit) {
-        await _detectFaceAndAutoFitSuit();
-      }
-
-      Uint8List? suitBytes;
-      if (_selectedSuitKey != null && _suitPresets.containsKey(_selectedSuitKey)) {
-        try {
-          final assetPath = _suitPresets[_selectedSuitKey]!.assetPath;
-          final ByteData data = await rootBundle.load(assetPath);
-          suitBytes = data.buffer.asUint8List();
-        } catch (e) {
-          debugPrint('Error loading suit asset: $e');
-        }
-      }
-
-      final outFile = await _segmentationService.createPassportBackground(
-        imagePath: _imagePath!,
-        backgroundColor: _selectedBgColor,
-        foregroundBytes: _cutoutForegroundBytes,
-        flipHorizontal: _isFlipped,
-        suitKey: _selectedSuitKey,
-        suitBytes: suitBytes,
-        suitScale: _suitScale,
-        suitOffsetX: _suitOffsetX,
-        suitOffsetY: _suitOffsetY,
-      );
-
-      final croppedFile = await _cropToPresetRatio(outFile.path, _selectedPreset);
-
-      if (mounted) {
-        setState(() {
-          _processedImagePath = croppedFile.path;
-          _isProcessing = false;
-          _statusText = null;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isProcessing = false;
-          _statusText = null;
-        });
-      }
-      debugPrint('Error rendering composite: $e');
     }
   }
 
@@ -387,9 +315,14 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> with SingleTi
       }
 
       if (resultBytes != null && resultBytes.isNotEmpty && mounted) {
-        _cutoutForegroundBytes = resultBytes;
-        _segmentationService.clearCache();
-        await _renderCompositeFromCutout();
+        setState(() {
+          _cutoutForegroundBytes = resultBytes;
+          _isProcessing = false;
+          _statusText = null;
+        });
+
+        // Run auto-fit once in background
+        _detectFaceAndAutoFitSuit();
 
         if (showToast && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -439,6 +372,36 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> with SingleTi
     }
   }
 
+  /// Generate High-Res Image Composite for Print or Save
+  Future<File?> _generateHighResComposite() async {
+    if (_imagePath == null) return null;
+
+    Uint8List? suitBytes;
+    if (_selectedSuitKey != null && _suitPresets.containsKey(_selectedSuitKey)) {
+      try {
+        final assetPath = _suitPresets[_selectedSuitKey]!.assetPath;
+        final ByteData data = await rootBundle.load(assetPath);
+        suitBytes = data.buffer.asUint8List();
+      } catch (e) {
+        debugPrint('Error loading suit asset: $e');
+      }
+    }
+
+    final outFile = await _segmentationService.createPassportBackground(
+      imagePath: _imagePath!,
+      backgroundColor: _selectedBgColor,
+      foregroundBytes: _cutoutForegroundBytes,
+      flipHorizontal: _isFlipped,
+      suitKey: _selectedSuitKey,
+      suitBytes: suitBytes,
+      suitScale: _suitScale,
+      suitOffsetX: _suitOffsetX,
+      suitOffsetY: _suitOffsetY,
+    );
+
+    return await _cropToPresetRatio(outFile.path, _selectedPreset);
+  }
+
   Future<File> _cropToPresetRatio(String srcPath, PassportPreset preset) async {
     final bytes = await File(srcPath).readAsBytes();
     img.Image? original = img.decodeImage(bytes);
@@ -469,7 +432,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> with SingleTi
   }
 
   Future<void> _exportPrintSheet() async {
-    if (_processedImagePath == null) return;
+    if (_imagePath == null) return;
 
     setState(() {
       _isProcessing = true;
@@ -477,11 +440,14 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> with SingleTi
     });
 
     try {
+      final highResFile = await _generateHighResComposite();
+      if (highResFile == null) return;
+
       final pdf = pw.Document();
-      final imageBytes = await File(_processedImagePath!).readAsBytes();
+      final imageBytes = await highResFile.readAsBytes();
       final pdfImage = pw.MemoryImage(imageBytes);
 
-      // Create printable A4 page with passport photos
+      // Create printable A4 page with 8 passport photos
       pdf.addPage(
         pw.Page(
           pageFormat: PdfPageFormat.a4,
@@ -517,16 +483,18 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> with SingleTi
         );
       }
     } finally {
-      setState(() {
-        _isProcessing = false;
-        _statusText = null;
-      });
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+          _statusText = null;
+        });
+      }
     }
   }
 
   /// AI Cutout.pro Photo Enhancer HD
   Future<void> _enhancePhotoWithCutoutPro() async {
-    if (_processedImagePath == null && _imagePath == null) return;
+    if (_imagePath == null) return;
 
     setState(() {
       _isProcessing = true;
@@ -534,8 +502,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> with SingleTi
     });
 
     try {
-      final targetPath = _processedImagePath ?? _imagePath!;
-      final imageBytes = await File(targetPath).readAsBytes();
+      final imageBytes = await File(_imagePath!).readAsBytes();
       final enhancedBytes = await CutoutProService().enhancePhotoHD(imageBytes);
 
       if (enhancedBytes != null && enhancedBytes.isNotEmpty) {
@@ -547,10 +514,15 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> with SingleTi
         if (!mounted) return;
 
         setState(() {
-          _processedImagePath = outFile.path;
+          _imagePath = outFile.path;
+          _cutoutForegroundBytes = null;
           _isProcessing = false;
           _statusText = null;
         });
+
+        await _processAiCloudRemoveBgCutout(showToast: false);
+
+        if (!mounted) return;
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -597,8 +569,6 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> with SingleTi
 
   @override
   Widget build(BuildContext context) {
-    final displayPath = _processedImagePath ?? _imagePath;
-
     return Scaffold(
       backgroundColor: const Color(0xFF0A0F1D),
       appBar: VvcAppBar(
@@ -607,7 +577,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> with SingleTi
         centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
-          onPressed: () => Navigator.pop(context, _processedImagePath),
+          onPressed: () => Navigator.pop(context),
         ),
         title: Row(
           mainAxisSize: MainAxisSize.min,
@@ -648,25 +618,23 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> with SingleTi
                 setState(() {
                   _isFlipped = !_isFlipped;
                 });
-                _renderCompositeFromCutout();
               },
             ),
-          ],
-          if (_processedImagePath != null)
             IconButton(
               icon: const Icon(Icons.print_rounded, color: Color(0xFF14B8A6), size: 22),
               tooltip: 'ព្រីនសន្លឹក 4x6 / 3x4',
               onPressed: _exportPrintSheet,
             ),
+          ],
         ],
       ),
       body: SafeArea(
         child: Column(
           children: [
-            // Interactive Photo Studio Canvas (Main Center Stage)
+            // Realtime 120 FPS Interactive Photo Studio Canvas (Main Stage)
             Expanded(
               child: Container(
-                margin: const EdgeInsets.fromLTRB(14, 10, 14, 8),
+                margin: const EdgeInsets.fromLTRB(14, 8, 14, 6),
                 decoration: BoxDecoration(
                   color: const Color(0xFF060913),
                   borderRadius: BorderRadius.circular(20),
@@ -684,7 +652,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> with SingleTi
                   child: Stack(
                     alignment: Alignment.center,
                     children: [
-                      if (displayPath != null)
+                      if (_imagePath != null)
                         GestureDetector(
                           onScaleStart: (details) {
                             _baseScale = _suitScale;
@@ -692,29 +660,64 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> with SingleTi
                           onScaleUpdate: (details) {
                             if (_selectedSuitKey == null) return;
                             setState(() {
-                              // Direct on-screen touch dragging of suit
-                              _suitOffsetX += (details.focalPointDelta.dx * 0.08);
-                              _suitOffsetY += (details.focalPointDelta.dy * 0.08);
+                              // Direct on-screen 120 FPS dragging & pinch zoom
+                              _suitOffsetX = (_suitOffsetX + (details.focalPointDelta.dx * 0.25)).clamp(-45.0, 45.0);
+                              _suitOffsetY = (_suitOffsetY - (details.focalPointDelta.dy * 0.25)).clamp(-45.0, 45.0);
 
-                              // Direct pinch-to-zoom scaling
                               if (details.scale != 1.0) {
                                 _suitScale = (_baseScale * details.scale).clamp(0.55, 1.95);
                               }
                             });
-                          },
-                          onScaleEnd: (details) {
-                            if (_selectedSuitKey != null) {
-                              _debouncedRenderComposite();
-                            }
                           },
                           child: Container(
                             color: Colors.transparent,
                             child: Center(
                               child: AspectRatio(
                                 aspectRatio: _selectedPreset.ratio,
-                                child: Image.file(
-                                  File(displayPath),
-                                  fit: BoxFit.cover,
+                                child: Container(
+                                  color: _selectedBgColor,
+                                  child: Stack(
+                                    fit: StackFit.expand,
+                                    alignment: Alignment.center,
+                                    children: [
+                                      // Layer 1: Person Cutout Foreground (Instant 0ms update)
+                                      if (_cutoutForegroundBytes != null)
+                                        Transform.scale(
+                                          scaleX: _isFlipped ? -1.0 : 1.0,
+                                          scaleY: 1.0,
+                                          child: Image.memory(
+                                            _cutoutForegroundBytes!,
+                                            fit: BoxFit.cover,
+                                            gaplessPlayback: true,
+                                          ),
+                                        )
+                                      else
+                                        Image.file(File(_imagePath!), fit: BoxFit.cover),
+
+                                      // Layer 2: Live GPU Virtual Suit Overlay (Instant 0ms, 120 FPS drag)
+                                      if (_selectedSuitKey != null && _suitPresets.containsKey(_selectedSuitKey))
+                                        LayoutBuilder(
+                                          builder: (context, constraints) {
+                                            final canvasW = constraints.maxWidth;
+                                            final canvasH = constraints.maxHeight;
+                                            final suitW = canvasW * 0.95 * _suitScale;
+                                            final double left = ((canvasW - suitW) / 2.0) + (canvasW * (_suitOffsetX / 100.0));
+                                            final double bottom = (canvasH * (_suitOffsetY / 100.0));
+
+                                            return Positioned(
+                                              left: left,
+                                              bottom: bottom,
+                                              width: suitW,
+                                              child: Image.asset(
+                                                _suitPresets[_selectedSuitKey]!.assetPath,
+                                                fit: BoxFit.contain,
+                                                gaplessPlayback: true,
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),
@@ -775,13 +778,13 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> with SingleTi
                       // Interactive Touch Drag Hint when suit is active
                       if (_selectedSuitKey != null && !_isProcessing)
                         Positioned(
-                          top: 12,
+                          top: 10,
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                             decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.65),
+                              color: Colors.black.withValues(alpha: 0.7),
                               borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: const Color(0xFF14B8A6).withValues(alpha: 0.4)),
+                              border: Border.all(color: const Color(0xFF14B8A6).withValues(alpha: 0.5)),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
@@ -789,7 +792,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> with SingleTi
                                 const Icon(Icons.touch_app_rounded, color: Color(0xFF14B8A6), size: 14),
                                 const SizedBox(width: 5),
                                 Text(
-                                  'ប៉ះអូសលើរូប ឬពង្រីកដើម្បីតម្រឹមអាវ',
+                                  'ប៉ះអូស ឬពង្រីកលើរូបដើម្បីតម្រឹមអាវ',
                                   style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 11),
                                 ),
                               ],
@@ -841,8 +844,8 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> with SingleTi
                 padding: EdgeInsets.only(
                   left: 14,
                   right: 14,
-                  top: 12,
-                  bottom: MediaQuery.of(context).padding.bottom + 10,
+                  top: 10,
+                  bottom: MediaQuery.of(context).padding.bottom + 8,
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -876,14 +879,14 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> with SingleTi
                         ],
                       ),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 8),
 
                     // Active Deck Content
                     if (_activeDeckTab == 0) _buildVirtualSuitDeckContent(),
                     if (_activeDeckTab == 1) _buildBackgroundDeckContent(),
                     if (_activeDeckTab == 2) _buildSizePresetDeckContent(),
 
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 8),
 
                     // Master Action Button
                     SizedBox(
@@ -925,8 +928,8 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> with SingleTi
       child: GestureDetector(
         onTap: () => setState(() => _activeDeckTab = index),
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 8),
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(vertical: 7),
           decoration: BoxDecoration(
             color: isSelected ? const Color(0xFF0D9488) : Colors.transparent,
             borderRadius: BorderRadius.circular(10),
@@ -966,7 +969,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> with SingleTi
   }
 
   /// -------------------------------------------------------------
-  /// TAB 0: VIRTUAL SUIT STUDIO DECK (VISUAL PREVIEWS + FINE TUNING)
+  /// TAB 0: VIRTUAL SUIT STUDIO DECK (INSTANT 0MS PREVIEWS + FINE TUNING)
   /// -------------------------------------------------------------
   Widget _buildVirtualSuitDeckContent() {
     return Column(
@@ -999,7 +1002,6 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> with SingleTi
                     _suitOffsetX = 0.0;
                     _suitOffsetY = 0.0;
                   });
-                  _renderCompositeFromCutout();
                 },
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -1023,11 +1025,11 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> with SingleTi
               ),
           ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 7),
 
-        // Visual Suit Gallery (Horizontal Cards with Real PNG Previews)
+        // Visual Suit Gallery (Horizontal Cards with Real Clean PNGs)
         SizedBox(
-          height: 96,
+          height: 94,
           child: ListView(
             scrollDirection: Axis.horizontal,
             physics: const BouncingScrollPhysics(),
@@ -1040,11 +1042,11 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> with SingleTi
           ),
         ),
 
-        // Fine-Tuning Control Pod (Visible when suit is chosen)
+        // Fine-Tuning Control Pod (Instant 0ms response)
         if (_selectedSuitKey != null) ...[
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
               color: const Color(0xFF1E293B),
               borderRadius: BorderRadius.circular(12),
@@ -1057,7 +1059,6 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> with SingleTi
                   onTap: () async {
                     _hasAutoFittedSuit = false;
                     await _detectFaceAndAutoFitSuit();
-                    _renderCompositeFromCutout();
                   },
                   borderRadius: BorderRadius.circular(8),
                   child: Container(
@@ -1081,14 +1082,13 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> with SingleTi
                 ),
                 const SizedBox(width: 8),
 
-                // Scale Slider & Steppers
+                // Scale Slider & Steppers (Realtime 120 FPS)
                 IconButton(
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                   icon: const Icon(Icons.remove_circle_outline_rounded, color: Color(0xFF14B8A6), size: 18),
                   onPressed: () {
                     setState(() => _suitScale = (_suitScale - 0.05).clamp(0.55, 1.95));
-                    _debouncedRenderComposite();
                   },
                   tooltip: 'បង្រួមអាវ',
                 ),
@@ -1108,7 +1108,6 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> with SingleTi
                       max: 1.95,
                       onChanged: (val) {
                         setState(() => _suitScale = val);
-                        _debouncedRenderComposite();
                       },
                     ),
                   ),
@@ -1119,7 +1118,6 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> with SingleTi
                   icon: const Icon(Icons.add_circle_outline_rounded, color: Color(0xFF14B8A6), size: 18),
                   onPressed: () {
                     setState(() => _suitScale = (_suitScale + 0.05).clamp(0.55, 1.95));
-                    _debouncedRenderComposite();
                   },
                   tooltip: 'ពង្រីកអាវ',
                 ),
@@ -1131,7 +1129,6 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> with SingleTi
                 ),
 
                 const SizedBox(width: 6),
-                // Precision Micro-Adjust D-Pad Trigger
                 _buildMicroAdjustButtons(),
               ],
             ),
@@ -1174,7 +1171,6 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> with SingleTi
         setState(() {
           _selectedSuitKey = null;
         });
-        _renderCompositeFromCutout();
       },
       child: Container(
         width: 72,
@@ -1213,7 +1209,9 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> with SingleTi
         setState(() {
           _selectedSuitKey = key;
         });
-        _renderCompositeFromCutout();
+        if (!_hasAutoFittedSuit) {
+          _detectFaceAndAutoFitSuit();
+        }
       },
       child: Container(
         width: 76,
@@ -1291,7 +1289,6 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> with SingleTi
           icon: const Icon(Icons.arrow_back_rounded, color: Colors.white70, size: 15),
           onPressed: () {
             setState(() => _suitOffsetX -= 1.0);
-            _debouncedRenderComposite();
           },
           tooltip: 'រំកិលឆ្វេង',
         ),
@@ -1301,7 +1298,6 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> with SingleTi
           icon: const Icon(Icons.arrow_forward_rounded, color: Colors.white70, size: 15),
           onPressed: () {
             setState(() => _suitOffsetX += 1.0);
-            _debouncedRenderComposite();
           },
           tooltip: 'រំកិលស្តាំ',
         ),
@@ -1310,8 +1306,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> with SingleTi
           constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
           icon: const Icon(Icons.arrow_upward_rounded, color: Colors.white70, size: 15),
           onPressed: () {
-            setState(() => _suitOffsetY -= 1.0);
-            _debouncedRenderComposite();
+            setState(() => _suitOffsetY += 1.0);
           },
           tooltip: 'លើកឡើងលើ',
         ),
@@ -1320,8 +1315,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> with SingleTi
           constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
           icon: const Icon(Icons.arrow_downward_rounded, color: Colors.white70, size: 15),
           onPressed: () {
-            setState(() => _suitOffsetY += 1.0);
-            _debouncedRenderComposite();
+            setState(() => _suitOffsetY -= 1.0);
           },
           tooltip: 'ទម្លាក់ចុះក្រោម',
         ),
@@ -1379,7 +1373,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> with SingleTi
         ),
         const SizedBox(height: 10),
 
-        // Color Palettes Selection
+        // Color Palettes Selection (Instant 0ms background change)
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: _presetColors.map((color) {
@@ -1387,7 +1381,6 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> with SingleTi
             return GestureDetector(
               onTap: () {
                 setState(() => _selectedBgColor = color);
-                _renderCompositeFromCutout();
               },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 150),
@@ -1430,7 +1423,6 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> with SingleTi
           child: GestureDetector(
             onTap: () {
               setState(() => _selectedPreset = preset);
-              _renderCompositeFromCutout();
             },
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 150),
