@@ -17,6 +17,7 @@ import '../utils/app_theme.dart';
 import '../providers/user_provider.dart';
 import '../widgets/app_widgets.dart';
 import '../widgets/responsive_layout.dart';
+import '../widgets/official_request_form_view.dart';
 import 'leave_request_screen.dart';
 import 'ot_request_screen.dart';
 import 'late_request_screen.dart';
@@ -41,10 +42,6 @@ class _RequestListScreenState extends State<RequestListScreen> {
   String _errorMessage = '';
   Timer? _pollingTimer;
   bool _isViewingTrash = false; // Track if viewing trash
-
-  static const Color _brandOrange = Color(0xFFF2994A);
-  static const double _lblSize = 11.5;
-  static const double _valSize = 11.5;
 
   @override
   void initState() {
@@ -1116,7 +1113,40 @@ class _RequestListScreenState extends State<RequestListScreen> {
                             ),
                         ]),
 
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 20),
+
+                      // Official Form Preview Button (Golden/Theme button)
+                      Container(
+                        width: double.infinity,
+                        margin: const EdgeInsets.only(bottom: 12),
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.pop(context); // Close bottom sheet
+                            _showOfficialFormDialog(item);
+                          },
+                          icon: const Icon(
+                            Icons.description_outlined,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                          label: Text(
+                            "📄 មើលទម្រង់ Form សំណើផ្លូវការ",
+                            style: GoogleFonts.kantumruyPro(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              color: Colors.white,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFC59B27), // Gold brand color
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            elevation: 2,
+                          ),
+                        ),
+                      ),
 
                       // Actions Row
                       Row(
@@ -1592,479 +1622,210 @@ class _RequestListScreenState extends State<RequestListScreen> {
   // Hidden Report Widget that renders in the background for capture
   Widget _buildHiddenReport(BuildContext context) {
     if (_currentReportItem == null) {
-      return Container(color: AppTheme.textPrimary, width: 600, height: 850);
+      return Container(color: Colors.white, width: 760, height: 900);
     }
 
-    final item = _currentReportItem!;
-    final requestType = (item['request_type'] ?? '').toString();
-    final types = [
-      'សម្រាកប្រចាំឆ្នាំ (Annual Leave)',
-      'សម្រាកដោយជំងឺ (Sick Leave)',
-      'ភ្លេចស្កេនមេដៃ (Forgot FP)',
-      'សម្រាកលំហែបុត្រភាព (Maternity Leave)',
-      'ថែមម៉ោង (OT)',
-      'ចេញមុនម៉ោង (Early)',
-      'ប្តូរថ្ងៃសម្រាក (Changing day off)',
-      'សម្រាកពិសេស (Special Leave)',
-      'មកយឺត (Late)',
-    ];
+    return OfficialRequestFormView(
+      item: _currentReportItem!,
+      width: 760,
+      isPrintMode: true,
+    );
+  }
 
-    bool isTypeSelected(String typeLabel) {
-      final req = requestType.toLowerCase().trim();
-      if (req.isEmpty) return false;
-
-      if (req.contains('leave') || req.contains('ច្បាប់') || req.contains('សម្រាក')) {
-        if (req.contains('annual') || req.contains('ប្រចាំឆ្នាំ')) return typeLabel.contains('Annual Leave');
-        if (req.contains('sick') || req.contains('ជំងឺ')) return typeLabel.contains('Sick Leave');
-        if (req.contains('maternity') || req.contains('បុត្រភាព') || req.contains('មាតុភាព')) return typeLabel.contains('Maternity Leave');
-        if (req.contains('special') || req.contains('ពិសេស')) return typeLabel.contains('Special Leave');
-      }
-      if (req.contains('forgot') || req.contains('ស្កេន') || req.contains('មេដៃ') || req.contains('fp')) {
-        return typeLabel.contains('Forgot FP');
-      }
-      if (req.contains('ot') || req.contains('ថែមម៉ោង')) {
-        return typeLabel.contains('OT');
-      }
-      if (req.contains('early') || req.contains('ចេញមុន')) {
-        return typeLabel.contains('Early');
-      }
-      if (req.contains('late') || req.contains('យឺត')) {
-        return typeLabel.contains('Late');
-      }
-      if (req.contains('change') || req.contains('ប្តូរ')) {
-        return typeLabel.contains('Changing day off');
-      }
-      final target = typeLabel.toLowerCase().trim();
-      return target.contains(req) || req.contains(target);
-    }
-
-    String formatBranch(String? raw) {
-      if (raw == null || raw.trim().isEmpty) return 'ការិយាល័យកណ្តាល';
-      final s = raw.trim().toUpperCase();
-      if (s == 'VVC_HQ' || s == 'VVC-HQ' || s == 'VVC HQ' || s == 'HQ' || s == 'HEAD OFFICE') {
-        return 'ការិយាល័យកណ្តាល';
-      }
-      return raw;
-    }
-
-    String formatD(String? d) {
-      if (d == null || d.isEmpty || d == 'N/A') return 'N/A';
+  // Dialog to preview and interact with the Official Request Form (Zoom, Scroll, Copy, PDF)
+  void _showOfficialFormDialog(Map<String, dynamic> item) async {
+    // Ensure signatures are available
+    if (item['id'] != null &&
+        ((item['signature'] ?? '').toString().isEmpty ||
+            (item['department_head_signature'] ?? '').toString().isEmpty)) {
       try {
-        return DateFormat('dd/MM/yyyy').format(DateTime.parse(d));
-      } catch (_) {
-        return d;
-      }
-    }
-
-    String formatT(String? t) {
-      if (t == null || t.isEmpty || t == 'N/A') return 'N/A';
-      try {
-        DateTime? dt;
-        if (t.contains('T') || t.contains('-')) {
-          dt = DateTime.parse(t);
-        } else if (t.contains(':')) {
-          final parts = t.split(':');
-          dt = DateTime(2000, 1, 1, int.parse(parts[0]), int.parse(parts[1]));
-        }
-        if (dt != null) {
-          return DateFormat('hh:mm a').format(dt);
-        }
-        return t;
-      } catch (_) {
-        return t;
-      }
-    }
-
-    String formatP(String? p) {
-      if (p == null || p.isEmpty || p == 'N/A') return 'N/A';
-      String cleaned = p.replaceAll(RegExp(r'\D'), '');
-      if (cleaned.length == 9) {
-        return '${cleaned.substring(0, 3)} ${cleaned.substring(3, 6)} ${cleaned.substring(6)}';
-      } else if (cleaned.length == 10) {
-        return '${cleaned.substring(0, 3)} ${cleaned.substring(3, 7)} ${cleaned.substring(7)}';
-      }
-      return p;
-    }
-
-    // Detect SK brand keywords: SK, sk, អេសខេ, អេស ខេ
-    final deptStr = (item['department'] ?? '').toString().toLowerCase();
-    final posStr = (item['position'] ?? '').toString().toLowerCase();
-    final branchStr = (item['branch'] ?? '').toString().toLowerCase();
-    final roleStr = (item['role'] ?? item['user_role'] ?? '').toString().toLowerCase();
-    final reqNameStr = (item['requester_name'] ?? '').toString().toLowerCase();
-
-    bool isSkLogo = deptStr.contains('sk') || deptStr.contains('អេសខេ') || deptStr.contains('អេស ខេ') ||
-                    posStr.contains('sk') || posStr.contains('អេសខេ') || posStr.contains('អេស ខេ') ||
-                    branchStr.contains('sk') || branchStr.contains('អេសខេ') || branchStr.contains('អេស ខេ') ||
-                    roleStr.contains('sk') || roleStr.contains('អេសខេ') || roleStr.contains('អេស ខេ') ||
-                    reqNameStr.contains('sk') || reqNameStr.contains('អេសខេ') || reqNameStr.contains('អេស ខេ');
-
-    if (!isSkLogo) {
-      try {
-        final user = Provider.of<UserProvider>(context, listen: false);
-        final uDept = (user.department ?? '').toLowerCase();
-        final uPos = (user.position ?? '').toLowerCase();
-        final uBranch = (user.branch ?? '').toLowerCase();
-        if (uDept.contains('sk') || uDept.contains('អេសខេ') || uDept.contains('អេស ខេ') ||
-            uPos.contains('sk') || uPos.contains('អេសខេ') || uPos.contains('អេស ខេ') ||
-            uBranch.contains('sk') || uBranch.contains('អេសខេ') || uBranch.contains('អេស ខេ')) {
-          isSkLogo = true;
+        final sigRes = await _api.fetchRequestSignatures(item['id'] as int);
+        if (sigRes['success'] == true && sigRes['signatures'] is Map) {
+          final sigMap = Map<String, dynamic>.from(sigRes['signatures'] as Map);
+          item = {...item, ...sigMap};
         }
       } catch (_) {}
     }
 
-    final String primaryLogoUrl = isSkLogo
-        ? 'https://i.ibb.co/1JXccBzm/Your-paragraph-text-2.png'
-        : 'https://i.ibb.co/r2JWnd2x/Logo-Van-Van-1.png';
-    final String primaryAsset = isSkLogo ? 'assets/skLogo.png' : 'assets/images/logo.png';
-    final String secondaryAsset = isSkLogo ? 'assets/images/logo.png' : 'assets/skLogo.png';
+    if (!mounted) return;
 
-    // Process signatures
-    Uint8List? reqSigBytes;
-    if (item['signature'] != null &&
-        item['signature'].toString().startsWith('data:image')) {
-      reqSigBytes = base64.decode(item['signature'].split(',').last);
-    }
-    Uint8List? deptSigBytes;
-    if (item['department_head_signature'] != null &&
-        item['department_head_signature'].toString().startsWith('data:image')) {
-      deptSigBytes = base64.decode(
-        item['department_head_signature'].split(',').last,
-      );
-    }
+    showDialog(
+      context: context,
+      builder: (dialogCtx) {
+        return Dialog(
+          insetPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 16),
+          backgroundColor: Colors.transparent,
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 820),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0F172A),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: const [
+                BoxShadow(
+                  color: Colors.black54,
+                  blurRadius: 25,
+                  offset: Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Top App Bar
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF1E293B),
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                    border: Border(bottom: BorderSide(color: Colors.white12)),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFC59B27).withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.article_rounded,
+                          color: Color(0xFFC59B27),
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "ទម្រង់សំណើផ្លូវការ",
+                              style: GoogleFonts.kantumruyPro(
+                                color: Colors.white,
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              "VAN VAN CAMBODIA • #${item['id'] ?? ''}",
+                              style: GoogleFonts.outfit(
+                                color: Colors.white60,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded, color: Colors.white70),
+                        onPressed: () => Navigator.pop(dialogCtx),
+                        tooltip: 'បិទ',
+                      ),
+                    ],
+                  ),
+                ),
 
-    return Material(
-      color: AppTheme.textPrimary,
-      child: Container(
-        width: 800, // Increased to fill A4 better
-        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 10),
-        child: Container(
-          // Outer document frame
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.black, width: 1.5),
-            borderRadius: BorderRadius.circular(2),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 15),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Header
-              Column(
-                children: [
-                  // Logo with dynamic SK / VVC auto-switch & instant fallback chain
-                  Image.network(
-                    primaryLogoUrl,
-                    width: 140,
-                    height: 110,
-                    fit: BoxFit.contain,
-                    errorBuilder: (_, _, _) => Image.asset(
-                      primaryAsset,
-                      width: 140,
-                      height: 110,
-                      fit: BoxFit.contain,
-                      errorBuilder: (_, _, _) => Image.asset(
-                        secondaryAsset,
-                        width: 140,
-                        height: 110,
-                        fit: BoxFit.contain,
-                        errorBuilder: (_, _, _) => const SizedBox(width: 140, height: 90),
+                // Interactive zoomable/scrollable canvas
+                Flexible(
+                  child: Container(
+                    color: const Color(0xFF0F172A),
+                    child: InteractiveViewer(
+                      minScale: 0.4,
+                      maxScale: 3.5,
+                      boundaryMargin: const EdgeInsets.all(50),
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.all(16),
+                          child: Center(
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(4),
+                                boxShadow: const [
+                                  BoxShadow(
+                                    color: Colors.black54,
+                                    blurRadius: 16,
+                                    offset: Offset(0, 6),
+                                  ),
+                                ],
+                              ),
+                              child: OfficialRequestFormView(
+                                item: item,
+                                width: 760,
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 10),
-                  Text(
-                    "សំណើសុំច្បាប់ឈប់សម្រាក ប្តូរវេន ចូលមុនម៉ោង មកយឺត និងភ្លេចស្កេនមេដៃផ្សេងៗ",
-                    style: GoogleFonts.koulen(
-                      fontSize: 17.5,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
-                      letterSpacing: 0.5,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 25),
-
-              // Request Selection Area (Refined Checkboxes Grid)
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 15,
-                  vertical: 12,
                 ),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey.shade400, width: 0.8),
-                  borderRadius: BorderRadius.circular(10),
-                  color: Colors.grey.shade50.withValues(alpha: 0.5),
-                ),
-                child: Wrap(
-                  spacing: 15,
-                  runSpacing: 10,
-                  alignment: WrapAlignment.center,
-                  children: types.map((t) {
-                    final selected = isTypeSelected(t);
-                    return Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 14,
-                          height: 14,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.rectangle,
-                            border: Border.all(
-                              color: selected ? _brandOrange : Colors.grey.shade600,
-                              width: 1.2,
-                            ),
-                            color: selected ? _brandOrange : Colors.transparent,
-                            borderRadius: BorderRadius.circular(3),
-                          ),
-                          child: selected
-                              ? Icon(
-                                  Icons.check,
-                                  size: 11,
-                                  color: AppTheme.textPrimary,
-                                )
-                              : null,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          t,
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: selected ? Colors.black : Colors.black87,
-                            fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-                            fontFamily: 'KhmerFont',
-                          ),
-                        ),
-                      ],
-                    );
-                  }).toList(),
-                ),
-              ),
-              const SizedBox(height: 20),
 
-              // Main Table (Enlarged and Full Width)
-              Table(
-                border: TableBorder.all(color: Colors.black, width: 1.0),
-                columnWidths: const {
-                  0: FlexColumnWidth(1.2),
-                  1: FlexColumnWidth(1.4),
-                  2: FlexColumnWidth(1.2),
-                  3: FlexColumnWidth(1.0),
-                  4: FlexColumnWidth(0.6),
-                },
-                children: [
-                  _buildTablePremiumRow([
-                    "ឈ្មោះអ្នកស្នើសុំ៖",
-                    item['requester_name'] ?? 'N/A',
-                    "ចំនួនថ្ងៃ/ច្បាប់នៅសល់៖",
-                    "${item['number_of_days'] ?? '0'} ថ្ងៃ",
-                    "N/A ថ្ងៃ",
-                  ]),
-                  _buildTablePremiumRow([
-                    "ផ្នែក/មុខតំណែង/សាខា៖",
-                    item['department'] ?? 'N/A',
-                    item['position'] ?? 'N/A',
-                    formatBranch(item['branch']?.toString()),
-                    "",
-                  ]),
-                  _buildTablePremiumRow([
-                    "ថ្ងៃខែឆ្នាំសុំឈប់៖",
-                    formatD(item['request_date']),
-                    "ចំនួនម៉ោងយឺត/ចេញមុន៖",
-                    item['late_hours']?.toString() ?? 'N/A',
-                    "",
-                  ]),
-                  _buildTablePremiumRow([
-                    "ថ្ងៃចូលធ្វើការវិញ៖",
-                    formatD(item['return_date']),
-                    "ភ្លេចស្កេនមេដៃ៖",
-                    item['forgot_scan_in']?.toString() ?? 'N/A',
-                    item['forgot_scan_out']?.toString() ?? 'N/A',
-                  ]),
-                  _buildTablePremiumRow([
-                    "ម៉ោងចេញចូល៖",
-                    "ចូល៖ ${formatT(item['time_in'])}",
-                    "ចេញ៖ ${formatT(item['time_out'])}",
-                    "សរុប៖ ${item['total_hours'] ?? 'N/A'}",
-                    "",
-                  ]),
-                  _buildTablePremiumRow([
-                    "ម៉ោងធ្វើការសងវិញ៖",
-                    "ចូលសង៖ ${formatT(item['repay_time_in'])}",
-                    "ចេញសង៖ ${formatT(item['repay_time_out'])}",
-                    "សរុប៖ ${item['repay_total_hours'] ?? 'N/A'}",
-                    "",
-                  ]),
-                  _buildTablePremiumRow(
-                    ["មូលហេតុ៖", item['reason'] ?? 'N/A', "", "", ""],
-                    colSpans: [1, 4],
+                // Bottom Action Buttons (Copy Image + Download PDF)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF1E293B),
+                    borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
+                    border: Border(top: BorderSide(color: Colors.white12)),
                   ),
-                  _buildTablePremiumRow(
-                    [
-                      "ទីកន្លែងអំឡុងពេលឈប់៖",
-                      item['location'] ?? 'N/A',
-                      "",
-                      "",
-                      "",
-                    ],
-                    colSpans: [1, 4],
-                  ),
-                  _buildTablePremiumRow([
-                    "ទំនាក់ទំនងបន្ទាន់៖",
-                    formatP(item['contact_number']),
-                    "ប្រគល់ការងារឱ្យ៖",
-                    item['assigned_to'] ?? 'N/A',
-                    "",
-                  ]),
-                ],
-              ),
-
-              const SizedBox(height: 30),
-
-              // Signatures Table Footer (High Contrast)
-              Table(
-                border: TableBorder.all(color: Colors.black, width: 1.2),
-                children: [
-                  TableRow(
+                  child: Row(
                     children: [
-                      _headerCell("បញ្ជាក់/អនុម័តដោយ"),
-                      _headerCell("ឈ្មោះ (Name)"),
-                      _headerCell("ហត្ថលេខា (Signature)"),
-                      _headerCell("ថ្ងៃខែឆ្នាំ (Date)"),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            _captureAndCopyImage(item);
+                          },
+                          icon: const Icon(Icons.copy_rounded, size: 16),
+                          label: Text(
+                            "Copy រូបភាព",
+                            style: GoogleFonts.kantumruyPro(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF2563EB),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            _generatePDF(item);
+                          },
+                          icon: const Icon(Icons.picture_as_pdf_rounded, size: 16),
+                          label: Text(
+                            "ទាញយក PDF",
+                            style: GoogleFonts.kantumruyPro(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFD97706),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
-                  _signatureRowWidget(
-                    "អ្នកស្នើសុំ",
-                    item['requester_name'] ?? 'N/A',
-                    reqSigBytes,
-                    formatD(item['signature_date'] ?? item['request_date']),
-                  ),
-                  _signatureRowWidget(
-                    "ប្រធានផ្នែក",
-                    item['department_head_name'] ?? '',
-                    deptSigBytes,
-                    formatD(item['department_head_signature_date']),
-                  ),
-                  _signatureRowWidget("ប្រធានធនធានមនុស្ស", "", null, ""),
-                  _signatureRowWidget("ប្រធានគ្រប់គ្រងទូទៅ", "", null, ""),
-                  _signatureRowWidget("អគ្គនាយិកា", "", null, ""),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // Helper for Table Content in Widget Report - PREMIUM DESIGN
-  TableRow _buildTablePremiumRow(List<String> values, {List<int>? colSpans}) {
-    // Labels are columns 0 and 2
-    return TableRow(
-      children: values.asMap().entries.map((entry) {
-        int idx = entry.key;
-        String v = entry.value;
-
-        // Skip if colSpanned away (basic logic)
-        final isLabel = (idx == 0 || idx == 2);
-
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Text(
-            v,
-            style: TextStyle(
-              fontSize: isLabel ? _lblSize : _valSize,
-              fontFamily: 'KhmerFont',
-              fontWeight: isLabel ? FontWeight.w600 : FontWeight.normal,
-              color: isLabel ? Colors.black87 : Colors.black,
+                ),
+              ],
             ),
-            maxLines: 4,
-            overflow: TextOverflow.visible,
           ),
         );
-      }).toList(),
-    );
-  }
-
-  Widget _headerCell(String text) {
-    return Container(
-      padding: const EdgeInsets.all(15),
-      color: Colors.grey.shade50,
-      child: Center(
-        child: Text(
-          text,
-          style: const TextStyle(
-            fontSize: _lblSize,
-            fontWeight: FontWeight.bold,
-            color: Colors.black,
-            fontFamily: 'KhmerFont',
-          ),
-        ),
-      ),
-    );
-  }
-
-  TableRow _signatureRowWidget(
-    String label,
-    String name,
-    Uint8List? sig,
-    String date,
-  ) {
-    return TableRow(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(18),
-          child: Text(
-            label,
-            style: const TextStyle(
-              fontSize: _lblSize,
-              fontWeight: FontWeight.bold,
-              color: Colors.black,
-              fontFamily: 'KhmerFont',
-            ),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.all(18),
-          child: Center(
-            child: Text(
-              name,
-              style: const TextStyle(
-                fontSize: _valSize,
-                color: Colors.black,
-                fontFamily: 'KhmerFont',
-              ),
-            ),
-          ),
-        ),
-        Container(
-          height: 80,
-          padding: const EdgeInsets.all(8),
-          child: sig != null
-              ? Image.memory(sig, fit: BoxFit.contain)
-              : Center(
-                  child: Container(
-                    width: 70,
-                    height: 1.0,
-                    color: Colors.black45,
-                  ),
-                ),
-        ),
-        Padding(
-          padding: const EdgeInsets.all(18),
-          child: Center(
-            child: Text(
-              date,
-              style: const TextStyle(
-                fontSize: _valSize,
-                color: Colors.black,
-                fontFamily: 'KhmerFont',
-              ),
-            ),
-          ),
-        ),
-      ],
+      },
     );
   }
 
