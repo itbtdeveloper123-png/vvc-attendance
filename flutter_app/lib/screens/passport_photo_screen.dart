@@ -68,6 +68,12 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
   // Gesture baselines for smooth drag & pinch
   double _baseScale = 1.0;
 
+  // Face & Neck geometry (Normalized 0..1 for auto-align & old shirt masking)
+  double _faceChinXNorm = 0.5;
+  double _faceChinYNorm = 0.44;
+  double _faceWNorm = 0.35;
+  double _faceHNorm = 0.30;
+
   final Map<String, SuitPresetInfo> _suitPresets = {
     // Men's Suits & Formal Shirts
     'cutout_man_1': const SuitPresetInfo(label: 'អាវបុរសទី ១', shortLabel: 'បុរស ១', assetPath: 'assets/suits/cutout_man_1.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
@@ -172,7 +178,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
     super.dispose();
   }
 
-  /// Accurate face detection & natural neckline auto-alignment
+  /// Accurate face detection, auto-straighten & natural neckline auto-alignment
   Future<void> _detectFaceAndAutoFitSuit() async {
     if (_imagePath == null) return;
     try {
@@ -212,21 +218,25 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
             }
           }
 
-          final double chinXNorm = chinX / decoded.width;
-          final double chinYNorm = chinY / decoded.height;
-          final double faceWNorm = box.width / decoded.width;
-          final double faceHNorm = box.height / decoded.height;
+          _faceChinXNorm = (chinX / decoded.width).clamp(0.2, 0.8);
+          _faceChinYNorm = (chinY / decoded.height).clamp(0.2, 0.7);
+          _faceWNorm = (box.width / decoded.width).clamp(0.15, 0.65);
+          _faceHNorm = (box.height / decoded.height).clamp(0.15, 0.65);
 
-          // 1. Natural shoulder width calculation (~2.25x face width)
-          _suitScale = (faceWNorm * 2.25 / 0.95).clamp(0.70, 1.80);
+          // 1. Natural broad shoulder width calculation (~2.65x face width)
+          _suitScale = (_faceWNorm * 2.65 / 0.95).clamp(1.05, 1.65);
 
           // 2. Horizontal centering directly beneath chin
-          _suitOffsetX = ((chinXNorm - 0.5) * 100.0).clamp(-35.0, 35.0);
+          _suitOffsetX = ((_faceChinXNorm - 0.5) * 100.0).clamp(-30.0, 30.0);
 
-          // 3. Vertical neckline placement (Collar sits at natural base of neck: chin + ~18% face height)
-          final double targetCollarYNorm = chinYNorm + (faceHNorm * 0.18);
-          const double estimatedSuitHeightNorm = 0.55;
-          _suitOffsetY = ((1.0 - targetCollarYNorm - estimatedSuitHeightNorm) * 100.0).clamp(-35.0, 35.0);
+          // 3. Vertical neckline placement (Collar sits right at base of neck below chin: chin + ~8% face height)
+          final double targetCollarYNorm = _faceChinYNorm + (_faceHNorm * 0.08);
+
+          // Calculate suit height ratio relative to canvas (aspect ratio 4:6 = 0.6667)
+          final double ratio = _selectedPreset.ratio;
+          final double suitHNorm = ratio * 0.95 * _suitScale * (600.0 / 740.0);
+
+          _suitOffsetY = ((1.0 - targetCollarYNorm - suitHNorm) * 100.0).clamp(-40.0, 40.0);
 
           _hasAutoFittedSuit = true;
           if (mounted) setState(() {});
@@ -242,8 +252,49 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
       final XFile? picked = await _picker.pickImage(source: source);
       if (picked != null) {
         _segmentationService.clearCache();
+        
         setState(() {
-          _imagePath = picked.path;
+          _isProcessing = true;
+          _statusText = 'កំពុងពិនិត្យ និងសារ៉េភាពត្រង់ដោយ AI...';
+        });
+
+        String processedPath = picked.path;
+
+        // Auto-Deskew & Head Straighten using ML Kit Face Detection
+        try {
+          final inputImage = InputImage.fromFilePath(picked.path);
+          final options = FaceDetectorOptions(
+            performanceMode: FaceDetectorMode.accurate,
+            enableLandmarks: true,
+          );
+          final faceDetector = FaceDetector(options: options);
+          final faces = await faceDetector.processImage(inputImage);
+          faceDetector.close();
+
+          if (faces.isNotEmpty) {
+            final face = faces.first;
+            double tiltAngle = 0.0;
+            if (face.headEulerAngleZ != null && face.headEulerAngleZ!.abs() > 0.8) {
+              tiltAngle = face.headEulerAngleZ!;
+            }
+
+            final rawBytes = await File(picked.path).readAsBytes();
+            img.Image? decoded = img.decodeImage(rawBytes);
+
+            if (decoded != null && tiltAngle.abs() > 0.8) {
+              decoded = img.copyRotate(decoded, angle: -tiltAngle);
+              final tempDir = await getTemporaryDirectory();
+              final outPath = '${tempDir.path}/straight_${DateTime.now().millisecondsSinceEpoch}.jpg';
+              await File(outPath).writeAsBytes(img.encodeJpg(decoded, quality: 95));
+              processedPath = outPath;
+            }
+          }
+        } catch (e) {
+          debugPrint('Auto-straighten error: $e');
+        }
+
+        setState(() {
+          _imagePath = processedPath;
           _cutoutForegroundBytes = null;
           _isFlipped = (source == ImageSource.camera);
           _hasAutoFittedSuit = false;
@@ -689,19 +740,29 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
                                         clipBehavior: Clip.hardEdge,
                                         alignment: Alignment.center,
                                         children: [
-                                          // Layer 1: Person Cutout Foreground (Instant 0ms update)
-                                          if (_cutoutForegroundBytes != null)
-                                            Transform.scale(
-                                              scaleX: _isFlipped ? -1.0 : 1.0,
-                                              scaleY: 1.0,
-                                              child: Image.memory(
-                                                _cutoutForegroundBytes!,
-                                                fit: BoxFit.cover,
-                                                gaplessPlayback: true,
-                                              ),
-                                            )
-                                          else if (_imagePath != null)
-                                            Image.file(File(_imagePath!), fit: BoxFit.cover),
+                                          // Layer 1: Person Cutout Foreground with Smart Neckline Masking (Instant 0ms update)
+                                          ClipPath(
+                                            clipper: PersonNeckClipper(
+                                              chinX: _faceChinXNorm,
+                                              chinY: _faceChinYNorm,
+                                              faceW: _faceWNorm,
+                                              faceH: _faceHNorm,
+                                              isSuitActive: (_selectedSuitKey != null && _suitPresets.containsKey(_selectedSuitKey)),
+                                            ),
+                                            child: _cutoutForegroundBytes != null
+                                                ? Transform.scale(
+                                                    scaleX: _isFlipped ? -1.0 : 1.0,
+                                                    scaleY: 1.0,
+                                                    child: Image.memory(
+                                                      _cutoutForegroundBytes!,
+                                                      fit: BoxFit.cover,
+                                                      gaplessPlayback: true,
+                                                    ),
+                                                  )
+                                                : (_imagePath != null
+                                                    ? Image.file(File(_imagePath!), fit: BoxFit.cover)
+                                                    : const SizedBox.shrink()),
+                                          ),
 
                                           // Layer 2: Live GPU Virtual Suit Overlay (Direct child of Stack)
                                           if (_selectedSuitKey != null && _suitPresets.containsKey(_selectedSuitKey))
@@ -1524,3 +1585,68 @@ extension PassportPresetExt on PassportPreset {
     }
   }
 }
+
+/// Custom Clipper that preserves head, face, and center neck skin,
+/// while clipping out old shirt shoulders and flared collars for realistic suit fitting.
+class PersonNeckClipper extends CustomClipper<Path> {
+  final double chinX; // 0..1
+  final double chinY; // 0..1
+  final double faceW; // 0..1
+  final double faceH; // 0..1
+  final bool isSuitActive;
+
+  PersonNeckClipper({
+    required this.chinX,
+    required this.chinY,
+    required this.faceW,
+    required this.faceH,
+    required this.isSuitActive,
+  });
+
+  @override
+  Path getClip(Size size) {
+    final path = Path();
+    if (!isSuitActive) {
+      path.addRect(Rect.fromLTWH(0, 0, size.width, size.height));
+      return path;
+    }
+
+    final double w = size.width;
+    final double h = size.height;
+
+    final double cx = w * chinX.clamp(0.2, 0.8);
+    final double cy = h * chinY.clamp(0.2, 0.7);
+    final double fw = w * faceW.clamp(0.15, 0.6);
+    final double fh = h * faceH.clamp(0.15, 0.6);
+
+    // Neck opening boundary (Real human neck width ~42% of face width)
+    final double neckHalfW = (fw * 0.42).clamp(18.0, 85.0);
+    final double neckTopY = (cy - (fh * 0.04)).clamp(0.0, h);
+    final double neckBottomY = (cy + (fh * 0.35)).clamp(0.0, h);
+    final double neckVChestY = (cy + (fh * 0.55)).clamp(0.0, h);
+
+    // Build path: keep entire top head/hair/ears/face, but clip old shirt shoulders
+    path.moveTo(0, 0);
+    path.lineTo(w, 0);
+    path.lineTo(w, neckTopY);
+    path.lineTo(cx + neckHalfW, neckTopY);
+    path.lineTo(cx + neckHalfW, neckBottomY);
+    path.lineTo(cx, neckVChestY);
+    path.lineTo(cx - neckHalfW, neckBottomY);
+    path.lineTo(cx - neckHalfW, neckTopY);
+    path.lineTo(0, neckTopY);
+    path.close();
+
+    return path;
+  }
+
+  @override
+  bool shouldReclip(PersonNeckClipper oldClipper) {
+    return oldClipper.chinX != chinX ||
+        oldClipper.chinY != chinY ||
+        oldClipper.faceW != faceW ||
+        oldClipper.faceH != faceH ||
+        oldClipper.isSuitActive != isSuitActive;
+  }
+}
+

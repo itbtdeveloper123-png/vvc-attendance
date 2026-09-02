@@ -1584,15 +1584,20 @@ class _RequestListScreenState extends State<RequestListScreen> {
       if (byteData == null) throw "Failed to convert image to bytes";
       final Uint8List pngBytes = byteData.buffer.asUint8List();
 
-      // 4. Generate the final PDF document
+      // 4. Generate the final PDF document formatted strictly for A5 Paper
       final doc = pw.Document();
       final image = pw.MemoryImage(pngBytes);
       doc.addPage(
         pw.Page(
-          pageFormat: PdfPageFormat.a4,
-          margin: pw.EdgeInsets.zero,
+          pageFormat: PdfPageFormat.a5,
+          margin: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 10),
           build: (pw.Context context) {
-            return pw.Center(child: pw.Image(image));
+            return pw.Center(
+              child: pw.Image(
+                image,
+                fit: pw.BoxFit.contain,
+              ),
+            );
           },
         ),
       );
@@ -1619,15 +1624,15 @@ class _RequestListScreenState extends State<RequestListScreen> {
     }
   }
 
-  // Hidden Report Widget that renders in the background for capture
+  // Hidden Report Widget that renders in the background for capture (Formatted for A5)
   Widget _buildHiddenReport(BuildContext context) {
     if (_currentReportItem == null) {
-      return Container(color: Colors.white, width: 760, height: 900);
+      return Container(color: Colors.white, width: 580, height: 820);
     }
 
     return OfficialRequestFormView(
       item: _currentReportItem!,
-      width: 760,
+      width: 580,
       isPrintMode: true,
     );
   }
@@ -1699,7 +1704,7 @@ class _RequestListScreenState extends State<RequestListScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              "ទម្រង់សំណើផ្លូវការ",
+                              "ទម្រង់សំណើផ្លូវការ (A5)",
                               style: GoogleFonts.kantumruyPro(
                                 color: Colors.white,
                                 fontSize: 15,
@@ -1751,7 +1756,7 @@ class _RequestListScreenState extends State<RequestListScreen> {
                               ),
                               child: OfficialRequestFormView(
                                 item: item,
-                                width: 760,
+                                width: 580,
                               ),
                             ),
                           ),
