@@ -7367,6 +7367,9 @@ try {
             'ext'           => $ext,
             'size'          => strlen($fileData),
             'message'       => 'បានរក្សាទុកឯកសារជោគជ័យ'
+        ]);
+        break;
+
     // ─── Notify Community Post (FCM & In-App Notification) ───────────────────
     case 'notify_community_post':
         if (!$user) apiResponse(['success' => false, 'message' => 'Unauthorized']);
