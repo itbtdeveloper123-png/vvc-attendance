@@ -1575,8 +1575,8 @@ class _RequestListScreenState extends State<RequestListScreen> {
         throw "Invalid widget dimensions: ${size.width}x${size.height}";
       }
 
-      // Capture with null safety
-      final ui.Image capturedImage = await boundary.toImage(pixelRatio: 3.0);
+      // Capture with high-res pixel ratio (3.5x for razor-sharp text and graphics)
+      final ui.Image capturedImage = await boundary.toImage(pixelRatio: 3.5);
       
       final ByteData? byteData = await capturedImage.toByteData(
         format: ui.ImageByteFormat.png,
@@ -1584,18 +1584,19 @@ class _RequestListScreenState extends State<RequestListScreen> {
       if (byteData == null) throw "Failed to convert image to bytes";
       final Uint8List pngBytes = byteData.buffer.asUint8List();
 
-      // 4. Generate the final PDF document formatted strictly for A5 Paper
+      // 4. Generate the final PDF document formatted strictly for A5 Paper with full-bleed coverage
       final doc = pw.Document();
       final image = pw.MemoryImage(pngBytes);
       doc.addPage(
         pw.Page(
           pageFormat: PdfPageFormat.a5,
-          margin: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+          margin: const pw.EdgeInsets.all(0),
           build: (pw.Context context) {
-            return pw.Center(
+            return pw.FullPage(
+              ignoreMargins: true,
               child: pw.Image(
                 image,
-                fit: pw.BoxFit.contain,
+                fit: pw.BoxFit.fill,
               ),
             );
           },
@@ -1627,12 +1628,12 @@ class _RequestListScreenState extends State<RequestListScreen> {
   // Hidden Report Widget that renders in the background for capture (Formatted for A5)
   Widget _buildHiddenReport(BuildContext context) {
     if (_currentReportItem == null) {
-      return Container(color: Colors.white, width: 580, height: 820);
+      return Container(color: Colors.white, width: 595, height: 842);
     }
 
     return OfficialRequestFormView(
       item: _currentReportItem!,
-      width: 580,
+      width: 595,
       isPrintMode: true,
     );
   }
@@ -1756,7 +1757,7 @@ class _RequestListScreenState extends State<RequestListScreen> {
                               ),
                               child: OfficialRequestFormView(
                                 item: item,
-                                width: 580,
+                                width: 595,
                               ),
                             ),
                           ),
@@ -2200,8 +2201,8 @@ class _RequestListScreenState extends State<RequestListScreen> {
         throw "Invalid widget dimensions: ${size.width}x${size.height}";
       }
 
-      // Capture with null safety
-      final ui.Image capturedImage = await boundary.toImage(pixelRatio: 3.0);
+      // Capture with high-res pixel ratio (3.5x for razor-sharp text)
+      final ui.Image capturedImage = await boundary.toImage(pixelRatio: 3.5);
       
       final ByteData? byteData = await capturedImage.toByteData(
         format: ui.ImageByteFormat.png,

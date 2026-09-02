@@ -7312,6 +7312,196 @@ try {
         ]);
         break;
 
+    // ─── Upload Community Media (Images, PDFs & Files) ───────────────────────
+    case 'upload_community_media':
+    case 'upload_media':
+        if (!$user) apiResponse(['success' => false, 'message' => 'Unauthorized']);
+
+        $fileData = null;
+        $ext = 'jpg';
+        $originalName = '';
+
+        if (!empty($_FILES['file']['tmp_name']) && is_uploaded_file($_FILES['file']['tmp_name'])) {
+            $fileData = file_get_contents($_FILES['file']['tmp_name']);
+            $originalName = (string)($_FILES['file']['name'] ?? '');
+            $origExt = pathinfo($originalName, PATHINFO_EXTENSION);
+            if (!empty($origExt)) $ext = strtolower($origExt);
+        } elseif (!empty($_POST['file_base64']) || !empty($_POST['image_base64'])) {
+            $raw = (string)(!empty($_POST['file_base64']) ? $_POST['file_base64'] : $_POST['image_base64']);
+            $customExt = trim((string)($_POST['ext'] ?? ''));
+            $originalName = trim((string)($_POST['file_name'] ?? ''));
+
+            if (strpos($raw, 'data:application/pdf') === 0) {
+                $ext = 'pdf';
+            } elseif (strpos($raw, 'data:image/') === 0) {
+                if (preg_match('/data:image\/(\w+);base64,/', $raw, $m)) {
+                    $ext = strtolower($m[1]);
+                    if ($ext === 'jpeg') $ext = 'jpg';
+                }
+            } elseif (!empty($customExt)) {
+                $ext = strtolower($customExt);
+            }
+
+            $raw = preg_replace('/^data:[^;]+;base64,/', '', $raw);
+            $fileData = base64_decode($raw);
+        }
+
+        if (empty($fileData)) {
+            apiResponse(['success' => false, 'message' => 'មិនមានឯកសារត្រូវបានផ្តល់ជូនទេ']);
+        }
+
+        $uploadDir = __DIR__ . '/uploads/community/';
+        if (!is_dir($uploadDir)) {
+            @mkdir($uploadDir, 0777, true);
+        }
+
+        $filename = 'post_' . time() . '_' . uniqid() . '.' . $ext;
+        file_put_contents($uploadDir . $filename, $fileData);
+
+        $relPath = 'uploads/community/' . $filename;
+        apiResponse([
+            'success'       => true,
+            'url'           => $relPath,
+            'filename'      => $filename,
+            'original_name' => $originalName ?: $filename,
+            'ext'           => $ext,
+            'size'          => strlen($fileData),
+            'message'       => 'បានរក្សាទុកឯកសារជោគជ័យ'
+    // ─── Notify Community Post (FCM & In-App Notification) ───────────────────
+    case 'notify_community_post':
+        if (!$user) apiResponse(['success' => false, 'message' => 'Unauthorized']);
+        if (file_exists(__DIR__ . '/notification_functions.php')) {
+            require_once __DIR__ . '/notification_functions.php';
+        }
+
+        $postId = trim((string)($_POST['post_id'] ?? ''));
+        $category = trim((string)($_POST['category'] ?? '📢 ការជូនដំណឹង'));
+        $authorName = trim((string)($_POST['author_name'] ?? $user['name'] ?? 'សមាជិក VVC'));
+        $content = trim((string)($_POST['content'] ?? ''));
+        $imageUrl = trim((string)($_POST['image_url'] ?? ''));
+        $senderId = (string)($user['employee_id'] ?? '');
+
+        $shortContent = mb_strlen($content) > 120 ? mb_substr($content, 0, 117) . '...' : $content;
+        $title = "📢 ព័ត៌មានថ្មីក្នុង VVC Community [{$category}]";
+        $message = "{$authorName}: " . ($shortContent ?: 'បានបង្ហោះព័ត៌មានថ្មី');
+
+        $extraData = [
+            'type'       => 'community_post',
+            'post_id'    => $postId,
+            'category'   => $category,
+            'channel_id' => 'vvc_community_channel',
+            'sound'      => 'default',
+            'priority'   => 'high',
+        ];
+
+        // 1. Insert into notifications table in MySQL
+        $notifId = 0;
+        $stmt = $mysqli->prepare("INSERT INTO notifications (admin_id, title, message, recipient_type, image_url) VALUES (?, ?, ?, 'all', ?)");
+        if ($stmt) {
+            $adminId = $senderId ?: 'SYSTEM';
+            $stmt->bind_param("ssss", $adminId, $title, $message, $imageUrl);
+            $stmt->execute();
+            $notifId = $mysqli->insert_id;
+            $stmt->close();
+        }
+
+        // 2. Fetch all other active employees to map notifications and send FCM
+        $sentCount = 0;
+        $res = $mysqli->query("SELECT employee_id FROM users WHERE employment_status = 'Active' AND employee_id != '$senderId'");
+        if ($res) {
+            while ($row = $res->fetch_assoc()) {
+                $eid = $row['employee_id'];
+                if ($notifId > 0) {
+                    $mysqli->query("INSERT INTO user_notifications (notification_id, employee_id) VALUES ($notifId, '$eid')");
+                }
+                if (function_exists('sendFCMNotification')) {
+                    sendFCMNotification($mysqli, $eid, $title, $message, $imageUrl, $extraData);
+                }
+                $sentCount++;
+            }
+        }
+
+        apiResponse([
+            'success'      => true,
+            'sent_count'   => $sentCount,
+            'notification' => ['title' => $title, 'message' => $message],
+            'message'      => 'បានផ្ញើការជូនដំណឹងទៅកាន់បុគ្គលិកទាំងអស់ជោគជ័យ'
+        ]);
+        break;
+
+    // ─── Remind Unread Community Post ────────────────────────────────────────
+    case 'remind_unread_community_post':
+        if (!$user) apiResponse(['success' => false, 'message' => 'Unauthorized']);
+        if (file_exists(__DIR__ . '/notification_functions.php')) {
+            require_once __DIR__ . '/notification_functions.php';
+        }
+
+        $postId = trim((string)($_POST['post_id'] ?? ''));
+        $category = trim((string)($_POST['category'] ?? '📢 ការជូនដំណឹង'));
+        $content = trim((string)($_POST['content'] ?? ''));
+        $viewedRaw = $_POST['viewed_employee_ids'] ?? '[]';
+        $viewedIds = is_array($viewedRaw) ? $viewedRaw : json_decode($viewedRaw, true);
+        if (!is_array($viewedIds)) $viewedIds = [];
+
+        $senderId = (string)($user['employee_id'] ?? '');
+
+        // Escape viewed IDs for SQL query
+        $escapedViewed = array_map(function($id) use ($mysqli) {
+            return "'" . $mysqli->real_escape_string((string)$id) . "'";
+        }, $viewedIds);
+
+        $whereNotViewed = !empty($escapedViewed) ? "AND employee_id NOT IN (" . implode(',', $escapedViewed) . ")" : "";
+
+        $shortContent = mb_strlen($content) > 120 ? mb_substr($content, 0, 117) . '...' : $content;
+        $title = "🔔 រំលឹក៖ អ្នកមិនទាន់បានចូលមើលការប្រកាស [{$category}]";
+        $message = "សូមចូលទៅកាន់ VVC Community ដើម្បីអានព័ត៌មាន៖ " . ($shortContent ?: 'ការប្រកាសថ្មី');
+
+        $extraData = [
+            'type'       => 'community_post_reminder',
+            'post_id'    => $postId,
+            'category'   => $category,
+            'channel_id' => 'vvc_community_channel',
+            'sound'      => 'default',
+            'priority'   => 'high',
+        ];
+
+        // 1. Insert reminder into notifications table
+        $notifId = 0;
+        $stmt = $mysqli->prepare("INSERT INTO notifications (admin_id, title, message, recipient_type) VALUES (?, ?, ?, 'specific')");
+        if ($stmt) {
+            $adminId = $senderId ?: 'SYSTEM';
+            $stmt->bind_param("sss", $adminId, $title, $message);
+            $stmt->execute();
+            $notifId = $mysqli->insert_id;
+            $stmt->close();
+        }
+
+        // 2. Fetch unread active employees
+        $unreadEmployees = [];
+        $query = "SELECT employee_id, name FROM users WHERE employment_status = 'Active' AND employee_id != '$senderId' $whereNotViewed";
+        $res = $mysqli->query($query);
+        if ($res) {
+            while ($row = $res->fetch_assoc()) {
+                $eid = $row['employee_id'];
+                $unreadEmployees[] = ['employee_id' => $eid, 'name' => $row['name']];
+
+                if ($notifId > 0) {
+                    $mysqli->query("INSERT INTO user_notifications (notification_id, employee_id) VALUES ($notifId, '$eid')");
+                }
+                if (function_exists('sendFCMNotification')) {
+                    sendFCMNotification($mysqli, $eid, $title, $message, null, $extraData);
+                }
+            }
+        }
+
+        apiResponse([
+            'success'          => true,
+            'reminded_count'   => count($unreadEmployees),
+            'unread_employees' => $unreadEmployees,
+            'message'          => 'បានផ្ញើការរំលឹកទៅកាន់បុគ្គលិកដែលមិនទាន់បានមើលចំនួន ' . count($unreadEmployees) . ' នាក់រួចរាល់'
+        ]);
+        break;
+
     case 'remove_ai_chat_image_background':
         if (!$user) apiResponse(['success' => false, 'message' => 'Unauthorized']);
 
@@ -9653,207 +9843,266 @@ function product_ai_build_multimodal_content($userPrompt, $imageBase64 = '', $mi
 }
 
 function ai_call_free_vision_service($systemPrompt, $userPrompt, $imageBase64 = '', $mimeType = 'image/jpeg') {
-    // 1. ទាញយកការកំណត់របស់ Worker
-    $worker = meeting_ai_get_worker_config();
-    if (empty($worker['enabled']) || empty($worker['url'])) {
-        return ['success' => false, 'message' => 'Local AI worker is not configured or disabled.'];
-    }
-
-    // 2. រៀបចំ Headers
-    $headers = [];
-    if (!empty($worker['token'])) {
-        $headers[] = 'Authorization: Bearer ' . $worker['token'];
-    }
-
-    // 3. សម្អាត Base64 (ដក Prefix data:image/... ចេញ ប្រសិនបើមាន)
+    // 1. សម្អាត Base64 (ដក Prefix data:image/... ចេញ ប្រសិនបើមាន)
     $cleanImageBase64 = (string)$imageBase64;
     if (strpos($cleanImageBase64, 'base64,') !== false) {
         $parts = explode('base64,', $cleanImageBase64);
         $cleanImageBase64 = end($parts);
     }
-    // លុបចន្លោះទំនេរ ឬបន្ទាត់ថ្មីចេញពី Base64 string
     $cleanImageBase64 = str_replace(["\r", "\n", " ", "\t"], '', $cleanImageBase64);
+    $cleanMime = !empty($mimeType) ? $mimeType : 'image/jpeg';
 
-    // 4. រៀបចំទិន្នន័យផ្ញើទៅ API
-    $payload = [
-        'system_prompt' => (string)$systemPrompt,
-        'user_prompt'   => (string)$userPrompt,
-        'image_base64'  => $cleanImageBase64,
-        'mime_type'     => (string)$mimeType,
-    ];
+    $errors = [];
 
-    // 4b. បង្កើន PHP execution limit (AI local អាចយូរជាង 30s)
-    if (function_exists('set_time_limit')) {
-        @set_time_limit(max(300, ((int)($worker['timeout'] ?? 600)) + 120));
-    }
-    if (function_exists('ini_set')) {
-        @ini_set('max_execution_time', (string)max(300, ((int)($worker['timeout'] ?? 600)) + 120));
-    }
+    // =========================================================================
+    // TIER 1: GOOGLE GEMINI VISION API (Primary & Recommended!)
+    // =========================================================================
+    $geminiKey = trim((string)(defined('GEMINI_API_KEY') ? GEMINI_API_KEY : (getenv('GEMINI_API_KEY') ?: '')));
+    if ($geminiKey !== '') {
+        $geminiModels = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-flash-latest'];
+        
+        $parts = [];
+        $parts[] = ['text' => (string)$systemPrompt . "\n\n" . (string)$userPrompt];
+        if ($cleanImageBase64 !== '') {
+            $parts[] = [
+                'inline_data' => [
+                    'mime_type' => $cleanMime,
+                    'data'      => $cleanImageBase64
+                ]
+            ];
+        }
 
-    // 5. ហៅ async endpoint ជាមុន (បើ 404 បោះ fallback ទៅ sync)
-    $workerTimeout = (int)($worker['timeout'] ?? 600);
-    $jobResponse = meeting_ai_http_post_json(
-        rtrim($worker['url'], '/') . '/analyze-product-async',
-        $payload,
-        $headers,
-        min(60, max(20, $workerTimeout))
-    );
+        $geminiPayload = [
+            'contents' => [
+                ['parts' => $parts]
+            ],
+            'generationConfig' => [
+                'temperature' => 0.1,
+                'responseMimeType' => 'application/json'
+            ]
+        ];
+        $jsonPayload = json_encode($geminiPayload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
-    // Fallback: បើ localhost មិនដំណើរការ ព្យាយាម fallback host ដូច meeting ផងដែរ
-    if (!$jobResponse['ok']) {
-        $errMsg = strtolower((string)($jobResponse['message'] ?? ''));
-        if (
-            strpos($errMsg, 'connection refused') !== false ||
-            strpos($errMsg, 'failed to connect') !== false ||
-            strpos($errMsg, 'refused') !== false
-        ) {
-            $parsed = parse_url($worker['url']);
-            if ($parsed && !empty($parsed['host']) && $parsed['host'] !== '127.0.0.1' && $parsed['host'] !== 'localhost') {
-                $alt_host = '127.0.0.1';
-                $scheme = isset($parsed['scheme']) ? $parsed['scheme'] : 'http';
-                $port = isset($parsed['port']) ? ':' . $parsed['port'] : '';
-                $alt_url = $scheme . '://' . $alt_host . $port;
-                $fallbackUrls[] = $alt_url;
+        foreach ($geminiModels as $gModel) {
+            $url = "https://generativelanguage.googleapis.com/v1beta/models/{$gModel}:generateContent?key=" . urlencode($geminiKey);
+            $ch = curl_init($url);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonPayload);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 40);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+            $resp = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
 
-                $jobResponse = meeting_ai_http_post_json(
-                    rtrim($alt_url, '/') . '/analyze-product-async',
-                    $payload,
-                    $headers,
-                    min(60, max(20, $workerTimeout))
-                );
-
-                if (!$jobResponse['ok'] && (int)($jobResponse['status'] ?? 0) === 404) {
-                    // Fallback endpoint មិនមាន — ព្យាយាម sync endpoint ជំនួស
-                    $syncResponse = meeting_ai_http_post_json(
-                        rtrim($alt_url, '/') . '/analyze-product',
-                        $payload,
-                        $headers,
-                        $workerTimeout
-                    );
-                    if ($syncResponse['ok']) {
-                        $data = $syncResponse['data'] ?? [];
-                        $content = trim((string)($data['content'] ?? ''));
-                        if ($content !== '') {
-                            return [
-                                'success'  => true,
-                                'content'  => $content,
-                                'provider' => $data['provider'] ?? 'local-worker',
-                                'model'    => $data['model'] ?? 'ollama/vision',
-                                'raw_data' => $data,
-                            ];
-                        }
-                    }
+            if ($httpCode === 200 && $resp) {
+                $data = json_decode($resp, true);
+                $content = $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
+                if (trim((string)$content) !== '') {
+                    return [
+                        'success'  => true,
+                        'content'  => trim((string)$content),
+                        'provider' => 'gemini',
+                        'model'    => $gModel,
+                        'raw_data' => $data,
+                    ];
                 }
+            } else {
+                $errors[] = "Gemini ({$gModel}): HTTP {$httpCode}";
+            }
+        }
+    }
 
-                if ($jobResponse['ok']) {
-                    $worker['url'] = $alt_url;
+    // =========================================================================
+    // TIER 2: GROQ VISION API (Fallback)
+    // =========================================================================
+    $groqKey = trim((string)(defined('GROQ_API_KEY') ? GROQ_API_KEY : (getenv('GROQ_API_KEY') ?: '')));
+    if ($groqKey !== '') {
+        $groqModels = ['llama-3.2-11b-vision-preview', 'llama-3.2-90b-vision-preview'];
+        $userContent = [];
+        $userContent[] = ['type' => 'text', 'text' => (string)$userPrompt];
+        if ($cleanImageBase64 !== '') {
+            $userContent[] = [
+                'type' => 'image_url',
+                'image_url' => [
+                    'url' => "data:{$cleanMime};base64,{$cleanImageBase64}"
+                ]
+            ];
+        }
+
+        foreach ($groqModels as $grModel) {
+            $groqPayload = [
+                'model' => $grModel,
+                'messages' => [
+                    ['role' => 'system', 'content' => (string)$systemPrompt],
+                    ['role' => 'user', 'content' => $userContent]
+                ],
+                'temperature' => 0.1,
+                'response_format' => ['type' => 'json_object']
+            ];
+
+            $ch = curl_init('https://api.groq.com/openai/v1/chat/completions');
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($groqPayload, JSON_UNESCAPED_UNICODE));
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Content-Type: application/json',
+                'Authorization: Bearer ' . $groqKey
+            ]);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 35);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+            $resp = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+
+            if ($httpCode === 200 && $resp) {
+                $data = json_decode($resp, true);
+                $content = $data['choices'][0]['message']['content'] ?? '';
+                if (trim((string)$content) !== '') {
+                    return [
+                        'success'  => true,
+                        'content'  => trim((string)$content),
+                        'provider' => 'groq',
+                        'model'    => $grModel,
+                        'raw_data' => $data,
+                    ];
+                }
+            } else {
+                $errors[] = "Groq ({$grModel}): HTTP {$httpCode}";
+            }
+        }
+    }
+
+    // =========================================================================
+    // TIER 3: GITHUB MODELS / OPENAI VISION API (Fallback)
+    // =========================================================================
+    $githubToken = trim((string)(defined('GITHUB_TOKEN') ? GITHUB_TOKEN : (getenv('GITHUB_TOKEN') ?: (getenv('GITHUB_PAT') ?: ''))));
+    $openAiKey   = trim((string)(defined('OPENAI_API_KEY') ? OPENAI_API_KEY : (getenv('OPENAI_API_KEY') ?: '')));
+
+    if ($githubToken !== '' || $openAiKey !== '') {
+        $endpoint = $githubToken !== '' ? 'https://models.inference.ai.azure.com/chat/completions' : 'https://api.openai.com/v1/chat/completions';
+        $bearerToken = $githubToken !== '' ? $githubToken : $openAiKey;
+        $oaModels = ['gpt-4o-mini', 'gpt-4o'];
+
+        $userContent = [];
+        $userContent[] = ['type' => 'text', 'text' => (string)$userPrompt];
+        if ($cleanImageBase64 !== '') {
+            $userContent[] = [
+                'type' => 'image_url',
+                'image_url' => [
+                    'url' => "data:{$cleanMime};base64,{$cleanImageBase64}"
+                ]
+            ];
+        }
+
+        foreach ($oaModels as $oaModel) {
+            $oaPayload = [
+                'model' => $oaModel,
+                'messages' => [
+                    ['role' => 'system', 'content' => (string)$systemPrompt],
+                    ['role' => 'user', 'content' => $userContent]
+                ],
+                'temperature' => 0.1,
+                'response_format' => ['type' => 'json_object']
+            ];
+
+            $ch = curl_init($endpoint);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($oaPayload, JSON_UNESCAPED_UNICODE));
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Content-Type: application/json',
+                'Authorization: Bearer ' . $bearerToken
+            ]);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 40);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+            $resp = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+
+            if ($httpCode === 200 && $resp) {
+                $data = json_decode($resp, true);
+                $content = $data['choices'][0]['message']['content'] ?? '';
+                if (trim((string)$content) !== '') {
+                    return [
+                        'success'  => true,
+                        'content'  => trim((string)$content),
+                        'provider' => 'openai',
+                        'model'    => $oaModel,
+                        'raw_data' => $data,
+                    ];
                 }
             }
         }
     }
 
-    // បើ async endpoint មិនមាន (404) បោះ sync endpoint ជំនួស
-    if (!$jobResponse['ok'] && (int)($jobResponse['status'] ?? 0) === 404) {
-        $syncResponse = meeting_ai_http_post_json(
-            rtrim($worker['url'], '/') . '/analyze-product',
+    // =========================================================================
+    // TIER 4: LOCAL AI WORKER (OLLAMA VISION)
+    // =========================================================================
+    $worker = meeting_ai_get_worker_config();
+    if (!empty($worker['enabled']) && !empty($worker['url'])) {
+        $headers = [];
+        if (!empty($worker['token'])) {
+            $headers[] = 'Authorization: Bearer ' . $worker['token'];
+        }
+
+        $payload = [
+            'system_prompt' => (string)$systemPrompt,
+            'user_prompt'   => (string)$userPrompt,
+            'image_base64'  => $cleanImageBase64,
+            'mime_type'     => $cleanMime,
+        ];
+
+        $workerTimeout = (int)($worker['timeout'] ?? 600);
+        $jobResponse = meeting_ai_http_post_json(
+            rtrim($worker['url'], '/') . '/analyze-product-async',
             $payload,
             $headers,
-            $workerTimeout
-        );
-        if (!$syncResponse['ok']) {
-            return [
-                'success' => false,
-                'message' => 'Local AI error: ' . (string)($syncResponse['message'] ?? 'Unknown connection error.'),
-            ];
-        }
-        $data = $syncResponse['data'] ?? [];
-        $content = trim((string)($data['content'] ?? ''));
-        if ($content === '') {
-            return ['success' => false, 'message' => 'AI worker returned an empty analysis.'];
-        }
-        return [
-            'success'  => true,
-            'content'  => $content,
-            'provider' => $data['provider'] ?? 'local-worker',
-            'model'    => $data['model'] ?? 'ollama/vision',
-            'raw_data' => $data,
-        ];
-    }
-
-    // បើ async request បរាជ័យសរុប
-    if (!$jobResponse['ok']) {
-        return [
-            'success' => false,
-            'message' => 'Local AI error: ' . (string)($jobResponse['message'] ?? 'Unknown connection error.'),
-        ];
-    }
-
-    // 6. ទាញ job_id ហើយ Poll រហូតដល់រួច
-    $jobData = is_array($jobResponse['data'] ?? null) ? $jobResponse['data'] : [];
-    $jobId = trim((string)($jobData['job_id'] ?? ''));
-    if ($jobId === '') {
-        return [
-            'success' => false,
-            'message' => 'AI worker did not return a job ID.',
-        ];
-    }
-
-    $deadline = microtime(true) + max(120, $workerTimeout);
-    $pollIntervalUs = 2000000;
-    $lastMessage = 'Local AI worker is processing the product analysis.';
-
-    while (microtime(true) < $deadline) {
-        usleep($pollIntervalUs);
-        $pollResponse = meeting_ai_http_get_json(
-            rtrim($worker['url'], '/') . '/jobs/' . rawurlencode($jobId),
-            $headers,
-            30
+            min(60, max(20, $workerTimeout))
         );
 
-        if (!$pollResponse['ok']) {
-            if ((int)($pollResponse['status'] ?? 0) === 404) {
-                continue;
+        if ($jobResponse['ok']) {
+            $jobData = is_array($jobResponse['data'] ?? null) ? $jobResponse['data'] : [];
+            $jobId = trim((string)($jobData['job_id'] ?? ''));
+            if ($jobId !== '') {
+                $deadline = microtime(true) + max(120, $workerTimeout);
+                $pollIntervalUs = 2000000;
+                while (microtime(true) < $deadline) {
+                    usleep($pollIntervalUs);
+                    $pollResponse = meeting_ai_http_get_json(
+                        rtrim($worker['url'], '/') . '/jobs/' . rawurlencode($jobId),
+                        $headers,
+                        30
+                    );
+                    if ($pollResponse['ok']) {
+                        $statusData = is_array($pollResponse['data'] ?? null) ? $pollResponse['data'] : [];
+                        $status = strtolower(trim((string)($statusData['status'] ?? 'queued')));
+                        if ($status === 'completed') {
+                            $result = is_array($statusData['result'] ?? null) ? $statusData['result'] : [];
+                            $content = trim((string)($result['content'] ?? ''));
+                            if ($content !== '') {
+                                return [
+                                    'success'  => true,
+                                    'content'  => $content,
+                                    'provider' => $result['provider'] ?? 'local-worker',
+                                    'model'    => $result['model'] ?? 'ollama/vision',
+                                    'raw_data' => $result,
+                                ];
+                            }
+                        }
+                        if ($status === 'failed') break;
+                    }
+                }
             }
-            return [
-                'success' => false,
-                'message' => 'AI worker job status check failed: ' . (string)($pollResponse['message'] ?? ''),
-            ];
-        }
-
-        $statusData = is_array($pollResponse['data'] ?? null) ? $pollResponse['data'] : [];
-        $status = strtolower(trim((string)($statusData['status'] ?? 'queued')));
-        $lastMessage = trim((string)($statusData['message'] ?? $lastMessage));
-
-        if ($status === 'completed') {
-            $result = is_array($statusData['result'] ?? null) ? $statusData['result'] : [];
-            $content = trim((string)($result['content'] ?? ''));
-            if ($content === '') {
-                return ['success' => false, 'message' => 'AI worker returned an empty analysis.'];
-            }
-            return [
-                'success'  => true,
-                'content'  => $content,
-                'provider' => $result['provider'] ?? 'local-worker',
-                'model'    => $result['model'] ?? 'ollama/vision',
-                'raw_data' => $result,
-            ];
-        }
-
-        if ($status === 'failed') {
-            return [
-                'success' => false,
-                'message' => $lastMessage !== '' ? $lastMessage : 'AI worker job failed.',
-            ];
         }
     }
 
-    // Timeout
-    return [
-        'success' => false,
-        'message' => $lastMessage !== ''
-            ? 'AI processing timeout: ' . $lastMessage
-            : 'Local AI worker did not finish within the configured timeout.',
-    ];
+    $errMsg = !empty($errors) ? implode('; ', array_slice($errors, 0, 3)) : 'No vision AI provider available.';
+    return ['success' => false, 'message' => 'AI Vision Error: ' . $errMsg];
 }
 
 function ai_verify_face_match($mysqli, $eid, $photo_b64) {

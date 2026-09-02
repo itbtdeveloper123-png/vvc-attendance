@@ -357,19 +357,42 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'AI Product Analyzer',
-              style: GoogleFonts.kantumruyPro(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 17,
-              ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'AI Product Analyzer',
+                  style: GoogleFonts.kantumruyPro(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF6366F1), Color(0xFFA855F7)],
+                    ),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    'Gemini',
+                    style: GoogleFonts.outfit(
+                      color: Colors.white,
+                      fontSize: 9,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
             ),
             Text(
-              'វិភាគផលិតផលដោយ AI',
+              'វិភាគផលិតផលដោយ Google Gemini Vision AI',
               style: GoogleFonts.kantumruyPro(
                 color: AppTheme.textMuted,
-                fontSize: 11,
+                fontSize: 10.5,
               ),
             ),
           ],

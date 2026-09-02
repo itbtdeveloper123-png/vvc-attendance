@@ -466,6 +466,87 @@ class ApiService {
     );
   }
 
+  /// Upload community post media (Image, PDF, etc.)
+  Future<Map<String, dynamic>> uploadCommunityMedia(
+    File file, {
+    String? customExt,
+    String? fileName,
+  }) async {
+    try {
+      final bytes = await file.readAsBytes();
+      final base64String = base64Encode(bytes);
+      final headers = await _authHeaders();
+      final ext = customExt ?? file.path.split('.').last.toLowerCase();
+      final mime = ext == 'pdf' ? 'application/pdf' : 'image/jpeg';
+      final name = fileName ?? file.path.split(RegExp(r'[\\/]')).last;
+
+      return _processRequest(
+        'upload_community_media',
+        headers: headers,
+        body: {
+          'file_base64': 'data:$mime;base64,$base64String',
+          'ext': ext,
+          'file_name': name,
+        },
+        timeout: const Duration(seconds: 90),
+      );
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  /// Send Push & In-App Notification when a new Community Post is published
+  Future<Map<String, dynamic>> notifyCommunityPost({
+    required String postId,
+    required String category,
+    required String authorName,
+    required String content,
+    String? imageUrl,
+  }) async {
+    try {
+      final headers = await _authHeaders();
+      return _processRequest(
+        'notify_community_post',
+        headers: headers,
+        body: {
+          'post_id': postId,
+          'category': category,
+          'author_name': authorName,
+          'content': content,
+          'image_url': imageUrl ?? '',
+        },
+        timeout: const Duration(seconds: 45),
+      );
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  /// Send Reminder Notification to employees who have NOT yet viewed the Post
+  Future<Map<String, dynamic>> remindUnreadCommunityPost({
+    required String postId,
+    required String category,
+    required String content,
+    required List<String> viewedEmployeeIds,
+  }) async {
+    try {
+      final headers = await _authHeaders();
+      return _processRequest(
+        'remind_unread_community_post',
+        headers: headers,
+        body: {
+          'post_id': postId,
+          'category': category,
+          'content': content,
+          'viewed_employee_ids': jsonEncode(viewedEmployeeIds),
+        },
+        timeout: const Duration(seconds: 45),
+      );
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
   Future<Map<String, dynamic>> regenerateAiChatReply(int sessionId) async {
     final headers = await _authHeaders();
     return _processRequest(

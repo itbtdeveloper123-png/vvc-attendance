@@ -9,10 +9,27 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:image/image.dart' as img;
+import 'package:file_picker/file_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:path/path.dart' as p;
 import '../providers/user_provider.dart';
 import '../services/api_service.dart';
 import '../services/r2_storage_service.dart';
 import 'notification_screen.dart';
+
+class _LocalAttachment {
+  final File file;
+  final String type; // 'image' or 'pdf'
+  final String name;
+  final int sizeBytes;
+
+  _LocalAttachment({
+    required this.file,
+    required this.type,
+    required this.name,
+    required this.sizeBytes,
+  });
+}
 
 class _CommunityDark {
   static const Color bg = Color(0xFF0F172A);
@@ -33,11 +50,395 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final ImagePicker _picker = ImagePicker();
   final R2StorageService _r2Service = R2StorageService();
+  final ApiService _api = ApiService();
 
   late final Stream<QuerySnapshot> _postsStream;
   String _selectedTab = 'All';
   bool _isSearching = false;
   final TextEditingController _searchController = TextEditingController();
+
+  void _openFullscreenGallery(List<Map<String, dynamic>> images, {int initialIndex = 0}) {
+    if (images.isEmpty) return;
+    final pageController = PageController(initialPage: initialIndex);
+    int currentIndex = initialIndex;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => StatefulBuilder(
+          builder: (context, setGalleryState) {
+            return Scaffold(
+              backgroundColor: Colors.black,
+              appBar: AppBar(
+                backgroundColor: Colors.black,
+                elevation: 0,
+                leading: IconButton(
+                  icon: const Icon(Icons.close_rounded, color: Colors.white),
+                  onPressed: () => Navigator.pop(context),
+                ),
+                title: Text(
+                  '${currentIndex + 1} / ${images.length}',
+                  style: GoogleFonts.inter(color: Colors.white, fontSize: 16),
+                ),
+                centerTitle: true,
+              ),
+              body: PageView.builder(
+                controller: pageController,
+                itemCount: images.length,
+                onPageChanged: (idx) => setGalleryState(() => currentIndex = idx),
+                itemBuilder: (context, index) {
+                  final url = images[index]['url']?.toString() ?? '';
+                  return Center(
+                    child: InteractiveViewer(
+                      minScale: 0.8,
+                      maxScale: 4.0,
+                      child: url.startsWith('data:image')
+                          ? Image.memory(
+                              base64Decode(url.split(',').last),
+                              fit: BoxFit.contain,
+                            )
+                          : Image.network(
+                              url.startsWith('http') ? url : ApiService.getFullImageUrl(url),
+                              fit: BoxFit.contain,
+                              errorBuilder: (_, __, ___) => const Icon(
+                                Icons.broken_image_rounded,
+                                color: Colors.white54,
+                                size: 64,
+                              ),
+                            ),
+                    ),
+                  );
+                },
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGridThumbnail(List<Map<String, dynamic>> images, int index, {required double height}) {
+    final url = images[index]['url']?.toString() ?? '';
+    return GestureDetector(
+      onTap: () => _openFullscreenGallery(images, initialIndex: index),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: SizedBox(
+          height: height,
+          width: double.infinity,
+          child: url.startsWith('data:image')
+              ? Image.memory(
+                  base64Decode(url.split(',').last),
+                  fit: BoxFit.cover,
+                )
+              : Image.network(
+                  url.startsWith('http') ? url : ApiService.getFullImageUrl(url),
+                  fit: BoxFit.cover,
+                  loadingBuilder: (context, child, progress) {
+                    if (progress == null) return child;
+                    return Container(
+                      color: _CommunityDark.bg,
+                      child: const Center(
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: _CommunityDark.accent,
+                        ),
+                      ),
+                    );
+                  },
+                  errorBuilder: (_, __, ___) => Container(
+                    color: _CommunityDark.bg,
+                    child: const Center(
+                      child: Icon(Icons.broken_image_rounded, color: Colors.white38, size: 28),
+                    ),
+                  ),
+                ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildImagesGrid(List<Map<String, dynamic>> images) {
+    if (images.length == 1) {
+      final url = images[0]['url']?.toString() ?? '';
+      return _buildPostMedia(url);
+    }
+
+    if (images.length == 2) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 14),
+        child: Row(
+          children: [
+            Expanded(child: _buildGridThumbnail(images, 0, height: 180)),
+            const SizedBox(width: 6),
+            Expanded(child: _buildGridThumbnail(images, 1, height: 180)),
+          ],
+        ),
+      );
+    }
+
+    if (images.length == 3) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 14),
+        child: Column(
+          children: [
+            _buildGridThumbnail(images, 0, height: 190),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Expanded(child: _buildGridThumbnail(images, 1, height: 130)),
+                const SizedBox(width: 6),
+                Expanded(child: _buildGridThumbnail(images, 2, height: 130)),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+
+    // 4 or more images (2x2 grid with +X more overlay)
+    final extraCount = images.length - 4;
+    return Padding(
+      padding: const EdgeInsets.only(top: 14),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(child: _buildGridThumbnail(images, 0, height: 140)),
+              const SizedBox(width: 6),
+              Expanded(child: _buildGridThumbnail(images, 1, height: 140)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Expanded(child: _buildGridThumbnail(images, 2, height: 140)),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Stack(
+                  children: [
+                    _buildGridThumbnail(images, 3, height: 140),
+                    if (extraCount > 0)
+                      Positioned.fill(
+                        child: GestureDetector(
+                          onTap: () => _openFullscreenGallery(images, initialIndex: 3),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.65),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Center(
+                              child: Text(
+                                '+$extraCount',
+                                style: GoogleFonts.outfit(
+                                  color: Colors.white,
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPdfAttachmentTile(Map<String, dynamic> pdf) {
+    final url = (pdf['url'] ?? '').toString();
+    final name = (pdf['name'] ?? 'ឯកសារភ្ជាប់ (PDF)').toString();
+    final size = (pdf['size'] as num?)?.toInt() ?? 0;
+    final sizeFormatted = size > 0 ? '${(size / 1024).toStringAsFixed(1)} KB' : 'PDF';
+
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: _CommunityDark.bg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.redAccent.withValues(alpha: 0.3),
+          width: 0.8,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.redAccent.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.picture_as_pdf_rounded,
+              color: Colors.redAccent,
+              size: 26,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.kantumruyPro(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13.5,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'PDF Document • $sizeFormatted',
+                  style: GoogleFonts.inter(
+                    color: Colors.white54,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(
+              Icons.open_in_new_rounded,
+              color: _CommunityDark.accent,
+              size: 20,
+            ),
+            onPressed: () async {
+              final fullUrl = url.startsWith('http') ? url : ApiService.getFullImageUrl(url);
+              final uri = Uri.parse(fullUrl);
+              if (await canLaunchUrl(uri)) {
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPostMediaGroup(Map<String, dynamic> data) {
+    final List<dynamic> rawMediaList = data['mediaList'] as List<dynamic>? ?? [];
+    final String singleMediaUrl = data['mediaUrl'] as String? ?? '';
+
+    final List<Map<String, dynamic>> images = [];
+    final List<Map<String, dynamic>> pdfs = [];
+
+    if (rawMediaList.isNotEmpty) {
+      for (final item in rawMediaList) {
+        if (item is Map) {
+          final m = Map<String, dynamic>.from(item);
+          final type = (m['type'] ?? '').toString().toLowerCase();
+          final url = (m['url'] ?? '').toString();
+          if (type == 'pdf' || url.endsWith('.pdf')) {
+            pdfs.add(m);
+          } else {
+            images.add(m);
+          }
+        }
+      }
+    } else if (singleMediaUrl.isNotEmpty) {
+      if (singleMediaUrl.endsWith('.pdf')) {
+        pdfs.add({'url': singleMediaUrl, 'type': 'pdf', 'name': 'ឯកសារភ្ជាប់ (PDF Document)'});
+      } else {
+        images.add({'url': singleMediaUrl, 'type': 'image'});
+      }
+    }
+
+    if (images.isEmpty && pdfs.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (images.isNotEmpty) _buildImagesGrid(images),
+        if (pdfs.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          ...pdfs.map((pdf) => _buildPdfAttachmentTile(pdf)),
+        ],
+      ],
+    );
+  }
+
+  void _openFullscreenImage(String mediaUrl) {
+    _openFullscreenGallery([{'url': mediaUrl}], initialIndex: 0);
+  }
+
+  Widget _buildPostMedia(String mediaUrl) {
+    if (mediaUrl.isEmpty) return const SizedBox.shrink();
+
+    Widget imageWidget;
+    if (mediaUrl.startsWith('data:image')) {
+      try {
+        final bytes = base64Decode(mediaUrl.split(',').last);
+        imageWidget = Image.memory(
+          bytes,
+          fit: BoxFit.cover,
+          width: double.infinity,
+          gaplessPlayback: true,
+        );
+      } catch (_) {
+        imageWidget = const SizedBox.shrink();
+      }
+    } else {
+      final fullUrl = mediaUrl.startsWith('http')
+          ? mediaUrl
+          : ApiService.getFullImageUrl(mediaUrl);
+      imageWidget = Image.network(
+        fullUrl,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        loadingBuilder: (context, child, progress) {
+          if (progress == null) return child;
+          return Container(
+            height: 200,
+            color: _CommunityDark.bg,
+            child: const Center(
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: _CommunityDark.accent,
+              ),
+            ),
+          );
+        },
+        errorBuilder: (context, error, stackTrace) {
+          return Container(
+            height: 140,
+            color: _CommunityDark.bg,
+            child: const Center(
+              child: Icon(
+                Icons.broken_image_rounded,
+                color: Colors.white38,
+                size: 36,
+              ),
+            ),
+          );
+        },
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 14),
+      child: GestureDetector(
+        onTap: () => _openFullscreenImage(mediaUrl),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 380),
+            child: imageWidget,
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -68,7 +469,7 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
     'angry': {'emoji': '😡', 'label': 'Angry', 'color': Color(0xFFFF9500)},
   };
 
-  // Auto Compress Image to Minimal Bytes (~150KB-200KB) while Retaining HD Quality
+  // Auto Compress Image to Minimal Bytes (~70KB-150KB) while Retaining HD Quality
   Future<File> _compressImage(File file, {bool isCamera = false}) async {
     try {
       final bytes = await file.readAsBytes();
@@ -80,21 +481,22 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
         oriented = img.flipHorizontal(oriented);
       }
 
-      if (oriented.width > 1200 || oriented.height > 1200) {
+      // Resize max dimension to 1280px for minimal storage & fast rendering
+      if (oriented.width > 1280 || oriented.height > 1280) {
         oriented = img.copyResize(
           oriented,
-          width: oriented.width > oriented.height ? 1200 : null,
-          height: oriented.height >= oriented.width ? 1200 : null,
-          interpolation: img.Interpolation.average,
+          width: oriented.width >= oriented.height ? 1280 : null,
+          height: oriented.height > oriented.width ? 1280 : null,
+          interpolation: img.Interpolation.linear,
         );
       }
 
       final compressedBytes = Uint8List.fromList(
-        img.encodeJpg(oriented, quality: 72),
+        img.encodeJpg(oriented, quality: 75),
       );
       final tempDir = await getTemporaryDirectory();
       final compressedFile = File(
-        '${tempDir.path}/comp_${DateTime.now().millisecondsSinceEpoch}.jpg',
+        '${tempDir.path}/comp_${DateTime.now().millisecondsSinceEpoch}_${p.basename(file.path)}',
       );
       await compressedFile.writeAsBytes(compressedBytes);
       return compressedFile;
@@ -105,12 +507,13 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
   }
 
   // ==========================================
-  // CREATE POST MODAL
+  // CREATE POST MODAL (Multi-Media & PDF Group)
   // ==========================================
   void _showCreatePostModal(UserProvider user) {
     final textController = TextEditingController();
-    File? selectedImage;
+    final List<_LocalAttachment> attachments = [];
     bool isPosting = false;
+    String selectedCategory = '📢 ការជូនដំណឹង';
 
     showModalBottomSheet(
       context: context,
@@ -154,6 +557,60 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                     ],
                   ),
                   const SizedBox(height: 10),
+                  // Category Selector Chips
+                  Text(
+                    'ប្រភេទការបង្ហោះ (Category)៖',
+                    style: GoogleFonts.kantumruyPro(
+                      color: Colors.white70,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        '📢 ការជូនដំណឹង',
+                        '📚 ចំណេះដឹង & Tips',
+                        '🔥 ព័ត៌មានទូទៅ',
+                      ].map((cat) {
+                        final isSel = selectedCategory == cat;
+                        return GestureDetector(
+                          onTap: () => setModalState(() => selectedCategory = cat),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            margin: const EdgeInsets.only(right: 8),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isSel
+                                  ? _CommunityDark.accent.withValues(alpha: 0.2)
+                                  : _CommunityDark.bg,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: isSel
+                                    ? _CommunityDark.accent
+                                    : const Color(0xFF334155),
+                                width: isSel ? 1.2 : 0.8,
+                              ),
+                            ),
+                            child: Text(
+                              cat,
+                              style: GoogleFonts.kantumruyPro(
+                                color: isSel ? Colors.white : Colors.white60,
+                                fontSize: 12,
+                                fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
                   TextField(
                     controller: textController,
                     maxLines: 4,
@@ -176,55 +633,144 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  if (selectedImage != null)
-                    Stack(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(16),
-                          child: Image.file(
-                            selectedImage!,
-                            height: 180,
-                            width: double.infinity,
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                        Positioned(
-                          right: 8,
-                          top: 8,
-                          child: InkWell(
-                            onTap:
-                                () => setModalState(() => selectedImage = null),
-                            child: Container(
-                              padding: const EdgeInsets.all(6),
-                              decoration: const BoxDecoration(
-                                color: Color(0x99000000),
-                                shape: BoxShape.circle,
+
+                  // Attachments Preview List (Grouped)
+                  if (attachments.isNotEmpty) ...[
+                    SizedBox(
+                      height: 105,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: attachments.length,
+                        separatorBuilder: (_, __) => const SizedBox(width: 8),
+                        itemBuilder: (context, idx) {
+                          final att = attachments[idx];
+                          final sizeKb = (att.sizeBytes / 1024).toStringAsFixed(0);
+
+                          return Stack(
+                            children: [
+                              Container(
+                                width: 100,
+                                height: 100,
+                                decoration: BoxDecoration(
+                                  color: _CommunityDark.bg,
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color: att.type == 'pdf'
+                                        ? Colors.redAccent.withValues(alpha: 0.4)
+                                        : _CommunityDark.accent.withValues(alpha: 0.3),
+                                  ),
+                                ),
+                                child: att.type == 'pdf'
+                                    ? Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          const Icon(
+                                            Icons.picture_as_pdf_rounded,
+                                            color: Colors.redAccent,
+                                            size: 32,
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Padding(
+                                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                                            child: Text(
+                                              att.name,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: GoogleFonts.inter(
+                                                color: Colors.white70,
+                                                fontSize: 10,
+                                              ),
+                                            ),
+                                          ),
+                                          Text(
+                                            '$sizeKb KB',
+                                            style: GoogleFonts.inter(
+                                              color: Colors.white38,
+                                              fontSize: 9,
+                                            ),
+                                          ),
+                                        ],
+                                      )
+                                    : ClipRRect(
+                                        borderRadius: BorderRadius.circular(13),
+                                        child: Stack(
+                                          fit: StackFit.expand,
+                                          children: [
+                                            Image.file(
+                                              att.file,
+                                              fit: BoxFit.cover,
+                                            ),
+                                            Positioned(
+                                              bottom: 4,
+                                              left: 4,
+                                              child: Container(
+                                                padding: const EdgeInsets.symmetric(
+                                                  horizontal: 4,
+                                                  vertical: 1,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.black87,
+                                                  borderRadius: BorderRadius.circular(4),
+                                                ),
+                                                child: Text(
+                                                  '$sizeKb KB',
+                                                  style: GoogleFonts.inter(
+                                                    color: Colors.white,
+                                                    fontSize: 8.5,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
                               ),
-                              child: const Icon(
-                                Icons.close_rounded,
-                                color: Colors.white,
-                                size: 18,
+                              Positioned(
+                                top: 4,
+                                right: 4,
+                                child: GestureDetector(
+                                  onTap: () => setModalState(() => attachments.removeAt(idx)),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(3),
+                                    decoration: const BoxDecoration(
+                                      color: Color(0xCC000000),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.close_rounded,
+                                      color: Colors.white,
+                                      size: 14,
+                                    ),
+                                  ),
+                                ),
                               ),
-                            ),
-                          ),
-                        ),
-                      ],
+                            ],
+                          );
+                        },
+                      ),
                     ),
-                  const SizedBox(height: 14),
+                    const SizedBox(height: 12),
+                  ],
+
+                  // Action Buttons (Multi-Image, Camera, PDF)
                   Row(
                     children: [
+                      // Multi-Image Gallery
                       InkWell(
                         onTap: () async {
-                          final picked = await _picker.pickImage(
-                            source: ImageSource.gallery,
-                            imageQuality: 85,
-                          );
-                          if (picked != null) {
-                            final comp = await _compressImage(
-                              File(picked.path),
-                              isCamera: false,
-                            );
-                            setModalState(() => selectedImage = comp);
+                          final pickedFiles = await _picker.pickMultiImage(imageQuality: 85);
+                          if (pickedFiles.isNotEmpty) {
+                            for (final p in pickedFiles) {
+                              final comp = await _compressImage(File(p.path), isCamera: false);
+                              final size = await comp.length();
+                              attachments.add(_LocalAttachment(
+                                file: comp,
+                                type: 'image',
+                                name: comp.path.split(RegExp(r'[\\/]')).last,
+                                sizeBytes: size,
+                              ));
+                            }
+                            setModalState(() {});
                           }
                         },
                         borderRadius: BorderRadius.circular(12),
@@ -237,11 +783,13 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                           child: const Icon(
                             Icons.photo_library_rounded,
                             color: _CommunityDark.accent,
-                            size: 24,
+                            size: 22,
                           ),
                         ),
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 8),
+
+                      // Camera
                       InkWell(
                         onTap: () async {
                           final picked = await _picker.pickImage(
@@ -249,11 +797,15 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                             imageQuality: 85,
                           );
                           if (picked != null) {
-                            final comp = await _compressImage(
-                              File(picked.path),
-                              isCamera: true,
-                            );
-                            setModalState(() => selectedImage = comp);
+                            final comp = await _compressImage(File(picked.path), isCamera: true);
+                            final size = await comp.length();
+                            attachments.add(_LocalAttachment(
+                              file: comp,
+                              type: 'image',
+                              name: comp.path.split(RegExp(r'[\\/]')).last,
+                              sizeBytes: size,
+                            ));
+                            setModalState(() {});
                           }
                         },
                         borderRadius: BorderRadius.circular(12),
@@ -266,11 +818,54 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                           child: const Icon(
                             Icons.camera_alt_rounded,
                             color: _CommunityDark.success,
-                            size: 24,
+                            size: 22,
                           ),
                         ),
                       ),
+                      const SizedBox(width: 8),
+
+                      // PDF Document Picker
+                      InkWell(
+                        onTap: () async {
+                          final res = await FilePicker.platform.pickFiles(
+                            type: FileType.custom,
+                            allowedExtensions: ['pdf'],
+                            allowMultiple: true,
+                          );
+                          if (res != null && res.files.isNotEmpty) {
+                            for (final f in res.files) {
+                              if (f.path != null) {
+                                final file = File(f.path!);
+                                final size = await file.length();
+                                attachments.add(_LocalAttachment(
+                                  file: file,
+                                  type: 'pdf',
+                                  name: f.name,
+                                  sizeBytes: size,
+                                ));
+                              }
+                            }
+                            setModalState(() {});
+                          }
+                        },
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: _CommunityDark.bg,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.picture_as_pdf_rounded,
+                            color: Colors.redAccent,
+                            size: 22,
+                          ),
+                        ),
+                      ),
+
                       const Spacer(),
+
+                      // Post Submit Button
                       ElevatedButton(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: _CommunityDark.accent,
@@ -287,46 +882,85 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                                 ? null
                                 : () async {
                                   final text = textController.text.trim();
-                                  if (text.isEmpty && selectedImage == null) {
+                                  if (text.isEmpty && attachments.isEmpty) {
                                     return;
                                   }
 
                                   setModalState(() => isPosting = true);
 
                                   try {
-                                    String mediaUrl = '';
-                                    if (selectedImage != null) {
-                                      final uploaded = await _r2Service
-                                          .uploadMedia(
-                                            file: selectedImage!,
-                                            folder: 'community',
-                                          );
-                                      if (uploaded != null &&
-                                          uploaded.isNotEmpty) {
-                                        mediaUrl = uploaded;
-                                      } else {
-                                        final imgBytes =
-                                            await selectedImage!.readAsBytes();
-                                        mediaUrl =
-                                            'data:image/jpeg;base64,${base64Encode(imgBytes)}';
+                                    final List<Map<String, dynamic>> uploadedMediaList = [];
+                                    String firstMediaUrl = '';
+
+                                    for (final att in attachments) {
+                                      try {
+                                        final upRes = await _api.uploadCommunityMedia(
+                                          att.file,
+                                          customExt: att.type == 'pdf' ? 'pdf' : 'jpg',
+                                          fileName: att.name,
+                                        );
+                                        if (upRes['success'] == true && upRes['url'] != null) {
+                                          final url = upRes['url'].toString();
+                                          if (firstMediaUrl.isEmpty && att.type == 'image') {
+                                            firstMediaUrl = url;
+                                          }
+                                          uploadedMediaList.add({
+                                            'url': url,
+                                            'type': att.type,
+                                            'name': att.name,
+                                            'size': att.sizeBytes,
+                                          });
+                                        }
+                                      } catch (e) {
+                                        debugPrint('Attachment upload error: $e');
                                       }
                                     }
 
-                                    await _firestore
+                                    // Fallback for single attachment if upload failed
+                                    if (uploadedMediaList.isEmpty && attachments.isNotEmpty) {
+                                      for (final att in attachments) {
+                                        if (att.type == 'image') {
+                                          final imgBytes = await att.file.readAsBytes();
+                                          final b64 = 'data:image/jpeg;base64,${base64Encode(imgBytes)}';
+                                          if (firstMediaUrl.isEmpty) firstMediaUrl = b64;
+                                          uploadedMediaList.add({
+                                            'url': b64,
+                                            'type': 'image',
+                                            'name': att.name,
+                                            'size': att.sizeBytes,
+                                          });
+                                        }
+                                      }
+                                    }
+
+                                    final docRef = await _firestore
                                         .collection('community_posts')
                                         .add({
                                           'authorId': user.employeeId ?? '',
                                           'authorName':
                                               user.name ?? 'VVC Member',
                                           'authorAvatar': user.avatar ?? '',
-                                          'roleTag': 'Official Announcement',
+                                          'roleTag': selectedCategory,
+                                          'isAnnouncement': selectedCategory.contains('ជូនដំណឹង'),
+                                          'isKnowledge': selectedCategory.contains('ចំណេះដឹង'),
                                           'content': text,
-                                          'mediaUrl': mediaUrl,
+                                          'mediaUrl': firstMediaUrl,
+                                          'mediaList': uploadedMediaList,
                                           'reactionsMap': {},
                                           'likes': [],
+                                          'viewedBy': [user.employeeId ?? ''],
                                           'createdAt':
                                               FieldValue.serverTimestamp(),
                                         });
+
+                                    // Trigger FCM External Push & In-app Notification to all employees
+                                    _api.notifyCommunityPost(
+                                      postId: docRef.id,
+                                      category: selectedCategory,
+                                      authorName: user.name ?? 'VVC Member',
+                                      content: text,
+                                      imageUrl: firstMediaUrl.isNotEmpty && !firstMediaUrl.startsWith('data:') ? firstMediaUrl : null,
+                                    );
 
                                     if (context.mounted) {
                                       Navigator.pop(ctx);
@@ -620,19 +1254,35 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                                   try {
                                     String mediaUrl = currentMediaUrl;
                                     if (newImage != null) {
-                                      final uploaded = await _r2Service
-                                          .uploadMedia(
+                                      // 1. Backend server upload
+                                      try {
+                                        final upRes = await _api.uploadCommunityMedia(newImage!);
+                                        if (upRes['success'] == true && upRes['url'] != null) {
+                                          mediaUrl = upRes['url'].toString();
+                                        }
+                                      } catch (e) {
+                                        debugPrint('Backend upload error: $e');
+                                      }
+
+                                      // 2. Cloudflare R2 fallback
+                                      if (mediaUrl.isEmpty || mediaUrl == currentMediaUrl) {
+                                        try {
+                                          final uploaded = await _r2Service.uploadMedia(
                                             file: newImage!,
                                             folder: 'community',
                                           );
-                                      if (uploaded != null &&
-                                          uploaded.isNotEmpty) {
-                                        mediaUrl = uploaded;
-                                      } else {
-                                        final imgBytes =
-                                            await newImage!.readAsBytes();
-                                        mediaUrl =
-                                            'data:image/jpeg;base64,${base64Encode(imgBytes)}';
+                                          if (uploaded != null && uploaded.isNotEmpty) {
+                                            mediaUrl = uploaded;
+                                          }
+                                        } catch (e) {
+                                          debugPrint('R2 upload error: $e');
+                                        }
+                                      }
+
+                                      // 3. Fallback to base64
+                                      if (mediaUrl.isEmpty || mediaUrl == currentMediaUrl) {
+                                        final imgBytes = await newImage!.readAsBytes();
+                                        mediaUrl = 'data:image/jpeg;base64,${base64Encode(imgBytes)}';
                                       }
                                     }
 
@@ -746,6 +1396,111 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
               },
               child: Text(
                 'លុបចេញ',
+                style: GoogleFonts.kantumruyPro(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // ==========================================
+  // SEND UNREAD REMINDER NOTIFICATION
+  // ==========================================
+  void _sendUnreadReminder(DocumentSnapshot postDoc) {
+    final data = postDoc.data() as Map<String, dynamic>;
+    final List<dynamic> rawViewed = data['viewedBy'] as List<dynamic>? ?? [];
+    final List<String> viewedIds = rawViewed.map((e) => e.toString()).toList();
+    final String category = data['roleTag'] ?? '📢 ការជូនដំណឹង';
+    final String content = data['content'] ?? '';
+
+    showDialog(
+      context: context,
+      builder: (dialogCtx) {
+        return AlertDialog(
+          backgroundColor: _CommunityDark.card,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Row(
+            children: [
+              const Icon(
+                Icons.notifications_active_rounded,
+                color: Color(0xFFFFCC00),
+                size: 24,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'រំលឹកអ្នកមិនទាន់មើល',
+                  style: GoogleFonts.kantumruyPro(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Text(
+            'ប្រព័ន្ធនឹងផ្ញើសាររំលឹក (Push Notification) ទៅកាន់បុគ្គលិកទាំងអស់ដែលមិនទាន់បានចូលមើលការប្រកាស/ព័ត៌មាននេះ។ តើអ្នកចង់បន្តផ្ញើមែនទេ?',
+            style: GoogleFonts.kantumruyPro(
+              color: Colors.white70,
+              fontSize: 13.5,
+              height: 1.5,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx),
+              child: Text(
+                'បោះបង់',
+                style: GoogleFonts.kantumruyPro(color: Colors.white54),
+              ),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF0A84FF),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              ),
+              onPressed: () async {
+                Navigator.pop(dialogCtx);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('កំពុងផ្ញើការជូនដំណឹងរំលឹក...'),
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+
+                final res = await _api.remindUnreadCommunityPost(
+                  postId: postDoc.id,
+                  category: category,
+                  content: content,
+                  viewedEmployeeIds: viewedIds,
+                );
+
+                if (mounted) {
+                  final int count = (res['reminded_count'] as num?)?.toInt() ?? 0;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'បានផ្ញើការរំលឹកទៅកាន់បុគ្គលិកចំនួន $count នាក់រួចរាល់! 🔔',
+                        style: GoogleFonts.kantumruyPro(),
+                      ),
+                      backgroundColor: _CommunityDark.success,
+                    ),
+                  );
+                }
+              },
+              child: Text(
+                'ផ្ញើការរំលឹក',
                 style: GoogleFonts.kantumruyPro(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -1303,58 +2058,72 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
               Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16.0,
-                  vertical: 4.0,
+                  vertical: 6.0,
                 ),
-                child: Row(
-                  children:
-                      [
-                        {'id': 'All', 'label': 'All'},
-                        {'id': 'Announcements', 'label': 'Announcements'},
-                        {'id': 'Trending', 'label': 'Trending'},
-                      ].map((tabMap) {
-                        final tabId = tabMap['id']!;
-                        final isSelected = _selectedTab == tabId;
-                        return GestureDetector(
-                          onTap: () => setState(() => _selectedTab = tabId),
-                          child: Container(
-                            margin: const EdgeInsets.only(right: 10),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              color:
-                                  isSelected
-                                      ? _CommunityDark.accent.withValues(
-                                        alpha: 0.15,
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children:
+                        [
+                          {'id': 'All', 'label': '🌟 ទាំងអស់', 'icon': Icons.public_rounded},
+                          {'id': 'Announcements', 'label': '📢 ការជូនដំណឹង', 'icon': Icons.campaign_rounded},
+                          {'id': 'Knowledge', 'label': '📚 ចំណេះដឹង', 'icon': Icons.menu_book_rounded},
+                          {'id': 'Trending', 'label': '🔥 ពេញនិយម', 'icon': Icons.local_fire_department_rounded},
+                        ].map((tabMap) {
+                          final tabId = tabMap['id'] as String;
+                          final label = tabMap['label'] as String;
+                          final isSelected = _selectedTab == tabId;
+                          return GestureDetector(
+                            onTap: () => setState(() => _selectedTab = tabId),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              margin: const EdgeInsets.only(right: 10),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                gradient: isSelected
+                                    ? const LinearGradient(
+                                        colors: [Color(0xFF0A84FF), Color(0xFF0066CC)],
                                       )
-                                      : _CommunityDark.card,
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color:
-                                    isSelected
-                                        ? _CommunityDark.accent
-                                        : const Color(0xFF334155),
-                                width: isSelected ? 1.5 : 1,
+                                    : null,
+                                color: isSelected
+                                    ? null
+                                    : _CommunityDark.card,
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: isSelected
+                                      ? const Color(0xFF38BDF8)
+                                      : const Color(0xFF334155),
+                                  width: isSelected ? 1.2 : 0.8,
+                                ),
+                                boxShadow: isSelected
+                                    ? [
+                                        BoxShadow(
+                                          color: const Color(0xFF0A84FF).withValues(alpha: 0.35),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ]
+                                    : null,
+                              ),
+                              child: Text(
+                                label,
+                                style: GoogleFonts.kantumruyPro(
+                                  color: isSelected
+                                      ? Colors.white
+                                      : Colors.white70,
+                                  fontWeight: isSelected
+                                      ? FontWeight.w700
+                                      : FontWeight.w500,
+                                  fontSize: 13.0,
+                                ),
                               ),
                             ),
-                            child: Text(
-                              tabId,
-                              style: GoogleFonts.inter(
-                                color:
-                                    isSelected
-                                        ? _CommunityDark.accent
-                                        : Colors.white70,
-                                fontWeight:
-                                    isSelected
-                                        ? FontWeight.w700
-                                        : FontWeight.w500,
-                                fontSize: 13.5,
-                              ),
-                            ),
-                          ),
-                        );
-                      }).toList(),
+                          );
+                        }).toList(),
+                  ),
                 ),
               ),
               const SizedBox(height: 8),
@@ -1434,6 +2203,18 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                       roleTag.contains('admin') ||
                       roleTag.contains('hrm');
                 }).toList();
+          } else if (_selectedTab == 'Knowledge') {
+            posts =
+                posts.where((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  final roleTag =
+                      (data['roleTag'] ?? '').toString().toLowerCase();
+                  return data['isKnowledge'] == true ||
+                      roleTag.contains('ចំណេះដឹង') ||
+                      roleTag.contains('knowledge') ||
+                      roleTag.contains('tips') ||
+                      roleTag.contains('ជំនាញ');
+                }).toList();
           } else if (_selectedTab == 'Trending') {
             // Sort by total engagement (likes + comments) descending
             posts.sort((a, b) {
@@ -1462,15 +2243,22 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                 child: GestureDetector(
                   onTap: () => _showCreatePostModal(userProvider),
                   child: Container(
-                    margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                    margin: const EdgeInsets.fromLTRB(16, 12, 16, 8),
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       color: _CommunityDark.card,
-                      borderRadius: BorderRadius.circular(24),
+                      borderRadius: BorderRadius.circular(20),
                       border: Border.all(
                         color: const Color(0xFF334155),
                         width: 0.8,
                       ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.15),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
                     ),
                     child: Row(
                       children: [
@@ -1503,17 +2291,24 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                         const SizedBox(width: 14),
                         Expanded(
                           child: Text(
-                            "What's on your mind?",
-                            style: GoogleFonts.inter(
+                            "តើអ្នកកំពុងគិតអ្វី? ចែករំលែកនៅទីនេះ...",
+                            style: GoogleFonts.kantumruyPro(
                               color: Colors.white54,
-                              fontSize: 15,
+                              fontSize: 13.5,
                             ),
                           ),
                         ),
-                        const Icon(
-                          Icons.image_outlined,
-                          color: _CommunityDark.success,
-                          size: 24,
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: _CommunityDark.success.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(
+                            Icons.image_rounded,
+                            color: _CommunityDark.success,
+                            size: 20,
+                          ),
                         ),
                       ],
                     ),
@@ -1560,7 +2355,6 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                     final String roleTag =
                         data['roleTag'] ?? 'Official Announcement';
                     final String content = data['content'] ?? '';
-                    final String mediaUrl = data['mediaUrl'] ?? '';
                     final Map<String, dynamic> reactionsMap =
                         data['reactionsMap'] as Map<String, dynamic>? ?? {};
                     final List<dynamic> legacyLikes = data['likes'] ?? [];
@@ -1596,6 +2390,13 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
 
                     int totalReactions = 0;
                     reactionCounts.forEach((_, cnt) => totalReactions += cnt);
+
+                    final List<dynamic> viewedBy = (data['viewedBy'] as List<dynamic>?) ?? [];
+                    if (myId.isNotEmpty && !viewedBy.contains(myId)) {
+                      doc.reference.update({
+                        'viewedBy': FieldValue.arrayUnion([myId]),
+                      }).catchError((_) {});
+                    }
 
                     return Container(
                       margin: const EdgeInsets.fromLTRB(16, 8, 16, 12),
@@ -1671,35 +2472,62 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                                     const SizedBox(height: 2),
                                     Row(
                                       children: [
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 6,
-                                            vertical: 2,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: _CommunityDark.accent
-                                                .withValues(alpha: 0.15),
-                                            borderRadius: BorderRadius.circular(
-                                              6,
-                                            ),
-                                          ),
-                                          child: Text(
-                                            roleTag,
-                                            style: GoogleFonts.inter(
-                                              color: _CommunityDark.accent,
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
+                                        Builder(
+                                          builder: (context) {
+                                            Color badgeBg = _CommunityDark.accent.withValues(alpha: 0.15);
+                                            Color badgeText = _CommunityDark.accent;
+                                            String displayTag = roleTag.isNotEmpty ? roleTag : '📢 ការជូនដំណឹង';
+
+                                            if (roleTag.contains('ចំណេះដឹង') || roleTag.contains('Knowledge') || roleTag.contains('Tips')) {
+                                              badgeBg = const Color(0xFF10B981).withValues(alpha: 0.15);
+                                              badgeText = const Color(0xFF34D399);
+                                              displayTag = '📚 ចំណេះដឹង & Tips';
+                                            } else if (roleTag.contains('Trending') || roleTag.contains('ព័ត៌មានទូទៅ')) {
+                                              badgeBg = const Color(0xFFF97316).withValues(alpha: 0.15);
+                                              badgeText = const Color(0xFFFB923C);
+                                              displayTag = '🔥 ព័ត៌មានទូទៅ';
+                                            } else {
+                                              displayTag = '📢 ការជូនដំណឹង';
+                                            }
+
+                                            return Container(
+                                              padding: const EdgeInsets.symmetric(
+                                                horizontal: 7,
+                                                vertical: 2.5,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: badgeBg,
+                                                borderRadius: BorderRadius.circular(6),
+                                              ),
+                                              child: Text(
+                                                displayTag,
+                                                style: GoogleFonts.kantumruyPro(
+                                                  color: badgeText,
+                                                  fontSize: 10.5,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            );
+                                          },
                                         ),
                                         const SizedBox(width: 6),
                                         Text(
                                           '•  $timeStr',
                                           style: GoogleFonts.inter(
                                             color: Colors.white54,
-                                            fontSize: 12,
+                                            fontSize: 11.5,
                                           ),
                                         ),
+                                        if (viewedBy.isNotEmpty) ...[
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            '•  👁️ ${viewedBy.length}',
+                                            style: GoogleFonts.inter(
+                                              color: Colors.white54,
+                                              fontSize: 11.5,
+                                            ),
+                                          ),
+                                        ],
                                       ],
                                     ),
                                   ],
@@ -1720,10 +2548,33 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                                       _showEditPostModal(doc);
                                     } else if (val == 'delete') {
                                       _confirmDeletePost(doc);
+                                    } else if (val == 'remind') {
+                                      _sendUnreadReminder(doc);
                                     }
                                   },
                                   itemBuilder:
                                       (context) => [
+                                        PopupMenuItem(
+                                          value: 'remind',
+                                          child: Row(
+                                            children: [
+                                              const Icon(
+                                                Icons.notifications_active_rounded,
+                                                color: Color(0xFFFFCC00),
+                                                size: 18,
+                                              ),
+                                              const SizedBox(width: 10),
+                                              Text(
+                                                'រំលឹកអ្នកមិនទាន់មើល',
+                                                style: GoogleFonts.kantumruyPro(
+                                                  color: const Color(0xFFFFCC00),
+                                                  fontSize: 13.5,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
                                         PopupMenuItem(
                                           value: 'edit',
                                           child: Row(
@@ -1781,17 +2632,8 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
                               ),
                             ),
 
-                          if (mediaUrl.isNotEmpty) ...[
-                            const SizedBox(height: 16),
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(16),
-                              child: Image.network(
-                                ApiService.getFullImageUrl(mediaUrl),
-                                fit: BoxFit.cover,
-                                width: double.infinity,
-                              ),
-                            ),
-                          ],
+                          // Media (Multi-Image Collage Grid & PDF Attachments)
+                          _buildPostMediaGroup(data),
 
                           const SizedBox(height: 16),
                           // Engagement Metrics

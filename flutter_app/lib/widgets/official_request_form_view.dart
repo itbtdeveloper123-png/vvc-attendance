@@ -21,8 +21,8 @@ class OfficialRequestFormView extends StatelessWidget {
 
   static const Color _goldColor = Color(0xFFC59B27);
   static const Color _greenSelected = Color(0xFF10B981);
-  static const double _fontSizeLabel = 9.5;
-  static const double _fontSizeValue = 10.0;
+  static const double _fontSizeLabel = 10.0;
+  static const double _fontSizeValue = 10.5;
 
   @override
   Widget build(BuildContext context) {
@@ -136,7 +136,7 @@ class OfficialRequestFormView extends StatelessWidget {
     return Container(
       width: width,
       color: Colors.white,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
@@ -145,17 +145,17 @@ class OfficialRequestFormView extends StatelessWidget {
           Center(
             child: Image.network(
               'https://i.ibb.co/r2JWnd2x/Logo-Van-Van-1.png',
-              width: 175,
-              height: 52,
+              width: 280,
+              height: 72,
               fit: BoxFit.contain,
               errorBuilder: (_, __, ___) => Column(
                 children: [
-                  const Icon(Icons.spa_rounded, color: _goldColor, size: 28),
+                  const Icon(Icons.spa_rounded, color: _goldColor, size: 36),
                   Text(
                     'វ៉ាន់ វ៉ាន់ ខេមបូឌា',
                     style: GoogleFonts.kantumruyPro(
                       color: _goldColor,
-                      fontSize: 14,
+                      fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -163,8 +163,8 @@ class OfficialRequestFormView extends StatelessWidget {
                     'VAN VAN CAMBODIA',
                     style: GoogleFonts.outfit(
                       color: _goldColor,
-                      fontSize: 9.5,
-                      letterSpacing: 1.2,
+                      fontSize: 11,
+                      letterSpacing: 1.5,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -172,13 +172,13 @@ class OfficialRequestFormView extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
 
           // Top Gold Line
           Container(
-            height: 2.0,
+            height: 2.2,
             color: _goldColor,
-            margin: const EdgeInsets.only(bottom: 6),
+            margin: const EdgeInsets.only(bottom: 8),
           ),
 
           // Title
@@ -186,13 +186,13 @@ class OfficialRequestFormView extends StatelessWidget {
             'សំណើសុំច្បាប់ឈប់សម្រាក ប្តូរវេន ចេញមុនម៉ោង មកយឺត និងភ្លេចស្កេនមេដៃវត្តមាន',
             textAlign: TextAlign.center,
             style: GoogleFonts.kantumruyPro(
-              fontSize: 12.0,
+              fontSize: 13.0,
               fontWeight: FontWeight.bold,
               color: Colors.black,
               letterSpacing: 0.1,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
 
           // ================= 2. MAIN A5 FORM CONTAINER =================
           Container(
@@ -200,13 +200,13 @@ class OfficialRequestFormView extends StatelessWidget {
               border: Border.all(color: Colors.black, width: 1.5),
               borderRadius: BorderRadius.circular(2),
             ),
-            padding: const EdgeInsets.all(7),
+            padding: const EdgeInsets.all(8),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // Request Type Pills Grid Box
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
                   decoration: BoxDecoration(
                     color: const Color(0xFFF8FAFC),
                     borderRadius: BorderRadius.circular(6),
@@ -214,13 +214,13 @@ class OfficialRequestFormView extends StatelessWidget {
                   ),
                   child: Center(
                     child: Wrap(
-                      spacing: 5,
-                      runSpacing: 4,
+                      spacing: 6,
+                      runSpacing: 5,
                       alignment: WrapAlignment.center,
                       children: types.map((t) {
                         final isSel = isTypeSelected(t);
                         return Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
                           decoration: BoxDecoration(
                             color: isSel ? _greenSelected : Colors.white,
                             borderRadius: BorderRadius.circular(4),
@@ -232,7 +232,7 @@ class OfficialRequestFormView extends StatelessWidget {
                           child: Text(
                             t,
                             style: GoogleFonts.kantumruyPro(
-                              fontSize: 8.0,
+                              fontSize: 8.8,
                               color: isSel ? Colors.white : const Color(0xFF64748B),
                               fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
                             ),
@@ -242,7 +242,7 @@ class OfficialRequestFormView extends StatelessWidget {
                     ),
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
 
                 // Pixel-Perfect A5 Grid Details Box (with exact borders & colspans)
                 Container(
@@ -393,25 +393,26 @@ class OfficialRequestFormView extends StatelessWidget {
 
           // ================= 4. A5 FOOTER =================
           Container(
-            height: 2.0,
+            height: 2.2,
             color: _goldColor,
-            margin: const EdgeInsets.only(bottom: 4),
+            margin: const EdgeInsets.only(bottom: 5),
           ),
           Text(
             'ផ្ទះលេខ 1 AEo ផ្លូវលេខ 318 សង្កាត់ ទួលស្វាយព្រៃ១ ខណ្ឌ បឹងកេងកង រាជធានីភ្នំពេញ ព្រះរាជាណាចក្រកម្ពុជា ទូរស័ព្ទលេខ 015 971 961 - 085 971 961',
             textAlign: TextAlign.center,
             style: GoogleFonts.kantumruyPro(
-              fontSize: 7.2,
+              fontSize: 7.8,
               fontWeight: FontWeight.bold,
               color: const Color(0xFF996515),
               height: 1.25,
             ),
           ),
+          const SizedBox(height: 2),
           Text(
             'No.1AEo, St.318, Sangkat Tuol Svay Prey1, Khan Boeng Keng Kang, Phnom Penh, Cambodia. Tel: 015 971 961 - 085 971 961',
             textAlign: TextAlign.center,
             style: GoogleFonts.outfit(
-              fontSize: 7.2,
+              fontSize: 7.6,
               color: const Color(0xFF996515),
               height: 1.25,
             ),
@@ -435,7 +436,7 @@ class OfficialRequestFormView extends StatelessWidget {
           return Expanded(
             flex: c.flex,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 4.5),
+              padding: const EdgeInsets.symmetric(horizontal: 5.5, vertical: 5.0),
               decoration: BoxDecoration(
                 border: Border(
                   right: c.isLast ? BorderSide.none : const BorderSide(color: Colors.black, width: 1.0),
@@ -479,7 +480,7 @@ class OfficialRequestFormView extends StatelessWidget {
           Expanded(
             flex: 25,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 5.5, vertical: 7.0),
               decoration: const BoxDecoration(
                 border: Border(right: BorderSide(color: Colors.black, width: 1.0)),
               ),
@@ -498,7 +499,7 @@ class OfficialRequestFormView extends StatelessWidget {
           Expanded(
             flex: 25,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 5.5, vertical: 7.0),
               decoration: const BoxDecoration(
                 border: Border(right: BorderSide(color: Colors.black, width: 1.0)),
               ),
@@ -519,7 +520,7 @@ class OfficialRequestFormView extends StatelessWidget {
           Expanded(
             flex: 28,
             child: Container(
-              height: 42,
+              height: 44,
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
               decoration: const BoxDecoration(
                 border: Border(right: BorderSide(color: Colors.black, width: 1.0)),
@@ -540,7 +541,7 @@ class OfficialRequestFormView extends StatelessWidget {
           Expanded(
             flex: 22,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 5.5, vertical: 7.0),
               child: Center(
                 child: Text(
                   date,
