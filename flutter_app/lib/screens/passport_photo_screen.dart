@@ -674,37 +674,38 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
                             child: Center(
                               child: AspectRatio(
                                 aspectRatio: _selectedPreset.ratio,
-                                child: Container(
-                                  color: _selectedBgColor,
-                                  child: Stack(
-                                    fit: StackFit.expand,
-                                    alignment: Alignment.center,
-                                    children: [
-                                      // Layer 1: Person Cutout Foreground (Instant 0ms update)
-                                      if (_cutoutForegroundBytes != null)
-                                        Transform.scale(
-                                          scaleX: _isFlipped ? -1.0 : 1.0,
-                                          scaleY: 1.0,
-                                          child: Image.memory(
-                                            _cutoutForegroundBytes!,
-                                            fit: BoxFit.cover,
-                                            gaplessPlayback: true,
-                                          ),
-                                        )
-                                      else
-                                        Image.file(File(_imagePath!), fit: BoxFit.cover),
+                                child: LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    final canvasW = constraints.maxWidth;
+                                    final canvasH = constraints.maxHeight;
+                                    final suitW = canvasW * 0.95 * _suitScale;
+                                    final double left = ((canvasW - suitW) / 2.0) + (canvasW * (_suitOffsetX / 100.0));
+                                    final double bottom = (canvasH * (_suitOffsetY / 100.0));
 
-                                      // Layer 2: Live GPU Virtual Suit Overlay (Instant 0ms, 120 FPS drag)
-                                      if (_selectedSuitKey != null && _suitPresets.containsKey(_selectedSuitKey))
-                                        LayoutBuilder(
-                                          builder: (context, constraints) {
-                                            final canvasW = constraints.maxWidth;
-                                            final canvasH = constraints.maxHeight;
-                                            final suitW = canvasW * 0.95 * _suitScale;
-                                            final double left = ((canvasW - suitW) / 2.0) + (canvasW * (_suitOffsetX / 100.0));
-                                            final double bottom = (canvasH * (_suitOffsetY / 100.0));
+                                    return Container(
+                                      color: _selectedBgColor,
+                                      child: Stack(
+                                        fit: StackFit.expand,
+                                        clipBehavior: Clip.hardEdge,
+                                        alignment: Alignment.center,
+                                        children: [
+                                          // Layer 1: Person Cutout Foreground (Instant 0ms update)
+                                          if (_cutoutForegroundBytes != null)
+                                            Transform.scale(
+                                              scaleX: _isFlipped ? -1.0 : 1.0,
+                                              scaleY: 1.0,
+                                              child: Image.memory(
+                                                _cutoutForegroundBytes!,
+                                                fit: BoxFit.cover,
+                                                gaplessPlayback: true,
+                                              ),
+                                            )
+                                          else if (_imagePath != null)
+                                            Image.file(File(_imagePath!), fit: BoxFit.cover),
 
-                                            return Positioned(
+                                          // Layer 2: Live GPU Virtual Suit Overlay (Direct child of Stack)
+                                          if (_selectedSuitKey != null && _suitPresets.containsKey(_selectedSuitKey))
+                                            Positioned(
                                               left: left,
                                               bottom: bottom,
                                               width: suitW,
@@ -713,11 +714,11 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
                                                 fit: BoxFit.contain,
                                                 gaplessPlayback: true,
                                               ),
-                                            );
-                                          },
-                                        ),
-                                    ],
-                                  ),
+                                            ),
+                                        ],
+                                      ),
+                                    );
+                                  },
                                 ),
                               ),
                             ),
