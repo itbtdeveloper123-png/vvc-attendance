@@ -19,12 +19,14 @@ enum SuitCategory { all, male, female, student }
 
 class SuitPresetInfo {
   final String label;
+  final String shortLabel;
   final String assetPath;
   final IconData icon;
   final SuitCategory category;
 
   const SuitPresetInfo({
     required this.label,
+    required this.shortLabel,
     required this.assetPath,
     required this.icon,
     required this.category,
@@ -41,7 +43,7 @@ class PassportPhotoScreen extends StatefulWidget {
   State<PassportPhotoScreen> createState() => _PassportPhotoScreenState();
 }
 
-class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
+class _PassportPhotoScreenState extends State<PassportPhotoScreen> with SingleTickerProviderStateMixin {
   final SubjectSegmentationService _segmentationService = SubjectSegmentationService();
   final ImagePicker _picker = ImagePicker();
 
@@ -54,12 +56,8 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
   bool _isFlipped = false;
   Timer? _debounceTimer;
 
-  void _debouncedRenderComposite() {
-    _debounceTimer?.cancel();
-    _debounceTimer = Timer(const Duration(milliseconds: 50), () {
-      _renderCompositeFromCutout();
-    });
-  }
+  // Active Control Deck Tab: 0 = Suit, 1 = Background, 2 = Size Preset
+  int _activeDeckTab = 0;
 
   // Virtual Suit Overlay State
   SuitCategory _selectedSuitCategory = SuitCategory.all;
@@ -69,69 +67,82 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
   double _suitOffsetX = 0.0;
   bool _hasAutoFittedSuit = false;
 
+  // Track gesture scale baseline
+  double _baseScale = 1.0;
+
   final Map<String, SuitPresetInfo> _suitPresets = {
-    'cutout_man_1': const SuitPresetInfo(label: 'អាវបុរសទី 1', assetPath: 'assets/suits/cutout_man_1.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
-    'cutout_man_2': const SuitPresetInfo(label: 'អាវបុរសទី 2', assetPath: 'assets/suits/cutout_man_2.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
-    'cutout_man_3': const SuitPresetInfo(label: 'អាវបុរសទី 3', assetPath: 'assets/suits/cutout_man_3.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
-    'cutout_man_4': const SuitPresetInfo(label: 'អាវបុរសទី 4', assetPath: 'assets/suits/cutout_man_4.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
-    'cutout_man_5': const SuitPresetInfo(label: 'អាវបុរសទី 5', assetPath: 'assets/suits/cutout_man_5.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
-    'cutout_man_6': const SuitPresetInfo(label: 'អាវបុរសទី 6', assetPath: 'assets/suits/cutout_man_6.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
-    'cutout_man_7': const SuitPresetInfo(label: 'អាវបុរសទី 7', assetPath: 'assets/suits/cutout_man_7.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
-    'cutout_man_8': const SuitPresetInfo(label: 'អាវបុរសទី 8', assetPath: 'assets/suits/cutout_man_8.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
-    'cutout_man_9': const SuitPresetInfo(label: 'អាវបុរសទី 9', assetPath: 'assets/suits/cutout_man_9.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
-    'cutout_man_10': const SuitPresetInfo(label: 'អាវបុរសទី 10', assetPath: 'assets/suits/cutout_man_10.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
-    'cutout_man_11': const SuitPresetInfo(label: 'អាវបុរសទី 11', assetPath: 'assets/suits/cutout_man_11.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
-    'cutout_man_12': const SuitPresetInfo(label: 'អាវបុរសទី 12', assetPath: 'assets/suits/cutout_man_12.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
-    'cutout_man_13': const SuitPresetInfo(label: 'អាវបុរសទី 13', assetPath: 'assets/suits/cutout_man_13.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
-    'cutout_man_14': const SuitPresetInfo(label: 'អាវបុរសទី 14', assetPath: 'assets/suits/cutout_man_14.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
-    'cutout_man_15': const SuitPresetInfo(label: 'អាវបុរសទី 15', assetPath: 'assets/suits/cutout_man_15.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
-    'cutout_man_16': const SuitPresetInfo(label: 'អាវបុរសទី 16', assetPath: 'assets/suits/cutout_man_16.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
-    'cutout_man_17': const SuitPresetInfo(label: 'អាវបុរសទី 17', assetPath: 'assets/suits/cutout_man_17.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
-    'cutout_man_18': const SuitPresetInfo(label: 'អាវបុរសទី 18', assetPath: 'assets/suits/cutout_man_18.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
-    'cutout_man_19': const SuitPresetInfo(label: 'អាវបុរសទី 19', assetPath: 'assets/suits/cutout_man_19.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
-    'cutout_man_20': const SuitPresetInfo(label: 'អាវបុរសទី 20', assetPath: 'assets/suits/cutout_man_20.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
-    'cutout_man_21': const SuitPresetInfo(label: 'អាវបុរសទី 21', assetPath: 'assets/suits/cutout_man_21.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
-    'cutout_man_22': const SuitPresetInfo(label: 'អាវបុរសទី 22', assetPath: 'assets/suits/cutout_man_22.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
-    'cutout_man_23': const SuitPresetInfo(label: 'អាវបុរសទី 23', assetPath: 'assets/suits/cutout_man_23.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
-    'cutout_man_24': const SuitPresetInfo(label: 'អាវបុរសទី 24', assetPath: 'assets/suits/cutout_man_24.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
-    'cutout_man_25': const SuitPresetInfo(label: 'អាវបុរសទី 25', assetPath: 'assets/suits/cutout_man_25.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
-    'cutout_man_26': const SuitPresetInfo(label: 'អាវបុរសទី 26', assetPath: 'assets/suits/cutout_man_26.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
-    'cutout_man_27': const SuitPresetInfo(label: 'អាវបុរសទី 27', assetPath: 'assets/suits/cutout_man_27.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
-    'cutout_man_28': const SuitPresetInfo(label: 'អាវបុរសទី 28', assetPath: 'assets/suits/cutout_man_28.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
-    'cutout_woman_1': const SuitPresetInfo(label: 'អាវនារីទី 1', assetPath: 'assets/suits/cutout_woman_1.png', icon: Icons.woman_rounded, category: SuitCategory.female),
-    'cutout_woman_2': const SuitPresetInfo(label: 'អាវនារីទី 2', assetPath: 'assets/suits/cutout_woman_2.png', icon: Icons.woman_rounded, category: SuitCategory.female),
-    'cutout_woman_3': const SuitPresetInfo(label: 'អាវនារីទី 3', assetPath: 'assets/suits/cutout_woman_3.png', icon: Icons.woman_rounded, category: SuitCategory.female),
-    'cutout_woman_4': const SuitPresetInfo(label: 'អាវនារីទី 4', assetPath: 'assets/suits/cutout_woman_4.png', icon: Icons.woman_rounded, category: SuitCategory.female),
-    'cutout_woman_5': const SuitPresetInfo(label: 'អាវនារីទី 5', assetPath: 'assets/suits/cutout_woman_5.png', icon: Icons.woman_rounded, category: SuitCategory.female),
-    'cutout_woman_6': const SuitPresetInfo(label: 'អាវនារីទី 6', assetPath: 'assets/suits/cutout_woman_6.png', icon: Icons.woman_rounded, category: SuitCategory.female),
-    'cutout_woman_7': const SuitPresetInfo(label: 'អាវនារីទី 7', assetPath: 'assets/suits/cutout_woman_7.png', icon: Icons.woman_rounded, category: SuitCategory.female),
-    'cutout_woman_8': const SuitPresetInfo(label: 'អាវនារីទី 8', assetPath: 'assets/suits/cutout_woman_8.png', icon: Icons.woman_rounded, category: SuitCategory.female),
-    'cutout_woman_9': const SuitPresetInfo(label: 'អាវនារីទី 9', assetPath: 'assets/suits/cutout_woman_9.png', icon: Icons.woman_rounded, category: SuitCategory.female),
-    'cutout_woman_10': const SuitPresetInfo(label: 'អាវនារីទី 10', assetPath: 'assets/suits/cutout_woman_10.png', icon: Icons.woman_rounded, category: SuitCategory.female),
-    'cutout_woman_11': const SuitPresetInfo(label: 'អាវនារីទី 11', assetPath: 'assets/suits/cutout_woman_11.png', icon: Icons.woman_rounded, category: SuitCategory.female),
-    'cutout_woman_12': const SuitPresetInfo(label: 'អាវនារីទី 12', assetPath: 'assets/suits/cutout_woman_12.png', icon: Icons.woman_rounded, category: SuitCategory.female),
-    'cutout_woman_13': const SuitPresetInfo(label: 'អាវនារីទី 13', assetPath: 'assets/suits/cutout_woman_13.png', icon: Icons.woman_rounded, category: SuitCategory.female),
-    'cutout_woman_14': const SuitPresetInfo(label: 'អាវនារីទី 14', assetPath: 'assets/suits/cutout_woman_14.png', icon: Icons.woman_rounded, category: SuitCategory.female),
-    'cutout_woman_15': const SuitPresetInfo(label: 'អាវនារីទី 15', assetPath: 'assets/suits/cutout_woman_15.png', icon: Icons.woman_rounded, category: SuitCategory.female),
-    'cutout_woman_16': const SuitPresetInfo(label: 'អាវនារីទី 16', assetPath: 'assets/suits/cutout_woman_16.png', icon: Icons.woman_rounded, category: SuitCategory.female),
-    'cutout_woman_17': const SuitPresetInfo(label: 'អាវនារីទី 17', assetPath: 'assets/suits/cutout_woman_17.png', icon: Icons.woman_rounded, category: SuitCategory.female),
-    'cutout_woman_18': const SuitPresetInfo(label: 'អាវនារីទី 18', assetPath: 'assets/suits/cutout_woman_18.png', icon: Icons.woman_rounded, category: SuitCategory.female),
-    'cutout_child_1': const SuitPresetInfo(label: 'អាវកុមារទី 1', assetPath: 'assets/suits/cutout_child_1.png', icon: Icons.face_4_rounded, category: SuitCategory.student),
-    'cutout_child_2': const SuitPresetInfo(label: 'អាវកុមារទី 2', assetPath: 'assets/suits/cutout_child_2.png', icon: Icons.face_4_rounded, category: SuitCategory.student),
-    'cutout_child_3': const SuitPresetInfo(label: 'អាវកុមារទី 3', assetPath: 'assets/suits/cutout_child_3.png', icon: Icons.face_4_rounded, category: SuitCategory.student),
-    'cutout_child_4': const SuitPresetInfo(label: 'អាវកុមារទី 4', assetPath: 'assets/suits/cutout_child_4.png', icon: Icons.face_4_rounded, category: SuitCategory.student),
-    'cutout_child_5': const SuitPresetInfo(label: 'អាវកុមារទី 5', assetPath: 'assets/suits/cutout_child_5.png', icon: Icons.face_4_rounded, category: SuitCategory.student),
-    'cutout_child_6': const SuitPresetInfo(label: 'អាវកុមារទី 6', assetPath: 'assets/suits/cutout_child_6.png', icon: Icons.face_4_rounded, category: SuitCategory.student),
-    'cutout_child_7': const SuitPresetInfo(label: 'អាវកុមារទី 7', assetPath: 'assets/suits/cutout_child_7.png', icon: Icons.face_4_rounded, category: SuitCategory.student),
-    'cutout_child_8': const SuitPresetInfo(label: 'អាវកុមារទី 8', assetPath: 'assets/suits/cutout_child_8.png', icon: Icons.face_4_rounded, category: SuitCategory.student),
-    'cutout_child_9': const SuitPresetInfo(label: 'អាវកុមារទី 9', assetPath: 'assets/suits/cutout_child_9.png', icon: Icons.face_4_rounded, category: SuitCategory.student),
-    'cutout_child_10': const SuitPresetInfo(label: 'អាវកុមារទី 10', assetPath: 'assets/suits/cutout_child_10.png', icon: Icons.face_4_rounded, category: SuitCategory.student),
-    'cutout_child_11': const SuitPresetInfo(label: 'អាវកុមារទី 11', assetPath: 'assets/suits/cutout_child_11.png', icon: Icons.face_4_rounded, category: SuitCategory.student),
-    'cutout_child_12': const SuitPresetInfo(label: 'អាវកុមារទី 12', assetPath: 'assets/suits/cutout_child_12.png', icon: Icons.face_4_rounded, category: SuitCategory.student),
-    'cutout_child_13': const SuitPresetInfo(label: 'អាវកុមារទី 13', assetPath: 'assets/suits/cutout_child_13.png', icon: Icons.face_4_rounded, category: SuitCategory.student),
-    'cutout_child_14': const SuitPresetInfo(label: 'អាវកុមារទី 14', assetPath: 'assets/suits/cutout_child_14.png', icon: Icons.face_4_rounded, category: SuitCategory.student),
-    'cutout_child_15': const SuitPresetInfo(label: 'អាវកុមារទី 15', assetPath: 'assets/suits/cutout_child_15.png', icon: Icons.face_4_rounded, category: SuitCategory.student),
-    'cutout_child_16': const SuitPresetInfo(label: 'អាវកុមារទី 16', assetPath: 'assets/suits/cutout_child_16.png', icon: Icons.face_4_rounded, category: SuitCategory.student),
+    // Men's Suits & Formal Shirts
+    'cutout_man_1': const SuitPresetInfo(label: 'អាវបុរសទី ១', shortLabel: 'បុរស ១', assetPath: 'assets/suits/cutout_man_1.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
+    'cutout_man_2': const SuitPresetInfo(label: 'អាវបុរសទី ២', shortLabel: 'បុរស ២', assetPath: 'assets/suits/cutout_man_2.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
+    'cutout_man_3': const SuitPresetInfo(label: 'អាវបុរសទី ៣', shortLabel: 'បុរស ៣', assetPath: 'assets/suits/cutout_man_3.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
+    'cutout_man_4': const SuitPresetInfo(label: 'អាវបុរសទី ៤', shortLabel: 'បុរស ៤', assetPath: 'assets/suits/cutout_man_4.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
+    'cutout_man_5': const SuitPresetInfo(label: 'អាវបុរសទី ៥', shortLabel: 'បុរស ៥', assetPath: 'assets/suits/cutout_man_5.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
+    'cutout_man_6': const SuitPresetInfo(label: 'អាវបុរសទី ៦', shortLabel: 'បុរស ៦', assetPath: 'assets/suits/cutout_man_6.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
+    'cutout_man_7': const SuitPresetInfo(label: 'អាវបុរសទី ៧', shortLabel: 'បុរស ៧', assetPath: 'assets/suits/cutout_man_7.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
+    'cutout_man_8': const SuitPresetInfo(label: 'អាវបុរសទី ៨', shortLabel: 'បុរស ៨', assetPath: 'assets/suits/cutout_man_8.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
+    'cutout_man_9': const SuitPresetInfo(label: 'អាវបុរសទី ៩', shortLabel: 'បុរស ៩', assetPath: 'assets/suits/cutout_man_9.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
+    'cutout_man_10': const SuitPresetInfo(label: 'អាវបុរសទី ១០', shortLabel: 'បុរស ១០', assetPath: 'assets/suits/cutout_man_10.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
+    'cutout_man_11': const SuitPresetInfo(label: 'អាវបុរសទី ១១', shortLabel: 'បុរស ១១', assetPath: 'assets/suits/cutout_man_11.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
+    'cutout_man_12': const SuitPresetInfo(label: 'អាវបុរសទី ១២', shortLabel: 'បុរស ១២', assetPath: 'assets/suits/cutout_man_12.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
+    'cutout_man_13': const SuitPresetInfo(label: 'អាវបុរសទី ១៣', shortLabel: 'បុរស ១៣', assetPath: 'assets/suits/cutout_man_13.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
+    'cutout_man_14': const SuitPresetInfo(label: 'អាវបុរសទី ១៤', shortLabel: 'បុរស ១៤', assetPath: 'assets/suits/cutout_man_14.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
+    'cutout_man_15': const SuitPresetInfo(label: 'អាវបុរសទី ១៥', shortLabel: 'បុរស ១៥', assetPath: 'assets/suits/cutout_man_15.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
+    'cutout_man_16': const SuitPresetInfo(label: 'អាវបុរសទី ១៦', shortLabel: 'បុរស ១៦', assetPath: 'assets/suits/cutout_man_16.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
+    'cutout_man_17': const SuitPresetInfo(label: 'អាវបុរសទី ១៧', shortLabel: 'បុរស ១៧', assetPath: 'assets/suits/cutout_man_17.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
+    'cutout_man_18': const SuitPresetInfo(label: 'អាវបុរសទី ១៨', shortLabel: 'បុរស ១៨', assetPath: 'assets/suits/cutout_man_18.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
+    'cutout_man_19': const SuitPresetInfo(label: 'អាវបុរសទី ១៩', shortLabel: 'បុរស ១៩', assetPath: 'assets/suits/cutout_man_19.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
+    'cutout_man_20': const SuitPresetInfo(label: 'អាវបុរសទី ២០', shortLabel: 'បុរស ២០', assetPath: 'assets/suits/cutout_man_20.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
+    'cutout_man_21': const SuitPresetInfo(label: 'អាវបុរសទី ២១', shortLabel: 'បុរស ២១', assetPath: 'assets/suits/cutout_man_21.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
+    'cutout_man_22': const SuitPresetInfo(label: 'អាវបុរសទី ២២', shortLabel: 'បុរស ២២', assetPath: 'assets/suits/cutout_man_22.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
+    'cutout_man_23': const SuitPresetInfo(label: 'អាវបុរសទី ២៣', shortLabel: 'បុរស ២៣', assetPath: 'assets/suits/cutout_man_23.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
+    'cutout_man_24': const SuitPresetInfo(label: 'អាវបុរសទី ២៤', shortLabel: 'បុរស ២៤', assetPath: 'assets/suits/cutout_man_24.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
+    'cutout_man_25': const SuitPresetInfo(label: 'អាវបុរសទី ២៥', shortLabel: 'បុរស ២៥', assetPath: 'assets/suits/cutout_man_25.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
+    'cutout_man_26': const SuitPresetInfo(label: 'អាវបុរសទី ២៦', shortLabel: 'បុរស ២៦', assetPath: 'assets/suits/cutout_man_26.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
+    'cutout_man_27': const SuitPresetInfo(label: 'អាវបុរសទី ២៧', shortLabel: 'បុរស ២៧', assetPath: 'assets/suits/cutout_man_27.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
+    'cutout_man_28': const SuitPresetInfo(label: 'អាវបុរសទី ២៨', shortLabel: 'បុរស ២៨', assetPath: 'assets/suits/cutout_man_28.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
+    'suit_male_black': const SuitPresetInfo(label: 'អាវធំខ្មៅបុរស', shortLabel: 'ធំខ្មៅ', assetPath: 'assets/suits/suit_male_black.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
+    'suit_male_navy': const SuitPresetInfo(label: 'អាវធំប៊្លូហ្សីន', shortLabel: 'ធំប៊្លូ', assetPath: 'assets/suits/suit_male_navy.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
+    'suit_shirt_tie': const SuitPresetInfo(label: 'អាវស + ក្រវាត់ក', shortLabel: 'ស ក្រវាត់ក', assetPath: 'assets/suits/suit_shirt_tie.png', icon: Icons.business_center_rounded, category: SuitCategory.male),
+
+    // Women's Suits & Blouses
+    'cutout_woman_1': const SuitPresetInfo(label: 'អាវនារីទី ១', shortLabel: 'នារី ១', assetPath: 'assets/suits/cutout_woman_1.png', icon: Icons.woman_rounded, category: SuitCategory.female),
+    'cutout_woman_2': const SuitPresetInfo(label: 'អាវនារីទី ២', shortLabel: 'នារី ២', assetPath: 'assets/suits/cutout_woman_2.png', icon: Icons.woman_rounded, category: SuitCategory.female),
+    'cutout_woman_3': const SuitPresetInfo(label: 'អាវនារីទី ៣', shortLabel: 'នារី ៣', assetPath: 'assets/suits/cutout_woman_3.png', icon: Icons.woman_rounded, category: SuitCategory.female),
+    'cutout_woman_4': const SuitPresetInfo(label: 'អាវនារីទី ៤', shortLabel: 'នារី ៤', assetPath: 'assets/suits/cutout_woman_4.png', icon: Icons.woman_rounded, category: SuitCategory.female),
+    'cutout_woman_5': const SuitPresetInfo(label: 'អាវនារីទី ៥', shortLabel: 'នារី ៥', assetPath: 'assets/suits/cutout_woman_5.png', icon: Icons.woman_rounded, category: SuitCategory.female),
+    'cutout_woman_6': const SuitPresetInfo(label: 'អាវនារីទី ៦', shortLabel: 'នារី ៦', assetPath: 'assets/suits/cutout_woman_6.png', icon: Icons.woman_rounded, category: SuitCategory.female),
+    'cutout_woman_7': const SuitPresetInfo(label: 'អាវនារីទី ៧', shortLabel: 'នារី ៧', assetPath: 'assets/suits/cutout_woman_7.png', icon: Icons.woman_rounded, category: SuitCategory.female),
+    'cutout_woman_8': const SuitPresetInfo(label: 'អាវនារីទី ៨', shortLabel: 'នារី ៨', assetPath: 'assets/suits/cutout_woman_8.png', icon: Icons.woman_rounded, category: SuitCategory.female),
+    'cutout_woman_9': const SuitPresetInfo(label: 'អាវនារីទី ៩', shortLabel: 'នារី ៩', assetPath: 'assets/suits/cutout_woman_9.png', icon: Icons.woman_rounded, category: SuitCategory.female),
+    'cutout_woman_10': const SuitPresetInfo(label: 'អាវនារីទី ១០', shortLabel: 'នារី ១០', assetPath: 'assets/suits/cutout_woman_10.png', icon: Icons.woman_rounded, category: SuitCategory.female),
+    'cutout_woman_11': const SuitPresetInfo(label: 'អាវនារីទី ១១', shortLabel: 'នារី ១១', assetPath: 'assets/suits/cutout_woman_11.png', icon: Icons.woman_rounded, category: SuitCategory.female),
+    'cutout_woman_12': const SuitPresetInfo(label: 'អាវនារីទី ១២', shortLabel: 'នារី ១២', assetPath: 'assets/suits/cutout_woman_12.png', icon: Icons.woman_rounded, category: SuitCategory.female),
+    'cutout_woman_13': const SuitPresetInfo(label: 'អាវនារីទី ១៣', shortLabel: 'នារី ១៣', assetPath: 'assets/suits/cutout_woman_13.png', icon: Icons.woman_rounded, category: SuitCategory.female),
+    'cutout_woman_14': const SuitPresetInfo(label: 'អាវនារីទី ១៤', shortLabel: 'នារី ១៤', assetPath: 'assets/suits/cutout_woman_14.png', icon: Icons.woman_rounded, category: SuitCategory.female),
+    'cutout_woman_15': const SuitPresetInfo(label: 'អាវនារីទី ១៥', shortLabel: 'នារី ១៥', assetPath: 'assets/suits/cutout_woman_15.png', icon: Icons.woman_rounded, category: SuitCategory.female),
+    'cutout_woman_16': const SuitPresetInfo(label: 'អាវនារីទី ១៦', shortLabel: 'នារី ១៦', assetPath: 'assets/suits/cutout_woman_16.png', icon: Icons.woman_rounded, category: SuitCategory.female),
+    'cutout_woman_17': const SuitPresetInfo(label: 'អាវនារីទី ១៧', shortLabel: 'នារី ១៧', assetPath: 'assets/suits/cutout_woman_17.png', icon: Icons.woman_rounded, category: SuitCategory.female),
+    'cutout_woman_18': const SuitPresetInfo(label: 'អាវនារីទី ១៨', shortLabel: 'នារី ១៨', assetPath: 'assets/suits/cutout_woman_18.png', icon: Icons.woman_rounded, category: SuitCategory.female),
+    'suit_female_black': const SuitPresetInfo(label: 'អាវធំខ្មៅនារី', shortLabel: 'ធំខ្មៅ', assetPath: 'assets/suits/suit_female_black.png', icon: Icons.woman_rounded, category: SuitCategory.female),
+    'suit_female_blue': const SuitPresetInfo(label: 'អាវធំប៊្លូនារី', shortLabel: 'ធំប៊្លូ', assetPath: 'assets/suits/suit_female_blue.png', icon: Icons.woman_rounded, category: SuitCategory.female),
+
+    // Student & Children's Uniforms
+    'cutout_child_1': const SuitPresetInfo(label: 'អាវកុមារទី ១', shortLabel: 'សិស្ស ១', assetPath: 'assets/suits/cutout_child_1.png', icon: Icons.face_4_rounded, category: SuitCategory.student),
+    'cutout_child_2': const SuitPresetInfo(label: 'អាវកុមារទី ២', shortLabel: 'សិស្ស ២', assetPath: 'assets/suits/cutout_child_2.png', icon: Icons.face_4_rounded, category: SuitCategory.student),
+    'cutout_child_3': const SuitPresetInfo(label: 'អាវកុមារទី ៣', shortLabel: 'សិស្ស ៣', assetPath: 'assets/suits/cutout_child_3.png', icon: Icons.face_4_rounded, category: SuitCategory.student),
+    'cutout_child_4': const SuitPresetInfo(label: 'អាវកុមារទី ៤', shortLabel: 'សិស្ស ៤', assetPath: 'assets/suits/cutout_child_4.png', icon: Icons.face_4_rounded, category: SuitCategory.student),
+    'cutout_child_5': const SuitPresetInfo(label: 'អាវកុមារទី ៥', shortLabel: 'សិស្ស ៥', assetPath: 'assets/suits/cutout_child_5.png', icon: Icons.face_4_rounded, category: SuitCategory.student),
+    'cutout_child_6': const SuitPresetInfo(label: 'អាវកុមារទី ៦', shortLabel: 'សិស្ស ៦', assetPath: 'assets/suits/cutout_child_6.png', icon: Icons.face_4_rounded, category: SuitCategory.student),
+    'cutout_child_7': const SuitPresetInfo(label: 'អាវកុមារទី ៧', shortLabel: 'សិស្ស ៧', assetPath: 'assets/suits/cutout_child_7.png', icon: Icons.face_4_rounded, category: SuitCategory.student),
+    'cutout_child_8': const SuitPresetInfo(label: 'អាវកុមារទី ៨', shortLabel: 'សិស្ស ៨', assetPath: 'assets/suits/cutout_child_8.png', icon: Icons.face_4_rounded, category: SuitCategory.student),
+    'cutout_child_9': const SuitPresetInfo(label: 'អាវកុមារទី ៩', shortLabel: 'សិស្ស ៩', assetPath: 'assets/suits/cutout_child_9.png', icon: Icons.face_4_rounded, category: SuitCategory.student),
+    'cutout_child_10': const SuitPresetInfo(label: 'អាវកុមារទី ១០', shortLabel: 'សិស្ស ១០', assetPath: 'assets/suits/cutout_child_10.png', icon: Icons.face_4_rounded, category: SuitCategory.student),
+    'cutout_child_11': const SuitPresetInfo(label: 'អាវកុមារទី ១១', shortLabel: 'សិស្ស ១១', assetPath: 'assets/suits/cutout_child_11.png', icon: Icons.face_4_rounded, category: SuitCategory.student),
+    'cutout_child_12': const SuitPresetInfo(label: 'អាវកុមារទី ១២', shortLabel: 'សិស្ស ១២', assetPath: 'assets/suits/cutout_child_12.png', icon: Icons.face_4_rounded, category: SuitCategory.student),
+    'cutout_child_13': const SuitPresetInfo(label: 'អាវកុមារទី ១៣', shortLabel: 'សិស្ស ១៣', assetPath: 'assets/suits/cutout_child_13.png', icon: Icons.face_4_rounded, category: SuitCategory.student),
+    'cutout_child_14': const SuitPresetInfo(label: 'អាវកុមារទី ១៤', shortLabel: 'សិស្ស ១៤', assetPath: 'assets/suits/cutout_child_14.png', icon: Icons.face_4_rounded, category: SuitCategory.student),
+    'cutout_child_15': const SuitPresetInfo(label: 'អាវកុមារទី ១៥', shortLabel: 'សិស្ស ១៥', assetPath: 'assets/suits/cutout_child_15.png', icon: Icons.face_4_rounded, category: SuitCategory.student),
+    'cutout_child_16': const SuitPresetInfo(label: 'អាវកុមារទី ១៦', shortLabel: 'សិស្ស ១៦', assetPath: 'assets/suits/cutout_child_16.png', icon: Icons.face_4_rounded, category: SuitCategory.student),
   };
 
   // Passport presets: 4x6 cm, 3x4 cm, 2x3 cm, 5x5 cm
@@ -144,7 +155,8 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
     const Color(0xFF29B6F6), // Light Sky Blue
     const Color(0xFFD32F2F), // Red
     const Color(0xFF2E7D32), // Green
-    Colors.grey.shade300,
+    const Color(0xFFE2E8F0), // Light Grey
+    const Color(0xFF1E293B), // Dark Slate
   ];
 
   @override
@@ -164,6 +176,14 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
     super.dispose();
   }
 
+  void _debouncedRenderComposite() {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 60), () {
+      _renderCompositeFromCutout();
+    });
+  }
+
+  /// Accurate face detection & natural neckline auto-alignment
   Future<void> _detectFaceAndAutoFitSuit() async {
     if (_imagePath == null) return;
     try {
@@ -180,11 +200,10 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
       if (faces.isNotEmpty) {
         final face = faces.first;
         final box = face.boundingBox;
-        
+
         final imageBytes = await File(_imagePath!).readAsBytes();
         final decoded = img.decodeImage(imageBytes);
         if (decoded != null) {
-          // 1. Precise chin point from Face Contour if available
           double chinY = box.bottom;
           double chinX = box.left + (box.width / 2.0);
 
@@ -204,22 +223,22 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
             }
           }
 
-          // 2. Head width & shoulder ratio calculation (Cutout.pro standard: ~2.38x face width)
+          // 1. Natural shoulder width calculation (~2.25x face width)
           final double faceWidth = box.width;
-          final double targetShoulderW = faceWidth * 2.38;
+          final double targetShoulderW = faceWidth * 2.25;
           final double suitCanvasTargetW = decoded.width * 0.92;
-          _suitScale = (targetShoulderW / suitCanvasTargetW).clamp(0.70, 1.85);
+          _suitScale = (targetShoulderW / suitCanvasTargetW).clamp(0.65, 1.85);
 
-          // 3. Horizontal centering directly beneath the chin
+          // 2. Horizontal centering directly beneath chin
           final double imageCenterX = decoded.width / 2.0;
-          _suitOffsetX = ((chinX - imageCenterX) / (decoded.width * 0.025)).clamp(-12.0, 12.0);
+          _suitOffsetX = ((chinX - imageCenterX) / (decoded.width * 0.025)).clamp(-18.0, 18.0);
 
-          // 4. Vertical neckline placement (Collar sits right below chin)
-          final double suitHeight = decoded.width * 0.92 * _suitScale * 1.12;
-          final double targetCollarTopY = chinY + (box.height * 0.03);
-          final double defaultSuitTopY = decoded.height - suitHeight;
-          _suitOffsetY = ((targetCollarTopY - defaultSuitTopY) / (decoded.height * 0.025)).clamp(-20.0, 20.0);
-          
+          // 3. Vertical neckline placement (Collar sits at natural base of neck: chin + ~18% face height)
+          final double suitHeight = decoded.width * 0.92 * _suitScale;
+          final double defaultSuitTopY = decoded.height - suitHeight + (decoded.height * 0.05);
+          final double targetCollarTopY = chinY + (box.height * 0.18);
+          _suitOffsetY = ((targetCollarTopY - defaultSuitTopY) / (decoded.height * 0.025)).clamp(-25.0, 25.0);
+
           _hasAutoFittedSuit = true;
         }
       }
@@ -237,7 +256,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
           _imagePath = picked.path;
           _processedImagePath = null;
           _cutoutForegroundBytes = null;
-          _isFlipped = (source == ImageSource.camera); // Auto flip selfie camera photos
+          _isFlipped = (source == ImageSource.camera);
           _hasAutoFittedSuit = false;
         });
         await _processAiCloudRemoveBgCutout(showToast: true);
@@ -251,7 +270,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
     }
   }
 
-  /// Composite the transparent Remove.bg cutout foreground onto the selected background & suit
+  /// Composite transparent cutout foreground onto selected background & virtual suit
   Future<void> _renderCompositeFromCutout() async {
     if (_imagePath == null) return;
     if (_cutoutForegroundBytes == null) {
@@ -261,7 +280,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
 
     setState(() {
       _isProcessing = true;
-      _statusText = 'កំពុងរៀបចំ និងផ្លាស់ប្តូរ Background...';
+      _statusText = 'កំពុងតម្រឹម និងរៀបចំរូបថត...';
     });
 
     try {
@@ -312,13 +331,13 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
     }
   }
 
-  /// Cutout foreground with Multi-Engine Fallback: Remove.bg -> Cutout.pro -> ML Kit On-Device
+  /// Multi-Engine Background Cutout: Remove.bg -> Cutout.pro -> On-Device ML Kit
   Future<void> _processAiCloudRemoveBgCutout({bool showToast = false}) async {
     if (_imagePath == null) return;
 
     setState(() {
       _isProcessing = true;
-      _statusText = 'កំពុងកាត់ Background ដោយ AI (Remove.bg / Cutout.pro)...';
+      _statusText = 'កំពុងកាត់ Background ដោយ AI Studio...';
     });
 
     try {
@@ -327,15 +346,15 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
       Uint8List? resultBytes;
       String engineUsed = 'Remove.bg';
 
-      // 1. Try Remove.bg Pool
+      // 1. Remove.bg
       try {
         final rmbgService = RemoveBgService();
         resultBytes = await rmbgService.removeBackgroundBytes(imageBytes, size: 'preview');
       } catch (e) {
-        debugPrint('Remove.bg error in studio: $e');
+        debugPrint('Remove.bg error: $e');
       }
 
-      // 2. Fallback to Cutout.pro Pool
+      // 2. Cutout.pro Fallback
       if (resultBytes == null || resultBytes.isEmpty) {
         try {
           setState(() {
@@ -347,11 +366,11 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
             engineUsed = 'Cutout.pro';
           }
         } catch (e) {
-          debugPrint('Cutout.pro fallback error in studio: $e');
+          debugPrint('Cutout.pro fallback error: $e');
         }
       }
 
-      // 3. Fallback to On-Device Google ML Kit Segmentation
+      // 3. On-Device ML Kit Fallback
       if (resultBytes == null || resultBytes.isEmpty) {
         try {
           setState(() {
@@ -363,7 +382,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
             engineUsed = 'ML Kit (Offline)';
           }
         } catch (e) {
-          debugPrint('ML Kit fallback error in studio: $e');
+          debugPrint('ML Kit fallback error: $e');
         }
       }
 
@@ -462,21 +481,21 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
       final imageBytes = await File(_processedImagePath!).readAsBytes();
       final pdfImage = pw.MemoryImage(imageBytes);
 
-      // Create printable A4 page filled with 8 or 12 grid passport photos
+      // Create printable A4 page with passport photos
       pdf.addPage(
         pw.Page(
           pageFormat: PdfPageFormat.a4,
           build: (pw.Context ctx) {
             return pw.Center(
               child: pw.Wrap(
-                spacing: 12,
-                runSpacing: 12,
+                spacing: 14,
+                runSpacing: 14,
                 children: List.generate(8, (index) {
                   return pw.Container(
-                    width: _selectedPreset == PassportPreset.size4x6 ? 113.38 : 85.03, // approx 4cm or 3cm in pt
-                    height: _selectedPreset == PassportPreset.size4x6 ? 170.07 : 113.38, // approx 6cm or 4cm in pt
+                    width: _selectedPreset == PassportPreset.size4x6 ? 113.38 : 85.03,
+                    height: _selectedPreset == PassportPreset.size4x6 ? 170.07 : 113.38,
                     decoration: pw.BoxDecoration(
-                      border: pw.Border.all(color: const PdfColor(0.8, 0.8, 0.8), width: 0.5),
+                      border: pw.Border.all(color: const PdfColor(0.75, 0.75, 0.75), width: 0.5),
                     ),
                     child: pw.Image(pdfImage, fit: pw.BoxFit.cover),
                   );
@@ -505,13 +524,13 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
     }
   }
 
-  /// Enhance photo resolution using Cutout.pro AI Enhancer
+  /// AI Cutout.pro Photo Enhancer HD
   Future<void> _enhancePhotoWithCutoutPro() async {
     if (_processedImagePath == null && _imagePath == null) return;
 
     setState(() {
       _isProcessing = true;
-      _statusText = 'កំពុងទាញរូបថតឱ្យច្បាស់ HD ដោយ AI Cutout.pro...';
+      _statusText = 'កំពុងទាញរូបថតឱ្យច្បាស់ HD ដោយ AI...';
     });
 
     try {
@@ -581,7 +600,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
     final displayPath = _processedImagePath ?? _imagePath;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: const Color(0xFF0A0F1D),
       appBar: VvcAppBar(
         backgroundColor: const Color(0xFF0F172A),
         elevation: 0,
@@ -590,21 +609,39 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
           icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
           onPressed: () => Navigator.pop(context, _processedImagePath),
         ),
-        title: Text(
-          'រូបថត 4x6 / 3x4 Studio',
-          style: GoogleFonts.kantumruyPro(fontSize: 17, fontWeight: FontWeight.bold, color: Colors.white),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'រូបថត 4x6 / 3x4 Studio',
+              style: GoogleFonts.kantumruyPro(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+            ),
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(colors: [Color(0xFF0D9488), Color(0xFF14B8A6)]),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: const Text(
+                'PRO',
+                style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w900),
+              ),
+            ),
+          ],
         ),
         actions: [
           if (_imagePath != null) ...[
             IconButton(
-              icon: const Icon(Icons.auto_awesome_rounded, color: Color(0xFFA855F7)),
-              tooltip: 'ទាញរូបថតឱ្យច្បាស់ HD (Cutout.pro)',
+              icon: const Icon(Icons.auto_awesome_rounded, color: Color(0xFFA855F7), size: 22),
+              tooltip: 'ទាញរូបថតឱ្យច្បាស់ HD (AI Enhancer)',
               onPressed: _enhancePhotoWithCutoutPro,
             ),
             IconButton(
               icon: Icon(
                 Icons.flip_rounded,
-                color: _isFlipped ? Colors.tealAccent : Colors.white70,
+                color: _isFlipped ? const Color(0xFF14B8A6) : Colors.white70,
+                size: 22,
               ),
               tooltip: 'បង្វិលរូបភាពបញ្ជ្រាស',
               onPressed: () {
@@ -617,7 +654,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
           ],
           if (_processedImagePath != null)
             IconButton(
-              icon: const Icon(Icons.print_rounded, color: Colors.tealAccent),
+              icon: const Icon(Icons.print_rounded, color: Color(0xFF14B8A6), size: 22),
               tooltip: 'ព្រីនសន្លឹក 4x6 / 3x4',
               onPressed: _exportPrintSheet,
             ),
@@ -626,494 +663,244 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Image Preview Area
+            // Interactive Photo Studio Canvas (Main Center Stage)
             Expanded(
               child: Container(
-                margin: const EdgeInsets.all(16),
+                margin: const EdgeInsets.fromLTRB(14, 10, 14, 8),
                 decoration: BoxDecoration(
-                  color: Colors.black,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                  color: const Color(0xFF060913),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.08), width: 1.5),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.5),
+                      blurRadius: 16,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
-                child: Stack(
-                  children: [
-                    if (displayPath != null)
-                      Center(
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: AspectRatio(
-                            aspectRatio: _selectedPreset.ratio,
-                            child: Image.file(
-                              File(displayPath),
-                              fit: BoxFit.cover,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(19),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      if (displayPath != null)
+                        GestureDetector(
+                          onScaleStart: (details) {
+                            _baseScale = _suitScale;
+                          },
+                          onScaleUpdate: (details) {
+                            if (_selectedSuitKey == null) return;
+                            setState(() {
+                              // Direct on-screen touch dragging of suit
+                              _suitOffsetX += (details.focalPointDelta.dx * 0.08);
+                              _suitOffsetY += (details.focalPointDelta.dy * 0.08);
+
+                              // Direct pinch-to-zoom scaling
+                              if (details.scale != 1.0) {
+                                _suitScale = (_baseScale * details.scale).clamp(0.55, 1.95);
+                              }
+                            });
+                          },
+                          onScaleEnd: (details) {
+                            if (_selectedSuitKey != null) {
+                              _debouncedRenderComposite();
+                            }
+                          },
+                          child: Container(
+                            color: Colors.transparent,
+                            child: Center(
+                              child: AspectRatio(
+                                aspectRatio: _selectedPreset.ratio,
+                                child: Image.file(
+                                  File(displayPath),
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
                             ),
                           ),
-                        ),
-                      )
-                    else
-                      Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.portrait_rounded, size: 70, color: Colors.white24),
-                            const SizedBox(height: 12),
-                            Text(
-                              'ជ្រើសរើសរូបថតដើម្បីបង្កើតរូប 4x6 / 3x4',
-                              style: GoogleFonts.kantumruyPro(color: Colors.white38, fontSize: 13),
-                            ),
-                            const SizedBox(height: 16),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                ElevatedButton.icon(
-                                  onPressed: () => _pickImage(ImageSource.camera),
-                                  icon: const Icon(Icons.camera_alt_rounded, size: 18),
-                                  label: const Text('ថតរូប'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF0D9488),
-                                    foregroundColor: Colors.white,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                OutlinedButton.icon(
-                                  onPressed: () => _pickImage(ImageSource.gallery),
-                                  icon: const Icon(Icons.photo_library_rounded, size: 18),
-                                  label: const Text('វិចិត្រសាល'),
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: Colors.tealAccent,
-                                    side: const BorderSide(color: Colors.tealAccent),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-
-                    // Processing overlay spinner
-                    if (_isProcessing)
-                      Container(
-                        color: Colors.black87,
-                        child: Center(
+                        )
+                      else
+                        Center(
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const CircularProgressIndicator(color: Color(0xFF0D9488)),
-                              const SizedBox(height: 16),
+                              Container(
+                                width: 80,
+                                height: 80,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.05),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.portrait_rounded, size: 48, color: Colors.white24),
+                              ),
+                              const SizedBox(height: 14),
                               Text(
-                                _statusText ?? 'កំពុងដំណើរការ...',
-                                style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 13),
+                                'ជ្រើសរើសរូបថតដើម្បីកាត់ Background & ពាក់អាវ',
+                                style: GoogleFonts.kantumruyPro(color: Colors.white60, fontSize: 13),
+                              ),
+                              const SizedBox(height: 18),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  ElevatedButton.icon(
+                                    onPressed: () => _pickImage(ImageSource.camera),
+                                    icon: const Icon(Icons.camera_alt_rounded, size: 18),
+                                    label: Text('ថតរូប', style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold)),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF0D9488),
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  OutlinedButton.icon(
+                                    onPressed: () => _pickImage(ImageSource.gallery),
+                                    icon: const Icon(Icons.photo_library_rounded, size: 18),
+                                    label: Text('វិចិត្រសាល', style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold)),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: const Color(0xFF14B8A6),
+                                      side: const BorderSide(color: Color(0xFF14B8A6)),
+                                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
                         ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
 
-            // Controls Bar
-            if (_imagePath != null)
-              Container(
-                color: const Color(0xFF141428),
-                padding: EdgeInsets.only(
-                  left: 16,
-                  right: 16,
-                  top: 12,
-                  bottom: MediaQuery.of(context).padding.bottom + 12,
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Size Preset Selection
-                    Text(
-                      'ជ្រើសរើសទំហំរូបថតផ្លូវការ៖',
-                      style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: PassportPreset.values.map((preset) {
-                        final isSelected = _selectedPreset == preset;
-                        return Expanded(
-                          child: GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                _selectedPreset = preset;
-                              });
-                              _renderCompositeFromCutout();
-                            },
-                            child: Container(
-                              margin: const EdgeInsets.symmetric(horizontal: 3),
-                              padding: const EdgeInsets.symmetric(vertical: 8),
-                              decoration: BoxDecoration(
-                                color: isSelected ? const Color(0xFF0D9488) : Colors.white.withValues(alpha: 0.08),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: isSelected ? const Color(0xFF0D9488) : Colors.white.withValues(alpha: 0.15),
-                                ),
-                              ),
-                              child: Text(
-                                preset.label,
-                                textAlign: TextAlign.center,
-                                style: GoogleFonts.kantumruyPro(
-                                  color: Colors.white,
-                                  fontSize: 11,
-                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                                ),
-                              ),
+                      // Interactive Touch Drag Hint when suit is active
+                      if (_selectedSuitKey != null && !_isProcessing)
+                        Positioned(
+                          top: 12,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.65),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: const Color(0xFF14B8A6).withValues(alpha: 0.4)),
                             ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-
-                    const SizedBox(height: 14),
-
-                    // Background Color Selection & AI Remove.bg
-                    Row(
-                      children: [
-                        Text(
-                          'ផ្ទៃខាងក្រោយ (Background)៖',
-                          style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600),
-                        ),
-                        const Spacer(),
-                        // AI Cloud Remove.bg Button
-                        Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            onTap: () => _processAiCloudRemoveBgCutout(showToast: true),
-                            borderRadius: BorderRadius.circular(8),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                gradient: const LinearGradient(
-                                  colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
-                                ),
-                                borderRadius: BorderRadius.circular(8),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: const Color(0xFF6366F1).withValues(alpha: 0.4),
-                                    blurRadius: 6,
-                                  ),
-                                ],
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.auto_awesome, color: Colors.white, size: 13),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    '✨ AI Remove.bg',
-                                    style: GoogleFonts.kantumruyPro(
-                                      color: Colors.white,
-                                      fontSize: 10.5,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        InkWell(
-                          onTap: () {
-                            setState(() {
-                              _isFlipped = !_isFlipped;
-                            });
-                            _renderCompositeFromCutout();
-                          },
-                          borderRadius: BorderRadius.circular(6),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(
-                                  Icons.flip_rounded,
-                                  color: _isFlipped ? Colors.tealAccent : Colors.white60,
-                                  size: 16,
-                                ),
-                                const SizedBox(width: 4),
+                                const Icon(Icons.touch_app_rounded, color: Color(0xFF14B8A6), size: 14),
+                                const SizedBox(width: 5),
                                 Text(
-                                  _isFlipped ? 'បញ្ជ្រាស' : 'ត្រឡប់រូប',
-                                  style: GoogleFonts.kantumruyPro(
-                                    color: _isFlipped ? Colors.tealAccent : Colors.white60,
-                                    fontSize: 11,
-                                  ),
+                                  'ប៉ះអូសលើរូប ឬពង្រីកដើម្បីតម្រឹមអាវ',
+                                  style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 11),
                                 ),
                               ],
                             ),
                           ),
                         ),
-                        const SizedBox(width: 4),
-                        IconButton(
-                          icon: const Icon(Icons.refresh_rounded, color: Colors.white54, size: 18),
-                          onPressed: () => _pickImage(ImageSource.gallery),
-                          tooltip: 'ប្តូរប្លង់ថតថ្មី',
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: _presetColors.map((color) {
-                        final isSelected = _selectedBgColor == color;
-                        return GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              _selectedBgColor = color;
-                            });
-                            _renderCompositeFromCutout();
-                          },
-                          child: Container(
-                            width: 38,
-                            height: 38,
-                            decoration: BoxDecoration(
-                              color: color,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: isSelected ? Colors.tealAccent : Colors.white24,
-                                width: isSelected ? 3 : 1,
-                              ),
-                              boxShadow: isSelected
-                                  ? [BoxShadow(color: Colors.tealAccent.withValues(alpha: 0.4), blurRadius: 8)]
-                                  : null,
-                            ),
-                            child: isSelected ? const Icon(Icons.check, size: 20, color: Colors.black87) : null,
-                          ),
-                        );
-                      }).toList(),
-                    ),
 
-                    const SizedBox(height: 14),
-
-                    // Virtual Suit Selection Header & Clear
-                    Row(
-                      children: [
-                        Text(
-                          'បំពាក់អាវផ្លូវការ (Virtual Suit)៖',
-                          style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600),
-                        ),
-                        const Spacer(),
-                        if (_selectedSuitKey != null)
-                          GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                _selectedSuitKey = null;
-                                _suitScale = 1.0;
-                                _suitOffsetX = 0.0;
-                                _suitOffsetY = 0.0;
-                              });
-                              _renderCompositeFromCutout();
-                            },
-                            child: Text(
-                              'ដោះអាវចេញ',
-                              style: GoogleFonts.kantumruyPro(color: Colors.redAccent, fontSize: 11, fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-
-                    // Suit Category Tabs (Cutout.pro style)
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      physics: const BouncingScrollPhysics(),
-                      child: Row(
-                        children: [
-                          _buildCategoryTab(SuitCategory.all, 'ទាំងអស់'),
-                          _buildCategoryTab(SuitCategory.male, 'អាវបុរស'),
-                          _buildCategoryTab(SuitCategory.female, 'អាវនារី'),
-                          _buildCategoryTab(SuitCategory.student, 'អាវសិស្ស'),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-
-                    // Filtered Suit Options Chips
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      physics: const BouncingScrollPhysics(),
-                      child: Row(
-                        children: [
-                          // None Option
-                          GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                _selectedSuitKey = null;
-                              });
-                              _renderCompositeFromCutout();
-                            },
-                            child: Container(
-                              margin: const EdgeInsets.only(right: 6),
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                              decoration: BoxDecoration(
-                                color: _selectedSuitKey == null ? const Color(0xFF0D9488) : Colors.white.withValues(alpha: 0.08),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: _selectedSuitKey == null ? const Color(0xFF0D9488) : Colors.white12,
-                                ),
-                              ),
-                              child: Text(
-                                'គ្មានអាវ',
-                                style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 11),
-                              ),
-                            ),
-                          ),
-                          ..._getFilteredSuitEntries().map((entry) {
-                            final isSel = _selectedSuitKey == entry.key;
-                            return GestureDetector(
-                              onTap: () {
-                                setState(() {
-                                  _selectedSuitKey = entry.key;
-                                });
-                                _renderCompositeFromCutout();
-                              },
-                              child: Container(
-                                margin: const EdgeInsets.only(right: 6),
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                                decoration: BoxDecoration(
-                                  color: isSel ? const Color(0xFF0D9488) : Colors.white.withValues(alpha: 0.08),
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(
-                                    color: isSel ? const Color(0xFF0D9488) : Colors.white12,
+                      // Processing Spinner Overlay
+                      if (_isProcessing)
+                        Container(
+                          color: Colors.black87,
+                          child: Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const SizedBox(
+                                  width: 44,
+                                  height: 44,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 3,
+                                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF14B8A6)),
                                   ),
                                 ),
-                                child: Row(
-                                  children: [
-                                    Icon(entry.value.icon, size: 14, color: isSel ? Colors.white : Colors.tealAccent),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      entry.value.label,
-                                      style: GoogleFonts.kantumruyPro(
-                                        color: Colors.white,
-                                        fontSize: 11,
-                                        fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
-                                      ),
-                                    ),
-                                  ],
+                                const SizedBox(height: 16),
+                                Text(
+                                  _statusText ?? 'កំពុងដំណើរការ...',
+                                  style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
                                 ),
-                              ),
-                            );
-                          }),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+            // Studio Control Deck (Bottom Section)
+            if (_imagePath != null)
+              Container(
+                decoration: const BoxDecoration(
+                  color: Color(0xFF0F172A),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                  boxShadow: [
+                    BoxShadow(color: Colors.black54, blurRadius: 20, offset: Offset(0, -4)),
+                  ],
+                ),
+                padding: EdgeInsets.only(
+                  left: 14,
+                  right: 14,
+                  top: 12,
+                  bottom: MediaQuery.of(context).padding.bottom + 10,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Deck Mode Navigation Tabs (Virtual Suit | Background | Size)
+                    Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1E293B),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+                      ),
+                      child: Row(
+                        children: [
+                          _buildDeckTabItem(
+                            index: 0,
+                            icon: Icons.checkroom_rounded,
+                            label: 'ម៉ូដអាវ (Suit)',
+                            hasBadge: _selectedSuitKey != null,
+                          ),
+                          _buildDeckTabItem(
+                            index: 1,
+                            icon: Icons.palette_rounded,
+                            label: 'ផ្ទៃខាងក្រោយ',
+                          ),
+                          _buildDeckTabItem(
+                            index: 2,
+                            icon: Icons.aspect_ratio_rounded,
+                            label: 'ទំហំរូបថត',
+                          ),
                         ],
                       ),
                     ),
+                    const SizedBox(height: 10),
 
-                    // Suit Adjustments (Scale, Move X, Move Y, Reset)
-                    if (_selectedSuitKey != null) ...[
-                      const SizedBox(height: 10),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.04),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: Colors.white10),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'តម្រឹម៖',
-                              style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 11),
-                            ),
-                            // Size -
-                            IconButton(
-                              icon: const Icon(Icons.remove_circle_outline, color: Colors.tealAccent, size: 18),
-                              onPressed: () {
-                                setState(() => _suitScale = (_suitScale - 0.05).clamp(0.5, 2.0));
-                                _debouncedRenderComposite();
-                              },
-                              tooltip: 'បង្រួមអាវ',
-                            ),
-                            Text(
-                              '${(_suitScale * 100).round()}%',
-                              style: GoogleFonts.inter(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-                            ),
-                            // Size +
-                            IconButton(
-                              icon: const Icon(Icons.add_circle_outline, color: Colors.tealAccent, size: 18),
-                              onPressed: () {
-                                setState(() => _suitScale = (_suitScale + 0.05).clamp(0.5, 2.0));
-                                _debouncedRenderComposite();
-                              },
-                              tooltip: 'ពង្រីកអាវ',
-                            ),
-                            const SizedBox(width: 2),
-                            // Move Left
-                            IconButton(
-                              icon: const Icon(Icons.arrow_back_rounded, color: Colors.white70, size: 16),
-                              onPressed: () {
-                                setState(() => _suitOffsetX -= 1.0);
-                                _debouncedRenderComposite();
-                              },
-                              tooltip: 'រំកិលទៅឆ្វេង',
-                            ),
-                            // Move Right
-                            IconButton(
-                              icon: const Icon(Icons.arrow_forward_rounded, color: Colors.white70, size: 16),
-                              onPressed: () {
-                                setState(() => _suitOffsetX += 1.0);
-                                _debouncedRenderComposite();
-                              },
-                              tooltip: 'រំកិលទៅស្តាំ',
-                            ),
-                            // Move Up
-                            IconButton(
-                              icon: const Icon(Icons.arrow_upward_rounded, color: Colors.white70, size: 16),
-                              onPressed: () {
-                                setState(() => _suitOffsetY -= 1.0);
-                                _debouncedRenderComposite();
-                              },
-                              tooltip: 'លើកអាវឡើងលើ',
-                            ),
-                            // Move Down
-                            IconButton(
-                              icon: const Icon(Icons.arrow_downward_rounded, color: Colors.white70, size: 16),
-                              onPressed: () {
-                                setState(() => _suitOffsetY += 1.0);
-                                _debouncedRenderComposite();
-                              },
-                              tooltip: 'ទម្លាក់អាវចុះក្រោម',
-                            ),
-                            // Reset Position
-                            IconButton(
-                              icon: const Icon(Icons.restart_alt_rounded, color: Colors.orangeAccent, size: 18),
-                              onPressed: () {
-                                setState(() {
-                                  _suitScale = 1.0;
-                                  _suitOffsetX = 0.0;
-                                  _suitOffsetY = 0.0;
-                                });
-                                _debouncedRenderComposite();
-                              },
-                              tooltip: 'កំណត់ទីតាំងឡើងវិញ',
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+                    // Active Deck Content
+                    if (_activeDeckTab == 0) _buildVirtualSuitDeckContent(),
+                    if (_activeDeckTab == 1) _buildBackgroundDeckContent(),
+                    if (_activeDeckTab == 2) _buildSizePresetDeckContent(),
 
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 10),
 
-                    // Print Sheet Action Button
+                    // Master Action Button
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton.icon(
                         onPressed: _exportPrintSheet,
-                        icon: const Icon(Icons.print_rounded, size: 20),
+                        icon: const Icon(Icons.print_rounded, size: 19),
                         label: Text(
                           'ទាញយកសន្លឹកព្រីនរូបថត (Print Sheet 8x)',
-                          style: GoogleFonts.kantumruyPro(fontSize: 13, fontWeight: FontWeight.bold),
+                          style: GoogleFonts.kantumruyPro(fontSize: 13.5, fontWeight: FontWeight.bold),
                         ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF0D9488),
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 13),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          elevation: 2,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                         ),
                       ),
                     ),
@@ -1126,34 +913,566 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
     );
   }
 
-  Widget _buildCategoryTab(SuitCategory cat, String label) {
+  // Segmented Mode Switcher Item
+  Widget _buildDeckTabItem({
+    required int index,
+    required IconData icon,
+    required String label,
+    bool hasBadge = false,
+  }) {
+    final isSelected = _activeDeckTab == index;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _activeDeckTab = index),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            color: isSelected ? const Color(0xFF0D9488) : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+            boxShadow: isSelected
+                ? [BoxShadow(color: const Color(0xFF0D9488).withValues(alpha: 0.35), blurRadius: 8, offset: const Offset(0, 2))]
+                : null,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 16, color: isSelected ? Colors.white : Colors.white60),
+              const SizedBox(width: 5),
+              Text(
+                label,
+                style: GoogleFonts.kantumruyPro(
+                  color: isSelected ? Colors.white : Colors.white70,
+                  fontSize: 11.5,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                ),
+              ),
+              if (hasBadge) ...[
+                const SizedBox(width: 4),
+                Container(
+                  width: 6,
+                  height: 6,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF38BDF8),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// -------------------------------------------------------------
+  /// TAB 0: VIRTUAL SUIT STUDIO DECK (VISUAL PREVIEWS + FINE TUNING)
+  /// -------------------------------------------------------------
+  Widget _buildVirtualSuitDeckContent() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Category Pills & Remove Suit Action
+        Row(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                child: Row(
+                  children: [
+                    _buildCategoryFilterChip(SuitCategory.all, 'ទាំងអស់ (${_suitPresets.length})'),
+                    _buildCategoryFilterChip(SuitCategory.male, '👔 បុរស (${_suitPresets.values.where((s) => s.category == SuitCategory.male).length})'),
+                    _buildCategoryFilterChip(SuitCategory.female, '👗 នារី (${_suitPresets.values.where((s) => s.category == SuitCategory.female).length})'),
+                    _buildCategoryFilterChip(SuitCategory.student, '🎓 សិស្ស (${_suitPresets.values.where((s) => s.category == SuitCategory.student).length})'),
+                  ],
+                ),
+              ),
+            ),
+            if (_selectedSuitKey != null)
+              GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _selectedSuitKey = null;
+                    _suitScale = 1.0;
+                    _suitOffsetX = 0.0;
+                    _suitOffsetY = 0.0;
+                  });
+                  _renderCompositeFromCutout();
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.redAccent.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.redAccent.withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.close_rounded, size: 12, color: Colors.redAccent),
+                      const SizedBox(width: 3),
+                      Text(
+                        'ដោះអាវចេញ',
+                        style: GoogleFonts.kantumruyPro(color: Colors.redAccent, fontSize: 10.5, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+
+        // Visual Suit Gallery (Horizontal Cards with Real PNG Previews)
+        SizedBox(
+          height: 96,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            children: [
+              // No Suit Card
+              _buildNoSuitCard(),
+              // Filtered Suit Cards
+              ..._getFilteredSuitEntries().map((entry) => _buildVisualSuitCard(entry.key, entry.value)),
+            ],
+          ),
+        ),
+
+        // Fine-Tuning Control Pod (Visible when suit is chosen)
+        if (_selectedSuitKey != null) ...[
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E293B),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            ),
+            child: Row(
+              children: [
+                // Auto-Fit AI Button
+                InkWell(
+                  onTap: () async {
+                    _hasAutoFittedSuit = false;
+                    await _detectFaceAndAutoFitSuit();
+                    _renderCompositeFromCutout();
+                  },
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)]),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.auto_awesome, color: Colors.white, size: 13),
+                        const SizedBox(width: 4),
+                        Text(
+                          'តម្រឹម AI',
+                          style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+
+                // Scale Slider & Steppers
+                IconButton(
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                  icon: const Icon(Icons.remove_circle_outline_rounded, color: Color(0xFF14B8A6), size: 18),
+                  onPressed: () {
+                    setState(() => _suitScale = (_suitScale - 0.05).clamp(0.55, 1.95));
+                    _debouncedRenderComposite();
+                  },
+                  tooltip: 'បង្រួមអាវ',
+                ),
+                Expanded(
+                  child: SliderTheme(
+                    data: SliderTheme.of(context).copyWith(
+                      trackHeight: 3,
+                      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                      overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
+                      activeTrackColor: const Color(0xFF14B8A6),
+                      inactiveTrackColor: Colors.white12,
+                      thumbColor: Colors.white,
+                    ),
+                    child: Slider(
+                      value: _suitScale.clamp(0.55, 1.95),
+                      min: 0.55,
+                      max: 1.95,
+                      onChanged: (val) {
+                        setState(() => _suitScale = val);
+                        _debouncedRenderComposite();
+                      },
+                    ),
+                  ),
+                ),
+                IconButton(
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                  icon: const Icon(Icons.add_circle_outline_rounded, color: Color(0xFF14B8A6), size: 18),
+                  onPressed: () {
+                    setState(() => _suitScale = (_suitScale + 0.05).clamp(0.55, 1.95));
+                    _debouncedRenderComposite();
+                  },
+                  tooltip: 'ពង្រីកអាវ',
+                ),
+
+                const SizedBox(width: 4),
+                Text(
+                  '${(_suitScale * 100).round()}%',
+                  style: GoogleFonts.inter(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold),
+                ),
+
+                const SizedBox(width: 6),
+                // Precision Micro-Adjust D-Pad Trigger
+                _buildMicroAdjustButtons(),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildCategoryFilterChip(SuitCategory cat, String label) {
     final isSelected = _selectedSuitCategory == cat;
     return GestureDetector(
-      onTap: () {
-        setState(() {
-          _selectedSuitCategory = cat;
-        });
-      },
+      onTap: () => setState(() => _selectedSuitCategory = cat),
       child: Container(
         margin: const EdgeInsets.only(right: 6),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
-          color: isSelected ? Colors.teal.shade700 : Colors.white10,
-          borderRadius: BorderRadius.circular(20),
+          color: isSelected ? const Color(0xFF0D9488) : const Color(0xFF1E293B),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isSelected ? Colors.tealAccent : Colors.transparent,
-            width: 1,
+            color: isSelected ? const Color(0xFF14B8A6) : Colors.white.withValues(alpha: 0.08),
           ),
         ),
         child: Text(
           label,
           style: GoogleFonts.kantumruyPro(
-            color: isSelected ? Colors.white : Colors.white60,
+            color: isSelected ? Colors.white : Colors.white70,
             fontSize: 11,
             fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildNoSuitCard() {
+    final isSelected = _selectedSuitKey == null;
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _selectedSuitKey = null;
+        });
+        _renderCompositeFromCutout();
+      },
+      child: Container(
+        width: 72,
+        margin: const EdgeInsets.only(right: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF0D9488).withValues(alpha: 0.25) : const Color(0xFF1E293B),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isSelected ? const Color(0xFF14B8A6) : Colors.white.withValues(alpha: 0.08),
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.block_rounded, color: isSelected ? const Color(0xFF14B8A6) : Colors.white38, size: 28),
+            const SizedBox(height: 6),
+            Text(
+              'គ្មានអាវ',
+              style: GoogleFonts.kantumruyPro(
+                color: isSelected ? Colors.white : Colors.white60,
+                fontSize: 11,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildVisualSuitCard(String key, SuitPresetInfo info) {
+    final isSelected = _selectedSuitKey == key;
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _selectedSuitKey = key;
+        });
+        _renderCompositeFromCutout();
+      },
+      child: Container(
+        width: 76,
+        margin: const EdgeInsets.only(right: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF0D9488).withValues(alpha: 0.25) : const Color(0xFF1E293B),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isSelected ? const Color(0xFF14B8A6) : Colors.white.withValues(alpha: 0.08),
+            width: isSelected ? 2 : 1,
+          ),
+          boxShadow: isSelected
+              ? [BoxShadow(color: const Color(0xFF14B8A6).withValues(alpha: 0.3), blurRadius: 8)]
+              : null,
+        ),
+        child: Stack(
+          children: [
+            Column(
+              children: [
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(6, 6, 6, 2),
+                    child: Image.asset(
+                      info.assetPath,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) => Icon(info.icon, color: Colors.white38, size: 28),
+                    ),
+                  ),
+                ),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 3),
+                  decoration: BoxDecoration(
+                    color: isSelected ? const Color(0xFF0D9488) : Colors.black26,
+                    borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12)),
+                  ),
+                  child: Text(
+                    info.shortLabel,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.kantumruyPro(
+                      color: isSelected ? Colors.white : Colors.white70,
+                      fontSize: 10,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (isSelected)
+              Positioned(
+                top: 4,
+                right: 4,
+                child: Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF14B8A6),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.check, size: 10, color: Colors.white),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMicroAdjustButtons() {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+          icon: const Icon(Icons.arrow_back_rounded, color: Colors.white70, size: 15),
+          onPressed: () {
+            setState(() => _suitOffsetX -= 1.0);
+            _debouncedRenderComposite();
+          },
+          tooltip: 'រំកិលឆ្វេង',
+        ),
+        IconButton(
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+          icon: const Icon(Icons.arrow_forward_rounded, color: Colors.white70, size: 15),
+          onPressed: () {
+            setState(() => _suitOffsetX += 1.0);
+            _debouncedRenderComposite();
+          },
+          tooltip: 'រំកិលស្តាំ',
+        ),
+        IconButton(
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+          icon: const Icon(Icons.arrow_upward_rounded, color: Colors.white70, size: 15),
+          onPressed: () {
+            setState(() => _suitOffsetY -= 1.0);
+            _debouncedRenderComposite();
+          },
+          tooltip: 'លើកឡើងលើ',
+        ),
+        IconButton(
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+          icon: const Icon(Icons.arrow_downward_rounded, color: Colors.white70, size: 15),
+          onPressed: () {
+            setState(() => _suitOffsetY += 1.0);
+            _debouncedRenderComposite();
+          },
+          tooltip: 'ទម្លាក់ចុះក្រោម',
+        ),
+      ],
+    );
+  }
+
+  /// -------------------------------------------------------------
+  /// TAB 1: BACKGROUND COLOR & AI CUTOUT DECK
+  /// -------------------------------------------------------------
+  Widget _buildBackgroundDeckContent() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // AI Cloud Cutout Banner Button
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => _processAiCloudRemoveBgCutout(showToast: true),
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(colors: [Color(0xFF4F46E5), Color(0xFF7C3AED)]),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(color: const Color(0xFF6366F1).withValues(alpha: 0.35), blurRadius: 8),
+                ],
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.auto_awesome, color: Colors.white, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '✨ កាត់ Background ដោយ AI (Remove.bg / Cutout.pro)',
+                          style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.bold),
+                        ),
+                        Text(
+                          'កាត់រូបស្អាត គ្មានស្នាមកកិត គុណភាពខ្ពស់',
+                          style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 10),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white70, size: 12),
+                ],
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+
+        // Color Palettes Selection
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: _presetColors.map((color) {
+            final isSelected = _selectedBgColor == color;
+            return GestureDetector(
+              onTap: () {
+                setState(() => _selectedBgColor = color);
+                _renderCompositeFromCutout();
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: color,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: isSelected ? const Color(0xFF14B8A6) : Colors.white24,
+                    width: isSelected ? 3 : 1,
+                  ),
+                  boxShadow: isSelected
+                      ? [BoxShadow(color: const Color(0xFF14B8A6).withValues(alpha: 0.5), blurRadius: 10)]
+                      : null,
+                ),
+                child: isSelected
+                    ? Icon(
+                        Icons.check_rounded,
+                        size: 22,
+                        color: color == Colors.white ? Colors.black87 : Colors.white,
+                      )
+                    : null,
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
+  /// -------------------------------------------------------------
+  /// TAB 2: PASSPORT SIZE RATIO SELECTION DECK
+  /// -------------------------------------------------------------
+  Widget _buildSizePresetDeckContent() {
+    return Row(
+      children: PassportPreset.values.map((preset) {
+        final isSelected = _selectedPreset == preset;
+        return Expanded(
+          child: GestureDetector(
+            onTap: () {
+              setState(() => _selectedPreset = preset);
+              _renderCompositeFromCutout();
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              margin: const EdgeInsets.symmetric(horizontal: 3),
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              decoration: BoxDecoration(
+                color: isSelected ? const Color(0xFF0D9488) : const Color(0xFF1E293B),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isSelected ? const Color(0xFF14B8A6) : Colors.white.withValues(alpha: 0.08),
+                  width: isSelected ? 1.5 : 1,
+                ),
+                boxShadow: isSelected
+                    ? [BoxShadow(color: const Color(0xFF0D9488).withValues(alpha: 0.35), blurRadius: 8)]
+                    : null,
+              ),
+              child: Column(
+                children: [
+                  Text(
+                    preset.label,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.kantumruyPro(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    preset.description,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.kantumruyPro(
+                      color: isSelected ? Colors.white.withValues(alpha: 0.85) : Colors.white38,
+                      fontSize: 9.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }).toList(),
     );
   }
 
@@ -1183,6 +1502,19 @@ extension PassportPresetExt on PassportPreset {
         return '2x3 cm';
       case PassportPreset.size5x5:
         return '5x5 cm';
+    }
+  }
+
+  String get description {
+    switch (this) {
+      case PassportPreset.size4x6:
+        return 'លិខិតឆ្លងដែន';
+      case PassportPreset.size3x4:
+        return 'កាតបុគ្គលិក';
+      case PassportPreset.size2x3:
+        return 'ទំហំតូច';
+      case PassportPreset.size5x5:
+        return 'ទិដ្ឋាការ 2x2';
     }
   }
 
