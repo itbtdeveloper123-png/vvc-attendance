@@ -76,7 +76,55 @@ const testGeminiKeyRealtime = async (apiKey: string): Promise<GeminiTestResult> 
     };
   }
 
-  const modelsToTry = ['gemini-3.6-flash', 'gemini-flash-latest', 'gemini-2.5-flash'];
+  // 1. Fast, non-quota-consuming metadata check via GET /v1beta/models
+  try {
+    const listUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(trimmed)}`;
+    const listRes = await fetch(listUrl, { method: 'GET' });
+    const listData = await listRes.json().catch(() => ({}));
+    const latency = Math.round(performance.now() - start);
+
+    if (listRes.ok && Array.isArray(listData?.models)) {
+      return {
+        success: true,
+        httpCode: 200,
+        status: 'active',
+        latencyMs: latency,
+        message: `ដំណើរការល្អឥតខ្ចោះ (${listData.models.length} Models)! ឆ្លើយតបក្នុង ${latency}ms`,
+        detail: 'Key is verified and authorized by Google AI Studio.',
+      };
+    }
+
+    if (listRes.status === 403) {
+      const errMsg = listData?.error?.message || 'Access Denied';
+      let customMsg = 'Google បានបិទសិទ្ធិគម្រោងនេះ (Project Denied Access)';
+      if (errMsg.toLowerCase().includes('leaked')) {
+        customMsg = 'Key ត្រូវបាន Google ចាត់ទុកជា Leaked Key';
+      }
+      return {
+        success: false,
+        httpCode: 403,
+        status: 'denied',
+        latencyMs: latency,
+        message: `${customMsg} (HTTP 403)`,
+        detail: errMsg,
+      };
+    }
+
+    if (listRes.status === 400) {
+      return {
+        success: false,
+        httpCode: 400,
+        status: 'invalid',
+        latencyMs: latency,
+        message: 'API Key មិនត្រឹមត្រូវ ឬទម្រង់ខុស (HTTP 400)',
+        detail: listData?.error?.message || 'Invalid argument',
+      };
+    }
+  } catch (_) {
+    // Network or CORS fallback to generation ping
+  }
+
+  const modelsToTry = ['gemini-3.6-flash', 'gemini-flash-latest'];
   let lastErrorData: any = null;
   let lastHttpCode = 0;
 
