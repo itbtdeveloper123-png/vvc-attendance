@@ -19,6 +19,7 @@ import {
   ShieldAlert,
 } from 'lucide-react';
 import { adminApi, DashboardSummary } from '../api/adminApi';
+import { useRealtimeSync } from '../utils/useRealtimeSync';
 
 export const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
@@ -54,11 +55,11 @@ export const DashboardPage: React.FC = () => {
     } catch {}
   };
 
-  useEffect(() => {
-    loadData();
-    const interval = setInterval(loadData, 30000);
-    return () => clearInterval(interval);
-  }, []);
+  useRealtimeSync({
+    intervalMs: 5000,
+    onSync: loadData,
+    enabled: true,
+  });
 
   const workspaceApps = [
     {

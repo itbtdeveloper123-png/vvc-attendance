@@ -650,50 +650,94 @@ function verify_gemini_key(string $apiKey): array {
         return ['success' => false, 'message' => 'សូមបញ្ចូល API Key!', 'status' => 'invalid'];
     }
 
-    $url = 'https://generativelanguage.googleapis.com/v1beta/models?key=' . urlencode($apiKey);
-    $ch = curl_init($url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 12);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Accept: application/json']);
+    $modelsToTry = ['gemini-2.5-flash', 'gemini-3.6-flash', 'gemini-1.5-flash', 'gemini-flash-latest'];
+    $lastHttpCode = 0;
+    $lastErrMsg = '';
 
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $err = curl_error($ch);
-    curl_close($ch);
+    foreach ($modelsToTry as $model) {
+        $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key=" . urlencode($apiKey);
+        $payload = json_encode(['contents' => [['parts' => [['text' => 'ping']]]]]);
 
-    if ($httpCode === 200 && !empty($response)) {
-        $data = json_decode($response, true);
-        if (isset($data['models']) && is_array($data['models'])) {
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 8);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err = curl_error($ch);
+        curl_close($ch);
+
+        $lastHttpCode = $httpCode;
+
+        if ($httpCode === 200 && !empty($response)) {
+            $data = json_decode($response, true);
+            if (isset($data['candidates'][0]['content']['parts'][0]['text'])) {
+                return [
+                    'success' => true,
+                    'message' => "Google Gemini API Key ត្រឹមត្រូវ និងដំណើរការឆ្លើយតប AI បានជោគជ័យ ($model)!",
+                    'free_calls' => 15,
+                    'credits' => 1500,
+                    'status' => 'active',
+                    'http_code' => 200
+                ];
+            }
+        }
+
+        if ($httpCode === 404) {
+            continue;
+        }
+
+        $errData = json_decode($response, true);
+        $lastErrMsg = $errData['error']['message'] ?? ($err ?: "HTTP $httpCode");
+
+        if ($httpCode === 403) {
+            $msg = (stripos($lastErrMsg, 'leaked') !== false) 
+                ? 'Key នេះត្រូវបាន Google ចាត់ទុកជា Leaked Key!' 
+                : 'Google បានបិទសិទ្ធិគម្រោងនៃ Key នេះ (403 Project Denied Access)!';
             return [
-                'success' => true,
-                'message' => 'Google Gemini API Key ត្រឹមត្រូវ និងដំណើរការល្អ!',
-                'free_calls' => 15,
-                'credits' => 1500,
-                'status' => 'active',
-                'http_code' => 200
+                'success' => false,
+                'message' => $msg . ' (' . $lastErrMsg . ')',
+                'status' => 'denied',
+                'http_code' => 403,
+                'free_calls' => 0,
+                'credits' => 0
+            ];
+        }
+
+        if ($httpCode === 429) {
+            return [
+                'success' => false,
+                'message' => 'អស់ Quota ជាបណ្ដោះអាសន្ន (429 Rate Limit Exceeded)',
+                'status' => 'rate_limit',
+                'http_code' => 429,
+                'free_calls' => 0,
+                'credits' => 0
+            ];
+        }
+
+        if ($httpCode === 400) {
+            return [
+                'success' => false,
+                'message' => 'API Key មិនត្រឹមត្រូវ (400 Invalid Argument): ' . $lastErrMsg,
+                'status' => 'invalid',
+                'http_code' => 400,
+                'free_calls' => 0,
+                'credits' => 0
             ];
         }
     }
 
-    $errMsg = 'Invalid API Key';
-    if (!empty($response)) {
-        $errData = json_decode($response, true);
-        if (isset($errData['error']['message'])) {
-            $errMsg = $errData['error']['message'];
-        }
-    } elseif ($err) {
-        $errMsg = $err;
-    }
-
-    $isExhausted = ($httpCode === 429);
     return [
         'success' => false,
-        'message' => "Gemini API Error (HTTP $httpCode): " . $errMsg,
-        'http_code' => $httpCode,
-        'free_calls' => $isExhausted ? 0 : 15,
-        'credits' => $isExhausted ? 0 : 1500,
-        'status' => $isExhausted ? 'exhausted' : 'invalid'
+        'message' => "Gemini API Error (HTTP $lastHttpCode): " . ($lastErrMsg ?: 'Unable to generate content'),
+        'http_code' => $lastHttpCode,
+        'free_calls' => 0,
+        'credits' => 0,
+        'status' => ($lastHttpCode === 403 ? 'denied' : 'invalid')
     ];
 }
 

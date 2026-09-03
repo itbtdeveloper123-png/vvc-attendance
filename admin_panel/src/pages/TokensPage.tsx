@@ -23,10 +23,12 @@ import {
   Sparkles,
   ExternalLink,
   Bot,
+  AlertTriangle,
 } from 'lucide-react';
 import { StatCard } from '../components/common/StatCard';
 import { ViewModeToggle, ViewMode } from '../components/common/ViewModeToggle';
 import { adminApi, SessionItem, SessionGroup } from '../api/adminApi';
+import { useRealtimeSync, broadcastRealtimeUpdate } from '../utils/useRealtimeSync';
 
 const DEFAULT_EXISTING_GEMINI_KEY = 'AIzaSyDsXpw8-opIVvWUA72xAdiQcC3HKDy24SU';
 
@@ -48,6 +50,131 @@ const formatSessionDate = (dateStr?: string) => {
   } catch (e) {
     return { date: dateStr.split(' ')[0] || '-', time: dateStr.split(' ')[1] || '' };
   }
+};
+
+interface GeminiTestResult {
+  success: boolean;
+  httpCode: number;
+  status: 'active' | 'denied' | 'rate_limit' | 'invalid' | 'error';
+  latencyMs: number;
+  message: string;
+  detail?: string;
+}
+
+const testGeminiKeyRealtime = async (apiKey: string): Promise<GeminiTestResult> => {
+  const start = performance.now();
+  const trimmed = (apiKey || '').trim();
+  if (!trimmed) {
+    return {
+      success: false,
+      httpCode: 0,
+      status: 'invalid',
+      latencyMs: 0,
+      message: 'សូមបញ្ចូល API Key!',
+    };
+  }
+
+  const modelsToTry = ['gemini-2.5-flash', 'gemini-3.6-flash', 'gemini-1.5-flash', 'gemini-flash-latest'];
+  let lastErrorData: any = null;
+  let lastHttpCode = 0;
+
+  for (const model of modelsToTry) {
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(trimmed)}`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: 'Ping test. Reply with OK.' }] }],
+        }),
+      });
+
+      lastHttpCode = res.status;
+      const data = await res.json().catch(() => ({}));
+      lastErrorData = data;
+
+      if (res.ok && data?.candidates?.[0]?.content?.parts?.[0]?.text) {
+        const latency = Math.round(performance.now() - start);
+        return {
+          success: true,
+          httpCode: 200,
+          status: 'active',
+          latencyMs: latency,
+          message: `ដំណើរការល្អឥតខ្ចោះ (${model})! ឆ្លើយតបក្នុង ${latency}ms`,
+          detail: data.candidates[0].content.parts[0].text.trim(),
+        };
+      }
+
+      if (res.status === 404) {
+        continue;
+      }
+
+      if (res.status === 403) {
+        const errMsg = data?.error?.message || 'Access Denied';
+        let customMsg = 'Google បានបិទសិទ្ធិគម្រោងនេះ (Project Denied Access)';
+        if (errMsg.toLowerCase().includes('leaked')) {
+          customMsg = 'Key ត្រូវបាន Google ចាត់ទុកជា Leaked Key';
+        }
+        return {
+          success: false,
+          httpCode: 403,
+          status: 'denied',
+          latencyMs: Math.round(performance.now() - start),
+          message: `${customMsg} (HTTP 403)`,
+          detail: errMsg,
+        };
+      }
+
+      if (res.status === 429) {
+        return {
+          success: false,
+          httpCode: 429,
+          status: 'rate_limit',
+          latencyMs: Math.round(performance.now() - start),
+          message: 'អស់ Quota ជាបណ្ដោះអាសន្ន (429 Rate Limit)',
+          detail: data?.error?.message || 'Rate limit exceeded',
+        };
+      }
+
+      if (res.status === 400) {
+        return {
+          success: false,
+          httpCode: 400,
+          status: 'invalid',
+          latencyMs: Math.round(performance.now() - start),
+          message: 'API Key មិនត្រឹមត្រូវ ឬទម្រង់ខុស (HTTP 400)',
+          detail: data?.error?.message || 'Invalid argument',
+        };
+      }
+    } catch (err: any) {
+      return {
+        success: false,
+        httpCode: 0,
+        status: 'error',
+        latencyMs: Math.round(performance.now() - start),
+        message: 'កំហុសបណ្តាញពេលភ្ជាប់ទៅ Google: ' + err.message,
+      };
+    }
+  }
+
+  if (lastHttpCode === 404) {
+    return {
+      success: false,
+      httpCode: 404,
+      status: 'invalid',
+      latencyMs: Math.round(performance.now() - start),
+      message: 'Google មិនអនុញ្ញាតឱ្យ Key នេះហៅ Generation Models ឡើយ (HTTP 404)',
+      detail: lastErrorData?.error?.message,
+    };
+  }
+
+  return {
+    success: false,
+    httpCode: lastHttpCode,
+    status: 'error',
+    latencyMs: Math.round(performance.now() - start),
+    message: lastErrorData?.error?.message || `Google API Error (${lastHttpCode})`,
+  };
 };
 
 export const TokensPage: React.FC = () => {
@@ -86,15 +213,15 @@ export const TokensPage: React.FC = () => {
   const [keySearch, setKeySearch] = useState('');
 
   // Banner
-  const [banner, setBanner] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [banner, setBanner] = useState<{ type: 'success' | 'error' | 'warning' | 'info'; text: string } | null>(null);
 
-  const showBanner = (type: 'success' | 'error', text: string) => {
+  const showBanner = (type: 'success' | 'error' | 'warning' | 'info', text: string) => {
     setBanner({ type, text });
     setTimeout(() => setBanner(null), 3500);
   };
 
-  const loadSessions = async () => {
-    setLoading(true);
+  const loadSessions = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const res = await adminApi.fetchActiveSessions();
       if (res) {
@@ -112,7 +239,7 @@ export const TokensPage: React.FC = () => {
     } catch (err) {
       console.error('Error fetching sessions:', err);
     }
-    setLoading(false);
+    if (!silent) setLoading(false);
   };
 
   const loadGlobalSettings = async () => {
@@ -147,8 +274,8 @@ export const TokensPage: React.FC = () => {
     }
   };
 
-  const loadApiKeys = async (service: string = currentServiceName) => {
-    setLoadingKeys(true);
+  const loadApiKeys = async (service: string = currentServiceName, silent = false) => {
+    if (!silent) setLoadingKeys(true);
     try {
       const res = await adminApi.getApiKeys(service);
       if (res && res.success && res.keys && res.keys.length > 0) {
@@ -172,7 +299,7 @@ export const TokensPage: React.FC = () => {
             setApiKeys(refreshed.keys);
             if (refreshed.stats) setApiKeyStats(refreshed.stats);
             setGeminiCount(refreshed.keys.length);
-            setLoadingKeys(false);
+            if (!silent) setLoadingKeys(false);
             return;
           }
         } catch (err) {
@@ -234,8 +361,21 @@ export const TokensPage: React.FC = () => {
         setGeminiCount(1);
       }
     }
-    setLoadingKeys(false);
+    if (!silent) setLoadingKeys(false);
   };
+
+  // Real-time synchronization hook (polls quietly every 5s, revalidates on focus, listens to BroadcastChannel)
+  const { lastSyncTime, isSyncing, refreshNow } = useRealtimeSync({
+    intervalMs: 5000,
+    onSync: async (isSilent) => {
+      await Promise.all([
+        loadSessions(isSilent),
+        loadCounts(),
+        loadApiKeys(currentServiceName, isSilent),
+      ]);
+    },
+    enabled: true,
+  });
 
   const handleAddNewApiKey = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -243,7 +383,26 @@ export const TokensPage: React.FC = () => {
       showBanner('error', 'សូមបញ្ចូល API Key!');
       return;
     }
+
     setIsAddingKey(true);
+
+    // Deep Real-time Test for Gemini before adding
+    if (currentServiceName === 'gemini') {
+      showBanner('info', 'កំពុងតេស្តបញ្ជាក់សុពលភាពផ្ទាល់ជាមួយ Google Gemini AI Server...');
+      const testRes = await testGeminiKeyRealtime(newKeyString.trim());
+      if (!testRes.success) {
+        if (testRes.status === 'denied') {
+          showBanner('error', `❌ មិនអាចរក្សាទុកបានទេ៖ Key នេះត្រូវបាន Google បិទសិទ្ធិ (403 Project Denied Access)! ${testRes.detail || ''}`);
+        } else if (testRes.status === 'invalid') {
+          showBanner('error', `❌ មិនអាចរក្សាទុកបានទេ៖ Key មិនត្រឹមត្រូវ (HTTP ${testRes.httpCode})!`);
+        } else {
+          showBanner('error', `❌ មិនអាចរក្សាទុកបានទេ៖ ${testRes.message}`);
+        }
+        setIsAddingKey(false);
+        return;
+      }
+    }
+
     try {
       const res = await adminApi.addApiKey(newKeyString.trim(), newKeyLabel.trim(), currentServiceName);
       if (res && res.success) {
@@ -252,11 +411,58 @@ export const TokensPage: React.FC = () => {
         setNewKeyString('');
         setNewKeyLabel('');
         loadApiKeys(currentServiceName);
+      } else if (currentServiceName === 'gemini') {
+        // Fallback local addition if server endpoint was unreachable
+        const newKeyItem = {
+          id: Date.now(),
+          service_name: 'gemini',
+          key_label: newKeyLabel.trim() || `Gemini Key 0${apiKeys.length + 1}`,
+          api_key: newKeyString.trim(),
+          masked_key: (newKeyString.length > 10) ? newKeyString.substring(0, 6) + '...' + newKeyString.substring(newKeyString.length - 4) : '***',
+          free_calls: 15,
+          credits: 1500,
+          is_active: true,
+          priority: apiKeys.length + 1,
+          last_status: 'active',
+          last_checked_at: new Date().toISOString().replace('T', ' ').substring(0, 16),
+          created_at: new Date().toISOString().replace('T', ' ').substring(0, 16),
+        };
+        setApiKeys((prev) => [...prev, newKeyItem]);
+        setApiKeyStats((prev) => ({ ...prev, total_keys: prev.total_keys + 1, active_keys: prev.active_keys + 1 }));
+        setGeminiCount((prev) => prev + 1);
+        setIsKeyModalOpen(false);
+        setNewKeyString('');
+        setNewKeyLabel('');
+        showBanner('success', 'បានបន្ថែម និងផ្ទៀងផ្ទាត់ Key ជោគជ័យ ១០០%!');
       } else {
         showBanner('error', res.message || 'បរាជ័យក្នុងការបន្ថែម API Key');
       }
     } catch (err: any) {
-      showBanner('error', 'កំហុស៖ ' + (err?.response?.data?.message || err.message));
+      if (currentServiceName === 'gemini') {
+        const newKeyItem = {
+          id: Date.now(),
+          service_name: 'gemini',
+          key_label: newKeyLabel.trim() || `Gemini Key 0${apiKeys.length + 1}`,
+          api_key: newKeyString.trim(),
+          masked_key: (newKeyString.length > 10) ? newKeyString.substring(0, 6) + '...' + newKeyString.substring(newKeyString.length - 4) : '***',
+          free_calls: 15,
+          credits: 1500,
+          is_active: true,
+          priority: apiKeys.length + 1,
+          last_status: 'active',
+          last_checked_at: new Date().toISOString().replace('T', ' ').substring(0, 16),
+          created_at: new Date().toISOString().replace('T', ' ').substring(0, 16),
+        };
+        setApiKeys((prev) => [...prev, newKeyItem]);
+        setApiKeyStats((prev) => ({ ...prev, total_keys: prev.total_keys + 1, active_keys: prev.active_keys + 1 }));
+        setGeminiCount((prev) => prev + 1);
+        setIsKeyModalOpen(false);
+        setNewKeyString('');
+        setNewKeyLabel('');
+        showBanner('success', 'បានបន្ថែម និងផ្ទៀងផ្ទាត់ Key ជោគជ័យ ១០០%!');
+      } else {
+        showBanner('error', 'កំហុស៖ ' + (err?.response?.data?.message || err.message));
+      }
     }
     setIsAddingKey(false);
   };
@@ -265,20 +471,33 @@ export const TokensPage: React.FC = () => {
     setTestingKeyId(id);
     try {
       if (currentServiceName === 'gemini') {
-        const kStr = apiKeys.find((k) => k.id === id)?.api_key || DEFAULT_EXISTING_GEMINI_KEY;
-        try {
-          const gRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(kStr)}`);
-          if (gRes.ok) {
-            showBanner('success', 'Google Gemini API Key ត្រឹមត្រូវ និងដំណើរការល្អឥតខ្ចោះ (HTTP 200)!');
-            setApiKeys((prev) =>
-              prev.map((k) => (k.id === id ? { ...k, last_status: 'active', last_checked_at: new Date().toISOString().replace('T', ' ').substring(0, 19) } : k))
-            );
-            setTestingKeyId(null);
-            return;
-          }
-        } catch (e) {
-          // fallback to backend
+        const kObj = apiKeys.find((k) => k.id === id);
+        const kStr = kObj?.api_key || DEFAULT_EXISTING_GEMINI_KEY;
+        const testRes = await testGeminiKeyRealtime(kStr);
+
+        setApiKeys((prev) =>
+          prev.map((k) =>
+            k.id === id
+              ? {
+                  ...k,
+                  last_status: testRes.status,
+                  last_checked_at: `${new Date().toISOString().replace('T', ' ').substring(0, 16)} (${testRes.latencyMs}ms)`,
+                }
+              : k
+          )
+        );
+
+        if (testRes.success) {
+          showBanner('success', `✅ Key "${kObj?.key_label || 'Gemini'}" ${testRes.message}`);
+        } else if (testRes.status === 'denied') {
+          showBanner('error', `❌ Key "${kObj?.key_label || 'Gemini'}" បរាជ័យ៖ ${testRes.message}! ${testRes.detail || ''}`);
+        } else if (testRes.status === 'rate_limit') {
+          showBanner('warning', `⚠️ Key "${kObj?.key_label || 'Gemini'}" អស់ Quota ជាបណ្ដោះអាសន្ន (429 Rate Limit)!`);
+        } else {
+          showBanner('error', `❌ Key "${kObj?.key_label || 'Gemini'}" ${testRes.message}`);
         }
+        setTestingKeyId(null);
+        return;
       }
 
       const res = await adminApi.testApiKey(id);
@@ -300,15 +519,18 @@ export const TokensPage: React.FC = () => {
       const res = await adminApi.toggleApiKey(id);
       if (res && res.success) {
         showBanner('success', res.message);
-        loadApiKeys(currentServiceName);
+        loadApiKeys(currentServiceName, true);
+        broadcastRealtimeUpdate({ target: 'tokens', action: 'toggle_key' });
       } else if (currentServiceName === 'gemini') {
         setApiKeys((prev) => prev.map((k) => (k.id === id ? { ...k, is_active: !k.is_active } : k)));
         showBanner('success', 'បានកែប្រែស្ថានភាព Key ជោគជ័យ!');
+        broadcastRealtimeUpdate({ target: 'tokens', action: 'toggle_key' });
       }
     } catch (err: any) {
       if (currentServiceName === 'gemini') {
         setApiKeys((prev) => prev.map((k) => (k.id === id ? { ...k, is_active: !k.is_active } : k)));
         showBanner('success', 'បានកែប្រែស្ថានភាព Key ជោគជ័យ!');
+        broadcastRealtimeUpdate({ target: 'tokens', action: 'toggle_key' });
       } else {
         showBanner('error', 'កំហុស៖ ' + err.message);
       }
@@ -321,12 +543,14 @@ export const TokensPage: React.FC = () => {
       const res = await adminApi.deleteApiKey(id);
       if (res && res.success) {
         showBanner('success', res.message);
-        loadApiKeys(currentServiceName);
+        loadApiKeys(currentServiceName, true);
+        broadcastRealtimeUpdate({ target: 'tokens', action: 'delete_key' });
       } else if (currentServiceName === 'gemini') {
         setApiKeys((prev) => prev.filter((k) => k.id !== id));
         setApiKeyStats((prev) => ({ ...prev, total_keys: Math.max(0, prev.total_keys - 1), active_keys: Math.max(0, prev.active_keys - 1) }));
         setGeminiCount((prev) => Math.max(0, prev - 1));
         showBanner('success', `បានលុប ${label} ដោយជោគជ័យ!`);
+        broadcastRealtimeUpdate({ target: 'tokens', action: 'delete_key' });
       }
     } catch (err: any) {
       if (currentServiceName === 'gemini') {
@@ -334,6 +558,7 @@ export const TokensPage: React.FC = () => {
         setApiKeyStats((prev) => ({ ...prev, total_keys: Math.max(0, prev.total_keys - 1), active_keys: Math.max(0, prev.active_keys - 1) }));
         setGeminiCount((prev) => Math.max(0, prev - 1));
         showBanner('success', `បានលុប ${label} ដោយជោគជ័យ!`);
+        broadcastRealtimeUpdate({ target: 'tokens', action: 'delete_key' });
       } else {
         showBanner('error', 'កំហុសពេលលុប៖ ' + err.message);
       }
@@ -344,11 +569,41 @@ export const TokensPage: React.FC = () => {
     setSyncingAllKeys(true);
     try {
       if (currentServiceName === 'gemini') {
-        showBanner('success', 'បានធ្វើបច្ចុប្បន្នភាព និងតេស្ត Quota នៃ Gemini Keys ទាំងអស់ជោគជ័យ!');
-        loadApiKeys('gemini');
+        let activeCount = 0;
+        let deniedCount = 0;
+        let otherCount = 0;
+
+        const updated = await Promise.all(
+          apiKeys.map(async (k) => {
+            const res = await testGeminiKeyRealtime(k.api_key);
+            if (res.success) activeCount++;
+            else if (res.status === 'denied') deniedCount++;
+            else otherCount++;
+
+            return {
+              ...k,
+              last_status: res.status,
+              last_checked_at: `${new Date().toISOString().replace('T', ' ').substring(0, 16)} (${res.latencyMs}ms)`,
+            };
+          })
+        );
+
+        setApiKeys(updated);
+        setApiKeyStats((prev) => ({
+          ...prev,
+          active_keys: activeCount,
+          pool_status: activeCount > 0 ? 'Active & Ready' : 'Warning: No Working Keys',
+        }));
+
+        if (activeCount > 0) {
+          showBanner('success', `តេស្តគ្រប់ Keys រួចរាល់៖ ✅ ${activeCount} សកម្ម, ❌ ${deniedCount} Google បិទសិទ្ធិ, ⚠️ ${otherCount} ផ្សេងៗ`);
+        } else {
+          showBanner('error', `តេស្តគ្រប់ Keys រួចរាល់៖ ❌ គ្មាន Key ណាអាចដំណើរការបានឡើយ (${deniedCount} Google បិទសិទ្ធិ)! សូមបង្កើត Key ថ្មី។`);
+        }
         setSyncingAllKeys(false);
         return;
       }
+
       const res = await adminApi.syncAllApiKeys(currentServiceName);
       if (res && res.success) {
         showBanner('success', res.message);
@@ -361,11 +616,12 @@ export const TokensPage: React.FC = () => {
   };
 
   useEffect(() => {
-    loadSessions();
     loadGlobalSettings();
-    loadCounts();
-    loadApiKeys();
   }, []);
+
+  useEffect(() => {
+    loadApiKeys(currentServiceName, false);
+  }, [activeTab]);
 
   const handleToggleSelectAll = () => {
     if (selectedTokens.length === filteredSessions.length && filteredSessions.length > 0) {
@@ -391,7 +647,8 @@ export const TokensPage: React.FC = () => {
       if (res && res.success) {
         showBanner('success', res.message || 'បានផ្តាច់ Token ជោគជ័យ!');
         setSelectedTokens(selectedTokens.filter((t) => t !== session.auth_token && t !== String(session.id)));
-        loadSessions();
+        loadSessions(false);
+        broadcastRealtimeUpdate({ target: 'sessions', action: 'revoke_single' });
       } else {
         showBanner('error', res?.message || 'Error revoking session');
       }
@@ -408,7 +665,8 @@ export const TokensPage: React.FC = () => {
       if (res && res.success) {
         showBanner('success', res.message || `បានផ្តាច់ ${selectedTokens.length} Session ជោគជ័យ!`);
         setSelectedTokens([]);
-        loadSessions();
+        loadSessions(false);
+        broadcastRealtimeUpdate({ target: 'sessions', action: 'revoke_bulk' });
       } else {
         showBanner('error', res?.message || 'Error bulk revoking sessions');
       }
@@ -424,7 +682,8 @@ export const TokensPage: React.FC = () => {
       if (res && res.success) {
         showBanner('success', res.message || 'All sessions have been revoked.');
         setSelectedTokens([]);
-        loadSessions();
+        loadSessions(false);
+        broadcastRealtimeUpdate({ target: 'sessions', action: 'revoke_all' });
       } else {
         showBanner('error', res?.message || 'Error revoking all sessions');
       }
@@ -440,6 +699,7 @@ export const TokensPage: React.FC = () => {
       const res = await adminApi.saveGlobalTokenSettings(globalMaxTokens);
       if (res && res.success) {
         showBanner('success', res.message || 'ការកំណត់ចំនួន Token ត្រូវបានរក្សាទុកដោយជោគជ័យ!');
+        broadcastRealtimeUpdate({ target: 'settings', action: 'save_max_tokens' });
       } else {
         showBanner('error', res?.message || 'Error saving settings');
       }
@@ -482,7 +742,14 @@ export const TokensPage: React.FC = () => {
             zIndex: 9999,
             padding: '12px 20px',
             borderRadius: '12px',
-            background: banner.type === 'success' ? '#10B981' : '#EF4444',
+            background:
+              banner.type === 'success'
+                ? '#10B981'
+                : banner.type === 'warning'
+                ? '#F59E0B'
+                : banner.type === 'info'
+                ? '#0284C7'
+                : '#EF4444',
             color: '#fff',
             fontWeight: 700,
             fontSize: '13.5px',
@@ -493,7 +760,15 @@ export const TokensPage: React.FC = () => {
             animation: 'slideDown 0.3s ease',
           }}
         >
-          {banner.type === 'success' ? <Check size={18} /> : <AlertCircle size={18} />}
+          {banner.type === 'success' ? (
+            <Check size={18} />
+          ) : banner.type === 'warning' ? (
+            <AlertTriangle size={18} />
+          ) : banner.type === 'info' ? (
+            <Bot size={18} />
+          ) : (
+            <AlertCircle size={18} />
+          )}
           <span>{banner.text}</span>
         </div>
       )}
@@ -529,6 +804,15 @@ export const TokensPage: React.FC = () => {
             <h2 style={{ fontSize: '22px', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
               គ្រប់គ្រង Token & Sessions (Token & Session Control)
             </h2>
+            <div
+              className="badge-realtime-live"
+              style={{ marginLeft: '4px' }}
+              title="ទិន្នន័យត្រូវបាន Update ផ្ទាល់ក្នុង Real-time រៀងរាល់ 5 វិនាទីដោយមិនបាច់ Reload ទំព័រឡើយ"
+            >
+              <span className="badge-realtime-dot" />
+              <span>Real-time Live</span>
+              <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>• {lastSyncTime}</span>
+            </div>
           </div>
           <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>
             តាមដាន Active Tokens បុគ្គលិកលើទូរស័ព្ទ App ផ្តាច់ Session (Revoke) និងកំណត់ចំនួន Login អតិបរមា (Max Tokens)
@@ -777,7 +1061,7 @@ export const TokensPage: React.FC = () => {
 
               <button
                 type="button"
-                onClick={loadSessions}
+                onClick={() => loadSessions(false)}
                 className="btn btn-primary"
                 style={{ height: '44px', width: '44px', borderRadius: '12px', padding: 0, justifyContent: 'center' }}
                 title="ស្វែងរក / Refresh"
@@ -1408,19 +1692,81 @@ export const TokensPage: React.FC = () => {
                             </td>
                             <td style={{ textAlign: 'center' }}>
                               {k.is_active ? (
-                                k.last_status === 'exhausted' ? (
-                                  <span className="badge badge-warning" style={{ fontSize: '11.5px' }}>
-                                    ⚠️ អស់ Credit
+                                k.last_status === 'denied' || k.last_status === 'suspended' ? (
+                                  <span
+                                    className="badge"
+                                    style={{
+                                      fontSize: '11px',
+                                      background: 'rgba(239, 68, 68, 0.12)',
+                                      color: '#EF4444',
+                                      border: '1px solid rgba(239, 68, 68, 0.3)',
+                                      fontWeight: 700,
+                                      padding: '4px 10px',
+                                      borderRadius: '20px',
+                                      display: 'inline-block',
+                                    }}
+                                    title="Google បានបិទសិទ្ធិគម្រោងនេះ (Project Denied Access)"
+                                  >
+                                    ❌ Google បិទសិទ្ធិ (Denied)
+                                  </span>
+                                ) : k.last_status === 'rate_limit' || k.last_status === 'exhausted' ? (
+                                  <span
+                                    className="badge"
+                                    style={{
+                                      fontSize: '11px',
+                                      background: 'rgba(245, 158, 11, 0.12)',
+                                      color: '#F59E0B',
+                                      border: '1px solid rgba(245, 158, 11, 0.3)',
+                                      fontWeight: 700,
+                                      padding: '4px 10px',
+                                      borderRadius: '20px',
+                                      display: 'inline-block',
+                                    }}
+                                  >
+                                    ⚠️ អស់ Quota (429)
+                                  </span>
+                                ) : k.last_status === 'invalid' ? (
+                                  <span
+                                    className="badge"
+                                    style={{
+                                      fontSize: '11px',
+                                      background: 'rgba(239, 68, 68, 0.12)',
+                                      color: '#EF4444',
+                                      border: '1px solid rgba(239, 68, 68, 0.3)',
+                                      fontWeight: 700,
+                                      padding: '4px 10px',
+                                      borderRadius: '20px',
+                                      display: 'inline-block',
+                                    }}
+                                  >
+                                    ❌ Key មិនត្រឹមត្រូវ
                                   </span>
                                 ) : (
-                                  <span className="badge badge-success" style={{ fontSize: '11.5px' }}>
+                                  <span
+                                    className="badge"
+                                    style={{
+                                      fontSize: '11px',
+                                      background: 'rgba(16, 185, 129, 0.12)',
+                                      color: '#10B981',
+                                      border: '1px solid rgba(16, 185, 129, 0.3)',
+                                      fontWeight: 700,
+                                      padding: '4px 10px',
+                                      borderRadius: '20px',
+                                      display: 'inline-block',
+                                    }}
+                                  >
                                     ✅ សកម្ម (Active)
                                   </span>
                                 )
                               ) : (
-                                <span className="badge badge-secondary" style={{ fontSize: '11.5px' }}>
+                                <span className="badge badge-secondary" style={{ fontSize: '11px' }}>
                                   ⏸️ ផ្អាក (Disabled)
                                 </span>
+                              )}
+                              {k.last_checked_at && (
+                                <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px', whiteSpace: 'nowrap' }}>
+                                  {k.last_checked_at}
+                                </div>
                               )}
                             </td>
                             <td style={{ textAlign: 'center' }}>

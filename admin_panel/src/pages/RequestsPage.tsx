@@ -17,6 +17,7 @@ import { StatusBadge } from '../components/common/StatusBadge';
 import { Modal } from '../components/common/Modal';
 import { ViewModeToggle, ViewMode } from '../components/common/ViewModeToggle';
 import { adminApi, RequestItem } from '../api/adminApi';
+import { useRealtimeSync, broadcastRealtimeUpdate } from '../utils/useRealtimeSync';
 
 export const RequestsPage: React.FC = () => {
   const [requests, setRequests] = useState<RequestItem[]>([]);
@@ -48,8 +49,8 @@ export const RequestsPage: React.FC = () => {
     comment: '',
   });
 
-  const loadRequests = async () => {
-    setLoading(true);
+  const loadRequests = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const data = await adminApi.fetchRequests(statusFilter !== 'all' ? statusFilter : undefined);
       if (data && data.success && Array.isArray(data.requests)) {
@@ -58,11 +59,17 @@ export const RequestsPage: React.FC = () => {
     } catch (err) {
       console.error('Error loading requests:', err);
     }
-    setLoading(false);
+    if (!silent) setLoading(false);
   };
 
+  useRealtimeSync({
+    intervalMs: 5000,
+    onSync: (isSilent) => loadRequests(isSilent),
+    enabled: true,
+  });
+
   useEffect(() => {
-    loadRequests();
+    loadRequests(false);
   }, [statusFilter]);
 
   const filteredRequests = requests.filter((r) => {
@@ -88,7 +95,8 @@ export const RequestsPage: React.FC = () => {
     if (!actionModal.item) return;
     try {
       await adminApi.updateRequestStatus(actionModal.item.id, actionModal.type, actionModal.comment);
-      loadRequests();
+      loadRequests(false);
+      broadcastRealtimeUpdate({ target: 'requests', action: 'update_status' });
     } catch (err) {
       alert('កំហុសក្នុងការកែប្រែស្ថានភាពសំណើរ');
     }
@@ -99,7 +107,8 @@ export const RequestsPage: React.FC = () => {
     if (window.confirm('តើអ្នកពិតជាចង់លុបសំណើរនេះមែនទេ?')) {
       try {
         await adminApi.deleteRequest(id);
-        loadRequests();
+        loadRequests(false);
+        broadcastRealtimeUpdate({ target: 'requests', action: 'delete_request' });
       } catch (err) {
         alert('កំហុសក្នុងការលុបសំណើរ');
       }
@@ -125,7 +134,8 @@ export const RequestsPage: React.FC = () => {
         return_date: '',
         reason: '',
       });
-      loadRequests();
+      loadRequests(false);
+      broadcastRealtimeUpdate({ target: 'requests', action: 'create_request' });
     } catch (err) {
       alert('កំហុសក្នុងការបង្កើតសំណើរ');
     }
@@ -322,7 +332,7 @@ export const RequestsPage: React.FC = () => {
             />
           </div>
 
-          <button onClick={loadRequests} className="btn btn-secondary btn-sm" title="ផ្ទុកឡើងវិញ">
+          <button onClick={() => loadRequests(false)} className="btn btn-secondary btn-sm" title="ផ្ទុកឡើងវិញ">
             <RotateCw size={14} className={loading ? 'fa-spin' : ''} />
             <span>Refresh</span>
           </button>

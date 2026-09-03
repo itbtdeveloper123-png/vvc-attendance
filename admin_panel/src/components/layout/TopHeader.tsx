@@ -63,6 +63,15 @@ export const TopHeader: React.FC<TopHeaderProps> = ({ title }) => {
 
       {/* Right Actions: Theme Toggle & Logout */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        {/* Real-time Live Indicator */}
+        <div
+          className="badge-realtime-live"
+          title="ប្រព័ន្ធធ្វើបច្ចុប្បន្នភាពទិន្នន័យដោយស្វ័យប្រវត្តក្នុង Real-time ដោយមិនបាច់ Reload Page"
+        >
+          <span className="badge-realtime-dot" />
+          <span>Real-time</span>
+        </div>
+
         <button
           onClick={toggleTheme}
           className="btn btn-secondary btn-sm"
