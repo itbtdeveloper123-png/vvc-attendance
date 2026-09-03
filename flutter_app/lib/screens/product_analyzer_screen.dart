@@ -49,18 +49,37 @@ class ProductAnalysis {
       return [];
     }
 
+    final pName = json['product_name']?.toString() ?? 'មិនស្គាល់';
+    final bName = json['brand']?.toString() ?? '—';
+    final cName = json['category']?.toString() ?? '—';
+
+    String rawSum = (json['summary']?.toString() ?? '').trim();
+    if (rawSum.startsWith('{') ||
+        rawSum.startsWith('[') ||
+        rawSum.contains('"product_name"') ||
+        rawSum.contains('":')) {
+      final brandStr = (bName.isNotEmpty && bName != '—' && bName != 'មិនបានរកឃើញ')
+          ? ' ម៉ាក $bName'
+          : '';
+      final catStr = (cName.isNotEmpty && cName != '—' && cName != 'ទូទៅ' && cName != 'មិនបានរកឃើញ')
+          ? ' ស្ថិតក្នុងជំពូក $cName'
+          : '';
+      rawSum =
+          'ព័ត៌មានលម្អិតអំពីផលិតផល $pName$brandStr$catStr ត្រូវបានវិភាគដោយ AI ជាមួយការណែនាំ និងអត្ថប្រយោជន៍។';
+    }
+
     return ProductAnalysis(
-      productName: json['product_name']?.toString() ?? 'មិនស្គាល់',
-      brand: json['brand']?.toString() ?? '—',
+      productName: pName,
+      brand: bName,
       countryOfOrigin: json['country_of_origin']?.toString() ?? '—',
       countryFlagEmoji: json['country_flag_emoji']?.toString() ?? '🌍',
-      category: json['category']?.toString() ?? '—',
+      category: cName,
       usage: listFromValue(json['usage']),
       benefits: listFromValue(json['benefits']),
       warnings: listFromValue(json['warnings']),
       ingredientsSummary: json['ingredients_summary']?.toString() ?? '—',
       priceRangeUsd: json['price_range_usd']?.toString() ?? '—',
-      summary: json['summary']?.toString() ?? '',
+      summary: rawSum,
       raw: json['raw']?.toString(),
     );
   }
@@ -1455,21 +1474,43 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
                 ),
             ],
           ),
-          if (r.summary.isNotEmpty) ...[
+          if (r.summary.isNotEmpty &&
+              !r.summary.trim().startsWith('{') &&
+              !r.summary.contains('"product_name"') &&
+              !r.summary.contains('":')) ...[
             const SizedBox(height: 14),
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.05),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                r.summary,
-                style: GoogleFonts.kantumruyPro(
-                  color: AppTheme.textSecondary,
-                  fontSize: 12,
-                  height: 1.6,
+                color: const Color(0xFF7C3AED).withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: const Color(0xFF7C3AED).withValues(alpha: 0.2),
                 ),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.only(top: 2),
+                    child: Icon(
+                      Icons.auto_awesome_rounded,
+                      size: 15,
+                      color: Color(0xFFA78BFA),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      r.summary,
+                      style: GoogleFonts.kantumruyPro(
+                        color: const Color(0xFFE2E8F0),
+                        fontSize: 12.5,
+                        height: 1.5,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],

@@ -107,7 +107,12 @@ const testGeminiKeyRealtime = async (apiKey: string): Promise<GeminiTestResult> 
         };
       }
 
-      if (res.status === 404) {
+      if (res.status === 404 || res.status === 503) {
+        continue;
+      }
+
+      const errMsg = data?.error?.message || '';
+      if (errMsg.toLowerCase().includes('model') && (errMsg.toLowerCase().includes('not available') || errMsg.toLowerCase().includes('not supported') || errMsg.toLowerCase().includes('not found'))) {
         continue;
       }
 

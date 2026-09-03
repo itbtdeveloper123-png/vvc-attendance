@@ -705,12 +705,17 @@ function verify_gemini_key(string $apiKey): array {
             }
         }
 
-        if ($httpCode === 404) {
+        if ($httpCode === 404 || $httpCode === 503) {
             continue;
         }
 
         $errData = json_decode($response, true);
         $lastErrMsg = $errData['error']['message'] ?? ($err ?: "HTTP $httpCode");
+
+        // If error is about model unavailability or deprecation, try next model
+        if (stripos($lastErrMsg, 'model') !== false && (stripos($lastErrMsg, 'not available') !== false || stripos($lastErrMsg, 'not supported') !== false || stripos($lastErrMsg, 'not found') !== false)) {
+            continue;
+        }
 
         if ($httpCode === 403) {
             $msg = (stripos($lastErrMsg, 'leaked') !== false) 

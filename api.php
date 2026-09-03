@@ -1306,7 +1306,7 @@ function product_ai_fallback_parse_text($content) {
         'warnings' => !empty($warnings) ? array_slice($warnings, 0, 3) : ['រក្សាទុកនៅកន្លែងស្ងួត និងត្រជាក់'],
         'ingredients_summary' => $ingredientsSummary,
         'price_range_usd' => $priceRange,
-        'summary' => $cleaned,
+        'summary' => "ផលិតផល {$productName}" . ($brand !== '—' && $brand !== 'មិនបានរកឃើញ' ? " (ម៉ាក {$brand})" : "") . ($category !== 'ទូទៅ' && $category !== 'មិនបានរកឃើញ' ? " ប្រភេទ {$category}" : "") . " ត្រូវបានវិភាគដោយ AI ជាមួយការណែនាំ និងអត្ថប្រយោជន៍។",
     ];
 }
 
@@ -7321,6 +7321,16 @@ try {
         }
         if (product_ai_is_placeholder_string((string)($bestJson['country_flag_emoji'] ?? ''))) {
             $bestJson['country_flag_emoji'] = '🌍';
+        }
+
+        $rawSum = trim((string)($bestJson['summary'] ?? ''));
+        if ($rawSum === '' || strpos($rawSum, '{') !== false || strpos($rawSum, '"product_name"') !== false || strpos($rawSum, '":') !== false) {
+            $pName = $bestJson['product_name'] ?? 'ផលិតផល';
+            $pBrand = $bestJson['brand'] ?? '';
+            $pCat = $bestJson['category'] ?? '';
+            $brandPart = ($pBrand !== 'មិនបានរកឃើញ' && $pBrand !== '—') ? " ម៉ាក {$pBrand}" : "";
+            $catPart = ($pCat !== 'ទូទៅ' && $pCat !== 'មិនបានរកឃើញ') ? " ស្ថិតក្នុងជំពូក {$pCat}" : "";
+            $bestJson['summary'] = "ផលិតផល {$pName}{$brandPart}{$catPart} ត្រូវបានវិភាគដោយ AI ជាមួយព័ត៌មានលម្អិត និងការណែនាំសុវត្ថិភាព។";
         }
         foreach (['usage','benefits','warnings'] as $k) {
             $cleanList = [];
