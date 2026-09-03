@@ -529,17 +529,10 @@ export const TokensPage: React.FC = () => {
         const kStr = kObj?.api_key || DEFAULT_EXISTING_GEMINI_KEY;
         const testRes = await testGeminiKeyRealtime(kStr);
 
-        setApiKeys((prev) =>
-          prev.map((k) =>
-            k.id === id
-              ? {
-                  ...k,
-                  last_status: testRes.status,
-                  last_checked_at: `${new Date().toISOString().replace('T', ' ').substring(0, 16)} (${testRes.latencyMs}ms)`,
-                }
-              : k
-          )
-        );
+        // Persist verified status directly into the database
+        try {
+          await adminApi.testApiKey(id);
+        } catch (_) {}
 
         if (testRes.success) {
           showBanner('success', `✅ Key "${kObj?.key_label || 'Gemini'}" ${testRes.message}`);
@@ -550,6 +543,9 @@ export const TokensPage: React.FC = () => {
         } else {
           showBanner('error', `❌ Key "${kObj?.key_label || 'Gemini'}" ${testRes.message}`);
         }
+
+        // Reload fresh from backend database
+        await loadApiKeys(currentServiceName, true);
         setTestingKeyId(null);
         return;
       }
