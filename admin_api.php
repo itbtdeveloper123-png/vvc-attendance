@@ -400,6 +400,17 @@ function ensure_api_keys_table(): void {
     if (empty($countCutout) || (int)($countCutout[0]['c'] ?? 0) === 0) {
         dbQuery("INSERT IGNORE INTO admin_api_keys (service_name, key_label, api_key, free_calls, credits, priority, is_active, last_status, last_checked_at) VALUES ('cutout_pro', 'Key 01 (Cutout.pro Official)', 'd622632ed02e418199c8f41aef263541', 5, 5, 1, 1, 'active', NOW())");
     }
+
+    // Pre-seed Google Gemini AI key from .env / config if available
+    $countGemini = dbQuery("SELECT COUNT(*) as c FROM admin_api_keys WHERE service_name = 'gemini'");
+    if (empty($countGemini) || (int)($countGemini[0]['c'] ?? 0) === 0) {
+        $envGemini = trim((string)(defined('GEMINI_API_KEY') ? GEMINI_API_KEY : (getenv('GEMINI_API_KEY') ?: '')));
+        if (!empty($envGemini) && strpos($envGemini, 'your_') === false) {
+            dbQuery("INSERT IGNORE INTO admin_api_keys (service_name, key_label, api_key, free_calls, credits, priority, is_active, last_status, last_checked_at) VALUES ('gemini', 'Key 01 (Primary Gemini)', ?, 15, 1500, 1, 1, 'active', NOW())", [
+                $envGemini
+            ]);
+        }
+    }
 }
 
 function verify_remove_bg_key(string $apiKey): array {
@@ -633,11 +644,80 @@ function verify_cutout_pro_key(string $apiKey): array {
     ];
 }
 
+function verify_gemini_key(string $apiKey): array {
+    $apiKey = trim($apiKey);
+    if (empty($apiKey)) {
+        return ['success' => false, 'message' => 'សូមបញ្ចូល API Key!', 'status' => 'invalid'];
+    }
+
+    $url = 'https://generativelanguage.googleapis.com/v1beta/models?key=' . urlencode($apiKey);
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 12);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Accept: application/json']);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $err = curl_error($ch);
+    curl_close($ch);
+
+    if ($httpCode === 200 && !empty($response)) {
+        $data = json_decode($response, true);
+        if (isset($data['models']) && is_array($data['models'])) {
+            return [
+                'success' => true,
+                'message' => 'Google Gemini API Key ត្រឹមត្រូវ និងដំណើរការល្អ!',
+                'free_calls' => 15,
+                'credits' => 1500,
+                'status' => 'active',
+                'http_code' => 200
+            ];
+        }
+    }
+
+    $errMsg = 'Invalid API Key';
+    if (!empty($response)) {
+        $errData = json_decode($response, true);
+        if (isset($errData['error']['message'])) {
+            $errMsg = $errData['error']['message'];
+        }
+    } elseif ($err) {
+        $errMsg = $err;
+    }
+
+    $isExhausted = ($httpCode === 429);
+    return [
+        'success' => false,
+        'message' => "Gemini API Error (HTTP $httpCode): " . $errMsg,
+        'http_code' => $httpCode,
+        'free_calls' => $isExhausted ? 0 : 15,
+        'credits' => $isExhausted ? 0 : 1500,
+        'status' => $isExhausted ? 'exhausted' : 'invalid'
+    ];
+}
+
 function verify_api_key_universal(string $service, string $apiKey): array {
     if ($service === 'cutout_pro') {
         return verify_cutout_pro_key($apiKey);
     }
+    if ($service === 'gemini') {
+        return verify_gemini_key($apiKey);
+    }
     return verify_remove_bg_key($apiKey);
+}
+
+function get_active_gemini_key(): string {
+    ensure_api_keys_table();
+    $rows = dbQuery("SELECT api_key FROM admin_api_keys WHERE service_name = 'gemini' AND is_active = 1 ORDER BY priority ASC, id ASC LIMIT 1");
+    if (!empty($rows) && !empty($rows[0]['api_key'])) {
+        return trim((string)$rows[0]['api_key']);
+    }
+    $sys = dbQuery("SELECT setting_value FROM system_settings WHERE setting_key = 'gemini_api_key' LIMIT 1");
+    if (!empty($sys) && !empty($sys[0]['setting_value'])) {
+        return trim((string)$sys[0]['setting_value']);
+    }
+    return trim((string)(defined('GEMINI_API_KEY') ? GEMINI_API_KEY : (getenv('GEMINI_API_KEY') ?: '')));
 }
 
 /**
@@ -1399,8 +1479,8 @@ try {
                 sendJson(['success' => false, 'message' => 'API Key មិនត្រឹមត្រូវឡើយ៖ ' . ($verify['message'] ?? 'Invalid Key')], 400);
             }
 
-            $freeCalls = $verify['free_calls'] ?? ($service === 'cutout_pro' ? 5 : 50);
-            $credits = $verify['credits'] ?? ($service === 'cutout_pro' ? 5 : 1);
+            $freeCalls = $verify['free_calls'] ?? ($service === 'cutout_pro' ? 5 : ($service === 'gemini' ? 15 : 50));
+            $credits = $verify['credits'] ?? ($service === 'cutout_pro' ? 5 : ($service === 'gemini' ? 1500 : 1));
             $status = $verify['status'] ?? 'active';
 
             $priorityCount = dbQuery("SELECT MAX(priority) as max_p FROM admin_api_keys WHERE service_name = ?", [$service]);
@@ -1409,6 +1489,10 @@ try {
             dbQuery("INSERT INTO admin_api_keys (service_name, key_label, api_key, free_calls, credits, is_active, priority, last_status, last_checked_at) VALUES (?, ?, ?, ?, ?, 1, ?, ?, NOW())", [
                 $service, $label, $apiKey, $freeCalls, $credits, $priority, $status
             ]);
+
+            if ($service === 'gemini') {
+                dbQuery("INSERT INTO system_settings (setting_key, setting_value) VALUES ('gemini_api_key', ?) ON DUPLICATE KEY UPDATE setting_value = ?", [$apiKey, $apiKey]);
+            }
 
             sendJson([
                 'success' => true,

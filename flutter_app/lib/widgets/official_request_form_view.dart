@@ -20,13 +20,15 @@ class OfficialRequestFormView extends StatelessWidget {
   });
 
   static const Color _goldColor = Color(0xFFC59B27);
-  static const Color _greenSelected = Color(0xFF10B981);
+  static const Color _greenSelected = Color(0xFF059669);
+  static const Color _greenSelectedBorder = Color(0xFF047857);
   static const double _fontSizeLabel = 10.0;
   static const double _fontSizeValue = 10.5;
 
   @override
   Widget build(BuildContext context) {
-    final requestType = (item['request_type'] ?? '').toString();
+    final rawType = (item['request_type'] ?? item['type'] ?? '').toString().trim().toLowerCase();
+    final rawReason = (item['reason'] ?? item['leave_reason'] ?? item['ot_reason'] ?? '').toString().trim().toLowerCase();
 
     final List<String> types = [
       'សម្រាកប្រចាំឆ្នាំ (Annual Leave)',
@@ -41,32 +43,128 @@ class OfficialRequestFormView extends StatelessWidget {
     ];
 
     bool isTypeSelected(String typeLabel) {
-      final req = requestType.toLowerCase().trim();
-      if (req.isEmpty) return false;
+      final label = typeLabel.toLowerCase();
 
-      if (req.contains('leave') || req.contains('ច្បាប់') || req.contains('សម្រាក')) {
-        if (req.contains('annual') || req.contains('ប្រចាំឆ្នាំ')) return typeLabel.contains('Annual Leave');
-        if (req.contains('sick') || req.contains('ជំងឺ')) return typeLabel.contains('Sick Leave');
-        if (req.contains('maternity') || req.contains('បុត្រភាព') || req.contains('មាតុភាព')) return typeLabel.contains('Maternity Leave');
-        if (req.contains('special') || req.contains('ពិសេស')) return typeLabel.contains('Special Leave');
+      // 1. OT / Overtime (ថែមម៉ោង)
+      if (label.contains('ot') || label.contains('ថែមម៉ោង')) {
+        if (rawType.contains('overtime') ||
+            rawType.contains('ot') ||
+            rawType.contains('ថែម') ||
+            rawReason.contains('overtime') ||
+            rawReason.contains('ot') ||
+            rawReason.contains('ថែមម៉ោង')) {
+          return true;
+        }
+        if (rawType.isEmpty &&
+            (item['time_in'] != null && item['time_in'].toString().isNotEmpty && item['time_in'] != 'N/A') &&
+            (item['number_of_days'] == null || item['number_of_days'].toString() == '0')) {
+          return true;
+        }
+        return false;
       }
-      if (req.contains('forgot') || req.contains('ស្កេន') || req.contains('មេដៃ') || req.contains('fp')) {
-        return typeLabel.contains('Forgot FP');
+
+      // 2. Forgot FP / Scan (ភ្លេចស្កេនមេដៃ)
+      if (label.contains('forgot') || label.contains('ស្កេន') || label.contains('មេដៃ')) {
+        if (rawType.contains('forget') ||
+            rawType.contains('forgot') ||
+            rawType.contains('scan') ||
+            rawType.contains('fp') ||
+            rawType.contains('ស្កេន') ||
+            rawType.contains('មេដៃ') ||
+            rawReason.contains('ភ្លេច') ||
+            (item['forgot_scan_in'] != null && item['forgot_scan_in'].toString().toLowerCase() == 'yes') ||
+            (item['forgot_scan_out'] != null && item['forgot_scan_out'].toString().toLowerCase() == 'yes')) {
+          return true;
+        }
+        return false;
       }
-      if (req.contains('ot') || req.contains('ថែមម៉ោង')) {
-        return typeLabel.contains('OT');
+
+      // 3. Late (មកយឺត)
+      if (label.contains('late') || label.contains('យឺត')) {
+        if (rawType.contains('late') ||
+            rawType.contains('យឺត') ||
+            rawReason.contains('មកយឺត') ||
+            rawReason.contains('យឺត') ||
+            (item['late_hours'] != null &&
+                item['late_hours'].toString().isNotEmpty &&
+                item['late_hours'].toString() != '0' &&
+                item['late_hours'].toString() != 'N/A')) {
+          return true;
+        }
+        return false;
       }
-      if (req.contains('early') || req.contains('ចេញមុន')) {
-        return typeLabel.contains('Early');
+
+      // 4. Early (ចេញមុនម៉ោង)
+      if (label.contains('early') || label.contains('ចេញមុន')) {
+        if (rawType.contains('early') ||
+            rawType.contains('ចេញមុន') ||
+            rawReason.contains('ចេញមុន')) {
+          return true;
+        }
+        return false;
       }
-      if (req.contains('late') || req.contains('យឺត')) {
-        return typeLabel.contains('Late');
+
+      // 5. Changing day off (ប្តូរថ្ងៃសម្រាក)
+      if (label.contains('changing') || label.contains('ប្តូរ')) {
+        if (rawType.contains('change') ||
+            rawType.contains('ប្តូរ') ||
+            rawReason.contains('ប្តូរវេន') ||
+            rawReason.contains('ប្តូរថ្ងៃ') ||
+            (item['repay_time_in'] != null &&
+                item['repay_time_in'].toString().isNotEmpty &&
+                item['repay_time_in'] != 'N/A')) {
+          return true;
+        }
+        return false;
       }
-      if (req.contains('change') || req.contains('ប្តូរ')) {
-        return typeLabel.contains('Changing day off');
+
+      // 6. Sick Leave (សម្រាកដោយជំងឺ)
+      if (label.contains('sick') || label.contains('ជំងឺ')) {
+        return rawType.contains('sick') ||
+            rawType.contains('ជំងឺ') ||
+            rawReason.contains('sick') ||
+            rawReason.contains('ជំងឺ') ||
+            rawReason.contains('ឈឺ');
       }
-      final target = typeLabel.toLowerCase().trim();
-      return target.contains(req) || req.contains(target);
+
+      // 7. Maternity Leave (សម្រាកលំហែមាតុភាព)
+      if (label.contains('maternity') || label.contains('មាតុភាព')) {
+        return rawType.contains('maternity') ||
+            rawType.contains('មាតុភាព') ||
+            rawType.contains('បុត្រ') ||
+            rawReason.contains('maternity') ||
+            rawReason.contains('សម្រាល');
+      }
+
+      // 8. Special Leave (សម្រាកពិសេស)
+      if (label.contains('special') || label.contains('ពិសេស')) {
+        return rawType.contains('special') ||
+            rawType.contains('ពិសេស') ||
+            rawReason.contains('special') ||
+            rawReason.contains('ពិសេស');
+      }
+
+      // 9. Annual Leave (សម្រាកប្រចាំឆ្នាំ)
+      if (label.contains('annual') || label.contains('ប្រចាំឆ្នាំ')) {
+        if (rawType.contains('annual') ||
+            rawType.contains('ប្រចាំឆ្នាំ') ||
+            rawReason.contains('annual')) {
+          return true;
+        }
+        if (rawType.contains('leave') || rawType.contains('ច្បាប់') || rawType.contains('សម្រាក')) {
+          final isSick = rawType.contains('sick') || rawReason.contains('sick') || rawReason.contains('ជំងឺ') || rawReason.contains('ឈឺ');
+          final isMaternity = rawType.contains('maternity') || rawReason.contains('maternity') || rawReason.contains('សម្រាល');
+          final isSpecial = rawType.contains('special') || rawReason.contains('special') || rawReason.contains('ពិសេស');
+          return !isSick && !isMaternity && !isSpecial;
+        }
+        final days = double.tryParse((item['number_of_days'] ?? '0').toString()) ?? 0;
+        if (days > 0 && !rawType.contains('ot') && !rawType.contains('overtime')) {
+          return true;
+        }
+        return false;
+      }
+
+      return false;
     }
 
     String formatBranch(String? raw) {
@@ -143,32 +241,40 @@ class OfficialRequestFormView extends StatelessWidget {
         children: [
           // ================= 1. A5 HEADER =================
           Center(
-            child: Image.network(
-              'https://i.ibb.co/r2JWnd2x/Logo-Van-Van-1.png',
-              width: 280,
-              height: 72,
+            child: Image.asset(
+              'assets/images/logo_van_van.png',
+              width: 300,
+              height: 100,
               fit: BoxFit.contain,
-              errorBuilder: (_, __, ___) => Column(
-                children: [
-                  const Icon(Icons.spa_rounded, color: _goldColor, size: 36),
-                  Text(
-                    'វ៉ាន់ វ៉ាន់ ខេមបូឌា',
-                    style: GoogleFonts.kantumruyPro(
-                      color: _goldColor,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+              gaplessPlayback: true,
+              errorBuilder: (_, __, ___) => Image.network(
+                'https://i.ibb.co/r2JWnd2x/Logo-Van-Van-1.png',
+                width: 300,
+                height: 100,
+                fit: BoxFit.contain,
+                gaplessPlayback: true,
+                errorBuilder: (_, __, ___) => Column(
+                  children: [
+                    const Icon(Icons.spa_rounded, color: _goldColor, size: 44),
+                    Text(
+                      'វ៉ាន់ វ៉ាន់ ខេមបូឌា',
+                      style: GoogleFonts.kantumruyPro(
+                        color: _goldColor,
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                  ),
-                  Text(
-                    'VAN VAN CAMBODIA',
-                    style: GoogleFonts.outfit(
-                      color: _goldColor,
-                      fontSize: 11,
-                      letterSpacing: 1.5,
-                      fontWeight: FontWeight.bold,
+                    Text(
+                      'VAN VAN CAMBODIA',
+                      style: GoogleFonts.outfit(
+                        color: _goldColor,
+                        fontSize: 11.5,
+                        letterSpacing: 1.5,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -220,22 +326,47 @@ class OfficialRequestFormView extends StatelessWidget {
                       children: types.map((t) {
                         final isSel = isTypeSelected(t);
                         return Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: isSel ? 9 : 8,
+                            vertical: isSel ? 4 : 3.5,
+                          ),
                           decoration: BoxDecoration(
                             color: isSel ? _greenSelected : Colors.white,
-                            borderRadius: BorderRadius.circular(4),
+                            borderRadius: BorderRadius.circular(4.5),
                             border: Border.all(
-                              color: isSel ? _greenSelected : const Color(0xFFCBD5E1),
-                              width: 0.8,
+                              color: isSel ? _greenSelectedBorder : const Color(0xFFCBD5E1),
+                              width: isSel ? 1.4 : 0.8,
                             ),
+                            boxShadow: isSel
+                                ? [
+                                    BoxShadow(
+                                      color: _greenSelected.withValues(alpha: 0.28),
+                                      blurRadius: 3,
+                                      offset: const Offset(0, 1),
+                                    ),
+                                  ]
+                                : null,
                           ),
-                          child: Text(
-                            t,
-                            style: GoogleFonts.kantumruyPro(
-                              fontSize: 8.8,
-                              color: isSel ? Colors.white : const Color(0xFF64748B),
-                              fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
-                            ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (isSel) ...[
+                                const Icon(
+                                  Icons.check_circle_rounded,
+                                  size: 11,
+                                  color: Colors.white,
+                                ),
+                                const SizedBox(width: 4),
+                              ],
+                              Text(
+                                t,
+                                style: GoogleFonts.kantumruyPro(
+                                  fontSize: isSel ? 9.0 : 8.8,
+                                  color: isSel ? Colors.white : const Color(0xFF475569),
+                                  fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
+                                ),
+                              ),
+                            ],
                           ),
                         );
                       }).toList(),

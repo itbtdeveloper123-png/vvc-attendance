@@ -58,6 +58,14 @@ class _RequestListScreenState extends State<RequestListScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    try {
+      precacheImage(const AssetImage('assets/images/logo_van_van.png'), context);
+    } catch (_) {}
+  }
+
+  @override
   void dispose() {
     _pollingTimer?.cancel();
     _searchController.dispose();
@@ -1561,7 +1569,7 @@ class _RequestListScreenState extends State<RequestListScreen> {
       });
 
       // 2. Wait for the widget to be rendered in the current frame
-      await Future.delayed(const Duration(milliseconds: 100));
+      await Future.delayed(const Duration(milliseconds: 250));
 
       // 3. Capture the hidden widget as an image with proper null safety
       final boundary =
@@ -2187,7 +2195,7 @@ class _RequestListScreenState extends State<RequestListScreen> {
       });
 
       // 2. Wait for the widget to be rendered in the current frame
-      await Future.delayed(const Duration(milliseconds: 100));
+      await Future.delayed(const Duration(milliseconds: 250));
 
       // 3. Capture the hidden widget as an image with proper null safety
       final boundary =

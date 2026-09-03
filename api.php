@@ -2088,7 +2088,7 @@ function meeting_ai_store_completed_summary($mysqli, $meetingId, array $result) 
 
 function meeting_ai_resolve_transcription_provider_config($preferredProvider = null) {
     $preferredProvider = strtolower(trim((string)$preferredProvider));
-    $geminiKey = trim((string)(defined('GEMINI_API_KEY') ? GEMINI_API_KEY : ''));
+    $geminiKey = trim((string)(function_exists('get_active_gemini_key') ? get_active_gemini_key() : (defined('GEMINI_API_KEY') ? GEMINI_API_KEY : (getenv('GEMINI_API_KEY') ?: ''))));
     $groqKey = trim((string)(defined('GROQ_API_KEY') ? GROQ_API_KEY : ''));
     $openAiKey = trim((string)(defined('OPENAI_API_KEY') ? OPENAI_API_KEY : ''));
 
@@ -3841,7 +3841,7 @@ try {
             $usedProvider   = '';
             $usedModel      = '';
             $lastError      = '';
-            $geminiKey = trim((string)(defined('GEMINI_API_KEY') ? GEMINI_API_KEY : (getenv('GEMINI_API_KEY') ?: '')));
+            $geminiKey = trim((string)(function_exists('get_active_gemini_key') ? get_active_gemini_key() : (defined('GEMINI_API_KEY') ? GEMINI_API_KEY : (getenv('GEMINI_API_KEY') ?: ''))));
             $groqKey = trim((string)(defined('GROQ_API_KEY') ? GROQ_API_KEY : (getenv('GROQ_API_KEY') ?: '')));
             $githubToken = trim((string)(defined('GITHUB_TOKEN') ? GITHUB_TOKEN : (getenv('GITHUB_TOKEN') ?: (getenv('GITHUB_PAT') ?: ''))));
 

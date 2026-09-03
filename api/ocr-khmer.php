@@ -39,8 +39,12 @@ if (file_exists($envFile)) {
 }
 
 // Configuration
+if (file_exists(__DIR__ . '/../enterprise_helpers.php')) {
+    require_once __DIR__ . '/../enterprise_helpers.php';
+}
+
 $config = [
-    'gemini_api_key' => getenv('GEMINI_API_KEY'),
+    'gemini_api_key' => function_exists('get_active_gemini_key') ? get_active_gemini_key() : getenv('GEMINI_API_KEY'),
     'api_auth_key' => getenv('OCR_API_KEY'),
     'max_file_size' => 10 * 1024 * 1024, // 10MB
     'allowed_formats' => ['jpg', 'jpeg', 'png', 'webp'],

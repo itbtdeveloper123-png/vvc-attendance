@@ -5432,6 +5432,79 @@ if (isset($_POST['ajax_action']) || isset($_GET['ajax_action'])) {
                     }
                     break;
 
+                case 'save_gemini_api_key':
+                    $key = trim($_POST['gemini_api_key'] ?? '');
+                    if ($key === '') {
+                        $response = ['status' => 'error', 'message' => 'សូមបញ្ចូល API Key!'];
+                        break;
+                    }
+
+                    // 1. Save to system_settings
+                    $mysqli->query("CREATE TABLE IF NOT EXISTS system_settings (
+                        setting_key VARCHAR(100) PRIMARY KEY,
+                        setting_value TEXT NULL,
+                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+                    $stmt = $mysqli->prepare("INSERT INTO system_settings (setting_key, setting_value) VALUES ('gemini_api_key', ?) ON DUPLICATE KEY UPDATE setting_value = ?");
+                    $stmt->bind_param("ss", $key, $key);
+                    $stmt->execute();
+                    $stmt->close();
+
+                    // 2. Also save to admin_api_keys pool
+                    $mysqli->query("CREATE TABLE IF NOT EXISTS admin_api_keys (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        service_name VARCHAR(50) NOT NULL DEFAULT 'remove_bg',
+                        key_label VARCHAR(100) NOT NULL,
+                        api_key VARCHAR(255) NOT NULL UNIQUE,
+                        free_calls INT DEFAULT 50,
+                        credits INT DEFAULT 1,
+                        is_active TINYINT DEFAULT 1,
+                        priority INT DEFAULT 0,
+                        last_status VARCHAR(50) DEFAULT 'active',
+                        last_checked_at DATETIME NULL,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        INDEX idx_service (service_name),
+                        INDEX idx_active (is_active)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+                    $existing = $mysqli->query("SELECT id FROM admin_api_keys WHERE service_name = 'gemini' AND api_key = '" . $mysqli->real_escape_string($key) . "'");
+                    if (!$existing || $existing->num_rows === 0) {
+                        $stmtKey = $mysqli->prepare("INSERT INTO admin_api_keys (service_name, key_label, api_key, free_calls, credits, is_active, priority, last_status, last_checked_at) VALUES ('gemini', 'Primary Key', ?, 15, 1500, 1, 1, 'active', NOW())");
+                        $stmtKey->bind_param("s", $key);
+                        $stmtKey->execute();
+                        $stmtKey->close();
+                    }
+
+                    $response = ['status' => 'success', 'message' => 'បានរក្សាទុក Google Gemini API Key ដោយជោគជ័យ!'];
+                    break;
+
+                case 'test_gemini_api_key':
+                    $key = trim($_POST['gemini_api_key'] ?? '');
+                    if ($key === '') {
+                        $key = get_active_gemini_key($mysqli);
+                    }
+                    if ($key === '') {
+                        $response = ['status' => 'error', 'message' => 'មិនមាន API Key សម្រាប់ធ្វើការតេស្តឡើយ'];
+                        break;
+                    }
+
+                    $url = 'https://generativelanguage.googleapis.com/v1beta/models?key=' . urlencode($key);
+                    $ch = curl_init($url);
+                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                    curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+                    $res = curl_exec($ch);
+                    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                    curl_close($ch);
+
+                    if ($httpCode === 200) {
+                        $response = ['status' => 'success', 'message' => 'Google Gemini API Key ត្រឹមត្រូវ និងដំណើរការល្អឥតខ្ចោះ (HTTP 200)!'];
+                    } else {
+                        $response = ['status' => 'error', 'message' => "តេស្ត Key បរាជ័យ (HTTP $httpCode): " . ($res ? substr($res, 0, 100) : 'Connection error')];
+                    }
+                    break;
+
                 case 'save_policy':
                     $mysqli->query("CREATE TABLE IF NOT EXISTS payroll_settings (
                         setting_key VARCHAR(50) PRIMARY KEY,
@@ -20460,6 +20533,87 @@ ob_end_flush();
                                         </button>
                                     </div>
                                 </form>
+                            </div>
+
+                            <div class="hrm-card" style="max-width: 600px; margin-top: 24px;">
+                                <div class="hrm-card-header">
+                                    <h3><i class="fa-solid fa-brain" style="color: #2563eb;"></i>
+                                        គ្រប់គ្រង Google Gemini AI API Key
+                                    </h3>
+                                </div>
+                                <?php
+                                $current_gemini_key = get_active_gemini_key($mysqli);
+                                $masked_gemini_key = (strlen($current_gemini_key) > 10) 
+                                    ? substr($current_gemini_key, 0, 8) . '...' . substr($current_gemini_key, -4) 
+                                    : ($current_gemini_key ? '********' : 'មិនទាន់មាន');
+                                ?>
+                                <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 20px;">
+                                    កំណត់ Google Gemini API Key សម្រាប់ AI Chatbot, Khmer OCR, Audio Transcription និងសង្ខេបកិច្ចប្រជុំ (Meeting AI)។ អាចយក Key ឥតគិតថ្លៃ (Free Tier 15 RPM) ពី <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color: #2563eb; font-weight: 700; text-decoration: underline;">Google AI Studio</a>។
+                                </p>
+                                <form id="geminiApiKeySettingsForm" class="ajax-form" method="POST">
+                                    <input type="hidden" name="ajax_action" value="save_gemini_api_key">
+                                    <div class="form-group">
+                                        <label for="gemini_api_key" style="font-weight: 700; color: var(--text-secondary);">
+                                            Google Gemini API Key:
+                                        </label>
+                                        <div style="margin-top: 10px;">
+                                            <input type="text" id="gemini_api_key" name="gemini_api_key"
+                                                class="form-control" value="<?php echo htmlspecialchars($current_gemini_key); ?>"
+                                                placeholder="ឧ. AIzaSyD..." required
+                                                style="height: 50px; font-family: monospace; border-radius: 12px;">
+                                        </div>
+                                        <div class="alert alert-info" style="margin-top: 20px; border-radius: 12px; background: rgba(37, 99, 235, 0.08); color: #1e40af; border: 1px solid rgba(37, 99, 235, 0.2);">
+                                            <i class="fa-solid fa-circle-info"></i>
+                                            <strong>Key បច្ចុប្បន្ន៖</strong> <code><?php echo htmlspecialchars($masked_gemini_key); ?></code>
+                                            <span style="display: block; margin-top: 5px; font-size: 0.85rem;">
+                                                ពេលរក្សាទុក ប្រព័ន្ធនឹង Update ក្នុង Database, Admin API Keys Pool និង .env ដោយស្វ័យប្រវត្តិ។
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div style="margin-top: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                                        <button type="button" id="testGeminiKeyBtn" class="btn btn-secondary" style="border-radius: 12px; padding: 10px 20px;">
+                                            <i class="fa-solid fa-vial"></i> តេស្ត Key ភ្លាមៗ
+                                        </button>
+                                        <button type="submit" class="btn btn-primary" style="padding: 12px 30px; border-radius: 12px; background: linear-gradient(135deg, #2563eb, #7c3aed); border: none;">
+                                            <i class="fa-solid fa-save"></i> រក្សាទុក Key
+                                        </button>
+                                    </div>
+                                </form>
+                                <script>
+                                document.addEventListener('DOMContentLoaded', function() {
+                                    var testBtn = document.getElementById('testGeminiKeyBtn');
+                                    if (testBtn) {
+                                        testBtn.addEventListener('click', function() {
+                                            var keyInput = document.getElementById('gemini_api_key');
+                                            var keyVal = keyInput ? keyInput.value.trim() : '';
+                                            if (!keyVal) {
+                                                alert('សូមបញ្ចូល API Key ជាមុនសិន!');
+                                                return;
+                                            }
+                                            testBtn.disabled = true;
+                                            testBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> កំពុងតេស្ត...';
+                                            var formData = new FormData();
+                                            formData.append('ajax_action', 'test_gemini_api_key');
+                                            formData.append('gemini_api_key', keyVal);
+                                            fetch(window.location.href, {
+                                                method: 'POST',
+                                                body: formData
+                                            })
+                                            .then(function(r) { return r.json(); })
+                                            .then(function(data) {
+                                                testBtn.disabled = false;
+                                                testBtn.innerHTML = '<i class="fa-solid fa-vial"></i> តេស្ត Key ភ្លាមៗ';
+                                                alert(data.message || (data.status === 'success' ? 'Key ដំណើរការល្អ!' : 'Key មិនដំណើរការឡើយ'));
+                                            })
+                                            .catch(function(err) {
+                                                testBtn.disabled = false;
+                                                testBtn.innerHTML = '<i class="fa-solid fa-vial"></i> តេស្ត Key ភ្លាមៗ';
+                                                alert('កំហុសពេលភ្ជាប់៖ ' + err.message);
+                                            });
+                                        });
+                                    }
+                                });
+                                </script>
                             </div>
 
                         <?php else: ?>
