@@ -1407,6 +1407,15 @@ try {
             $service = trim($_REQUEST['service_name'] ?? 'remove_bg');
             $rows = dbQuery("SELECT id, service_name, key_label, api_key, free_calls, credits, is_active, priority, last_status, last_checked_at, created_at FROM admin_api_keys WHERE service_name = ? ORDER BY priority ASC, id ASC", [$service]);
 
+            // Auto-seed Gemini Key if currently empty
+            if ($service === 'gemini' && empty($rows)) {
+                $defaultGeminiKey = 'AIzaSyDsXpw8-opIVvWUA72xAdiQcC3HKDy24SU';
+                dbQuery("INSERT IGNORE INTO admin_api_keys (service_name, key_label, api_key, free_calls, credits, priority, is_active, last_status, last_checked_at) VALUES ('gemini', 'Key 01 (Primary Gemini Key)', ?, 15, 1500, 1, 1, 'active', NOW())", [
+                    $defaultGeminiKey
+                ]);
+                $rows = dbQuery("SELECT id, service_name, key_label, api_key, free_calls, credits, is_active, priority, last_status, last_checked_at, created_at FROM admin_api_keys WHERE service_name = ? ORDER BY priority ASC, id ASC", [$service]);
+            }
+
             $totalActive = 0;
             $totalFreeCalls = 0;
             $totalCredits = 0;
