@@ -30,6 +30,8 @@ class OfficialRequestFormView extends StatelessWidget {
     final rawType = (item['request_type'] ?? item['type'] ?? '').toString().trim().toLowerCase();
     final rawReason = (item['reason'] ?? item['leave_reason'] ?? item['ot_reason'] ?? '').toString().trim().toLowerCase();
 
+    final leaveType = (item['leave_type'] ?? '').toString().trim().toLowerCase();
+
     final List<String> types = [
       'សម្រាកប្រចាំឆ្នាំ (Annual Leave)',
       'សម្រាកដោយជំងឺ (Sick Leave)',
@@ -42,129 +44,127 @@ class OfficialRequestFormView extends StatelessWidget {
       'មកយឺត (Late)',
     ];
 
-    bool isTypeSelected(String typeLabel) {
-      final label = typeLabel.toLowerCase();
-
-      // 1. OT / Overtime (ថែមម៉ោង)
-      if (label.contains('ot') || label.contains('ថែមម៉ោង')) {
-        if (rawType.contains('overtime') ||
-            rawType.contains('ot') ||
-            rawType.contains('ថែម') ||
-            rawReason.contains('overtime') ||
-            rawReason.contains('ot') ||
-            rawReason.contains('ថែមម៉ោង')) {
-          return true;
-        }
-        if (rawType.isEmpty &&
-            (item['time_in'] != null && item['time_in'].toString().isNotEmpty && item['time_in'] != 'N/A') &&
-            (item['number_of_days'] == null || item['number_of_days'].toString() == '0')) {
-          return true;
-        }
-        return false;
+    // Determine the single mutually exclusive canonical request type
+    String determineCanonicalType() {
+      // 1. Overtime (OT / ថែមម៉ោង) - Highest Priority
+      if (rawType == 'overtime' ||
+          rawType == 'ot' ||
+          rawType == 'ថែមម៉ោង' ||
+          rawType.contains('overtime') ||
+          rawType.contains('ot') ||
+          rawType.contains('ថែម') ||
+          rawReason.contains('overtime') ||
+          rawReason.contains('ថែមម៉ោង')) {
+        return 'ថែមម៉ោង (OT)';
       }
 
-      // 2. Forgot FP / Scan (ភ្លេចស្កេនមេដៃ)
-      if (label.contains('forgot') || label.contains('ស្កេន') || label.contains('មេដៃ')) {
-        if (rawType.contains('forget') ||
-            rawType.contains('forgot') ||
-            rawType.contains('scan') ||
-            rawType.contains('fp') ||
-            rawType.contains('ស្កេន') ||
-            rawType.contains('មេដៃ') ||
-            rawReason.contains('ភ្លេច') ||
-            (item['forgot_scan_in'] != null && item['forgot_scan_in'].toString().toLowerCase() == 'yes') ||
-            (item['forgot_scan_out'] != null && item['forgot_scan_out'].toString().toLowerCase() == 'yes')) {
-          return true;
-        }
-        return false;
+      // 2. Changing day off (ប្តូរថ្ងៃសម្រាក / ប្តូរវេន)
+      if (rawType.contains('change') ||
+          rawType.contains('ប្តូរ') ||
+          rawReason.contains('ប្តូរវេន') ||
+          rawReason.contains('ប្តូរថ្ងៃ')) {
+        return 'ប្តូរថ្ងៃសម្រាក (Changing day off)';
       }
 
       // 3. Late (មកយឺត)
-      if (label.contains('late') || label.contains('យឺត')) {
-        if (rawType.contains('late') ||
-            rawType.contains('យឺត') ||
-            rawReason.contains('មកយឺត') ||
-            rawReason.contains('យឺត') ||
-            (item['late_hours'] != null &&
-                item['late_hours'].toString().isNotEmpty &&
-                item['late_hours'].toString() != '0' &&
-                item['late_hours'].toString() != 'N/A')) {
-          return true;
-        }
-        return false;
+      if (rawType == 'late' ||
+          rawType.contains('late') ||
+          rawType.contains('យឺត') ||
+          rawReason.contains('មកយឺត')) {
+        return 'មកយឺត (Late)';
       }
 
       // 4. Early (ចេញមុនម៉ោង)
-      if (label.contains('early') || label.contains('ចេញមុន')) {
-        if (rawType.contains('early') ||
-            rawType.contains('ចេញមុន') ||
-            rawReason.contains('ចេញមុន')) {
-          return true;
-        }
-        return false;
+      if (rawType == 'early' ||
+          rawType.contains('early') ||
+          rawType.contains('ចេញមុន') ||
+          rawReason.contains('ចេញមុន')) {
+        return 'ចេញមុនម៉ោង (Early)';
       }
 
-      // 5. Changing day off (ប្តូរថ្ងៃសម្រាក)
-      if (label.contains('changing') || label.contains('ប្តូរ')) {
-        if (rawType.contains('change') ||
-            rawType.contains('ប្តូរ') ||
-            rawReason.contains('ប្តូរវេន') ||
-            rawReason.contains('ប្តូរថ្ងៃ') ||
-            (item['repay_time_in'] != null &&
-                item['repay_time_in'].toString().isNotEmpty &&
-                item['repay_time_in'] != 'N/A')) {
-          return true;
-        }
-        return false;
+      // 5. Forgot Scan / FP (ភ្លេចស្កេនមេដៃ)
+      // Strictly checked ONLY if the request is genuinely about attendance/scan forgetfulness
+      if (rawType.contains('forget') ||
+          rawType.contains('forgot') ||
+          rawType.contains('ភ្លេច') ||
+          rawReason.contains('ភ្លេចស្កេន') ||
+          rawReason.contains('ភ្លេចមេដៃ') ||
+          ((item['forgot_scan_in']?.toString().toLowerCase() == 'yes' ||
+            item['forgot_scan_out']?.toString().toLowerCase() == 'yes') &&
+           !rawType.contains('leave') &&
+           !rawType.contains('ច្បាប់'))) {
+        return 'ភ្លេចស្កេនមេដៃ (Forgot FP)';
       }
 
       // 6. Sick Leave (សម្រាកដោយជំងឺ)
-      if (label.contains('sick') || label.contains('ជំងឺ')) {
-        return rawType.contains('sick') ||
-            rawType.contains('ជំងឺ') ||
-            rawReason.contains('sick') ||
-            rawReason.contains('ជំងឺ') ||
-            rawReason.contains('ឈឺ');
+      if (rawType.contains('sick') ||
+          leaveType.contains('sick') ||
+          rawType.contains('ជំងឺ') ||
+          rawReason.contains('ជំងឺ') ||
+          rawReason.contains('ឈឺ')) {
+        return 'សម្រាកដោយជំងឺ (Sick Leave)';
       }
 
       // 7. Maternity Leave (សម្រាកលំហែមាតុភាព)
-      if (label.contains('maternity') || label.contains('មាតុភាព')) {
-        return rawType.contains('maternity') ||
-            rawType.contains('មាតុភាព') ||
-            rawType.contains('បុត្រ') ||
-            rawReason.contains('maternity') ||
-            rawReason.contains('សម្រាល');
+      if (rawType.contains('maternity') ||
+          leaveType.contains('maternity') ||
+          rawType.contains('មាតុភាព') ||
+          rawReason.contains('មាតុភាព') ||
+          rawReason.contains('បុត្រ') ||
+          rawReason.contains('សម្រាល')) {
+        return 'សម្រាកលំហែមាតុភាព (Maternity Leave)';
       }
 
       // 8. Special Leave (សម្រាកពិសេស)
-      if (label.contains('special') || label.contains('ពិសេស')) {
-        return rawType.contains('special') ||
-            rawType.contains('ពិសេស') ||
-            rawReason.contains('special') ||
-            rawReason.contains('ពិសេស');
+      if (rawType.contains('special') ||
+          leaveType.contains('special') ||
+          rawType.contains('ពិសេស') ||
+          rawReason.contains('ពិសេស')) {
+        return 'សម្រាកពិសេស (Special Leave)';
       }
 
       // 9. Annual Leave (សម្រាកប្រចាំឆ្នាំ)
-      if (label.contains('annual') || label.contains('ប្រចាំឆ្នាំ')) {
-        if (rawType.contains('annual') ||
-            rawType.contains('ប្រចាំឆ្នាំ') ||
-            rawReason.contains('annual')) {
-          return true;
-        }
-        if (rawType.contains('leave') || rawType.contains('ច្បាប់') || rawType.contains('សម្រាក')) {
-          final isSick = rawType.contains('sick') || rawReason.contains('sick') || rawReason.contains('ជំងឺ') || rawReason.contains('ឈឺ');
-          final isMaternity = rawType.contains('maternity') || rawReason.contains('maternity') || rawReason.contains('សម្រាល');
-          final isSpecial = rawType.contains('special') || rawReason.contains('special') || rawReason.contains('ពិសេស');
-          return !isSick && !isMaternity && !isSpecial;
-        }
-        final days = double.tryParse((item['number_of_days'] ?? '0').toString()) ?? 0;
-        if (days > 0 && !rawType.contains('ot') && !rawType.contains('overtime')) {
-          return true;
-        }
-        return false;
+      if (rawType.contains('annual') ||
+          rawType.contains('ប្រចាំឆ្នាំ') ||
+          rawType.contains('leave') ||
+          rawType.contains('ច្បាប់') ||
+          rawType.contains('សម្រាក')) {
+        return 'សម្រាកប្រចាំឆ្នាំ (Annual Leave)';
       }
 
-      return false;
+      // Fallback heuristics when rawType is blank or custom
+      if (item['time_in'] != null &&
+          item['time_in'].toString().isNotEmpty &&
+          item['time_in'] != 'N/A' &&
+          (item['number_of_days'] == null || item['number_of_days'].toString() == '0')) {
+        return 'ថែមម៉ោង (OT)';
+      }
+
+      final days = double.tryParse((item['number_of_days'] ?? '0').toString()) ?? 0;
+      if (days > 0) {
+        return 'សម្រាកប្រចាំឆ្នាំ (Annual Leave)';
+      }
+
+      if (item['late_hours'] != null &&
+          item['late_hours'].toString().isNotEmpty &&
+          item['late_hours'].toString() != '0' &&
+          item['late_hours'].toString() != 'N/A') {
+        return 'មកយឺត (Late)';
+      }
+
+      if (item['repay_time_in'] != null &&
+          item['repay_time_in'].toString().isNotEmpty &&
+          item['repay_time_in'] != 'N/A') {
+        return 'ប្តូរថ្ងៃសម្រាក (Changing day off)';
+      }
+
+      return 'ថែមម៉ោង (OT)';
+    }
+
+    final selectedCanonicalType = determineCanonicalType();
+
+    bool isTypeSelected(String typeLabel) {
+      return typeLabel == selectedCanonicalType;
     }
 
     String formatBranch(String? raw) {
