@@ -3934,7 +3934,7 @@ try {
                                 . "===TRANSCRIPT_START===\nសូមសរសេរអត្ថបទសន្ទនាការនិយាយជាក់ស្តែងទាំងអស់ពីសំឡេង (Full Dialogue Transcript) តាមលំដាប់លំដោយនៃអ្នកនិយាយ ដោយបំបែកជាឃ្លាខ្លីៗ និងដាក់ Timestamp [MM:SS] នៅដើមឃ្លានីមួយៗជានិច្ច (ឧទាហរណ៍៖ [00:00] **អ្នកនិយាយ ៖** ពាក្យសម្តី...)\n===TRANSCRIPT_END===\n\n"
                                 . "សូមឆ្លើយតបជាភាសាខ្មែរ។";
 
-                            $geminiAudioModels = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-flash-latest'];
+                            $geminiAudioModels = ['gemini-3.6-flash', 'gemini-flash-latest', 'gemini-2.5-flash'];
                             foreach ($geminiAudioModels as $gaModel) {
                                 $genUrl = "https://generativelanguage.googleapis.com/v1beta/models/{$gaModel}:generateContent?key=" . urlencode($geminiKey);
                                 $ch = curl_init($genUrl);
@@ -4010,7 +4010,7 @@ try {
 
                 // 3a. Try Gemini
                 if ($geminiKey !== '') {
-                    $geminiModels = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-flash-latest'];
+                    $geminiModels = ['gemini-3.6-flash', 'gemini-flash-latest', 'gemini-2.5-flash'];
                     foreach ($geminiModels as $gModel) {
                         try {
                             $nativeUrl = "https://generativelanguage.googleapis.com/v1beta/models/{$gModel}:generateContent?key=" . urlencode($geminiKey);
@@ -9860,9 +9860,21 @@ function ai_call_free_vision_service($systemPrompt, $userPrompt, $imageBase64 = 
     // =========================================================================
     // TIER 1: GOOGLE GEMINI VISION API (Primary & Recommended!)
     // =========================================================================
-    $geminiKey = trim((string)(defined('GEMINI_API_KEY') ? GEMINI_API_KEY : (getenv('GEMINI_API_KEY') ?: '')));
-    if ($geminiKey !== '') {
-        $geminiModels = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-flash-latest'];
+    global $mysqli;
+    $geminiKeys = [];
+    if (function_exists('get_all_active_gemini_keys')) {
+        $geminiKeys = get_all_active_gemini_keys($mysqli);
+    } elseif (function_exists('get_active_gemini_key')) {
+        $k = get_active_gemini_key($mysqli);
+        if ($k !== '') $geminiKeys[] = $k;
+    }
+    if (empty($geminiKeys)) {
+        $geminiKey = trim((string)(defined('GEMINI_API_KEY') ? GEMINI_API_KEY : (getenv('GEMINI_API_KEY') ?: '')));
+        if ($geminiKey !== '') $geminiKeys[] = $geminiKey;
+    }
+
+    if (!empty($geminiKeys)) {
+        $geminiModels = ['gemini-3.6-flash', 'gemini-flash-latest', 'gemini-2.5-flash'];
         
         $parts = [];
         $parts[] = ['text' => (string)$systemPrompt . "\n\n" . (string)$userPrompt];
@@ -9886,34 +9898,46 @@ function ai_call_free_vision_service($systemPrompt, $userPrompt, $imageBase64 = 
         ];
         $jsonPayload = json_encode($geminiPayload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
-        foreach ($geminiModels as $gModel) {
-            $url = "https://generativelanguage.googleapis.com/v1beta/models/{$gModel}:generateContent?key=" . urlencode($geminiKey);
-            $ch = curl_init($url);
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_POST, true);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonPayload);
-            curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-            curl_setopt($ch, CURLOPT_TIMEOUT, 40);
-            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
-            $resp = curl_exec($ch);
-            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
+        foreach ($geminiKeys as $keyIdx => $geminiKey) {
+            $keyLabel = 'Key #' . ($keyIdx + 1);
 
-            if ($httpCode === 200 && $resp) {
-                $data = json_decode($resp, true);
-                $content = $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
-                if (trim((string)$content) !== '') {
-                    return [
-                        'success'  => true,
-                        'content'  => trim((string)$content),
-                        'provider' => 'gemini',
-                        'model'    => $gModel,
-                        'raw_data' => $data,
-                    ];
+            foreach ($geminiModels as $gModel) {
+                $url = "https://generativelanguage.googleapis.com/v1beta/models/{$gModel}:generateContent?key=" . urlencode($geminiKey);
+                $ch = curl_init($url);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_POST, true);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonPayload);
+                curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 40);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+                $resp = curl_exec($ch);
+                $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                curl_close($ch);
+
+                if ($httpCode === 200 && $resp) {
+                    $data = json_decode($resp, true);
+                    $content = $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
+                    if (trim((string)$content) !== '') {
+                        return [
+                            'success'  => true,
+                            'content'  => trim((string)$content),
+                            'provider' => 'gemini',
+                            'model'    => $gModel,
+                            'raw_data' => $data,
+                        ];
+                    }
+                } else {
+                    $errors[] = "Gemini ({$gModel} / {$keyLabel}): HTTP {$httpCode}";
+                    // If model not found (404), try next model on same key
+                    if ($httpCode === 404) {
+                        continue;
+                    }
+                    // If 403 (forbidden/denied/leaked) or 429 (rate limit), break model loop to try NEXT key from pool!
+                    if ($httpCode === 403 || $httpCode === 429) {
+                        break;
+                    }
                 }
-            } else {
-                $errors[] = "Gemini ({$gModel}): HTTP {$httpCode}";
             }
         }
     }

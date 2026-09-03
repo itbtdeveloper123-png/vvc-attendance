@@ -74,7 +74,7 @@ const testGeminiKeyRealtime = async (apiKey: string): Promise<GeminiTestResult> 
     };
   }
 
-  const modelsToTry = ['gemini-2.5-flash', 'gemini-3.6-flash', 'gemini-1.5-flash', 'gemini-flash-latest'];
+  const modelsToTry = ['gemini-3.6-flash', 'gemini-flash-latest', 'gemini-2.5-flash'];
   let lastErrorData: any = null;
   let lastHttpCode = 0;
 

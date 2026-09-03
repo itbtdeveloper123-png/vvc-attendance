@@ -14,40 +14,63 @@ if (!function_exists('get_google_maps_api_key')) {
 if (!function_exists('get_active_gemini_key')) {
     function get_active_gemini_key($mysqli = null)
     {
+        $all = get_all_active_gemini_keys($mysqli);
+        return !empty($all) ? $all[0] : '';
+    }
+}
+
+if (!function_exists('get_all_active_gemini_keys')) {
+    function get_all_active_gemini_keys($mysqli = null)
+    {
         if ($mysqli === null) {
             global $mysqli;
         }
 
+        $keys = [];
         if ($mysqli instanceof mysqli) {
             // 1. Check admin_api_keys pool (active keys ordered by priority)
             $checkTable = @$mysqli->query("SHOW TABLES LIKE 'admin_api_keys'");
             if ($checkTable && $checkTable->num_rows > 0) {
-                $res = @$mysqli->query("SELECT api_key FROM admin_api_keys WHERE service_name = 'gemini' AND is_active = 1 ORDER BY priority ASC, id ASC LIMIT 1");
+                $res = @$mysqli->query("SELECT api_key FROM admin_api_keys WHERE service_name = 'gemini' AND is_active = 1 ORDER BY priority ASC, id ASC");
                 if ($res && $res->num_rows > 0) {
-                    $row = $res->fetch_assoc();
-                    $k = trim((string)($row['api_key'] ?? ''));
-                    if ($k !== '') return $k;
+                    while ($row = $res->fetch_assoc()) {
+                        $k = trim((string)($row['api_key'] ?? ''));
+                        if ($k !== '' && !in_array($k, $keys, true)) {
+                            $keys[] = $k;
+                        }
+                    }
                 }
             }
 
-            // 2. Check system_settings
-            $checkSys = @$mysqli->query("SHOW TABLES LIKE 'system_settings'");
-            if ($checkSys && $checkSys->num_rows > 0) {
-                $res = @$mysqli->query("SELECT setting_value FROM system_settings WHERE setting_key = 'gemini_api_key' LIMIT 1");
-                if ($res && $res->num_rows > 0) {
-                    $row = $res->fetch_assoc();
-                    $k = trim((string)($row['setting_value'] ?? ''));
-                    if ($k !== '') return $k;
+            // 2. Check system_settings if pool empty
+            if (empty($keys)) {
+                $checkSys = @$mysqli->query("SHOW TABLES LIKE 'system_settings'");
+                if ($checkSys && $checkSys->num_rows > 0) {
+                    $res = @$mysqli->query("SELECT setting_value FROM system_settings WHERE setting_key = 'gemini_api_key' LIMIT 1");
+                    if ($res && $res->num_rows > 0) {
+                        $row = $res->fetch_assoc();
+                        $k = trim((string)($row['setting_value'] ?? ''));
+                        if ($k !== '' && !in_array($k, $keys, true)) {
+                            $keys[] = $k;
+                        }
+                    }
                 }
             }
         }
 
-        // 3. Fallback to constant or environment
+        // 3. Fallback to constant
         if (defined('GEMINI_API_KEY') && GEMINI_API_KEY !== '') {
-            return trim((string) GEMINI_API_KEY);
+            $k = trim((string) GEMINI_API_KEY);
+            if ($k !== '' && !in_array($k, $keys, true)) $keys[] = $k;
         }
 
-        return trim((string) (getenv('GEMINI_API_KEY') ?: ''));
+        // 4. Fallback to environment
+        $envKey = trim((string) (getenv('GEMINI_API_KEY') ?: ''));
+        if ($envKey !== '' && !in_array($envKey, $keys, true)) {
+            $keys[] = $envKey;
+        }
+
+        return $keys;
     }
 }
 
