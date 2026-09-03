@@ -74,6 +74,65 @@ if (!function_exists('get_all_active_gemini_keys')) {
     }
 }
 
+if (!function_exists('get_gemini_pacific_cycle_date')) {
+    function get_gemini_pacific_cycle_date(): string
+    {
+        try {
+            $tz = new DateTimeZone('America/Los_Angeles');
+            $now = new DateTime('now', $tz);
+            return $now->format('Y-m-d');
+        } catch (Exception $e) {
+            return gmdate('Y-m-d');
+        }
+    }
+}
+
+if (!function_exists('get_gemini_reset_countdown_seconds')) {
+    function get_gemini_reset_countdown_seconds(): int
+    {
+        try {
+            $tz = new DateTimeZone('America/Los_Angeles');
+            $now = new DateTime('now', $tz);
+            $nextReset = clone $now;
+            $nextReset->modify('+1 day')->setTime(0, 0, 0);
+            return max(0, $nextReset->getTimestamp() - $now->getTimestamp());
+        } catch (Exception $e) {
+            return 0;
+        }
+    }
+}
+
+if (!function_exists('record_gemini_key_usage')) {
+    function record_gemini_key_usage($apiKey, $mysqli = null)
+    {
+        if ($mysqli === null) {
+            global $mysqli;
+        }
+        if (!($mysqli instanceof mysqli)) {
+            return;
+        }
+
+        $apiKey = trim((string)$apiKey);
+        if ($apiKey === '') {
+            return;
+        }
+
+        $cycle = get_gemini_pacific_cycle_date();
+
+        $stmt = @$mysqli->prepare("UPDATE admin_api_keys 
+            SET daily_requests_used = IF(last_reset_date != ? OR last_reset_date IS NULL, 1, daily_requests_used + 1),
+                last_reset_date = ?,
+                last_used_at = NOW(),
+                last_status = 'active'
+            WHERE api_key = ?");
+        if ($stmt) {
+            $stmt->bind_param('sss', $cycle, $cycle, $apiKey);
+            @$stmt->execute();
+            $stmt->close();
+        }
+    }
+}
+
 if (!function_exists('app_system_roles')) {
     function app_system_roles()
     {

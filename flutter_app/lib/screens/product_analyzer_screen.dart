@@ -162,8 +162,8 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
     try {
       final xfile = await _picker.pickImage(
         source: source,
-        imageQuality: 85,
-        maxWidth: 1080,
+        imageQuality: 75,
+        maxWidth: 850,
       );
       if (xfile == null) return;
       final bytes = await xfile.readAsBytes();

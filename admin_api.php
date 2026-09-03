@@ -377,6 +377,24 @@ function ensure_api_keys_table(): void {
         INDEX idx_active (is_active)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
+    // Ensure real-time usage tracking columns exist
+    $cols = dbQuery("SHOW COLUMNS FROM admin_api_keys LIKE 'daily_requests_used'");
+    if (empty($cols)) {
+        @dbQuery("ALTER TABLE admin_api_keys ADD COLUMN daily_requests_used INT DEFAULT 0");
+    }
+    $colsLimit = dbQuery("SHOW COLUMNS FROM admin_api_keys LIKE 'daily_limit'");
+    if (empty($colsLimit)) {
+        @dbQuery("ALTER TABLE admin_api_keys ADD COLUMN daily_limit INT DEFAULT 1500");
+    }
+    $colsUsed = dbQuery("SHOW COLUMNS FROM admin_api_keys LIKE 'last_used_at'");
+    if (empty($colsUsed)) {
+        @dbQuery("ALTER TABLE admin_api_keys ADD COLUMN last_used_at DATETIME NULL");
+    }
+    $colsReset = dbQuery("SHOW COLUMNS FROM admin_api_keys LIKE 'last_reset_date'");
+    if (empty($colsReset)) {
+        @dbQuery("ALTER TABLE admin_api_keys ADD COLUMN last_reset_date VARCHAR(20) NULL");
+    }
+
     // Pre-seed default Remove.bg keys if table is empty
     $count = dbQuery("SELECT COUNT(*) as c FROM admin_api_keys WHERE service_name = 'remove_bg'");
     if (empty($count) || (int)($count[0]['c'] ?? 0) === 0) {
@@ -1449,7 +1467,14 @@ try {
         case 'fetch_api_keys':
             ensure_api_keys_table();
             $service = trim($_REQUEST['service_name'] ?? 'remove_bg');
-            $rows = dbQuery("SELECT id, service_name, key_label, api_key, free_calls, credits, is_active, priority, last_status, last_checked_at, created_at FROM admin_api_keys WHERE service_name = ? ORDER BY priority ASC, id ASC", [$service]);
+
+            // Handle Gemini Daily Quota Cycle Reset (Midnight US Pacific Time = 14:00 Cambodia Time)
+            $geminiCycle = function_exists('get_gemini_pacific_cycle_date') ? get_gemini_pacific_cycle_date() : gmdate('Y-m-d');
+            if ($service === 'gemini') {
+                @dbQuery("UPDATE admin_api_keys SET daily_requests_used = 0, last_reset_date = ? WHERE service_name = 'gemini' AND (last_reset_date IS NULL OR last_reset_date != ?)", [$geminiCycle, $geminiCycle]);
+            }
+
+            $rows = dbQuery("SELECT id, service_name, key_label, api_key, free_calls, credits, is_active, priority, last_status, last_checked_at, created_at, daily_requests_used, daily_limit, last_used_at, last_reset_date FROM admin_api_keys WHERE service_name = ? ORDER BY priority ASC, id ASC", [$service]);
 
             // Auto-seed Gemini Key if currently empty
             if ($service === 'gemini' && empty($rows)) {
@@ -1457,23 +1482,43 @@ try {
                 dbQuery("INSERT IGNORE INTO admin_api_keys (service_name, key_label, api_key, free_calls, credits, priority, is_active, last_status, last_checked_at) VALUES ('gemini', 'Key 01 (Primary Gemini Key)', ?, 15, 1500, 1, 1, 'active', NOW())", [
                     $defaultGeminiKey
                 ]);
-                $rows = dbQuery("SELECT id, service_name, key_label, api_key, free_calls, credits, is_active, priority, last_status, last_checked_at, created_at FROM admin_api_keys WHERE service_name = ? ORDER BY priority ASC, id ASC", [$service]);
+                $rows = dbQuery("SELECT id, service_name, key_label, api_key, free_calls, credits, is_active, priority, last_status, last_checked_at, created_at, daily_requests_used, daily_limit, last_used_at, last_reset_date FROM admin_api_keys WHERE service_name = ? ORDER BY priority ASC, id ASC", [$service]);
             }
 
             $totalActive = 0;
             $totalFreeCalls = 0;
             $totalCredits = 0;
+            $totalDailyUsed = 0;
+            $totalDailyLimit = 0;
+            $currentActiveKeyLabel = '';
+            $currentActiveLastUsed = null;
+            $activeKeyCount = 0;
 
             $items = [];
             foreach ($rows as $r) {
                 $isActive = (int)$r['is_active'] === 1;
+                $isCurrentActive = false;
+
+                $keyLimit = (int)($r['daily_limit'] ?? 1500);
+                $keyUsed = (int)($r['daily_requests_used'] ?? 0);
+
                 if ($isActive) {
+                    if ($activeKeyCount === 0) {
+                        $isCurrentActive = true;
+                        $currentActiveKeyLabel = (string)$r['key_label'];
+                        $currentActiveLastUsed = $r['last_used_at'] ?? null;
+                    }
+                    $activeKeyCount++;
                     $totalActive++;
                     $totalFreeCalls += (int)$r['free_calls'];
                     $totalCredits += (int)$r['credits'];
+                    $totalDailyLimit += $keyLimit;
+                    $totalDailyUsed += $keyUsed;
                 }
+
                 $k = (string)$r['api_key'];
                 $masked = (strlen($k) > 10) ? substr($k, 0, 6) . '...' . substr($k, -4) : '***';
+                $remainingRpd = max(0, $keyLimit - $keyUsed);
                 
                 $items[] = [
                     'id' => (int)$r['id'],
@@ -1483,6 +1528,11 @@ try {
                     'masked_key' => $masked,
                     'free_calls' => (int)$r['free_calls'],
                     'credits' => (int)$r['credits'],
+                    'daily_requests_used' => $keyUsed,
+                    'daily_limit' => $keyLimit,
+                    'remaining_rpd' => $remainingRpd,
+                    'last_used_at' => $r['last_used_at'] ?? null,
+                    'is_current_active' => $isCurrentActive,
                     'is_active' => $isActive,
                     'priority' => (int)$r['priority'],
                     'last_status' => $r['last_status'] ?? 'active',
@@ -1490,6 +1540,8 @@ try {
                     'created_at' => $r['created_at']
                 ];
             }
+
+            $countdownSec = function_exists('get_gemini_reset_countdown_seconds') ? get_gemini_reset_countdown_seconds() : 0;
 
             sendJson([
                 'success' => true,
@@ -1499,6 +1551,13 @@ try {
                     'active_keys' => $totalActive,
                     'total_free_calls' => $totalFreeCalls,
                     'total_credits' => $totalCredits,
+                    'total_daily_limit' => $totalDailyLimit,
+                    'total_daily_used' => $totalDailyUsed,
+                    'total_daily_remaining' => max(0, $totalDailyLimit - $totalDailyUsed),
+                    'current_active_key' => $currentActiveKeyLabel ?: 'None',
+                    'current_active_last_used' => $currentActiveLastUsed,
+                    'reset_time_kh' => '14:00 (02:00 PM)',
+                    'reset_countdown_seconds' => $countdownSec,
                     'pool_status' => $totalActive > 0 ? 'Active & Ready' : 'Empty'
                 ]
             ]);

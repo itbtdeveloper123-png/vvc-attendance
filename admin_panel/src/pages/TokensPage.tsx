@@ -24,6 +24,8 @@ import {
   ExternalLink,
   Bot,
   AlertTriangle,
+  Clock,
+  Zap,
 } from 'lucide-react';
 import { StatCard } from '../components/common/StatCard';
 import { ViewModeToggle, ViewMode } from '../components/common/ViewModeToggle';
@@ -196,13 +198,44 @@ export const TokensPage: React.FC = () => {
   const [removeBgCount, setRemoveBgCount] = useState<number>(0);
   const [cutoutProCount, setCutoutProCount] = useState<number>(0);
   const [geminiCount, setGeminiCount] = useState<number>(0);
-  const [apiKeyStats, setApiKeyStats] = useState({
+  const [apiKeyStats, setApiKeyStats] = useState<any>({
     total_keys: 0,
     active_keys: 0,
     total_free_calls: 0,
     total_credits: 0,
+    total_daily_limit: 0,
+    total_daily_used: 0,
+    total_daily_remaining: 0,
+    current_active_key: 'None',
+    current_active_last_used: null,
+    reset_time_kh: '14:00 (02:00 PM)',
+    reset_countdown_seconds: 0,
     pool_status: 'Active & Ready',
   });
+  const [countdownSec, setCountdownSec] = useState<number>(0);
+
+  useEffect(() => {
+    if (apiKeyStats.reset_countdown_seconds !== undefined) {
+      setCountdownSec(Number(apiKeyStats.reset_countdown_seconds) || 0);
+    }
+  }, [apiKeyStats.reset_countdown_seconds]);
+
+  useEffect(() => {
+    if (countdownSec <= 0) return;
+    const timer = setInterval(() => {
+      setCountdownSec((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [countdownSec]);
+
+  const formatCountdown = (secs: number) => {
+    if (secs <= 0) return '00h 00m 00s';
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    const s = secs % 60;
+    return `${String(h).padStart(2, '0')}h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`;
+  };
+
   const [loadingKeys, setLoadingKeys] = useState(false);
   const [isKeyModalOpen, setIsKeyModalOpen] = useState(false);
   const [newKeyString, setNewKeyString] = useState('');
@@ -427,9 +460,9 @@ export const TokensPage: React.FC = () => {
           last_checked_at: new Date().toISOString().replace('T', ' ').substring(0, 16),
           created_at: new Date().toISOString().replace('T', ' ').substring(0, 16),
         };
-        setApiKeys((prev) => [...prev, newKeyItem]);
-        setApiKeyStats((prev) => ({ ...prev, total_keys: prev.total_keys + 1, active_keys: prev.active_keys + 1 }));
-        setGeminiCount((prev) => prev + 1);
+        setApiKeys((prev: any[]) => [...prev, newKeyItem]);
+        setApiKeyStats((prev: any) => ({ ...prev, total_keys: prev.total_keys + 1, active_keys: prev.active_keys + 1 }));
+        setGeminiCount((prev: number) => prev + 1);
         setIsKeyModalOpen(false);
         setNewKeyString('');
         setNewKeyLabel('');
@@ -453,9 +486,9 @@ export const TokensPage: React.FC = () => {
           last_checked_at: new Date().toISOString().replace('T', ' ').substring(0, 16),
           created_at: new Date().toISOString().replace('T', ' ').substring(0, 16),
         };
-        setApiKeys((prev) => [...prev, newKeyItem]);
-        setApiKeyStats((prev) => ({ ...prev, total_keys: prev.total_keys + 1, active_keys: prev.active_keys + 1 }));
-        setGeminiCount((prev) => prev + 1);
+        setApiKeys((prev: any[]) => [...prev, newKeyItem]);
+        setApiKeyStats((prev: any) => ({ ...prev, total_keys: prev.total_keys + 1, active_keys: prev.active_keys + 1 }));
+        setGeminiCount((prev: number) => prev + 1);
         setIsKeyModalOpen(false);
         setNewKeyString('');
         setNewKeyLabel('');
@@ -546,17 +579,17 @@ export const TokensPage: React.FC = () => {
         loadApiKeys(currentServiceName, true);
         broadcastRealtimeUpdate({ target: 'tokens', action: 'delete_key' });
       } else if (currentServiceName === 'gemini') {
-        setApiKeys((prev) => prev.filter((k) => k.id !== id));
-        setApiKeyStats((prev) => ({ ...prev, total_keys: Math.max(0, prev.total_keys - 1), active_keys: Math.max(0, prev.active_keys - 1) }));
-        setGeminiCount((prev) => Math.max(0, prev - 1));
+        setApiKeys((prev: any[]) => prev.filter((k: any) => k.id !== id));
+        setApiKeyStats((prev: any) => ({ ...prev, total_keys: Math.max(0, prev.total_keys - 1), active_keys: Math.max(0, prev.active_keys - 1) }));
+        setGeminiCount((prev: number) => Math.max(0, prev - 1));
         showBanner('success', `បានលុប ${label} ដោយជោគជ័យ!`);
         broadcastRealtimeUpdate({ target: 'tokens', action: 'delete_key' });
       }
     } catch (err: any) {
       if (currentServiceName === 'gemini') {
-        setApiKeys((prev) => prev.filter((k) => k.id !== id));
-        setApiKeyStats((prev) => ({ ...prev, total_keys: Math.max(0, prev.total_keys - 1), active_keys: Math.max(0, prev.active_keys - 1) }));
-        setGeminiCount((prev) => Math.max(0, prev - 1));
+        setApiKeys((prev: any[]) => prev.filter((k: any) => k.id !== id));
+        setApiKeyStats((prev: any) => ({ ...prev, total_keys: Math.max(0, prev.total_keys - 1), active_keys: Math.max(0, prev.active_keys - 1) }));
+        setGeminiCount((prev: number) => Math.max(0, prev - 1));
         showBanner('success', `បានលុប ${label} ដោយជោគជ័យ!`);
         broadcastRealtimeUpdate({ target: 'tokens', action: 'delete_key' });
       } else {
@@ -589,7 +622,7 @@ export const TokensPage: React.FC = () => {
         );
 
         setApiKeys(updated);
-        setApiKeyStats((prev) => ({
+        setApiKeyStats((prev: any) => ({
           ...prev,
           active_keys: activeCount,
           pool_status: activeCount > 0 ? 'Active & Ready' : 'Warning: No Working Keys',
@@ -1486,23 +1519,32 @@ export const TokensPage: React.FC = () => {
               subtitle="Keys កំពុងដំណើរការ"
               icon={<Layers size={22} color="var(--primary)" />}
             />
+            {activeTab === 'gemini_keys' ? (
+              <StatCard
+                title="Key កំពុងប្រើប្រាស់ (In-Use)"
+                value={apiKeyStats.current_active_key || 'None'}
+                subtitle={apiKeyStats.current_active_last_used ? `ប្រើចុងក្រោយ៖ ${apiKeyStats.current_active_last_used.split(' ')[1] || ''}` : 'ត្រៀមឆ្លើយតប Auto-Failover'}
+                icon={<Zap size={22} color="#10B981" />}
+              />
+            ) : (
+              <StatCard
+                title={activeTab === 'cutout_pro_keys' ? 'Free Credits នៅសល់' : 'Free Calls នៅសល់ / ខែ'}
+                value={`${apiKeyStats.total_free_calls}`}
+                subtitle={activeTab === 'cutout_pro_keys' ? '5 Credits / គណនី' : 'Reset ជារៀងរាល់ខែ'}
+                icon={activeTab === 'cutout_pro_keys' ? <Wand2 size={22} color="#10B981" /> : <Bot size={22} color="#2563EB" />}
+              />
+            )}
             <StatCard
-              title={activeTab === 'gemini_keys' ? 'Free Quota (RPM)' : activeTab === 'cutout_pro_keys' ? 'Free Credits នៅសល់' : 'Free Calls នៅសល់ / ខែ'}
-              value={activeTab === 'gemini_keys' ? '15 RPM / Key' : `${apiKeyStats.total_free_calls}`}
-              subtitle={activeTab === 'gemini_keys' ? '15 Requests ក្នុង 1 នាទី' : activeTab === 'cutout_pro_keys' ? '5 Credits / គណនី' : 'Reset ជារៀងរាល់ខែ'}
-              icon={activeTab === 'gemini_keys' ? <Bot size={22} color="#2563EB" /> : <Wand2 size={22} color="#10B981" />}
-            />
-            <StatCard
-              title={activeTab === 'gemini_keys' ? 'Daily Limit (RPD)' : activeTab === 'cutout_pro_keys' ? 'HD Photo Credits' : 'Full-Res Credits'}
-              value={activeTab === 'gemini_keys' ? '1,500 RPD / Key' : `${apiKeyStats.total_credits}`}
-              subtitle={activeTab === 'gemini_keys' ? '1,500 Requests ក្នុង 1 ថ្ងៃ' : 'កាត់រូបច្បាស់ High-Res'}
+              title={activeTab === 'gemini_keys' ? 'Daily Limit (RPD) នៅសល់' : activeTab === 'cutout_pro_keys' ? 'HD Photo Credits' : 'Full-Res Credits'}
+              value={activeTab === 'gemini_keys' ? `${(apiKeyStats.total_daily_remaining ?? (apiKeyStats.active_keys * 1500)).toLocaleString()} / ${(apiKeyStats.total_daily_limit || (apiKeyStats.active_keys * 1500)).toLocaleString()}` : `${apiKeyStats.total_credits}`}
+              subtitle={activeTab === 'gemini_keys' ? `ប្រើប្រាស់ថ្ងៃនេះ៖ ${apiKeyStats.total_daily_used || 0} លើក` : 'កាត់រូបច្បាស់ High-Res'}
               icon={<Sparkles size={22} color="#F59E0B" />}
             />
             <StatCard
-              title="ស្ថានភាពប្រព័ន្ធ Failover"
-              value={apiKeyStats.pool_status}
-              subtitle="Auto Rotate ពេលជួបបញ្ហា"
-              icon={<Shield size={22} color="#0284C7" />}
+              title={activeTab === 'gemini_keys' ? 'ម៉ោង Reset Daily Limit' : 'ស្ថានភាពប្រព័ន្ធ Failover'}
+              value={activeTab === 'gemini_keys' ? '14:00 (02:00 PM)' : apiKeyStats.pool_status}
+              subtitle={activeTab === 'gemini_keys' ? `⏳ Reset ក្នុង៖ ${formatCountdown(countdownSec)}` : 'Auto Rotate ពេលជួបបញ្ហា'}
+              icon={activeTab === 'gemini_keys' ? <Clock size={22} color="#0284C7" /> : <Shield size={22} color="#0284C7" />}
             />
           </div>
 
@@ -1643,11 +1685,32 @@ export const TokensPage: React.FC = () => {
                                   {idx + 1}
                                 </span>
                                 <div>
-                                  <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '13.5px' }}>
-                                    {k.key_label}
+                                  <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '13.5px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                    <span>{k.key_label}</span>
+                                    {k.is_current_active && activeTab === 'gemini_keys' && (
+                                      <span
+                                        style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '4px',
+                                          padding: '2px 8px',
+                                          borderRadius: '12px',
+                                          fontSize: '10px',
+                                          fontWeight: 800,
+                                          background: 'rgba(16, 185, 129, 0.18)',
+                                          color: '#059669',
+                                          border: '1px solid rgba(16, 185, 129, 0.4)',
+                                          boxShadow: '0 0 8px rgba(16, 185, 129, 0.25)',
+                                        }}
+                                        title="Key នេះកំពុងត្រូវបានប្រព័ន្ធទាញយកមកឆ្លើយតបសំណើ AI ផ្ទាល់"
+                                      >
+                                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10B981', display: 'inline-block' }} />
+                                        ⚡ កំពុងប្រើប្រាស់ (In-Use)
+                                      </span>
+                                    )}
                                   </div>
                                   <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                                    Priority #{k.priority || idx + 1} • បង្កើត៖ {k.created_at ? k.created_at.split(' ')[0] : 'ថ្មី'}
+                                    Priority #{k.priority || idx + 1} • {k.last_used_at ? `ប្រើចុងក្រោយ៖ ${k.last_used_at}` : `បង្កើត៖ ${k.created_at ? k.created_at.split(' ')[0] : 'ថ្មី'}`}
                                   </div>
                                 </div>
                               </div>
@@ -1686,9 +1749,34 @@ export const TokensPage: React.FC = () => {
                               </span>
                             </td>
                             <td style={{ textAlign: 'center' }}>
-                              <span style={{ fontWeight: 700, fontSize: '13px', color: k.credits > 0 ? '#F59E0B' : 'var(--text-muted)' }}>
-                                {k.credits} {activeTab === 'gemini_keys' ? 'RPD' : ''}
-                              </span>
+                              {activeTab === 'gemini_keys' ? (
+                                <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: '4px', minWidth: '140px' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', fontSize: '11.5px', fontWeight: 700 }}>
+                                    <span style={{ color: (k.remaining_rpd ?? 1500) > 200 ? '#10B981' : (k.remaining_rpd ?? 1500) > 50 ? '#F59E0B' : '#EF4444' }}>
+                                      នៅសល់: {(k.remaining_rpd ?? 1500).toLocaleString()}
+                                    </span>
+                                    <span style={{ color: 'var(--text-muted)' }}>/ 1,500</span>
+                                  </div>
+                                  <div style={{ width: '100%', height: '6px', borderRadius: '3px', background: 'var(--surface-alt)', overflow: 'hidden', border: '1px solid var(--border)' }}>
+                                    <div
+                                      style={{
+                                        width: `${Math.min(100, Math.max(0, (((k.remaining_rpd ?? 1500) / 1500) * 100)))}%`,
+                                        height: '100%',
+                                        background: (k.remaining_rpd ?? 1500) > 500 ? '#10B981' : (k.remaining_rpd ?? 1500) > 100 ? '#F59E0B' : '#EF4444',
+                                        borderRadius: '3px',
+                                        transition: 'width 0.3s ease',
+                                      }}
+                                    />
+                                  </div>
+                                  <div style={{ fontSize: '10.5px', color: 'var(--text-muted)' }}>
+                                    ប្រើថ្ងៃនេះ៖ <strong style={{ color: (k.daily_requests_used || 0) > 0 ? 'var(--primary)' : 'var(--text-muted)' }}>{k.daily_requests_used || 0}</strong> លើក
+                                  </div>
+                                </div>
+                              ) : (
+                                <span style={{ fontWeight: 700, fontSize: '13px', color: k.credits > 0 ? '#F59E0B' : 'var(--text-muted)' }}>
+                                  {k.credits}
+                                </span>
+                              )}
                             </td>
                             <td style={{ textAlign: 'center' }}>
                               {k.is_active ? (

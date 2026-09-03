@@ -7182,6 +7182,60 @@ try {
         }
         $cleanImageBase64 = str_replace(["\r", "\n", " ", "\t"], '', (string)$imageBase64);
 
+        // Fast Cache Check (Instantly return if this exact image/barcode was analyzed recently)
+        $cacheHash = md5($cleanImageBase64 . '|' . $barcodeText);
+        $cacheFile = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'vvc_prod_ai_' . $cacheHash . '.json';
+        if (file_exists($cacheFile) && (time() - filemtime($cacheFile)) < 86400) {
+            $cachedData = json_decode((string)file_get_contents($cacheFile), true);
+            if (is_array($cachedData) && !empty($cachedData['product_name']) && $cachedData['product_name'] !== 'មិនបានរកឃើញ') {
+                apiResponse([
+                    'success' => true,
+                    'raw' => json_encode($cachedData, JSON_UNESCAPED_UNICODE),
+                    'parsed' => $cachedData,
+                    'quality_issues' => [],
+                    'quality_score' => 100,
+                    'attempts' => 1,
+                    'from_cache' => true,
+                ]);
+            }
+        }
+
+        // Image Compression & Optimization (Shrinks huge camera photos 3MB->80KB for 5x faster Google API upload)
+        if (strlen($cleanImageBase64) > 200000 && extension_loaded('gd')) {
+            $imgRaw = base64_decode($cleanImageBase64);
+            if ($imgRaw !== false) {
+                $im = @imagecreatefromstring($imgRaw);
+                if ($im !== false) {
+                    $origW = imagesx($im);
+                    $origH = imagesy($im);
+                    $maxDim = 850;
+                    if ($origW > $maxDim || $origH > $maxDim) {
+                        if ($origW > $origH) {
+                            $newW = $maxDim;
+                            $newH = (int)round(($origH / $origW) * $maxDim);
+                        } else {
+                            $newH = $maxDim;
+                            $newW = (int)round(($origW / $origH) * $maxDim);
+                        }
+                        $resized = imagecreatetruecolor($newW, $newH);
+                        imagecopyresampled($resized, $im, 0, 0, 0, 0, $newW, $newH, $origW, $origH);
+                        ob_start();
+                        imagejpeg($resized, null, 75);
+                        $jpgData = ob_get_clean();
+                        imagedestroy($resized);
+                        imagedestroy($im);
+                        if ($jpgData !== false && strlen($jpgData) > 0) {
+                            $cleanImageBase64 = base64_encode($jpgData);
+                            $imageBase64 = $cleanImageBase64;
+                            $mimeType = 'image/jpeg';
+                        }
+                    } else {
+                        imagedestroy($im);
+                    }
+                }
+            }
+        }
+
         $gs1 = product_ai_barcode_country($barcodeText);
         $gs1Hint = '';
         if (is_array($gs1)) {
@@ -7300,6 +7354,10 @@ try {
             if (!product_ai_is_placeholder_string((string)$bestJson['country_of_origin'])) $parts[] = 'ប្រភព៖ ' . $bestJson['country_of_origin'];
             if (!product_ai_is_placeholder_string((string)$bestJson['ingredients_summary'])) $parts[] = 'សមាសធាតុ៖ ' . $bestJson['ingredients_summary'];
             $bestJson['summary'] = $parts ? implode(' | ', $parts) : 'AI បានវិភាគរូបភាពផលិតផល។';
+        }
+
+        if (!empty($bestJson['product_name']) && $bestJson['product_name'] !== 'មិនបានរកឃើញ' && !empty($cacheFile)) {
+            @file_put_contents($cacheFile, json_encode($bestJson, JSON_UNESCAPED_UNICODE));
         }
 
         apiResponse([
@@ -9893,6 +9951,7 @@ function ai_call_free_vision_service($systemPrompt, $userPrompt, $imageBase64 = 
             ],
             'generationConfig' => [
                 'temperature' => 0.1,
+                'maxOutputTokens' => 1024,
                 'responseMimeType' => 'application/json'
             ]
         ];
@@ -9908,7 +9967,7 @@ function ai_call_free_vision_service($systemPrompt, $userPrompt, $imageBase64 = 
                 curl_setopt($ch, CURLOPT_POST, true);
                 curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonPayload);
                 curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-                curl_setopt($ch, CURLOPT_TIMEOUT, 40);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 30);
                 curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
                 curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
                 $resp = curl_exec($ch);
@@ -9919,11 +9978,15 @@ function ai_call_free_vision_service($systemPrompt, $userPrompt, $imageBase64 = 
                     $data = json_decode($resp, true);
                     $content = $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
                     if (trim((string)$content) !== '') {
+                        if (function_exists('record_gemini_key_usage')) {
+                            record_gemini_key_usage($geminiKey, $mysqli);
+                        }
                         return [
                             'success'  => true,
                             'content'  => trim((string)$content),
                             'provider' => 'gemini',
                             'model'    => $gModel,
+                            'key_used' => $keyLabel,
                             'raw_data' => $data,
                         ];
                     }
