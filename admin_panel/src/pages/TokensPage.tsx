@@ -214,19 +214,35 @@ export const TokensPage: React.FC = () => {
   });
   const [countdownSec, setCountdownSec] = useState<number>(0);
 
-  useEffect(() => {
-    if (apiKeyStats.reset_countdown_seconds !== undefined) {
-      setCountdownSec(Number(apiKeyStats.reset_countdown_seconds) || 0);
+  const calculateSecondsUntil1400Cambodia = () => {
+    const now = new Date();
+    // Cambodia is UTC+7
+    const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+    const cambodiaNow = new Date(utc + (7 * 3600000));
+    
+    const resetTarget = new Date(cambodiaNow);
+    resetTarget.setHours(14, 0, 0, 0);
+    
+    if (cambodiaNow.getTime() >= resetTarget.getTime()) {
+      resetTarget.setDate(resetTarget.getDate() + 1);
     }
+    
+    return Math.max(0, Math.floor((resetTarget.getTime() - cambodiaNow.getTime()) / 1000));
+  };
+
+  useEffect(() => {
+    const secs = (apiKeyStats.reset_countdown_seconds && Number(apiKeyStats.reset_countdown_seconds) > 0)
+      ? Number(apiKeyStats.reset_countdown_seconds)
+      : calculateSecondsUntil1400Cambodia();
+    setCountdownSec(secs);
   }, [apiKeyStats.reset_countdown_seconds]);
 
   useEffect(() => {
-    if (countdownSec <= 0) return;
     const timer = setInterval(() => {
-      setCountdownSec((prev) => (prev > 0 ? prev - 1 : 0));
+      setCountdownSec((prev) => (prev > 0 ? prev - 1 : calculateSecondsUntil1400Cambodia()));
     }, 1000);
     return () => clearInterval(timer);
-  }, [countdownSec]);
+  }, []);
 
   const formatCountdown = (secs: number) => {
     if (secs <= 0) return '00h 00m 00s';
@@ -622,14 +638,17 @@ export const TokensPage: React.FC = () => {
         );
 
         setApiKeys(updated);
-        setApiKeyStats((prev: any) => ({
-          ...prev,
-          active_keys: activeCount,
-          pool_status: activeCount > 0 ? 'Active & Ready' : 'Warning: No Working Keys',
-        }));
+
+        // Sync statuses to backend database
+        try {
+          await adminApi.syncAllApiKeys(currentServiceName);
+        } catch (_) {}
+
+        // Reload latest actual database usage stats, remaining RPD and in-use key
+        await loadApiKeys(currentServiceName, true);
 
         if (activeCount > 0) {
-          showBanner('success', `តេស្តគ្រប់ Keys រួចរាល់៖ ✅ ${activeCount} សកម្ម, ❌ ${deniedCount} Google បិទសិទ្ធិ, ⚠️ ${otherCount} ផ្សេងៗ`);
+          showBanner('success', `តេស្ត និង Sync គ្រប់ Keys រួចរាល់៖ ✅ ${activeCount} សកម្ម, ❌ ${deniedCount} Google បិទសិទ្ធិ, ⚠️ ${otherCount} ផ្សេងៗ`);
         } else {
           showBanner('error', `តេស្តគ្រប់ Keys រួចរាល់៖ ❌ គ្មាន Key ណាអាចដំណើរការបានឡើយ (${deniedCount} Google បិទសិទ្ធិ)! សូមបង្កើត Key ថ្មី។`);
         }

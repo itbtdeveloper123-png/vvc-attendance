@@ -1,5 +1,6 @@
 <?php
 date_default_timezone_set('Asia/Phnom_Penh');
+require_once __DIR__ . '/enterprise_helpers.php';
 // config.php - Central configuration with Auto-Environment Detection (.env)
 
 /**

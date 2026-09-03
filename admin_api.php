@@ -1469,9 +1469,12 @@ try {
             $service = trim($_REQUEST['service_name'] ?? 'remove_bg');
 
             // Handle Gemini Daily Quota Cycle Reset (Midnight US Pacific Time = 14:00 Cambodia Time)
-            $geminiCycle = function_exists('get_gemini_pacific_cycle_date') ? get_gemini_pacific_cycle_date() : gmdate('Y-m-d');
+            $geminiCycle = function_exists('get_gemini_pacific_cycle_date') ? get_gemini_pacific_cycle_date() : date('Y-m-d');
             if ($service === 'gemini') {
-                @dbQuery("UPDATE admin_api_keys SET daily_requests_used = 0, last_reset_date = ? WHERE service_name = 'gemini' AND (last_reset_date IS NULL OR last_reset_date != ?)", [$geminiCycle, $geminiCycle]);
+                // Initialize last_reset_date if null without wiping usage
+                @dbQuery("UPDATE admin_api_keys SET last_reset_date = ? WHERE service_name = 'gemini' AND last_reset_date IS NULL", [$geminiCycle]);
+                // Only reset keys if their last_reset_date is from a previous cycle date
+                @dbQuery("UPDATE admin_api_keys SET daily_requests_used = 0, last_reset_date = ? WHERE service_name = 'gemini' AND last_reset_date != ?", [$geminiCycle, $geminiCycle]);
             }
 
             $rows = dbQuery("SELECT id, service_name, key_label, api_key, free_calls, credits, is_active, priority, last_status, last_checked_at, created_at, daily_requests_used, daily_limit, last_used_at, last_reset_date FROM admin_api_keys WHERE service_name = ? ORDER BY priority ASC, id ASC", [$service]);

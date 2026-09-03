@@ -78,11 +78,17 @@ if (!function_exists('get_gemini_pacific_cycle_date')) {
     function get_gemini_pacific_cycle_date(): string
     {
         try {
-            $tz = new DateTimeZone('America/Los_Angeles');
+            $tz = new DateTimeZone('Asia/Phnom_Penh');
             $now = new DateTime('now', $tz);
+            $h = (int)$now->format('H');
+            if ($h < 14) {
+                $cycle = clone $now;
+                $cycle->modify('-1 day');
+                return $cycle->format('Y-m-d');
+            }
             return $now->format('Y-m-d');
         } catch (Exception $e) {
-            return gmdate('Y-m-d');
+            return date('Y-m-d');
         }
     }
 }
@@ -91,11 +97,14 @@ if (!function_exists('get_gemini_reset_countdown_seconds')) {
     function get_gemini_reset_countdown_seconds(): int
     {
         try {
-            $tz = new DateTimeZone('America/Los_Angeles');
+            $tz = new DateTimeZone('Asia/Phnom_Penh');
             $now = new DateTime('now', $tz);
-            $nextReset = clone $now;
-            $nextReset->modify('+1 day')->setTime(0, 0, 0);
-            return max(0, $nextReset->getTimestamp() - $now->getTimestamp());
+            $reset = clone $now;
+            $reset->setTime(14, 0, 0);
+            if ($now->getTimestamp() >= $reset->getTimestamp()) {
+                $reset->modify('+1 day');
+            }
+            return max(0, $reset->getTimestamp() - $now->getTimestamp());
         } catch (Exception $e) {
             return 0;
         }
@@ -105,13 +114,6 @@ if (!function_exists('get_gemini_reset_countdown_seconds')) {
 if (!function_exists('record_gemini_key_usage')) {
     function record_gemini_key_usage($apiKey, $mysqli = null)
     {
-        if ($mysqli === null) {
-            global $mysqli;
-        }
-        if (!($mysqli instanceof mysqli)) {
-            return;
-        }
-
         $apiKey = trim((string)$apiKey);
         if ($apiKey === '') {
             return;
@@ -119,16 +121,33 @@ if (!function_exists('record_gemini_key_usage')) {
 
         $cycle = get_gemini_pacific_cycle_date();
 
-        $stmt = @$mysqli->prepare("UPDATE admin_api_keys 
-            SET daily_requests_used = IF(last_reset_date != ? OR last_reset_date IS NULL, 1, daily_requests_used + 1),
-                last_reset_date = ?,
-                last_used_at = NOW(),
-                last_status = 'active'
-            WHERE api_key = ?");
-        if ($stmt) {
-            $stmt->bind_param('sss', $cycle, $cycle, $apiKey);
-            @$stmt->execute();
-            $stmt->close();
+        // 1. Support dbQuery if available (in admin_api.php context)
+        if (function_exists('dbQuery')) {
+            @dbQuery("UPDATE admin_api_keys 
+                SET daily_requests_used = IF(last_reset_date != ? OR last_reset_date IS NULL, 1, daily_requests_used + 1),
+                    last_reset_date = ?,
+                    last_used_at = NOW(),
+                    last_status = 'active'
+                WHERE api_key = ?", [$cycle, $cycle, $apiKey]);
+            return;
+        }
+
+        // 2. Support $mysqli if available (in api.php context)
+        if ($mysqli === null) {
+            global $mysqli;
+        }
+        if ($mysqli instanceof mysqli) {
+            $stmt = @$mysqli->prepare("UPDATE admin_api_keys 
+                SET daily_requests_used = IF(last_reset_date != ? OR last_reset_date IS NULL, 1, daily_requests_used + 1),
+                    last_reset_date = ?,
+                    last_used_at = NOW(),
+                    last_status = 'active'
+                WHERE api_key = ?");
+            if ($stmt) {
+                $stmt->bind_param('sss', $cycle, $cycle, $apiKey);
+                @$stmt->execute();
+                $stmt->close();
+            }
         }
     }
 }
