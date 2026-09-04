@@ -246,12 +246,12 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
       return 'AI វិភាគយូរពេក។ ប្រសិនបើប្រើ AI ក្នុងស្រុក (Local AI) វាអាចចំណាយ 3-10 នាទី សូមព្យាយាមម្តងទៀត។';
     }
 
-    if (text.contains('AI vision request failed')) {
+    if (text.contains('AI vision request failed') || text.contains('មិនអាចទាក់ទងប្រព័ន្ធ AI')) {
       final detail = text.replaceAll('AI vision request failed:', '').trim();
       return 'មិនអាចទាក់ទងប្រព័ន្ធ AI វិភាគរូបភាពបានទេ ($detail)។ សូមពិនិត្យអ៊ីនធឺណិត ឬព្យាយាមម្តងទៀត។';
     }
 
-    if (text.contains('<think') || text.contains('"product_name"')) {
+    if (text.startsWith('{') || text.startsWith('[') || text.contains('<think')) {
       return 'AI មិនអាចរៀបចំលទ្ធផលបានត្រឹមត្រូវទេ។ សូមព្យាយាមម្តងទៀត។';
     }
 
@@ -285,16 +285,41 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
         return;
       }
       final parsed = res['parsed'];
-      if (parsed is Map<String, dynamic>) {
+      Map<String, dynamic>? parsedMap;
+
+      if (parsed is Map) {
+        parsedMap = Map<String, dynamic>.from(
+          parsed.map((k, v) => MapEntry(k.toString(), v)),
+        );
+      } else if (res['raw'] is String && (res['raw'] as String).trim().isNotEmpty) {
+        try {
+          String rawStr = (res['raw'] as String).trim();
+          rawStr = rawStr.replaceAll(RegExp(r'<think\b[^>]*>.*?<\/think>', dotAll: true), '');
+          rawStr = rawStr.replaceAll(RegExp(r'<reasoning\b[^>]*>.*?<\/reasoning>', dotAll: true), '');
+          final firstBrace = rawStr.indexOf('{');
+          final lastBrace = rawStr.lastIndexOf('}');
+          if (firstBrace != -1 && lastBrace != -1 && lastBrace > firstBrace) {
+            rawStr = rawStr.substring(firstBrace, lastBrace + 1);
+          }
+          final decoded = json.decode(rawStr);
+          if (decoded is Map) {
+            parsedMap = Map<String, dynamic>.from(
+              decoded.map((k, v) => MapEntry(k.toString(), v)),
+            );
+          }
+        } catch (_) {}
+      }
+
+      if (parsedMap != null && parsedMap.isNotEmpty) {
         setState(() {
-          _result = ProductAnalysis.fromJson({...parsed, 'raw': res['raw']});
+          _result = ProductAnalysis.fromJson({...parsedMap!, 'raw': res['raw']});
           _mode = _ProductMode.result;
           _isAnalyzing = false;
         });
       } else {
         setState(() {
           _errorMsg = _friendlyAnalysisErrorMessage(
-            res['raw']?.toString() ?? '',
+            res['raw']?.toString() ?? res['message']?.toString() ?? '',
           );
           _isAnalyzing = false;
         });

@@ -3934,7 +3934,7 @@ try {
                                 . "===TRANSCRIPT_START===\nសូមសរសេរអត្ថបទសន្ទនាការនិយាយជាក់ស្តែងទាំងអស់ពីសំឡេង (Full Dialogue Transcript) តាមលំដាប់លំដោយនៃអ្នកនិយាយ ដោយបំបែកជាឃ្លាខ្លីៗ និងដាក់ Timestamp [MM:SS] នៅដើមឃ្លានីមួយៗជានិច្ច (ឧទាហរណ៍៖ [00:00] **អ្នកនិយាយ ៖** ពាក្យសម្តី...)\n===TRANSCRIPT_END===\n\n"
                                 . "សូមឆ្លើយតបជាភាសាខ្មែរ។";
 
-                            $geminiAudioModels = ['gemini-3.6-flash', 'gemini-flash-latest', 'gemini-2.5-flash'];
+                            $geminiAudioModels = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
                             foreach ($geminiAudioModels as $gaModel) {
                                 $genUrl = "https://generativelanguage.googleapis.com/v1beta/models/{$gaModel}:generateContent?key=" . urlencode($geminiKey);
                                 $ch = curl_init($genUrl);
@@ -4010,7 +4010,7 @@ try {
 
                 // 3a. Try Gemini
                 if ($geminiKey !== '') {
-                    $geminiModels = ['gemini-3.6-flash', 'gemini-flash-latest', 'gemini-2.5-flash'];
+                    $geminiModels = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
                     foreach ($geminiModels as $gModel) {
                         try {
                             $nativeUrl = "https://generativelanguage.googleapis.com/v1beta/models/{$gModel}:generateContent?key=" . urlencode($geminiKey);
@@ -7290,7 +7290,8 @@ try {
                 $bestRaw = $rawContent;
             }
             $lastIssues = $issues;
-            if ($cnt === 0 || ($cnt <= 2 && !in_array('placeholder:product_name=' . mb_substr((string)($parsed['product_name'] ?? ''), 0, 30, 'UTF-8'), $issues, true) && !in_array('placeholder:brand=' . mb_substr((string)($parsed['brand'] ?? ''), 0, 30, 'UTF-8'), $issues, true))) {
+            $pNameValid = !empty($parsed['product_name']) && !product_ai_is_placeholder_string($parsed['product_name']);
+            if ($cnt === 0 || ($pNameValid && $cnt <= 4) || ($cnt <= 2 && !in_array('placeholder:product_name=' . mb_substr((string)($parsed['product_name'] ?? ''), 0, 30, 'UTF-8'), $issues, true) && !in_array('placeholder:brand=' . mb_substr((string)($parsed['brand'] ?? ''), 0, 30, 'UTF-8'), $issues, true))) {
                 $bestJson = $parsed; $bestRaw = $rawContent; break;
             }
             if ($attempt < 3) { usleep(250000); }
@@ -9942,7 +9943,7 @@ function ai_call_free_vision_service($systemPrompt, $userPrompt, $imageBase64 = 
     }
 
     if (!empty($geminiKeys)) {
-        $geminiModels = ['gemini-3.6-flash', 'gemini-flash-latest', 'gemini-2.5-flash'];
+        $geminiModels = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
         
         $parts = [];
         $parts[] = ['text' => (string)$systemPrompt . "\n\n" . (string)$userPrompt];
@@ -10020,7 +10021,7 @@ function ai_call_free_vision_service($systemPrompt, $userPrompt, $imageBase64 = 
     // =========================================================================
     $groqKey = trim((string)(defined('GROQ_API_KEY') ? GROQ_API_KEY : (getenv('GROQ_API_KEY') ?: '')));
     if ($groqKey !== '') {
-        $groqModels = ['llama-3.2-11b-vision-preview', 'llama-3.2-90b-vision-preview'];
+        $groqModels = ['qwen/qwen3.6-27b', 'qwen/qwen3.8-27b'];
         $userContent = [];
         $userContent[] = ['type' => 'text', 'text' => (string)$userPrompt];
         if ($cleanImageBase64 !== '') {
