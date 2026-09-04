@@ -4115,6 +4115,11 @@ try {
                                 continue;
                             }
 
+                            // Record Gemini API usage for audio upload in Admin Pool
+                            if (function_exists('record_gemini_key_usage')) {
+                                record_gemini_key_usage($currentGeminiKey, $mysqli);
+                            }
+
                             // If audio state is PROCESSING, poll until ACTIVE (up to 120s for long recordings)
                             if ($fileState === 'PROCESSING' && $uploadedFileName !== '') {
                                 $pollCount = 0;
@@ -4206,6 +4211,11 @@ try {
                                             $cleanRes = preg_replace('/===+\s*(?:SUMMARY|TRANSCRIPT)_(?:START|END)\s*===+/i', '', $fullAudioResponse);
                                             $summaryText = trim($cleanRes);
                                         }
+
+                                        // Record Gemini API usage for audio minutes generation in Admin Pool
+                                        if (function_exists('record_gemini_key_usage')) {
+                                            record_gemini_key_usage($currentGeminiKey, $mysqli);
+                                        }
                                         break 2; // Successfully generated summary from audio
                                     }
                                 } else {
@@ -4294,6 +4304,10 @@ try {
                                     $summaryText = trim($dec['candidates'][0]['content']['parts'][0]['text']);
                                     $usedProvider = 'gemini';
                                     $usedModel = $gModel;
+                                    // Record Gemini API usage for text minutes generation in Admin Pool
+                                    if (function_exists('record_gemini_key_usage')) {
+                                        record_gemini_key_usage($geminiKey, $mysqli);
+                                    }
                                     break;
                                 }
                             } elseif ($rawRes) {

@@ -4347,7 +4347,17 @@ try {
             $usedProvider   = '';
             $usedModel      = '';
             $lastError      = '';
-            $geminiKey = trim((string)(defined('GEMINI_API_KEY') ? GEMINI_API_KEY : ''));
+            $geminiKeys = [];
+            if (function_exists('get_all_active_gemini_keys')) {
+                $geminiKeys = get_all_active_gemini_keys();
+            }
+            if (empty($geminiKeys)) {
+                $singleKey = trim((string)(function_exists('get_active_gemini_key') ? get_active_gemini_key() : (defined('GEMINI_API_KEY') ? GEMINI_API_KEY : (getenv('GEMINI_API_KEY') ?: ''))));
+                if ($singleKey !== '') {
+                    $geminiKeys[] = $singleKey;
+                }
+            }
+            $geminiKey = !empty($geminiKeys) ? $geminiKeys[0] : '';
             $groqKey = trim((string)(defined('GROQ_API_KEY') ? GROQ_API_KEY : ''));
             $topic = trim((string)($meeting['topic'] ?? $meeting['title'] ?? 'កិច្ចប្រជុំ'));
             $dept = trim((string)($meeting['department'] ?? $meeting['category'] ?? 'General'));
@@ -4430,6 +4440,9 @@ try {
                     $uploadedAudioUri = $upDec['file']['uri'] ?? '';
 
                     if ($uploadedAudioUri !== '') {
+                        if (function_exists('record_gemini_key_usage')) {
+                            record_gemini_key_usage($geminiKey);
+                        }
                         $audioPrompt = "អ្នកជាជំនួយការ AI សម្រាប់កត់ត្រាកំណត់ហេតុកិច្ចប្រជុំ និងស្តាប់សំឡេងកិច្ចប្រជុំផ្ទាល់ជាភាសាខ្មែរ (Executive Minutes & Full Dialogue Transcript from Audio)។\n\n"
                             . "ព័ត៌មានកិច្ចប្រជុំ:\n- ប្រធានបទ: {$topic}\n- ផ្នែក/ក្រុម: {$dept}\n- កាលបរិច្ឆេទ: {$date}\n\n"
                             . "សូមស្តាប់សំឡេងនេះដោយហ្មត់ចត់ ហើយឆ្លើយតបជា ២ ផ្នែកដាច់ដោយឡែកពីគ្នា ដូចខាងក្រោម៖\n\n"
@@ -4465,6 +4478,9 @@ try {
                                 $fullAudioResponse = trim($audioDec['candidates'][0]['content']['parts'][0]['text']);
                                 $usedProvider = 'gemini';
                                 $usedModel = 'gemini-2.5-flash';
+                                if (function_exists('record_gemini_key_usage')) {
+                                    record_gemini_key_usage($geminiKey);
+                                }
 
                                 // Extract Transcript section
                                 if (preg_match('/===TRANSCRIPT_START===(.*?)(?:===TRANSCRIPT_END===|$)/s', $fullAudioResponse, $mTrans)) {
@@ -4541,6 +4557,9 @@ try {
                                     $summaryText = trim($dec['candidates'][0]['content']['parts'][0]['text']);
                                     $usedProvider = 'gemini';
                                     $usedModel = $gModel;
+                                    if (function_exists('record_gemini_key_usage')) {
+                                        record_gemini_key_usage($geminiKey);
+                                    }
                                     break;
                                 }
                             } elseif ($rawRes) {
@@ -4636,6 +4655,9 @@ try {
                         $tDec = json_decode($tRaw, true);
                         if (!empty($tDec['candidates'][0]['content']['parts'][0]['text'])) {
                             $transcriptText = trim($tDec['candidates'][0]['content']['parts'][0]['text']);
+                            if (function_exists('record_gemini_key_usage')) {
+                                record_gemini_key_usage($geminiKey);
+                            }
                         }
                     }
                 } catch (Throwable $te) {}

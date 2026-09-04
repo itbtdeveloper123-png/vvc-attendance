@@ -137,17 +137,14 @@ if (!function_exists('record_gemini_key_usage')) {
             global $mysqli;
         }
         if ($mysqli instanceof mysqli) {
-            $stmt = @$mysqli->prepare("UPDATE admin_api_keys 
-                SET daily_requests_used = IF(last_reset_date != ? OR last_reset_date IS NULL, 1, daily_requests_used + 1),
-                    last_reset_date = ?,
+            $escKey = $mysqli->real_escape_string($apiKey);
+            $escCycle = $mysqli->real_escape_string($cycle);
+            @$mysqli->query("UPDATE admin_api_keys 
+                SET daily_requests_used = IF(last_reset_date != '$escCycle' OR last_reset_date IS NULL, 1, daily_requests_used + 1),
+                    last_reset_date = '$escCycle',
                     last_used_at = NOW(),
                     last_status = 'active'
-                WHERE api_key = ?");
-            if ($stmt) {
-                $stmt->bind_param('sss', $cycle, $cycle, $apiKey);
-                @$stmt->execute();
-                $stmt->close();
-            }
+                WHERE api_key = '$escKey'");
         }
     }
 }
