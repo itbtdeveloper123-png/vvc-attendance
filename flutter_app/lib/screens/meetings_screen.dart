@@ -21,7 +21,46 @@ import '../services/meeting_audio_player_service.dart';
 import '../services/meeting_recording_service.dart';
 import '../utils/app_theme.dart';
 import '../providers/user_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../widgets/app_widgets.dart';
+
+class MeetingSummaryStorage {
+  static const String _keyPrefix = 'cached_ai_summary_';
+  static const String _transcriptPrefix = 'cached_ai_transcript_';
+  static const String _timePrefix = 'cached_ai_time_';
+
+  static Future<void> save(int meetingId, String summary, [String? transcript]) async {
+    if (meetingId <= 0 || summary.trim().isEmpty) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('$_keyPrefix$meetingId', summary);
+      if (transcript != null && transcript.isNotEmpty) {
+        await prefs.setString('$_transcriptPrefix$meetingId', transcript);
+      }
+      await prefs.setString('$_timePrefix$meetingId', DateTime.now().toIso8601String());
+    } catch (_) {}
+  }
+
+  static Future<String?> getSummary(int meetingId) async {
+    if (meetingId <= 0) return null;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString('$_keyPrefix$meetingId');
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<String?> getTranscript(int meetingId) async {
+    if (meetingId <= 0) return null;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString('$_transcriptPrefix$meetingId');
+    } catch (_) {
+      return null;
+    }
+  }
+}
 
 class MeetingsScreen extends StatefulWidget {
   const MeetingsScreen({super.key});
@@ -167,22 +206,55 @@ class _MeetingsScreenState extends State<MeetingsScreen>
     }
   }
 
+  Future<List<dynamic>> _mergeWithLocalCachedSummaries(dynamic rawList) async {
+    if (rawList is! List) return [];
+    final list = List<dynamic>.from(rawList.map((item) {
+      if (item is Map) {
+        return Map<String, dynamic>.from(item);
+      }
+      return item;
+    }));
+
+    for (var item in list) {
+      if (item is Map) {
+        final id = int.tryParse(item['id']?.toString() ?? '0') ?? 0;
+        if (id > 0) {
+          final cached = await MeetingSummaryStorage.getSummary(id);
+          if (cached != null && cached.trim().isNotEmpty) {
+            final serverSum = (item['summary'] ?? '').toString().trim();
+            // If server has empty summary, or cached is newer executive format, keep cached!
+            if (serverSum.isEmpty || cached.contains('📌 ១.') || cached.length > serverSum.length) {
+              item['summary'] = cached;
+              final cachedTrans = await MeetingSummaryStorage.getTranscript(id);
+              if (cachedTrans != null && cachedTrans.isNotEmpty) {
+                item['transcript_text'] = cachedTrans;
+              }
+            }
+          }
+        }
+      }
+    }
+    return list;
+  }
+
   Future<void> _loadMeetings() async {
     setState(() => _isLoadingList = true);
     try {
       final res = await _api.fetchMeetings();
       if (res['status'] == 'success') {
-        // Support both 'meetings' and 'data' response keys
-        final list = res['meetings'] ?? res['data'] ?? [];
-        setState(() {
-          _meetingsList = list is List ? list : [];
-          _isLoadingList = false;
-        });
+        // Support both 'meetings' and 'data' response keys with local summary protection
+        final list = await _mergeWithLocalCachedSummaries(res['meetings'] ?? res['data']);
+        if (mounted) {
+          setState(() {
+            _meetingsList = list;
+            _isLoadingList = false;
+          });
+        }
       } else {
-        setState(() => _isLoadingList = false);
+        if (mounted) setState(() => _isLoadingList = false);
       }
     } catch (e) {
-      setState(() => _isLoadingList = false);
+      if (mounted) setState(() => _isLoadingList = false);
     }
   }
 
@@ -507,10 +579,12 @@ class _MeetingsScreenState extends State<MeetingsScreen>
     try {
       final res = await _api.fetchMeetings();
       if (res['status'] == 'success' && mounted) {
-        final list = res['meetings'] ?? res['data'] ?? [];
-        setState(() {
-          _meetingsList = list is List ? list : [];
-        });
+        final list = await _mergeWithLocalCachedSummaries(res['meetings'] ?? res['data']);
+        if (mounted) {
+          setState(() {
+            _meetingsList = list;
+          });
+        }
       }
     } catch (_) {}
   }
@@ -2366,6 +2440,25 @@ class _MeetingsScreenState extends State<MeetingsScreen>
     final String dept = m['department']?.toString() ?? '';
     final String audioPath = (m['audio_url'] ?? m['mp3_url'] ?? m['audio_path'] ?? m['audio_file_path'] ?? '').toString();
 
+    // Check if we have a locally cached summary that is newer or executive formatted
+    final cachedSum = await MeetingSummaryStorage.getSummary(meetingId);
+    final cachedTrans = await MeetingSummaryStorage.getTranscript(meetingId);
+    String initialSum = (m['summary'] ?? '').toString().trim();
+    String? initialTrans = m['transcript_text']?.toString();
+
+    if (cachedSum != null && cachedSum.trim().isNotEmpty) {
+      if (initialSum.isEmpty || cachedSum.contains('📌 ១.') || cachedSum.length > initialSum.length) {
+        initialSum = cachedSum;
+        m['summary'] = cachedSum;
+        if (cachedTrans != null && cachedTrans.isNotEmpty) {
+          initialTrans = cachedTrans;
+          m['transcript_text'] = cachedTrans;
+        }
+      }
+    }
+
+    if (!mounted) return;
+
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -2375,11 +2468,12 @@ class _MeetingsScreenState extends State<MeetingsScreen>
         topic: topic,
         department: dept,
         audioPath: audioPath,
-        initialSummary: m['summary']?.toString(),
-        initialTranscript: m['transcript_text']?.toString(),
+        initialSummary: initialSum,
+        initialTranscript: initialTrans,
         api: _api,
         autoPlayAudio: autoPlayAudio,
-        onGenerated: (summary, transcript) {
+        onGenerated: (summary, transcript) async {
+          await MeetingSummaryStorage.save(meetingId, summary, transcript);
           if (mounted) {
             setState(() {
               m['summary'] = summary;
@@ -2450,6 +2544,19 @@ class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
     super.initState();
     _summary = widget.initialSummary;
     _audioService.addListener(_onAudioStateChanged);
+
+    // Asynchronously load local cache if initial was empty or older
+    if (widget.meetingId > 0) {
+      MeetingSummaryStorage.getSummary(widget.meetingId).then((cached) {
+        if (mounted && cached != null && cached.trim().isNotEmpty) {
+          if (_summary == null || _summary!.isEmpty || cached.contains('📌 ១.') || cached.length > (_summary?.length ?? 0)) {
+            setState(() {
+              _summary = cached;
+            });
+          }
+        }
+      });
+    }
 
     if (widget.autoPlayAudio && widget.audioPath.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -2540,6 +2647,27 @@ class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
         });
         if (summaryStr != null && summaryStr.isNotEmpty) {
           widget.onGenerated?.call(summaryStr, transcriptStr);
+          await MeetingSummaryStorage.save(widget.meetingId, summaryStr, transcriptStr);
+          // Redundant double-save to server to ensure 100% persistence in DB
+          widget.api.saveMeetingSummary(
+            meetingId: widget.meetingId,
+            summary: summaryStr,
+            transcript: transcriptStr,
+          ).ignore();
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  "រក្សាទុកសេចក្តីសង្ខេបជោគជ័យ!",
+                  style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 13),
+                ),
+                backgroundColor: const Color(0xFF10B981),
+                duration: const Duration(seconds: 2),
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            );
+          }
         }
       } else {
         // If client timed out or errored, do a fast check if server finished in the background
@@ -2552,6 +2680,7 @@ class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
             _isLoading = false;
           });
           widget.onGenerated?.call(cachedSummary, checkRes['transcript']?.toString());
+          await MeetingSummaryStorage.save(widget.meetingId, cachedSummary, checkRes['transcript']?.toString());
           return;
         }
 
@@ -2573,6 +2702,20 @@ class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
             _isLoading = false;
           });
           widget.onGenerated?.call(cachedSummary, checkRes['transcript']?.toString());
+          await MeetingSummaryStorage.save(widget.meetingId, cachedSummary, checkRes['transcript']?.toString());
+          return;
+        }
+      } catch (_) {}
+
+      // If network failed, also check local storage as fallback!
+      try {
+        final localCached = await MeetingSummaryStorage.getSummary(widget.meetingId);
+        if (localCached != null && localCached.trim().isNotEmpty) {
+          setState(() {
+            _loadingProgress = 1.0;
+            _summary = localCached;
+            _isLoading = false;
+          });
           return;
         }
       } catch (_) {}

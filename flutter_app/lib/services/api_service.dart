@@ -1612,6 +1612,24 @@ class ApiService {
     );
   }
 
+  Future<Map<String, dynamic>> saveMeetingSummary({
+    required int meetingId,
+    required String summary,
+    String? transcript,
+  }) async {
+    final headers = await _authHeaders();
+    return _processRequest(
+      'save_meeting_summary',
+      headers: headers,
+      timeout: const Duration(seconds: 30),
+      body: {
+        'meeting_id': meetingId.toString(),
+        'summary': summary,
+        if (transcript != null && transcript.isNotEmpty) 'transcript_text': transcript,
+      },
+    );
+  }
+
   Future<Map<String, dynamic>> getMeetingSummaryStatus(int meetingId) async {
     final headers = await _authHeaders();
     return _processRequest(

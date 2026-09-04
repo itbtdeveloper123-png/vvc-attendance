@@ -882,6 +882,116 @@ function ensure_meetings_table($mysqli) {
 
 }
 
+function save_meeting_summary_record($mysqli, $mid, $summaryText, $transcriptText = '', $provider = '', $model = '') {
+    $mid = (int)$mid;
+    $summaryText = trim((string)$summaryText);
+    $transcriptText = trim((string)$transcriptText);
+    $provider = trim((string)$provider);
+    $model = trim((string)$model);
+
+    if ($mid <= 0 || $summaryText === '') {
+        return false;
+    }
+
+    // 1. Ensure utf8mb4 encoding on MySQL connection
+    if (method_exists($mysqli, 'set_charset')) {
+        @$mysqli->set_charset('utf8mb4');
+    }
+    @$mysqli->query("SET NAMES 'utf8mb4'");
+
+    // 2. Ensure table and columns support utf8mb4 and LONGTEXT
+    @$mysqli->query("ALTER TABLE meetings MODIFY COLUMN summary LONGTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+    if ($transcriptText !== '') {
+        @$mysqli->query("ALTER TABLE meetings MODIFY COLUMN transcript_text LONGTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+    }
+
+    $saved = false;
+
+    // Tier 1: Full prepared statement with summary, transcript, timestamps, and provider metadata
+    // SQL has 5 parameters: summary=?, transcript_text=?, summary_provider=?, summary_model=?, WHERE id=?
+    // Types: 's', 's', 's', 's', 'i' -> 'ssssi' (5 chars for 5 vars)
+    if (!$saved) {
+        try {
+            $stmt = $mysqli->prepare("UPDATE meetings SET summary = ?, transcript_text = ?, summary_generated_at = NOW(), summary_provider = ?, summary_model = ? WHERE id = ?");
+            if ($stmt) {
+                $stmt->bind_param("ssssi", $summaryText, $transcriptText, $provider, $model, $mid);
+                $saved = (bool)$stmt->execute();
+                $stmt->close();
+            }
+        } catch (Throwable $t1) {
+            error_log("save_meeting_summary Tier 1 failed: " . $t1->getMessage());
+        }
+    }
+
+    // Tier 2: Prepared statement with summary and transcript
+    // Types: 's', 's', 'i' -> 'ssi' (3 chars for 3 vars)
+    if (!$saved) {
+        try {
+            $stmt2 = $mysqli->prepare("UPDATE meetings SET summary = ?, transcript_text = ?, summary_generated_at = NOW() WHERE id = ?");
+            if ($stmt2) {
+                $stmt2->bind_param("ssi", $summaryText, $transcriptText, $mid);
+                $saved = (bool)$stmt2->execute();
+                $stmt2->close();
+            }
+        } catch (Throwable $t2) {
+            error_log("save_meeting_summary Tier 2 failed: " . $t2->getMessage());
+        }
+    }
+
+    // Tier 3: Prepared statement with ONLY summary
+    // Types: 's', 'i' -> 'si' (2 chars for 2 vars)
+    if (!$saved) {
+        try {
+            $stmt3 = $mysqli->prepare("UPDATE meetings SET summary = ?, summary_generated_at = NOW() WHERE id = ?");
+            if ($stmt3) {
+                $stmt3->bind_param("si", $summaryText, $mid);
+                $saved = (bool)$stmt3->execute();
+                $stmt3->close();
+            }
+        } catch (Throwable $t3) {
+            error_log("save_meeting_summary Tier 3 failed: " . $t3->getMessage());
+        }
+    }
+
+    // Tier 4: Direct query with real_escape_string (summary + transcript)
+    if (!$saved) {
+        try {
+            $escSum = $mysqli->real_escape_string($summaryText);
+            $escTrans = $mysqli->real_escape_string($transcriptText);
+            $q = "UPDATE meetings SET summary = '$escSum', transcript_text = '$escTrans', summary_generated_at = NOW() WHERE id = $mid";
+            $saved = (bool)$mysqli->query($q);
+        } catch (Throwable $t4) {
+            error_log("save_meeting_summary Tier 4 failed: " . $t4->getMessage());
+        }
+    }
+
+    // Tier 5: Direct query with real_escape_string (ONLY summary)
+    if (!$saved) {
+        try {
+            $escSum = $mysqli->real_escape_string($summaryText);
+            $q = "UPDATE meetings SET summary = '$escSum', summary_generated_at = NOW() WHERE id = $mid";
+            $saved = (bool)$mysqli->query($q);
+        } catch (Throwable $t5) {
+            error_log("save_meeting_summary Tier 5 failed: " . $t5->getMessage());
+        }
+    }
+
+    // Tier 6: Strip 4-byte emojis (fallback for legacy 3-byte utf8 MySQL instances)
+    if (!$saved) {
+        try {
+            $cleanSum = preg_replace('/[\x{10000}-\x{10FFFF}]/u', '', $summaryText);
+            $escSum = $mysqli->real_escape_string($cleanSum);
+            $q = "UPDATE meetings SET summary = '$escSum', summary_generated_at = NOW() WHERE id = $mid";
+            $saved = (bool)$mysqli->query($q);
+        } catch (Throwable $t6) {
+            error_log("save_meeting_summary Tier 6 failed: " . $t6->getMessage());
+        }
+    }
+
+    return $saved;
+}
+
+
 function meeting_ai_string_list($value) {
     if (!is_array($value)) {
         return [];
@@ -4291,57 +4401,7 @@ try {
             }
 
             // 4. Save to database safely with multi-tier fallback
-            $savedToDb = false;
-            try {
-                @$mysqli->set_charset('utf8mb4');
-                @$mysqli->query("SET NAMES 'utf8mb4'");
-
-                // Tier 1: Full prepared update with metadata
-                $stmt = $mysqli->prepare("UPDATE meetings SET summary = ?, transcript_text = ?, summary_generated_at = NOW(), summary_provider = ?, summary_model = ? WHERE id = ?");
-                if ($stmt) {
-                    $stmt->bind_param("sssssi", $summaryText, $transcriptText, $usedProvider, $usedModel, $mid);
-                    $savedToDb = (bool)$stmt->execute();
-                    $stmt->close();
-                }
-
-                // Tier 2: Update summary and transcript_text
-                if (!$savedToDb) {
-                    $stmt2 = $mysqli->prepare("UPDATE meetings SET summary = ?, transcript_text = ? WHERE id = ?");
-                    if ($stmt2) {
-                        $stmt2->bind_param("ssi", $summaryText, $transcriptText, $mid);
-                        $savedToDb = (bool)$stmt2->execute();
-                        $stmt2->close();
-                    }
-                }
-
-                // Tier 3: Update only summary
-                if (!$savedToDb) {
-                    $stmt3 = $mysqli->prepare("UPDATE meetings SET summary = ? WHERE id = ?");
-                    if ($stmt3) {
-                        $stmt3->bind_param("si", $summaryText, $mid);
-                        $savedToDb = (bool)$stmt3->execute();
-                        $stmt3->close();
-                    }
-                }
-
-                // Tier 4: Direct query with escaped string
-                if (!$savedToDb) {
-                    $escSum = $mysqli->real_escape_string($summaryText);
-                    $escTrans = $mysqli->real_escape_string($transcriptText);
-                    $savedToDb = (bool)$mysqli->query("UPDATE meetings SET summary = '$escSum', transcript_text = '$escTrans' WHERE id = $mid");
-                }
-
-                // Tier 5: If MySQL charset is legacy 3-byte utf8, strip 4-byte emojis and save
-                if (!$savedToDb) {
-                    $cleanSum = preg_replace('/[\x{10000}-\x{10FFFF}]/u', '', $summaryText);
-                    $cleanTrans = preg_replace('/[\x{10000}-\x{10FFFF}]/u', '', $transcriptText);
-                    $escSum = $mysqli->real_escape_string($cleanSum);
-                    $escTrans = $mysqli->real_escape_string($cleanTrans);
-                    $savedToDb = (bool)$mysqli->query("UPDATE meetings SET summary = '$escSum', transcript_text = '$escTrans' WHERE id = $mid");
-                }
-            } catch (Throwable $dbe) {
-                error_log("Meeting summary DB save error: " . $dbe->getMessage());
-            }
+            $savedToDb = save_meeting_summary_record($mysqli, $mid, $summaryText, $transcriptText, $usedProvider, $usedModel);
 
             apiResponse([
                 'success' => true,
@@ -4350,6 +4410,7 @@ try {
                 'transcript' => $transcriptText,
                 'provider' => $usedProvider,
                 'model' => $usedModel,
+                'saved_to_db' => $savedToDb,
                 'cached' => false,
             ]);
         } catch (Throwable $mainEx) {
@@ -4360,6 +4421,28 @@ try {
             ]);
         }
         break;
+
+    case 'save_meeting_summary':
+    case 'update_meeting_summary':
+        $mid = (int)($_POST['meeting_id'] ?? $_POST['id'] ?? $_GET['meeting_id'] ?? $_GET['id'] ?? 0);
+        $summaryText = trim((string)($_POST['summary'] ?? ''));
+        $transcriptText = trim((string)($_POST['transcript_text'] ?? $_POST['transcript'] ?? ''));
+        $provider = trim((string)($_POST['provider'] ?? 'gemini'));
+        $model = trim((string)($_POST['model'] ?? 'gemini-2.5-flash'));
+
+        if (!$mid || $summaryText === '') {
+            apiResponse(['success' => false, 'message' => 'Missing meeting ID or summary text']);
+        }
+
+        $saved = save_meeting_summary_record($mysqli, $mid, $summaryText, $transcriptText, $provider, $model);
+        apiResponse([
+            'success' => $saved,
+            'status' => $saved ? 'success' : 'error',
+            'saved_to_db' => $saved,
+            'message' => $saved ? 'រក្សាទុកសេចក្តីសង្ខេបជោគជ័យ' : 'បរាជ័យក្នុងការរក្សាទុកទៅកាន់មូលដ្ឋានទិន្នន័យ'
+        ]);
+        break;
+
 
     case 'get_meeting_summary_status':
         if (!$user) apiResponse(['success' => false, 'message' => 'Unauthorized']);
