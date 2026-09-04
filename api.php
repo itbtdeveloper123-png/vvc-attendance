@@ -7208,7 +7208,7 @@ try {
                 if ($im !== false) {
                     $origW = imagesx($im);
                     $origH = imagesy($im);
-                    $maxDim = 850;
+                    $maxDim = 1600;
                     if ($origW > $maxDim || $origH > $maxDim) {
                         if ($origW > $origH) {
                             $newW = $maxDim;
@@ -7220,7 +7220,7 @@ try {
                         $resized = imagecreatetruecolor($newW, $newH);
                         imagecopyresampled($resized, $im, 0, 0, 0, 0, $newW, $newH, $origW, $origH);
                         ob_start();
-                        imagejpeg($resized, null, 75);
+                        imagejpeg($resized, null, 85);
                         $jpgData = ob_get_clean();
                         imagedestroy($resized);
                         imagedestroy($im);
@@ -7241,8 +7241,27 @@ try {
         if (is_array($gs1)) {
             $gs1Hint = " (ប្រកាស GS1 barcode prefix {$gs1['prefix']} = ប្រទេស {$gs1['country']} {$gs1['flag']})";
         }
-        $sysKhmer = 'អ្នកជាអ្នកជំនាញវិភាគផលិតផល Vision AI ដែលអាចមើលរូបភាព និងអានស្លាកផលិតផលបានយ៉ាងច្បាស់លាស់។ គោលការណ៍៖ ១) មើលរូបភាពឲ្យដិតដល់ គ្រប់ជ្រុង (ស្លាក វេចខ្ចប់ បារកូដ ស្លាកថែទាំ)។ ២) សរសេរតម្លៃត្រឹមត្រូវប៉ុណ្ណោះ៖ បើមិនមើលឃើញ ឬមិនប្រាកដ សូមសរសេរ \'មិនបានរកឃើញ\' ជាជាងប៉ាន់ស្មាន (ហាម hallucination)។ ៣) ហាមប្រើ placeholder ដូចជា step1 benefit1 warning1 ... ឬទម្លាប់ស្ដង់ដារណាមួយ។ ៤) គ្រប់តម្លៃពណ៌នា​ត្រូវជាភាសាខ្មែរ (ហាមរាយភាសាអង់គ្លេសលើសពីនាមម៉ាកពិតប្រាកដ)។ ៥) country_flag_emoji តែមួយ emoji ច្បាស់។ ៦) ingredients_summary ជាប្រយោគខ្លីៗនៃសមាសធាតុដែលអានបានពីរូបភាព។ ៧) usage benefits warnings ជា array ខ្លីៗ យ៉ាងហោចណាស់ ២ ធាតុ ប្រសិនបើមានព័ត៌មាន។ ៨) price_range_usd សរសេរជួរតម្លៃគិតជាដុល្លារ អាមេរិក (USD) បើអាចប៉ាន់ស្មានបាន។ ៩) JSON ត្រឹមត្រូវគ្រប់ពេល (ហាម trailing comma កុំប៉ះ)។ ១០) មិនរាយ <think> មិនរាយសំណេរ កុំដាក់ markdown fences។ ឆ្លើយតែ { JSON } ទាំងមូល។';
-        $userKhmerTmpl = "សូមអានរូបភាពផលិតផលនេះឲ្យបានដិតដល់ រួចត្រឡប់ JSON មួយទៀងទាត់ជាមួយ keys ទាំងនេះ៖ product_name, brand, country_of_origin, country_flag_emoji, category, usage (array), benefits (array), warnings (array), ingredients_summary, price_range_usd, summary ។ បើមិនដឹងច្បាស់ សរសេរ 'មិនបានរកឃើញ' ជំនួសវិញ ហាមប្រើ 'step1' ឬ '...' ទេ។ ប្រើភាសាខ្មែរសំរាប់គ្រប់តម្លៃពណ៌នា។";
+        $sysKhmer = 'អ្នកជាអ្នកជំនាញវិភាគផលិតផល Vision AI ដ៏មានសមត្ថភាពខ្ពស់ ដែលអាចមើលរូបភាព អានស្លាកផលិតផល អានស្លាកតម្លៃ និងយល់ច្បាស់ពីព័ត៌មានលម្អិតនៃផលិតផល។
+គោលការណ៍សំខាន់ៗ៖
+១) ការអានអក្សរ និងម៉ាក (Brand & Product Name)៖
+   - ត្រូវអានគ្រប់តួអក្សរឱ្យបានច្បាស់លាស់ និងត្រឹមត្រូវបំផុត (ហាមកាត់តួអក្សរ ហាមអានខ្វះ ឧទាហរណ៍៖ អក្សរឆ្លាក់ "SKSK" មិនមែន "SKS" ឡើយ)។
+   - ប្រសិនបើក្នុងរូបភាពមានផលិតផលច្រើនមុខ ឬជាឈុត (ឧទាហរណ៍៖ សាប៊ូកក់សក់ + សាប៊ូបន្ទន់ + ប្រេងបំប៉នសក់) សូមដាក់ឈ្មោះផលិតផលឱ្យគ្រប់ជ្រុងជ្រោយនៃផលិតផលទាំងអស់ដែលមានក្នុងរូប (ឧ. ឈុតថែរក្សាសក់ SKSK (Shampoo & Conditioner) រួមជាមួយ Mo Qian Nut Hair Care Oil)។
+   - ក្នុង brand បើមានច្រើនម៉ាក សូមបញ្ជាក់ម៉ាកចម្បង ឬរាយម៉ាកទាំងនោះ (ឧ. SKSK / MO QIAN)។
+២) ស្លាកតម្លៃ (Price Tag / Sticker)៖
+   - ត្រូវពិនិត្យមើលឱ្យបានហ្មត់ចត់បំផុតថាតើមានស្លាកតម្លៃ (Price Sticker ដូចជា $6.50, $10, etc.) បិទនៅលើដប កញ្ចប់ ឬប្រអប់ដែរឬទេ?
+   - ប្រសិនបើមានស្លាកតម្លៃពិតប្រាកដដែលមើលឃើញក្នុងរូប ត្រូវតែបញ្ជាក់តម្លៃពិតនោះជាដាច់ខាត (ឧទាហរណ៍៖ "$6.50 / ដប" ឬ "$6.50")។ បើគ្មានស្លាកតម្លៃបិទទេ ទើបប៉ាន់ស្មានជួរតម្លៃ USD ជាក់ស្តែងលើទីផ្សារ។
+៣) ព័ត៌មានលម្អិត និងក្បោះក្បាយ (Rich Details)៖
+   - usage (array): ត្រូវរៀបរាប់ការណែនាំពីវិធីប្រើប្រាស់មួយជំហានម្តងៗឱ្យបានក្បោះក្បាយ និងមានប្រយោជន៍ជាក់ស្តែង (បើមានផលិតផលច្រើនមុខក្នុងរូប ត្រូវបែងចែករបៀបប្រើប្រាស់តាមលំដាប់លំដោយសម្រាប់ផលិតផលនីមួយៗ)។
+   - benefits (array): រៀបរាប់ពីអត្ថប្រយោជន៍ និងលក្ខណៈពិសេសរបស់ផលិតផលឱ្យបានក្បោះក្បាយ យ៉ាងហោចណាស់ ៣ ទៅ ៦ ចំណុច (ឧ. ជួយបង្កើនមាឌសក់ឱ្យក្រាស់ទន់រលោង, រូបមន្តគ្មាន Sulfate/Phosphate/Paraben, ការពារពណ៌សក់, ជំនួយសក់ខូច, ផ្តល់សំណើម...)។
+   - warnings (array): ការណែនាំពីសុវត្ថិភាព ការប្រុងប្រយ័ត្ន (ចៀសវាងប៉ះភ្នែក, រក្សាទុកកន្លែងត្រជាក់...)។
+   - ingredients_summary: សារធាតុផ្សំ និងចំណុចលេចធ្លោនៃរូបមន្ត (ឧទាហរណ៍៖ រូបមន្ត Sulfate-free, Paraben-free, ផ្សំពីប្រេងគ្រាប់ធញ្ញជាតិ Nut Hair Care Essential Oil, ចំណុះ 430ml និង 80ml...)។
+   - category: ជំពូកផលិតផលច្បាស់លាស់ (ឧទាហរណ៍៖ ផលិតផលថែរក្សាសក់)។
+   - country_of_origin: ប្រទេសប្រភពដើម (បើដឹងច្បាស់) ឬ "មិនបានបញ្ជាក់"។ country_flag_emoji ជា emoji ទង់ជាតិដែលត្រូវគ្នា ឬ 🌍។
+   - summary: សេចក្តីសង្ខេបពិពណ៌នាទូទៅអំពីផលិតផល និងភាពលេចធ្លោឱ្យបានក្បោះក្បាយ មានន័យពេញលេញ និងទាក់ទាញ។
+៤) ភាសា និងទម្រង់ឆ្លើយតប៖
+   - គ្រប់តម្លៃពណ៌នាទាំងអស់ត្រូវជាភាសាខ្មែរ (អាចរក្សាឈ្មោះម៉ាកអង់គ្លេស ឬឈ្មោះផលិតផលដើមបាន)។
+   - ឆ្លើយតបតែទម្រង់ JSON object ត្រឹមត្រូវមួយគត់ { ... } ដោយគ្មាន Markdown fences (```) និងគ្មាន <think>។';
+        $userKhmerTmpl = "សូមពិនិត្យអានរូបភាពផលិតផលនេះឱ្យបានដិតដល់បំផុត (រួមទាំងម៉ាក អក្សរឆ្លាក់/បោះពុម្ពលើដប ស្លាកតម្លៃដែលបានបិទ ចំណុះ និងផលិតផលទាំងអស់ដែលមានក្នុងរូប) រួចផ្តល់លទ្ធផលជា JSON object ជាមួយ keys៖ product_name, brand, country_of_origin, country_flag_emoji, category, usage (array លម្អិត), benefits (array លម្អិត), warnings (array), ingredients_summary, price_range_usd, summary ។";
         if ($imageBase64 === '' && $barcodeText !== '') {
             $userKhmerTmpl = "រូបភាពមិនមាន សូមអាស្រ័យលើ barcode/QR និងបរិបទ GS1 ដើម្បីប៉ាន់ស្មានផលិតផល ហើយត្រឡប់ JSON object ជាមួយ keys៖ product_name, brand, country_of_origin, country_flag_emoji, category, usage (array), benefits (array), warnings (array), ingredients_summary, price_range_usd, summary ។ បើមិនដឹង សរសេរ 'មិនបានរកឃើញ'។";
         }
@@ -7320,7 +7339,11 @@ try {
                 $bestJson[$k] = 'មិនបានរកឃើញ';
             }
         }
-        if (product_ai_is_placeholder_string((string)($bestJson['country_flag_emoji'] ?? ''))) {
+        if (trim((string)($bestJson['country_of_origin'] ?? '')) === 'មិនបានរកឃើញ' || trim((string)($bestJson['country_of_origin'] ?? '')) === 'មិនបានបញ្ជាក់' || product_ai_is_placeholder_string((string)($bestJson['country_of_origin'] ?? ''))) {
+            if (!is_array($gs1)) {
+                $bestJson['country_flag_emoji'] = '🌍';
+            }
+        } elseif (product_ai_is_placeholder_string((string)($bestJson['country_flag_emoji'] ?? ''))) {
             $bestJson['country_flag_emoji'] = '🌍';
         }
 
@@ -7346,7 +7369,7 @@ try {
                 elseif ($k === 'benefits') $cleanList = ['គុណភាពស្តង់ដារ និងមានសុវត្ថិភាព'];
                 else $cleanList = ['រក្សាទុកនៅកន្លែងស្ងួត និងត្រជាក់'];
             }
-            $bestJson[$k] = array_values(array_slice($cleanList, 0, $k === 'warnings' ? 4 : 5));
+            $bestJson[$k] = array_values(array_slice($cleanList, 0, $k === 'warnings' ? 5 : 8));
         }
 
         if (is_array($gs1)) {
@@ -9962,7 +9985,7 @@ function ai_call_free_vision_service($systemPrompt, $userPrompt, $imageBase64 = 
             ],
             'generationConfig' => [
                 'temperature' => 0.1,
-                'maxOutputTokens' => 1024,
+                'maxOutputTokens' => 3072,
                 'responseMimeType' => 'application/json'
             ]
         ];
