@@ -65,7 +65,7 @@ class ProductAnalysis {
           ? ' ស្ថិតក្នុងជំពូក $cName'
           : '';
       rawSum =
-          'ព័ត៌មានលម្អិតអំពីផលិតផល $pName$brandStr$catStr ត្រូវបានវិភាគដោយ AI ជាមួយការណែនាំ និងអត្ថប្រយោជន៍។';
+          '$pName$brandStr$catStr ជួយថែបំប៉នឱ្យមានសុខភាពល្អ និងស្រស់ស្អាត ជាមួយការណែនាំពីរបៀបប្រើប្រាស់ត្រឹមត្រូវបែបអ្នកជំនាញសម្រស់។';
     }
 
     return ProductAnalysis(
@@ -1448,8 +1448,9 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(r.countryFlagEmoji, style: const TextStyle(fontSize: 40)),
+              Text(r.countryFlagEmoji, style: const TextStyle(fontSize: 42)),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
@@ -1459,18 +1460,22 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
                       r.productName,
                       style: GoogleFonts.kantumruyPro(
                         color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 19,
+                        height: 1.3,
                       ),
                     ),
-                    if (r.brand.isNotEmpty && r.brand != '—')
+                    if (r.brand.isNotEmpty && r.brand != '—') ...[
+                      const SizedBox(height: 4),
                       Text(
                         r.brand,
                         style: GoogleFonts.inter(
                           color: const Color(0xFFA78BFA),
-                          fontSize: 13,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
+                    ],
                   ],
                 ),
               ),
@@ -1503,35 +1508,36 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
               !r.summary.trim().startsWith('{') &&
               !r.summary.contains('"product_name"') &&
               !r.summary.contains('":')) ...[
-            const SizedBox(height: 14),
+            const SizedBox(height: 16),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               decoration: BoxDecoration(
-                color: const Color(0xFF7C3AED).withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(14),
+                color: const Color(0xFF7C3AED).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: const Color(0xFF7C3AED).withValues(alpha: 0.2),
+                  color: const Color(0xFF7C3AED).withValues(alpha: 0.3),
                 ),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Padding(
-                    padding: EdgeInsets.only(top: 2),
+                    padding: EdgeInsets.only(top: 3),
                     child: Icon(
                       Icons.auto_awesome_rounded,
-                      size: 15,
+                      size: 18,
                       color: Color(0xFFA78BFA),
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       r.summary,
                       style: GoogleFonts.kantumruyPro(
-                        color: const Color(0xFFE2E8F0),
-                        fontSize: 12.5,
-                        height: 1.5,
+                        color: Colors.white,
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w600,
+                        height: 1.6,
                       ),
                     ),
                   ),
@@ -1546,23 +1552,23 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
 
   Widget _buildChip(IconData icon, String label, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
+        color: color.withValues(alpha: 0.16),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: color, size: 12),
-          const SizedBox(width: 4),
+          Icon(icon, color: color, size: 14),
+          const SizedBox(width: 5),
           Text(
             label,
             style: GoogleFonts.kantumruyPro(
               color: color,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
+              fontSize: 12.5,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ],
@@ -1579,63 +1585,73 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
   }) {
     final accent = accentColor ?? color;
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: AppTheme.bgCard,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(icon, color: color, size: 18),
-              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, color: color, size: 18),
+              ),
+              const SizedBox(width: 10),
               Text(
                 title,
                 style: GoogleFonts.kantumruyPro(
                   color: AppTheme.textPrimary,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           ...items.asMap().entries.map((entry) {
             final i = entry.key + 1;
             return Padding(
-              padding: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.only(bottom: 12),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    width: 22,
-                    height: 22,
+                    width: 24,
+                    height: 24,
+                    margin: const EdgeInsets.only(top: 2),
                     decoration: BoxDecoration(
-                      color: accent.withValues(alpha: 0.15),
+                      color: accent.withValues(alpha: 0.22),
                       shape: BoxShape.circle,
+                      border: Border.all(color: accent.withValues(alpha: 0.45)),
                     ),
                     child: Center(
                       child: Text(
                         '$i',
                         style: GoogleFonts.inter(
                           color: accent,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 11,
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       entry.value,
                       style: GoogleFonts.kantumruyPro(
-                        color: AppTheme.textSecondary,
-                        fontSize: 13,
-                        height: 1.5,
+                        color: const Color(0xFFF1F5F9),
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w600,
+                        height: 1.6,
                       ),
                     ),
                   ),
@@ -1655,36 +1671,44 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
     required String content,
   }) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: AppTheme.bgCard,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(icon, color: color, size: 18),
-              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, color: color, size: 18),
+              ),
+              const SizedBox(width: 10),
               Text(
                 title,
                 style: GoogleFonts.kantumruyPro(
                   color: AppTheme.textPrimary,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           Text(
             content,
             style: GoogleFonts.kantumruyPro(
-              color: AppTheme.textSecondary,
-              fontSize: 13,
-              height: 1.5,
+              color: const Color(0xFFF1F5F9),
+              fontSize: 14.5,
+              fontWeight: FontWeight.w600,
+              height: 1.6,
             ),
           ),
         ],
