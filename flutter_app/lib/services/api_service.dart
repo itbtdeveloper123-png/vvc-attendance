@@ -37,10 +37,10 @@ class ApiService {
     if (kIsWeb) return http.Client();
     final ioClient = HttpClient();
     
-    // Optimize connection pooling & Keep-Alive
-    ioClient.idleTimeout = const Duration(seconds: 60);
+    // Optimize connection pooling & Keep-Alive (5 min idle timeout for long AI tasks)
+    ioClient.idleTimeout = const Duration(minutes: 5);
     ioClient.maxConnectionsPerHost = 20;
-    ioClient.connectionTimeout = const Duration(seconds: 12);
+    ioClient.connectionTimeout = const Duration(seconds: 30);
     
     return IOClient(ioClient);
   }

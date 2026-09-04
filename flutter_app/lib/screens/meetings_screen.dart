@@ -2542,6 +2542,19 @@ class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
           widget.onGenerated?.call(summaryStr, transcriptStr);
         }
       } else {
+        // If client timed out or errored, do a fast check if server finished in the background
+        final checkRes = await widget.api.summarizeMeeting(widget.meetingId, force: false);
+        final cachedSummary = checkRes['summary']?.toString();
+        if (checkRes['success'] == true && cachedSummary != null && cachedSummary.trim().isNotEmpty) {
+          setState(() {
+            _loadingProgress = 1.0;
+            _summary = cachedSummary;
+            _isLoading = false;
+          });
+          widget.onGenerated?.call(cachedSummary, checkRes['transcript']?.toString());
+          return;
+        }
+
         setState(() {
           _error = res['message']?.toString() ?? 'មិនអាចទាញយកសេចក្តីសង្ខេប AI បានទេ';
           _isLoading = false;
@@ -2549,6 +2562,21 @@ class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
       }
     } catch (e) {
       _progressTimer?.cancel();
+      // Even on exception, check if DB actually got updated before showing error!
+      try {
+        final checkRes = await widget.api.summarizeMeeting(widget.meetingId, force: false);
+        final cachedSummary = checkRes['summary']?.toString();
+        if (checkRes['success'] == true && cachedSummary != null && cachedSummary.trim().isNotEmpty) {
+          setState(() {
+            _loadingProgress = 1.0;
+            _summary = cachedSummary;
+            _isLoading = false;
+          });
+          widget.onGenerated?.call(cachedSummary, checkRes['transcript']?.toString());
+          return;
+        }
+      } catch (_) {}
+
       setState(() {
         _error = 'កំហុសបច្ចេកវិទ្យា AI៖ $e';
         _isLoading = false;
@@ -3125,7 +3153,7 @@ class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
               ),
               const SizedBox(height: 20),
               ElevatedButton.icon(
-                onPressed: () => _loadOrGenerateSummary(force: true),
+                onPressed: () => _loadOrGenerateSummary(force: false),
                 icon: const Icon(Icons.refresh_rounded, size: 18),
                 label: Text("ព្យាយាមម្ដងទៀត (Retry)", style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold)),
                 style: ElevatedButton.styleFrom(

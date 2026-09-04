@@ -3805,6 +3805,7 @@ try {
         @set_time_limit(900);
         @ini_set('max_execution_time', '900');
         @ini_set('memory_limit', '1024M');
+        @ignore_user_abort(true); // Crucial: prevent server killing generation if client socket drops
         try {
             if (function_exists('ensure_meetings_table')) {
                 ensure_meetings_table($mysqli);
@@ -3876,8 +3877,11 @@ try {
                     $audioPath,
                     __DIR__ . '/' . ltrim($audioPath, '/\\'),
                     __DIR__ . '/flutter/' . ltrim($audioPath, '/\\'),
+                    __DIR__ . '/../' . ltrim($audioPath, '/\\'),
                     __DIR__ . '/uploads/meetings/audio/' . basename($audioPath),
                     __DIR__ . '/uploads/meetings/' . basename($audioPath),
+                    __DIR__ . '/../uploads/meetings/audio/' . basename($audioPath),
+                    __DIR__ . '/../uploads/meetings/' . basename($audioPath),
                     __DIR__ . '/flutter/uploads/meetings/audio/' . basename($audioPath),
                     __DIR__ . '/flutter/uploads/meetings/' . basename($audioPath),
                 ];
@@ -3962,8 +3966,8 @@ try {
                             . "- ចំណុចដែលនៅមិនទាន់ដោះស្រាយរួច បញ្ហាប្រឈម ឬហានិភ័យដែលអាចកើតមាន និងបញ្ហាដែលត្រូវយកទៅជជែកក្នុងកិច្ចប្រជុំលើកក្រោយ។\n"
                             . "===SUMMARY_END===\n\n"
                             . "===TRANSCRIPT_START===\n"
-                            . "កាលប្បវត្តិ និងសង្ខេបដំណើរការប្រជុំតាមពេលវេលា (Meeting Timeline & Key Highlights):\n"
-                            . "- បង្ហាញដំណើររឿងនៃកិច្ចប្រជុំតាមលំដាប់លំដោយពេលវេលា [MM:SS] ពីដើមដល់ចប់ ជាមួយនឹងការលើកឡើងសំខាន់ៗរបស់អ្នកនិយាយ។\n"
+                            . "កាលប្បវត្តិ និងចំណុចរបត់សំខាន់ៗនៃកិច្ចប្រជុំ (Key Milestones & Turning Points):\n"
+                            . "- ស្រង់ព្រឹត្តិការណ៍ និងចំណុចរបត់គន្លឹះចំនួន ៨ ទៅ ១២ ចំណុចសំខាន់ៗបំផុត តាមលំដាប់លំដោយពេលវេលា [MM:SS] ពីដើមដល់ចប់ ជាមួយនឹងការលើកឡើងសំខាន់ៗរបស់អ្នកនិយាយ។\n"
                             . "===TRANSCRIPT_END===\n\n"
                             . "សូមឆ្លើយតបជាភាសាខ្មែរដែលមានលក្ខណៈរៀបរយ ផ្លូវការ និងវិជ្ជាជីវៈខ្ពស់។";
 
