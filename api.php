@@ -3939,7 +3939,8 @@ try {
                             . "សេចក្តីណែនាំសំខាន់បំផុត (CRITICAL INSTRUCTIONS FOR ULTRA-LONG MEETINGS):\n"
                             . "១. ស្តាប់សំឡេងកិច្ចប្រជុំទាំងមូលឱ្យបានចប់សព្វគ្រប់ តាំងពីដើមរហូតដល់ចប់ (Full Duration រហូតដល់ ៣ ម៉ោង) ដោយហាមរំលង កាត់ចោល ឬស្តាប់តែផ្នែកដំបូងឡើយ។ ត្រូវតាមដានគ្រប់វគ្គ (Sessions/Phases) និងគ្រប់របៀបវារៈនៃកិច្ចប្រជុំទាំងមូល។\n"
                             . "២. វិភាគឱ្យបានស៊ីជម្រៅ គ្រប់ជ្រុងជ្រោយ និងប្រទាក់ក្រឡាគ្នា (In-Depth, Interconnected & Holistic Synthesis)៖ រាល់ចំណុចដែលលើកឡើង ត្រូវបង្ហាញពី 'ឫសគល់បញ្ហា (Root Cause)' -> 'ទឡ្ហីករណ៍/ការជជែកដេញដោល (Arguments/Debates)' -> 'ចំណុចប្រទាក់ក្រឡាគ្នាឆ្លងផ្នែក (Cross-Department Links)' -> 'ដំណោះស្រាយ និងផលជះ (Solutions & Impact)'។\n"
-                            . "៣. មិនត្រូវសរសេរសង្ខេបបែបលំៗ ឬខ្លីពេកឡើយ។ ត្រូវទាញយកព័ត៌មានជាក់ស្តែង តួលេខ ទិន្នន័យ ឈ្មោះបុគ្គល ឬផ្នែកពាក់ព័ន្ធឱ្យបានច្បាស់លាស់បំផុត។\n\n"
+                            . "៣. មិនត្រូវសរសេរសង្ខេបបែបលំៗ ឬខ្លីពេកឡើយ។ ត្រូវទាញយកព័ត៌មានជាក់ស្តែង តួលេខ ទិន្នន័យ ឈ្មោះបុគ្គល ឬផ្នែកពាក់ព័ន្ធឱ្យបានច្បាស់លាស់បំផុត។\n"
+                            . "៤. ត្រូវតែសរសេរឱ្យចប់សព្វគ្រប់ទាំង ៥ ផ្នែក (១, ២, ៣, ៤, ៥) និងកាលប្បវត្តិ Timeline ដោយហាមកាត់ផ្តាច់ ឬបញ្ឈប់កណ្តាលទីជាដាច់ខាត (Must complete all sections fully)! ត្រូវបញ្ចប់ដោយ ===SUMMARY_END=== និង ===TRANSCRIPT_END===។\n\n"
                             . "សូមរៀបចំទម្រង់កំណត់ហេតុជាភាសាខ្មែរតាមរចនាសម្ព័ន្ធដូចខាងក្រោម៖\n\n"
                             . "===SUMMARY_START===\n"
                             . "# កំណត់ហេតុ និងសេចក្តីសង្ខេបកិច្ចប្រជុំប្រតិបត្តិ (Executive Meeting Minutes)\n\n"
@@ -4000,16 +4001,16 @@ try {
                                 continue;
                             }
 
-                            // If audio state is PROCESSING, poll until ACTIVE (up to 60s for very long recordings)
+                            // If audio state is PROCESSING, poll until ACTIVE (up to 120s for long recordings)
                             if ($fileState === 'PROCESSING' && $uploadedFileName !== '') {
                                 $pollCount = 0;
-                                while ($fileState === 'PROCESSING' && $pollCount < 30) {
+                                while ($fileState === 'PROCESSING' && $pollCount < 60) {
                                     sleep(2);
                                     $pollCount++;
                                     $checkUrl = "https://generativelanguage.googleapis.com/v1beta/" . ltrim($uploadedFileName, '/') . "?key=" . urlencode($currentGeminiKey);
                                     $cch = curl_init($checkUrl);
                                     curl_setopt($cch, CURLOPT_RETURNTRANSFER, true);
-                                    curl_setopt($cch, CURLOPT_TIMEOUT, 10);
+                                    curl_setopt($cch, CURLOPT_TIMEOUT, 15);
                                     curl_setopt($cch, CURLOPT_SSL_VERIFYPEER, false);
                                     $cRaw = curl_exec($cch);
                                     curl_close($cch);
@@ -4020,13 +4021,28 @@ try {
                                 }
                             }
 
-                            $geminiAudioModels = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+                            $geminiAudioModels = ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash', 'gemini-1.5-flash'];
                             foreach ($geminiAudioModels as $gaModel) {
                                 $genUrl = "https://generativelanguage.googleapis.com/v1beta/models/{$gaModel}:generateContent?key=" . urlencode($currentGeminiKey);
                                 $ch = curl_init($genUrl);
                                 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                                 curl_setopt($ch, CURLOPT_POST, true);
                                 curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json; charset=utf-8']);
+
+                                $isGemini25 = (strpos($gaModel, '2.5') !== false);
+                                $genConfig = [
+                                    'temperature' => 0.2,
+                                    'maxOutputTokens' => $isGemini25 ? 65536 : 8192,
+                                ];
+                                if ($isGemini25) {
+                                    // CRITICAL: Gemini 2.5 has dynamic thinking on by default,
+                                    // which consumes thousands of tokens and cuts off output before finishing.
+                                    // Setting thinkingBudget to 0 disables thinking overhead, allocating 100% of tokens to output.
+                                    $genConfig['thinkingConfig'] = [
+                                        'thinkingBudget' => 0
+                                    ];
+                                }
+
                                 curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
                                     'contents' => [
                                         [
@@ -4036,12 +4052,9 @@ try {
                                             ]
                                         ]
                                     ],
-                                    'generationConfig' => [
-                                        'temperature' => 0.2,
-                                        'maxOutputTokens' => 8192
-                                    ]
+                                    'generationConfig' => $genConfig
                                 ], JSON_UNESCAPED_UNICODE));
-                                curl_setopt($ch, CURLOPT_TIMEOUT, 480);
+                                curl_setopt($ch, CURLOPT_TIMEOUT, 600);
                                 curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
                                 $audioRaw = curl_exec($ch);
                                 $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -4049,8 +4062,19 @@ try {
 
                                 if ($audioRaw && $httpCode === 200) {
                                     $audioDec = json_decode((string)$audioRaw, true);
-                                    if (!empty($audioDec['candidates'][0]['content']['parts'][0]['text'])) {
-                                        $fullAudioResponse = trim($audioDec['candidates'][0]['content']['parts'][0]['text']);
+                                    $candidate = $audioDec['candidates'][0] ?? null;
+                                    $candidateText = $candidate['content']['parts'][0]['text'] ?? '';
+                                    $finishReason = (string)($candidate['finishReason'] ?? 'STOP');
+
+                                    if (!empty($candidateText)) {
+                                        $fullAudioResponse = trim($candidateText);
+
+                                        // If truncated prematurely due to token limit before reaching SUMMARY_END on a very short text, try next model
+                                        if ($finishReason === 'MAX_TOKENS' && strpos($fullAudioResponse, '===SUMMARY_END===') === false && strlen($fullAudioResponse) < 800) {
+                                            $lastError = "Gemini Audio $gaModel: output truncated early by MAX_TOKENS";
+                                            continue;
+                                        }
+
                                         $usedProvider = 'gemini';
                                         $usedModel = $gaModel;
 
@@ -4114,7 +4138,7 @@ try {
 
                 // 3a. Try Gemini
                 if ($geminiKey !== '') {
-                    $geminiModels = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+                    $geminiModels = ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash', 'gemini-1.5-flash'];
                     foreach ($geminiModels as $gModel) {
                         try {
                             $nativeUrl = "https://generativelanguage.googleapis.com/v1beta/models/{$gModel}:generateContent?key=" . urlencode($geminiKey);
@@ -4122,6 +4146,18 @@ try {
                             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                             curl_setopt($ch, CURLOPT_POST, true);
                             curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json; charset=utf-8']);
+
+                            $isG25 = (strpos($gModel, '2.5') !== false);
+                            $genConfigText = [
+                                'temperature' => 0.25,
+                                'maxOutputTokens' => $isG25 ? 32768 : 8192,
+                            ];
+                            if ($isG25) {
+                                $genConfigText['thinkingConfig'] = [
+                                    'thinkingBudget' => 0
+                                ];
+                            }
+
                             curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
                                 'contents' => [
                                     [
@@ -4130,12 +4166,9 @@ try {
                                         ]
                                     ]
                                 ],
-                                'generationConfig' => [
-                                    'temperature' => 0.25,
-                                    'maxOutputTokens' => 4096
-                                ]
+                                'generationConfig' => $genConfigText
                             ], JSON_UNESCAPED_UNICODE));
-                            curl_setopt($ch, CURLOPT_TIMEOUT, 40);
+                            curl_setopt($ch, CURLOPT_TIMEOUT, 60);
                             curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
                             $rawRes = curl_exec($ch);
                             $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
