@@ -2360,13 +2360,13 @@ class _MeetingsScreenState extends State<MeetingsScreen>
     // implementation for url launcher if needed
   }
 
-  void _openAiMinutesModal(dynamic m, {bool autoPlayAudio = false}) {
+  Future<void> _openAiMinutesModal(dynamic m, {bool autoPlayAudio = false}) async {
     final int meetingId = int.tryParse(m['id']?.toString() ?? '0') ?? 0;
     final String topic = m['topic']?.toString() ?? 'កិច្ចប្រជុំ';
     final String dept = m['department']?.toString() ?? '';
     final String audioPath = (m['audio_url'] ?? m['mp3_url'] ?? m['audio_path'] ?? m['audio_file_path'] ?? '').toString();
 
-    showModalBottomSheet(
+    await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -2384,11 +2384,25 @@ class _MeetingsScreenState extends State<MeetingsScreen>
             setState(() {
               m['summary'] = summary;
               m['transcript_text'] = transcript;
+              // Synchronize with _meetingsList by id
+              final mIdStr = meetingId.toString();
+              for (var item in _meetingsList) {
+                if (item['id']?.toString() == mIdStr) {
+                  item['summary'] = summary;
+                  item['transcript_text'] = transcript;
+                  break;
+                }
+              }
             });
           }
         },
       ),
     );
+
+    // Refresh meetings list silently after sheet is closed to guarantee synchronization with DB
+    if (mounted) {
+      await _loadMeetingsSilently();
+    }
   }
 }
 
@@ -3260,6 +3274,10 @@ class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
           badgeBg = const Color(0xFF8B5CF6).withValues(alpha: 0.15);
           badgeColor = const Color(0xFFA78BFA);
           borderClr = const Color(0xFF8B5CF6).withValues(alpha: 0.35);
+        } else if (heading.contains('៥.') || heading.contains('💡') || heading.contains('ប្រឈម') || heading.contains('ហានិភ័យ')) {
+          badgeBg = const Color(0xFFF43F5E).withValues(alpha: 0.15);
+          badgeColor = const Color(0xFFFB7185);
+          borderClr = const Color(0xFFF43F5E).withValues(alpha: 0.35);
         }
 
         widgets.add(

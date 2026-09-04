@@ -873,6 +873,9 @@ function ensure_meetings_table($mysqli) {
             $mysqli->query("ALTER TABLE meetings ADD COLUMN $col $type");
         }
     }
+    // Ensure utf8mb4 for summary and transcript_text to support emojis and all Khmer unicode
+    @$mysqli->query("ALTER TABLE meetings MODIFY COLUMN summary LONGTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+    @$mysqli->query("ALTER TABLE meetings MODIFY COLUMN transcript_text LONGTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
     } catch (Exception $e) {
         error_log("Meetings table error: " . $e->getMessage());
     }
@@ -3799,8 +3802,9 @@ try {
         break;
 
     case 'summarize_meeting':
-        @set_time_limit(300);
-        @ini_set('max_execution_time', '300');
+        @set_time_limit(900);
+        @ini_set('max_execution_time', '900');
+        @ini_set('memory_limit', '1024M');
         try {
             if (function_exists('ensure_meetings_table')) {
                 ensure_meetings_table($mysqli);
@@ -3835,13 +3839,26 @@ try {
                 ]);
             }
 
-            // 1. Resolve Parameters
+            // 1. Resolve Parameters & Available AI Keys
             $transcriptText = $existingTranscript;
             $summaryText    = '';
             $usedProvider   = '';
             $usedModel      = '';
             $lastError      = '';
-            $geminiKey = trim((string)(function_exists('get_active_gemini_key') ? get_active_gemini_key() : (defined('GEMINI_API_KEY') ? GEMINI_API_KEY : (getenv('GEMINI_API_KEY') ?: ''))));
+
+            // Fetch all active Gemini keys for automatic rotation
+            $geminiKeys = [];
+            if (function_exists('get_all_active_gemini_keys')) {
+                $geminiKeys = get_all_active_gemini_keys($mysqli);
+            }
+            if (empty($geminiKeys)) {
+                $singleKey = trim((string)(function_exists('get_active_gemini_key') ? get_active_gemini_key($mysqli) : (defined('GEMINI_API_KEY') ? GEMINI_API_KEY : (getenv('GEMINI_API_KEY') ?: ''))));
+                if ($singleKey !== '') {
+                    $geminiKeys[] = $singleKey;
+                }
+            }
+            $geminiKey = !empty($geminiKeys) ? $geminiKeys[0] : '';
+
             $groqKey = trim((string)(defined('GROQ_API_KEY') ? GROQ_API_KEY : (getenv('GROQ_API_KEY') ?: '')));
             $githubToken = trim((string)(defined('GITHUB_TOKEN') ? GITHUB_TOKEN : (getenv('GITHUB_TOKEN') ?: (getenv('GITHUB_PAT') ?: ''))));
 
@@ -3873,19 +3890,24 @@ try {
 
                 if ($localAudioFile === '') {
                     $audioPublicUrl = preg_match('#^https?://#i', $audioPath) ? $audioPath : ('https://app.vvc.asia/flutter/' . ltrim($audioPath, '/\\'));
-                    $origExt = strtolower(pathinfo($audioPath, PATHINFO_EXTENSION)) ?: 'mp3';
+                    $origExt = strtolower(pathinfo(parse_url($audioPath, PHP_URL_PATH) ?? $audioPath, PATHINFO_EXTENSION)) ?: 'mp3';
+                    if (!in_array($origExt, ['mp3', 'm4a', 'wav', 'ogg', 'aac', 'webm', 'flac'], true)) {
+                        $origExt = 'mp3';
+                    }
                     $tempAudio = tempnam(sys_get_temp_dir(), 'vvc_meet_') . '.' . $origExt;
                     $fp = @fopen($tempAudio, 'w+');
                     if ($fp) {
                         $ch = curl_init($audioPublicUrl);
                         curl_setopt($ch, CURLOPT_FILE, $fp);
-                        curl_setopt($ch, CURLOPT_TIMEOUT, 60);
+                        curl_setopt($ch, CURLOPT_TIMEOUT, 360);
                         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
                         curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+                        curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
                         curl_exec($ch);
+                        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
                         curl_close($ch);
                         fclose($fp);
-                        if (file_exists($tempAudio) && filesize($tempAudio) > 1000) {
+                        if ($httpCode >= 200 && $httpCode < 300 && file_exists($tempAudio) && filesize($tempAudio) > 1000) {
                             $localAudioFile = $tempAudio;
                         } else {
                             @unlink($tempAudio);
@@ -3895,48 +3917,112 @@ try {
                 }
             }
 
-            // 2. Gemini Files API — Audio Transcription + Summary (if audio available and under 80MB)
-            if ($localAudioFile !== '' && $geminiKey !== '' && file_exists($localAudioFile) && filesize($localAudioFile) < 80 * 1024 * 1024) {
+            // 2. Gemini Files API — In-Depth Audio Understanding + Interconnected Executive Minutes (Supports up to 3 hours / 1GB)
+            if ($localAudioFile !== '' && !empty($geminiKeys) && file_exists($localAudioFile) && filesize($localAudioFile) < 1024 * 1024 * 1024) {
                 try {
                     $fSize = filesize($localAudioFile);
                     if (preg_match('/\.wav$/i', $localAudioFile)) $fileMime = 'audio/wav';
-                    elseif (preg_match('/\.m4a$/i', $localAudioFile)) $fileMime = 'audio/m4a';
+                    elseif (preg_match('/\.(m4a|aac)$/i', $localAudioFile)) $fileMime = 'audio/m4a';
                     elseif (preg_match('/\.ogg$/i', $localAudioFile)) $fileMime = 'audio/ogg';
+                    elseif (preg_match('/\.webm$/i', $localAudioFile)) $fileMime = 'audio/webm';
+                    elseif (preg_match('/\.flac$/i', $localAudioFile)) $fileMime = 'audio/flac';
                     else $fileMime = 'audio/mp3';
 
-                    $uploadUrl = "https://generativelanguage.googleapis.com/upload/v1beta/files?key=" . urlencode($geminiKey);
-                    $ch = curl_init($uploadUrl);
-                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                    curl_setopt($ch, CURLOPT_POST, true);
-                    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                        "X-Goog-Upload-Command: start, upload, finalize",
-                        "X-Goog-Upload-Header-Content-Length: " . $fSize,
-                        "X-Goog-Upload-Header-Content-Type: " . $fileMime,
-                        "Content-Type: " . $fileMime,
-                        "Content-Length: " . $fSize,
-                    ]);
                     $audioContent = @file_get_contents($localAudioFile);
                     if ($audioContent !== false) {
-                        curl_setopt($ch, CURLOPT_POSTFIELDS, $audioContent);
-                        curl_setopt($ch, CURLOPT_TIMEOUT, 90);
-                        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-                        $upRes = curl_exec($ch);
-                        curl_close($ch);
+                        // High-grade In-Depth, Interconnected Khmer Executive Prompt (Tuned for up to 3 hours)
+                        $audioPrompt = "អ្នកជាអ្នកជំនាញវិភាគជាន់ខ្ពស់ និងជាជំនួយការ AI សម្រាប់កត់ត្រាកំណត់ហេតុកិច្ចប្រជុំកម្រិតថ្នាក់ដឹកនាំប្រតិបត្តិ (Executive Minutes & In-Depth Meeting Intelligence)។\n\n"
+                            . "ព័ត៌មានកិច្ចប្រជុំ:\n"
+                            . "- ប្រធានបទ: {$topic}\n"
+                            . "- ផ្នែក/ស្ថាប័ន: {$dept}\n"
+                            . "- កាលបរិច្ឆេទ: {$date}\n\n"
+                            . "សេចក្តីណែនាំសំខាន់បំផុត (CRITICAL INSTRUCTIONS FOR ULTRA-LONG MEETINGS):\n"
+                            . "១. ស្តាប់សំឡេងកិច្ចប្រជុំទាំងមូលឱ្យបានចប់សព្វគ្រប់ តាំងពីដើមរហូតដល់ចប់ (Full Duration រហូតដល់ ៣ ម៉ោង) ដោយហាមរំលង កាត់ចោល ឬស្តាប់តែផ្នែកដំបូងឡើយ។ ត្រូវតាមដានគ្រប់វគ្គ (Sessions/Phases) និងគ្រប់របៀបវារៈនៃកិច្ចប្រជុំទាំងមូល។\n"
+                            . "២. វិភាគឱ្យបានស៊ីជម្រៅ គ្រប់ជ្រុងជ្រោយ និងប្រទាក់ក្រឡាគ្នា (In-Depth, Interconnected & Holistic Synthesis)៖ រាល់ចំណុចដែលលើកឡើង ត្រូវបង្ហាញពី 'ឫសគល់បញ្ហា (Root Cause)' -> 'ទឡ្ហីករណ៍/ការជជែកដេញដោល (Arguments/Debates)' -> 'ចំណុចប្រទាក់ក្រឡាគ្នាឆ្លងផ្នែក (Cross-Department Links)' -> 'ដំណោះស្រាយ និងផលជះ (Solutions & Impact)'។\n"
+                            . "៣. មិនត្រូវសរសេរសង្ខេបបែបលំៗ ឬខ្លីពេកឡើយ។ ត្រូវទាញយកព័ត៌មានជាក់ស្តែង តួលេខ ទិន្នន័យ ឈ្មោះបុគ្គល ឬផ្នែកពាក់ព័ន្ធឱ្យបានច្បាស់លាស់បំផុត។\n\n"
+                            . "សូមរៀបចំទម្រង់កំណត់ហេតុជាភាសាខ្មែរតាមរចនាសម្ព័ន្ធដូចខាងក្រោម៖\n\n"
+                            . "===SUMMARY_START===\n"
+                            . "# កំណត់ហេតុ និងសេចក្តីសង្ខេបកិច្ចប្រជុំប្រតិបត្តិ (Executive Meeting Minutes)\n\n"
+                            . "📌 ១. សេចក្តីសង្ខេបប្រតិបត្តិ និងគោលបំណងរួម (Executive Overview & Core Objectives)\n"
+                            . "- សង្ខេបខ្លឹមសារស្នូលនៃកិច្ចប្រជុំទាំងមូល គោលបំណងសំខាន់នៃការកោះប្រជុំ និងបរិយាកាសទូទៅនៃការពិភាក្សា។\n\n"
+                            . "🎯 ២. ការវិភាគស៊ីជម្រៅតាមរបៀបវារៈ និងចំណុចប្រទាក់ក្រឡាគ្នា (In-Depth Thematic Analysis & Interconnections)\n"
+                            . "- ពិពណ៌នាលម្អិតតាមប្រធានបទធំៗនីមួយៗដែលបានជជែកក្នុងសំឡេង (បំបែកជាចំណុច ២.១, ២.២, ២.៣, ... ស្របតាមកិច្ចប្រជុំជាក់ស្តែង)។\n"
+                            . "- បញ្ជាក់ពីបញ្ហាដើមចម (Cause), ការជជែកពិភាក្សាខ្វែងគំនិត ឬការយល់ឃើញរបស់សមាជិក (Perspectives), និងទំនាក់ទំនងប្រទាក់ក្រឡាគ្នាជាមួយការងារផ្សេងទៀត (Interconnections)។\n"
+                            . "- ដាក់ Timestamp ប៉ាន់ស្មាន [MM:SS] នៅដើមចំណុចនីមួយៗដើម្បីងាយស្រួលផ្ទៀងផ្ទាត់សំឡេង។\n\n"
+                            . "✅ ៣. ការសម្រេចចិត្តជាក់ស្តែង និងកិច្ចព្រមព្រៀងជាឯកច្ឆន្ទ (Decisions Made & Agreed Consensus)\n"
+                            . "- រាយនាមរាល់ការសម្រេចចិត្តទាំងអស់ដែលបានអនុម័តក្នុងកិច្ចប្រជុំ ព្រមទាំងមូលហេតុ និងលក្ខខណ្ឌនៃការសម្រេចចិត្តនីមួយៗ (ហាមរំលងការសម្រេចចិត្តណាមួយ)។\n\n"
+                            . "📋 ៤. ផែនការសកម្មភាព អ្នកទទួលខុសត្រូវ និងកាលកំណត់ (Action Items & Accountability Matrix)\n"
+                            . "- រាយការងារជាក់ស្តែងដែលត្រូវធ្វើបន្តជាចំណុចៗ ដោយបញ្ជាក់ច្បាស់ៗអំពី:\n"
+                            . "  * **អ្នកទទួលខុសត្រូវ:** [ឈ្មោះបុគ្គល ឬផ្នែក]\n"
+                            . "  * **ភារកិច្ចជាក់ស្តែង:** [កិច្ចការត្រូវអនុវត្តឱ្យច្បាស់]\n"
+                            . "  * **កាលកំណត់:** [កាលបរិច្ឆេទ ឬពេលវេលាត្រូវបញ្ចប់]\n"
+                            . "  * **លទ្ធផលរំពឹងទុក:** [របាយការណ៍ ឬលទ្ធផលត្រូវប្រគល់]\n\n"
+                            . "💡 ៥. បញ្ហាប្រឈម ហានិភ័យ និងកិច្ចការត្រូវតាមដានបន្ត (Pending Issues, Risks & Follow-ups)\n"
+                            . "- ចំណុចដែលនៅមិនទាន់ដោះស្រាយរួច បញ្ហាប្រឈម ឬហានិភ័យដែលអាចកើតមាន និងបញ្ហាដែលត្រូវយកទៅជជែកក្នុងកិច្ចប្រជុំលើកក្រោយ។\n"
+                            . "===SUMMARY_END===\n\n"
+                            . "===TRANSCRIPT_START===\n"
+                            . "កាលប្បវត្តិ និងសង្ខេបដំណើរការប្រជុំតាមពេលវេលា (Meeting Timeline & Key Highlights):\n"
+                            . "- បង្ហាញដំណើររឿងនៃកិច្ចប្រជុំតាមលំដាប់លំដោយពេលវេលា [MM:SS] ពីដើមដល់ចប់ ជាមួយនឹងការលើកឡើងសំខាន់ៗរបស់អ្នកនិយាយ។\n"
+                            . "===TRANSCRIPT_END===\n\n"
+                            . "សូមឆ្លើយតបជាភាសាខ្មែរដែលមានលក្ខណៈរៀបរយ ផ្លូវការ និងវិជ្ជាជីវៈខ្ពស់។";
 
-                        $upDec = json_decode((string)$upRes, true);
-                        $uploadedAudioUri = $upDec['file']['uri'] ?? '';
+                        // Rotate through available Gemini API Keys
+                        foreach ($geminiKeys as $currentGeminiKey) {
+                            $uploadUrl = "https://generativelanguage.googleapis.com/upload/v1beta/files?key=" . urlencode($currentGeminiKey);
+                            $ch = curl_init($uploadUrl);
+                            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                            curl_setopt($ch, CURLOPT_POST, true);
+                            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                                "X-Goog-Upload-Command: start, upload, finalize",
+                                "X-Goog-Upload-Header-Content-Length: " . $fSize,
+                                "X-Goog-Upload-Header-Content-Type: " . $fileMime,
+                                "Content-Type: " . $fileMime,
+                                "Content-Length: " . $fSize,
+                            ]);
+                            curl_setopt($ch, CURLOPT_POSTFIELDS, $audioContent);
+                            curl_setopt($ch, CURLOPT_TIMEOUT, 360);
+                            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                            $upRes = curl_exec($ch);
+                            $upCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                            curl_close($ch);
 
-                        if ($uploadedAudioUri !== '') {
-                            $audioPrompt = "អ្នកជាជំនួយការ AI សម្រាប់កត់ត្រាកំណត់ហេតុកិច្ចប្រជុំ និងស្តាប់សំឡេងកិច្ចប្រជុំផ្ទាល់ជាភាសាខ្មែរ (Executive Minutes & Full Dialogue Transcript from Audio)។\n\n"
-                                . "ព័ត៌មានកិច្ចប្រជុំ:\n- ប្រធានបទ: {$topic}\n- ផ្នែក/ក្រុម: {$dept}\n- កាលបរិច្ឆេទ: {$date}\n\n"
-                                . "សូមស្តាប់សំឡេងនេះដោយហ្មត់ចត់ ហើយឆ្លើយតបជា ២ ផ្នែកដាច់ដោយឡែកពីគ្នា ដូចខាងក្រោម៖\n\n"
-                                . "===SUMMARY_START===\n📌 ១. សេចក្តីសង្ខេបរួមពីសំឡេង (Executive Summary)\n🎯 ២. ចំណុចសំខាន់ៗដែលបានពិភាក្សាជាក់ស្តែងក្នុងសំឡេង (Key Discussion Points)\n✅ ៣. ការសម្រេចចិត្តរួម (Decisions Made)\n📋 ៤. ផែនការសកម្មភាព និងជំហានបន្ទាប់ (Action Items & Next Steps)\n===SUMMARY_END===\n\n"
-                                . "===TRANSCRIPT_START===\nសូមសរសេរអត្ថបទសន្ទនាការនិយាយជាក់ស្តែងទាំងអស់ពីសំឡេង (Full Dialogue Transcript) តាមលំដាប់លំដោយនៃអ្នកនិយាយ ដោយបំបែកជាឃ្លាខ្លីៗ និងដាក់ Timestamp [MM:SS] នៅដើមឃ្លានីមួយៗជានិច្ច (ឧទាហរណ៍៖ [00:00] **អ្នកនិយាយ ៖** ពាក្យសម្តី...)\n===TRANSCRIPT_END===\n\n"
-                                . "សូមឆ្លើយតបជាភាសាខ្មែរ។";
+                            if (!$upRes || $upCode !== 200) {
+                                $lastError = "Gemini Upload Failed (HTTP $upCode)";
+                                continue;
+                            }
+
+                            $upDec = json_decode((string)$upRes, true);
+                            $uploadedAudioUri = $upDec['file']['uri'] ?? '';
+                            $uploadedFileName = $upDec['file']['name'] ?? '';
+                            $fileState = strtoupper(trim((string)($upDec['file']['state'] ?? 'ACTIVE')));
+
+                            if ($uploadedAudioUri === '') {
+                                continue;
+                            }
+
+                            // If audio state is PROCESSING, poll until ACTIVE (up to 60s for very long recordings)
+                            if ($fileState === 'PROCESSING' && $uploadedFileName !== '') {
+                                $pollCount = 0;
+                                while ($fileState === 'PROCESSING' && $pollCount < 30) {
+                                    sleep(2);
+                                    $pollCount++;
+                                    $checkUrl = "https://generativelanguage.googleapis.com/v1beta/" . ltrim($uploadedFileName, '/') . "?key=" . urlencode($currentGeminiKey);
+                                    $cch = curl_init($checkUrl);
+                                    curl_setopt($cch, CURLOPT_RETURNTRANSFER, true);
+                                    curl_setopt($cch, CURLOPT_TIMEOUT, 10);
+                                    curl_setopt($cch, CURLOPT_SSL_VERIFYPEER, false);
+                                    $cRaw = curl_exec($cch);
+                                    curl_close($cch);
+                                    if ($cRaw) {
+                                        $cDec = json_decode((string)$cRaw, true);
+                                        $fileState = strtoupper(trim((string)($cDec['state'] ?? 'ACTIVE')));
+                                    }
+                                }
+                            }
 
                             $geminiAudioModels = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
                             foreach ($geminiAudioModels as $gaModel) {
-                                $genUrl = "https://generativelanguage.googleapis.com/v1beta/models/{$gaModel}:generateContent?key=" . urlencode($geminiKey);
+                                $genUrl = "https://generativelanguage.googleapis.com/v1beta/models/{$gaModel}:generateContent?key=" . urlencode($currentGeminiKey);
                                 $ch = curl_init($genUrl);
                                 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                                 curl_setopt($ch, CURLOPT_POST, true);
@@ -3950,9 +4036,12 @@ try {
                                             ]
                                         ]
                                     ],
-                                    'generationConfig' => ['temperature' => 0.2, 'maxOutputTokens' => 4096]
+                                    'generationConfig' => [
+                                        'temperature' => 0.2,
+                                        'maxOutputTokens' => 8192
+                                    ]
                                 ], JSON_UNESCAPED_UNICODE));
-                                curl_setopt($ch, CURLOPT_TIMEOUT, 90);
+                                curl_setopt($ch, CURLOPT_TIMEOUT, 480);
                                 curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
                                 $audioRaw = curl_exec($ch);
                                 $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -3966,20 +4055,24 @@ try {
                                         $usedModel = $gaModel;
 
                                         // Extract Transcript section
-                                        if (preg_match('/===TRANSCRIPT_START===(.*?)(?:===TRANSCRIPT_END===|$)/s', $fullAudioResponse, $mTrans)) {
+                                        if (preg_match('/===+\s*TRANSCRIPT_START\s*===+(.*?)(?:===+\s*TRANSCRIPT_END\s*===+|$)/is', $fullAudioResponse, $mTrans)) {
                                             $transcriptText = trim($mTrans[1]);
                                         } elseif (preg_match('/(\[(?:00:00|00:01|00:02|0:00|\d{1,2}:\d{2})\].*)/s', $fullAudioResponse, $mTrans)) {
                                             $transcriptText = trim($mTrans[1]);
                                         }
 
                                         // Extract Summary section
-                                        if (preg_match('/===SUMMARY_START===(.*?)(?:===SUMMARY_END===|===TRANSCRIPT|$)/s', $fullAudioResponse, $mSum)) {
+                                        if (preg_match('/===+\s*SUMMARY_START\s*===+(.*?)(?:===+\s*SUMMARY_END\s*===+|===+\s*TRANSCRIPT|$)/is', $fullAudioResponse, $mSum)) {
                                             $summaryText = trim($mSum[1]);
                                         } else {
-                                            $summaryText = trim(str_replace(['===SUMMARY_START===', '===SUMMARY_END===', '===TRANSCRIPT_START===', '===TRANSCRIPT_END==='], '', $fullAudioResponse));
+                                            $cleanRes = preg_replace('/===+\s*(?:SUMMARY|TRANSCRIPT)_(?:START|END)\s*===+/i', '', $fullAudioResponse);
+                                            $summaryText = trim($cleanRes);
                                         }
-                                        break;
+                                        break 2; // Successfully generated summary from audio
                                     }
+                                } else {
+                                    $errDec = json_decode((string)$audioRaw, true);
+                                    $lastError = "Gemini Audio $gaModel: " . ($errDec['error']['message'] ?? "HTTP $httpCode");
                                 }
                             }
                         }
@@ -3995,18 +4088,29 @@ try {
 
             // 3. Text-Based Executive Minutes Generator (Gemini -> Groq -> GitHub Models fallback)
             if ($summaryText === '') {
-                $prompt = "អ្នកជាជំនួយការ AI សម្រាប់កត់ត្រាកំណត់ហេតុកិច្ចប្រជុំ និងធ្វើសេចក្តីសង្ខេបកិច្ចប្រជុំកម្រិតប្រតិបត្តិជាភាសាខ្មែរ (Executive Minutes of Meeting)។\n\n"
+                $prompt = "អ្នកជាអ្នកជំនាញវិភាគជាន់ខ្ពស់ និងជាជំនួយការ AI សម្រាប់កត់ត្រាកំណត់ហេតុកិច្ចប្រជុំកម្រិតថ្នាក់ដឹកនាំប្រតិបត្តិ (Executive Minutes of Meeting)។\n\n"
                     . "ព័ត៌មានកិច្ចប្រជុំ:\n"
                     . "- ប្រធានបទ: {$topic}\n"
-                    . "- ផ្នែក/ក្រុម: {$dept}\n"
+                    . "- ផ្នែក/ស្ថាប័ន: {$dept}\n"
                     . "- កាលបរិច្ឆេទ: {$date}\n"
-                    . "- ការពិពណ៌នាកិច្ចប្រជុំ: " . ($desc !== '' ? $desc : $topic) . "\n\n"
-                    . "សូមរៀបចំសេចក្តីសង្ខេប និងកំណត់ហេតុកិច្ចប្រជុំជាភាសាខ្មែរឱ្យមានរបៀបរៀបរយ ច្បាស់លាស់ និងមានលក្ខណៈវិជ្ជាជីវៈខ្ពស់ ដោយបែងចែកជា ៤ ផ្នែកដាច់ដោយឡែកដូចខាងក្រោម៖\n"
-                    . "📌 ១. សេចក្តីសង្ខេបរួម (Executive Summary)\n"
-                    . "🎯 ២. ចំណុចសំខាន់ៗដែលបានលើកឡើង (Key Discussion Points)\n"
-                    . "✅ ៣. ការសម្រេចចិត្តរួម (Decisions Made)\n"
-                    . "📋 ៤. ផែនការសកម្មភាព និងជំហានបន្ទាប់ (Action Items & Next Steps)\n\n"
-                    . "សូមឆ្លើយតបជាភាសាខ្មែរដោយផ្ទាល់។";
+                    . "- ការពិពណ៌នាកិច្ចប្រជុំ/របៀបវារៈ: " . ($desc !== '' ? $desc : $topic) . "\n\n"
+                    . "សូមរៀបចំកំណត់ហេតុ និងសេចក្តីសង្ខេបកិច្ចប្រជុំជាភាសាខ្មែរឱ្យបានស៊ីជម្រៅ គ្រប់ជ្រុងជ្រោយ និងមានទំនាក់ទំនងប្រទាក់ក្រឡាគ្នាខ្ពស់ ដោយបែងចែកជា ៥ ផ្នែកដូចខាងក្រោម៖\n\n"
+                    . "# កំណត់ហេតុ និងសេចក្តីសង្ខេបកិច្ចប្រជុំប្រតិបត្តិ (Executive Meeting Minutes)\n\n"
+                    . "📌 ១. សេចក្តីសង្ខេបប្រតិបត្តិ និងគោលបំណងរួម (Executive Overview & Core Objectives)\n"
+                    . "- សង្ខេបខ្លឹមសារស្នូលនៃកិច្ចប្រជុំ គោលបំណងនៃការកោះប្រជុំ និងបញ្ហាគន្លឹះដែលត្រូវដោះស្រាយ។\n\n"
+                    . "🎯 ២. ការវិភាគស៊ីជម្រៅតាមរបៀបវារៈ និងចំណុចប្រទាក់ក្រឡាគ្នា (In-Depth Thematic Analysis & Interconnections)\n"
+                    . "- វិភាគលម្អិតតាមប្រធានបទធំៗនីមួយៗ (បំបែកជាចំណុច ២.១, ២.២, ...) ដោយបង្ហាញពីឫសគល់បញ្ហា ការជជែកពិភាក្សា និងទំនាក់ទំនងប្រទាក់ក្រឡាឆ្លងផ្នែក។\n\n"
+                    . "✅ ៣. ការសម្រេចចិត្តជាក់ស្តែង និងកិច្ចព្រមព្រៀងជាឯកច្ឆន្ទ (Decisions Made)\n"
+                    . "- រាយនាមរាល់ការសម្រេចចិត្តទាំងអស់ដែលបានអនុម័ត ព្រមទាំងមូលហេតុ និងលក្ខខណ្ឌនៃការសម្រេចចិត្ត។\n\n"
+                    . "📋 ៤. ផែនការសកម្មភាព អ្នកទទួលខុសត្រូវ និងកាលកំណត់ (Action Items & Accountability)\n"
+                    . "- រាយការងារជាក់ស្តែងដែលត្រូវធ្វើបន្ត:\n"
+                    . "  * **អ្នកទទួលខុសត្រូវ:** [ឈ្មោះបុគ្គល ឬផ្នែក]\n"
+                    . "  * **ភារកិច្ចជាក់ស្តែង:** [កិច្ចការត្រូវអនុវត្តឱ្យច្បាស់]\n"
+                    . "  * **កាលកំណត់:** [កាលបរិច្ឆេទ ឬពេលវេលាត្រូវបញ្ចប់]\n"
+                    . "  * **លទ្ធផលរំពឹងទុក:** [របាយការណ៍ ឬលទ្ធផលត្រូវប្រគល់]\n\n"
+                    . "💡 ៥. បញ្ហាប្រឈម ហានិភ័យ និងកិច្ចការត្រូវតាមដានបន្ត (Pending Issues, Risks & Follow-ups)\n"
+                    . "- ចំណុចដែលនៅមិនទាន់ដោះស្រាយរួច ហានិភ័យដែលអាចកើតមាន និងបញ្ហាដែលត្រូវតាមដានបន្ត។\n\n"
+                    . "សូមឆ្លើយតបជាភាសាខ្មែរផ្លូវការ វិជ្ជាជីវៈ និងច្បាស់លាស់។";
 
                 // 3a. Try Gemini
                 if ($geminiKey !== '') {
@@ -4149,20 +4253,54 @@ try {
                 ]);
             }
 
-            // 4. Save to database safely
+            // 4. Save to database safely with multi-tier fallback
+            $savedToDb = false;
             try {
+                @$mysqli->set_charset('utf8mb4');
+                @$mysqli->query("SET NAMES 'utf8mb4'");
+
+                // Tier 1: Full prepared update with metadata
                 $stmt = $mysqli->prepare("UPDATE meetings SET summary = ?, transcript_text = ?, summary_generated_at = NOW(), summary_provider = ?, summary_model = ? WHERE id = ?");
                 if ($stmt) {
                     $stmt->bind_param("sssssi", $summaryText, $transcriptText, $usedProvider, $usedModel, $mid);
-                    $stmt->execute();
+                    $savedToDb = (bool)$stmt->execute();
                     $stmt->close();
-                } else {
+                }
+
+                // Tier 2: Update summary and transcript_text
+                if (!$savedToDb) {
                     $stmt2 = $mysqli->prepare("UPDATE meetings SET summary = ?, transcript_text = ? WHERE id = ?");
                     if ($stmt2) {
                         $stmt2->bind_param("ssi", $summaryText, $transcriptText, $mid);
-                        $stmt2->execute();
+                        $savedToDb = (bool)$stmt2->execute();
                         $stmt2->close();
                     }
+                }
+
+                // Tier 3: Update only summary
+                if (!$savedToDb) {
+                    $stmt3 = $mysqli->prepare("UPDATE meetings SET summary = ? WHERE id = ?");
+                    if ($stmt3) {
+                        $stmt3->bind_param("si", $summaryText, $mid);
+                        $savedToDb = (bool)$stmt3->execute();
+                        $stmt3->close();
+                    }
+                }
+
+                // Tier 4: Direct query with escaped string
+                if (!$savedToDb) {
+                    $escSum = $mysqli->real_escape_string($summaryText);
+                    $escTrans = $mysqli->real_escape_string($transcriptText);
+                    $savedToDb = (bool)$mysqli->query("UPDATE meetings SET summary = '$escSum', transcript_text = '$escTrans' WHERE id = $mid");
+                }
+
+                // Tier 5: If MySQL charset is legacy 3-byte utf8, strip 4-byte emojis and save
+                if (!$savedToDb) {
+                    $cleanSum = preg_replace('/[\x{10000}-\x{10FFFF}]/u', '', $summaryText);
+                    $cleanTrans = preg_replace('/[\x{10000}-\x{10FFFF}]/u', '', $transcriptText);
+                    $escSum = $mysqli->real_escape_string($cleanSum);
+                    $escTrans = $mysqli->real_escape_string($cleanTrans);
+                    $savedToDb = (bool)$mysqli->query("UPDATE meetings SET summary = '$escSum', transcript_text = '$escTrans' WHERE id = $mid");
                 }
             } catch (Throwable $dbe) {
                 error_log("Meeting summary DB save error: " . $dbe->getMessage());

@@ -4649,14 +4649,31 @@ try {
             }
 
 
-            // 3. Save to database
-            dbQuery("UPDATE meetings SET summary = ?, transcript_text = ?, summary_generated_at = NOW(), summary_provider = ?, summary_model = ? WHERE id = ?", [
-                $summaryText,
-                $transcriptText,
-                $usedProvider,
-                $usedModel,
-                $mid
-            ]);
+            // 3. Save to database safely with fallback
+            try {
+                $savedAdmin = dbQuery("UPDATE meetings SET summary = ?, transcript_text = ?, summary_generated_at = NOW(), summary_provider = ?, summary_model = ? WHERE id = ?", [
+                    $summaryText,
+                    $transcriptText,
+                    $usedProvider,
+                    $usedModel,
+                    $mid
+                ]);
+                if (empty($savedAdmin) || (isset($savedAdmin['affected_rows']) && $savedAdmin['affected_rows'] === 0)) {
+                    $savedAdmin2 = dbQuery("UPDATE meetings SET summary = ?, transcript_text = ? WHERE id = ?", [
+                        $summaryText,
+                        $transcriptText,
+                        $mid
+                    ]);
+                    if (empty($savedAdmin2)) {
+                        dbQuery("UPDATE meetings SET summary = ? WHERE id = ?", [
+                            $summaryText,
+                            $mid
+                        ]);
+                    }
+                }
+            } catch (Throwable $sErr) {
+                error_log("admin_api meeting summary save error: " . $sErr->getMessage());
+            }
 
             sendJson([
                 'success' => true,
