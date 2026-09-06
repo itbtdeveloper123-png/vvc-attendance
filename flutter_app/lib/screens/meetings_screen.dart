@@ -29,8 +29,35 @@ class MeetingSummaryStorage {
   static const String _transcriptPrefix = 'cached_ai_transcript_';
   static const String _timePrefix = 'cached_ai_time_';
 
+  static bool isNewExecutiveFormat(String? text) {
+    if (text == null || text.trim().isEmpty) return false;
+    return text.contains('សេចក្តីសង្ខេបប្រតិបត្តិ និងគោលបំណងរួម') ||
+           text.contains('Executive Overview & Core Objectives') ||
+           text.contains('Executive Meeting Minutes') ||
+           text.contains('Accountability Matrix') ||
+           text.contains('Decisions Made & Agreed Consensus');
+  }
+
+  static bool isStaleFormat(String? text) {
+    if (text == null || text.trim().isEmpty) return false;
+    return text.contains('នេះជាកំណត់ហេតុកិច្ចប្រជុំកម្រិតប្រតិបត្តិ') ||
+           (text.contains('សេចក្តីសង្ខេបរួម (Executive Summary)') && !text.contains('សេចក្តីសង្ខេបប្រតិបត្តិ និងគោលបំណងរួម')) ||
+           text.contains('ថ្ងៃទី ៣០ ខែ មេសា ឆ្នាំ ២០២៦');
+  }
+
+  static Future<void> clear(int meetingId) async {
+    if (meetingId <= 0) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('$_keyPrefix$meetingId');
+      await prefs.remove('$_transcriptPrefix$meetingId');
+      await prefs.remove('$_timePrefix$meetingId');
+    } catch (_) {}
+  }
+
   static Future<void> save(int meetingId, String summary, [String? transcript]) async {
     if (meetingId <= 0 || summary.trim().isEmpty) return;
+    if (isStaleFormat(summary)) return;
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('$_keyPrefix$meetingId', summary);
@@ -45,7 +72,12 @@ class MeetingSummaryStorage {
     if (meetingId <= 0) return null;
     try {
       final prefs = await SharedPreferences.getInstance();
-      return prefs.getString('$_keyPrefix$meetingId');
+      final cached = prefs.getString('$_keyPrefix$meetingId');
+      if (isStaleFormat(cached)) {
+        await clear(meetingId);
+        return null;
+      }
+      return cached;
     } catch (_) {
       return null;
     }
@@ -219,12 +251,27 @@ class _MeetingsScreenState extends State<MeetingsScreen>
       if (item is Map) {
         final id = int.tryParse(item['id']?.toString() ?? '0') ?? 0;
         if (id > 0) {
+          final serverSum = (item['summary'] ?? '').toString().trim();
           final cached = await MeetingSummaryStorage.getSummary(id);
-          if (cached != null && cached.trim().isNotEmpty) {
-            final serverSum = (item['summary'] ?? '').toString().trim();
-            // If server has empty summary, or cached is newer executive format, keep cached!
-            if (serverSum.isEmpty || cached.contains('📌 ១.') || cached.length > serverSum.length) {
-              item['summary'] = cached;
+
+          // If local cache contains stale mock format, purge it immediately
+          if (MeetingSummaryStorage.isStaleFormat(cached)) {
+            await MeetingSummaryStorage.clear(id);
+          }
+
+          if (serverSum.isNotEmpty) {
+            // Server summary is the single source of truth for all users.
+            // Synchronize local cache with latest server summary
+            await MeetingSummaryStorage.save(
+              id,
+              serverSum,
+              item['transcript_text']?.toString(),
+            );
+          } else {
+            // Server has empty summary: fallback to local cache only if valid & not stale
+            final validCached = await MeetingSummaryStorage.getSummary(id);
+            if (validCached != null && validCached.trim().isNotEmpty && !MeetingSummaryStorage.isStaleFormat(validCached)) {
+              item['summary'] = validCached;
               final cachedTrans = await MeetingSummaryStorage.getTranscript(id);
               if (cachedTrans != null && cachedTrans.isNotEmpty) {
                 item['transcript_text'] = cachedTrans;
@@ -2440,16 +2487,23 @@ class _MeetingsScreenState extends State<MeetingsScreen>
     final String dept = m['department']?.toString() ?? '';
     final String audioPath = (m['audio_url'] ?? m['mp3_url'] ?? m['audio_path'] ?? m['audio_file_path'] ?? '').toString();
 
-    // Check if we have a locally cached summary that is newer or executive formatted
-    final cachedSum = await MeetingSummaryStorage.getSummary(meetingId);
-    final cachedTrans = await MeetingSummaryStorage.getTranscript(meetingId);
     String initialSum = (m['summary'] ?? '').toString().trim();
     String? initialTrans = m['transcript_text']?.toString();
 
-    if (cachedSum != null && cachedSum.trim().isNotEmpty) {
-      if (initialSum.isEmpty || cachedSum.contains('📌 ១.') || cachedSum.length > initialSum.length) {
+    // If server summary is stale, clear it
+    if (MeetingSummaryStorage.isStaleFormat(initialSum)) {
+      initialSum = '';
+      m['summary'] = '';
+      await MeetingSummaryStorage.clear(meetingId);
+    }
+
+    // Only if server summary is empty, fallback to valid local cache
+    if (initialSum.isEmpty && meetingId > 0) {
+      final cachedSum = await MeetingSummaryStorage.getSummary(meetingId);
+      if (cachedSum != null && cachedSum.trim().isNotEmpty && !MeetingSummaryStorage.isStaleFormat(cachedSum)) {
         initialSum = cachedSum;
         m['summary'] = cachedSum;
+        final cachedTrans = await MeetingSummaryStorage.getTranscript(meetingId);
         if (cachedTrans != null && cachedTrans.isNotEmpty) {
           initialTrans = cachedTrans;
           m['transcript_text'] = cachedTrans;
@@ -2543,17 +2597,18 @@ class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
   void initState() {
     super.initState();
     _summary = widget.initialSummary;
+    if (MeetingSummaryStorage.isStaleFormat(_summary)) {
+      _summary = null;
+    }
     _audioService.addListener(_onAudioStateChanged);
 
-    // Asynchronously load local cache if initial was empty or older
-    if (widget.meetingId > 0) {
+    // Only load from local storage if initial summary is completely empty
+    if ((_summary == null || _summary!.trim().isEmpty) && widget.meetingId > 0) {
       MeetingSummaryStorage.getSummary(widget.meetingId).then((cached) {
-        if (mounted && cached != null && cached.trim().isNotEmpty) {
-          if (_summary == null || _summary!.isEmpty || cached.contains('📌 ១.') || cached.length > (_summary?.length ?? 0)) {
-            setState(() {
-              _summary = cached;
-            });
-          }
+        if (mounted && cached != null && cached.trim().isNotEmpty && !MeetingSummaryStorage.isStaleFormat(cached)) {
+          setState(() {
+            _summary = cached;
+          });
         }
       });
     }
@@ -2631,8 +2686,15 @@ class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
     setState(() {
       _isLoading = true;
       _error = null;
+      if (force) {
+        _summary = null;
+      }
     });
     _startProgressTimer();
+
+    if (force && widget.meetingId > 0) {
+      await MeetingSummaryStorage.clear(widget.meetingId);
+    }
 
     try {
       final res = await widget.api.summarizeMeeting(widget.meetingId, force: force);
@@ -2640,12 +2702,12 @@ class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
       if (res['success'] == true || res['status'] == 'success') {
         final summaryStr = res['summary']?.toString();
         final transcriptStr = res['transcript']?.toString() ?? res['transcript_text']?.toString();
-        setState(() {
-          _loadingProgress = 1.0;
-          _summary = summaryStr;
-          _isLoading = false;
-        });
-        if (summaryStr != null && summaryStr.isNotEmpty) {
+        if (summaryStr != null && summaryStr.trim().isNotEmpty && !MeetingSummaryStorage.isStaleFormat(summaryStr)) {
+          setState(() {
+            _loadingProgress = 1.0;
+            _summary = summaryStr;
+            _isLoading = false;
+          });
           widget.onGenerated?.call(summaryStr, transcriptStr);
           await MeetingSummaryStorage.save(widget.meetingId, summaryStr, transcriptStr);
           // Redundant double-save to server to ensure 100% persistence in DB
@@ -2668,22 +2730,35 @@ class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
               ),
             );
           }
-        }
-      } else {
-        // If client timed out or errored, do a fast check if server finished in the background
-        final checkRes = await widget.api.summarizeMeeting(widget.meetingId, force: false);
-        final cachedSummary = checkRes['summary']?.toString();
-        if (checkRes['success'] == true && cachedSummary != null && cachedSummary.trim().isNotEmpty) {
-          setState(() {
-            _loadingProgress = 1.0;
-            _summary = cachedSummary;
-            _isLoading = false;
-          });
-          widget.onGenerated?.call(cachedSummary, checkRes['transcript']?.toString());
-          await MeetingSummaryStorage.save(widget.meetingId, cachedSummary, checkRes['transcript']?.toString());
           return;
         }
+      }
 
+      // If client timed out or disconnected, poll server every 4s up to 10 times
+      // because the server continues processing in background with ignore_user_abort(true)
+      bool polledSuccess = false;
+      for (int i = 0; i < 10; i++) {
+        await Future.delayed(const Duration(seconds: 4));
+        if (!mounted) return;
+        try {
+          final pollRes = await widget.api.summarizeMeeting(widget.meetingId, force: false);
+          final pollSum = pollRes['summary']?.toString() ?? '';
+          if (pollSum.isNotEmpty && !MeetingSummaryStorage.isStaleFormat(pollSum)) {
+            polledSuccess = true;
+            setState(() {
+              _loadingProgress = 1.0;
+              _summary = pollSum;
+              _isLoading = false;
+            });
+            final pollTrans = pollRes['transcript']?.toString() ?? pollRes['transcript_text']?.toString();
+            widget.onGenerated?.call(pollSum, pollTrans);
+            await MeetingSummaryStorage.save(widget.meetingId, pollSum, pollTrans);
+            return;
+          }
+        } catch (_) {}
+      }
+
+      if (!polledSuccess) {
         setState(() {
           _error = res['message']?.toString() ?? 'មិនអាចទាញយកសេចក្តីសង្ខេប AI បានទេ';
           _isLoading = false;
@@ -2691,37 +2766,29 @@ class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
       }
     } catch (e) {
       _progressTimer?.cancel();
-      // Even on exception, check if DB actually got updated before showing error!
+      // Even on exception (e.g. 524 timeout), poll server up to 10 times to wait for background task
       try {
-        final checkRes = await widget.api.summarizeMeeting(widget.meetingId, force: false);
-        final cachedSummary = checkRes['summary']?.toString();
-        if (checkRes['success'] == true && cachedSummary != null && cachedSummary.trim().isNotEmpty) {
-          setState(() {
-            _loadingProgress = 1.0;
-            _summary = cachedSummary;
-            _isLoading = false;
-          });
-          widget.onGenerated?.call(cachedSummary, checkRes['transcript']?.toString());
-          await MeetingSummaryStorage.save(widget.meetingId, cachedSummary, checkRes['transcript']?.toString());
-          return;
-        }
-      } catch (_) {}
-
-      // If network failed, also check local storage as fallback!
-      try {
-        final localCached = await MeetingSummaryStorage.getSummary(widget.meetingId);
-        if (localCached != null && localCached.trim().isNotEmpty) {
-          setState(() {
-            _loadingProgress = 1.0;
-            _summary = localCached;
-            _isLoading = false;
-          });
-          return;
+        for (int i = 0; i < 10; i++) {
+          await Future.delayed(const Duration(seconds: 4));
+          if (!mounted) return;
+          final pollRes = await widget.api.summarizeMeeting(widget.meetingId, force: false);
+          final pollSum = pollRes['summary']?.toString() ?? '';
+          if (pollSum.isNotEmpty && !MeetingSummaryStorage.isStaleFormat(pollSum)) {
+            setState(() {
+              _loadingProgress = 1.0;
+              _summary = pollSum;
+              _isLoading = false;
+            });
+            final pollTrans = pollRes['transcript']?.toString() ?? pollRes['transcript_text']?.toString();
+            widget.onGenerated?.call(pollSum, pollTrans);
+            await MeetingSummaryStorage.save(widget.meetingId, pollSum, pollTrans);
+            return;
+          }
         }
       } catch (_) {}
 
       setState(() {
-        _error = 'កំហុសបច្ចេកវិទ្យា AI៖ $e';
+        _error = 'ដំណើរការ AI អាចត្រូវការពេលបន្តិចលើសំឡេងធំ។ សូមចុច Refresh ម្តងទៀតបន្ទាប់ពីពីរបីវិនាទី';
         _isLoading = false;
       });
     }
