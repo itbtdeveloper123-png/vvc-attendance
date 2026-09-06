@@ -149,6 +149,74 @@ class ProductAnalysis {
       isWebGrounded: isGrounded,
     );
   }
+
+  bool get isBottleOrDrinkware {
+    final text =
+        '$productName $category $summary $ingredientsSummary $brand'.toLowerCase();
+    return text.contains('bottle') ||
+        text.contains('ដប') ||
+        text.contains('កែវ') ||
+        text.contains('tumbler') ||
+        text.contains('flask') ||
+        text.contains('thermos') ||
+        text.contains('hydro flask') ||
+        text.contains('stanley') ||
+        text.contains('yeti') ||
+        text.contains('locknlock') ||
+        text.contains('lock&lock') ||
+        text.contains('zebra') ||
+        text.contains('tritan') ||
+        text.contains('vacuum');
+  }
+
+  /// Extracts capacity like "500ml", "750ml", "1L", "24oz", "32oz", "40oz"
+  String? get detectedCapacity {
+    final fullText = '$productName $summary $ingredientsSummary';
+    final reg = RegExp(
+        r'(\b\d+(?:\.\d+)?\s*(?:ml|l|oz|ounce|លីត្រ|មីលីលីត្រ)\b)',
+        caseSensitive: false);
+    final match = reg.firstMatch(fullText);
+    return match?.group(0);
+  }
+
+  /// Extracts material like SUS 304, SUS 316, Tritan, etc.
+  String? get detectedMaterial {
+    final fullText =
+        '$ingredientsSummary $summary $productName'.toLowerCase();
+    if (fullText.contains('316')) {
+      return 'ដែកអ៊ីណុក SUS 316 (Food/Medical Grade)';
+    }
+    if (fullText.contains('304')) {
+      return 'ដែកអ៊ីណុក SUS 304 (Food Grade)';
+    }
+    if (fullText.contains('tritan')) {
+      return 'ប្លាស្ទិក Tritan (BPA-Free)';
+    }
+    if (fullText.contains('glass') || fullText.contains('កែវ')) {
+      return 'កែវ Borosilicate Glass';
+    }
+    if (fullText.contains('stainless')) {
+      return 'ដែកអ៊ីណុក Stainless Steel';
+    }
+    return null;
+  }
+
+  /// Detects thermal retention times if present
+  String? get detectedInsulation {
+    final fullText =
+        '$summary $ingredientsSummary ${benefits.join(' ')}'.toLowerCase();
+    final reg = RegExp(
+        r'(\d+\s*(?:ម៉ោង|hours?|h)\s*(?:ត្រជាក់|cold|កម្តៅ|hot)?)',
+        caseSensitive: false);
+    final match = reg.firstMatch(fullText);
+    if (match != null) return match.group(0);
+    if (fullText.contains('vacuum') ||
+        fullText.contains('កម្តៅ') ||
+        fullText.contains('ត្រជាក់')) {
+      return 'រក្សាកម្តៅ & ត្រជាក់ (Vacuum Insulated)';
+    }
+    return null;
+  }
 }
 
 class ProductFolder {
@@ -313,6 +381,12 @@ class ProductStorageService {
   static const String _historyKey = 'vvc_product_saved_history_v2';
 
   static List<ProductFolder> _defaultFolders() => [
+        ProductFolder(
+          id: 'f_bottles',
+          name: 'ដបទឹក & កែវរក្សាកម្តៅ (Water Bottles)',
+          iconCode: 'bottle',
+          colorHex: 0xFF06B6D4,
+        ),
         ProductFolder(
           id: 'f_cosmetics',
           name: 'គ្រឿងសំអាង (Cosmetics)',
@@ -593,7 +667,7 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
         id: 'welcome_msg',
         sender: ChatSender.ai,
         text:
-            'សួស្តី! ខ្ញុំជា **AI Product Analyzer** ជំនួយការឆ្លាតវៃសម្រាប់វិភាគផលិតផល ស្វែងរកព័ត៌មានពិតពី Google Search និងផ្ទៀងផ្ទាត់ប្រទេសដើម។\n\nសូមថតរូបភាព ឬស្កេន Barcode ផលិតផលដើម្បីចាប់ផ្តើម!',
+            'សួស្តី! ខ្ញុំជា **AI Product Analyzer** ជំនួយការឆ្លាតវៃសម្រាប់វិភាគផលិតផល ដបទឹក & កែវរក្សាកម្តៅ (Water Bottles & Drinkware) និងទំនិញគ្រប់ប្រភេទ ស្វែងរកព័ត៌មានពិតពី Google Search និងផ្ទៀងផ្ទាត់ប្រទេសដើម។\n\nសូមថតរូបភាព ឬស្កេន Barcode ផលិតផលដើម្បីចាប់ផ្តើម!',
       ),
     );
   }
@@ -2094,6 +2168,77 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
                 ),
               ),
 
+            // Dedicated Drinkware / Water Bottle Spec Card
+            if (r.isBottleOrDrinkware)
+              Container(
+                margin: const EdgeInsets.fromLTRB(14, 12, 14, 4),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      const Color(0xFF0284C7).withValues(alpha: 0.18),
+                      const Color(0xFF0D9488).withValues(alpha: 0.14),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: const Color(0xFF38BDF8).withValues(alpha: 0.35),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.water_drop_rounded,
+                            color: Color(0xFF38BDF8), size: 17),
+                        const SizedBox(width: 6),
+                        Text(
+                          'ព័ត៌មានលម្អិតដបទឹក & កែវរក្សាកម្តៅ (Drinkware Specs)',
+                          style: GoogleFonts.kantumruyPro(
+                            color: const Color(0xFF38BDF8),
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        if (r.detectedCapacity != null)
+                          _buildBottleFeatureChip(
+                            icon: Icons.local_drink_rounded,
+                            label: 'ចំណុះ: ${r.detectedCapacity}',
+                            color: const Color(0xFF0EA5E9),
+                          ),
+                        if (r.detectedMaterial != null)
+                          _buildBottleFeatureChip(
+                            icon: Icons.layers_rounded,
+                            label: r.detectedMaterial!,
+                            color: const Color(0xFF10B981),
+                          ),
+                        if (r.detectedInsulation != null)
+                          _buildBottleFeatureChip(
+                            icon: Icons.thermostat_rounded,
+                            label: r.detectedInsulation!,
+                            color: const Color(0xFFF59E0B),
+                          ),
+                        _buildBottleFeatureChip(
+                          icon: Icons.lock_outline_rounded,
+                          label: 'ការពារជ្រាបទឹក 100% & BPA-Free',
+                          color: const Color(0xFF8B5CF6),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
             // Action Toolbar: Move to Folder | Rename | Re-search | Copy
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -2152,31 +2297,45 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
                 children: [
                   if (r.usage.isNotEmpty)
                     _buildSectionBlock(
-                      icon: Icons.play_circle_outline_rounded,
+                      icon: r.isBottleOrDrinkware
+                          ? Icons.water_drop_outlined
+                          : Icons.play_circle_outline_rounded,
                       color: const Color(0xFF0EA5E9),
-                      title: 'របៀបប្រើប្រាស់',
+                      title: r.isBottleOrDrinkware
+                          ? 'របៀបប្រើប្រាស់ & ការថែទាំដប'
+                          : 'របៀបប្រើប្រាស់',
                       items: r.usage,
                     ),
                   if (r.benefits.isNotEmpty)
                     _buildSectionBlock(
                       icon: Icons.star_outline_rounded,
                       color: const Color(0xFFF59E0B),
-                      title: 'អត្ថប្រយោជន៍',
+                      title: r.isBottleOrDrinkware
+                          ? 'អត្ថប្រយោជន៍ & សមត្ថភាពរក្សាសីតុណ្ហភាព'
+                          : 'អត្ថប្រយោជន៍',
                       items: r.benefits,
                     ),
                   if (r.warnings.isNotEmpty)
                     _buildSectionBlock(
                       icon: Icons.warning_amber_rounded,
                       color: Colors.orangeAccent,
-                      title: 'ការប្រុងប្រយ័ត្ន',
+                      title: r.isBottleOrDrinkware
+                          ? 'ការប្រុងប្រយ័ត្នចំពោះដបទឹក'
+                          : 'ការប្រុងប្រយ័ត្ន',
                       items: r.warnings,
                     ),
                   if (r.ingredientsSummary.isNotEmpty &&
                       r.ingredientsSummary != '—')
                     _buildTextSectionBlock(
-                      icon: Icons.science_outlined,
-                      color: const Color(0xFF8B5CF6),
-                      title: 'សារធាតុផ្សំ',
+                      icon: r.isBottleOrDrinkware
+                          ? Icons.layers_rounded
+                          : Icons.science_outlined,
+                      color: r.isBottleOrDrinkware
+                          ? const Color(0xFF06B6D4)
+                          : const Color(0xFF8B5CF6),
+                      title: r.isBottleOrDrinkware
+                          ? 'សម្ភារៈ & លក្ខណៈបច្ចេកទេស'
+                          : 'សារធាតុផ្សំ',
                       text: r.ingredientsSummary,
                     ),
                 ],
@@ -2213,18 +2372,61 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
                   Wrap(
                     spacing: 6,
                     runSpacing: 6,
-                    children: [
-                      _buildSuggestionChip('តើផលិតផលនេះក្មេងប្រើបានទេ?'),
-                      _buildSuggestionChip('តើមានផលប៉ះពាល់ស្បែក ឬរាងកាយទេ?'),
-                      _buildSuggestionChip('តើត្រូវរក្សាទុកយ៉ាងដូចម្តេច?'),
-                      _buildSuggestionChip('តើមានសារធាតុគីមីគ្រោះថ្នាក់ទេ?'),
-                    ],
+                    children: r.isBottleOrDrinkware
+                        ? [
+                            _buildSuggestionChip('❄️ តើដបនេះរក្សាត្រជាក់ និងកម្តៅបានប៉ុន្មានម៉ោង?'),
+                            _buildSuggestionChip('🛡️ តើផលិតពីដែកអ៊ីណុក SUS 304 ឬ 316 និងមាន BPA-Free ទេ?'),
+                            _buildSuggestionChip('🧼 តើត្រូវលាងសម្អាត និងដោះកៅស៊ូគម្របយ៉ាងដូចម្តេច?'),
+                            _buildSuggestionChip('⚠️ តើអាចដាក់ភេសជ្ជៈហ្គាស ឬទឹកដោះគោបានទេ?'),
+                            _buildSuggestionChip('🚫 តើអាចដាក់ក្នុង Microwave ឬម៉ាស៊ីនលាងចានបានទេ?'),
+                          ]
+                        : [
+                            _buildSuggestionChip('តើផលិតផលនេះក្មេងប្រើបានទេ?'),
+                            _buildSuggestionChip('តើមានផលប៉ះពាល់ស្បែក ឬរាងកាយទេ?'),
+                            _buildSuggestionChip('តើត្រូវរក្សាទុកយ៉ាងដូចម្តេច?'),
+                            _buildSuggestionChip('តើមានសារធាតុគីមីគ្រោះថ្នាក់ទេ?'),
+                          ],
                   ),
                 ],
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildBottleFeatureChip({
+    required IconData icon,
+    required String label,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 14),
+          const SizedBox(width: 5),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 240),
+            child: Text(
+              label,
+              style: GoogleFonts.kantumruyPro(
+                color: Colors.white,
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
       ),
     );
   }
