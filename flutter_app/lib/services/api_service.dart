@@ -450,14 +450,17 @@ class ApiService {
   /// Analyze a product image using AI Vision.
   /// [imageBase64] — full base64 string (may include data: prefix)
   /// [barcode]     — optional barcode/QR text already scanned
+  /// [force]       — bypass server cache for fresh live web search analysis
   Future<Map<String, dynamic>> analyzeProductImage({
     String imageBase64 = '',
     String barcode = '',
+    bool force = false,
   }) async {
     final headers = await _authHeaders();
     final body = <String, String>{};
     if (imageBase64.isNotEmpty) body['image_base64'] = imageBase64;
     if (barcode.isNotEmpty) body['barcode'] = barcode;
+    if (force) body['force'] = '1';
     return _processRequest(
       'analyze_product_image',
       headers: headers,

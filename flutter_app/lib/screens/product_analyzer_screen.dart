@@ -26,6 +26,9 @@ class ProductAnalysis {
   final String priceRangeUsd;
   final String summary;
   final String? raw;
+  final List<Map<String, String>> webSources;
+  final List<String> webQueries;
+  final bool isWebGrounded;
 
   const ProductAnalysis({
     required this.productName,
@@ -40,6 +43,9 @@ class ProductAnalysis {
     required this.priceRangeUsd,
     required this.summary,
     this.raw,
+    this.webSources = const [],
+    this.webQueries = const [],
+    this.isWebGrounded = false,
   });
 
   factory ProductAnalysis.fromJson(Map<String, dynamic> json) {
@@ -64,9 +70,43 @@ class ProductAnalysis {
       final catStr = (cName.isNotEmpty && cName != '—' && cName != 'ទូទៅ' && cName != 'មិនបានរកឃើញ')
           ? ' ស្ថិតក្នុងជំពូក $cName'
           : '';
-      rawSum =
-          '$pName$brandStr$catStr ជួយថែបំប៉នឱ្យមានសុខភាពល្អ និងស្រស់ស្អាត ជាមួយការណែនាំពីរបៀបប្រើប្រាស់ត្រឹមត្រូវបែបអ្នកជំនាញសម្រស់។';
+      final originVal = json['country_of_origin']?.toString() ?? '';
+      final originStr = (originVal.isNotEmpty && originVal != '—' && originVal != 'មិនបានរកឃើញ')
+          ? ' មកពីប្រទេស $originVal'
+          : '';
+      rawSum = '$pName$brandStr$catStr$originStr គុណភាពខ្ពស់ និងបានឆ្លងកាត់ការផ្ទៀងផ្ទាត់ព័ត៌មានលម្អិតត្រឹមត្រូវ។';
     }
+
+    final rawWebSources = json['web_sources'];
+    final List<Map<String, String>> parsedSources = [];
+    if (rawWebSources is List) {
+      for (final item in rawWebSources) {
+        if (item is Map) {
+          final uri = item['uri']?.toString() ?? '';
+          final title = item['title']?.toString() ?? '';
+          if (uri.isNotEmpty) {
+            parsedSources.add({
+              'title': title.isNotEmpty ? title : uri,
+              'uri': uri,
+            });
+          }
+        }
+      }
+    }
+
+    final rawQueries = json['web_queries'];
+    final List<String> parsedQueries = [];
+    if (rawQueries is List) {
+      for (final q in rawQueries) {
+        if (q != null && q.toString().trim().isNotEmpty) {
+          parsedQueries.add(q.toString().trim());
+        }
+      }
+    }
+
+    final isGrounded = (json['is_web_grounded'] == true) ||
+        parsedSources.isNotEmpty ||
+        parsedQueries.isNotEmpty;
 
     return ProductAnalysis(
       productName: pName,
@@ -81,6 +121,9 @@ class ProductAnalysis {
       priceRangeUsd: json['price_range_usd']?.toString() ?? '—',
       summary: rawSum,
       raw: json['raw']?.toString(),
+      webSources: parsedSources,
+      webQueries: parsedQueries,
+      isWebGrounded: isGrounded,
     );
   }
 }
@@ -260,7 +303,7 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
 
   // ─── Analysis ─────────────────────────────────────────────────────────────
 
-  Future<void> _analyze() async {
+  Future<void> _analyze({bool force = false}) async {
     if (_imageBase64 == null && _detectedBarcode == null) return;
     _startElapsedTimer();
     setState(() {
@@ -273,6 +316,7 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
       final res = await _api.analyzeProductImage(
         imageBase64: _imageBase64 ?? '',
         barcode: _detectedBarcode ?? '',
+        force: force,
       );
       _stopElapsedTimer();
       if (!(res['success'] as bool? ?? false)) {
@@ -311,8 +355,20 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
       }
 
       if (parsedMap != null && parsedMap.isNotEmpty) {
+        final mergedMap = Map<String, dynamic>.from(parsedMap);
+        if (res['web_sources'] != null && !mergedMap.containsKey('web_sources')) {
+          mergedMap['web_sources'] = res['web_sources'];
+        }
+        if (res['web_queries'] != null && !mergedMap.containsKey('web_queries')) {
+          mergedMap['web_queries'] = res['web_queries'];
+        }
+        if (res['is_web_grounded'] != null && !mergedMap.containsKey('is_web_grounded')) {
+          mergedMap['is_web_grounded'] = res['is_web_grounded'];
+        }
+        mergedMap['raw'] = res['raw'];
+
         setState(() {
-          _result = ProductAnalysis.fromJson({...parsedMap!, 'raw': res['raw']});
+          _result = ProductAnalysis.fromJson(mergedMap);
           _mode = _ProductMode.result;
           _isAnalyzing = false;
         });
@@ -1381,9 +1437,58 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
           ),
           const SizedBox(height: 12),
         ],
-        // Analyze again button
+        // Live Web Search Grounding re-analysis button
         FadeInUp(
           delay: const Duration(milliseconds: 300),
+          duration: const Duration(milliseconds: 400),
+          child: GestureDetector(
+            onTap: () {
+              _hapticLight();
+              _analyze(force: true);
+            },
+            child: Container(
+              height: 50,
+              margin: const EdgeInsets.only(bottom: 10),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF0284C7), Color(0xFF2563EB)],
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                ),
+                borderRadius: BorderRadius.circular(14),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF0284C7).withValues(alpha: 0.35),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.travel_explore_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'ស្រាវជ្រាវផ្ទាល់លើបណ្តាញឡើងវិញ (Live Web Search)',
+                    style: GoogleFonts.kantumruyPro(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        // Analyze again (new photo) button
+        FadeInUp(
+          delay: const Duration(milliseconds: 350),
           duration: const Duration(milliseconds: 400),
           child: GestureDetector(
             onTap: () {
@@ -1414,7 +1519,7 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    'វិភាគម្ដងទៀត',
+                    'ស្កេន ឬថតរូបថ្មី',
                     style: GoogleFonts.kantumruyPro(
                       color: const Color(0xFF7C3AED),
                       fontWeight: FontWeight.w600,
@@ -1504,6 +1609,113 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
                 ),
             ],
           ),
+          if (r.isWebGrounded || r.webSources.isNotEmpty || r.webQueries.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0369A1).withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: const Color(0xFF38BDF8).withValues(alpha: 0.35),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(5),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF38BDF8).withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.travel_explore_rounded,
+                          size: 16,
+                          color: Color(0xFF38BDF8),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'ផ្ទៀងផ្ទាត់ផ្ទាល់ពី Google Search (Live Web Intelligence)',
+                          style: GoogleFonts.kantumruyPro(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFF38BDF8),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (r.webSources.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: r.webSources.map((source) {
+                        final title = source['title'] ?? 'ប្រភព';
+                        final uri = source['uri'] ?? '';
+                        return InkWell(
+                          onTap: () {
+                            if (uri.isNotEmpty) {
+                              Clipboard.setData(ClipboardData(text: uri));
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'បានចម្លងតំណភ្ជាប់៖ $uri',
+                                    style: GoogleFonts.kantumruyPro(fontSize: 12),
+                                  ),
+                                  duration: const Duration(seconds: 2),
+                                ),
+                              );
+                            }
+                          },
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF0F172A),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: const Color(0xFF38BDF8).withValues(alpha: 0.25),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.link_rounded,
+                                  size: 13,
+                                  color: Color(0xFF38BDF8),
+                                ),
+                                const SizedBox(width: 5),
+                                ConstrainedBox(
+                                  constraints: const BoxConstraints(maxWidth: 200),
+                                  child: Text(
+                                    title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.inter(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: const Color(0xFFE2E8F0),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
           if (r.summary.isNotEmpty &&
               !r.summary.trim().startsWith('{') &&
               !r.summary.contains('"product_name"') &&

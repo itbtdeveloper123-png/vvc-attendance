@@ -7454,16 +7454,20 @@ try {
         }
         $cleanImageBase64 = str_replace(["\r", "\n", " ", "\t"], '', (string)$imageBase64);
 
+        $force = !empty($_POST['force']) && $_POST['force'] !== '0';
+
         // Fast Cache Check (Instantly return if this exact image/barcode was analyzed recently)
         $cacheHash = md5($cleanImageBase64 . '|' . $barcodeText);
-        $cacheFile = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'vvc_prod_ai_' . $cacheHash . '.json';
-        if (file_exists($cacheFile) && (time() - filemtime($cacheFile)) < 86400) {
+        $cacheFile = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'vvc_prod_ai_v4_' . $cacheHash . '.json';
+        if (!$force && file_exists($cacheFile) && (time() - filemtime($cacheFile)) < 86400) {
             $cachedData = json_decode((string)file_get_contents($cacheFile), true);
             if (is_array($cachedData) && !empty($cachedData['product_name']) && $cachedData['product_name'] !== 'មិនបានរកឃើញ') {
                 apiResponse([
                     'success' => true,
                     'raw' => json_encode($cachedData, JSON_UNESCAPED_UNICODE),
                     'parsed' => $cachedData,
+                    'web_sources' => $cachedData['web_sources'] ?? [],
+                    'web_queries' => $cachedData['web_queries'] ?? [],
                     'quality_issues' => [],
                     'quality_score' => 100,
                     'attempts' => 1,
@@ -7513,42 +7517,45 @@ try {
         if (is_array($gs1)) {
             $gs1Hint = " (ប្រកាស GS1 barcode prefix {$gs1['prefix']} = ប្រទេស {$gs1['country']} {$gs1['flag']})";
         }
-        $sysKhmer = 'អ្នកជាអ្នកជំនាញ និងជាទីប្រឹក្សាផ្នែកសម្រស់ ថែរក្សាស្បែក និងសក់ (Skincare, Cosmetics & Beauty Consultant) ដ៏រួសរាយ និងមានជំនាញវិជ្ជាជីវៈខ្ពស់។
-របៀបនៃការសរសេរ និងពាក្យពេចន៍ (Tone & Style)៖
-- ត្រូវប្រើភាសាខ្មែរធម្មជាតិ ពិរោះ ស្រួលស្តាប់ ងាយយល់ និងមានភាពទាក់ទាញ បែបអ្នកជំនាញ Skincare & Cosmetics Review និងណែនាំផលិតផលដល់អតិថិជន។
-- ហាមប្រើពាក្យបកប្រែត្រង់ៗពីកុំព្យូទ័ររឹងៗ (ដូចជា "មាឌសក់", "ផលិតផលនេះត្រូវបានរចនាឡើងដើម្បី...", "កាត់បន្ថយសក់រលាប", "មួយបរិមាណសមស្រប")។
-- ត្រូវប្រើពាក្យពេចន៍សម្រស់ខ្មែរដែលគេនិយមប្រើក្នុងវិស័យ Skincare, Haircare & Cosmetics ជាក់ស្តែង៖
-  * សម្រាប់ផលិតផលសក់ (Hair Care)៖ "សក់ក្រាស់ទន់ស្អាត មានទម្ងន់ មិនរាបស្ពែត (Volume Boost)", "ផ្តល់សំណើមបំប៉នសរសៃសក់ឱ្យរលោងស្អាត", "ទប់ស្កាត់សក់ស្ងួតបែកចុង និងផុយស្រួយ", "សក់ទន់រលោងបែបធម្មជាតិ", "កក់សម្អាតស្បែកក្បាលបានស្អាតល្អ មិនស្ងួតតឹង", "រូបមន្តស្រាលស្រទន់គ្មានជាតិកាត់ (Sulfate & Paraben Free)"...
-  * សម្រាប់ផលិតផលស្បែក (Skincare/Body)៖ "ផ្តល់សំណើមជ្រៅ", "ស្បែកភ្លឺថ្លាមើលទៅមានសុខភាពល្អ (Glow / Glass skin)", "ជួយបន្តឹងស្បែក", "ស័ក្តិសមគ្រប់ប្រភេទស្បែក សូម្បីស្បែកងាយប្រតិកម្ម (Sensitive)", "សាច់ឡេ/សេរ៉ូមស្រាល ឆាប់ជ្រាប មិនស្អិតរអិល", "ការពារកម្ដៅថ្ងៃ និងកាំរស្មី UV"...
+        $sysKhmer = 'អ្នកជាអ្នកជំនាញវិភាគផលិតផល និងជាប្រព័ន្ធវៃឆ្លាត AI Product Intelligence & Live Web Verification ដ៏មានសមត្ថភាពខ្ពស់បំផុត។
+គោលដៅចម្បង៖ វិភាគរូបភាពផលិតផល និងធ្វើការស្រាវជ្រាវ (Google Search) ស្វែងរកព័ត៌មានជាក់ស្តែង និងត្រឹមត្រូវ ១០០% លើអ៊ីនធឺណិត។
 
-គោលការណ៍សំខាន់ៗ៖
-១) ការអានអក្សរ និងម៉ាក (Brand & Product Name)៖
-   - ត្រូវអានគ្រប់តួអក្សរឱ្យបានច្បាស់លាស់ និងត្រឹមត្រូវបំផុត (ហាមកាត់តួអក្សរ ហាមអានខ្វះ ឧទាហរណ៍៖ អក្សរឆ្លាក់ "SKSK" មិនមែន "SKS" ឡើយ)។
-   - ប្រសិនបើក្នុងរូបភាពមានផលិតផលច្រើនមុខ ឬជាឈុត (ឧទាហរណ៍៖ សាប៊ូកក់សក់ + សាប៊ូបន្ទន់ + ប្រេងបំប៉នសក់) សូមដាក់ឈ្មោះផលិតផលឱ្យគ្រប់ជ្រុងជ្រោយនៃផលិតផលទាំងអស់ដែលមានក្នុងរូប (ឧ. ឈុតថែរក្សាសក់ SKSK (Shampoo & Conditioner) រួមជាមួយ Mo Qian Nut Hair Care Oil)។
-   - ក្នុង brand បើមានច្រើនម៉ាក សូមបញ្ជាក់ម៉ាកចម្បង ឬរាយម៉ាកទាំងនោះ (ឧ. SKSK / MO QIAN)។
-២) ស្លាកតម្លៃ (Price Tag / Sticker)៖
-   - ត្រូវពិនិត្យមើលឱ្យបានហ្មត់ចត់បំផុតថាតើមានស្លាកតម្លៃ (Price Sticker ដូចជា $6.50, $10, etc.) បិទនៅលើដប កញ្ចប់ ឬប្រអប់ដែរឬទេ?
-   - ប្រសិនបើមានស្លាកតម្លៃពិតប្រាកដដែលមើលឃើញក្នុងរូប ត្រូវតែបញ្ជាក់តម្លៃពិតនោះជាដាច់ខាត (ឧទាហរណ៍៖ "$6.50 / ដប" ឬ "$6.50")។ បើគ្មានស្លាកតម្លៃបិទទេ ទើបប៉ាន់ស្មានជួរតម្លៃ USD ជាក់ស្តែងលើទីផ្សារ។
-៣) ព័ត៌មានលម្អិត និងក្បោះក្បាយ (Rich Details)៖
-   - usage (array): ត្រូវរៀបរាប់ការណែនាំពីវិធីប្រើប្រាស់មួយជំហានម្តងៗបែប Skincare/Beauty Guide (ជំហានទី ១, ជំហានទី ២, ជំហានទី ៣) ភាសាណែនាំស្រួលយល់ និងអនុវត្តតាម (បើមានផលិតផលច្រើនមុខក្នុងរូប ត្រូវបែងចែករបៀបប្រើប្រាស់តាមលំដាប់លំដោយសម្រាប់ផលិតផលនីមួយៗ)។
-   - benefits (array): រៀបរាប់ពីចំណុចល្អៗ និងអត្ថប្រយោជន៍លេចធ្លោឱ្យបានក្បោះក្បាយ យ៉ាងហោចណាស់ ៣ ទៅ ៦ ចំណុច បែបពន្យល់ពីគុណភាព និងប្រសិទ្ធភាពនៃរូបមន្ត (ឧ. ជួយឱ្យសក់ក្រាស់ទន់រលោង មានទម្ងន់, រូបមន្តគ្មានជាតិកាត់ Sulfate/Phosphate/Paraben, ការពារពណ៌សក់, ជំនួយសក់ខូច, ផ្តល់សំណើមទន់រលាស់...)។
-   - warnings (array): ការណែនាំពីសុវត្ថិភាព ការប្រុងប្រយ័ត្ន (ចៀសវាងប៉ះភ្នែក, រក្សាទុកកន្លែងត្រជាក់...)។
-   - ingredients_summary: សារធាតុផ្សំ និងចំណុចលេចធ្លោនៃរូបមន្ត (ឧទាហរណ៍៖ រូបមន្ត Sulfate-free, Paraben-free, ផ្សំពីប្រេងគ្រាប់ធញ្ញជាតិ Nut Hair Care Essential Oil, ចំណុះ 430ml និង 80ml...)។
-   - category: ជំពូកផលិតផលច្បាស់លាស់ (ឧទាហរណ៍៖ ផលិតផលថែរក្សាសក់)។
-   - country_of_origin: ប្រទេសប្រភពដើម (បើដឹងច្បាស់) ឬ "មិនបានបញ្ជាក់"។ country_flag_emoji ជា emoji ទង់ជាតិដែលត្រូវគ្នា ឬ 🌍។
-   - summary: សេចក្តីសង្ខេបពិពណ៌នាទូទៅបែប Skincare Consultant ដ៏ទាក់ទាញ និងគួរឱ្យចង់ប្រើប្រាស់។
-៤) ភាសា និងទម្រង់ឆ្លើយតប៖
-   - គ្រប់តម្លៃពណ៌នាទាំងអស់ត្រូវជាភាសាខ្មែរ (អាចរក្សាឈ្មោះម៉ាកអង់គ្លេស ឬឈ្មោះផលិតផលដើមបាន)។
-   - ឆ្លើយតបតែទម្រង់ JSON object ត្រឹមត្រូវមួយគត់ { ... } ដោយគ្មាន Markdown fences (```) និងគ្មាន <think>។';
-        $userKhmerTmpl = "សូមពិនិត្យអានរូបភាពផលិតផលនេះឱ្យបានដិតដល់បំផុត រួចពន្យល់ និងផ្តល់លទ្ធផលជា JSON object ដោយប្រើពាក្យពេចន៍បែបអ្នកជំនាញ Skincare & Cosmetics ធម្មជាតិ ងាយយល់ និងទាក់ទាញ (keys៖ product_name, brand, country_of_origin, country_flag_emoji, category, usage (array លម្អិតមួយជំហានម្តងៗ), benefits (array លម្អិត), warnings (array), ingredients_summary, price_range_usd, summary)។";
+សេចក្តីណែនាំសំខាន់ៗបំផុត (CRITICAL INSTRUCTIONS)៖
+១) ការស្រាវជ្រាវលើអ៊ីនធឺណិត (Live Google Search)៖
+   - ត្រូវអានអក្សរលើផលិតផល និងប្រើប្រាស់ Google Search ដើម្បីស្វែងរកឈ្មោះក្រុមហ៊ុនផលិតពិតប្រាកដ (Manufacturer), ម៉ាក (Brand), និងប្រទេសដើមកំណើត (Country of Origin) និងទង់ជាតិ (Country Flag Emoji)។
+   - ឧទាហរណ៍ជាក់ស្តែង៖ ផលិតផល "Champion Ice Energy Drink", "Champion", "Hanuman", "Krud", "Vigor", "Vital", "Angkor Puro", "Carabao Cambodia", "Bacchus Cambodia", "Ize", "Wurkz", "Sting Cambodia" គឺផលិតនៅក្នុងប្រទេសកម្ពុជា (Cambodia 🇰🇭) ដោយក្រុមហ៊ុនក្នុងស្រុក (ដូចជា Champion Group / Angkor Daily Foods, Hanuman Beverages, Vattanac Brewery, etc.)។ ហាមច្រឡំដាក់ជាប្រទេសថៃ (Thailand) ឬប្រទេសផ្សេងជាដាច់ខាត! ត្រូវស្រាវជ្រាវ Google Search ឱ្យច្បាស់លាស់មុននឹងកំណត់ប្រទេស។
+   - ប្រសិនបើផលិតផលមកពីប្រទេសណា (ដូចជា Cambodia 🇰🇭, Thailand 🇹🇭, Vietnam 🇻🇳, Japan 🇯🇵, Korea 🇰🇷, USA 🇺🇸, France 🇫🇷, Germany 🇩🇪, China 🇨🇳, etc.) ត្រូវកំណត់ country_of_origin និង country_flag_emoji ឱ្យត្រូវ 100% ស្របតាមប្រភពផ្លូវការ។
+
+២) ការកំណត់ជំពូកផលិតផល (Category)៖
+   - ត្រូវកំណត់ឱ្យត្រឹមត្រូវតាមប្រភេទផលិតផលជាក់ស្តែង ដូចជា៖
+     * ភេសជ្ជៈប៉ូវកម្លាំង (Energy Drink) / ភេសជ្ជៈ (Beverages) / ទឹកផ្លែឈើ (Juice) / ទឹកបរិសុទ្ធ (Drinking Water)
+     * អាហារ និងចំណីអាហារ (Food & Snacks)
+     * គ្រឿងសម្អាង និងថែរក្សាសម្រស់ (Cosmetics, Skincare, Haircare)
+     * ថ្នាំពេទ្យ និងអាហារបំប៉នសុខភាព (Medicine & Dietary Supplements)
+     * គ្រឿងអេឡិចត្រូនិក និងបច្ចេកវិទ្យា (Electronics & Gadgets)
+     * ទំនិញប្រើប្រាស់ទូទៅ (Consumer Goods & Household)
+
+៣) ព័ត៌មានលម្អិតនៃផលិតផល៖
+   - usage (array): របៀបប្រើប្រាស់ ឬរបៀបទទួលទានឱ្យបានត្រឹមត្រូវ និងមានសុវត្ថិភាពខ្ពស់ (១ ទៅ ៤ ជំហាន)។
+   - benefits (array): អត្ថប្រយោជន៍ជាក់ស្តែង និងចំណុចល្អៗ (៣ ទៅ ៦ ចំណុច)។
+   - warnings (array): ការប្រុងប្រយ័ត្ន និងសុវត្ថិភាព (ឧ. ចំពោះភេសជ្ជៈប៉ូវកម្លាំង៖ មានផ្ទុកជាតិកាហ្វេអ៊ីន មិនណែនាំសម្រាប់ស្ត្រីមានផ្ទៃពោះ កុមារ ឬអ្នកមានជំងឺបេះដូងឡើយ)។
+   - ingredients_summary: សារធាតុផ្សំសំខាន់ៗដែលស្រាវជ្រាវឃើញពីប្រភពជាក់ស្តែង។
+   - price_range_usd: តម្លៃប៉ាន់ស្មានលក់រាយជាក់ស្តែងលើទីផ្សារជាប្រាក់ដុល្លារ ($) (ឧ. $0.50 - $1.00)។ ប្រសិនបើមានស្លាកតម្លៃបិទលើផលិតផលក្នុងរូប ត្រូវផ្តល់អាទិភាពដល់តម្លៃលើស្លាកនោះ។
+   - summary: សេចក្តីសង្ខេបពិពណ៌នាពីផលិតផល ប្រភពដើម និងគុណភាពជាភាសាខ្មែរយ៉ាងក្បោះក្បាយ ច្បាស់លាស់ និងទាក់ទាញ។
+
+៤) ទម្រង់ឆ្លើយតប (Output Format)៖
+   - ត្រូវឆ្លើយតបតែទម្រង់ JSON object {...} ត្រឹមត្រូវមួយគត់ (keys: product_name, brand, country_of_origin, country_flag_emoji, category, usage, benefits, warnings, ingredients_summary, price_range_usd, summary) ដោយមិនប្រើ Markdown code blocks (```) ឡើយ។';
+        $userKhmerTmpl = "សូមពិនិត្យអានរូបភាពផលិតផលនេះឱ្យបានដិតដល់បំផុត រួចស្វែងរកព័ត៌មានលើ Google Search (Web Search) ឱ្យបានច្បាស់លាស់ដើម្បីផ្តល់លទ្ធផលជា JSON object ត្រឹមត្រូវ (keys៖ product_name, brand, country_of_origin, country_flag_emoji, category, usage (array លម្អិត), benefits (array លម្អិត), warnings (array), ingredients_summary, price_range_usd, summary)។";
         if ($imageBase64 === '' && $barcodeText !== '') {
-            $userKhmerTmpl = "រូបភាពមិនមាន សូមអាស្រ័យលើ barcode/QR និងបរិបទ GS1 ដើម្បីប៉ាន់ស្មានផលិតផល ហើយត្រឡប់ JSON object ជាមួយ keys៖ product_name, brand, country_of_origin, country_flag_emoji, category, usage (array), benefits (array), warnings (array), ingredients_summary, price_range_usd, summary ។ បើមិនដឹង សរសេរ 'មិនបានរកឃើញ'។";
+            $userKhmerTmpl = "រូបភាពមិនមាន សូមអាស្រ័យលើ barcode/QR, GS1 context និង Google Search ដើម្បីស្រាវជ្រាវផលិតផល ហើយត្រឡប់ JSON object ជាមួយ keys៖ product_name, brand, country_of_origin, country_flag_emoji, category, usage (array), benefits (array), warnings (array), ingredients_summary, price_range_usd, summary ។";
         }
 
         $bestJson = null;
         $bestIssuesCount = 9999;
         $bestRaw = '';
         $lastIssues = [];
+        $bestGroundingSources = [];
+        $bestGroundingQueries = [];
 
         for ($attempt = 1; $attempt <= 3; $attempt++) {
             $sysPrompt = $sysKhmer;
@@ -7562,7 +7569,7 @@ try {
                 $userPrompt .= "\n\n[សូមយកចិត្តទុកដាក់៖ ការឆ្លើយមុនមានទម្លាប់ placeholder មិនត្រឹមត្រូវ។ សូមផ្តល់លទ្ធផលពិត ហើយបើព័ត៌មានខ្វះ សរសេរ 'មិនបានរកឃើញ' ជំនួសឲ្យ placeholder។]";
             }
 
-            $visionRes = ai_call_free_vision_service($sysPrompt, $userPrompt, $imageBase64, $mimeType);
+            $visionRes = ai_call_free_vision_service($sysPrompt, $userPrompt, $imageBase64, $mimeType, true);
             if (!$visionRes['success']) {
                 if ($attempt < 3) { usleep(400000); continue; }
                 apiResponse(['success' => false, 'message' => 'មិនអាចទាក់ទងប្រព័ន្ធ AI វិភាគរូបភាពបានទេ៖ ' . $visionRes['message']]);
@@ -7586,11 +7593,25 @@ try {
                 $bestIssuesCount = $cnt;
                 $bestJson = $parsed;
                 $bestRaw = $rawContent;
+                if (!empty($visionRes['grounding_sources'])) {
+                    $bestGroundingSources = $visionRes['grounding_sources'];
+                }
+                if (!empty($visionRes['grounding_queries'])) {
+                    $bestGroundingQueries = $visionRes['grounding_queries'];
+                }
             }
             $lastIssues = $issues;
             $pNameValid = !empty($parsed['product_name']) && !product_ai_is_placeholder_string($parsed['product_name']);
             if ($cnt === 0 || ($pNameValid && $cnt <= 4) || ($cnt <= 2 && !in_array('placeholder:product_name=' . mb_substr((string)($parsed['product_name'] ?? ''), 0, 30, 'UTF-8'), $issues, true) && !in_array('placeholder:brand=' . mb_substr((string)($parsed['brand'] ?? ''), 0, 30, 'UTF-8'), $issues, true))) {
-                $bestJson = $parsed; $bestRaw = $rawContent; break;
+                $bestJson = $parsed;
+                $bestRaw = $rawContent;
+                if (!empty($visionRes['grounding_sources'])) {
+                    $bestGroundingSources = $visionRes['grounding_sources'];
+                }
+                if (!empty($visionRes['grounding_queries'])) {
+                    $bestGroundingQueries = $visionRes['grounding_queries'];
+                }
+                break;
             }
             if ($attempt < 3) { usleep(250000); }
         }
@@ -7631,9 +7652,11 @@ try {
             $pName = $bestJson['product_name'] ?? 'ផលិតផល';
             $pBrand = $bestJson['brand'] ?? '';
             $pCat = $bestJson['category'] ?? '';
+            $pOrigin = $bestJson['country_of_origin'] ?? '';
             $brandPart = ($pBrand !== 'មិនបានរកឃើញ' && $pBrand !== '—') ? " ម៉ាក {$pBrand}" : "";
             $catPart = ($pCat !== 'ទូទៅ' && $pCat !== 'មិនបានរកឃើញ') ? " ស្ថិតក្នុងជំពូក {$pCat}" : "";
-            $bestJson['summary'] = "{$pName}{$brandPart}{$catPart} ជួយថែបំប៉នឱ្យមានសុខភាពល្អ និងស្រស់ស្អាត ជាមួយការណែនាំពីរបៀបប្រើប្រាស់ត្រឹមត្រូវបែបអ្នកជំនាញសម្រស់។";
+            $originPart = ($pOrigin !== 'មិនបានរកឃើញ' && $pOrigin !== '—') ? " ផលិតផលមកពីប្រទេស {$pOrigin}" : "";
+            $bestJson['summary'] = "{$pName}{$brandPart}{$catPart}{$originPart} គុណភាពខ្ពស់ និងបានផ្ទៀងផ្ទាត់ព័ត៌មានលម្អិតត្រឹមត្រូវ។";
         }
         foreach (['usage','benefits','warnings'] as $k) {
             $cleanList = [];
@@ -7644,9 +7667,36 @@ try {
                 }
             }
             if (empty($cleanList)) {
-                if ($k === 'usage') $cleanList = ['កក់ ឬលាបថ្នមៗតាមការណែនាំលើសម្បកដប'];
-                elseif ($k === 'benefits') $cleanList = ['ជួយបំប៉នឱ្យមានសុខភាពល្អ និងស្រស់ស្អាតបែបធម្មជាតិ'];
-                else $cleanList = ['រក្សាទុកនៅកន្លែងស្ងួត ត្រជាក់ និងចៀសវាងកម្ដៅថ្ងៃខ្លាំង'];
+                $catStr = mb_strtolower((string)($bestJson['category'] ?? ''), 'UTF-8');
+                $isDrink = strpos($catStr, 'drink') !== false || strpos($catStr, 'beverage') !== false || strpos($catStr, 'ភេសជ្ជ') !== false || strpos($catStr, 'ទឹក') !== false;
+                $isFood = strpos($catStr, 'food') !== false || strpos($catStr, 'ចំណី') !== false || strpos($catStr, 'អាហារ') !== false;
+                $isBeauty = strpos($catStr, 'cosmetic') !== false || strpos($catStr, 'skincare') !== false || strpos($catStr, 'សម្រស់') !== false || strpos($catStr, 'ស្បែក') !== false;
+
+                if ($k === 'usage') {
+                    if ($isDrink || $isFood) {
+                        $cleanList = ['ពិសារដោយផ្ទាល់ ឬក្លាសេឱ្យត្រជាក់មុនពិសារ'];
+                    } elseif ($isBeauty) {
+                        $cleanList = ['លាប ឬប្រើប្រាស់ថ្នមៗលើស្បែកតាមការណែនាំ'];
+                    } else {
+                        $cleanList = ['ប្រើប្រាស់ស្របតាមការណែនាំលើសម្បកវេចខ្ចប់'];
+                    }
+                } elseif ($k === 'benefits') {
+                    if ($isDrink) {
+                        $cleanList = ['ផ្តល់ថាមពល បំបាត់ភាពនឿយហត់ និងបង្កើនភាពស្រស់ស្រាយ'];
+                    } elseif ($isFood) {
+                        $cleanList = ['ផ្តល់អាហារូបត្ថម្ភ និងរសជាតិឆ្ងាញ់ពិសា'];
+                    } elseif ($isBeauty) {
+                        $cleanList = ['ជួយបំប៉នឱ្យមានសុខភាពល្អ និងសម្រស់ស្រស់ស្អាតបែបធម្មជាតិ'];
+                    } else {
+                        $cleanList = ['គុណភាពស្តង់ដារខ្ពស់ ផ្តល់អត្ថប្រយោជន៍ស្របតាមផលិតផល'];
+                    }
+                } else {
+                    if ($isDrink) {
+                        $cleanList = ['រក្សាទុកកន្លែងត្រជាក់ស្ងួត ចៀសវាងកម្ដៅថ្ងៃ។ បើជាភេសជ្ជៈប៉ូវកម្លាំងមិនណែនាំចំពោះកុមារនិងស្ត្រីមានផ្ទៃពោះឡើយ'];
+                    } else {
+                        $cleanList = ['រក្សាទុកនៅកន្លែងស្ងួត ត្រជាក់ និងចៀសវាងកម្ដៅថ្ងៃខ្លាំង'];
+                    }
+                }
             }
             $bestJson[$k] = array_values(array_slice($cleanList, 0, $k === 'warnings' ? 5 : 8));
         }
@@ -7669,6 +7719,14 @@ try {
             $bestJson['summary'] = $parts ? implode(' | ', $parts) : 'AI បានវិភាគរូបភាពផលិតផល។';
         }
 
+        if (!empty($bestGroundingSources)) {
+            $bestJson['web_sources'] = $bestGroundingSources;
+        }
+        if (!empty($bestGroundingQueries)) {
+            $bestJson['web_queries'] = $bestGroundingQueries;
+        }
+        $bestJson['is_web_grounded'] = !empty($bestGroundingSources) || !empty($bestGroundingQueries);
+
         if (!empty($bestJson['product_name']) && $bestJson['product_name'] !== 'មិនបានរកឃើញ' && !empty($cacheFile)) {
             @file_put_contents($cacheFile, json_encode($bestJson, JSON_UNESCAPED_UNICODE));
         }
@@ -7677,6 +7735,9 @@ try {
             'success' => true,
             'raw' => $bestRaw !== '' ? $bestRaw : (is_string($rawContent ?? null) ? $rawContent : ''),
             'parsed' => $bestJson,
+            'web_sources' => $bestGroundingSources,
+            'web_queries' => $bestGroundingQueries,
+            'is_web_grounded' => !empty($bestGroundingSources) || !empty($bestGroundingQueries),
             'quality_issues' => $lastIssues,
             'quality_score' => max(0, 100 - $bestIssuesCount * 9),
             'attempts' => $attempt,
@@ -10216,7 +10277,7 @@ function product_ai_build_multimodal_content($userPrompt, $imageBase64 = '', $mi
     return $userContent;
 }
 
-function ai_call_free_vision_service($systemPrompt, $userPrompt, $imageBase64 = '', $mimeType = 'image/jpeg') {
+function ai_call_free_vision_service($systemPrompt, $userPrompt, $imageBase64 = '', $mimeType = 'image/jpeg', $enableGoogleSearch = false) {
     // 1. សម្អាត Base64 (ដក Prefix data:image/... ចេញ ប្រសិនបើមាន)
     $cleanImageBase64 = (string)$imageBase64;
     if (strpos($cleanImageBase64, 'base64,') !== false) {
@@ -10265,9 +10326,19 @@ function ai_call_free_vision_service($systemPrompt, $userPrompt, $imageBase64 = 
             'generationConfig' => [
                 'temperature' => 0.1,
                 'maxOutputTokens' => 3072,
-                'responseMimeType' => 'application/json'
             ]
         ];
+
+        if ($enableGoogleSearch) {
+            $geminiPayload['tools'] = [
+                ['google_search' => new stdClass()]
+            ];
+            // CRITICAL: When tools are enabled, Gemini API rejects responseMimeType => 'application/json' with HTTP 400.
+            // Prompt enforces JSON output, and product_ai_extract_json_payload parses/heals it cleanly.
+        } else {
+            $geminiPayload['generationConfig']['responseMimeType'] = 'application/json';
+        }
+
         $jsonPayload = json_encode($geminiPayload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
         foreach ($geminiKeys as $keyIdx => $geminiKey) {
@@ -10280,7 +10351,7 @@ function ai_call_free_vision_service($systemPrompt, $userPrompt, $imageBase64 = 
                 curl_setopt($ch, CURLOPT_POST, true);
                 curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonPayload);
                 curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-                curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 35);
                 curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
                 curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
                 $resp = curl_exec($ch);
@@ -10289,21 +10360,96 @@ function ai_call_free_vision_service($systemPrompt, $userPrompt, $imageBase64 = 
 
                 if ($httpCode === 200 && $resp) {
                     $data = json_decode($resp, true);
-                    $content = $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
+                    $candidate = $data['candidates'][0] ?? [];
+                    $content = $candidate['content']['parts'][0]['text'] ?? '';
+                    
+                    // Extract Live Google Search Grounding Metadata
+                    $groundingSources = [];
+                    $groundingQueries = [];
+                    $groundingMeta = $candidate['groundingMetadata'] ?? null;
+                    if (is_array($groundingMeta)) {
+                        if (!empty($groundingMeta['webSearchQueries']) && is_array($groundingMeta['webSearchQueries'])) {
+                            $groundingQueries = array_values(array_filter($groundingMeta['webSearchQueries'], 'is_string'));
+                        }
+                        if (!empty($groundingMeta['groundingChunks']) && is_array($groundingMeta['groundingChunks'])) {
+                            $seenUris = [];
+                            foreach ($groundingMeta['groundingChunks'] as $chunk) {
+                                $web = $chunk['web'] ?? null;
+                                if (is_array($web) && !empty($web['uri']) && is_string($web['uri'])) {
+                                    $uri = $web['uri'];
+                                    if (!isset($seenUris[$uri])) {
+                                        $seenUris[$uri] = true;
+                                        $title = trim((string)($web['title'] ?? ''));
+                                        if ($title === '') {
+                                            $host = parse_url($uri, PHP_URL_HOST);
+                                            $title = $host ? preg_replace('/^www\./', '', $host) : 'ប្រភពវេបសាយ';
+                                        }
+                                        $groundingSources[] = [
+                                            'title' => $title,
+                                            'uri'   => $uri,
+                                        ];
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     if (trim((string)$content) !== '') {
                         if (function_exists('record_gemini_key_usage')) {
                             record_gemini_key_usage($geminiKey, $mysqli);
                         }
                         return [
-                            'success'  => true,
-                            'content'  => trim((string)$content),
-                            'provider' => 'gemini',
-                            'model'    => $gModel,
-                            'key_used' => $keyLabel,
-                            'raw_data' => $data,
+                            'success'           => true,
+                            'content'           => trim((string)$content),
+                            'provider'          => 'gemini',
+                            'model'             => $gModel,
+                            'key_used'          => $keyLabel,
+                            'grounding_sources' => $groundingSources,
+                            'grounding_queries' => $groundingQueries,
+                            'raw_data'          => $data,
                         ];
                     }
                 } else {
+                    // Fail-safe: If Google Search tool caused HTTP 400 on this model, retry immediately without tools
+                    if ($httpCode === 400 && $enableGoogleSearch) {
+                        $fallbackPayload = $geminiPayload;
+                        unset($fallbackPayload['tools']);
+                        $fallbackPayload['generationConfig']['responseMimeType'] = 'application/json';
+                        $fallbackJson = json_encode($fallbackPayload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+                        $chFb = curl_init($url);
+                        curl_setopt($chFb, CURLOPT_RETURNTRANSFER, true);
+                        curl_setopt($chFb, CURLOPT_POST, true);
+                        curl_setopt($chFb, CURLOPT_POSTFIELDS, $fallbackJson);
+                        curl_setopt($chFb, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+                        curl_setopt($chFb, CURLOPT_TIMEOUT, 30);
+                        curl_setopt($chFb, CURLOPT_SSL_VERIFYPEER, false);
+                        curl_setopt($chFb, CURLOPT_SSL_VERIFYHOST, false);
+                        $respFb = curl_exec($chFb);
+                        $httpCodeFb = curl_getinfo($chFb, CURLINFO_HTTP_CODE);
+                        curl_close($chFb);
+
+                        if ($httpCodeFb === 200 && $respFb) {
+                            $dataFb = json_decode($respFb, true);
+                            $contentFb = $dataFb['candidates'][0]['content']['parts'][0]['text'] ?? '';
+                            if (trim((string)$contentFb) !== '') {
+                                if (function_exists('record_gemini_key_usage')) {
+                                    record_gemini_key_usage($geminiKey, $mysqli);
+                                }
+                                return [
+                                    'success'           => true,
+                                    'content'           => trim((string)$contentFb),
+                                    'provider'          => 'gemini',
+                                    'model'             => $gModel,
+                                    'key_used'          => $keyLabel,
+                                    'grounding_sources' => [],
+                                    'grounding_queries' => [],
+                                    'raw_data'          => $dataFb,
+                                ];
+                            }
+                        }
+                    }
+
                     $errors[] = "Gemini ({$gModel} / {$keyLabel}): HTTP {$httpCode}";
                     // If model not found (404), try next model on same key
                     if ($httpCode === 404) {
