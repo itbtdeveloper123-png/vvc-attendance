@@ -431,6 +431,81 @@ function ensure_api_keys_table(): void {
     }
 }
 
+function ensure_project_api_keys_table(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    dbQuery("CREATE TABLE IF NOT EXISTS admin_project_api_keys (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        key_name VARCHAR(100) NOT NULL,
+        project_key VARCHAR(100) NOT NULL UNIQUE,
+        allowed_services VARCHAR(255) DEFAULT 'gemini,ai_proxy',
+        rate_limit_per_min INT DEFAULT 60,
+        daily_limit INT DEFAULT 5000,
+        requests_used_today INT DEFAULT 0,
+        total_requests INT DEFAULT 0,
+        last_used_at DATETIME NULL,
+        last_reset_date VARCHAR(20) NULL,
+        is_active TINYINT DEFAULT 1,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_proj_key (project_key),
+        INDEX idx_active (is_active)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+}
+
+function authenticate_project_api_key(string $requiredService = 'gemini'): array {
+    ensure_project_api_keys_table();
+    
+    // Extract key from header Authorization: Bearer <KEY>, X-API-Key: <KEY>, or query param ?project_key=<KEY>
+    $key = '';
+    $authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';
+    if (preg_match('/Bearer\s+(vvc_ai_[a-zA-Z0-9_]+)/i', $authHeader, $m)) {
+        $key = trim($m[1]);
+    } elseif (!empty($_SERVER['HTTP_X_API_KEY'])) {
+        $key = trim($_SERVER['HTTP_X_API_KEY']);
+    } elseif (!empty($_REQUEST['project_key'])) {
+        $key = trim($_REQUEST['project_key']);
+    } elseif (!empty($_REQUEST['api_key']) && strpos($_REQUEST['api_key'], 'vvc_ai_') === 0) {
+        $key = trim($_REQUEST['api_key']);
+    }
+
+    if (empty($key)) {
+        return ['valid' => false, 'message' => 'សូមបញ្ជាក់ Project API Key តាមរយៈ Header (Authorization: Bearer vvc_ai_...) ឬ Query Parameter (?project_key=...)'];
+    }
+
+    $rows = dbQuery("SELECT * FROM admin_project_api_keys WHERE project_key = ? LIMIT 1", [$key]);
+    if (empty($rows)) {
+        return ['valid' => false, 'message' => 'Project API Key មិនត្រឹមត្រូវ ឬត្រូវបានលុបចោលពីប្រព័ន្ធ!'];
+    }
+
+    $proj = $rows[0];
+    if ((int)$proj['is_active'] !== 1) {
+        return ['valid' => false, 'message' => 'Project API Key នេះត្រូវបានបិទដំណើរការ (Deactivated) ជាបណ្តោះអាសន្ន!'];
+    }
+
+    // Daily reset check (Cambodia date)
+    $today = date('Y-m-d');
+    if (($proj['last_reset_date'] ?? '') !== $today) {
+        @dbQuery("UPDATE admin_project_api_keys SET requests_used_today = 0, last_reset_date = ? WHERE id = ?", [$today, $proj['id']]);
+        $proj['requests_used_today'] = 0;
+    }
+
+    $dailyLimit = (int)($proj['daily_limit'] ?? 5000);
+    $usedToday = (int)($proj['requests_used_today'] ?? 0);
+    if ($dailyLimit > 0 && $usedToday >= $dailyLimit) {
+        return ['valid' => false, 'message' => "Project API Key បានប្រើអស់កូតាប្រចាំថ្ងៃ ({$usedToday}/{$dailyLimit} requests)។ វានឹង Reset ស្វ័យប្រវត្តនៅថ្ងៃស្អែក!"];
+    }
+
+    // Track usage
+    @dbQuery("UPDATE admin_project_api_keys SET requests_used_today = requests_used_today + 1, total_requests = total_requests + 1, last_used_at = NOW(), last_reset_date = ? WHERE id = ?", [$today, $proj['id']]);
+
+    return [
+        'valid' => true,
+        'project' => $proj,
+        'key' => $key,
+    ];
+}
+
 function verify_remove_bg_key(string $apiKey): array {
     $ch = curl_init('https://api.remove.bg/v1.0/account');
     curl_setopt($ch, CURLOPT_HTTPHEADER, ['X-Api-Key: ' . $apiKey]);
@@ -1754,6 +1829,266 @@ try {
             ]);
             break;
 
+        // ==========================================
+        // PROJECT API KEYS MANAGEMENT & AI GATEWAY
+        // ==========================================
+        case 'get_project_api_keys':
+        case 'list_project_api_keys':
+            ensure_project_api_keys_table();
+            $today = date('Y-m-d');
+            $rows = dbQuery("SELECT * FROM admin_project_api_keys ORDER BY id DESC");
+            $items = [];
+            foreach ($rows as $r) {
+                $k = (string)$r['project_key'];
+                $masked = strlen($k) > 16 ? substr($k, 0, 14) . '...' . substr($k, -4) : $k;
+                $items[] = [
+                    'id' => (int)$r['id'],
+                    'key_name' => $r['key_name'],
+                    'project_key' => $k,
+                    'masked_key' => $masked,
+                    'allowed_services' => $r['allowed_services'] ?? 'gemini,ai_proxy',
+                    'rate_limit_per_min' => (int)($r['rate_limit_per_min'] ?? 60),
+                    'daily_limit' => (int)($r['daily_limit'] ?? 5000),
+                    'requests_used_today' => (($r['last_reset_date'] ?? '') === $today) ? (int)$r['requests_used_today'] : 0,
+                    'total_requests' => (int)$r['total_requests'],
+                    'last_used_at' => $r['last_used_at'],
+                    'is_active' => (int)$r['is_active'] === 1,
+                    'created_at' => $r['created_at']
+                ];
+            }
+            sendJson(['success' => true, 'keys' => $items]);
+            break;
+
+        case 'create_project_api_key':
+            ensure_project_api_keys_table();
+            $keyName = trim($_POST['key_name'] ?? '');
+            if ($keyName === '') {
+                sendJson(['success' => false, 'message' => 'សូមបញ្ចូលឈ្មោះ Project / គម្រោង!'], 400);
+            }
+            $dailyLimit = max(100, intval($_POST['daily_limit'] ?? 5000));
+            $randBytes = bin2hex(random_bytes(16));
+            $newProjKey = "vvc_ai_live_" . $randBytes;
+
+            dbQuery("INSERT INTO admin_project_api_keys (key_name, project_key, allowed_services, daily_limit, is_active, created_at) VALUES (?, ?, 'gemini,ai_proxy', ?, 1, NOW())", [
+                $keyName, $newProjKey, $dailyLimit
+            ]);
+
+            sendJson([
+                'success' => true,
+                'message' => "បានបង្កើត Project API Key សម្រាប់ '{$keyName}' ដោយជោគជ័យ!",
+                'project_key' => $newProjKey,
+                'key_name' => $keyName,
+            ]);
+            break;
+
+        case 'toggle_project_api_key':
+            ensure_project_api_keys_table();
+            $id = intval($_POST['id'] ?? 0);
+            $rows = dbQuery("SELECT is_active, key_name FROM admin_project_api_keys WHERE id = ? LIMIT 1", [$id]);
+            if (empty($rows)) {
+                sendJson(['success' => false, 'message' => 'រកមិនឃើញ Key នេះឡើយ!'], 404);
+            }
+            $nextVal = (int)$rows[0]['is_active'] === 1 ? 0 : 1;
+            dbQuery("UPDATE admin_project_api_keys SET is_active = ? WHERE id = ?", [$nextVal, $id]);
+            sendJson([
+                'success' => true,
+                'is_active' => $nextVal === 1,
+                'message' => $nextVal === 1 ? "បានបើកដំណើរការ Key '{$rows[0]['key_name']}'" : "បានបិទដំណើរការ Key '{$rows[0]['key_name']}'"
+            ]);
+            break;
+
+        case 'delete_project_api_key':
+            ensure_project_api_keys_table();
+            $id = intval($_POST['id'] ?? 0);
+            $rows = dbQuery("SELECT key_name FROM admin_project_api_keys WHERE id = ? LIMIT 1", [$id]);
+            if (empty($rows)) {
+                sendJson(['success' => false, 'message' => 'រកមិនឃើញ Key នេះឡើយ!'], 404);
+            }
+            dbQuery("DELETE FROM admin_project_api_keys WHERE id = ?", [$id]);
+            sendJson([
+                'success' => true,
+                'message' => "បានលុប Project API Key '{$rows[0]['key_name']}' ដោយជោគជ័យ!"
+            ]);
+            break;
+
+        // PUBLIC CONSUMPTION: Get active Gemini Key from Pool using Project API Key
+        case 'get_gemini_pool_key':
+        case 'get_pool_key':
+            $auth = authenticate_project_api_key('gemini');
+            if (!$auth['valid']) {
+                sendJson(['success' => false, 'message' => $auth['message']], 401);
+            }
+            ensure_api_keys_table();
+            $geminiCycle = function_exists('get_gemini_pacific_cycle_date') ? get_gemini_pacific_cycle_date() : date('Y-m-d');
+            @dbQuery("UPDATE admin_api_keys SET daily_requests_used = 0, last_reset_date = ? WHERE service_name = 'gemini' AND last_reset_date != ?", [$geminiCycle, $geminiCycle]);
+
+            // Pick the best active key with quota remaining
+            $keys = dbQuery("SELECT id, key_label, api_key, daily_requests_used, daily_limit FROM admin_api_keys WHERE service_name = 'gemini' AND is_active = 1 AND (daily_limit = 0 OR daily_requests_used < daily_limit) ORDER BY priority ASC, daily_requests_used ASC, id ASC LIMIT 1");
+            
+            if (empty($keys)) {
+                $keys = dbQuery("SELECT id, key_label, api_key, daily_requests_used, daily_limit FROM admin_api_keys WHERE service_name = 'gemini' AND is_active = 1 ORDER BY priority ASC, id ASC LIMIT 1");
+            }
+
+            if (empty($keys)) {
+                $envKey = trim((string)(defined('GEMINI_API_KEY') ? GEMINI_API_KEY : (getenv('GEMINI_API_KEY') ?: '')));
+                if ($envKey !== '') {
+                    $keys = [['id' => 0, 'key_label' => 'Primary Key', 'api_key' => $envKey, 'daily_requests_used' => 0, 'daily_limit' => 1500]];
+                }
+            }
+
+            if (empty($keys)) {
+                sendJson(['success' => false, 'message' => 'គ្មាន Google Gemini API Key សកម្មនៅក្នុង Pool ឡើយ!'], 503);
+            }
+
+            $selected = $keys[0];
+            $keyId = (int)$selected['id'];
+            if ($keyId > 0) {
+                @dbQuery("UPDATE admin_api_keys SET daily_requests_used = daily_requests_used + 1, last_used_at = NOW() WHERE id = ?", [$keyId]);
+            }
+
+            $totalActive = dbQuery("SELECT COUNT(*) as c FROM admin_api_keys WHERE service_name = 'gemini' AND is_active = 1");
+
+            sendJson([
+                'success'                => true,
+                'api_key'                => $selected['api_key'],
+                'key_label'              => $selected['key_label'],
+                'provider'               => 'google_gemini',
+                'model_recommendation'   => 'gemini-2.5-flash',
+                'models_available'       => ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'],
+                'remaining_rpd'          => max(0, ((int)$selected['daily_limit']) - ((int)$selected['daily_requests_used']) - 1),
+                'total_pool_active_keys' => (int)($totalActive[0]['c'] ?? 1),
+                'project_name'           => $auth['project']['key_name'] ?? '',
+                'requests_used_today'    => (int)($auth['project']['requests_used_today'] ?? 0),
+                'message'                => 'យក Google Gemini Key ពី Pool ដោយជោគជ័យ'
+            ]);
+            break;
+
+        // PUBLIC CONSUMPTION: AI Gateway / Proxy
+        case 'ai_proxy':
+        case 'chat_proxy':
+            $auth = authenticate_project_api_key('ai_proxy');
+            if (!$auth['valid']) {
+                sendJson(['success' => false, 'message' => $auth['message']], 401);
+            }
+
+            $rawInput = file_get_contents('php://input');
+            $inputJson = json_decode($rawInput, true) ?: [];
+            
+            $model = trim($_REQUEST['model'] ?? ($inputJson['model'] ?? 'gemini-2.5-flash'));
+            $systemPrompt = trim($_REQUEST['system_prompt'] ?? ($inputJson['system_prompt'] ?? ''));
+            $prompt = trim($_REQUEST['prompt'] ?? ($inputJson['prompt'] ?? ''));
+            
+            $contents = [];
+            $parts = [];
+            if ($systemPrompt !== '') {
+                $parts[] = ['text' => "System Instructions: {$systemPrompt}\n\n"];
+            }
+
+            if (!empty($inputJson['messages']) && is_array($inputJson['messages'])) {
+                $msgTexts = [];
+                foreach ($inputJson['messages'] as $m) {
+                    $role = $m['role'] ?? 'user';
+                    $content = $m['content'] ?? '';
+                    if (is_array($content)) {
+                        $subParts = [];
+                        foreach ($content as $cp) {
+                            if (($cp['type'] ?? '') === 'text') $subParts[] = $cp['text'] ?? '';
+                        }
+                        $content = implode("\n", $subParts);
+                    }
+                    if ($role === 'system' && $systemPrompt === '') {
+                        $parts[] = ['text' => "System Instructions: {$content}\n\n"];
+                    } else {
+                        $msgTexts[] = ucfirst($role) . ": " . $content;
+                    }
+                }
+                if (!empty($msgTexts)) {
+                    $parts[] = ['text' => implode("\n\n", $msgTexts)];
+                }
+            } elseif (!empty($inputJson['contents']) && is_array($inputJson['contents'])) {
+                $contents = $inputJson['contents'];
+            } else {
+                if ($prompt !== '') {
+                    $parts[] = ['text' => $prompt];
+                }
+            }
+
+            if (empty($contents)) {
+                if (empty($parts)) {
+                    sendJson(['success' => false, 'message' => 'សូមបញ្ចូល prompt ឬ messages!'], 400);
+                }
+                $contents = [['parts' => $parts]];
+            }
+
+            ensure_api_keys_table();
+            $geminiKeys = dbQuery("SELECT id, key_label, api_key FROM admin_api_keys WHERE service_name = 'gemini' AND is_active = 1 ORDER BY priority ASC, daily_requests_used ASC, id ASC");
+            if (empty($geminiKeys)) {
+                $envKey = trim((string)(defined('GEMINI_API_KEY') ? GEMINI_API_KEY : (getenv('GEMINI_API_KEY') ?: '')));
+                if ($envKey !== '') $geminiKeys = [['id' => 0, 'key_label' => 'Primary Env Key', 'api_key' => $envKey]];
+            }
+            if (empty($geminiKeys)) {
+                sendJson(['success' => false, 'message' => 'គ្មាន Gemini Key នៅក្នុង Pool ឡើយ!'], 503);
+            }
+
+            $temperature = floatval($_REQUEST['temperature'] ?? ($inputJson['temperature'] ?? 0.7));
+            $geminiPayload = [
+                'contents' => $contents,
+                'generationConfig' => [
+                    'temperature' => $temperature,
+                    'maxOutputTokens' => intval($inputJson['max_tokens'] ?? ($inputJson['maxOutputTokens'] ?? 3072)),
+                ]
+            ];
+            $jsonPayload = json_encode($geminiPayload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+            $lastErr = '';
+            foreach ($geminiKeys as $keyItem) {
+                $gKey = $keyItem['api_key'];
+                $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key=" . urlencode($gKey);
+                $ch = curl_init($url);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_POST, true);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonPayload);
+                curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 40);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+                $resp = curl_exec($ch);
+                $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                curl_close($ch);
+
+                if ($httpCode === 200 && $resp) {
+                    $respData = json_decode($resp, true);
+                    $replyText = $respData['candidates'][0]['content']['parts'][0]['text'] ?? '';
+                    if (!empty($keyItem['id'])) {
+                        @dbQuery("UPDATE admin_api_keys SET daily_requests_used = daily_requests_used + 1, last_used_at = NOW() WHERE id = ?", [$keyItem['id']]);
+                    }
+                    sendJson([
+                        'success' => true,
+                        'reply' => $replyText,
+                        'choices' => [
+                            [
+                                'index' => 0,
+                                'message' => [
+                                    'role' => 'assistant',
+                                    'content' => $replyText
+                                ],
+                                'finish_reason' => 'stop'
+                            ]
+                        ],
+                        'model' => $model,
+                        'key_used' => $keyItem['key_label'],
+                        'raw' => $respData
+                    ]);
+                } else {
+                    $lastErr = "HTTP {$httpCode}: " . substr((string)$resp, 0, 200);
+                    if ($httpCode === 429 || $httpCode === 403) {
+                        continue;
+                    }
+                }
+            }
+
+            sendJson(['success' => false, 'message' => 'ការហៅ AI បរាជ័យលើ Keys ទាំងអស់ក្នុង Pool៖ ' . $lastErr], 500);
+            break;
 
         case 'get_admin_profile':
             sendJson([

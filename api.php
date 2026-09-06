@@ -3449,6 +3449,255 @@ try {
     }
 
     switch ($action) {
+    case 'get_gemini_pool_key':
+    case 'get_pool_key':
+        // Authenticate project key
+        $projKey = '';
+        $authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';
+        if (preg_match('/Bearer\s+(vvc_ai_[a-zA-Z0-9_]+)/i', $authHeader, $m)) {
+            $projKey = trim($m[1]);
+        } elseif (!empty($_SERVER['HTTP_X_API_KEY'])) {
+            $projKey = trim($_SERVER['HTTP_X_API_KEY']);
+        } elseif (!empty($_REQUEST['project_key'])) {
+            $projKey = trim($_REQUEST['project_key']);
+        } elseif (!empty($_REQUEST['api_key']) && strpos($_REQUEST['api_key'], 'vvc_ai_') === 0) {
+            $projKey = trim($_REQUEST['api_key']);
+        }
+
+        if (empty($projKey)) {
+            apiResponse(['success' => false, 'message' => 'សូមបញ្ជាក់ Project API Key តាមរយៈ Header (Authorization: Bearer vvc_ai_...) ឬ Query Parameter (?project_key=...)'], 401);
+        }
+
+        $escKey = $mysqli->real_escape_string($projKey);
+        $projRes = $mysqli->query("SELECT * FROM admin_project_api_keys WHERE project_key = '{$escKey}' LIMIT 1");
+        $proj = $projRes ? $projRes->fetch_assoc() : null;
+        if (!$proj) {
+            apiResponse(['success' => false, 'message' => 'Project API Key មិនត្រឹមត្រូវ ឬត្រូវបានលុបចោល!'], 401);
+        }
+        if ((int)$proj['is_active'] !== 1) {
+            apiResponse(['success' => false, 'message' => 'Project API Key នេះត្រូវបានបិទដំណើរការ (Deactivated) ជាបណ្តោះអាសន្ន!'], 403);
+        }
+
+        $today = date('Y-m-d');
+        if (($proj['last_reset_date'] ?? '') !== $today) {
+            $mysqli->query("UPDATE admin_project_api_keys SET requests_used_today = 0, last_reset_date = '{$today}' WHERE id = " . intval($proj['id']));
+            $proj['requests_used_today'] = 0;
+        }
+
+        $dailyLimit = (int)($proj['daily_limit'] ?? 5000);
+        $usedToday = (int)($proj['requests_used_today'] ?? 0);
+        if ($dailyLimit > 0 && $usedToday >= $dailyLimit) {
+            apiResponse(['success' => false, 'message' => "Project API Key បានប្រើអស់កូតាប្រចាំថ្ងៃ ({$usedToday}/{$dailyLimit} requests)។ វានឹង Reset នៅថ្ងៃស្អែក!"], 429);
+        }
+
+        // Track usage
+        $mysqli->query("UPDATE admin_project_api_keys SET requests_used_today = requests_used_today + 1, total_requests = total_requests + 1, last_used_at = NOW(), last_reset_date = '{$today}' WHERE id = " . intval($proj['id']));
+
+        // Pick best active Gemini key
+        $keyRes = $mysqli->query("SELECT id, key_label, api_key, daily_requests_used, daily_limit FROM admin_api_keys WHERE service_name = 'gemini' AND is_active = 1 AND (daily_limit = 0 OR daily_requests_used < daily_limit) ORDER BY priority ASC, daily_requests_used ASC, id ASC LIMIT 1");
+        $selectedKey = $keyRes ? $keyRes->fetch_assoc() : null;
+        if (!$selectedKey) {
+            $keyRes2 = $mysqli->query("SELECT id, key_label, api_key, daily_requests_used, daily_limit FROM admin_api_keys WHERE service_name = 'gemini' AND is_active = 1 ORDER BY priority ASC, id ASC LIMIT 1");
+            $selectedKey = $keyRes2 ? $keyRes2->fetch_assoc() : null;
+        }
+        if (!$selectedKey) {
+            $envK = trim((string)(defined('GEMINI_API_KEY') ? GEMINI_API_KEY : (getenv('GEMINI_API_KEY') ?: '')));
+            if ($envK !== '') {
+                $selectedKey = ['id' => 0, 'key_label' => 'Primary Key', 'api_key' => $envK, 'daily_requests_used' => 0, 'daily_limit' => 1500];
+            }
+        }
+        if (!$selectedKey) {
+            apiResponse(['success' => false, 'message' => 'គ្មាន Google Gemini API Key សកម្មនៅក្នុង Pool ឡើយ!'], 503);
+        }
+
+        $kId = intval($selectedKey['id']);
+        if ($kId > 0) {
+            $mysqli->query("UPDATE admin_api_keys SET daily_requests_used = daily_requests_used + 1, last_used_at = NOW() WHERE id = {$kId}");
+        }
+
+        $cntRes = $mysqli->query("SELECT COUNT(*) as c FROM admin_api_keys WHERE service_name = 'gemini' AND is_active = 1");
+        $cntRow = $cntRes ? $cntRes->fetch_assoc() : null;
+
+        apiResponse([
+            'success'                => true,
+            'api_key'                => $selectedKey['api_key'],
+            'key_label'              => $selectedKey['key_label'],
+            'provider'               => 'google_gemini',
+            'model_recommendation'   => 'gemini-2.5-flash',
+            'models_available'       => ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'],
+            'remaining_rpd'          => max(0, intval($selectedKey['daily_limit']) - intval($selectedKey['daily_requests_used']) - 1),
+            'total_pool_active_keys' => intval($cntRow['c'] ?? 1),
+            'project_name'           => $proj['key_name'],
+            'requests_used_today'    => intval($proj['requests_used_today']) + 1,
+            'message'                => 'យក Google Gemini Key ពី Pool ដោយជោគជ័យ'
+        ]);
+        break;
+
+    case 'ai_proxy':
+    case 'chat_proxy':
+        // Authenticate project key
+        $projKey = '';
+        $authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';
+        if (preg_match('/Bearer\s+(vvc_ai_[a-zA-Z0-9_]+)/i', $authHeader, $m)) {
+            $projKey = trim($m[1]);
+        } elseif (!empty($_SERVER['HTTP_X_API_KEY'])) {
+            $projKey = trim($_SERVER['HTTP_X_API_KEY']);
+        } elseif (!empty($_REQUEST['project_key'])) {
+            $projKey = trim($_REQUEST['project_key']);
+        } elseif (!empty($_REQUEST['api_key']) && strpos($_REQUEST['api_key'], 'vvc_ai_') === 0) {
+            $projKey = trim($_REQUEST['api_key']);
+        }
+
+        if (empty($projKey)) {
+            apiResponse(['success' => false, 'message' => 'សូមបញ្ជាក់ Project API Key តាមរយៈ Header (Authorization: Bearer vvc_ai_...) ឬ Query Parameter (?project_key=...)'], 401);
+        }
+
+        $escKey = $mysqli->real_escape_string($projKey);
+        $projRes = $mysqli->query("SELECT * FROM admin_project_api_keys WHERE project_key = '{$escKey}' LIMIT 1");
+        $proj = $projRes ? $projRes->fetch_assoc() : null;
+        if (!$proj) {
+            apiResponse(['success' => false, 'message' => 'Project API Key មិនត្រឹមត្រូវ ឬត្រូវបានលុបចោល!'], 401);
+        }
+        if ((int)$proj['is_active'] !== 1) {
+            apiResponse(['success' => false, 'message' => 'Project API Key នេះត្រូវបានបិទដំណើរការ (Deactivated) ជាបណ្តោះអាសន្ន!'], 403);
+        }
+
+        $today = date('Y-m-d');
+        if (($proj['last_reset_date'] ?? '') !== $today) {
+            $mysqli->query("UPDATE admin_project_api_keys SET requests_used_today = 0, last_reset_date = '{$today}' WHERE id = " . intval($proj['id']));
+            $proj['requests_used_today'] = 0;
+        }
+
+        $dailyLimit = (int)($proj['daily_limit'] ?? 5000);
+        $usedToday = (int)($proj['requests_used_today'] ?? 0);
+        if ($dailyLimit > 0 && $usedToday >= $dailyLimit) {
+            apiResponse(['success' => false, 'message' => "Project API Key បានប្រើអស់កូតាប្រចាំថ្ងៃ ({$usedToday}/{$dailyLimit} requests)។ វានឹង Reset នៅថ្ងៃស្អែក!"], 429);
+        }
+
+        $mysqli->query("UPDATE admin_project_api_keys SET requests_used_today = requests_used_today + 1, total_requests = total_requests + 1, last_used_at = NOW(), last_reset_date = '{$today}' WHERE id = " . intval($proj['id']));
+
+        $rawInput = file_get_contents('php://input');
+        $inputJson = json_decode($rawInput, true) ?: [];
+        $model = trim($_REQUEST['model'] ?? ($inputJson['model'] ?? 'gemini-2.5-flash'));
+        $systemPrompt = trim($_REQUEST['system_prompt'] ?? ($inputJson['system_prompt'] ?? ''));
+        $prompt = trim($_REQUEST['prompt'] ?? ($inputJson['prompt'] ?? ''));
+
+        $contents = [];
+        $parts = [];
+        if ($systemPrompt !== '') {
+            $parts[] = ['text' => "System Instructions: {$systemPrompt}\n\n"];
+        }
+
+        if (!empty($inputJson['messages']) && is_array($inputJson['messages'])) {
+            $msgTexts = [];
+            foreach ($inputJson['messages'] as $m) {
+                $role = $m['role'] ?? 'user';
+                $content = $m['content'] ?? '';
+                if (is_array($content)) {
+                    $subParts = [];
+                    foreach ($content as $cp) {
+                        if (($cp['type'] ?? '') === 'text') $subParts[] = $cp['text'] ?? '';
+                    }
+                    $content = implode("\n", $subParts);
+                }
+                if ($role === 'system' && $systemPrompt === '') {
+                    $parts[] = ['text' => "System Instructions: {$content}\n\n"];
+                } else {
+                    $msgTexts[] = ucfirst($role) . ": " . $content;
+                }
+            }
+            if (!empty($msgTexts)) {
+                $parts[] = ['text' => implode("\n\n", $msgTexts)];
+            }
+        } elseif (!empty($inputJson['contents']) && is_array($inputJson['contents'])) {
+            $contents = $inputJson['contents'];
+        } else {
+            if ($prompt !== '') {
+                $parts[] = ['text' => $prompt];
+            }
+        }
+
+        if (empty($contents)) {
+            if (empty($parts)) {
+                apiResponse(['success' => false, 'message' => 'សូមបញ្ចូល prompt ឬ messages!'], 400);
+            }
+            $contents = [['parts' => $parts]];
+        }
+
+        $geminiKeys = [];
+        if (function_exists('get_all_active_gemini_keys')) {
+            $geminiKeys = get_all_active_gemini_keys($mysqli);
+        } elseif (function_exists('get_active_gemini_key')) {
+            $k = get_active_gemini_key($mysqli);
+            if ($k !== '') $geminiKeys[] = $k;
+        }
+        if (empty($geminiKeys)) {
+            $geminiKey = trim((string)(defined('GEMINI_API_KEY') ? GEMINI_API_KEY : (getenv('GEMINI_API_KEY') ?: '')));
+            if ($geminiKey !== '') $geminiKeys[] = $geminiKey;
+        }
+        if (empty($geminiKeys)) {
+            apiResponse(['success' => false, 'message' => 'គ្មាន Gemini Key នៅក្នុង Pool ឡើយ!'], 503);
+        }
+
+        $temperature = floatval($_REQUEST['temperature'] ?? ($inputJson['temperature'] ?? 0.7));
+        $geminiPayload = [
+            'contents' => $contents,
+            'generationConfig' => [
+                'temperature' => $temperature,
+                'maxOutputTokens' => intval($inputJson['max_tokens'] ?? ($inputJson['maxOutputTokens'] ?? 3072)),
+            ]
+        ];
+        $jsonPayload = json_encode($geminiPayload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+        $lastErr = '';
+        foreach ($geminiKeys as $keyIdx => $gKey) {
+            $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key=" . urlencode($gKey);
+            $ch = curl_init($url);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonPayload);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 40);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+            $resp = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+
+            if ($httpCode === 200 && $resp) {
+                $respData = json_decode($resp, true);
+                $replyText = $respData['candidates'][0]['content']['parts'][0]['text'] ?? '';
+                if (function_exists('record_gemini_key_usage')) {
+                    record_gemini_key_usage($gKey, $mysqli);
+                }
+                apiResponse([
+                    'success' => true,
+                    'reply' => $replyText,
+                    'choices' => [
+                        [
+                            'index' => 0,
+                            'message' => [
+                                'role' => 'assistant',
+                                'content' => $replyText
+                            ],
+                            'finish_reason' => 'stop'
+                        ]
+                    ],
+                    'model' => $model,
+                    'key_used' => 'Key #' . ($keyIdx + 1),
+                    'raw' => $respData
+                ]);
+            } else {
+                $lastErr = "HTTP {$httpCode}: " . substr((string)$resp, 0, 200);
+                if ($httpCode === 429 || $httpCode === 403) {
+                    continue;
+                }
+            }
+        }
+
+        apiResponse(['success' => false, 'message' => 'ការហៅ AI បរាជ័យលើ Keys ទាំងអស់ក្នុង Pool៖ ' . $lastErr], 500);
+        break;
+
     case 'view_face_log':
         $logPath = __DIR__ . '/uploads/face_match_debug.log';
         if (file_exists($logPath)) {

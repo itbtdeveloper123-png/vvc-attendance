@@ -26,10 +26,18 @@ import {
   AlertTriangle,
   Clock,
   Zap,
+  Eye,
+  EyeOff,
+  Code2,
+  BookOpen,
+  Terminal,
+  Globe,
+  Send,
+  X,
 } from 'lucide-react';
 import { StatCard } from '../components/common/StatCard';
 import { ViewModeToggle, ViewMode } from '../components/common/ViewModeToggle';
-import { adminApi, SessionItem, SessionGroup } from '../api/adminApi';
+import { adminApi, SessionItem, SessionGroup, ProjectApiKeyItem } from '../api/adminApi';
 import { useRealtimeSync, broadcastRealtimeUpdate } from '../utils/useRealtimeSync';
 
 const DEFAULT_EXISTING_GEMINI_KEY = 'AIzaSyDsXpw8-opIVvWUA72xAdiQcC3HKDy24SU';
@@ -313,6 +321,91 @@ export const TokensPage: React.FC = () => {
   const [syncingAllKeys, setSyncingAllKeys] = useState(false);
   const [testingKeyId, setTestingKeyId] = useState<number | null>(null);
   const [keySearch, setKeySearch] = useState('');
+
+  // Project API Keys (Client / Shared Keys for External Projects)
+  const [isProjectKeysModalOpen, setIsProjectKeysModalOpen] = useState(false);
+  const [projectKeys, setProjectKeys] = useState<ProjectApiKeyItem[]>([]);
+  const [loadingProjectKeys, setLoadingProjectKeys] = useState(false);
+  const [newProjName, setNewProjName] = useState('');
+  const [newProjLimit, setNewProjLimit] = useState(5000);
+  const [creatingProjKey, setCreatingProjKey] = useState(false);
+  const [justCreatedKey, setJustCreatedKey] = useState<{ key: string; name: string } | null>(null);
+  const [activeCodeTab, setActiveCodeTab] = useState<'curl' | 'javascript' | 'python' | 'dart'>('curl');
+  const [activeSnippetType, setActiveSnippetType] = useState<'get_key' | 'ai_proxy'>('get_key');
+  const [copiedKeyId, setCopiedKeyId] = useState<number | string | null>(null);
+  const [revealedKeyIds, setRevealedKeyIds] = useState<Record<number, boolean>>({});
+
+  const fetchProjectKeys = async () => {
+    try {
+      setLoadingProjectKeys(true);
+      const res = await adminApi.getProjectApiKeys();
+      if (res?.success) {
+        setProjectKeys(res.keys || []);
+      }
+    } catch (err: any) {
+      console.error('Failed to fetch project keys:', err);
+    } finally {
+      setLoadingProjectKeys(false);
+    }
+  };
+
+  const handleCreateProjectKey = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newProjName.trim()) {
+      showBanner('warning', 'សូមបញ្ចូលឈ្មោះគម្រោង / Project Name!');
+      return;
+    }
+    try {
+      setCreatingProjKey(true);
+      const res = await adminApi.createProjectApiKey(newProjName.trim(), newProjLimit);
+      if (res?.success) {
+        setJustCreatedKey({ key: res.project_key, name: res.key_name });
+        setNewProjName('');
+        showBanner('success', res.message || 'បានបង្កើត Project API Key ដោយជោគជ័យ!');
+        fetchProjectKeys();
+      } else {
+        showBanner('error', res?.message || 'មិនអាចបង្កើត Key បានទេ');
+      }
+    } catch (err: any) {
+      showBanner('error', 'កំហុសបណ្តាញពេលបង្កើត Project Key: ' + err.message);
+    } finally {
+      setCreatingProjKey(false);
+    }
+  };
+
+  const handleToggleProjectKey = async (id: number) => {
+    try {
+      const res = await adminApi.toggleProjectApiKey(id);
+      if (res?.success) {
+        setProjectKeys((prev) => prev.map((k) => (k.id === id ? { ...k, is_active: res.is_active } : k)));
+        showBanner('info', res.message);
+      }
+    } catch (err: any) {
+      showBanner('error', 'Failed to toggle key: ' + err.message);
+    }
+  };
+
+  const handleDeleteProjectKey = async (id: number, name: string) => {
+    if (!window.confirm(`តើអ្នកពិតជាចង់លុប Project API Key សម្រាប់ "${name}" មែនទេ? គម្រោងដែលប្រើប្រាស់ Key នេះនឹងមិនអាចហៅ AI បានទៀតឡើយ!`)) {
+      return;
+    }
+    try {
+      const res = await adminApi.deleteProjectApiKey(id);
+      if (res?.success) {
+        setProjectKeys((prev) => prev.filter((k) => k.id !== id));
+        showBanner('success', res.message);
+      }
+    } catch (err: any) {
+      showBanner('error', 'Failed to delete key: ' + err.message);
+    }
+  };
+
+  const handleCopyKey = (keyString: string, id: number | string) => {
+    navigator.clipboard.writeText(keyString);
+    setCopiedKeyId(id);
+    showBanner('success', 'បានចម្លង API Key ទៅកាន់ Clipboard រួចរាល់!');
+    setTimeout(() => setCopiedKeyId(null), 2500);
+  };
 
   // Banner
   const [banner, setBanner] = useState<{ type: 'success' | 'error' | 'warning' | 'info'; text: string } | null>(null);
@@ -1656,6 +1749,34 @@ export const TokensPage: React.FC = () => {
                 <span>{syncingAllKeys ? 'កំពុង Sync...' : 'Sync តុល្យភាពទាំងអស់'}</span>
               </button>
 
+              {activeTab === 'gemini_keys' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsProjectKeysModalOpen(true);
+                    fetchProjectKeys();
+                  }}
+                  className="btn"
+                  style={{
+                    padding: '8px 18px',
+                    borderRadius: '10px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    background: 'linear-gradient(135deg, #10B981, #059669)',
+                    color: '#fff',
+                    fontWeight: 700,
+                    border: 'none',
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 14px rgba(16, 185, 129, 0.25)',
+                  }}
+                  title="បង្កើត Project API Key ដើម្បីចែករំលែក AI ទៅកាន់ Project ផ្សេងៗ"
+                >
+                  <KeyRound size={16} />
+                  <span>🔑 បង្កើត Project API Key</span>
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={() => setIsKeyModalOpen(true)}
@@ -2096,6 +2217,591 @@ export const TokensPage: React.FC = () => {
                     </button>
                   </div>
                 </form>
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================================= */}
+          {/* PROJECT API KEYS MODAL (AI GATEWAY & KEY SHARING) */}
+          {/* ========================================================================= */}
+          {isProjectKeysModalOpen && (
+            <div
+              style={{
+                position: 'fixed',
+                inset: 0,
+                backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                backdropFilter: 'blur(8px)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 9999,
+                padding: '20px',
+              }}
+            >
+              <div
+                className="card"
+                style={{
+                  width: '100%',
+                  maxWidth: '960px',
+                  maxHeight: '90vh',
+                  padding: '26px',
+                  borderRadius: '24px',
+                  boxShadow: '0 25px 50px rgba(0,0,0,0.5)',
+                  animation: 'fadeIn 0.2s ease',
+                  overflowY: 'auto',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '20px',
+                }}
+              >
+                {/* Modal Header */}
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: '16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span
+                      style={{
+                        background: 'linear-gradient(135deg, #10B981, #059669)',
+                        color: '#fff',
+                        width: '42px',
+                        height: '42px',
+                        borderRadius: '12px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
+                      }}
+                    >
+                      <KeyRound size={22} />
+                    </span>
+                    <div>
+                      <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: 'var(--text-primary)' }}>
+                        គ្រប់គ្រង Project API Keys (AI Gateway & Key Sharing)
+                      </h3>
+                      <p style={{ margin: '3px 0 0 0', fontSize: '12.5px', color: 'var(--text-muted)' }}>
+                        បង្កើត API Key ដើម្បីយកទៅ Past លើគម្រោងផ្សេងៗ (Apps, Websites, Bots, POS) និងហៅ Gemini Keys ពី Pool 14 Keys ដោយស្វ័យប្រវត្ត។
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsProjectKeysModalOpen(false);
+                      setJustCreatedKey(null);
+                    }}
+                    style={{
+                      background: 'var(--bg-secondary)',
+                      border: '1px solid var(--border)',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      color: 'var(--text-muted)',
+                      padding: '6px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+
+                {/* Newly Created Key Celebration Banner */}
+                {justCreatedKey && (
+                  <div
+                    style={{
+                      padding: '16px 20px',
+                      borderRadius: '16px',
+                      background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(5, 150, 105, 0.15))',
+                      border: '1px solid rgba(16, 185, 129, 0.4)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '10px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#10B981', fontWeight: 700, fontSize: '14px' }}>
+                      <CheckCircle2 size={18} />
+                      <span>🎉 បានបង្កើត Key សម្រាប់គម្រោង «{justCreatedKey.name}» ដោយជោគជ័យ!</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                      <div
+                        style={{
+                          flex: 1,
+                          minWidth: '240px',
+                          background: 'var(--bg-primary)',
+                          border: '1px solid var(--border)',
+                          borderRadius: '10px',
+                          padding: '10px 14px',
+                          fontFamily: 'monospace',
+                          fontSize: '14px',
+                          color: '#10B981',
+                          fontWeight: 700,
+                          wordBreak: 'break-all',
+                        }}
+                      >
+                        {justCreatedKey.key}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyKey(justCreatedKey.key, 'just-created')}
+                        className="btn btn-primary"
+                        style={{
+                          background: 'linear-gradient(135deg, #10B981, #059669)',
+                          padding: '10px 18px',
+                          borderRadius: '10px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          fontWeight: 700,
+                        }}
+                      >
+                        {copiedKeyId === 'just-created' ? <Check size={16} /> : <Copy size={16} />}
+                        <span>{copiedKeyId === 'just-created' ? 'បានចម្លង!' : 'Copy Key'}</span>
+                      </button>
+                    </div>
+                    <p style={{ margin: 0, fontSize: '11.5px', color: 'var(--text-muted)' }}>
+                      💡 សូម Copy រក្សាទុក! លោកអ្នកអាចយក Key នេះទៅបិទភ្ជាប់ (Paste) ក្នុងគម្រោងខាងក្រៅបានភ្លាមៗ។
+                    </p>
+                  </div>
+                )}
+
+                {/* Create New Key Form */}
+                <form
+                  onSubmit={handleCreateProjectKey}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr)) auto',
+                    gap: '12px',
+                    alignItems: 'flex-end',
+                    padding: '16px 20px',
+                    borderRadius: '16px',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border)',
+                  }}
+                >
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label" style={{ fontSize: '12px', fontWeight: 700 }}>
+                      ឈ្មោះគម្រោង / Project Name *
+                    </label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="ឧ. Mobile App AI, Telegram Bot, POS..."
+                      value={newProjName}
+                      onChange={(e) => setNewProjName(e.target.value)}
+                      required
+                      style={{ height: '40px', borderRadius: '10px' }}
+                    />
+                  </div>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label" style={{ fontSize: '12px', fontWeight: 700 }}>
+                      កូតាប្រចាំថ្ងៃ (Requests / ថ្ងៃ)
+                    </label>
+                    <input
+                      type="number"
+                      className="form-input"
+                      min={100}
+                      step={100}
+                      value={newProjLimit}
+                      onChange={(e) => setNewProjLimit(parseInt(e.target.value) || 5000)}
+                      style={{ height: '40px', borderRadius: '10px' }}
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={creatingProjKey}
+                    className="btn btn-primary"
+                    style={{
+                      height: '40px',
+                      padding: '0 20px',
+                      borderRadius: '10px',
+                      background: 'linear-gradient(135deg, #10B981, #059669)',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      fontWeight: 700,
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {creatingProjKey ? <RotateCw size={16} className="animate-spin" /> : <Plus size={16} />}
+                    <span>{creatingProjKey ? 'កំពុងបង្កើត...' : '+ បង្កើត Key ថ្មី'}</span>
+                  </button>
+                </form>
+
+                {/* Existing Project Keys Table */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <h4 style={{ margin: 0, fontSize: '14.5px', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Layers size={16} color="#10B981" />
+                      <span>បញ្ជី Project API Keys ទាំងអស់ ({projectKeys.length})</span>
+                    </h4>
+                    <button
+                      type="button"
+                      onClick={fetchProjectKeys}
+                      className="btn btn-secondary btn-sm"
+                      style={{ padding: '4px 10px', borderRadius: '8px', fontSize: '11.5px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                    >
+                      <RefreshCcw size={12} className={loadingProjectKeys ? 'animate-spin' : ''} />
+                      <span>Refresh</span>
+                    </button>
+                  </div>
+
+                  <div style={{ border: '1px solid var(--border)', borderRadius: '14px', overflow: 'hidden' }}>
+                    <table className="hrm-table" style={{ margin: 0, fontSize: '12.5px' }}>
+                      <thead>
+                        <tr>
+                          <th style={{ width: '45px', textAlign: 'center' }}>ល.រ</th>
+                          <th>ឈ្មោះគម្រោង (Project Name)</th>
+                          <th>Project API Key</th>
+                          <th style={{ textAlign: 'center' }}>Requests ថ្ងៃនេះ</th>
+                          <th style={{ textAlign: 'center' }}>Requests សរុប</th>
+                          <th style={{ textAlign: 'center' }}>ប្រើចុងក្រោយ</th>
+                          <th style={{ textAlign: 'center' }}>ស្ថានភាព</th>
+                          <th style={{ textAlign: 'center', width: '100px' }}>សកម្មភាព</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {projectKeys.length === 0 ? (
+                          <tr>
+                            <td colSpan={8} style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>
+                              {loadingProjectKeys ? 'កំពុងទាញយកទិន្នន័យ Keys...' : 'មិនទាន់មាន Project API Key ណាត្រូវបានបង្កើតនៅឡើយទេ សូមបង្កើត Key មួយខាងលើ!'}
+                            </td>
+                          </tr>
+                        ) : (
+                          projectKeys.map((pk, idx) => {
+                            const isRevealed = !!revealedKeyIds[pk.id];
+                            const isCopied = copiedKeyId === pk.id;
+                            const pctUsed = Math.min(100, Math.round((pk.requests_used_today / (pk.daily_limit || 5000)) * 100));
+                            return (
+                              <tr key={pk.id}>
+                                <td style={{ textAlign: 'center', fontWeight: 700, color: 'var(--text-muted)' }}>#{idx + 1}</td>
+                                <td>
+                                  <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{pk.key_name}</span>
+                                </td>
+                                <td>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <code
+                                      style={{
+                                        background: 'var(--bg-secondary)',
+                                        padding: '4px 8px',
+                                        borderRadius: '6px',
+                                        fontSize: '12px',
+                                        color: pk.is_active ? '#10B981' : 'var(--text-muted)',
+                                        fontFamily: 'monospace',
+                                      }}
+                                    >
+                                      {isRevealed ? pk.project_key : pk.masked_key}
+                                    </code>
+                                    <button
+                                      type="button"
+                                      onClick={() => setRevealedKeyIds((prev) => ({ ...prev, [pk.id]: !prev[pk.id] }))}
+                                      style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '2px' }}
+                                      title={isRevealed ? 'លាក់ Key' : 'បង្ហាញ Key ពេញ'}
+                                    >
+                                      {isRevealed ? <EyeOff size={14} /> : <Eye size={14} />}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleCopyKey(pk.project_key, pk.id)}
+                                      style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: isCopied ? '#10B981' : 'var(--text-muted)', padding: '2px' }}
+                                      title="Copy Key"
+                                    >
+                                      {isCopied ? <Check size={14} /> : <Copy size={14} />}
+                                    </button>
+                                  </div>
+                                </td>
+                                <td style={{ textAlign: 'center' }}>
+                                  <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: '3px', minWidth: '100px' }}>
+                                    <span style={{ fontSize: '11.5px', fontWeight: 700 }}>
+                                      {pk.requests_used_today.toLocaleString()} / {(pk.daily_limit || 5000).toLocaleString()}
+                                    </span>
+                                    <div style={{ width: '100%', height: '4px', background: 'var(--border)', borderRadius: '2px', overflow: 'hidden' }}>
+                                      <div
+                                        style={{
+                                          width: `${pctUsed}%`,
+                                          height: '100%',
+                                          background: pctUsed > 80 ? '#EF4444' : pctUsed > 50 ? '#F59E0B' : '#10B981',
+                                          borderRadius: '2px',
+                                        }}
+                                      />
+                                    </div>
+                                  </div>
+                                </td>
+                                <td style={{ textAlign: 'center', fontWeight: 600 }}>{pk.total_requests.toLocaleString()}</td>
+                                <td style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '11.5px' }}>
+                                  {pk.last_used_at ? pk.last_used_at.split(' ')[1] || pk.last_used_at : '—'}
+                                </td>
+                                <td style={{ textAlign: 'center' }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleProjectKey(pk.id)}
+                                    className={`badge ${pk.is_active ? 'badge-success' : 'badge-danger'}`}
+                                    style={{ cursor: 'pointer', border: 'none', padding: '4px 10px' }}
+                                  >
+                                    {pk.is_active ? 'សកម្ម (Active)' : 'បិទ (Inactive)'}
+                                  </button>
+                                </td>
+                                <td style={{ textAlign: 'center' }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteProjectKey(pk.id, pk.key_name)}
+                                    className="btn btn-danger btn-sm"
+                                    style={{ padding: '5px 8px', borderRadius: '8px' }}
+                                    title="លុប Key"
+                                  >
+                                    <Trash2 size={13} />
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Developer Integration Code Snippets Guide */}
+                <div
+                  style={{
+                    padding: '18px 20px',
+                    borderRadius: '16px',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '14px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, fontSize: '14px', color: 'var(--text-primary)' }}>
+                      <Code2 size={18} color="#10B981" />
+                      <span>មគ្គុទ្ទេសក៍កូដគំរូសម្រាប់បិទភ្ជាប់ក្នុង Project ផ្សេងៗ (Integration Code Snippets)</span>
+                    </div>
+
+                    {/* Method Selector */}
+                    <div style={{ display: 'inline-flex', background: 'var(--bg-primary)', padding: '3px', borderRadius: '10px', border: '1px solid var(--border)' }}>
+                      <button
+                        type="button"
+                        onClick={() => setActiveSnippetType('get_key')}
+                        style={{
+                          padding: '5px 12px',
+                          borderRadius: '8px',
+                          border: 'none',
+                          cursor: 'pointer',
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          background: activeSnippetType === 'get_key' ? '#10B981' : 'transparent',
+                          color: activeSnippetType === 'get_key' ? '#fff' : 'var(--text-muted)',
+                        }}
+                      >
+                        វិធីទី ១៖ ហៅយក Gemini Key ផ្ទាល់
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveSnippetType('ai_proxy')}
+                        style={{
+                          padding: '5px 12px',
+                          borderRadius: '8px',
+                          border: 'none',
+                          cursor: 'pointer',
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          background: activeSnippetType === 'ai_proxy' ? '#10B981' : 'transparent',
+                          color: activeSnippetType === 'ai_proxy' ? '#fff' : 'var(--text-muted)',
+                        }}
+                      >
+                        វិធីទី ២៖ AI Gateway Proxy (ឆ្លើយតបផ្ទាល់)
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Language Selector */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    {(['curl', 'javascript', 'python', 'dart'] as const).map((lang) => (
+                      <button
+                        key={lang}
+                        type="button"
+                        onClick={() => setActiveCodeTab(lang)}
+                        style={{
+                          padding: '4px 12px',
+                          borderRadius: '8px',
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          border: activeCodeTab === lang ? '1px solid #10B981' : '1px solid var(--border)',
+                          background: activeCodeTab === lang ? 'rgba(16, 185, 129, 0.15)' : 'var(--bg-primary)',
+                          color: activeCodeTab === lang ? '#10B981' : 'var(--text-muted)',
+                        }}
+                      >
+                        {lang === 'curl' ? 'cURL' : lang === 'javascript' ? 'JavaScript / Node.js' : lang === 'python' ? 'Python' : 'Flutter / Dart'}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Code Snippet Box */}
+                  {(() => {
+                    const sampleKey = justCreatedKey?.key || projectKeys[0]?.project_key || 'vvc_ai_live_YOUR_PROJECT_KEY';
+                    const baseUrl = window.location.origin.includes('localhost') ? 'https://app.vvc.asia' : window.location.origin;
+
+                    let snippet = '';
+                    if (activeSnippetType === 'get_key') {
+                      if (activeCodeTab === 'curl') {
+                        snippet = `curl -X GET "${baseUrl}/flutter/api.php?action=get_gemini_pool_key" \\
+  -H "Authorization: Bearer ${sampleKey}"`;
+                      } else if (activeCodeTab === 'javascript') {
+                        snippet = `// ហៅទាញយក Gemini Key សកម្មចេញពី Pool
+const res = await fetch("${baseUrl}/flutter/api.php?action=get_gemini_pool_key", {
+  headers: {
+    "Authorization": "Bearer ${sampleKey}"
+  }
+});
+const data = await res.json();
+console.log("Active Gemini Key:", data.api_key);
+console.log("Remaining RPD:", data.remaining_rpd);
+
+// យក data.api_key ទៅប្រើជាមួយ @google/genai ឬ Google AI SDK បានភ្លាមៗ`;
+                      } else if (activeCodeTab === 'python') {
+                        snippet = `import requests
+
+# ហៅទាញយក Gemini Key សកម្មចេញពី Pool
+res = requests.get(
+    "${baseUrl}/flutter/api.php?action=get_gemini_pool_key",
+    headers={"Authorization": "Bearer ${sampleKey}"}
+).json()
+
+active_gemini_key = res.get("api_key")
+print("Active Gemini Key:", active_gemini_key)
+
+# ប្រើប្រាស់ជាមួយ Google Generative AI SDK:
+# import google.generativeai as genai
+# genai.configure(api_key=active_gemini_key)
+# model = genai.GenerativeModel("gemini-2.5-flash")
+# reply = model.generate_content("សួស្តី!")
+# print(reply.text)`;
+                      } else {
+                        snippet = `import 'dart:convert';
+import 'package:http/http.dart' as http;
+
+Future<String?> getActiveGeminiKey() async {
+  final res = await http.get(
+    Uri.parse('${baseUrl}/flutter/api.php?action=get_gemini_pool_key'),
+    headers: {'Authorization': 'Bearer ${sampleKey}'},
+  );
+  if (res.statusCode == 200) {
+    final data = jsonDecode(res.body);
+    return data['api_key']; // Live Google Gemini Key
+  }
+  return null;
+}`;
+                      }
+                    } else {
+                      // ai_proxy
+                      if (activeCodeTab === 'curl') {
+                        snippet = `curl -X POST "${baseUrl}/flutter/api.php?action=ai_proxy" \\
+  -H "Authorization: Bearer ${sampleKey}" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "prompt": "សួស្តី! តើអ្នកអាចជួយអ្វីខ្ញុំបានខ្លះ?",
+    "model": "gemini-2.5-flash"
+  }'`;
+                      } else if (activeCodeTab === 'javascript') {
+                        snippet = `// ហៅដំណើរការ AI ឆ្លើយតបផ្ទាល់ (មិនចាំបាច់មាន Google SDK ឡើយ)
+const res = await fetch("${baseUrl}/flutter/api.php?action=ai_proxy", {
+  method: "POST",
+  headers: {
+    "Authorization": "Bearer ${sampleKey}",
+    "Content-Type": "application/json"
+  },
+  body: JSON.stringify({
+    prompt: "សួស្តី! សូមជួយពន្យល់ពីអត្ថប្រយោជន៍របស់ AI",
+    model: "gemini-2.5-flash"
+  })
+});
+const result = await res.json();
+console.log("AI Response:", result.reply);`;
+                      } else if (activeCodeTab === 'python') {
+                        snippet = `import requests
+
+# ហៅដំណើរការ AI ឆ្លើយតបផ្ទាល់តាម AI Proxy
+res = requests.post(
+    "${baseUrl}/flutter/api.php?action=ai_proxy",
+    headers={
+        "Authorization": "Bearer ${sampleKey}",
+        "Content-Type": "application/json"
+    },
+    json={
+        "prompt": "សួស្តី! សូមជួយពន្យល់ពីអត្ថប្រយោជន៍របស់ AI",
+        "model": "gemini-2.5-flash"
+    }
+).json()
+
+print("AI Response:", res.get("reply"))`;
+                      } else {
+                        snippet = `import 'dart:convert';
+import 'package:http/http.dart' as http;
+
+Future<String?> askAI(String prompt) async {
+  final res = await http.post(
+    Uri.parse('${baseUrl}/flutter/api.php?action=ai_proxy'),
+    headers: {
+      'Authorization': 'Bearer ${sampleKey}',
+      'Content-Type': 'application/json',
+    },
+    body: jsonEncode({
+      'prompt': prompt,
+      'model': 'gemini-2.5-flash',
+    }),
+  );
+  if (res.statusCode == 200) {
+    final data = jsonDecode(res.body);
+    return data['reply'];
+  }
+  return null;
+}`;
+                      }
+                    }
+
+                    return (
+                      <div style={{ position: 'relative' }}>
+                        <pre
+                          style={{
+                            margin: 0,
+                            padding: '16px',
+                            borderRadius: '12px',
+                            background: '#0F172A',
+                            color: '#38BDF8',
+                            fontSize: '12.5px',
+                            fontFamily: 'monospace',
+                            overflowX: 'auto',
+                            lineHeight: 1.5,
+                            border: '1px solid rgba(56, 189, 248, 0.2)',
+                          }}
+                        >
+                          {snippet}
+                        </pre>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyKey(snippet, 'code-snippet')}
+                          className="btn btn-sm"
+                          style={{
+                            position: 'absolute',
+                            top: '10px',
+                            right: '10px',
+                            background: copiedKeyId === 'code-snippet' ? '#10B981' : 'rgba(255,255,255,0.1)',
+                            color: '#fff',
+                            borderRadius: '8px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '4px 10px',
+                            border: 'none',
+                          }}
+                        >
+                          {copiedKeyId === 'code-snippet' ? <Check size={12} /> : <Copy size={12} />}
+                          <span>{copiedKeyId === 'code-snippet' ? 'បានចម្លង!' : 'Copy Code'}</span>
+                        </button>
+                      </div>
+                    );
+                  })()}
+                </div>
               </div>
             </div>
           )}

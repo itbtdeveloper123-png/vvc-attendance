@@ -61,6 +61,21 @@ export interface DashboardStats {
 
 export type DashboardSummary = DashboardStats;
 
+export interface ProjectApiKeyItem {
+  id: number;
+  key_name: string;
+  project_key: string;
+  masked_key: string;
+  allowed_services: string;
+  rate_limit_per_min: number;
+  daily_limit: number;
+  requests_used_today: number;
+  total_requests: number;
+  last_used_at?: string | null;
+  is_active: boolean;
+  created_at?: string;
+}
+
 export interface AttendanceRecord {
   id: number | string;
   employee_id: string;
@@ -518,6 +533,38 @@ export const adminApi = {
     const params = new URLSearchParams();
     params.append('action', 'sync_all_api_keys');
     params.append('service_name', serviceName);
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  getProjectApiKeys: async () => {
+    const params = new URLSearchParams();
+    params.append('action', 'get_project_api_keys');
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  createProjectApiKey: async (keyName: string, dailyLimit: number = 5000) => {
+    const params = new URLSearchParams();
+    params.append('action', 'create_project_api_key');
+    params.append('key_name', keyName);
+    params.append('daily_limit', String(dailyLimit));
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  toggleProjectApiKey: async (id: number) => {
+    const params = new URLSearchParams();
+    params.append('action', 'toggle_project_api_key');
+    params.append('id', String(id));
+    const res = await apiClient.post('', params);
+    return res.data;
+  },
+
+  deleteProjectApiKey: async (id: number) => {
+    const params = new URLSearchParams();
+    params.append('action', 'delete_project_api_key');
+    params.append('id', String(id));
     const res = await apiClient.post('', params);
     return res.data;
   },
