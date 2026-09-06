@@ -469,6 +469,26 @@ class ApiService {
     );
   }
 
+  /// AI Product Chatbot Follow-up Q&A
+  Future<Map<String, dynamic>> productChat({
+    required String question,
+    String productContext = '',
+    List<Map<String, String>> history = const [],
+  }) async {
+    final headers = await _authHeaders();
+    final body = <String, String>{
+      'question': question,
+      'product_context': productContext,
+      'history': jsonEncode(history),
+    };
+    return _processRequest(
+      'product_chat',
+      headers: headers,
+      body: body,
+      timeout: const Duration(seconds: 45),
+    );
+  }
+
   /// Upload community post media (Image, PDF, etc.)
   Future<Map<String, dynamic>> uploadCommunityMedia(
     File file, {

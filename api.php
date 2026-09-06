@@ -7993,6 +7993,130 @@ try {
         ]);
         break;
 
+    // ─── AI Product Chatbot Follow-up Q&A ─────────────────────────────────────
+    case 'product_chat':
+        if (!$user) apiResponse(['success' => false, 'message' => 'Unauthorized']);
+
+        $question = trim((string)($_POST['question'] ?? ''));
+        if ($question === '') {
+            apiResponse(['success' => false, 'message' => 'សូមបញ្ចូលសំណួរ']);
+        }
+        $productContext = trim((string)($_POST['product_context'] ?? ''));
+        $historyJson = trim((string)($_POST['history'] ?? ''));
+        $history = json_decode($historyJson, true) ?: [];
+
+        // Build Gemini conversation parts
+        $systemInstructions = "អ្នកជា AI Chatbot Assistant ឆ្លាតវៃ និងមានជំនាញវិជ្ជាជីវៈខ្ពស់ សម្រាប់ផ្តល់ប្រឹក្សា និងវិភាគផលិតផលទូទៅ គ្រឿងសំអាង ចំណីអាហារ និងឱសថ ជូនប្រជាជនកម្ពុជា។\n"
+            . "ព័ត៌មានលម្អិតនៃផលិតផលដែលកំពុងសន្ទនា:\n"
+            . ($productContext !== '' ? $productContext : "ផលិតផលទូទៅ") . "\n\n"
+            . "គោលការណ៍ឆ្លើយតប:\n"
+            . "១. ឆ្លើយជាភាសាខ្មែរដែលរៀបរយ គួរសម ច្បាស់លាស់ និងមានប្រយោជន៍ជាក់ស្តែង។\n"
+            . "២. ឆ្លើយផ្អែកលើព័ត៌មានផលិតផលខាងលើ និងចំណេះដឹងវិទ្យាសាស្ត្រពិតប្រាកដ។ បើសំណួរសួរអំពីរឿងដែលមិនមានក្នុងទិន្នន័យផលិតផល សូមឆ្លើយតាមការស្រាវជ្រាវទូទៅ និងបញ្ជាក់ឱ្យអ្នកប្រើប្រាស់ពិនិត្យកញ្ចប់វេចខ្ចប់បន្ថែម។\n"
+            . "៣. ប្រសិនបើសួរអំពីសុវត្ថិភាព ផលប៉ះពាល់ ក្មេង ឬស្ត្រីមានផ្ទៃពោះ សូមផ្តល់ដំបូន្មានប្រុងប្រយ័ត្នខ្ពស់ និងណែនាំពិគ្រោះជាមួយវេជ្ជបណ្ឌិតបើសិនចាំបាច់។";
+
+        $contents = [];
+        $contents[] = [
+            'role' => 'user',
+            'parts' => [['text' => "សេចក្តីណែនាំប្រព័ន្ធ:\n" . $systemInstructions]]
+        ];
+        $contents[] = [
+            'role' => 'model',
+            'parts' => [['text' => "ខ្ញុំបានយល់ច្បាស់ហើយ! ខ្ញុំត្រៀមខ្លួនឆ្លើយរាល់សំណួរ និងផ្តល់ប្រឹក្សាលម្អិតអំពីផលិតផលនេះជាភាសាខ្មែរជូនលោកអ្នក។"]]
+        ];
+
+        // Append recent history if any
+        if (is_array($history)) {
+            $slice = array_slice($history, -8);
+            foreach ($slice as $h) {
+                $role = ($h['role'] ?? 'user') === 'assistant' ? 'model' : 'user';
+                $txt = trim((string)($h['content'] ?? $h['text'] ?? ''));
+                if ($txt !== '') {
+                    $contents[] = [
+                        'role' => $role,
+                        'parts' => [['text' => $txt]]
+                    ];
+                }
+            }
+        }
+
+        // Current question
+        $contents[] = [
+            'role' => 'user',
+            'parts' => [['text' => $question]]
+        ];
+
+        // Fetch Gemini Keys from Pool
+        $geminiKeys = [];
+        if (function_exists('get_all_active_gemini_keys')) {
+            $geminiKeys = get_all_active_gemini_keys($mysqli);
+        }
+        if (empty($geminiKeys)) {
+            $singleKey = trim((string)(function_exists('get_active_gemini_key') ? get_active_gemini_key($mysqli) : (defined('GEMINI_API_KEY') ? GEMINI_API_KEY : (getenv('GEMINI_API_KEY') ?: ''))));
+            if ($singleKey !== '') $geminiKeys[] = $singleKey;
+        }
+
+        if (empty($geminiKeys)) {
+            apiResponse(['success' => false, 'message' => 'គ្មាន Gemini API Key ក្នុងប្រព័ន្ធឡើយ']);
+        }
+
+        $models = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+        $replyText = '';
+        $lastErr = '';
+
+        $payload = [
+            'contents' => $contents,
+            'generationConfig' => [
+                'temperature' => 0.7,
+                'maxOutputTokens' => 2048,
+            ]
+        ];
+        $jsonPayload = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+        foreach ($geminiKeys as $gKey) {
+            foreach ($models as $mName) {
+                $url = "https://generativelanguage.googleapis.com/v1beta/models/{$mName}:generateContent?key=" . urlencode($gKey);
+                $ch = curl_init($url);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_POST, true);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonPayload);
+                curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json; charset=utf-8']);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+                $resp = curl_exec($ch);
+                $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                curl_close($ch);
+
+                if ($code === 200 && $resp) {
+                    $dec = json_decode($resp, true);
+                    $reply = $dec['candidates'][0]['content']['parts'][0]['text'] ?? '';
+                    if (!empty($reply)) {
+                        $replyText = trim($reply);
+                        if (function_exists('record_gemini_key_usage')) {
+                            record_gemini_key_usage($gKey, $mysqli);
+                        }
+                        break 2;
+                    }
+                } else {
+                    $lastErr = "HTTP {$code}: " . substr((string)$resp, 0, 150);
+                    if ($code === 429 || $code === 403) {
+                        break; // Try next key
+                    }
+                }
+            }
+        }
+
+        if ($replyText === '') {
+            apiResponse(['success' => false, 'message' => 'AI មិនអាចឆ្លើយបាននៅពេលនេះ: ' . $lastErr]);
+        }
+
+        apiResponse([
+            'success' => true,
+            'reply' => $replyText,
+        ]);
+        break;
+
+
     // ─── Upload Community Media (Images, PDFs & Files) ───────────────────────
     case 'upload_community_media':
     case 'upload_media':
