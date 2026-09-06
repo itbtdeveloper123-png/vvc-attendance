@@ -171,7 +171,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setToken(null);
     setAdmin(null);
     setDevToolsUnlocked(false);
-    window.location.href = '/login';
+    window.location.hash = '#/login';
   };
 
   return (
