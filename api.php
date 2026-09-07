@@ -3533,6 +3533,18 @@ try {
         ]);
         break;
 
+    case 'report_gemini_key_failure':
+    case 'report_failed_key':
+        $badKey = trim((string)($_POST['api_key'] ?? $_REQUEST['api_key'] ?? ''));
+        $statusReason = trim((string)($_POST['status'] ?? $_REQUEST['status'] ?? 'leaked'));
+        if ($badKey !== '') {
+            if (function_exists('mark_gemini_key_failed')) {
+                mark_gemini_key_failed($badKey, $statusReason, '', $mysqli);
+            }
+        }
+        apiResponse(['success' => true, 'message' => 'បានផ្អាកដំណើរការ Key ដែលមានបញ្ហាដោយស្វ័យប្រវត្តិ']);
+        break;
+
     case 'ai_proxy':
     case 'chat_proxy':
         // Authenticate project key
@@ -3689,7 +3701,18 @@ try {
                 ]);
             } else {
                 $lastErr = "HTTP {$httpCode}: " . substr((string)$resp, 0, 200);
-                if ($httpCode === 429 || $httpCode === 403) {
+                if ($httpCode === 403 || $httpCode === 400) {
+                    $isLeaked = (stripos((string)$resp, 'leaked') !== false);
+                    $statusReason = $isLeaked ? 'leaked' : ($httpCode === 403 ? 'denied' : 'invalid');
+                    if (function_exists('mark_gemini_key_failed')) {
+                        mark_gemini_key_failed($gKey, $statusReason, (string)$resp, $mysqli);
+                    }
+                    continue;
+                }
+                if ($httpCode === 429) {
+                    if (function_exists('mark_gemini_key_failed')) {
+                        mark_gemini_key_failed($gKey, 'rate_limit', '429 Rate Limit', $mysqli);
+                    }
                     continue;
                 }
             }
@@ -4352,6 +4375,13 @@ try {
 
                             if (!$upRes || $upCode !== 200) {
                                 $lastError = "Gemini Upload Failed (HTTP $upCode)";
+                                if ($upCode === 403 || $upCode === 400) {
+                                    $isLeaked = (stripos((string)$upRes, 'leaked') !== false);
+                                    $statusReason = $isLeaked ? 'leaked' : ($upCode === 403 ? 'denied' : 'invalid');
+                                    if (function_exists('mark_gemini_key_failed')) {
+                                        mark_gemini_key_failed($currentGeminiKey, $statusReason, (string)$upRes, $mysqli);
+                                    }
+                                }
                                 continue;
                             }
 
@@ -4469,7 +4499,16 @@ try {
                                     }
                                 } else {
                                     $errDec = json_decode((string)$audioRaw, true);
-                                    $lastError = "Gemini Audio $gaModel: " . ($errDec['error']['message'] ?? "HTTP $httpCode");
+                                    $errMsg = $errDec['error']['message'] ?? "HTTP $httpCode";
+                                    $lastError = "Gemini Audio $gaModel: " . $errMsg;
+                                    if ($httpCode === 403 || $httpCode === 400) {
+                                        $isLeaked = (stripos((string)$audioRaw, 'leaked') !== false);
+                                        $statusReason = $isLeaked ? 'leaked' : ($httpCode === 403 ? 'denied' : 'invalid');
+                                        if (function_exists('mark_gemini_key_failed')) {
+                                            mark_gemini_key_failed($currentGeminiKey, $statusReason, (string)$audioRaw, $mysqli);
+                                        }
+                                        break; // Move to next key in pool
+                                    }
                                 }
                             }
                         }
@@ -8106,8 +8145,20 @@ try {
                     }
                 } else {
                     $lastErr = "HTTP {$code}: " . substr((string)$resp, 0, 150);
-                    if ($code === 429 || $code === 403) {
-                        break; // Try next key
+                    // Auto-Failover & Auto-Deactivate: if leaked, blocked, or invalid key
+                    if ($code === 403 || $code === 400) {
+                        $isLeaked = (stripos((string)$resp, 'leaked') !== false);
+                        $statusReason = $isLeaked ? 'leaked' : ($code === 403 ? 'denied' : 'invalid');
+                        if (function_exists('mark_gemini_key_failed')) {
+                            mark_gemini_key_failed($gKey, $statusReason, (string)$resp, $mysqli);
+                        }
+                        break; // Move to next key in pool immediately!
+                    }
+                    if ($code === 429) {
+                        if (function_exists('mark_gemini_key_failed')) {
+                            mark_gemini_key_failed($gKey, 'rate_limit', '429 Rate Limit', $mysqli);
+                        }
+                        break; // Move to next key in pool
                     }
                 }
             }
@@ -10835,8 +10886,20 @@ function ai_call_free_vision_service($systemPrompt, $userPrompt, $imageBase64 = 
                     if ($httpCode === 404) {
                         continue;
                     }
-                    // If 403 (forbidden/denied/leaked) or 429 (rate limit), break model loop to try NEXT key from pool!
-                    if ($httpCode === 403 || $httpCode === 429) {
+                    // If 403 (forbidden/denied/leaked) or 400 (invalid key), auto-deactivate this key and try NEXT key from pool!
+                    if ($httpCode === 403 || $httpCode === 400) {
+                        $isLeaked = (stripos((string)$resp, 'leaked') !== false);
+                        $statusReason = $isLeaked ? 'leaked' : ($httpCode === 403 ? 'denied' : 'invalid');
+                        if (function_exists('mark_gemini_key_failed')) {
+                            mark_gemini_key_failed($geminiKey, $statusReason, (string)$resp, $mysqli);
+                        }
+                        break;
+                    }
+                    // If 429 (rate limit), break model loop to try NEXT key from pool!
+                    if ($httpCode === 429) {
+                        if (function_exists('mark_gemini_key_failed')) {
+                            mark_gemini_key_failed($geminiKey, 'rate_limit', '429 Rate Limit', $mysqli);
+                        }
                         break;
                     }
                 }

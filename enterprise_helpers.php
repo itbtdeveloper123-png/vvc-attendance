@@ -149,6 +149,62 @@ if (!function_exists('record_gemini_key_usage')) {
     }
 }
 
+if (!function_exists('mark_gemini_key_failed')) {
+    /**
+     * Automatically mark a Gemini API key as failed (leaked, denied, invalid)
+     * and deactivate it so the key pool immediately fails over to the next key.
+     */
+    function mark_gemini_key_failed($apiKey, string $status = 'leaked', string $reason = '', $mysqli = null)
+    {
+        $apiKey = trim((string)$apiKey);
+        if ($apiKey === '') {
+            return;
+        }
+
+        $validStatuses = ['leaked', 'denied', 'invalid', 'exhausted', 'rate_limit'];
+        $cleanStatus = in_array($status, $validStatuses, true) ? $status : 'leaked';
+        $deactivate = ($cleanStatus !== 'rate_limit'); // rate_limit can stay active for later, but leaked/denied/invalid MUST be deactivated
+
+        // 1. Support dbQuery if available (in admin_api.php context)
+        if (function_exists('dbQuery')) {
+            if ($deactivate) {
+                @dbQuery("UPDATE admin_api_keys 
+                    SET is_active = 0,
+                        last_status = ?,
+                        last_checked_at = NOW()
+                    WHERE api_key = ? AND service_name = 'gemini'", [$cleanStatus, $apiKey]);
+            } else {
+                @dbQuery("UPDATE admin_api_keys 
+                    SET last_status = ?,
+                        last_checked_at = NOW()
+                    WHERE api_key = ? AND service_name = 'gemini'", [$cleanStatus, $apiKey]);
+            }
+            return;
+        }
+
+        // 2. Support $mysqli if available (in api.php context)
+        if ($mysqli === null) {
+            global $mysqli;
+        }
+        if ($mysqli instanceof mysqli) {
+            $escKey = $mysqli->real_escape_string($apiKey);
+            $escStatus = $mysqli->real_escape_string($cleanStatus);
+            if ($deactivate) {
+                @$mysqli->query("UPDATE admin_api_keys 
+                    SET is_active = 0,
+                        last_status = '{$escStatus}',
+                        last_checked_at = NOW()
+                    WHERE api_key = '{$escKey}' AND service_name = 'gemini'");
+            } else {
+                @$mysqli->query("UPDATE admin_api_keys 
+                    SET last_status = '{$escStatus}',
+                        last_checked_at = NOW()
+                    WHERE api_key = '{$escKey}' AND service_name = 'gemini'");
+            }
+        }
+    }
+}
+
 if (!function_exists('app_system_roles')) {
     function app_system_roles()
     {

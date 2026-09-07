@@ -65,7 +65,7 @@ const formatSessionDate = (dateStr?: string) => {
 interface GeminiTestResult {
   success: boolean;
   httpCode: number;
-  status: 'active' | 'denied' | 'rate_limit' | 'invalid' | 'error';
+  status: 'active' | 'denied' | 'leaked' | 'rate_limit' | 'invalid' | 'error';
   latencyMs: number;
   message: string;
   detail?: string;
@@ -84,58 +84,11 @@ const testGeminiKeyRealtime = async (apiKey: string): Promise<GeminiTestResult> 
     };
   }
 
-  // 1. Fast, non-quota-consuming metadata check via GET /v1beta/models
-  try {
-    const listUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(trimmed)}`;
-    const listRes = await fetch(listUrl, { method: 'GET' });
-    const listData = await listRes.json().catch(() => ({}));
-    const latency = Math.round(performance.now() - start);
-
-    if (listRes.ok && Array.isArray(listData?.models)) {
-      return {
-        success: true,
-        httpCode: 200,
-        status: 'active',
-        latencyMs: latency,
-        message: `ដំណើរការល្អឥតខ្ចោះ (${listData.models.length} Models)! ឆ្លើយតបក្នុង ${latency}ms`,
-        detail: 'Key is verified and authorized by Google AI Studio.',
-      };
-    }
-
-    if (listRes.status === 403) {
-      const errMsg = listData?.error?.message || 'Access Denied';
-      let customMsg = 'Google បានបិទសិទ្ធិគម្រោងនេះ (Project Denied Access)';
-      if (errMsg.toLowerCase().includes('leaked')) {
-        customMsg = 'Key ត្រូវបាន Google ចាត់ទុកជា Leaked Key';
-      }
-      return {
-        success: false,
-        httpCode: 403,
-        status: 'denied',
-        latencyMs: latency,
-        message: `${customMsg} (HTTP 403)`,
-        detail: errMsg,
-      };
-    }
-
-    if (listRes.status === 400) {
-      return {
-        success: false,
-        httpCode: 400,
-        status: 'invalid',
-        latencyMs: latency,
-        message: 'API Key មិនត្រឹមត្រូវ ឬទម្រង់ខុស (HTTP 400)',
-        detail: listData?.error?.message || 'Invalid argument',
-      };
-    }
-  } catch (_) {
-    // Network or CORS fallback to generation ping
-  }
-
-  const modelsToTry = ['gemini-3.6-flash', 'gemini-flash-latest'];
+  const modelsToTry = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
   let lastErrorData: any = null;
   let lastHttpCode = 0;
 
+  // 1. Direct generation ping to test true AI response capability & catch leaked keys
   for (const model of modelsToTry) {
     try {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(trimmed)}`;
@@ -144,6 +97,7 @@ const testGeminiKeyRealtime = async (apiKey: string): Promise<GeminiTestResult> 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ parts: [{ text: 'Ping test. Reply with OK.' }] }],
+          generationConfig: { maxOutputTokens: 5 }
         }),
       });
 
@@ -174,14 +128,12 @@ const testGeminiKeyRealtime = async (apiKey: string): Promise<GeminiTestResult> 
 
       if (res.status === 403) {
         const errMsg = data?.error?.message || 'Access Denied';
-        let customMsg = 'Google បានបិទសិទ្ធិគម្រោងនេះ (Project Denied Access)';
-        if (errMsg.toLowerCase().includes('leaked')) {
-          customMsg = 'Key ត្រូវបាន Google ចាត់ទុកជា Leaked Key';
-        }
+        const isLeaked = errMsg.toLowerCase().includes('leaked');
+        const customMsg = isLeaked ? 'Key ត្រូវបាន Google ចាត់ទុកជា Leaked Key' : 'Google បានបិទសិទ្ធិគម្រោងនេះ (Project Denied Access)';
         return {
           success: false,
           httpCode: 403,
-          status: 'denied',
+          status: isLeaked ? 'leaked' : 'denied',
           latencyMs: Math.round(performance.now() - start),
           message: `${customMsg} (HTTP 403)`,
           detail: errMsg,
@@ -209,15 +161,44 @@ const testGeminiKeyRealtime = async (apiKey: string): Promise<GeminiTestResult> 
           detail: data?.error?.message || 'Invalid argument',
         };
       }
-    } catch (err: any) {
+    } catch (_) {
+      // Continue to next model if fetch fails
+    }
+  }
+
+  // 2. Fast metadata fallback check via GET /v1beta/models
+  try {
+    const listUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(trimmed)}`;
+    const listRes = await fetch(listUrl, { method: 'GET' });
+    const listData = await listRes.json().catch(() => ({}));
+    const latency = Math.round(performance.now() - start);
+
+    if (listRes.ok && Array.isArray(listData?.models)) {
       return {
-        success: false,
-        httpCode: 0,
-        status: 'error',
-        latencyMs: Math.round(performance.now() - start),
-        message: 'កំហុសបណ្តាញពេលភ្ជាប់ទៅ Google: ' + err.message,
+        success: true,
+        httpCode: 200,
+        status: 'active',
+        latencyMs: latency,
+        message: `បញ្ជី Models ដំណើរការ (${listData.models.length} Models)!`,
+        detail: 'Key is verified and authorized by Google AI Studio.',
       };
     }
+
+    if (listRes.status === 403) {
+      const errMsg = listData?.error?.message || 'Access Denied';
+      const isLeaked = errMsg.toLowerCase().includes('leaked');
+      const customMsg = isLeaked ? 'Key ត្រូវបាន Google ចាត់ទុកជា Leaked Key' : 'Google បានបិទសិទ្ធិគម្រោងនេះ (Project Denied Access)';
+      return {
+        success: false,
+        httpCode: 403,
+        status: isLeaked ? 'leaked' : 'denied',
+        latencyMs: latency,
+        message: `${customMsg} (HTTP 403)`,
+        detail: errMsg,
+      };
+    }
+  } catch (_) {
+    // Continue to error return
   }
 
   if (lastHttpCode === 404) {
@@ -768,11 +749,12 @@ export const TokensPage: React.FC = () => {
           apiKeys.map(async (k) => {
             const res = await testGeminiKeyRealtime(k.api_key);
             if (res.success) activeCount++;
-            else if (res.status === 'denied') deniedCount++;
+            else if (res.status === 'denied' || res.status === 'leaked') deniedCount++;
             else otherCount++;
 
             return {
               ...k,
+              is_active: res.success,
               last_status: res.status,
               last_checked_at: `${new Date().toISOString().replace('T', ' ').substring(0, 16)} (${res.latencyMs}ms)`,
             };
@@ -1968,7 +1950,24 @@ export const TokensPage: React.FC = () => {
                               )}
                             </td>
                             <td style={{ textAlign: 'center' }}>
-                              {k.is_active ? (
+                              {k.last_status === 'leaked' ? (
+                                <span
+                                  className="badge"
+                                  style={{
+                                    fontSize: '11px',
+                                    background: 'rgba(239, 68, 68, 0.15)',
+                                    color: '#EF4444',
+                                    border: '1px solid rgba(239, 68, 68, 0.35)',
+                                    fontWeight: 700,
+                                    padding: '4px 10px',
+                                    borderRadius: '20px',
+                                    display: 'inline-block',
+                                  }}
+                                  title="Google បានបិទ Key នេះដោយសារ Leaked (បែកធ្លាយ)"
+                                >
+                                  🚫 បែកធ្លាយ (Leaked)
+                                </span>
+                              ) : k.is_active ? (
                                 k.last_status === 'denied' || k.last_status === 'suspended' ? (
                                   <span
                                     className="badge"

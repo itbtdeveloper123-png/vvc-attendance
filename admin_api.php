@@ -743,69 +743,18 @@ function verify_gemini_key(string $apiKey): array {
         return ['success' => false, 'message' => 'សូមបញ្ចូល API Key!', 'status' => 'invalid'];
     }
 
-    // 1. Fast, non-quota-consuming metadata check via GET /v1beta/models
-    $listUrl = "https://generativelanguage.googleapis.com/v1beta/models?key=" . urlencode($apiKey);
-    $chList = curl_init($listUrl);
-    curl_setopt($chList, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($chList, CURLOPT_SSL_VERIFYPEER, false);
-    curl_setopt($chList, CURLOPT_TIMEOUT, 10);
-    $listResp = curl_exec($chList);
-    $listCode = curl_getinfo($chList, CURLINFO_HTTP_CODE);
-    $listErr = curl_error($chList);
-    curl_close($chList);
+    // 1. Test actual generateContent on active models to verify true generation ability & catch leaked keys
+    $modelsToTry = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+    $payload = json_encode([
+        'contents' => [['parts' => [['text' => 'ping']]]],
+        'generationConfig' => ['maxOutputTokens' => 2]
+    ]);
 
-    if ($listCode === 200 && !empty($listResp)) {
-        $listData = json_decode($listResp, true);
-        if (isset($listData['models']) && is_array($listData['models'])) {
-            return [
-                'success' => true,
-                'message' => "Google Gemini API Key ត្រឹមត្រូវ និងដំណើរការយ៉ាងល្អ!",
-                'free_calls' => 15,
-                'credits' => 1500,
-                'status' => 'active',
-                'http_code' => 200
-            ];
-        }
-    }
-
-    if ($listCode === 403) {
-        $errData = json_decode($listResp, true);
-        $errMsg = $errData['error']['message'] ?? ($listErr ?: "HTTP 403");
-        $msg = (stripos($errMsg, 'leaked') !== false) 
-            ? 'Key នេះត្រូវបាន Google ចាត់ទុកជា Leaked Key!' 
-            : 'Google បានបិទសិទ្ធិគម្រោងនៃ Key នេះ (403 Project Denied Access)!';
-        return [
-            'success' => false,
-            'message' => $msg . ' (' . $errMsg . ')',
-            'status' => 'denied',
-            'http_code' => 403,
-            'free_calls' => 0,
-            'credits' => 0
-        ];
-    }
-
-    if ($listCode === 400) {
-        $errData = json_decode($listResp, true);
-        $errMsg = $errData['error']['message'] ?? ($listErr ?: "HTTP 400");
-        return [
-            'success' => false,
-            'message' => 'API Key មិនត្រឹមត្រូវ (400 Invalid Key): ' . $errMsg,
-            'status' => 'invalid',
-            'http_code' => 400,
-            'free_calls' => 0,
-            'credits' => 0
-        ];
-    }
-
-    // 2. Secondary fallback: Generate content ping
-    $modelsToTry = ['gemini-3.6-flash', 'gemini-flash-latest'];
-    $lastHttpCode = $listCode;
-    $lastErrMsg = $listErr;
+    $lastHttpCode = 0;
+    $lastErrMsg = '';
 
     foreach ($modelsToTry as $model) {
         $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key=" . urlencode($apiKey);
-        $payload = json_encode(['contents' => [['parts' => [['text' => 'ping']]]]]);
-
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
@@ -839,7 +788,7 @@ function verify_gemini_key(string $apiKey): array {
             continue;
         }
 
-        $errData = json_decode($response, true);
+        $errData = json_decode((string)$response, true);
         $lastErrMsg = $errData['error']['message'] ?? ($err ?: "HTTP $httpCode");
 
         if (stripos($lastErrMsg, 'model') !== false && (stripos($lastErrMsg, 'not available') !== false || stripos($lastErrMsg, 'not supported') !== false || stripos($lastErrMsg, 'not found') !== false)) {
@@ -847,13 +796,14 @@ function verify_gemini_key(string $apiKey): array {
         }
 
         if ($httpCode === 403) {
-            $msg = (stripos($lastErrMsg, 'leaked') !== false) 
+            $isLeaked = (stripos($lastErrMsg, 'leaked') !== false);
+            $msg = $isLeaked 
                 ? 'Key នេះត្រូវបាន Google ចាត់ទុកជា Leaked Key!' 
                 : 'Google បានបិទសិទ្ធិគម្រោងនៃ Key នេះ (403 Project Denied Access)!';
             return [
                 'success' => false,
                 'message' => $msg . ' (' . $lastErrMsg . ')',
-                'status' => 'denied',
+                'status' => $isLeaked ? 'leaked' : 'denied',
                 'http_code' => 403,
                 'free_calls' => 0,
                 'credits' => 0
@@ -870,11 +820,65 @@ function verify_gemini_key(string $apiKey): array {
                 'credits' => 0
             ];
         }
+
+        if ($httpCode === 400) {
+            return [
+                'success' => false,
+                'message' => 'API Key មិនត្រឹមត្រូវ (400 Invalid Key): ' . $lastErrMsg,
+                'status' => 'invalid',
+                'http_code' => 400,
+                'free_calls' => 0,
+                'credits' => 0
+            ];
+        }
+    }
+
+    // 2. Fast metadata fallback check via GET /v1beta/models
+    $listUrl = "https://generativelanguage.googleapis.com/v1beta/models?key=" . urlencode($apiKey);
+    $chList = curl_init($listUrl);
+    curl_setopt($chList, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($chList, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($chList, CURLOPT_TIMEOUT, 10);
+    $listResp = curl_exec($chList);
+    $listCode = curl_getinfo($chList, CURLINFO_HTTP_CODE);
+    $listErr = curl_error($chList);
+    curl_close($chList);
+
+    if ($listCode === 200 && !empty($listResp)) {
+        $listData = json_decode($listResp, true);
+        if (isset($listData['models']) && is_array($listData['models'])) {
+            return [
+                'success' => true,
+                'message' => "Google Gemini API Key ត្រឹមត្រូវ និងដំណើរការយ៉ាងល្អ!",
+                'free_calls' => 15,
+                'credits' => 1500,
+                'status' => 'active',
+                'http_code' => 200
+            ];
+        }
+    }
+
+    if ($listCode === 403) {
+        $errData = json_decode((string)$listResp, true);
+        $errMsg = $errData['error']['message'] ?? ($listErr ?: "HTTP 403");
+        $isLeaked = (stripos($errMsg, 'leaked') !== false);
+        $msg = $isLeaked 
+            ? 'Key នេះត្រូវបាន Google ចាត់ទុកជា Leaked Key!' 
+            : 'Google បានបិទសិទ្ធិគម្រោងនៃ Key នេះ (403 Project Denied Access)!';
+        return [
+            'success' => false,
+            'message' => $msg . ' (' . $errMsg . ')',
+            'status' => $isLeaked ? 'leaked' : 'denied',
+            'http_code' => 403,
+            'free_calls' => 0,
+            'credits' => 0
+        ];
     }
 
     return [
         'success' => false,
-        'message' => "Gemini API Error (HTTP $lastHttpCode): " . ($lastErrMsg ?: 'Unable to verify'),
+        'message' => "Key មិនឆ្លើយតប ឬបាត់បង់ការតភ្ជាប់ (HTTP {$lastHttpCode})",
+        'status' => ($lastHttpCode === 403 ? 'denied' : ($lastHttpCode === 429 ? 'rate_limit' : 'invalid')),
         'http_code' => $lastHttpCode,
         'free_calls' => 0,
         'credits' => 0,
@@ -1759,9 +1763,10 @@ try {
             $status = $verify['status'] ?? ($verify['success'] ? 'active' : 'invalid');
             $freeCalls = $verify['free_calls'] ?? 0;
             $credits = $verify['credits'] ?? 0;
+            $isActive = $verify['success'] ? 1 : 0; // Auto-deactivate if leaked, denied, or invalid!
 
-            dbQuery("UPDATE admin_api_keys SET free_calls = ?, credits = ?, last_status = ?, last_checked_at = NOW() WHERE id = ?", [
-                $freeCalls, $credits, $status, $id
+            dbQuery("UPDATE admin_api_keys SET free_calls = ?, credits = ?, last_status = ?, is_active = ?, last_checked_at = NOW() WHERE id = ?", [
+                $freeCalls, $credits, $status, $isActive, $id
             ]);
 
             sendJson([
@@ -1816,9 +1821,10 @@ try {
                 $status = $verify['status'] ?? ($verify['success'] ? 'active' : 'invalid');
                 $freeCalls = $verify['free_calls'] ?? 0;
                 $credits = $verify['credits'] ?? 0;
+                $isActive = $verify['success'] ? 1 : 0; // Auto-deactivate if leaked, denied, or invalid!
 
-                dbQuery("UPDATE admin_api_keys SET free_calls = ?, credits = ?, last_status = ?, last_checked_at = NOW() WHERE id = ?", [
-                    $freeCalls, $credits, $status, $r['id']
+                dbQuery("UPDATE admin_api_keys SET free_calls = ?, credits = ?, last_status = ?, is_active = ?, last_checked_at = NOW() WHERE id = ?", [
+                    $freeCalls, $credits, $status, $isActive, $r['id']
                 ]);
                 $updated++;
             }
@@ -1963,6 +1969,17 @@ try {
             ]);
             break;
 
+        case 'report_gemini_key_failure':
+        case 'report_failed_key':
+            $badKey = trim((string)($_POST['api_key'] ?? $_REQUEST['api_key'] ?? ''));
+            $statusReason = trim((string)($_POST['status'] ?? $_REQUEST['status'] ?? 'leaked'));
+            if ($badKey !== '') {
+                ensure_api_keys_table();
+                @dbQuery("UPDATE admin_api_keys SET is_active = 0, last_status = ?, last_checked_at = NOW() WHERE api_key = ? AND service_name = 'gemini'", [$statusReason, $badKey]);
+            }
+            sendJson(['success' => true, 'message' => 'បានផ្អាកដំណើរការ Key ដែលមានបញ្ហាដោយស្វ័យប្រវត្តិ']);
+            break;
+
         // PUBLIC CONSUMPTION: AI Gateway / Proxy
         case 'ai_proxy':
         case 'chat_proxy':
@@ -2081,7 +2098,15 @@ try {
                     ]);
                 } else {
                     $lastErr = "HTTP {$httpCode}: " . substr((string)$resp, 0, 200);
-                    if ($httpCode === 429 || $httpCode === 403) {
+                    if ($httpCode === 403 || $httpCode === 400) {
+                        $isLeaked = (stripos((string)$resp, 'leaked') !== false);
+                        $status = $isLeaked ? 'leaked' : ($httpCode === 403 ? 'denied' : 'invalid');
+                        if (!empty($keyItem['id'])) {
+                            @dbQuery("UPDATE admin_api_keys SET is_active = 0, last_status = ?, last_checked_at = NOW() WHERE id = ?", [$status, $keyItem['id']]);
+                        }
+                        continue;
+                    }
+                    if ($httpCode === 429) {
                         continue;
                     }
                 }
