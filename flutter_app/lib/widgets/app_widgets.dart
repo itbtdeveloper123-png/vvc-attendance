@@ -379,17 +379,31 @@ class AppStatCard extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
-              color: (cardColor ?? Colors.white).withValues(alpha: 0.72),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  (cardColor ?? Colors.white).withValues(alpha: 0.85),
+                  (cardColor ?? Colors.white).withValues(alpha: 0.65),
+                  (cardColor ?? Colors.white).withValues(alpha: 0.78),
+                ],
+                stops: const [0.0, 0.55, 1.0],
+              ),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: borderColor ?? Colors.white.withValues(alpha: 0.88),
+                color: Colors.white.withValues(alpha: 0.92),
                 width: 1.2,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF0F172A).withValues(alpha: 0.035),
-                  blurRadius: 10,
-                  offset: const Offset(0, 3),
+                  color: const Color(0xFF0F172A).withValues(alpha: 0.045),
+                  blurRadius: 16,
+                  offset: const Offset(0, 5),
+                ),
+                BoxShadow(
+                  color: const Color(0xFF0F172A).withValues(alpha: 0.02),
+                  blurRadius: 4,
+                  offset: const Offset(0, 1),
                 ),
               ],
             ),
@@ -401,14 +415,21 @@ class AppStatCard extends StatelessWidget {
                   width: 38,
                   height: 38,
                   decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.14),
+                    color: const Color(0xFFFFFBEB),
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: color.withValues(alpha: 0.20),
-                      width: 1,
+                      color: const Color(0xFFFDE68A),
+                      width: 1.2,
                     ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+                        blurRadius: 4,
+                        offset: const Offset(0, 1),
+                      ),
+                    ],
                   ),
-                  child: Icon(icon, color: color, size: 20),
+                  child: Icon(icon, color: const Color(0xFFD97706), size: 20),
                 ),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -481,17 +502,31 @@ class AppGridAction extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 12),
             decoration: BoxDecoration(
-              color: (cardColor ?? Colors.white).withValues(alpha: 0.72),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  (cardColor ?? Colors.white).withValues(alpha: 0.85),
+                  (cardColor ?? Colors.white).withValues(alpha: 0.65),
+                  (cardColor ?? Colors.white).withValues(alpha: 0.78),
+                ],
+                stops: const [0.0, 0.55, 1.0],
+              ),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: borderColor ?? Colors.white.withValues(alpha: 0.88),
+                color: Colors.white.withValues(alpha: 0.92),
                 width: 1.2,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF0F172A).withValues(alpha: 0.035),
-                  blurRadius: 10,
-                  offset: const Offset(0, 3),
+                  color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+                BoxShadow(
+                  color: const Color(0xFF0F172A).withValues(alpha: 0.015),
+                  blurRadius: 3,
+                  offset: const Offset(0, 1),
                 ),
               ],
             ),
@@ -503,14 +538,21 @@ class AppGridAction extends StatelessWidget {
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.14),
+                    color: const Color(0xFFFFFBEB),
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: color.withValues(alpha: 0.20),
-                      width: 1,
+                      color: const Color(0xFFFDE68A),
+                      width: 1.2,
                     ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+                        blurRadius: 4,
+                        offset: const Offset(0, 1),
+                      ),
+                    ],
                   ),
-                  child: Icon(icon, color: color, size: 22),
+                  child: Icon(icon, color: color == const Color(0xFF6366F1) ? const Color(0xFFD97706) : color, size: 22),
                 ),
                 const SizedBox(height: 8),
                 Flexible(
@@ -615,17 +657,31 @@ class AttendanceScanCard extends StatelessWidget {
           filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
           child: Container(
             decoration: BoxDecoration(
-              color: (cardColor ?? Colors.white).withValues(alpha: 0.72),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  (cardColor ?? Colors.white).withValues(alpha: 0.85),
+                  (cardColor ?? Colors.white).withValues(alpha: 0.65),
+                  (cardColor ?? Colors.white).withValues(alpha: 0.78),
+                ],
+                stops: const [0.0, 0.55, 1.0],
+              ),
               borderRadius: BorderRadius.circular(24),
               border: Border.all(
-                color: borderColor ?? Colors.white.withValues(alpha: 0.88),
+                color: Colors.white.withValues(alpha: 0.92),
                 width: 1.2,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF0F172A).withValues(alpha: 0.04),
-                  blurRadius: 14,
-                  offset: const Offset(0, 4),
+                  color: const Color(0xFF0F172A).withValues(alpha: 0.045),
+                  blurRadius: 18,
+                  offset: const Offset(0, 6),
+                ),
+                BoxShadow(
+                  color: const Color(0xFF0F172A).withValues(alpha: 0.02),
+                  blurRadius: 4,
+                  offset: const Offset(0, 1),
                 ),
               ],
             ),
@@ -639,12 +695,23 @@ class AttendanceScanCard extends StatelessWidget {
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: AppTheme.primary.withValues(alpha: 0.12),
+                    color: const Color(0xFFFFFBEB),
                     shape: BoxShape.circle,
+                    border: Border.all(
+                      color: const Color(0xFFFDE68A),
+                      width: 1.2,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+                        blurRadius: 4,
+                        offset: const Offset(0, 1),
+                      ),
+                    ],
                   ),
-                  child: Icon(
+                  child: const Icon(
                     Icons.qr_code_scanner_rounded,
-                    color: AppTheme.primary,
+                    color: Color(0xFFD97706),
                     size: 22,
                   ),
                 ),
@@ -858,17 +925,31 @@ class AppActionButton extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
-              color: (cardColor ?? Colors.white).withValues(alpha: 0.72),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  (cardColor ?? Colors.white).withValues(alpha: 0.85),
+                  (cardColor ?? Colors.white).withValues(alpha: 0.65),
+                  (cardColor ?? Colors.white).withValues(alpha: 0.78),
+                ],
+                stops: const [0.0, 0.55, 1.0],
+              ),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: borderColor ?? Colors.white.withValues(alpha: 0.88),
+                color: Colors.white.withValues(alpha: 0.92),
                 width: 1.2,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF0F172A).withValues(alpha: 0.035),
-                  blurRadius: 10,
-                  offset: const Offset(0, 3),
+                  color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+                BoxShadow(
+                  color: const Color(0xFF0F172A).withValues(alpha: 0.015),
+                  blurRadius: 3,
+                  offset: const Offset(0, 1),
                 ),
               ],
             ),
@@ -878,12 +959,19 @@ class AppActionButton extends StatelessWidget {
                   width: 46,
                   height: 46,
                   decoration: BoxDecoration(
-                    color: iconColor.withValues(alpha: 0.14),
+                    color: const Color(0xFFFFFBEB),
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
-                      color: iconColor.withValues(alpha: 0.20),
-                      width: 1,
+                      color: const Color(0xFFFDE68A),
+                      width: 1.2,
                     ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+                        blurRadius: 4,
+                        offset: const Offset(0, 1),
+                      ),
+                    ],
                   ),
                   child: Icon(icon, color: iconColor, size: 24),
                 ),

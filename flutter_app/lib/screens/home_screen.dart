@@ -1141,16 +1141,23 @@ class _HomeContentState extends State<HomeContent> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.72),
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Colors.white.withValues(alpha: 0.85),
+                        Colors.white.withValues(alpha: 0.65),
+                      ],
+                    ),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.88),
+                      color: Colors.white.withValues(alpha: 0.95),
                       width: 1.2,
                     ),
                     boxShadow: [
                       BoxShadow(
                         color: const Color(0xFF0F172A).withValues(alpha: 0.035),
-                        blurRadius: 6,
+                        blurRadius: 8,
                         offset: const Offset(0, 2),
                       ),
                     ],
@@ -1475,17 +1482,33 @@ class _HomeContentState extends State<HomeContent> {
         filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
         child: Container(
           decoration: BoxDecoration(
-            color: (theme.brand == CompanyBrand.vvc ? Colors.white : theme.cardBackground).withValues(alpha: 0.72),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                (theme.brand == CompanyBrand.vvc ? Colors.white : theme.cardBackground).withValues(alpha: 0.85),
+                (theme.brand == CompanyBrand.vvc ? Colors.white : theme.cardBackground).withValues(alpha: 0.65),
+                (theme.brand == CompanyBrand.vvc ? Colors.white : theme.cardBackground).withValues(alpha: 0.78),
+              ],
+              stops: const [0.0, 0.55, 1.0],
+            ),
             borderRadius: BorderRadius.circular(24),
             border: Border.all(
-              color: Colors.white.withValues(alpha: 0.90),
+              color: Colors.white.withValues(alpha: 0.92),
               width: 1.2,
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF0F172A).withValues(alpha: 0.04),
-                blurRadius: 16,
-                offset: const Offset(0, 4),
+                color: const Color(0xFF0F172A).withValues(alpha: 0.045),
+                blurRadius: 18,
+                spreadRadius: 0,
+                offset: const Offset(0, 6),
+              ),
+              BoxShadow(
+                color: const Color(0xFF0F172A).withValues(alpha: 0.02),
+                blurRadius: 4,
+                spreadRadius: 0,
+                offset: const Offset(0, 1),
               ),
             ],
           ),
@@ -1503,13 +1526,21 @@ class _HomeContentState extends State<HomeContent> {
                     decoration: BoxDecoration(
                       color: isCheckedIn
                           ? const Color(0xFF10B981).withValues(alpha: 0.12)
-                          : const Color(0xFF0F172A).withValues(alpha: 0.05),
+                          : Colors.white.withValues(alpha: 0.85),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
                         color: isCheckedIn
-                            ? const Color(0xFF10B981).withValues(alpha: 0.25)
-                            : Colors.white.withValues(alpha: 0.8),
+                            ? const Color(0xFF10B981).withValues(alpha: 0.3)
+                            : Colors.white,
+                        width: 1.2,
                       ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+                          blurRadius: 4,
+                          offset: const Offset(0, 1),
+                        ),
+                      ],
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -1520,7 +1551,7 @@ class _HomeContentState extends State<HomeContent> {
                           decoration: BoxDecoration(
                             color: isCheckedIn
                                 ? const Color(0xFF10B981)
-                                : const Color(0xFF94A3B8),
+                                : const Color(0xFF64748B),
                             shape: BoxShape.circle,
                           ),
                         ),
@@ -1532,7 +1563,7 @@ class _HomeContentState extends State<HomeContent> {
                           style: GoogleFonts.kantumruyPro(
                             color: isCheckedIn
                                 ? const Color(0xFF059669)
-                                : const Color(0xFF475569),
+                                : const Color(0xFF1E293B),
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
                           ),
@@ -1582,16 +1613,23 @@ class _HomeContentState extends State<HomeContent> {
                         child: Container(
                           padding: const EdgeInsets.all(7),
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.75),
+                            color: Colors.white.withValues(alpha: 0.85),
                             shape: BoxShape.circle,
                             border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.9),
-                              width: 1,
+                              color: Colors.white,
+                              width: 1.2,
                             ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+                                blurRadius: 4,
+                                offset: const Offset(0, 1),
+                              ),
+                            ],
                           ),
                           child: const Icon(
                             Icons.history_rounded,
-                            color: Color(0xFF475569),
+                            color: Color(0xFF1E293B),
                             size: 18,
                           ),
                         ),
@@ -1786,7 +1824,7 @@ class _HomeContentState extends State<HomeContent> {
   }) {
     // Unified core branding accent color
     final brandAccent = theme.brand == CompanyBrand.vvc
-        ? const Color(0xFFB48300)
+        ? const Color(0xFFD97706)
         : theme.cardPrimary;
 
     return GestureDetector(
@@ -1798,17 +1836,31 @@ class _HomeContentState extends State<HomeContent> {
           child: Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: (theme.brand == CompanyBrand.vvc ? Colors.white : theme.cardBackground).withValues(alpha: 0.72),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  (theme.brand == CompanyBrand.vvc ? Colors.white : theme.cardBackground).withValues(alpha: 0.85),
+                  (theme.brand == CompanyBrand.vvc ? Colors.white : theme.cardBackground).withValues(alpha: 0.65),
+                  (theme.brand == CompanyBrand.vvc ? Colors.white : theme.cardBackground).withValues(alpha: 0.78),
+                ],
+                stops: const [0.0, 0.55, 1.0],
+              ),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: Colors.white.withValues(alpha: 0.88),
+                color: Colors.white.withValues(alpha: 0.92),
                 width: 1.2,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF0F172A).withValues(alpha: 0.035),
-                  blurRadius: 10,
-                  offset: const Offset(0, 3),
+                  color: const Color(0xFF0F172A).withValues(alpha: 0.045),
+                  blurRadius: 16,
+                  offset: const Offset(0, 5),
+                ),
+                BoxShadow(
+                  color: const Color(0xFF0F172A).withValues(alpha: 0.02),
+                  blurRadius: 4,
+                  offset: const Offset(0, 1),
                 ),
               ],
             ),
@@ -1819,34 +1871,44 @@ class _HomeContentState extends State<HomeContent> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Container(
-                      width: 38,
-                      height: 38,
+                      width: 40,
+                      height: 40,
                       decoration: BoxDecoration(
-                        color: theme.cardPrimary.withValues(alpha: 0.14),
-                        borderRadius: BorderRadius.circular(12),
+                        color: const Color(0xFFFFFBEB),
+                        borderRadius: BorderRadius.circular(13),
                         border: Border.all(
-                          color: theme.cardPrimary.withValues(alpha: 0.20),
-                          width: 1,
+                          color: const Color(0xFFFDE68A),
+                          width: 1.2,
                         ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+                            blurRadius: 4,
+                            offset: const Offset(0, 1),
+                          ),
+                        ],
                       ),
-                      child: Icon(icon, color: brandAccent, size: 20),
+                      child: Icon(icon, color: brandAccent, size: 21),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4.5),
                       decoration: BoxDecoration(
-                        color: theme.cardPrimary.withValues(alpha: 0.14),
+                        color: theme.cardPrimary,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: theme.cardPrimary.withValues(alpha: 0.22),
-                          width: 1,
-                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: theme.cardPrimary.withValues(alpha: 0.35),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                       ),
                       child: Text(
                         actionText,
                         style: GoogleFonts.kantumruyPro(
-                          color: brandAccent,
+                          color: theme.brand == CompanyBrand.vvc ? const Color(0xFF0F172A) : Colors.white,
                           fontSize: 11.5,
-                          fontWeight: FontWeight.bold,
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
                     ),
@@ -1857,8 +1919,8 @@ class _HomeContentState extends State<HomeContent> {
                   value,
                   style: GoogleFonts.kantumruyPro(
                     color: const Color(0xFF0F172A),
-                    fontSize: 16.5,
-                    fontWeight: FontWeight.bold,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -1867,9 +1929,9 @@ class _HomeContentState extends State<HomeContent> {
                 Text(
                   subtitle,
                   style: GoogleFonts.kantumruyPro(
-                    color: const Color(0xFF64748B),
+                    color: const Color(0xFF475569),
                     fontSize: 12,
-                    fontWeight: FontWeight.w500,
+                    fontWeight: FontWeight.w600,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -1956,7 +2018,7 @@ class _HomeContentState extends State<HomeContent> {
   }) {
     // Unified core branding accent color
     final brandAccent = theme.brand == CompanyBrand.vvc
-        ? const Color(0xFFB48300)
+        ? const Color(0xFFD97706)
         : theme.cardPrimary;
 
     return GestureDetector(
@@ -1968,17 +2030,31 @@ class _HomeContentState extends State<HomeContent> {
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
             decoration: BoxDecoration(
-              color: (theme.brand == CompanyBrand.vvc ? Colors.white : theme.cardBackground).withValues(alpha: 0.72),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  (theme.brand == CompanyBrand.vvc ? Colors.white : theme.cardBackground).withValues(alpha: 0.85),
+                  (theme.brand == CompanyBrand.vvc ? Colors.white : theme.cardBackground).withValues(alpha: 0.65),
+                  (theme.brand == CompanyBrand.vvc ? Colors.white : theme.cardBackground).withValues(alpha: 0.78),
+                ],
+                stops: const [0.0, 0.55, 1.0],
+              ),
               borderRadius: BorderRadius.circular(18),
               border: Border.all(
-                color: Colors.white.withValues(alpha: 0.88),
+                color: Colors.white.withValues(alpha: 0.92),
                 width: 1.2,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF0F172A).withValues(alpha: 0.035),
-                  blurRadius: 8,
-                  offset: const Offset(0, 3),
+                  color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+                BoxShadow(
+                  color: const Color(0xFF0F172A).withValues(alpha: 0.015),
+                  blurRadius: 3,
+                  offset: const Offset(0, 1),
                 ),
               ],
             ),
@@ -1988,12 +2064,19 @@ class _HomeContentState extends State<HomeContent> {
                   width: 38,
                   height: 38,
                   decoration: BoxDecoration(
-                    color: theme.cardPrimary.withValues(alpha: 0.14),
+                    color: const Color(0xFFFFFBEB),
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: theme.cardPrimary.withValues(alpha: 0.20),
-                      width: 1,
+                      color: const Color(0xFFFDE68A),
+                      width: 1.2,
                     ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+                        blurRadius: 4,
+                        offset: const Offset(0, 1),
+                      ),
+                    ],
                   ),
                   child: Icon(icon, color: brandAccent, size: 20),
                 ),
@@ -2002,8 +2085,8 @@ class _HomeContentState extends State<HomeContent> {
                   title,
                   style: GoogleFonts.kantumruyPro(
                     color: const Color(0xFF0F172A),
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -2013,9 +2096,9 @@ class _HomeContentState extends State<HomeContent> {
                 Text(
                   subtitle,
                   style: GoogleFonts.kantumruyPro(
-                    color: const Color(0xFF64748B),
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w500,
+                    color: const Color(0xFF475569),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -3155,7 +3238,7 @@ class _HomeContentState extends State<HomeContent> {
     final theme = user.companyTheme;
     // Unified core branding color for clean Glassmorphism (no messy multi-colors)
     final brandAccentColor = theme.brand == CompanyBrand.vvc
-        ? const Color(0xFFB48300)
+        ? const Color(0xFFD97706)
         : theme.cardPrimary;
 
     if (isList) {

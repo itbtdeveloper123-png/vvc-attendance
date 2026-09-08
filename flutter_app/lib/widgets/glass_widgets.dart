@@ -64,10 +64,10 @@ class _GlassOrbBackgroundState extends State<GlassOrbBackground>
 
     final bool isLight = bg.computeLuminance() > 0.4;
     final List<Color> bgColors = isLight
-        ? [
-            bg,
-            Color.lerp(bg, const Color(0xFFEFF4FB), 0.6) ?? bg,
-            bg,
+        ? const [
+            Color(0xFFF8FAFC),
+            Color(0xFFF1F5F9),
+            Color(0xFFEFF6FF),
           ]
         : [
             bg,
@@ -75,7 +75,10 @@ class _GlassOrbBackgroundState extends State<GlassOrbBackground>
             Color.lerp(bg, const Color(0xFF020617), 0.9) ?? bg,
           ];
 
-    final double orbAlpha = isLight ? 0.08 : widget.orbOpacity;
+    final double topGoldAlpha = isLight ? 0.18 : widget.orbOpacity;
+    final double midSkyAlpha = isLight ? 0.09 : widget.orbOpacity * 0.9;
+    final double warmAccentAlpha = isLight ? 0.11 : widget.orbOpacity * 0.85;
+    final double bottomAccentAlpha = isLight ? 0.08 : widget.orbOpacity * 0.75;
 
     return Scaffold(
       backgroundColor: bg,
@@ -107,42 +110,40 @@ class _GlassOrbBackgroundState extends State<GlassOrbBackground>
                       right: -50 - (progress * 25),
                       child: _buildGlowOrb(
                         color: goldColor,
-                        size: 260 + (progress * 40),
-                        opacity: orbAlpha,
+                        size: 280 + (progress * 40),
+                        opacity: topGoldAlpha,
                       ),
                     ),
-                    if (!isLight) ...[
-                      // Top-Left Blue Glow Orb
-                      Positioned(
-                        top: 140 - (progress * 35),
-                        left: -80 + (progress * 25),
-                        child: _buildGlowOrb(
-                          color: blueColor,
-                          size: 240,
-                          opacity: widget.orbOpacity * 0.9,
-                        ),
+                    // Top-Left Soft Sky Glow Orb (for iOS acrylic optical depth)
+                    Positioned(
+                      top: 140 - (progress * 35),
+                      left: -80 + (progress * 25),
+                      child: _buildGlowOrb(
+                        color: blueColor,
+                        size: 250,
+                        opacity: midSkyAlpha,
                       ),
-                      // Center-Right Purple Glow Orb
-                      Positioned(
-                        top: 420 + (progress * 40),
-                        right: -70 + (progress * 20),
-                        child: _buildGlowOrb(
-                          color: purpleColor,
-                          size: 220,
-                          opacity: widget.orbOpacity * 0.85,
-                        ),
+                    ),
+                    // Center-Right Warm Brand Accent Glow Orb
+                    Positioned(
+                      top: 420 + (progress * 40),
+                      right: -70 + (progress * 20),
+                      child: _buildGlowOrb(
+                        color: isLight ? goldColor : purpleColor,
+                        size: 230,
+                        opacity: warmAccentAlpha,
                       ),
-                      // Bottom-Left Emerald/Cyan Accent Orb
-                      Positioned(
-                        bottom: -50 - (progress * 20),
-                        left: -40 + (progress * 30),
-                        child: _buildGlowOrb(
-                          color: const Color(0xFF10B981),
-                          size: 250,
-                          opacity: widget.orbOpacity * 0.75,
-                        ),
+                    ),
+                    // Bottom-Left Ambient Glow Orb
+                    Positioned(
+                      bottom: -50 - (progress * 20),
+                      left: -40 + (progress * 30),
+                      child: _buildGlowOrb(
+                        color: isLight ? const Color(0xFF38BDF8) : const Color(0xFF10B981),
+                        size: 250,
+                        opacity: bottomAccentAlpha,
                       ),
-                    ],
+                    ),
                   ],
                 );
               },
@@ -155,30 +156,28 @@ class _GlassOrbBackgroundState extends State<GlassOrbBackground>
                   right: -40,
                   child: _buildGlowOrb(
                     color: goldColor,
-                    size: 270,
-                    opacity: orbAlpha,
+                    size: 280,
+                    opacity: topGoldAlpha,
                   ),
                 ),
-                if (!isLight) ...[
-                  Positioned(
-                    top: 160,
-                    left: -70,
-                    child: _buildGlowOrb(
-                      color: blueColor,
-                      size: 240,
-                      opacity: widget.orbOpacity * 0.85,
-                    ),
+                Positioned(
+                  top: 160,
+                  left: -70,
+                  child: _buildGlowOrb(
+                    color: blueColor,
+                    size: 250,
+                    opacity: midSkyAlpha,
                   ),
-                  Positioned(
-                    bottom: 80,
-                    right: -50,
-                    child: _buildGlowOrb(
-                      color: purpleColor,
-                      size: 220,
-                      opacity: widget.orbOpacity * 0.8,
-                    ),
+                ),
+                Positioned(
+                  bottom: 80,
+                  right: -50,
+                  child: _buildGlowOrb(
+                    color: isLight ? goldColor : purpleColor,
+                    size: 230,
+                    opacity: warmAccentAlpha,
                   ),
-                ],
+                ),
               ],
             ),
 
