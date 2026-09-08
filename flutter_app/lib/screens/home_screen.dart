@@ -2544,6 +2544,7 @@ class _HomeContentState extends State<HomeContent> {
   // ===== DYNAMIC ROLE-BASED ACTIONS =====
 
   Widget _buildDynamicActions(UserProvider user, String suffix) {
+    final theme = user.companyTheme;
     final layoutType = user.getConfig(
       'home_layout_type$suffix',
       defaultValue: 'grid',
@@ -3044,7 +3045,6 @@ class _HomeContentState extends State<HomeContent> {
       return _buildEmptyActionsState();
     }
 
-    final theme = user.companyTheme;
     finalWidgets.insert(
       0,
       Padding(
