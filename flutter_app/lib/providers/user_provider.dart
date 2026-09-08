@@ -6,6 +6,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import '../services/api_service.dart';
 import '../services/secure_storage_service.dart';
+import '../utils/company_theme.dart';
 
 /// តួនាទីក្នុងប្រព័ន្ធ HRM
 enum SystemRole { employee, worker, skills, it, admin, hrm, accounting }
@@ -221,6 +222,14 @@ class UserProvider with ChangeNotifier {
   bool get faceRegistered => _faceRegistered;
   int get attendanceStreak => _attendanceStreak;
   Map<String, dynamic> get settings => _settings;
+
+  CompanyBrand get companyBrand => CompanyBrandHelper.fromPosition(
+        _position,
+        department: _department,
+        branch: _branch,
+      );
+  CompanyTheme get companyTheme => CompanyTheme.forBrand(companyBrand);
+  bool get isSKCompany => companyBrand == CompanyBrand.sk;
 
   void setFaceRegistered(bool value) {
     _faceRegistered = value;

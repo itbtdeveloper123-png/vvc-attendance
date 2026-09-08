@@ -13,6 +13,7 @@ import '../providers/user_provider.dart';
 import '../services/background_location_service.dart';
 import '../core/theme/theme_provider.dart';
 import '../utils/app_theme.dart';
+import '../utils/company_theme.dart';
 import '../widgets/app_widgets.dart';
 import '../widgets/app_update_dialog.dart';
 import '../services/api_service.dart';
@@ -350,10 +351,11 @@ class HomeScreenState extends State<HomeScreen> {
     }
 
     final screens = _getScreens(userProvider);
+    final theme = userProvider.companyTheme;
 
     return Scaffold(
       extendBody: true,
-      backgroundColor: AppTheme.bgDark,
+      backgroundColor: theme.backgroundColor,
       body: IndexedStack(index: _currentIndex, children: screens),
       bottomNavigationBar: _buildBottomNav(userProvider),
       floatingActionButton:
@@ -367,7 +369,7 @@ class HomeScreenState extends State<HomeScreen> {
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: AppTheme.primary.withValues(alpha: 0.45),
+                        color: theme.cardPrimary.withValues(alpha: 0.45),
                         blurRadius: 18,
                         spreadRadius: -2,
                         offset: const Offset(0, 4),
@@ -375,7 +377,7 @@ class HomeScreenState extends State<HomeScreen> {
                     ],
                   ),
                   child: FloatingActionButton(
-                    backgroundColor: AppTheme.primary,
+                    backgroundColor: theme.cardPrimary,
                     elevation: 0,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
@@ -391,9 +393,9 @@ class HomeScreenState extends State<HomeScreen> {
                         _slideRoute(const AiChatScreen()),
                       );
                     },
-                    child: const Icon(
+                    child: Icon(
                       Icons.smart_toy_rounded,
-                      color: Colors.white,
+                      color: theme.brand == CompanyBrand.vvc ? const Color(0xFF0F172A) : Colors.white,
                       size: 24,
                     ),
                   ),
@@ -404,16 +406,17 @@ class HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildBottomNav(UserProvider user) {
+    final theme = user.companyTheme;
     final bottomInset = MediaQuery.paddingOf(context).bottom;
     return ClipRRect(
       child: BackdropFilter(
         filter: ui.ImageFilter.blur(sigmaX: 24.0, sigmaY: 24.0),
         child: Container(
           decoration: BoxDecoration(
-            color: AppTheme.bgDark.withValues(alpha: 0.65),
+            color: theme.backgroundColor.withValues(alpha: 0.92),
             border: Border(
               top: BorderSide(
-                color: Colors.white.withValues(alpha: 0.16),
+                color: theme.cardBorder,
                 width: 0.8,
               ),
             ),
@@ -425,21 +428,21 @@ class HomeScreenState extends State<HomeScreen> {
             right: 20,
           ),
           child: GNav(
-            rippleColor: AppTheme.primary.withValues(alpha: 0.2),
-            hoverColor: AppTheme.primary.withValues(alpha: 0.1),
+            rippleColor: theme.cardPrimary.withValues(alpha: 0.2),
+            hoverColor: theme.cardPrimary.withValues(alpha: 0.1),
             gap: 6,
-            activeColor: AppTheme.primary,
+            activeColor: theme.cardPrimary,
             iconSize: 26,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             duration: const Duration(milliseconds: 300),
-            tabBackgroundColor: AppTheme.primary.withValues(alpha: 0.1),
-            color: AppTheme.textMuted,
+            tabBackgroundColor: theme.cardPrimary.withValues(alpha: 0.15),
+            color: theme.textMuted,
             tabs: [
               GButton(
                 icon: Icons.dashboard_rounded,
                 text: 'ទំព័រដើម',
                 textStyle: GoogleFonts.kantumruyPro(
-                  color: AppTheme.primary,
+                  color: theme.cardPrimary,
                   fontWeight: FontWeight.bold,
                   fontSize: 13,
                 ),
@@ -448,7 +451,7 @@ class HomeScreenState extends State<HomeScreen> {
                 icon: user.isHRM ? Icons.list_alt_rounded : Icons.layers_rounded,
                 text: user.isHRM ? "បញ្ជីសំណើ" : "សំណើ",
                 textStyle: GoogleFonts.kantumruyPro(
-                  color: AppTheme.primary,
+                  color: theme.cardPrimary,
                   fontWeight: FontWeight.bold,
                   fontSize: 13,
                 ),
@@ -457,7 +460,7 @@ class HomeScreenState extends State<HomeScreen> {
                 icon: Icons.person_rounded,
                 text: 'គណនី',
                 textStyle: GoogleFonts.kantumruyPro(
-                  color: AppTheme.primary,
+                  color: theme.cardPrimary,
                   fontWeight: FontWeight.bold,
                   fontSize: 13,
                 ),
@@ -1018,8 +1021,13 @@ class _HomeContentState extends State<HomeContent> {
   @override
   Widget build(BuildContext context) {
     final user = Provider.of<UserProvider>(context);
+    final theme = user.companyTheme;
 
     return GlassOrbBackground(
+      baseColor: theme.backgroundColor,
+      primaryOrbColor: theme.orbPrimary,
+      secondaryOrbColor: theme.orbSecondary,
+      accentOrbColor: theme.orbAccent,
       child: Stack(
         children: [
           RefreshIndicator(
@@ -1038,8 +1046,8 @@ class _HomeContentState extends State<HomeContent> {
               _loadNextAction();
               if (mounted) user.refreshProfile();
             },
-            color: AppTheme.primary,
-            backgroundColor: AppTheme.bgDark,
+            color: theme.cardPrimary,
+            backgroundColor: theme.backgroundColor,
             child: CustomScrollView(
               physics: const AlwaysScrollableScrollPhysics(
                 parent: BouncingScrollPhysics(),
@@ -1058,11 +1066,11 @@ class _HomeContentState extends State<HomeContent> {
                       filter: ui.ImageFilter.blur(sigmaX: 20.0, sigmaY: 20.0),
                       child: Container(
                         decoration: BoxDecoration(
-                          color: AppTheme.bgDark.withValues(alpha: 0.75),
+                          color: theme.backgroundColor.withValues(alpha: 0.88),
                           border: Border(
                             bottom: BorderSide(
-                              color: AppTheme.textPrimary.withValues(alpha: 0.05),
-                              width: 0.5,
+                              color: theme.cardBorder,
+                              width: 0.8,
                             ),
                           ),
                         ),
@@ -1080,7 +1088,7 @@ class _HomeContentState extends State<HomeContent> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _buildWeatherAndQuoteRow(),
+                          _buildWeatherAndQuoteRow(theme),
                           const SizedBox(height: 14),
                           _buildWelcomeBanner(user),
                           const SizedBox(height: 18),
@@ -1108,7 +1116,7 @@ class _HomeContentState extends State<HomeContent> {
   }
 
   // ===== Feature #1 + #5 + #8: Weather, Streak & Live Timer Row =====
-  Widget _buildWeatherAndQuoteRow() {
+  Widget _buildWeatherAndQuoteRow(CompanyTheme theme) {
     return FadeInDown(
       delay: const Duration(milliseconds: 100),
       duration: const Duration(milliseconds: 400),
@@ -1119,7 +1127,8 @@ class _HomeContentState extends State<HomeContent> {
             GlassChip(
               icon: Text(_weatherIcon, style: const TextStyle(fontSize: 14)),
               label: 'ភ្នំពេញ $_weatherText',
-              color: AppTheme.primary,
+              color: theme.cardPrimary,
+              textColor: theme.textPrimary,
             ),
           if (_weatherText.isNotEmpty) const SizedBox(width: 8),
           // Feature #5: Streak pill
@@ -1137,6 +1146,7 @@ class _HomeContentState extends State<HomeContent> {
   }
 
   Widget _buildTopBar(UserProvider user) {
+    final theme = user.companyTheme;
     return FadeInDown(
       duration: const Duration(milliseconds: 400),
       child: Row(
@@ -1155,9 +1165,15 @@ class _HomeContentState extends State<HomeContent> {
                         width: 42,
                         height: 42,
                         decoration: BoxDecoration(
-                          color: AppTheme.primary,
+                          color: theme.cardPrimary,
                           shape: BoxShape.circle,
-                          boxShadow: AppTheme.primaryShadow,
+                          boxShadow: [
+                            BoxShadow(
+                              color: theme.cardPrimary.withValues(alpha: 0.35),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
                         ),
                         child: ClipOval(
                           child:
@@ -1168,9 +1184,9 @@ class _HomeContentState extends State<HomeContent> {
                                     fit: BoxFit.cover,
                                     errorBuilder:
                                         (context, error, stackTrace) =>
-                                            _buildInitialsAvatar(user),
+                                            _buildInitialsAvatar(user, theme),
                                   )
-                                  : _buildInitialsAvatar(user),
+                                  : _buildInitialsAvatar(user, theme),
                         ),
                       ),
                       if (user.isVerified)
@@ -1191,7 +1207,7 @@ class _HomeContentState extends State<HomeContent> {
                         ),
                     ],
                   ),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1200,7 +1216,7 @@ class _HomeContentState extends State<HomeContent> {
                         Text(
                           _greeting,
                           style: GoogleFonts.kantumruyPro(
-                            color: Colors.white.withValues(alpha: 0.7),
+                            color: theme.textSecondary,
                             fontSize: 11,
                             fontWeight: FontWeight.w500,
                             letterSpacing: 0.3,
@@ -1209,15 +1225,42 @@ class _HomeContentState extends State<HomeContent> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        Text(
-                          user.name ?? 'បុគ្គលិក',
-                          style: GoogleFonts.kantumruyPro(
-                            color: AppTheme.textPrimary,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                user.name ?? 'បុគ្គលិក',
+                                style: GoogleFonts.kantumruyPro(
+                                  color: theme.textPrimary,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                              decoration: BoxDecoration(
+                                color: theme.cardPrimary.withValues(alpha: 0.18),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: theme.cardPrimary.withValues(alpha: 0.45),
+                                  width: 0.8,
+                                ),
+                              ),
+                              child: Text(
+                                theme.brand == CompanyBrand.sk ? 'SK' : 'VVC',
+                                style: GoogleFonts.inter(
+                                  color: theme.cardPrimary,
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 9.5,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -1237,6 +1280,8 @@ class _HomeContentState extends State<HomeContent> {
                   context,
                   _slideRoute(const TrainingQuizScreen()),
                 ),
+                color: theme.textPrimary,
+                borderColor: theme.cardBorder,
               ),
               _buildTopIcon(
                 Icons.forum_rounded,
@@ -1244,6 +1289,8 @@ class _HomeContentState extends State<HomeContent> {
                   context,
                   _slideRoute(const ChatListScreen()),
                 ),
+                color: theme.textPrimary,
+                borderColor: theme.cardBorder,
               ),
               _buildTopIcon(
                 Icons.notifications_rounded,
@@ -1252,6 +1299,8 @@ class _HomeContentState extends State<HomeContent> {
                   _slideRoute(const NotificationScreen()),
                 ),
                 badge: _unreadNotifications > 0,
+                color: theme.textPrimary,
+                borderColor: theme.cardBorder,
               ),
             ],
           ),
@@ -1264,6 +1313,7 @@ class _HomeContentState extends State<HomeContent> {
     IconData icon,
     VoidCallback onTap, {
     Color? color,
+    Color? borderColor,
     bool badge = false,
   }) {
     return GestureDetector(
@@ -1272,8 +1322,8 @@ class _HomeContentState extends State<HomeContent> {
         onTap();
       },
       child: AppTheme.glassBox(
-        color: Colors.white.withValues(alpha: 0.1),
-        borderColor: Colors.white.withValues(alpha: 0.2),
+        color: (color ?? Colors.white).withValues(alpha: 0.08),
+        borderColor: borderColor ?? (color ?? Colors.white).withValues(alpha: 0.18),
         radius: 20,
         blur: 16,
         padding: const EdgeInsets.all(0),
@@ -1284,7 +1334,7 @@ class _HomeContentState extends State<HomeContent> {
           child: Stack(
             alignment: Alignment.center,
             children: [
-              Icon(icon, color: color ?? Colors.white, size: 24),
+              Icon(icon, color: color ?? Colors.white, size: 22),
               if (badge)
                 Positioned(
                   top: 10,
@@ -1295,7 +1345,7 @@ class _HomeContentState extends State<HomeContent> {
                     decoration: BoxDecoration(
                       color: Colors.redAccent,
                       shape: BoxShape.circle,
-                      border: Border.all(color: AppTheme.bgCard, width: 1.5),
+                      border: Border.all(color: Colors.white, width: 1.5),
                     ),
                   ),
                 ),
@@ -1306,14 +1356,14 @@ class _HomeContentState extends State<HomeContent> {
     );
   }
 
-  Widget _buildInitialsAvatar(UserProvider user) {
+  Widget _buildInitialsAvatar(UserProvider user, CompanyTheme theme) {
     return Center(
       child: Text(
         (user.name ?? 'U').isNotEmpty
             ? user.name!.substring(0, 1).toUpperCase()
             : 'U',
         style: GoogleFonts.inter(
-          color: AppTheme.textPrimary,
+          color: theme.passCardTextColor,
           fontWeight: FontWeight.bold,
           fontSize: 18,
         ),
@@ -1348,17 +1398,18 @@ class _HomeContentState extends State<HomeContent> {
 
   // ─── 1. HERO BENTO CARD (Full Width) ──────────────────────────────────────
   Widget _buildBentoHeroAttendanceCard(UserProvider user) {
+    final theme = user.companyTheme;
     final bool isCheckedIn = _checkInTime != null;
     final bool isNextCheckIn = _nextAction == 'Check-In';
-    final accentColor = isNextCheckIn ? AppTheme.primary : const Color(0xFF10B981);
+    final accentColor = isNextCheckIn ? theme.cardPrimary : const Color(0xFF10B981);
 
     return GlassCard(
       blur: 24,
       borderRadius: 24,
       tintColor: accentColor,
-      opacity: 0.11,
-      borderColor: accentColor.withValues(alpha: 0.35),
-      glowColor: accentColor.withValues(alpha: 0.22),
+      opacity: 0.14,
+      borderColor: accentColor.withValues(alpha: 0.45),
+      glowColor: accentColor.withValues(alpha: 0.25),
       padding: EdgeInsets.zero,
       child: Stack(
         children: [
@@ -1373,240 +1424,249 @@ class _HomeContentState extends State<HomeContent> {
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    accentColor.withValues(alpha: 0.22),
-                    accentColor.withValues(alpha: 0.0),
+                    theme.cardPrimary.withValues(alpha: 0.25),
+                    theme.cardPrimary.withValues(alpha: 0.0),
                   ],
                 ),
               ),
             ),
           ),
-            Padding(
-              padding: const EdgeInsets.all(18),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Top Row: Status Chip + Streak Chip + Scan History Icon
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      // Status Badge
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
+          Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Top Row: Status Chip + Streak Chip + Scan History Icon
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    // Status Badge
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: (isCheckedIn
+                                ? const Color(0xFF10B981)
+                                : theme.textMuted)
+                            .withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
                           color: (isCheckedIn
                                   ? const Color(0xFF10B981)
-                                  : AppTheme.textMuted)
-                              .withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: (isCheckedIn
-                                    ? const Color(0xFF10B981)
-                                    : AppTheme.textMuted)
-                                .withValues(alpha: 0.3),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 7,
-                              height: 7,
-                              decoration: BoxDecoration(
-                                color: isCheckedIn
-                                    ? const Color(0xFF10B981)
-                                    : AppTheme.textMuted,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              isCheckedIn
-                                  ? 'ចូលធ្វើការ ${DateFormat('hh:mm a').format(_checkInTime!)}'
-                                  : 'មិនទាន់ Check-In',
-                              style: GoogleFonts.kantumruyPro(
-                                color: isCheckedIn
-                                    ? const Color(0xFF10B981)
-                                    : AppTheme.textSecondary,
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
+                                  : theme.textMuted)
+                              .withValues(alpha: 0.3),
                         ),
                       ),
-                      // Right Controls: Streak + History
-                      Row(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          if (_attendanceStreak > 0) ...[
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: Colors.orange.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(
-                                  color: Colors.orange.withValues(alpha: 0.35),
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Text('🔥', style: TextStyle(fontSize: 12)),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    '$_attendanceStreak ថ្ងៃ',
-                                    style: GoogleFonts.inter(
-                                      color: Colors.orange,
-                                      fontSize: 11.5,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                          Container(
+                            width: 7,
+                            height: 7,
+                            decoration: BoxDecoration(
+                              color: isCheckedIn
+                                  ? const Color(0xFF10B981)
+                                  : theme.textMuted,
+                              shape: BoxShape.circle,
                             ),
-                            const SizedBox(width: 8),
-                          ],
-                          GestureDetector(
-                            onTap: () {
-                              _hapticLight();
-                              Navigator.push(
-                                context,
-                                _slideRoute(const ScanHistoryScreen()),
-                              );
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.all(6),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.08),
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.history_rounded,
-                                color: Colors.white70,
-                                size: 18,
-                              ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            isCheckedIn
+                                ? 'ចូលធ្វើការ ${DateFormat('hh:mm a').format(_checkInTime!)}'
+                                : 'មិនទាន់ Check-In',
+                            style: GoogleFonts.kantumruyPro(
+                              color: isCheckedIn
+                                  ? const Color(0xFF10B981)
+                                  : theme.textSecondary,
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ],
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Bottom Action Buttons
-                  Row(
-                    children: [
-                      // Main Scan Action Button
-                      Expanded(
-                        flex: 3,
-                        child: GestureDetector(
-                          onTap: () {
-                            _hapticMedium();
-                            _goScan(_nextAction);
-                          },
-                          child: Container(
-                            height: 46,
+                    ),
+                    // Right Controls: Streak + History
+                    Row(
+                      children: [
+                        if (_attendanceStreak > 0) ...[
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                             decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: isNextCheckIn
-                                    ? [const Color(0xFFD4AF37), const Color(0xFFB8860B)]
-                                    : [const Color(0xFFEF4444), const Color(0xFFDC2626)],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
+                              color: Colors.orange.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: Colors.orange.withValues(alpha: 0.35),
                               ),
-                              borderRadius: BorderRadius.circular(14),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: (isNextCheckIn
-                                          ? const Color(0xFFD4AF37)
-                                          : const Color(0xFFEF4444))
-                                      .withValues(alpha: 0.4),
-                                  blurRadius: 12,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
                             ),
                             child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
+                              mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(
-                                  isNextCheckIn
-                                      ? Icons.qr_code_scanner_rounded
-                                      : Icons.logout_rounded,
-                                  color: Colors.white,
-                                  size: 20,
-                                ),
-                                const SizedBox(width: 8),
+                                const Text('🔥', style: TextStyle(fontSize: 12)),
+                                const SizedBox(width: 4),
                                 Text(
-                                  isNextCheckIn ? 'ស្កេនចូល (Check-In)' : 'ស្កេនចេញ (Check-Out)',
-                                  style: GoogleFonts.kantumruyPro(
-                                    color: Colors.white,
-                                    fontSize: 13.5,
+                                  '$_attendanceStreak ថ្ងៃ',
+                                  style: GoogleFonts.inter(
+                                    color: Colors.orange,
+                                    fontSize: 11.5,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
                               ],
                             ),
                           ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      // Outside Attendance Shortcut
-                      Expanded(
-                        flex: 2,
-                        child: GestureDetector(
+                          const SizedBox(width: 8),
+                        ],
+                        GestureDetector(
                           onTap: () {
                             _hapticLight();
-                            if (user.isHRM || user.isAdmin) {
-                              Navigator.push(
-                                context,
-                                _slideRoute(const OutsideReportScreen()),
-                              );
-                            } else {
-                              Navigator.push(
-                                context,
-                                _slideRoute(const OutsideAttendanceScreen()),
-                              );
-                            }
+                            Navigator.push(
+                              context,
+                              _slideRoute(const ScanHistoryScreen()),
+                            );
                           },
                           child: Container(
-                            height: 46,
+                            padding: const EdgeInsets.all(6),
                             decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.08),
-                              borderRadius: BorderRadius.circular(14),
+                              color: theme.cardPrimary.withValues(alpha: 0.12),
+                              shape: BoxShape.circle,
                               border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.12),
+                                color: theme.cardBorder,
+                                width: 0.8,
                               ),
                             ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(
-                                  Icons.location_on_rounded,
-                                  color: Color(0xFF38BDF8),
-                                  size: 18,
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  'ក្រៅទីតាំង',
-                                  style: GoogleFonts.kantumruyPro(
-                                    color: AppTheme.textPrimary,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
+                            child: Icon(
+                              Icons.history_rounded,
+                              color: theme.textPrimary,
+                              size: 18,
                             ),
                           ),
                         ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // Bottom Action Buttons
+                Row(
+                  children: [
+                    // Main Scan Action Button
+                    Expanded(
+                      flex: 3,
+                      child: GestureDetector(
+                        onTap: () {
+                          _hapticMedium();
+                          _goScan(_nextAction);
+                        },
+                        child: Container(
+                          height: 46,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: isNextCheckIn
+                                  ? [theme.cardPrimary, theme.cardSecondary]
+                                  : [const Color(0xFFEF4444), const Color(0xFFDC2626)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(14),
+                            boxShadow: [
+                              BoxShadow(
+                                color: (isNextCheckIn
+                                        ? theme.cardPrimary
+                                        : const Color(0xFFEF4444))
+                                    .withValues(alpha: 0.4),
+                                blurRadius: 12,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                isNextCheckIn
+                                    ? Icons.qr_code_scanner_rounded
+                                    : Icons.logout_rounded,
+                                color: isNextCheckIn
+                                    ? (theme.brand == CompanyBrand.vvc ? const Color(0xFF0F172A) : Colors.white)
+                                    : Colors.white,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                isNextCheckIn ? 'ស្កេនចូល (Check-In)' : 'ស្កេនចេញ (Check-Out)',
+                                style: GoogleFonts.kantumruyPro(
+                                  color: isNextCheckIn
+                                      ? (theme.brand == CompanyBrand.vvc ? const Color(0xFF0F172A) : Colors.white)
+                                      : Colors.white,
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
-                    ],
-                  ),
-                ],
-              ),
+                    ),
+                    const SizedBox(width: 10),
+                    // Outside Attendance Shortcut
+                    Expanded(
+                      flex: 2,
+                      child: GestureDetector(
+                        onTap: () {
+                          _hapticLight();
+                          if (user.isHRM || user.isAdmin) {
+                            Navigator.push(
+                              context,
+                              _slideRoute(const OutsideReportScreen()),
+                            );
+                          } else {
+                            Navigator.push(
+                              context,
+                              _slideRoute(const OutsideAttendanceScreen()),
+                            );
+                          }
+                        },
+                        child: Container(
+                          height: 46,
+                          decoration: BoxDecoration(
+                            color: theme.backgroundColor.withValues(alpha: 0.5),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: theme.cardBorder,
+                              width: 1,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(
+                                Icons.location_on_rounded,
+                                color: Color(0xFF38BDF8),
+                                size: 18,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                'ក្រៅទីតាំង',
+                                style: GoogleFonts.kantumruyPro(
+                                  color: theme.textPrimary,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
-          ],
-        ),
-      );
+          ),
+        ],
+      ),
+    );
   }
 
   // ─── 2. DUAL MEDIUM BENTO CARDS (50% / 50% Row) ───────────────────────────
@@ -1615,12 +1675,14 @@ class _HomeContentState extends State<HomeContent> {
     final dynamic rawAl = _stats['annual_leave_remaining'] ?? _stats['leave_remaining'] ?? 0;
     final num alNum = (rawAl is num) ? rawAl : (num.tryParse(rawAl.toString()) ?? 0);
     final String leaveBalanceStr = (alNum % 1 == 0) ? alNum.toInt().toString() : alNum.toStringAsFixed(1);
+    final theme = user.companyTheme;
 
     return Row(
       children: [
         // Left: Leave Balance Card (AL Live Balance)
         Expanded(
           child: _buildBentoMediumCard(
+            theme: theme,
             icon: Icons.beach_access_rounded,
             iconColor: const Color(0xFF10B981),
             title: 'AL នៅសល់',
@@ -1640,6 +1702,7 @@ class _HomeContentState extends State<HomeContent> {
         // Right: Daily Report Card (ធ្វើរបាយការណ៍ប្រចាំថ្ងៃ)
         Expanded(
           child: _buildBentoMediumCard(
+            theme: theme,
             icon: Icons.assignment_turned_in_rounded,
             iconColor: const Color(0xFFF59E0B),
             title: 'ផ្ញើទៅ Telegram',
@@ -1660,6 +1723,7 @@ class _HomeContentState extends State<HomeContent> {
   }
 
   Widget _buildBentoMediumCard({
+    required CompanyTheme theme,
     required IconData icon,
     required Color iconColor,
     required String title,
@@ -1673,9 +1737,9 @@ class _HomeContentState extends State<HomeContent> {
       borderRadius: 20,
       blur: 20,
       tintColor: iconColor,
-      opacity: 0.08,
-      borderColor: iconColor.withValues(alpha: 0.28),
-      glowColor: iconColor.withValues(alpha: 0.16),
+      opacity: 0.10,
+      borderColor: iconColor.withValues(alpha: 0.35),
+      glowColor: iconColor.withValues(alpha: 0.20),
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1708,7 +1772,7 @@ class _HomeContentState extends State<HomeContent> {
           Text(
             value,
             style: GoogleFonts.kantumruyPro(
-              color: AppTheme.textPrimary,
+              color: theme.textPrimary,
               fontSize: 17,
               fontWeight: FontWeight.bold,
             ),
@@ -1719,7 +1783,7 @@ class _HomeContentState extends State<HomeContent> {
           Text(
             subtitle,
             style: GoogleFonts.kantumruyPro(
-              color: AppTheme.textMuted,
+              color: theme.textMuted,
               fontSize: 11.5,
             ),
             maxLines: 1,
@@ -1733,12 +1797,14 @@ class _HomeContentState extends State<HomeContent> {
   // ─── 3. MINI BENTO TRIO (3-Column Row) ────────────────────────────────────
   Widget _buildBentoMiniTrio(UserProvider user) {
     final announcementsCount = _stats['announcements_count'] ?? 0;
+    final theme = user.companyTheme;
 
     return Row(
       children: [
         // 1. Checklist
         Expanded(
           child: _buildBentoMiniCard(
+            theme: theme,
             icon: Icons.checklist_rtl_rounded,
             color: const Color(0xFF3B82F6),
             title: 'Checklist',
@@ -1756,6 +1822,7 @@ class _HomeContentState extends State<HomeContent> {
         // 2. Meetings
         Expanded(
           child: _buildBentoMiniCard(
+            theme: theme,
             icon: Icons.groups_rounded,
             color: const Color(0xFFA855F7),
             title: 'ការប្រជុំ',
@@ -1773,6 +1840,7 @@ class _HomeContentState extends State<HomeContent> {
         // 3. Announcements
         Expanded(
           child: _buildBentoMiniCard(
+            theme: theme,
             icon: Icons.campaign_rounded,
             color: const Color(0xFFF43F5E),
             title: 'ដំណឹងថ្មី',
@@ -1791,6 +1859,7 @@ class _HomeContentState extends State<HomeContent> {
   }
 
   Widget _buildBentoMiniCard({
+    required CompanyTheme theme,
     required IconData icon,
     required Color color,
     required String title,
@@ -1802,9 +1871,9 @@ class _HomeContentState extends State<HomeContent> {
       borderRadius: 18,
       blur: 18,
       tintColor: color,
-      opacity: 0.08,
-      borderColor: color.withValues(alpha: 0.24),
-      glowColor: color.withValues(alpha: 0.14),
+      opacity: 0.10,
+      borderColor: color.withValues(alpha: 0.32),
+      glowColor: color.withValues(alpha: 0.18),
       padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
       child: Column(
         children: [
@@ -1824,7 +1893,7 @@ class _HomeContentState extends State<HomeContent> {
           Text(
             title,
             style: GoogleFonts.kantumruyPro(
-              color: AppTheme.textPrimary,
+              color: theme.textPrimary,
               fontSize: 11.5,
               fontWeight: FontWeight.bold,
             ),
@@ -1836,7 +1905,7 @@ class _HomeContentState extends State<HomeContent> {
           Text(
             subtitle,
             style: GoogleFonts.kantumruyPro(
-              color: AppTheme.textMuted,
+              color: theme.textMuted,
               fontSize: 10,
             ),
             maxLines: 1,
@@ -2021,14 +2090,14 @@ class _HomeContentState extends State<HomeContent> {
           const SizedBox(height: 10),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(count, (index) => _buildBannerDot(index)),
+            children: List.generate(count, (index) => _buildBannerDot(index, user.companyTheme)),
           ),
         ],
       ],
     );
   }
 
-  Widget _buildBannerDot(int index) {
+  Widget _buildBannerDot(int index, CompanyTheme theme) {
     bool isActive = _currentBannerPage == index;
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
@@ -2038,27 +2107,37 @@ class _HomeContentState extends State<HomeContent> {
       decoration: BoxDecoration(
         color:
             isActive
-                ? AppTheme.primary
-                : AppTheme.textPrimary.withValues(alpha: 0.15),
+                ? theme.cardPrimary
+                : theme.textMuted.withValues(alpha: 0.25),
         borderRadius: BorderRadius.circular(2),
       ),
     );
   }
 
   Widget _buildEmployeePassCard(UserProvider user) {
+    final theme = user.companyTheme;
     return FadeIn(
       child: AppShimmer(
         enabled: _isLoadingStats,
         child: Container(
           width: double.infinity,
           margin: const EdgeInsets.symmetric(horizontal: 0),
-          decoration: BoxDecoration(borderRadius: BorderRadius.circular(20)),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: theme.cardPrimary.withValues(alpha: 0.35),
+                blurRadius: 18,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(20),
             child: Stack(
               children: [
-                // Solid background
-                Container(decoration: BoxDecoration(color: AppTheme.primary)),
+                // Solid Company Primary Gold or Bronze Card
+                Container(decoration: BoxDecoration(color: theme.passCardColor)),
                 // Decorative Circle
                 Positioned(
                   top: -40,
@@ -2068,7 +2147,7 @@ class _HomeContentState extends State<HomeContent> {
                     height: 150,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: Colors.white.withValues(alpha: 0.05),
+                      color: theme.passCardTextColor.withValues(alpha: 0.08),
                     ),
                   ),
                 ),
@@ -2083,17 +2162,21 @@ class _HomeContentState extends State<HomeContent> {
                         children: [
                           Icon(
                             Icons.nfc_rounded,
-                            color: Colors.white.withValues(alpha: 0.8),
+                            color: theme.passCardTextColor.withValues(alpha: 0.85),
                             size: 28,
                           ),
-                          _buildRoleBadge(user.systemRoleStr),
+                          _buildRoleBadge(
+                            user.systemRoleStr,
+                            textColor: theme.passCardTextColor,
+                            bgColor: theme.passCardTextColor.withValues(alpha: 0.15),
+                          ),
                         ],
                       ),
                       const Spacer(),
                       Text(
-                        "${user.getConfig('app_display_name', defaultValue: 'VVC')} EMPLOYEE PASS",
+                        theme.passTitle,
                         style: GoogleFonts.inter(
-                          color: Colors.white.withValues(alpha: 0.7),
+                          color: theme.passCardTextColor.withValues(alpha: 0.8),
                           fontSize: 11,
                           fontWeight: FontWeight.w900,
                           letterSpacing: 1.5,
@@ -2103,7 +2186,7 @@ class _HomeContentState extends State<HomeContent> {
                       Text(
                         user.name ?? 'បុគ្គលិក',
                         style: GoogleFonts.kantumruyPro(
-                          color: Colors.white,
+                          color: theme.passCardTextColor,
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
                           height: 1.1,
@@ -2116,12 +2199,12 @@ class _HomeContentState extends State<HomeContent> {
                           Text(
                             "ID: ${user.employeeId ?? '---'}",
                             style: GoogleFonts.inter(
-                              color: Colors.white.withValues(alpha: 0.8),
+                              color: theme.passCardTextColor.withValues(alpha: 0.85),
                               fontSize: 13,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
-                          _buildDateBadge(),
+                          _buildDateBadge(textColor: theme.passCardTextColor),
                         ],
                       ),
                     ],
@@ -2237,17 +2320,18 @@ class _HomeContentState extends State<HomeContent> {
     );
   }
 
-  Widget _buildRoleBadge(String label) {
+  Widget _buildRoleBadge(String label, {Color? textColor, Color? bgColor}) {
+    final c = textColor ?? Colors.white;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.15),
+        color: bgColor ?? c.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
         label.toUpperCase(),
         style: GoogleFonts.inter(
-          color: Colors.white,
+          color: c,
           fontSize: 10,
           fontWeight: FontWeight.bold,
           letterSpacing: 1,
@@ -2256,11 +2340,12 @@ class _HomeContentState extends State<HomeContent> {
     );
   }
 
-  Widget _buildDateBadge() {
+  Widget _buildDateBadge({Color? textColor, Color? bgColor}) {
+    final c = textColor ?? Colors.white;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.12),
+        color: bgColor ?? c.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
@@ -2268,14 +2353,14 @@ class _HomeContentState extends State<HomeContent> {
         children: [
           Icon(
             Icons.calendar_today_rounded,
-            color: Colors.white.withValues(alpha: 0.7),
+            color: c.withValues(alpha: 0.8),
             size: 12,
           ),
           const SizedBox(width: 6),
           Text(
             _todayDate,
             style: GoogleFonts.inter(
-              color: Colors.white.withValues(alpha: 0.7),
+              color: c.withValues(alpha: 0.8),
               fontSize: 11,
             ),
           ),
@@ -2834,11 +2919,15 @@ class _HomeContentState extends State<HomeContent> {
       return _buildEmptyActionsState();
     }
 
+    final theme = user.companyTheme;
     finalWidgets.insert(
       0,
-      const Padding(
-        padding: EdgeInsets.only(bottom: 12),
-        child: SectionHeader(title: "⚡ សេវាកម្ម និងមុខងារ"),
+      Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: SectionHeader(
+          title: "⚡ សេវាកម្ម និងមុខងារ",
+          textColor: theme.textPrimary,
+        ),
       ),
     );
 
@@ -2940,6 +3029,8 @@ class _HomeContentState extends State<HomeContent> {
       onTap();
     }
 
+    final theme = user.companyTheme;
+
     if (isList) {
       return Padding(
         padding: const EdgeInsets.only(bottom: 10),
@@ -2949,6 +3040,8 @@ class _HomeContentState extends State<HomeContent> {
           icon: icon,
           iconColor: color,
           onTap: wrappedTap,
+          textColor: theme.textPrimary,
+          subtitleColor: theme.textSecondary,
         ),
       );
     } else {
@@ -2957,6 +3050,7 @@ class _HomeContentState extends State<HomeContent> {
         icon: icon,
         color: color,
         onTap: wrappedTap,
+        textColor: theme.textPrimary,
       );
     }
   }

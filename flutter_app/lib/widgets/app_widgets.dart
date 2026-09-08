@@ -428,6 +428,7 @@ class AppGridAction extends StatelessWidget {
   final IconData icon;
   final Color color;
   final VoidCallback onTap;
+  final Color? textColor;
 
   const AppGridAction({
     super.key,
@@ -436,6 +437,7 @@ class AppGridAction extends StatelessWidget {
     required this.icon,
     this.color = const Color(0xFF6366F1), // Default to primary
     required this.onTap,
+    this.textColor,
   });
 
   @override
@@ -470,7 +472,7 @@ class AppGridAction extends StatelessWidget {
                 child: Text(
                   label,
                   style: GoogleFonts.kantumruyPro(
-                    color: AppTheme.textPrimary,
+                    color: textColor ?? AppTheme.textPrimary,
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
                     height: 1.2,
@@ -492,8 +494,9 @@ class AppGridAction extends StatelessWidget {
 class SectionHeader extends StatelessWidget {
   final String title;
   final VoidCallback? onSeeAll;
+  final Color? textColor;
 
-  const SectionHeader({super.key, required this.title, this.onSeeAll});
+  const SectionHeader({super.key, required this.title, this.onSeeAll, this.textColor});
 
   @override
   Widget build(BuildContext context) {
@@ -503,7 +506,7 @@ class SectionHeader extends StatelessWidget {
         Text(
           title,
           style: GoogleFonts.kantumruyPro(
-            color: AppTheme.textPrimary,
+            color: textColor ?? AppTheme.textPrimary,
             fontSize: 18,
             fontWeight: FontWeight.bold,
           ),
@@ -753,6 +756,8 @@ class AppActionButton extends StatelessWidget {
   final Color iconColor;
   final VoidCallback onTap;
   final bool isHighlighted;
+  final Color? textColor;
+  final Color? subtitleColor;
 
   const AppActionButton({
     super.key,
@@ -762,6 +767,8 @@ class AppActionButton extends StatelessWidget {
     required this.iconColor,
     required this.onTap,
     this.isHighlighted = false,
+    this.textColor,
+    this.subtitleColor,
   });
 
   @override
@@ -795,7 +802,7 @@ class AppActionButton extends StatelessWidget {
                   Text(
                     title,
                     style: GoogleFonts.kantumruyPro(
-                      color: AppTheme.textPrimary,
+                      color: textColor ?? AppTheme.textPrimary,
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
@@ -804,7 +811,7 @@ class AppActionButton extends StatelessWidget {
                   Text(
                     subtitle,
                     style: GoogleFonts.kantumruyPro(
-                      color: AppTheme.textSecondary,
+                      color: subtitleColor ?? AppTheme.textSecondary,
                       fontSize: 12,
                     ),
                     maxLines: 1,

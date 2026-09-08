@@ -62,6 +62,19 @@ class _GlassOrbBackgroundState extends State<GlassOrbBackground>
     final blueColor = widget.secondaryOrbColor ?? const Color(0xFF2563EB);
     final purpleColor = widget.accentOrbColor ?? const Color(0xFF8B5CF6);
 
+    final bool isLight = bg.computeLuminance() > 0.4;
+    final List<Color> bgColors = isLight
+        ? [
+            bg,
+            Color.lerp(bg, Colors.white, 0.6) ?? bg,
+            Color.lerp(bg, const Color(0xFFEDE9FE), 0.2) ?? bg,
+          ]
+        : [
+            bg,
+            Color.lerp(bg, const Color(0xFF0F172A), 0.7) ?? bg,
+            Color.lerp(bg, const Color(0xFF020617), 0.9) ?? bg,
+          ];
+
     return Scaffold(
       backgroundColor: bg,
       body: Stack(
@@ -73,11 +86,7 @@ class _GlassOrbBackgroundState extends State<GlassOrbBackground>
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [
-                  bg,
-                  Color.lerp(bg, const Color(0xFF0F172A), 0.7) ?? bg,
-                  Color.lerp(bg, const Color(0xFF020617), 0.9) ?? bg,
-                ],
+                colors: bgColors,
               ),
             ),
           ),
@@ -235,7 +244,7 @@ class GlassCard extends StatelessWidget {
     this.onTap,
     this.glowColor,
     this.glowBlur = 18.0,
-    this.hasTopShine = true,
+    this.hasTopShine = false,
     this.constraints,
   });
 
@@ -243,25 +252,30 @@ class GlassCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final baseTint = tintColor ?? Colors.white;
 
-    // Specular edge gradient: Top-Left catches light, bottom-right fades subtly
-    final defaultBorderGrad = LinearGradient(
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-      colors: [
-        (borderColor ?? baseTint).withValues(alpha: 0.32),
-        (borderColor ?? baseTint).withValues(alpha: 0.12),
-        (borderColor ?? baseTint).withValues(alpha: 0.04),
-        (borderColor ?? baseTint).withValues(alpha: 0.18),
-      ],
-      stops: const [0.0, 0.4, 0.75, 1.0],
-    );
+    // Clean, natural border: uses uniform borderColor if provided, or smooth subtle gradient
+    final effectiveBorderGrad = borderGradient ??
+        (borderColor != null
+            ? LinearGradient(
+                colors: [borderColor!, borderColor!],
+              )
+            : LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  baseTint.withValues(alpha: 0.20),
+                  baseTint.withValues(alpha: 0.12),
+                  baseTint.withValues(alpha: 0.08),
+                  baseTint.withValues(alpha: 0.14),
+                ],
+                stops: const [0.0, 0.4, 0.75, 1.0],
+              ));
 
     // Inner frosted gradient
     final innerSurfaceGrad = LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
       colors: [
-        baseTint.withValues(alpha: opacity * 1.4),
+        baseTint.withValues(alpha: opacity * 1.3),
         baseTint.withValues(alpha: opacity),
         baseTint.withValues(alpha: opacity * 0.7),
       ],
@@ -275,31 +289,7 @@ class GlassCard extends StatelessWidget {
         gradient: innerSurfaceGrad,
         borderRadius: BorderRadius.circular(borderRadius),
       ),
-      child: Stack(
-        children: [
-          // Specular shine highlight at the top edge
-          if (hasTopShine)
-            Positioned(
-              top: 0,
-              left: 12,
-              right: 12,
-              child: Container(
-                height: 1.0,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Colors.transparent,
-                      Colors.white.withValues(alpha: 0.45),
-                      Colors.transparent,
-                    ],
-                    stops: const [0.0, 0.5, 1.0],
-                  ),
-                ),
-              ),
-            ),
-          child,
-        ],
-      ),
+      child: child,
     );
 
     Widget cardBody = Container(
@@ -309,16 +299,16 @@ class GlassCard extends StatelessWidget {
         boxShadow: [
           // Ambient depth shadow
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.35),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
+            color: Colors.black.withValues(alpha: 0.10),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
           ),
           // Glow shadow if configured
           if (glowColor != null)
             BoxShadow(
-              color: glowColor!.withValues(alpha: 0.22),
+              color: glowColor!.withValues(alpha: 0.26),
               blurRadius: glowBlur,
-              spreadRadius: -2,
+              spreadRadius: -1,
             ),
         ],
       ),
@@ -330,7 +320,7 @@ class GlassCard extends StatelessWidget {
             painter: _GlassBorderPainter(
               borderRadius: borderRadius,
               borderWidth: borderWidth,
-              gradient: borderGradient ?? defaultBorderGrad,
+              gradient: effectiveBorderGrad,
             ),
             child: cardContent,
           ),
