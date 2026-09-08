@@ -353,10 +353,18 @@ class HomeScreenState extends State<HomeScreen> {
     final screens = _getScreens(userProvider);
     final theme = userProvider.companyTheme;
 
-    return Scaffold(
-      extendBody: true,
-      backgroundColor: theme.backgroundColor,
-      body: IndexedStack(index: _currentIndex, children: screens),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark, // Android: dark icons (black clock/battery)
+        statusBarBrightness: Brightness.light,    // iOS: dark icons (black clock/battery)
+        systemNavigationBarColor: Colors.white,
+        systemNavigationBarIconBrightness: Brightness.dark,
+      ),
+      child: Scaffold(
+        extendBody: true,
+        backgroundColor: theme.backgroundColor,
+        body: IndexedStack(index: _currentIndex, children: screens),
       bottomNavigationBar: _buildBottomNav(userProvider),
       floatingActionButton:
           _currentIndex == 0
@@ -402,6 +410,7 @@ class HomeScreenState extends State<HomeScreen> {
                 ),
               )
               : null,
+      ),
     );
   }
 
@@ -1064,6 +1073,11 @@ class _HomeContentState extends State<HomeContent> {
               ),
               slivers: [
                 SliverAppBar(
+                  systemOverlayStyle: const SystemUiOverlayStyle(
+                    statusBarColor: Colors.transparent,
+                    statusBarIconBrightness: Brightness.dark, // Android: dark icons
+                    statusBarBrightness: Brightness.light,    // iOS: dark icons (black clock & battery)
+                  ),
                   pinned: true,
                   floating: true,
                   elevation: 0,
@@ -1486,26 +1500,26 @@ class _HomeContentState extends State<HomeContent> {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
+                (theme.brand == CompanyBrand.vvc ? Colors.white : theme.cardBackground).withValues(alpha: 0.94),
                 (theme.brand == CompanyBrand.vvc ? Colors.white : theme.cardBackground).withValues(alpha: 0.85),
-                (theme.brand == CompanyBrand.vvc ? Colors.white : theme.cardBackground).withValues(alpha: 0.65),
-                (theme.brand == CompanyBrand.vvc ? Colors.white : theme.cardBackground).withValues(alpha: 0.78),
+                (theme.brand == CompanyBrand.vvc ? Colors.white : theme.cardBackground).withValues(alpha: 0.90),
               ],
               stops: const [0.0, 0.55, 1.0],
             ),
             borderRadius: BorderRadius.circular(24),
             border: Border.all(
-              color: Colors.white.withValues(alpha: 0.92),
-              width: 1.2,
+              color: Colors.white,
+              width: 1.5,
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF0F172A).withValues(alpha: 0.045),
+                color: const Color(0xFF0F172A).withValues(alpha: 0.065),
                 blurRadius: 18,
                 spreadRadius: 0,
                 offset: const Offset(0, 6),
               ),
               BoxShadow(
-                color: const Color(0xFF0F172A).withValues(alpha: 0.02),
+                color: const Color(0xFF0F172A).withValues(alpha: 0.03),
                 blurRadius: 4,
                 spreadRadius: 0,
                 offset: const Offset(0, 1),
@@ -1654,14 +1668,18 @@ class _HomeContentState extends State<HomeContent> {
                       child: Container(
                         height: 48,
                         decoration: BoxDecoration(
-                          color: isNextCheckIn
-                              ? theme.cardPrimary
-                              : const Color(0xFFEF4444),
+                          gradient: isNextCheckIn
+                              ? const LinearGradient(
+                                  colors: [Color(0xFFEAB308), Color(0xFFD97706)],
+                                )
+                              : const LinearGradient(
+                                  colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
+                                ),
                           borderRadius: BorderRadius.circular(14),
                           boxShadow: [
                             BoxShadow(
                               color: (isNextCheckIn
-                                      ? theme.cardPrimary
+                                      ? const Color(0xFFD97706)
                                       : const Color(0xFFEF4444))
                                   .withValues(alpha: 0.35),
                               blurRadius: 10,
@@ -1676,18 +1694,14 @@ class _HomeContentState extends State<HomeContent> {
                               isNextCheckIn
                                   ? Icons.qr_code_scanner_rounded
                                   : Icons.logout_rounded,
-                              color: isNextCheckIn
-                                  ? (theme.brand == CompanyBrand.vvc ? const Color(0xFF0F172A) : Colors.white)
-                                  : Colors.white,
+                              color: Colors.white,
                               size: 20,
                             ),
                             const SizedBox(width: 8),
                             Text(
                               isNextCheckIn ? 'ស្កេនចូល (Check-In)' : 'ស្កេនចេញ (Check-Out)',
                               style: GoogleFonts.kantumruyPro(
-                                color: isNextCheckIn
-                                    ? (theme.brand == CompanyBrand.vvc ? const Color(0xFF0F172A) : Colors.white)
-                                    : Colors.white,
+                                color: Colors.white,
                                 fontSize: 13.5,
                                 fontWeight: FontWeight.w800,
                               ),
@@ -1840,25 +1854,25 @@ class _HomeContentState extends State<HomeContent> {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
+                  (theme.brand == CompanyBrand.vvc ? Colors.white : theme.cardBackground).withValues(alpha: 0.94),
                   (theme.brand == CompanyBrand.vvc ? Colors.white : theme.cardBackground).withValues(alpha: 0.85),
-                  (theme.brand == CompanyBrand.vvc ? Colors.white : theme.cardBackground).withValues(alpha: 0.65),
-                  (theme.brand == CompanyBrand.vvc ? Colors.white : theme.cardBackground).withValues(alpha: 0.78),
+                  (theme.brand == CompanyBrand.vvc ? Colors.white : theme.cardBackground).withValues(alpha: 0.90),
                 ],
                 stops: const [0.0, 0.55, 1.0],
               ),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: Colors.white.withValues(alpha: 0.92),
-                width: 1.2,
+                color: Colors.white,
+                width: 1.5,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF0F172A).withValues(alpha: 0.045),
+                  color: const Color(0xFF0F172A).withValues(alpha: 0.065),
                   blurRadius: 16,
                   offset: const Offset(0, 5),
                 ),
                 BoxShadow(
-                  color: const Color(0xFF0F172A).withValues(alpha: 0.02),
+                  color: const Color(0xFF0F172A).withValues(alpha: 0.03),
                   blurRadius: 4,
                   offset: const Offset(0, 1),
                 ),
@@ -1893,11 +1907,13 @@ class _HomeContentState extends State<HomeContent> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4.5),
                       decoration: BoxDecoration(
-                        color: theme.cardPrimary,
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFEAB308), Color(0xFFD97706)],
+                        ),
                         borderRadius: BorderRadius.circular(12),
                         boxShadow: [
                           BoxShadow(
-                            color: theme.cardPrimary.withValues(alpha: 0.35),
+                            color: const Color(0xFFD97706).withValues(alpha: 0.35),
                             blurRadius: 6,
                             offset: const Offset(0, 2),
                           ),
@@ -1906,7 +1922,7 @@ class _HomeContentState extends State<HomeContent> {
                       child: Text(
                         actionText,
                         style: GoogleFonts.kantumruyPro(
-                          color: theme.brand == CompanyBrand.vvc ? const Color(0xFF0F172A) : Colors.white,
+                          color: Colors.white,
                           fontSize: 11.5,
                           fontWeight: FontWeight.w800,
                         ),
@@ -2034,26 +2050,26 @@ class _HomeContentState extends State<HomeContent> {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
+                  (theme.brand == CompanyBrand.vvc ? Colors.white : theme.cardBackground).withValues(alpha: 0.94),
                   (theme.brand == CompanyBrand.vvc ? Colors.white : theme.cardBackground).withValues(alpha: 0.85),
-                  (theme.brand == CompanyBrand.vvc ? Colors.white : theme.cardBackground).withValues(alpha: 0.65),
-                  (theme.brand == CompanyBrand.vvc ? Colors.white : theme.cardBackground).withValues(alpha: 0.78),
+                  (theme.brand == CompanyBrand.vvc ? Colors.white : theme.cardBackground).withValues(alpha: 0.90),
                 ],
                 stops: const [0.0, 0.55, 1.0],
               ),
               borderRadius: BorderRadius.circular(18),
               border: Border.all(
-                color: Colors.white.withValues(alpha: 0.92),
-                width: 1.2,
+                color: Colors.white,
+                width: 1.5,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF0F172A).withValues(alpha: 0.04),
-                  blurRadius: 12,
+                  color: const Color(0xFF0F172A).withValues(alpha: 0.06),
+                  blurRadius: 14,
                   offset: const Offset(0, 4),
                 ),
                 BoxShadow(
-                  color: const Color(0xFF0F172A).withValues(alpha: 0.015),
-                  blurRadius: 3,
+                  color: const Color(0xFF0F172A).withValues(alpha: 0.025),
+                  blurRadius: 4,
                   offset: const Offset(0, 1),
                 ),
               ],
@@ -2340,8 +2356,24 @@ class _HomeContentState extends State<HomeContent> {
             borderRadius: BorderRadius.circular(20),
             child: Stack(
               children: [
-                // Solid Company Primary Gold or Bronze Card
-                Container(decoration: BoxDecoration(color: theme.passCardColor)),
+                // Rich Warm Gold or Bronze Card with depth
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: theme.brand == CompanyBrand.vvc
+                          ? const [
+                              Color(0xFFEAB308), // Rich Warm Gold
+                              Color(0xFFD97706), // Deep Amber Gold
+                            ]
+                          : [
+                              theme.cardPrimary,
+                              theme.cardSecondary,
+                            ],
+                    ),
+                  ),
+                ),
                 // Decorative Circle
                 Positioned(
                   top: -40,
@@ -2351,7 +2383,7 @@ class _HomeContentState extends State<HomeContent> {
                     height: 150,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: theme.passCardTextColor.withValues(alpha: 0.08),
+                      color: Colors.white.withValues(alpha: 0.12),
                     ),
                   ),
                 ),
@@ -2364,15 +2396,15 @@ class _HomeContentState extends State<HomeContent> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Icon(
+                          const Icon(
                             Icons.nfc_rounded,
-                            color: theme.passCardTextColor.withValues(alpha: 0.85),
+                            color: Colors.white,
                             size: 28,
                           ),
                           _buildRoleBadge(
                             user.systemRoleStr,
-                            textColor: theme.passCardTextColor,
-                            bgColor: theme.passCardTextColor.withValues(alpha: 0.15),
+                            textColor: Colors.white,
+                            bgColor: Colors.white.withValues(alpha: 0.22),
                           ),
                         ],
                       ),
@@ -2380,20 +2412,34 @@ class _HomeContentState extends State<HomeContent> {
                       Text(
                         theme.passTitle,
                         style: GoogleFonts.inter(
-                          color: theme.passCardTextColor.withValues(alpha: 0.8),
+                          color: Colors.white.withValues(alpha: 0.90),
                           fontSize: 11,
                           fontWeight: FontWeight.w900,
                           letterSpacing: 1.5,
+                          shadows: [
+                            Shadow(
+                              color: Colors.black.withValues(alpha: 0.18),
+                              blurRadius: 3,
+                              offset: const Offset(0, 1),
+                            ),
+                          ],
                         ),
                       ),
                       const SizedBox(height: 6),
                       Text(
                         user.name ?? 'បុគ្គលិក',
                         style: GoogleFonts.kantumruyPro(
-                          color: theme.passCardTextColor,
+                          color: Colors.white,
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
                           height: 1.1,
+                          shadows: [
+                            Shadow(
+                              color: Colors.black.withValues(alpha: 0.18),
+                              blurRadius: 4,
+                              offset: const Offset(0, 1),
+                            ),
+                          ],
                         ),
                       ),
                       const SizedBox(height: 6),
@@ -2403,12 +2449,22 @@ class _HomeContentState extends State<HomeContent> {
                           Text(
                             "ID: ${user.employeeId ?? '---'}",
                             style: GoogleFonts.inter(
-                              color: theme.passCardTextColor.withValues(alpha: 0.85),
+                              color: Colors.white.withValues(alpha: 0.95),
                               fontSize: 13,
-                              fontWeight: FontWeight.w500,
+                              fontWeight: FontWeight.w600,
+                              shadows: [
+                                Shadow(
+                                  color: Colors.black.withValues(alpha: 0.15),
+                                  blurRadius: 3,
+                                  offset: const Offset(0, 1),
+                                ),
+                              ],
                             ),
                           ),
-                          _buildDateBadge(textColor: theme.passCardTextColor),
+                          _buildDateBadge(
+                            textColor: Colors.white,
+                            bgColor: Colors.white.withValues(alpha: 0.22),
+                          ),
                         ],
                       ),
                     ],

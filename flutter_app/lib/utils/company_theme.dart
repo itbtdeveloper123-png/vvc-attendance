@@ -66,7 +66,7 @@ class CompanyTheme {
     cardBackground: Colors.white,
     cardBorder: Color(0xFFE2E8F0),
     passCardColor: Color(0xFFF3D010),
-    passCardTextColor: Color(0xFF0F172A),
+    passCardTextColor: Colors.white,
     textPrimary: Color(0xFF0F172A),
     textSecondary: Color(0xFF475569),
     textMuted: Color(0xFF64748B),
