@@ -408,18 +408,28 @@ class HomeScreenState extends State<HomeScreen> {
   Widget _buildBottomNav(UserProvider user) {
     final theme = user.companyTheme;
     final bottomInset = MediaQuery.paddingOf(context).bottom;
+    final isVvc = theme.brand == CompanyBrand.vvc;
+    final activeTextColor = isVvc ? const Color(0xFF0F172A) : Colors.white;
+
     return ClipRRect(
       child: BackdropFilter(
-        filter: ui.ImageFilter.blur(sigmaX: 24.0, sigmaY: 24.0),
+        filter: ui.ImageFilter.blur(sigmaX: 20.0, sigmaY: 20.0),
         child: Container(
           decoration: BoxDecoration(
-            color: theme.backgroundColor.withValues(alpha: 0.92),
+            color: Colors.white.withValues(alpha: 0.78),
             border: Border(
               top: BorderSide(
-                color: theme.cardBorder,
-                width: 0.8,
+                color: Colors.white.withValues(alpha: 0.90),
+                width: 1.2,
               ),
             ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                blurRadius: 14,
+                offset: const Offset(0, -3),
+              ),
+            ],
           ),
           padding: EdgeInsets.only(
             bottom: bottomInset > 0 ? bottomInset : 12,
@@ -431,18 +441,18 @@ class HomeScreenState extends State<HomeScreen> {
             rippleColor: theme.cardPrimary.withValues(alpha: 0.2),
             hoverColor: theme.cardPrimary.withValues(alpha: 0.1),
             gap: 6,
-            activeColor: theme.cardPrimary,
-            iconSize: 26,
+            activeColor: activeTextColor,
+            iconSize: 24,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             duration: const Duration(milliseconds: 300),
-            tabBackgroundColor: theme.cardPrimary.withValues(alpha: 0.15),
-            color: theme.textMuted,
+            tabBackgroundColor: theme.cardPrimary,
+            color: const Color(0xFF64748B),
             tabs: [
               GButton(
                 icon: Icons.dashboard_rounded,
                 text: 'ទំព័រដើម',
                 textStyle: GoogleFonts.kantumruyPro(
-                  color: theme.cardPrimary,
+                  color: activeTextColor,
                   fontWeight: FontWeight.bold,
                   fontSize: 13,
                 ),
@@ -451,7 +461,7 @@ class HomeScreenState extends State<HomeScreen> {
                 icon: user.isHRM ? Icons.list_alt_rounded : Icons.layers_rounded,
                 text: user.isHRM ? "បញ្ជីសំណើ" : "សំណើ",
                 textStyle: GoogleFonts.kantumruyPro(
-                  color: theme.cardPrimary,
+                  color: activeTextColor,
                   fontWeight: FontWeight.bold,
                   fontSize: 13,
                 ),
@@ -460,7 +470,7 @@ class HomeScreenState extends State<HomeScreen> {
                 icon: Icons.person_rounded,
                 text: 'គណនី',
                 textStyle: GoogleFonts.kantumruyPro(
-                  color: theme.cardPrimary,
+                  color: activeTextColor,
                   fontWeight: FontWeight.bold,
                   fontSize: 13,
                 ),
@@ -1124,20 +1134,73 @@ class _HomeContentState extends State<HomeContent> {
         children: [
           // Feature #8: Weather pill
           if (_weatherText.isNotEmpty)
-            GlassChip(
-              icon: Text(_weatherIcon, style: const TextStyle(fontSize: 14)),
-              label: 'ភ្នំពេញ $_weatherText',
-              color: theme.cardPrimary,
-              textColor: theme.textPrimary,
+            ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: BackdropFilter(
+                filter: ui.ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.72),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.88),
+                      width: 1.2,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF0F172A).withValues(alpha: 0.035),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(_weatherIcon, style: const TextStyle(fontSize: 14)),
+                      const SizedBox(width: 6),
+                      Text(
+                        'ភ្នំពេញ $_weatherText',
+                        style: GoogleFonts.kantumruyPro(
+                          color: const Color(0xFF0F172A),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
           if (_weatherText.isNotEmpty) const SizedBox(width: 8),
           // Feature #5: Streak pill
           if (_attendanceStreak > 0)
-            GlassChip(
-              icon: const Text('🔥', style: TextStyle(fontSize: 13)),
-              label: '$_attendanceStreak ថ្ងៃ',
-              color: Colors.orange,
-              textColor: Colors.orange,
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.orange.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: Colors.orange.withValues(alpha: 0.35),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('🔥', style: TextStyle(fontSize: 13)),
+                  const SizedBox(width: 5),
+                  Text(
+                    '$_attendanceStreak ថ្ងៃ',
+                    style: GoogleFonts.inter(
+                      color: Colors.deepOrange,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
             ),
           const Spacer(),
         ],
@@ -1216,8 +1279,8 @@ class _HomeContentState extends State<HomeContent> {
                         Text(
                           _greeting,
                           style: GoogleFonts.kantumruyPro(
-                            color: theme.textSecondary,
-                            fontSize: 11,
+                            color: const Color(0xFF64748B),
+                            fontSize: 11.5,
                             fontWeight: FontWeight.w500,
                             letterSpacing: 0.3,
                             height: 1.4,
@@ -1231,9 +1294,9 @@ class _HomeContentState extends State<HomeContent> {
                               child: Text(
                                 user.name ?? 'បុគ្គលិក',
                                 style: GoogleFonts.kantumruyPro(
-                                  color: theme.textPrimary,
+                                  color: const Color(0xFF0F172A),
                                   fontWeight: FontWeight.bold,
-                                  fontSize: 15,
+                                  fontSize: 16,
                                 ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
@@ -1241,21 +1304,17 @@ class _HomeContentState extends State<HomeContent> {
                             ),
                             const SizedBox(width: 6),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                               decoration: BoxDecoration(
-                                color: theme.cardPrimary.withValues(alpha: 0.18),
+                                color: theme.cardPrimary,
                                 borderRadius: BorderRadius.circular(6),
-                                border: Border.all(
-                                  color: theme.cardPrimary.withValues(alpha: 0.45),
-                                  width: 0.8,
-                                ),
                               ),
                               child: Text(
                                 theme.brand == CompanyBrand.sk ? 'SK' : 'VVC',
                                 style: GoogleFonts.inter(
-                                  color: theme.cardPrimary,
+                                  color: theme.brand == CompanyBrand.vvc ? const Color(0xFF0F172A) : Colors.white,
                                   fontWeight: FontWeight.w900,
-                                  fontSize: 9.5,
+                                  fontSize: 10,
                                   letterSpacing: 0.5,
                                 ),
                               ),
@@ -1280,8 +1339,6 @@ class _HomeContentState extends State<HomeContent> {
                   context,
                   _slideRoute(const TrainingQuizScreen()),
                 ),
-                color: theme.textPrimary,
-                borderColor: theme.cardBorder,
               ),
               _buildTopIcon(
                 Icons.forum_rounded,
@@ -1289,8 +1346,6 @@ class _HomeContentState extends State<HomeContent> {
                   context,
                   _slideRoute(const ChatListScreen()),
                 ),
-                color: theme.textPrimary,
-                borderColor: theme.cardBorder,
               ),
               _buildTopIcon(
                 Icons.notifications_rounded,
@@ -1299,8 +1354,6 @@ class _HomeContentState extends State<HomeContent> {
                   _slideRoute(const NotificationScreen()),
                 ),
                 badge: _unreadNotifications > 0,
-                color: theme.textPrimary,
-                borderColor: theme.cardBorder,
               ),
             ],
           ),
@@ -1321,35 +1374,51 @@ class _HomeContentState extends State<HomeContent> {
         _hapticLight();
         onTap();
       },
-      child: AppTheme.glassBox(
-        color: (color ?? Colors.white).withValues(alpha: 0.08),
-        borderColor: borderColor ?? (color ?? Colors.white).withValues(alpha: 0.18),
-        radius: 20,
-        blur: 16,
-        padding: const EdgeInsets.all(0),
-        margin: const EdgeInsets.only(left: 4),
-        child: SizedBox(
-          width: 38,
-          height: 38,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              Icon(icon, color: color ?? Colors.white, size: 22),
-              if (badge)
-                Positioned(
-                  top: 10,
-                  right: 10,
-                  child: Container(
-                    width: 9,
-                    height: 9,
-                    decoration: BoxDecoration(
-                      color: Colors.redAccent,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 1.5),
-                    ),
-                  ),
+      child: Container(
+        margin: const EdgeInsets.only(left: 6),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(19),
+          child: BackdropFilter(
+            filter: ui.ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+            child: Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.72),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.88),
+                  width: 1.2,
                 ),
-            ],
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF0F172A).withValues(alpha: 0.035),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Icon(icon, color: const Color(0xFF334155), size: 20),
+                  if (badge)
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: Colors.redAccent,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 1.5),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ),
         ),
       ),
@@ -1401,270 +1470,255 @@ class _HomeContentState extends State<HomeContent> {
     final theme = user.companyTheme;
     final bool isCheckedIn = _checkInTime != null;
     final bool isNextCheckIn = _nextAction == 'Check-In';
-    final accentColor = isNextCheckIn ? theme.cardPrimary : const Color(0xFF10B981);
 
-    return GlassCard(
-      blur: 24,
-      borderRadius: 24,
-      tintColor: accentColor,
-      opacity: 0.14,
-      borderColor: accentColor.withValues(alpha: 0.45),
-      glowColor: accentColor.withValues(alpha: 0.25),
-      padding: EdgeInsets.zero,
-      child: Stack(
-        children: [
-          // Ambient Background Glow
-          Positioned(
-            top: -30,
-            right: -30,
-            child: Container(
-              width: 140,
-              height: 140,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    theme.cardPrimary.withValues(alpha: 0.25),
-                    theme.cardPrimary.withValues(alpha: 0.0),
-                  ],
-                ),
-              ),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(24),
+      child: BackdropFilter(
+        filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+        child: Container(
+          decoration: BoxDecoration(
+            color: (theme.brand == CompanyBrand.vvc ? Colors.white : theme.cardBackground).withValues(alpha: 0.72),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.90),
+              width: 1.2,
             ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
-          Padding(
-            padding: const EdgeInsets.all(18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Top Row: Status Chip + Streak Chip + Scan History Icon
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // Status Badge
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: (isCheckedIn
-                                ? const Color(0xFF10B981)
-                                : theme.textMuted)
-                            .withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: (isCheckedIn
-                                  ? const Color(0xFF10B981)
-                                  : theme.textMuted)
-                              .withValues(alpha: 0.3),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 7,
-                            height: 7,
-                            decoration: BoxDecoration(
-                              color: isCheckedIn
-                                  ? const Color(0xFF10B981)
-                                  : theme.textMuted,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            isCheckedIn
-                                ? 'ចូលធ្វើការ ${DateFormat('hh:mm a').format(_checkInTime!)}'
-                                : 'មិនទាន់ Check-In',
-                            style: GoogleFonts.kantumruyPro(
-                              color: isCheckedIn
-                                  ? const Color(0xFF10B981)
-                                  : theme.textSecondary,
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Top Row: Status Chip + Streak Chip + Scan History Icon
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Status Badge (Frosted Pill)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: isCheckedIn
+                          ? const Color(0xFF10B981).withValues(alpha: 0.12)
+                          : const Color(0xFF0F172A).withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: isCheckedIn
+                            ? const Color(0xFF10B981).withValues(alpha: 0.25)
+                            : Colors.white.withValues(alpha: 0.8),
                       ),
                     ),
-                    // Right Controls: Streak + History
-                    Row(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        if (_attendanceStreak > 0) ...[
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: Colors.orange.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: Colors.orange.withValues(alpha: 0.35),
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Text('🔥', style: TextStyle(fontSize: 12)),
-                                const SizedBox(width: 4),
-                                Text(
-                                  '$_attendanceStreak ថ្ងៃ',
-                                  style: GoogleFonts.inter(
-                                    color: Colors.orange,
-                                    fontSize: 11.5,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ),
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: isCheckedIn
+                                ? const Color(0xFF10B981)
+                                : const Color(0xFF94A3B8),
+                            shape: BoxShape.circle,
                           ),
-                          const SizedBox(width: 8),
-                        ],
-                        GestureDetector(
-                          onTap: () {
-                            _hapticLight();
-                            Navigator.push(
-                              context,
-                              _slideRoute(const ScanHistoryScreen()),
-                            );
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: theme.cardPrimary.withValues(alpha: 0.12),
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: theme.cardBorder,
-                                width: 0.8,
-                              ),
-                            ),
-                            child: Icon(
-                              Icons.history_rounded,
-                              color: theme.textPrimary,
-                              size: 18,
-                            ),
+                        ),
+                        const SizedBox(width: 7),
+                        Text(
+                          isCheckedIn
+                              ? 'ចូលធ្វើការ ${DateFormat('hh:mm a').format(_checkInTime!)}'
+                              : 'មិនទាន់ Check-In',
+                          style: GoogleFonts.kantumruyPro(
+                            color: isCheckedIn
+                                ? const Color(0xFF059669)
+                                : const Color(0xFF475569),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                       ],
                     ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-
-                // Bottom Action Buttons
-                Row(
-                  children: [
-                    // Main Scan Action Button
-                    Expanded(
-                      flex: 3,
-                      child: GestureDetector(
-                        onTap: () {
-                          _hapticMedium();
-                          _goScan(_nextAction);
-                        },
-                        child: Container(
-                          height: 46,
+                  ),
+                  // Right Controls: Streak + History
+                  Row(
+                    children: [
+                      if (_attendanceStreak > 0) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                           decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: isNextCheckIn
-                                  ? [theme.cardPrimary, theme.cardSecondary]
-                                  : [const Color(0xFFEF4444), const Color(0xFFDC2626)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
+                            color: Colors.orange.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: Colors.orange.withValues(alpha: 0.30),
                             ),
-                            borderRadius: BorderRadius.circular(14),
-                            boxShadow: [
-                              BoxShadow(
-                                color: (isNextCheckIn
-                                        ? theme.cardPrimary
-                                        : const Color(0xFFEF4444))
-                                    .withValues(alpha: 0.4),
-                                blurRadius: 12,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
                           ),
                           child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(
-                                isNextCheckIn
-                                    ? Icons.qr_code_scanner_rounded
-                                    : Icons.logout_rounded,
-                                color: isNextCheckIn
-                                    ? (theme.brand == CompanyBrand.vvc ? const Color(0xFF0F172A) : Colors.white)
-                                    : Colors.white,
-                                size: 20,
-                              ),
-                              const SizedBox(width: 8),
+                              const Text('🔥', style: TextStyle(fontSize: 12)),
+                              const SizedBox(width: 4),
                               Text(
-                                isNextCheckIn ? 'ស្កេនចូល (Check-In)' : 'ស្កេនចេញ (Check-Out)',
-                                style: GoogleFonts.kantumruyPro(
-                                  color: isNextCheckIn
-                                      ? (theme.brand == CompanyBrand.vvc ? const Color(0xFF0F172A) : Colors.white)
-                                      : Colors.white,
-                                  fontSize: 13.5,
+                                '$_attendanceStreak ថ្ងៃ',
+                                style: GoogleFonts.inter(
+                                  color: Colors.deepOrange,
+                                  fontSize: 11.5,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
                             ],
                           ),
                         ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    // Outside Attendance Shortcut
-                    Expanded(
-                      flex: 2,
-                      child: GestureDetector(
+                        const SizedBox(width: 8),
+                      ],
+                      GestureDetector(
                         onTap: () {
                           _hapticLight();
-                          if (user.isHRM || user.isAdmin) {
-                            Navigator.push(
-                              context,
-                              _slideRoute(const OutsideReportScreen()),
-                            );
-                          } else {
-                            Navigator.push(
-                              context,
-                              _slideRoute(const OutsideAttendanceScreen()),
-                            );
-                          }
+                          Navigator.push(
+                            context,
+                            _slideRoute(const ScanHistoryScreen()),
+                          );
                         },
                         child: Container(
-                          height: 46,
+                          padding: const EdgeInsets.all(7),
                           decoration: BoxDecoration(
-                            color: theme.backgroundColor.withValues(alpha: 0.5),
-                            borderRadius: BorderRadius.circular(14),
+                            color: Colors.white.withValues(alpha: 0.75),
+                            shape: BoxShape.circle,
                             border: Border.all(
-                              color: theme.cardBorder,
+                              color: Colors.white.withValues(alpha: 0.9),
                               width: 1,
                             ),
                           ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(
-                                Icons.location_on_rounded,
-                                color: Color(0xFF38BDF8),
-                                size: 18,
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                'ក្រៅទីតាំង',
-                                style: GoogleFonts.kantumruyPro(
-                                  color: theme.textPrimary,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
+                          child: const Icon(
+                            Icons.history_rounded,
+                            color: Color(0xFF475569),
+                            size: 18,
                           ),
                         ),
                       ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // Bottom Action Buttons
+              Row(
+                children: [
+                  // Main Scan Action Button (Core Branding Color Highlight)
+                  Expanded(
+                    flex: 3,
+                    child: GestureDetector(
+                      onTap: () {
+                        _hapticMedium();
+                        _goScan(_nextAction);
+                      },
+                      child: Container(
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: isNextCheckIn
+                              ? theme.cardPrimary
+                              : const Color(0xFFEF4444),
+                          borderRadius: BorderRadius.circular(14),
+                          boxShadow: [
+                            BoxShadow(
+                              color: (isNextCheckIn
+                                      ? theme.cardPrimary
+                                      : const Color(0xFFEF4444))
+                                  .withValues(alpha: 0.35),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              isNextCheckIn
+                                  ? Icons.qr_code_scanner_rounded
+                                  : Icons.logout_rounded,
+                              color: isNextCheckIn
+                                  ? (theme.brand == CompanyBrand.vvc ? const Color(0xFF0F172A) : Colors.white)
+                                  : Colors.white,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              isNextCheckIn ? 'ស្កេនចូល (Check-In)' : 'ស្កេនចេញ (Check-Out)',
+                              style: GoogleFonts.kantumruyPro(
+                                color: isNextCheckIn
+                                    ? (theme.brand == CompanyBrand.vvc ? const Color(0xFF0F172A) : Colors.white)
+                                    : Colors.white,
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                  ],
-                ),
-              ],
-            ),
+                  ),
+                  const SizedBox(width: 10),
+                  // Outside Attendance Shortcut (Frosted Glass Button)
+                  Expanded(
+                    flex: 2,
+                    child: GestureDetector(
+                      onTap: () {
+                        _hapticLight();
+                        if (user.isHRM || user.isAdmin) {
+                          Navigator.push(
+                            context,
+                            _slideRoute(const OutsideReportScreen()),
+                          );
+                        } else {
+                          Navigator.push(
+                            context,
+                            _slideRoute(const OutsideAttendanceScreen()),
+                          );
+                        }
+                      },
+                      child: Container(
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.75),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.95),
+                            width: 1.2,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.location_on_rounded,
+                              color: theme.brand == CompanyBrand.vvc
+                                  ? const Color(0xFF0284C7)
+                                  : theme.cardPrimary,
+                              size: 19,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'ក្រៅទីតាំង',
+                              style: GoogleFonts.kantumruyPro(
+                                color: const Color(0xFF0F172A),
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -1684,7 +1738,7 @@ class _HomeContentState extends State<HomeContent> {
           child: _buildBentoMediumCard(
             theme: theme,
             icon: Icons.beach_access_rounded,
-            iconColor: const Color(0xFF10B981),
+            iconColor: theme.cardPrimary,
             title: 'AL នៅសល់',
             value: '$leaveBalanceStr ថ្ងៃ',
             subtitle: 'ក្នុងឆ្នាំ (Live Balance)',
@@ -1704,7 +1758,7 @@ class _HomeContentState extends State<HomeContent> {
           child: _buildBentoMediumCard(
             theme: theme,
             icon: Icons.assignment_turned_in_rounded,
-            iconColor: const Color(0xFFF59E0B),
+            iconColor: theme.cardPrimary,
             title: 'ផ្ញើទៅ Telegram',
             value: 'ធ្វើរបាយការណ៍',
             subtitle: 'ប្រចាំថ្ងៃ',
@@ -1732,64 +1786,100 @@ class _HomeContentState extends State<HomeContent> {
     required String actionText,
     required VoidCallback onTap,
   }) {
-    return GlassCard(
+    // Unified core branding accent color
+    final brandAccent = theme.brand == CompanyBrand.vvc
+        ? const Color(0xFFB48300)
+        : theme.cardPrimary;
+
+    return GestureDetector(
       onTap: onTap,
-      borderRadius: 20,
-      blur: 20,
-      tintColor: iconColor,
-      opacity: 0.10,
-      borderColor: iconColor.withValues(alpha: 0.35),
-      glowColor: iconColor.withValues(alpha: 0.20),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: iconColor.withValues(alpha: 0.18),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: iconColor.withValues(alpha: 0.28),
-                    width: 1,
-                  ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: (theme.brand == CompanyBrand.vvc ? Colors.white : theme.cardBackground).withValues(alpha: 0.72),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.88),
+                width: 1.2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF0F172A).withValues(alpha: 0.035),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
                 ),
-                child: Icon(icon, color: iconColor, size: 20),
-              ),
-              GlassChip(
-                label: actionText,
-                color: iconColor,
-                textColor: iconColor,
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                borderRadius: 10,
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Text(
-            value,
-            style: GoogleFonts.kantumruyPro(
-              color: theme.textPrimary,
-              fontSize: 17,
-              fontWeight: FontWeight.bold,
+              ],
             ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 2),
-          Text(
-            subtitle,
-            style: GoogleFonts.kantumruyPro(
-              color: theme.textMuted,
-              fontSize: 11.5,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: theme.cardPrimary.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: theme.cardPrimary.withValues(alpha: 0.20),
+                          width: 1,
+                        ),
+                      ),
+                      child: Icon(icon, color: brandAccent, size: 20),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: theme.cardPrimary.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: theme.cardPrimary.withValues(alpha: 0.22),
+                          width: 1,
+                        ),
+                      ),
+                      child: Text(
+                        actionText,
+                        style: GoogleFonts.kantumruyPro(
+                          color: brandAccent,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  value,
+                  style: GoogleFonts.kantumruyPro(
+                    color: const Color(0xFF0F172A),
+                    fontSize: 16.5,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: GoogleFonts.kantumruyPro(
+                    color: const Color(0xFF64748B),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
             ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
           ),
-        ],
+        ),
       ),
     );
   }
@@ -1806,7 +1896,7 @@ class _HomeContentState extends State<HomeContent> {
           child: _buildBentoMiniCard(
             theme: theme,
             icon: Icons.checklist_rtl_rounded,
-            color: const Color(0xFF3B82F6),
+            color: theme.cardPrimary,
             title: 'Checklist',
             subtitle: 'ការងារថ្ងៃនេះ',
             onTap: () {
@@ -1824,7 +1914,7 @@ class _HomeContentState extends State<HomeContent> {
           child: _buildBentoMiniCard(
             theme: theme,
             icon: Icons.groups_rounded,
-            color: const Color(0xFFA855F7),
+            color: theme.cardPrimary,
             title: 'ការប្រជុំ',
             subtitle: 'កំណត់ត្រា AI',
             onTap: () {
@@ -1842,7 +1932,7 @@ class _HomeContentState extends State<HomeContent> {
           child: _buildBentoMiniCard(
             theme: theme,
             icon: Icons.campaign_rounded,
-            color: const Color(0xFFF43F5E),
+            color: theme.cardPrimary,
             title: 'ដំណឹងថ្មី',
             subtitle: '$announcementsCount ដំណឹង',
             onTap: () {
@@ -1866,59 +1956,84 @@ class _HomeContentState extends State<HomeContent> {
     required String subtitle,
     required VoidCallback onTap,
   }) {
-    return GlassCard(
+    // Unified core branding accent color
+    final brandAccent = theme.brand == CompanyBrand.vvc
+        ? const Color(0xFFB48300)
+        : theme.cardPrimary;
+
+    return GestureDetector(
       onTap: onTap,
-      borderRadius: 18,
-      blur: 18,
-      tintColor: color,
-      opacity: 0.10,
-      borderColor: color.withValues(alpha: 0.32),
-      glowColor: color.withValues(alpha: 0.18),
-      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
             decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.18),
-              shape: BoxShape.circle,
+              color: (theme.brand == CompanyBrand.vvc ? Colors.white : theme.cardBackground).withValues(alpha: 0.72),
+              borderRadius: BorderRadius.circular(18),
               border: Border.all(
-                color: color.withValues(alpha: 0.3),
-                width: 1,
+                color: Colors.white.withValues(alpha: 0.88),
+                width: 1.2,
               ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF0F172A).withValues(alpha: 0.035),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
+                ),
+              ],
             ),
-            child: Icon(icon, color: color, size: 20),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            title,
-            style: GoogleFonts.kantumruyPro(
-              color: theme.textPrimary,
-              fontSize: 11.5,
-              fontWeight: FontWeight.bold,
+            child: Column(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: theme.cardPrimary.withValues(alpha: 0.14),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: theme.cardPrimary.withValues(alpha: 0.20),
+                      width: 1,
+                    ),
+                  ),
+                  child: Icon(icon, color: brandAccent, size: 20),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  title,
+                  style: GoogleFonts.kantumruyPro(
+                    color: const Color(0xFF0F172A),
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: GoogleFonts.kantumruyPro(
+                    color: const Color(0xFF64748B),
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                ),
+              ],
             ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 2),
-          Text(
-            subtitle,
-            style: GoogleFonts.kantumruyPro(
-              color: theme.textMuted,
-              fontSize: 10,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-          ),
-        ],
+        ),
       ),
     );
   }
 
   Widget _buildStatsSlider(UserProvider user) {
     final role = user.systemRole;
+    final theme = user.companyTheme;
     final List<Widget> stats = [];
 
     stats.add(
@@ -1928,6 +2043,8 @@ class _HomeContentState extends State<HomeContent> {
         icon: Icons.task_alt_rounded,
         color: AppTheme.primary,
         isLoading: _isLoadingStats,
+        cardColor: theme.cardBackground,
+        borderColor: theme.cardBorder,
       ),
     );
     stats.add(
@@ -1937,6 +2054,8 @@ class _HomeContentState extends State<HomeContent> {
         icon: Icons.campaign_rounded,
         color: AppTheme.warning,
         isLoading: _isLoadingStats,
+        cardColor: theme.cardBackground,
+        borderColor: theme.cardBorder,
       ),
     );
     stats.add(
@@ -1946,6 +2065,8 @@ class _HomeContentState extends State<HomeContent> {
         icon: Icons.beach_access_rounded,
         color: AppTheme.success,
         isLoading: _isLoadingStats,
+        cardColor: theme.cardBackground,
+        borderColor: theme.cardBorder,
       ),
     );
 
@@ -1957,6 +2078,8 @@ class _HomeContentState extends State<HomeContent> {
           icon: Icons.pending_actions_rounded,
           color: AppTheme.secondary,
           isLoading: _isLoadingStats,
+          cardColor: theme.cardBackground,
+          borderColor: theme.cardBorder,
         ),
       );
     }
@@ -2450,6 +2573,8 @@ class _HomeContentState extends State<HomeContent> {
                       isLoading: _isLoadingNextAction,
                       checkInTime: _checkInTime,
                       liveWorkDuration: _liveWorkDuration,
+                      cardColor: theme.cardBackground,
+                      borderColor: theme.cardBorder,
                       onCheckIn: () => _goScan('Check-In'),
                       onCheckOut: () => _goScan('Check-Out'),
                       onHistoryTap:
@@ -3030,6 +3155,10 @@ class _HomeContentState extends State<HomeContent> {
     }
 
     final theme = user.companyTheme;
+    // Unified core branding color for clean Glassmorphism (no messy multi-colors)
+    final brandAccentColor = theme.brand == CompanyBrand.vvc
+        ? const Color(0xFFB48300)
+        : theme.cardPrimary;
 
     if (isList) {
       return Padding(
@@ -3038,19 +3167,23 @@ class _HomeContentState extends State<HomeContent> {
           title: label,
           subtitle: subtitle,
           icon: icon,
-          iconColor: color,
+          iconColor: brandAccentColor,
           onTap: wrappedTap,
           textColor: theme.textPrimary,
           subtitleColor: theme.textSecondary,
+          cardColor: theme.cardBackground,
+          borderColor: theme.cardBorder,
         ),
       );
     } else {
       return AppGridAction(
         label: label.replaceAll(' ', '\n'),
         icon: icon,
-        color: color,
+        color: brandAccentColor,
         onTap: wrappedTap,
         textColor: theme.textPrimary,
+        cardColor: theme.cardBackground,
+        borderColor: theme.cardBorder,
       );
     }
   }

@@ -88,30 +88,36 @@ class AppTheme {
     Gradient? gradient,
   }) {
     final baseColor = color ?? Colors.white;
+    final bool isDark = baseColor.computeLuminance() < 0.2;
+    final double surfaceAlpha = isDark ? 0.20 : 0.72;
+
     return BoxDecoration(
       gradient: gradient ??
           LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              baseColor.withValues(alpha: 0.12),
-              baseColor.withValues(alpha: 0.05),
+              baseColor.withValues(alpha: (surfaceAlpha * 1.05).clamp(0.0, 0.95)),
+              baseColor.withValues(alpha: surfaceAlpha),
+              baseColor.withValues(alpha: (surfaceAlpha * 0.90).clamp(0.0, 0.90)),
             ],
           ),
       borderRadius: BorderRadius.circular(radius),
       border: Border.all(
-        color: borderColor ?? baseColor.withValues(alpha: 0.20),
+        color: borderColor ?? (isDark
+            ? Colors.white.withValues(alpha: 0.18)
+            : Colors.white.withValues(alpha: 0.88)),
         width: 1.2,
       ),
       boxShadow: [
         BoxShadow(
-          color: Colors.black.withValues(alpha: 0.25),
+          color: const Color(0xFF0F172A).withValues(alpha: 0.04),
           blurRadius: 16,
-          offset: const Offset(0, 6),
+          offset: const Offset(0, 4),
         ),
         if (glow)
           BoxShadow(
-            color: baseColor.withValues(alpha: 0.20),
+            color: (color ?? primary).withValues(alpha: 0.22),
             blurRadius: 22,
             spreadRadius: -2,
           ),

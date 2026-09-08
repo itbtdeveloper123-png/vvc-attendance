@@ -66,14 +66,16 @@ class _GlassOrbBackgroundState extends State<GlassOrbBackground>
     final List<Color> bgColors = isLight
         ? [
             bg,
-            Color.lerp(bg, Colors.white, 0.6) ?? bg,
-            Color.lerp(bg, const Color(0xFFEDE9FE), 0.2) ?? bg,
+            Color.lerp(bg, const Color(0xFFEFF4FB), 0.6) ?? bg,
+            bg,
           ]
         : [
             bg,
             Color.lerp(bg, const Color(0xFF0F172A), 0.7) ?? bg,
             Color.lerp(bg, const Color(0xFF020617), 0.9) ?? bg,
           ];
+
+    final double orbAlpha = isLight ? 0.08 : widget.orbOpacity;
 
     return Scaffold(
       backgroundColor: bg,
@@ -106,39 +108,41 @@ class _GlassOrbBackgroundState extends State<GlassOrbBackground>
                       child: _buildGlowOrb(
                         color: goldColor,
                         size: 260 + (progress * 40),
-                        opacity: widget.orbOpacity,
+                        opacity: orbAlpha,
                       ),
                     ),
-                    // Top-Left Blue Glow Orb
-                    Positioned(
-                      top: 140 - (progress * 35),
-                      left: -80 + (progress * 25),
-                      child: _buildGlowOrb(
-                        color: blueColor,
-                        size: 240,
-                        opacity: widget.orbOpacity * 0.9,
+                    if (!isLight) ...[
+                      // Top-Left Blue Glow Orb
+                      Positioned(
+                        top: 140 - (progress * 35),
+                        left: -80 + (progress * 25),
+                        child: _buildGlowOrb(
+                          color: blueColor,
+                          size: 240,
+                          opacity: widget.orbOpacity * 0.9,
+                        ),
                       ),
-                    ),
-                    // Center-Right Purple Glow Orb
-                    Positioned(
-                      top: 420 + (progress * 40),
-                      right: -70 + (progress * 20),
-                      child: _buildGlowOrb(
-                        color: purpleColor,
-                        size: 220,
-                        opacity: widget.orbOpacity * 0.85,
+                      // Center-Right Purple Glow Orb
+                      Positioned(
+                        top: 420 + (progress * 40),
+                        right: -70 + (progress * 20),
+                        child: _buildGlowOrb(
+                          color: purpleColor,
+                          size: 220,
+                          opacity: widget.orbOpacity * 0.85,
+                        ),
                       ),
-                    ),
-                    // Bottom-Left Emerald/Cyan Accent Orb
-                    Positioned(
-                      bottom: -50 - (progress * 20),
-                      left: -40 + (progress * 30),
-                      child: _buildGlowOrb(
-                        color: const Color(0xFF10B981),
-                        size: 250,
-                        opacity: widget.orbOpacity * 0.75,
+                      // Bottom-Left Emerald/Cyan Accent Orb
+                      Positioned(
+                        bottom: -50 - (progress * 20),
+                        left: -40 + (progress * 30),
+                        child: _buildGlowOrb(
+                          color: const Color(0xFF10B981),
+                          size: 250,
+                          opacity: widget.orbOpacity * 0.75,
+                        ),
                       ),
-                    ),
+                    ],
                   ],
                 );
               },
@@ -152,27 +156,29 @@ class _GlassOrbBackgroundState extends State<GlassOrbBackground>
                   child: _buildGlowOrb(
                     color: goldColor,
                     size: 270,
-                    opacity: widget.orbOpacity,
+                    opacity: orbAlpha,
                   ),
                 ),
-                Positioned(
-                  top: 160,
-                  left: -70,
-                  child: _buildGlowOrb(
-                    color: blueColor,
-                    size: 240,
-                    opacity: widget.orbOpacity * 0.85,
+                if (!isLight) ...[
+                  Positioned(
+                    top: 160,
+                    left: -70,
+                    child: _buildGlowOrb(
+                      color: blueColor,
+                      size: 240,
+                      opacity: widget.orbOpacity * 0.85,
+                    ),
                   ),
-                ),
-                Positioned(
-                  bottom: 80,
-                  right: -50,
-                  child: _buildGlowOrb(
-                    color: purpleColor,
-                    size: 220,
-                    opacity: widget.orbOpacity * 0.8,
+                  Positioned(
+                    bottom: 80,
+                    right: -50,
+                    child: _buildGlowOrb(
+                      color: purpleColor,
+                      size: 220,
+                      opacity: widget.orbOpacity * 0.8,
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
 
@@ -235,7 +241,7 @@ class GlassCard extends StatelessWidget {
     this.blur = 20.0,
     this.borderRadius = 22.0,
     this.tintColor,
-    this.opacity = 0.09,
+    this.opacity = 0.72,
     this.borderColor,
     this.borderGradient,
     this.borderWidth = 1.2,
@@ -251,8 +257,10 @@ class GlassCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final baseTint = tintColor ?? Colors.white;
+    final bool isDark = baseTint.computeLuminance() < 0.2;
+    final double effOpacity = isDark ? (opacity < 0.3 ? opacity : 0.20) : opacity;
 
-    // Clean, natural border: uses uniform borderColor if provided, or smooth subtle gradient
+    // Clean, natural border: uses uniform borderColor if provided, or smooth specular gradient
     final effectiveBorderGrad = borderGradient ??
         (borderColor != null
             ? LinearGradient(
@@ -262,10 +270,10 @@ class GlassCard extends StatelessWidget {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  baseTint.withValues(alpha: 0.20),
-                  baseTint.withValues(alpha: 0.12),
-                  baseTint.withValues(alpha: 0.08),
-                  baseTint.withValues(alpha: 0.14),
+                  Colors.white.withValues(alpha: isDark ? 0.25 : 0.90),
+                  Colors.white.withValues(alpha: isDark ? 0.15 : 0.50),
+                  Colors.white.withValues(alpha: isDark ? 0.08 : 0.25),
+                  Colors.white.withValues(alpha: isDark ? 0.18 : 0.65),
                 ],
                 stops: const [0.0, 0.4, 0.75, 1.0],
               ));
@@ -275,9 +283,9 @@ class GlassCard extends StatelessWidget {
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
       colors: [
-        baseTint.withValues(alpha: opacity * 1.3),
-        baseTint.withValues(alpha: opacity),
-        baseTint.withValues(alpha: opacity * 0.7),
+        baseTint.withValues(alpha: (effOpacity * 1.05).clamp(0.0, 0.96)),
+        baseTint.withValues(alpha: effOpacity.clamp(0.0, 0.92)),
+        baseTint.withValues(alpha: (effOpacity * 0.90).clamp(0.0, 0.88)),
       ],
       stops: const [0.0, 0.5, 1.0],
     );
@@ -299,14 +307,14 @@ class GlassCard extends StatelessWidget {
         boxShadow: [
           // Ambient depth shadow
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.10),
+            color: const Color(0xFF0F172A).withValues(alpha: 0.04),
             blurRadius: 16,
-            offset: const Offset(0, 6),
+            offset: const Offset(0, 4),
           ),
           // Glow shadow if configured
           if (glowColor != null)
             BoxShadow(
-              color: glowColor!.withValues(alpha: 0.26),
+              color: glowColor!.withValues(alpha: 0.22),
               blurRadius: glowBlur,
               spreadRadius: -1,
             ),

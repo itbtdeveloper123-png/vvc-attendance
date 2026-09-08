@@ -353,6 +353,8 @@ class AppStatCard extends StatelessWidget {
   final IconData icon;
   final Color color;
   final bool isLoading;
+  final Color? cardColor;
+  final Color? borderColor;
 
   const AppStatCard({
     super.key,
@@ -362,59 +364,83 @@ class AppStatCard extends StatelessWidget {
     required this.icon,
     this.color = const Color(0xFF6366F1), // Default to primary
     this.isLoading = false,
+    this.cardColor,
+    this.borderColor,
   });
 
   @override
   Widget build(BuildContext context) {
     return AppShimmer(
       enabled: isLoading,
-      child: AppTheme.glassBox(
-        color: color.withValues(alpha: 0.3),
-        borderColor: color.withValues(alpha: 0.2),
-        radius: AppTheme.radiusXl,
-        blur: 18,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: (cardColor ?? Colors.white).withValues(alpha: 0.72),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: borderColor ?? Colors.white.withValues(alpha: 0.88),
+                width: 1.2,
               ),
-              child: Icon(icon, color: color, size: 20),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (isLoading)
-                  const AppShimmerBox(width: 60, height: 28)
-                else
-                  Text(
-                    value,
-                    style: GoogleFonts.inter(
-                      color: AppTheme.textPrimary,
-                      fontSize: 28,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                const SizedBox(height: 4),
-                if (isLoading)
-                  const AppShimmerBox(width: 80, height: 12)
-                else
-                  Text(
-                    label,
-                    style: GoogleFonts.kantumruyPro(
-                      color: AppTheme.textPrimary,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF0F172A).withValues(alpha: 0.035),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
               ],
             ),
-          ],
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.14),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: color.withValues(alpha: 0.20),
+                      width: 1,
+                    ),
+                  ),
+                  child: Icon(icon, color: color, size: 20),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (isLoading)
+                      const AppShimmerBox(width: 60, height: 28)
+                    else
+                      Text(
+                        value,
+                        style: GoogleFonts.inter(
+                          color: const Color(0xFF0F172A),
+                          fontSize: 26,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    const SizedBox(height: 4),
+                    if (isLoading)
+                      const AppShimmerBox(width: 80, height: 12)
+                    else
+                      Text(
+                        label,
+                        style: GoogleFonts.kantumruyPro(
+                          color: const Color(0xFF64748B),
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -429,6 +455,8 @@ class AppGridAction extends StatelessWidget {
   final Color color;
   final VoidCallback onTap;
   final Color? textColor;
+  final Color? cardColor;
+  final Color? borderColor;
 
   const AppGridAction({
     super.key,
@@ -438,52 +466,74 @@ class AppGridAction extends StatelessWidget {
     this.color = const Color(0xFF6366F1), // Default to primary
     required this.onTap,
     this.textColor,
+    this.cardColor,
+    this.borderColor,
   });
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: AppTheme.glassBox(
-        color: color.withValues(alpha: 0.5),
-        borderColor: color.withValues(alpha: 0.3),
-        radius: 16,
-        blur: 24,
-        glow: true,
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.14),
-                shape: BoxShape.circle,
-                border: Border.all(color: color.withValues(alpha: 0.14)),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 12),
+            decoration: BoxDecoration(
+              color: (cardColor ?? Colors.white).withValues(alpha: 0.72),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: borderColor ?? Colors.white.withValues(alpha: 0.88),
+                width: 1.2,
               ),
-              child: Icon(icon, color: color, size: 20),
-            ),
-            const SizedBox(height: 6),
-            Flexible(
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.center,
-                child: Text(
-                  label,
-                  style: GoogleFonts.kantumruyPro(
-                    color: textColor ?? AppTheme.textPrimary,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    height: 1.2,
-                  ),
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF0F172A).withValues(alpha: 0.035),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
                 ),
-              ),
+              ],
             ),
-          ],
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.14),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: color.withValues(alpha: 0.20),
+                      width: 1,
+                    ),
+                  ),
+                  child: Icon(icon, color: color, size: 22),
+                ),
+                const SizedBox(height: 8),
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.center,
+                    child: Text(
+                      label,
+                      style: GoogleFonts.kantumruyPro(
+                        color: textColor ?? const Color(0xFF0F172A),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        height: 1.25,
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -537,6 +587,8 @@ class AttendanceScanCard extends StatelessWidget {
   final bool isLoading;
   final DateTime? checkInTime; // Feature #1: live timer
   final String liveWorkDuration; // Feature #1: HH:mm:ss string
+  final Color? cardColor;
+  final Color? borderColor;
 
   const AttendanceScanCard({
     super.key,
@@ -548,6 +600,8 @@ class AttendanceScanCard extends StatelessWidget {
     this.isLoading = false,
     this.checkInTime,
     this.liveWorkDuration = '',
+    this.cardColor,
+    this.borderColor,
   });
 
   @override
@@ -555,31 +609,46 @@ class AttendanceScanCard extends StatelessWidget {
     bool isCheckIn = nextAction == 'Check-In';
     return GestureDetector(
       onTap: onTap,
-      child: AppTheme.glassBox(
-        color: isCheckIn ? AppTheme.primary.withValues(alpha: 0.15) : AppTheme.accent.withValues(alpha: 0.15),
-        borderColor: isCheckIn ? AppTheme.primary.withValues(alpha: 0.4) : AppTheme.accent.withValues(alpha: 0.4),
-        radius: 28,
-        blur: 30,
-        glow: true,
-        padding: const EdgeInsets.all(20),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+          child: Container(
+            decoration: BoxDecoration(
+              color: (cardColor ?? Colors.white).withValues(alpha: 0.72),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: borderColor ?? Colors.white.withValues(alpha: 0.88),
+                width: 1.2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                  blurRadius: 14,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(10),
+                  width: 44,
+                  height: 44,
                   decoration: BoxDecoration(
-                    color: AppTheme.primary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
+                    color: AppTheme.primary.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
                   ),
                   child: Icon(
                     Icons.qr_code_scanner_rounded,
                     color: AppTheme.primary,
-                    size: 24,
+                    size: 22,
                   ),
                 ),
-                const SizedBox(width: 15),
+                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -587,16 +656,17 @@ class AttendanceScanCard extends StatelessWidget {
                       Text(
                         "ស្កេនវត្តមាន",
                         style: GoogleFonts.kantumruyPro(
-                          color: AppTheme.textPrimary,
-                          fontSize: 18,
+                          color: const Color(0xFF0F172A),
+                          fontSize: 17,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                       Text(
                         "បន្ទាប់: $nextAction",
                         style: GoogleFonts.kantumruyPro(
-                          color: AppTheme.primaryLight,
-                          fontSize: 13,
+                          color: const Color(0xFF64748B),
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ],
@@ -612,25 +682,25 @@ class AttendanceScanCard extends StatelessWidget {
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: AppTheme.primary.withValues(alpha: 0.1),
+                        color: const Color(0xFFF8FAFC),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: AppTheme.primary.withValues(alpha: 0.2),
+                          color: const Color(0xFFE2E8F0),
                         ),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(
+                          const Icon(
                             Icons.history_rounded,
-                            color: AppTheme.primaryLight,
+                            color: Color(0xFF475569),
                             size: 16,
                           ),
                           const SizedBox(width: 6),
                           Text(
                             "ប្រវត្តិ",
                             style: GoogleFonts.kantumruyPro(
-                              color: AppTheme.primaryLight,
+                              color: const Color(0xFF475569),
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
                             ),
@@ -642,7 +712,7 @@ class AttendanceScanCard extends StatelessWidget {
               ],
             ),
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
             Row(
               children: [
                 Expanded(
@@ -662,7 +732,7 @@ class AttendanceScanCard extends StatelessWidget {
                     context: context,
                     label: "Check-Out",
                     icon: Icons.logout_rounded,
-                    color: AppTheme.primary,
+                    color: const Color(0xFFEF4444),
                     isActive: !isCheckIn,
                     onTap: onCheckOut,
                     primaryStyle: false,
@@ -673,7 +743,9 @@ class AttendanceScanCard extends StatelessWidget {
           ],
         ),
       ),
-    );
+    ),
+  ),
+);
   }
 
   Widget _buildButton({
@@ -758,6 +830,8 @@ class AppActionButton extends StatelessWidget {
   final bool isHighlighted;
   final Color? textColor;
   final Color? subtitleColor;
+  final Color? cardColor;
+  final Color? borderColor;
 
   const AppActionButton({
     super.key,
@@ -769,63 +843,84 @@ class AppActionButton extends StatelessWidget {
     this.isHighlighted = false,
     this.textColor,
     this.subtitleColor,
+    this.cardColor,
+    this.borderColor,
   });
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: AppTheme.glassBox(
-        color: isHighlighted ? iconColor.withValues(alpha: 0.2) : iconColor.withValues(alpha: 0.1),
-        borderColor: isHighlighted ? iconColor.withValues(alpha: 0.4) : iconColor.withValues(alpha: 0.2),
-        radius: AppTheme.radiusLg,
-        blur: 24,
-        glow: isHighlighted,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: iconColor.withValues(alpha: 0.13),
-                borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-                border: Border.all(color: iconColor.withValues(alpha: 0.12)),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: (cardColor ?? Colors.white).withValues(alpha: 0.72),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: borderColor ?? Colors.white.withValues(alpha: 0.88),
+                width: 1.2,
               ),
-              child: Icon(icon, color: iconColor, size: 24),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF0F172A).withValues(alpha: 0.035),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ],
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: GoogleFonts.kantumruyPro(
-                      color: textColor ?? AppTheme.textPrimary,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+            child: Row(
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: iconColor.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: iconColor.withValues(alpha: 0.20),
+                      width: 1,
                     ),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: GoogleFonts.kantumruyPro(
-                      color: subtitleColor ?? AppTheme.textSecondary,
-                      fontSize: 12,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  child: Icon(icon, color: iconColor, size: 24),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: GoogleFonts.kantumruyPro(
+                          color: textColor ?? const Color(0xFF0F172A),
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: GoogleFonts.kantumruyPro(
+                          color: subtitleColor ?? const Color(0xFF64748B),
+                          fontSize: 12,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+                const Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  color: Color(0xFF94A3B8),
+                  size: 14,
+                ),
+              ],
             ),
-            Icon(
-              Icons.arrow_forward_ios_rounded,
-              color: AppTheme.textMuted.withValues(alpha: 0.3),
-              size: 14,
-            ),
-          ],
+          ),
         ),
       ),
     );
