@@ -7,8 +7,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/api_service.dart';
 import '../utils/app_theme.dart';
 import 'vvc_global_alert.dart';
+import 'glass_widgets.dart';
+export 'glass_widgets.dart';
 
-/// A reusable flat background shell for app screens.
+/// A reusable flat or ambient glass background shell for app screens.
 class AppBackgroundShell extends StatelessWidget {
   final Widget child;
   final bool showGlows;
@@ -21,7 +23,10 @@ class AppBackgroundShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ColoredBox(color: AppTheme.bgSurface, child: child);
+    if (!showGlows) {
+      return ColoredBox(color: AppTheme.bgSurface, child: child);
+    }
+    return GlassOrbBackground(child: child);
   }
 }
 

@@ -7158,6 +7158,144 @@ try {
         }
         break;
 
+    case 'register_user':
+    case 'self_register':
+        $empId = trim($_POST['employee_id'] ?? ($_POST['target_employee_id'] ?? ''));
+        $name = trim($_POST['name'] ?? '');
+        $latinName = trim($_POST['latin_name'] ?? '');
+        $position = trim($_POST['position'] ?? 'Staff');
+        $department = trim($_POST['department'] ?? 'Store 318');
+        $branch = trim($_POST['branch'] ?? 'VVC-HQ');
+        $username = trim($_POST['username'] ?? '');
+        if (empty($username)) $username = $empId;
+        $phone = trim($_POST['phone'] ?? '');
+        $email = trim($_POST['email'] ?? '');
+        $address = trim($_POST['current_address'] ?? '');
+        $password = trim($_POST['password'] ?? '');
+        $rulesRaw = $_POST['rules_json'] ?? $_POST['rules'] ?? '';
+
+        if (empty($empId) || empty($name)) {
+            apiResponse(['success' => false, 'message' => 'សូមបំពេញអត្តលេខ និងឈ្មោះបុគ្គលិក!'], 400);
+        }
+
+        // Auto-heal required columns in users table
+        @$mysqli->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS latin_name VARCHAR(150) DEFAULT NULL");
+        @$mysqli->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS branch VARCHAR(100) DEFAULT NULL");
+        @$mysqli->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(50) DEFAULT NULL");
+        @$mysqli->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_verified TINYINT(1) DEFAULT 1");
+        @$mysqli->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS sort_order INT DEFAULT 0");
+        @$mysqli->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS custom_data LONGTEXT DEFAULT NULL");
+
+        // Check if employee_id already exists
+        $checkStmt = $mysqli->prepare("SELECT id, employee_id FROM users WHERE employee_id = ? LIMIT 1");
+        if ($checkStmt) {
+            $checkStmt->bind_param("s", $empId);
+            $checkStmt->execute();
+            $checkRes = $checkStmt->get_result();
+            if ($checkRes && $checkRes->num_rows > 0) {
+                $checkStmt->close();
+                apiResponse(['success' => false, 'message' => "អត្តលេខ '{$empId}' នេះមានក្នុងប្រព័ន្ធរួចហើយ! សូមជ្រើសរើសអត្តលេខផ្សេង។"], 409);
+            }
+            $checkStmt->close();
+        }
+
+        // Hash password
+        $passHash = !empty($password) ? password_hash($password, PASSWORD_BCRYPT) : password_hash('123456', PASSWORD_BCRYPT);
+
+        // Custom data json
+        $customData = [
+            'employee_id' => $empId,
+            'name' => $name,
+            'latin_name' => $latinName,
+            'position' => $position,
+            'department' => $department,
+            'branch' => $branch,
+            'username' => $username,
+            'phone' => $phone,
+            'email' => $email,
+            'current_address' => $address,
+            'user_role' => 'User',
+            'system_role' => 'employee',
+            'is_verified' => 1,
+            'registered_via' => 'mobile_app',
+            'registered_at' => date('Y-m-d H:i:s')
+        ];
+        $customJson = json_encode($customData, JSON_UNESCAPED_UNICODE);
+
+        // Insert into users table
+        $insStmt = $mysqli->prepare("INSERT INTO users (employee_id, name, latin_name, department, position, branch, username, phone, email, current_address, password, user_role, system_role, is_active, is_verified, custom_data) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'User', 'employee', 1, 1, ?)");
+        if ($insStmt) {
+            $insStmt->bind_param("ssssssssssss", $empId, $name, $latinName, $department, $position, $branch, $username, $phone, $email, $address, $passHash, $customJson);
+            if (!$insStmt->execute()) {
+                $err = $insStmt->error;
+                $insStmt->close();
+                apiResponse(['success' => false, 'message' => 'កំហុសក្នុងការរក្សាទុកទិន្នន័យបុគ្គលិក: ' . $err], 500);
+            }
+            $insStmt->close();
+        } else {
+            // Fallback direct query if column mismatch
+            $escEid = $mysqli->real_escape_string($empId);
+            $escName = $mysqli->real_escape_string($name);
+            $escDept = $mysqli->real_escape_string($department);
+            $escPos = $mysqli->real_escape_string($position);
+            $escBranch = $mysqli->real_escape_string($branch);
+            $escPass = $mysqli->real_escape_string($passHash);
+            $escJson = $mysqli->real_escape_string($customJson);
+            $fallback = $mysqli->query("INSERT INTO users (employee_id, name, department, position, password, user_role, is_active, is_verified, custom_data) VALUES ('{$escEid}', '{$escName}', '{$escDept}', '{$escPos}', '{$escPass}', 'User', 1, 1, '{$escJson}')");
+            if (!$fallback) {
+                apiResponse(['success' => false, 'message' => 'DB Error: ' . $mysqli->error], 500);
+            }
+        }
+
+        // Save attendance rules
+        // Delete any existing rules for this employee_id first
+        $delRulesStmt = $mysqli->prepare("DELETE FROM attendance_rules WHERE employee_id = ?");
+        if ($delRulesStmt) {
+            $delRulesStmt->bind_param("s", $empId);
+            $delRulesStmt->execute();
+            $delRulesStmt->close();
+        }
+
+        $rules = [];
+        if (!empty($rulesRaw)) {
+            $rules = is_array($rulesRaw) ? $rulesRaw : (json_decode($rulesRaw, true) ?: []);
+        }
+
+        // If no rules or empty, use standard default shift rules
+        if (empty($rules)) {
+            $rules = [
+                ['type' => 'checkin', 'start_time' => '07:30:00', 'end_time' => '08:15:00', 'status' => 'Good'],
+                ['type' => 'checkin', 'start_time' => '08:16:00', 'end_time' => '09:00:00', 'status' => 'Late'],
+                ['type' => 'checkin', 'start_time' => '09:01:00', 'end_time' => '12:00:00', 'status' => 'Absent'],
+                ['type' => 'checkout', 'start_time' => '17:00:00', 'end_time' => '23:59:59', 'status' => 'Good'],
+                ['type' => 'checkout', 'start_time' => '12:00:00', 'end_time' => '16:59:59', 'status' => 'Late'],
+            ];
+        }
+
+        $ruleStmt = $mysqli->prepare("INSERT INTO attendance_rules (employee_id, type, start_time, end_time, status, created_by_admin_id) VALUES (?, ?, ?, ?, ?, ?)");
+        if ($ruleStmt) {
+            $adminId = 'MOBILE_REGISTER';
+            foreach ($rules as $r) {
+                $rType = $r['type'] ?? 'checkin';
+                $rStart = $r['start_time'] ?? ($rType === 'checkout' ? '17:00:00' : '08:00:00');
+                $rEnd = $r['end_time'] ?? ($rType === 'checkout' ? '23:59:59' : '08:15:00');
+                $rStatus = $r['status'] ?? 'Good';
+                $ruleStmt->bind_param("ssssss", $empId, $rType, $rStart, $rEnd, $rStatus, $adminId);
+                $ruleStmt->execute();
+            }
+            $ruleStmt->close();
+        }
+
+        apiResponse([
+            'success' => true,
+            'status' => 'success',
+            'message' => 'បានចុះឈ្មោះបង្កើតគណនីបុគ្គលិក និងកំណត់ច្បាប់ម៉ោងជោគជ័យ!',
+            'employee_id' => $empId,
+            'name' => $name,
+            'rules_count' => count($rules)
+        ]);
+        break;
+
     case 'save_user':
         if (!$user || !(strcasecmp($user['system_role'], 'Admin') === 0 || strcasecmp($user['system_role'], 'HRM') === 0)) apiResponse(['success' => false, 'message' => 'Unauthorized']);
         $target_eid = trim($_POST['target_employee_id'] ?? ($_POST['employee_id'] ?? ''));
@@ -8105,7 +8243,7 @@ try {
             apiResponse(['success' => false, 'message' => 'គ្មាន Gemini API Key ក្នុងប្រព័ន្ធឡើយ']);
         }
 
-        $models = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+        $models = ['gemini-3.6-flash', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
         $replyText = '';
         $lastErr = '';
 
@@ -10737,7 +10875,7 @@ function ai_call_free_vision_service($systemPrompt, $userPrompt, $imageBase64 = 
     }
 
     if (!empty($geminiKeys)) {
-        $geminiModels = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+        $geminiModels = ['gemini-3.6-flash', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
         
         $parts = [];
         $parts[] = ['text' => (string)$systemPrompt . "\n\n" . (string)$userPrompt];

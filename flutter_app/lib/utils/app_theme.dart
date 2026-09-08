@@ -85,24 +85,37 @@ class AppTheme {
     double radius = radiusXl,
     Color? borderColor,
     bool glow = false,
+    Gradient? gradient,
   }) {
     final baseColor = color ?? Colors.white;
     return BoxDecoration(
-      color: baseColor.withValues(alpha: 0.08), // Translucent surface
+      gradient: gradient ??
+          LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              baseColor.withValues(alpha: 0.12),
+              baseColor.withValues(alpha: 0.05),
+            ],
+          ),
       borderRadius: BorderRadius.circular(radius),
       border: Border.all(
-        color: borderColor ?? baseColor.withValues(alpha: 0.15),
-        width: 1.5,
+        color: borderColor ?? baseColor.withValues(alpha: 0.20),
+        width: 1.2,
       ),
-      boxShadow: glow
-          ? [
-              BoxShadow(
-                color: baseColor.withValues(alpha: 0.15),
-                blurRadius: 20,
-                spreadRadius: -5,
-              )
-            ]
-          : [],
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.25),
+          blurRadius: 16,
+          offset: const Offset(0, 6),
+        ),
+        if (glow)
+          BoxShadow(
+            color: baseColor.withValues(alpha: 0.20),
+            blurRadius: 22,
+            spreadRadius: -2,
+          ),
+      ],
     );
   }
 
@@ -112,9 +125,10 @@ class AppTheme {
     double radius = radiusXl,
     Color? borderColor,
     bool glow = false,
-    double blur = 16.0,
+    double blur = 20.0,
     EdgeInsetsGeometry? padding,
     EdgeInsetsGeometry? margin,
+    Gradient? gradient,
   }) {
     return Container(
       margin: margin,
@@ -129,6 +143,7 @@ class AppTheme {
               radius: radius,
               borderColor: borderColor,
               glow: glow,
+              gradient: gradient,
             ),
             child: child,
           ),

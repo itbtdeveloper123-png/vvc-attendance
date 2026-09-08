@@ -744,7 +744,7 @@ function verify_gemini_key(string $apiKey): array {
     }
 
     // 1. Test actual generateContent on active models to verify true generation ability & catch leaked keys
-    $modelsToTry = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+    $modelsToTry = ['gemini-3.6-flash', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
     $payload = json_encode([
         'contents' => [['parts' => [['text' => 'ping']]]],
         'generationConfig' => ['maxOutputTokens' => 2]
@@ -2280,6 +2280,17 @@ try {
                     }
                 }
 
+                $rawAvatar = (string)($r['avatar'] ?? $custom['avatar'] ?? '');
+                $formattedAvatar = $rawAvatar;
+                if (!empty($rawAvatar) && strpos($rawAvatar, 'data:') !== 0 && strpos($rawAvatar, 'http://') !== 0 && strpos($rawAvatar, 'https://') !== 0) {
+                    $cleanPath = ltrim($rawAvatar, '/');
+                    if (strpos($cleanPath, 'flutter/') === 0) {
+                        $formattedAvatar = 'https://app.vvc.asia/' . $cleanPath;
+                    } else {
+                        $formattedAvatar = 'https://app.vvc.asia/flutter/' . $cleanPath;
+                    }
+                }
+
                 $users[] = [
                     'id' => $r['id'] ?? $empId,
                     'employee_id' => $empId,
@@ -2295,7 +2306,8 @@ try {
                     'department' => $department,
                     'branch' => (string)($r['branch'] ?? $custom['branch'] ?? 'VVC-HQ'),
                     'current_address' => (string)($r['current_address'] ?? $custom['current_address'] ?? ''),
-                    'avatar' => (string)($r['avatar'] ?? $custom['avatar'] ?? ''),
+                    'avatar' => $formattedAvatar,
+                    'raw_avatar' => $rawAvatar,
                     'is_active' => isset($r['is_active']) ? (int)$r['is_active'] : 1,
                     'is_verified' => isset($r['is_verified']) ? (int)$r['is_verified'] : (isset($custom['is_verified']) ? (int)$custom['is_verified'] : 0),
                     'sort_order' => isset($r['sort_order']) ? (int)$r['sort_order'] : (isset($custom['sort_order']) ? (int)$custom['sort_order'] : 0),

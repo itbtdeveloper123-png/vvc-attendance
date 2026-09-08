@@ -360,14 +360,29 @@ class HomeScreenState extends State<HomeScreen> {
           _currentIndex == 0
               ? Transform.translate(
                 offset: const Offset(0, 6),
-                child: SizedBox(
-                  width: 48, // ទំហំប៊ូតុងតូចជាងមុន
-                  height: 48,
+                child: Container(
+                  width: 50,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppTheme.primary.withValues(alpha: 0.45),
+                        blurRadius: 18,
+                        spreadRadius: -2,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
                   child: FloatingActionButton(
                     backgroundColor: AppTheme.primary,
-                    elevation: 6,
+                    elevation: 0,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(16),
+                      side: BorderSide(
+                        color: Colors.white.withValues(alpha: 0.35),
+                        width: 1.2,
+                      ),
                     ),
                     onPressed: () {
                       _hapticLight();
@@ -379,7 +394,7 @@ class HomeScreenState extends State<HomeScreen> {
                     child: const Icon(
                       Icons.smart_toy_rounded,
                       color: Colors.white,
-                      size: 24, // ទំហំ Icon តូចជាងមុន
+                      size: 24,
                     ),
                   ),
                 ),
@@ -392,14 +407,14 @@ class HomeScreenState extends State<HomeScreen> {
     final bottomInset = MediaQuery.paddingOf(context).bottom;
     return ClipRRect(
       child: BackdropFilter(
-        filter: ui.ImageFilter.blur(sigmaX: 20.0, sigmaY: 20.0),
+        filter: ui.ImageFilter.blur(sigmaX: 24.0, sigmaY: 24.0),
         child: Container(
           decoration: BoxDecoration(
             color: AppTheme.bgDark.withValues(alpha: 0.65),
             border: Border(
               top: BorderSide(
-                color: AppTheme.textPrimary.withValues(alpha: 0.1),
-                width: 0.5,
+                color: Colors.white.withValues(alpha: 0.16),
+                width: 0.8,
               ),
             ),
           ),
@@ -1004,8 +1019,7 @@ class _HomeContentState extends State<HomeContent> {
   Widget build(BuildContext context) {
     final user = Provider.of<UserProvider>(context);
 
-    return Container(
-      decoration: BoxDecoration(color: AppTheme.bgDark),
+    return GlassOrbBackground(
       child: Stack(
         children: [
           RefreshIndicator(
@@ -1102,59 +1116,21 @@ class _HomeContentState extends State<HomeContent> {
         children: [
           // Feature #8: Weather pill
           if (_weatherText.isNotEmpty)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppTheme.bgCard,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: AppTheme.primary.withValues(alpha: 0.2),
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(_weatherIcon, style: const TextStyle(fontSize: 14)),
-                  const SizedBox(width: 6),
-                  Text(
-                    'ភ្នំពេញ $_weatherText',
-                    style: GoogleFonts.inter(
-                      color: AppTheme.textSecondary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
+            GlassChip(
+              icon: Text(_weatherIcon, style: const TextStyle(fontSize: 14)),
+              label: 'ភ្នំពេញ $_weatherText',
+              color: AppTheme.primary,
             ),
           if (_weatherText.isNotEmpty) const SizedBox(width: 8),
           // Feature #5: Streak pill
           if (_attendanceStreak > 0)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.orange.withValues(alpha: 0.18),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.orange.withValues(alpha: 0.4)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('🔥', style: TextStyle(fontSize: 13)),
-                  const SizedBox(width: 4),
-                  Text(
-                    '$_attendanceStreak ថ្ងៃ',
-                    style: GoogleFonts.inter(
-                      color: Colors.orange,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
+            GlassChip(
+              icon: const Text('🔥', style: TextStyle(fontSize: 13)),
+              label: '$_attendanceStreak ថ្ងៃ',
+              color: Colors.orange,
+              textColor: Colors.orange,
             ),
           const Spacer(),
-
         ],
       ),
     );
@@ -1374,50 +1350,36 @@ class _HomeContentState extends State<HomeContent> {
   Widget _buildBentoHeroAttendanceCard(UserProvider user) {
     final bool isCheckedIn = _checkInTime != null;
     final bool isNextCheckIn = _nextAction == 'Check-In';
+    final accentColor = isNextCheckIn ? AppTheme.primary : const Color(0xFF10B981);
 
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            AppTheme.bgCard,
-            AppTheme.bgDark.withValues(alpha: 0.95),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: isNextCheckIn
-              ? AppTheme.primary.withValues(alpha: 0.28)
-              : const Color(0xFF10B981).withValues(alpha: 0.35),
-          width: 1.2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.35),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: Stack(
-          children: [
-            // Ambient Background Glow
-            Positioned(
-              top: -30,
-              right: -30,
-              child: Container(
-                width: 140,
-                height: 140,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: (isNextCheckIn ? AppTheme.primary : const Color(0xFF10B981))
-                      .withValues(alpha: 0.08),
+    return GlassCard(
+      blur: 24,
+      borderRadius: 24,
+      tintColor: accentColor,
+      opacity: 0.11,
+      borderColor: accentColor.withValues(alpha: 0.35),
+      glowColor: accentColor.withValues(alpha: 0.22),
+      padding: EdgeInsets.zero,
+      child: Stack(
+        children: [
+          // Ambient Background Glow
+          Positioned(
+            top: -30,
+            right: -30,
+            child: Container(
+              width: 140,
+              height: 140,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    accentColor.withValues(alpha: 0.22),
+                    accentColor.withValues(alpha: 0.0),
+                  ],
                 ),
               ),
             ),
+          ),
             Padding(
               padding: const EdgeInsets.all(18),
               child: Column(
@@ -1644,8 +1606,7 @@ class _HomeContentState extends State<HomeContent> {
             ),
           ],
         ),
-      ),
-    );
+      );
   }
 
   // ─── 2. DUAL MEDIUM BENTO CARDS (50% / 50% Row) ───────────────────────────
@@ -1707,79 +1668,64 @@ class _HomeContentState extends State<HomeContent> {
     required String actionText,
     required VoidCallback onTap,
   }) {
-    return GestureDetector(
+    return GlassCard(
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppTheme.bgCard,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: Colors.white.withValues(alpha: 0.08),
-            width: 1,
+      borderRadius: 20,
+      blur: 20,
+      tintColor: iconColor,
+      opacity: 0.08,
+      borderColor: iconColor.withValues(alpha: 0.28),
+      glowColor: iconColor.withValues(alpha: 0.16),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: iconColor.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: iconColor.withValues(alpha: 0.28),
+                    width: 1,
+                  ),
+                ),
+                child: Icon(icon, color: iconColor, size: 20),
+              ),
+              GlassChip(
+                label: actionText,
+                color: iconColor,
+                textColor: iconColor,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                borderRadius: 10,
+              ),
+            ],
           ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.2),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
+          const SizedBox(height: 14),
+          Text(
+            value,
+            style: GoogleFonts.kantumruyPro(
+              color: AppTheme.textPrimary,
+              fontSize: 17,
+              fontWeight: FontWeight.bold,
             ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: iconColor.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(icon, color: iconColor, size: 20),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.06),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    actionText,
-                    style: GoogleFonts.kantumruyPro(
-                      color: iconColor,
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            subtitle,
+            style: GoogleFonts.kantumruyPro(
+              color: AppTheme.textMuted,
+              fontSize: 11.5,
             ),
-            const SizedBox(height: 14),
-            Text(
-              value,
-              style: GoogleFonts.kantumruyPro(
-                color: AppTheme.textPrimary,
-                fontSize: 17,
-                fontWeight: FontWeight.bold,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 2),
-            Text(
-              subtitle,
-              style: GoogleFonts.kantumruyPro(
-                color: AppTheme.textMuted,
-                fontSize: 11.5,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
       ),
     );
   }
@@ -1851,60 +1797,53 @@ class _HomeContentState extends State<HomeContent> {
     required String subtitle,
     required VoidCallback onTap,
   }) {
-    return GestureDetector(
+    return GlassCard(
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
-        decoration: BoxDecoration(
-          color: AppTheme.bgCard,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: Colors.white.withValues(alpha: 0.06),
-            width: 1,
+      borderRadius: 18,
+      blur: 18,
+      tintColor: color,
+      opacity: 0.08,
+      borderColor: color.withValues(alpha: 0.24),
+      glowColor: color.withValues(alpha: 0.14),
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.18),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: color.withValues(alpha: 0.3),
+                width: 1,
+              ),
+            ),
+            child: Icon(icon, color: color, size: 20),
           ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.15),
-              blurRadius: 8,
-              offset: const Offset(0, 3),
+          const SizedBox(height: 8),
+          Text(
+            title,
+            style: GoogleFonts.kantumruyPro(
+              color: AppTheme.textPrimary,
+              fontSize: 11.5,
+              fontWeight: FontWeight.bold,
             ),
-          ],
-        ),
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(7),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.14),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: color, size: 20),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            subtitle,
+            style: GoogleFonts.kantumruyPro(
+              color: AppTheme.textMuted,
+              fontSize: 10,
             ),
-            const SizedBox(height: 8),
-            Text(
-              title,
-              style: GoogleFonts.kantumruyPro(
-                color: AppTheme.textPrimary,
-                fontSize: 11.5,
-                fontWeight: FontWeight.bold,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 2),
-            Text(
-              subtitle,
-              style: GoogleFonts.kantumruyPro(
-                color: AppTheme.textMuted,
-                fontSize: 10,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+          ),
+        ],
       ),
     );
   }

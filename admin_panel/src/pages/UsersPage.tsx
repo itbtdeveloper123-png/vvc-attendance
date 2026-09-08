@@ -41,6 +41,7 @@ import {
 import { Modal } from '../components/common/Modal';
 import { ViewModeToggle, ViewMode } from '../components/common/ViewModeToggle';
 import { adminApi, AdminUser } from '../api/adminApi';
+import { UserAvatar } from '../components/UserAvatar';
 
 interface DepartmentGroup {
   id: string | number;
@@ -1155,30 +1156,13 @@ export const UsersPage: React.FC = () => {
                                   style={{ width: '16px', height: '16px', accentColor: 'var(--primary)', cursor: 'pointer' }}
                                 />
 
-                                <div
-                                  style={{
-                                    width: '46px',
-                                    height: '46px',
-                                    borderRadius: '14px',
-                                    background: u.avatar ? 'transparent' : 'rgba(99, 102, 241, 0.12)',
-                                    color: 'var(--primary)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    fontWeight: 800,
-                                    fontSize: '15px',
-                                    overflow: 'hidden',
-                                    flexShrink: 0,
-                                    border: '1px solid var(--border)',
-                                    boxShadow: '0 2px 5px rgba(0,0,0,0.04)',
-                                  }}
-                                >
-                                  {u.avatar ? (
-                                    <img src={u.avatar} alt={u.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                  ) : (
-                                    initials
-                                  )}
-                                </div>
+                                <UserAvatar
+                                  avatar={u.avatar}
+                                  name={u.name}
+                                  size={46}
+                                  borderRadius="14px"
+                                  fontSize="15px"
+                                />
 
                                 <div>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -1513,34 +1497,13 @@ export const UsersPage: React.FC = () => {
                               <td style={{ padding: '14px 18px' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                                   {/* Avatar Image / Squircle */}
-                                  <div
-                                    style={{
-                                      width: '46px',
-                                      height: '46px',
-                                      borderRadius: '12px',
-                                      background: u.avatar ? 'transparent' : 'rgba(99, 102, 241, 0.12)',
-                                      color: 'var(--primary)',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                      fontWeight: 800,
-                                      fontSize: '14px',
-                                      overflow: 'hidden',
-                                      flexShrink: 0,
-                                      border: '1px solid var(--border)',
-                                      boxShadow: '0 2px 5px rgba(0,0,0,0.04)',
-                                    }}
-                                  >
-                                    {u.avatar ? (
-                                      <img
-                                        src={u.avatar}
-                                        alt={u.name}
-                                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                      />
-                                    ) : (
-                                      initials
-                                    )}
-                                  </div>
+                                  <UserAvatar
+                                    avatar={u.avatar}
+                                    name={u.name}
+                                    size={46}
+                                    borderRadius="12px"
+                                    fontSize="14px"
+                                  />
 
                                   {/* Name and Interactive Verified Icon Toggle */}
                                   <div>

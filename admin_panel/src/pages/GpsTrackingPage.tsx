@@ -25,6 +25,7 @@ import {
 import { StatCard } from '../components/common/StatCard';
 import { Modal } from '../components/common/Modal';
 import { adminApi, GpsTripItem, TrackingCustomerItem } from '../api/adminApi';
+import { UserAvatar } from '../components/UserAvatar';
 
 declare const L: any; // Leaflet global from CDN in index.html
 
@@ -678,27 +679,13 @@ export const GpsTrackingPage: React.FC = () => {
                       {/* Top Row: User Avatar & Status */}
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <div
-                            style={{
-                              width: '42px',
-                              height: '42px',
-                              borderRadius: '12px',
-                              background: 'var(--primary)',
-                              color: '#fff',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontWeight: 800,
-                              fontSize: '15px',
-                              overflow: 'hidden',
-                            }}
-                          >
-                            {trip.avatar ? (
-                              <img src={trip.avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                            ) : (
-                              (trip.display_name || trip.employee_id).substring(0, 2).toUpperCase()
-                            )}
-                          </div>
+                          <UserAvatar
+                            avatar={trip.avatar}
+                            name={trip.display_name || trip.employee_name || trip.employee_id}
+                            size={42}
+                            borderRadius="12px"
+                            fontSize="15px"
+                          />
                           <div>
                             <div style={{ fontSize: '14.5px', fontWeight: 800, color: 'var(--text-primary)' }}>
                               {trip.display_name || trip.employee_name || trip.employee_id}

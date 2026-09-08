@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -1721,22 +1722,37 @@ class _AiChatScreenState extends State<AiChatScreen>
 
   Widget _buildHeaderCard(UserProvider user) {
     final roleLabel = user.systemRoleLabel;
-    return Container(
+    return GlassCard(
+      blur: 20,
+      borderRadius: 22,
+      tintColor: AppTheme.primary,
+      opacity: 0.10,
+      borderColor: AppTheme.primary.withValues(alpha: 0.30),
+      glowColor: AppTheme.primary.withValues(alpha: 0.16),
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.bgCard.withValues(alpha: 0.88),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-        boxShadow: AppTheme.cardShadow,
-      ),
       child: Row(
         children: [
           Container(
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: AppTheme.primary,
+              gradient: LinearGradient(
+                colors: [AppTheme.primary, AppTheme.primaryDark],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
               borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.3),
+                width: 1.2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: AppTheme.primary.withValues(alpha: 0.35),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
             child: const Icon(
               Icons.smart_toy_rounded,
@@ -1898,25 +1914,13 @@ class _AiChatScreenState extends State<AiChatScreen>
   }
 
   Widget _buildPromptChip(String prompt) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(18),
+    return GlassChip(
+      label: prompt,
+      color: AppTheme.primary,
+      textColor: Colors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      borderRadius: 18,
       onTap: () => _sendMessage(preset: prompt),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.05),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-        ),
-        child: Text(
-          prompt,
-          style: GoogleFonts.kantumruyPro(
-            color: Colors.white,
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
     );
   }
 
@@ -1935,6 +1939,13 @@ class _AiChatScreenState extends State<AiChatScreen>
         !isUser && !isError && _isLatestAssistantMessage(index) && !_isSending;
     final canRetry = isError && retryText.isNotEmpty && !_isSending;
 
+    final bubbleRadius = BorderRadius.only(
+      topLeft: const Radius.circular(22),
+      topRight: const Radius.circular(22),
+      bottomLeft: Radius.circular(isUser ? 22 : 6),
+      bottomRight: Radius.circular(isUser ? 6 : 22),
+    );
+
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
@@ -1942,39 +1953,49 @@ class _AiChatScreenState extends State<AiChatScreen>
         constraints: BoxConstraints(
           maxWidth: MediaQuery.of(context).size.width * 0.84,
         ),
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
         decoration: BoxDecoration(
-          gradient: isUser
-              ? const LinearGradient(
-                  colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                )
-              : null,
-          color: isUser ? null : const Color(0xFF111E33),
-          borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(22),
-            topRight: const Radius.circular(22),
-            bottomLeft: Radius.circular(isUser ? 22 : 6),
-            bottomRight: Radius.circular(isUser ? 6 : 22),
-          ),
-          border: Border.all(
-            color: isError
-                ? AppTheme.danger.withValues(alpha: 0.45)
-                : (isUser
-                    ? Colors.amberAccent.withValues(alpha: 0.3)
-                    : Colors.cyanAccent.withValues(alpha: 0.12)),
-          ),
+          borderRadius: bubbleRadius,
           boxShadow: [
             BoxShadow(
               color: isUser
-                  ? Colors.amber.withValues(alpha: 0.22)
-                  : Colors.black.withValues(alpha: 0.25),
+                  ? Colors.amber.withValues(alpha: 0.26)
+                  : Colors.black.withValues(alpha: 0.28),
               blurRadius: 16,
               offset: const Offset(0, 6),
             ),
           ],
         ),
+        child: ClipRRect(
+          borderRadius: bubbleRadius,
+          child: BackdropFilter(
+            filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+              decoration: BoxDecoration(
+                gradient: isUser
+                    ? const LinearGradient(
+                        colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      )
+                    : LinearGradient(
+                        colors: [
+                          const Color(0xFF1E293B).withValues(alpha: 0.76),
+                          const Color(0xFF0F172A).withValues(alpha: 0.68),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                borderRadius: bubbleRadius,
+                border: Border.all(
+                  color: isError
+                      ? AppTheme.danger.withValues(alpha: 0.45)
+                      : (isUser
+                          ? Colors.white.withValues(alpha: 0.35)
+                          : Colors.white.withValues(alpha: 0.16)),
+                  width: 1.1,
+                ),
+              ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -2168,7 +2189,10 @@ class _AiChatScreenState extends State<AiChatScreen>
           ],
         ),
       ),
-    );
+    ),
+  ),
+),
+);
   }
 
   Widget _buildMessageImage(_AiMessage message) {
@@ -2449,45 +2473,67 @@ class _AiChatScreenState extends State<AiChatScreen>
       alignment: Alignment.centerLeft,
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: AppTheme.bgCardLight.withValues(alpha: 0.92),
           borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.2),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
-        child: AnimatedBuilder(
-          animation: _typingAnimationController,
-          builder: (context, _) {
-            return Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'AI កំពុងឆ្លើយ',
-                  style: GoogleFonts.kantumruyPro(
-                    color: AppTheme.textSecondary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                  ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(18),
+          child: BackdropFilter(
+            filter: ui.ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: AppTheme.bgCardLight.withValues(alpha: 0.65),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.15),
+                  width: 1.0,
                 ),
-                const SizedBox(width: 8),
-                ...List.generate(3, (index) {
-                  final phase =
-                      (_typingAnimationController.value + (index * 0.22)) % 1;
-                  final alpha = 0.35 + (phase < 0.5 ? phase : 1 - phase) * 1.3;
-                  return Container(
-                    width: 7,
-                    height: 7,
-                    margin: EdgeInsets.only(right: index == 2 ? 0 : 6),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(
-                        alpha: alpha.clamp(0.35, 1.0),
+              ),
+              child: AnimatedBuilder(
+                animation: _typingAnimationController,
+                builder: (context, _) {
+                  return Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'AI កំពុងឆ្លើយ',
+                        style: GoogleFonts.kantumruyPro(
+                          color: AppTheme.textSecondary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
-                      shape: BoxShape.circle,
-                    ),
+                      const SizedBox(width: 8),
+                      ...List.generate(3, (index) {
+                        final phase =
+                            (_typingAnimationController.value + (index * 0.22)) % 1;
+                        final alpha = 0.35 + (phase < 0.5 ? phase : 1 - phase) * 1.3;
+                        return Container(
+                          width: 7,
+                          height: 7,
+                          margin: EdgeInsets.only(right: index == 2 ? 0 : 6),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(
+                              alpha: alpha.clamp(0.35, 1.0),
+                            ),
+                            shape: BoxShape.circle,
+                          ),
+                        );
+                      }),
+                    ],
                   );
-                }),
-              ],
-            );
-          },
+                },
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -2502,113 +2548,140 @@ class _AiChatScreenState extends State<AiChatScreen>
       child: Padding(
         padding: const EdgeInsets.fromLTRB(14, 6, 14, 14),
         child: Container(
-          padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
           decoration: BoxDecoration(
-            color: AppTheme.bgCard.withValues(alpha: 0.96),
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-            boxShadow: AppTheme.cardShadow,
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Semantics(
-                button: true,
-                enabled: canUseImage,
-                label: 'ជ្រើសរូបភាពដើម្បីកាត់ Background',
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(16),
-                  onTap: canUseImage ? _removeBackgroundFromImage : null,
-                  child: Container(
-                    width: 42,
-                    height: 42,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(
-                        alpha: canUseImage ? 0.08 : 0.04,
-                      ),
-                      borderRadius: BorderRadius.circular(15),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.08),
-                      ),
-                    ),
-                    child: Icon(
-                      Icons.add_photo_alternate_rounded,
-                      color: AppTheme.textSecondary.withValues(
-                        alpha: canUseImage ? 1 : 0.4,
-                      ),
-                      size: 22,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: TextField(
-                  controller: _messageController,
-                  focusNode: _composerFocusNode,
-                  enabled: !_isSending,
-                  textInputAction: TextInputAction.send,
-                  minLines: 1,
-                  maxLines: 4,
-                  style: GoogleFonts.kantumruyPro(
-                    color: Colors.white,
-                    fontSize: 14,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: 'សួរ AI ឬពិនិត្យទិន្នន័យ HRM...',
-                    hintStyle: GoogleFonts.kantumruyPro(
-                      color: AppTheme.textMuted,
-                      fontSize: 13,
-                    ),
-                    border: InputBorder.none,
-                    enabledBorder: InputBorder.none,
-                    focusedBorder: InputBorder.none,
-                    disabledBorder: InputBorder.none,
-                    errorBorder: InputBorder.none,
-                    focusedErrorBorder: InputBorder.none,
-                    contentPadding: EdgeInsets.zero,
-                    isDense: true,
-                  ),
-                  onSubmitted: (_) {
-                    if (canSend) _sendMessage();
-                  },
-                ),
-              ),
-              const SizedBox(width: 10),
-              Semantics(
-                button: true,
-                enabled: canSend,
-                label: 'ផ្ញើសារ',
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(18),
-                  onTap: canSend ? _sendMessage : null,
-                  child: Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: AppTheme.primary.withValues(
-                        alpha: canSend || _isSending ? 1 : 0.36,
-                      ),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: _isSending
-                        ? const Padding(
-                            padding: EdgeInsets.all(12),
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : Icon(
-                            Icons.arrow_upward_rounded,
-                            color: Colors.white.withValues(
-                              alpha: canSend ? 1 : 0.58,
-                            ),
-                          ),
-                  ),
-                ),
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.35),
+                blurRadius: 20,
+                offset: const Offset(0, 6),
               ),
             ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: BackdropFilter(
+              filter: ui.ImageFilter.blur(sigmaX: 24.0, sigmaY: 24.0),
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      AppTheme.bgCard.withValues(alpha: 0.72),
+                      AppTheme.bgDark.withValues(alpha: 0.60),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.18),
+                    width: 1.1,
+                  ),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Semantics(
+                      button: true,
+                      enabled: canUseImage,
+                      label: 'ជ្រើសរូបភាពដើម្បីកាត់ Background',
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(16),
+                        onTap: canUseImage ? _removeBackgroundFromImage : null,
+                        child: Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(
+                              alpha: canUseImage ? 0.08 : 0.04,
+                            ),
+                            borderRadius: BorderRadius.circular(15),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.08),
+                            ),
+                          ),
+                          child: Icon(
+                            Icons.add_photo_alternate_rounded,
+                            color: AppTheme.textSecondary.withValues(
+                              alpha: canUseImage ? 1 : 0.4,
+                            ),
+                            size: 22,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextField(
+                        controller: _messageController,
+                        focusNode: _composerFocusNode,
+                        enabled: !_isSending,
+                        textInputAction: TextInputAction.send,
+                        minLines: 1,
+                        maxLines: 4,
+                        style: GoogleFonts.kantumruyPro(
+                          color: Colors.white,
+                          fontSize: 14,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: 'សួរ AI ឬពិនិត្យទិន្នន័យ HRM...',
+                          hintStyle: GoogleFonts.kantumruyPro(
+                            color: AppTheme.textMuted,
+                            fontSize: 13,
+                          ),
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          disabledBorder: InputBorder.none,
+                          errorBorder: InputBorder.none,
+                          focusedErrorBorder: InputBorder.none,
+                          contentPadding: EdgeInsets.zero,
+                          isDense: true,
+                        ),
+                        onSubmitted: (_) {
+                          if (canSend) _sendMessage();
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Semantics(
+                      button: true,
+                      enabled: canSend,
+                      label: 'ផ្ញើសារ',
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(18),
+                        onTap: canSend ? _sendMessage : null,
+                        child: Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: AppTheme.primary.withValues(
+                              alpha: canSend || _isSending ? 1 : 0.36,
+                            ),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: _isSending
+                              ? const Padding(
+                                  padding: EdgeInsets.all(12),
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : Icon(
+                                  Icons.arrow_upward_rounded,
+                                  color: Colors.white.withValues(
+                                    alpha: canSend ? 1 : 0.58,
+                                  ),
+                                ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
         ),
       ),

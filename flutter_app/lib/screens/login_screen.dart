@@ -6,6 +6,7 @@ import '../providers/user_provider.dart';
 import '../services/api_service.dart';
 import '../utils/app_assets.dart';
 import 'home_screen.dart';
+import 'register_screen.dart';
 import '../utils/app_theme.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -244,6 +245,41 @@ class _LoginScreenState extends State<LoginScreen> {
                             _buildLoginButton(),
                             const SizedBox(height: 24),
                             _buildRecentAccountsSection(),
+                            const SizedBox(height: 20),
+                            // Register New User Link
+                            InkWell(
+                              onTap: () async {
+                                final registeredId = await Navigator.of(context).push<String?>(
+                                  MaterialPageRoute(builder: (_) => const RegisterScreen()),
+                                );
+                                if (registeredId != null && registeredId.isNotEmpty) {
+                                  _employeeIdController.text = registeredId;
+                                }
+                              },
+                              borderRadius: BorderRadius.circular(12),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.person_add_alt_1_rounded,
+                                      size: 16,
+                                      color: AppTheme.primaryLight,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      "មិនទាន់មានគណនី? ចុះឈ្មោះបុគ្គលិកថ្មី",
+                                      style: GoogleFonts.kantumruyPro(
+                                        color: AppTheme.primaryLight,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
                           ],
                         ),
                       ),

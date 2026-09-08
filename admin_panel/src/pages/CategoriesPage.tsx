@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { ViewModeToggle, ViewMode } from '../components/common/ViewModeToggle';
 import { adminApi, CategoryItem, GroupUserItem } from '../api/adminApi';
+import { UserAvatar } from '../components/UserAvatar';
 
 export const CategoriesPage: React.FC = () => {
   const [groups, setGroups] = useState<CategoryItem[]>([]);
@@ -727,29 +728,13 @@ export const CategoriesPage: React.FC = () => {
                         style={{ cursor: 'pointer', accentColor: 'var(--primary)', width: '16px', height: '16px' }}
                       />
 
-                      <div
-                        style={{
-                          width: '38px',
-                          height: '38px',
-                          borderRadius: '10px',
-                          background: u.avatar ? 'transparent' : '#3b82f6',
-                          color: '#fff',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontWeight: 800,
-                          fontSize: '13px',
-                          flexShrink: 0,
-                          overflow: 'hidden',
-                          border: '1px solid rgba(0,0,0,0.06)',
-                        }}
-                      >
-                        {u.avatar ? (
-                          <img src={u.avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        ) : (
-                          initials
-                        )}
-                      </div>
+                      <UserAvatar
+                        avatar={u.avatar}
+                        name={u.name}
+                        size={38}
+                        borderRadius="10px"
+                        fontSize="13px"
+                      />
 
                       <div style={{ minWidth: 0, flex: 1 }}>
                         <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>

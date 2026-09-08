@@ -1515,6 +1515,40 @@ class ApiService {
     );
   }
 
+  Future<Map<String, dynamic>> registerUser({
+    required String employeeId,
+    required String name,
+    String? latinName,
+    required String position,
+    String? department,
+    String? branch,
+    String? username,
+    String? phone,
+    String? email,
+    String? address,
+    String? password,
+    List<Map<String, dynamic>>? rules,
+  }) async {
+    return _processRequest(
+      'register_user',
+      body: {
+        'employee_id': employeeId,
+        'name': name,
+        'latin_name': latinName ?? '',
+        'position': position,
+        'department': department ?? '',
+        'branch': branch ?? '',
+        'username': (username != null && username.isNotEmpty) ? username : employeeId,
+        'phone': phone ?? '',
+        'email': email ?? '',
+        'current_address': address ?? '',
+        'password': password ?? '',
+        if (rules != null && rules.isNotEmpty)
+          'rules_json': jsonEncode(rules),
+      },
+    );
+  }
+
   Future<Map<String, dynamic>> fetchAllAttendanceLogs({
     int limit = 20,
     int offset = 0,

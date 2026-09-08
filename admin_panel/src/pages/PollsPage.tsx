@@ -21,6 +21,7 @@ import {
 import { Modal } from '../components/common/Modal';
 import { ViewModeToggle, ViewMode } from '../components/common/ViewModeToggle';
 import { adminApi, PollItem, PollCandidate, GroupUserItem } from '../api/adminApi';
+import { UserAvatar } from '../components/UserAvatar';
 
 export const PollsPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'manage' | 'results'>('manage');
@@ -755,28 +756,13 @@ export const PollsPage: React.FC = () => {
 
                       {/* Candidate Info */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                        <div
-                          style={{
-                            width: '52px',
-                            height: '52px',
-                            borderRadius: '14px',
-                            background: rankColor,
-                            color: '#fff',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontWeight: 800,
-                            fontSize: '18px',
-                            overflow: 'hidden',
-                            flexShrink: 0,
-                          }}
-                        >
-                          {cand.avatar ? (
-                            <img src={cand.avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                          ) : (
-                            initials
-                          )}
-                        </div>
+                        <UserAvatar
+                          avatar={cand.avatar}
+                          name={cand.name}
+                          size={52}
+                          borderRadius="14px"
+                          fontSize="18px"
+                        />
 
                         <div style={{ minWidth: 0, flex: 1, paddingRight: '40px' }}>
                           <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
