@@ -1365,8 +1365,6 @@ class _HomeContentState extends State<HomeContent> {
   Widget _buildTopIcon(
     IconData icon,
     VoidCallback onTap, {
-    Color? color,
-    Color? borderColor,
     bool badge = false,
   }) {
     return GestureDetector(
