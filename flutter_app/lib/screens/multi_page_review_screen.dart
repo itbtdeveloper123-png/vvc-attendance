@@ -1462,8 +1462,8 @@ class _FullscreenPageViewerState extends State<_FullscreenPageViewer> {
 
     return Scaffold(
       backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.black.withValues(alpha: 0.85),
+      appBar: VvcAppBar(
+        backgroundColor: Colors.black.withValues(alpha: 0.82),
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.close, color: Colors.white),

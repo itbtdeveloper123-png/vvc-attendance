@@ -1064,16 +1064,23 @@ class _DynamicPremiumAppBarState extends State<DynamicPremiumAppBar> {
       iconTheme: IconThemeData(color: AppTheme.textPrimary),
       flexibleSpace: ClipRect(
         child: BackdropFilter(
-          filter: ui.ImageFilter.blur(sigmaX: 20.0, sigmaY: 20.0),
+          filter: ui.ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
           child: Container(
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.85),
+              color: AppTheme.bgSurface.withValues(alpha: 0.80),
               border: Border(
                 bottom: BorderSide(
-                  color: const Color(0xFFE2E8F0).withValues(alpha: 0.6),
-                  width: 1,
+                  color: AppTheme.border.withValues(alpha: 0.65),
+                  width: 0.8,
                 ),
               ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
           ),
         ),

@@ -18,6 +18,7 @@ import '../services/api_service.dart';
 import '../utils/app_theme.dart';
 import '../widgets/responsive_layout.dart';
 import '../widgets/vvc_global_alert.dart';
+import '../widgets/app_widgets.dart';
 
 /// Class representing an individually editable, styleable, and draggable element on the Certificate Canvas.
 class CertItem {
@@ -1996,9 +1997,9 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
   Widget _buildDesktopStudioLayout() {
     return Scaffold(
       backgroundColor: const Color(0xFF090D16),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF0F172A),
-        elevation: 1,
+      appBar: VvcAppBar(
+        backgroundColor: const Color(0xFF0F172A).withValues(alpha: 0.82),
+        elevation: 0,
         title: Row(
           children: [
             const Icon(Icons.workspace_premium_rounded, color: Colors.amberAccent, size: 24),
@@ -2312,8 +2313,8 @@ class _CertificateEditorScreenState extends State<CertificateEditorScreen> {
   Widget _buildMobileLayout() {
     return Scaffold(
       backgroundColor: AppTheme.bgDark,
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF111E33),
+      appBar: VvcAppBar(
+        backgroundColor: const Color(0xFF111E33).withValues(alpha: 0.82),
         title: Text(
           'រចនា & បោះពុម្ពលិខិតសរសើរ (A4)',
           style: GoogleFonts.kantumruyPro(

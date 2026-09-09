@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:photo_view/photo_view.dart';
+import 'app_widgets.dart';
 
 class ImageViewerPage extends StatelessWidget {
   final String? base64Image;
@@ -12,8 +13,9 @@ class ImageViewerPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.black,
+      extendBodyBehindAppBar: true,
+      appBar: VvcAppBar(
+        backgroundColor: Colors.black.withValues(alpha: 0.72),
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
