@@ -233,16 +233,17 @@ class _LeaveRequestScreenState extends State<LeaveRequestScreen> {
       bottomNavigationBar: Container(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.96),
+          color: AppTheme.bgSurface.withValues(alpha: 0.82),
           border: Border(
             top: BorderSide(
-              color: const Color(0xFFE2E8F0).withValues(alpha: 0.8),
+              color: AppTheme.border.withValues(alpha: 0.65),
+              width: 0.8,
             ),
           ),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF0F172A).withValues(alpha: 0.05),
-              blurRadius: 10,
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 12,
               offset: const Offset(0, -4),
             ),
           ],

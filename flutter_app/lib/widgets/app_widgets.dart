@@ -1106,21 +1106,22 @@ class DynamicAppBarWrapper extends StatefulWidget {
 }
 
 class _DynamicAppBarWrapperState extends State<DynamicAppBarWrapper> {
-  bool _isScrolling = false;
-  Timer? _scrollTimer;
-
-  @override
-  void dispose() {
-    _scrollTimer?.cancel();
-    super.dispose();
-  }
+  bool _isScrolled = false;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.bgDark,
       extendBodyBehindAppBar: widget.extendBodyBehindAppBar,
-      bottomNavigationBar: widget.bottomNavigationBar,
+      extendBody: true,
+      bottomNavigationBar: widget.bottomNavigationBar != null
+          ? ClipRect(
+              child: BackdropFilter(
+                filter: ui.ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
+                child: widget.bottomNavigationBar!,
+              ),
+            )
+          : null,
       appBar: AppBar(
         title: Text(
           widget.title,
@@ -1142,19 +1143,30 @@ class _DynamicAppBarWrapperState extends State<DynamicAppBarWrapper> {
         iconTheme: IconThemeData(color: AppTheme.textPrimary),
         flexibleSpace: ClipRect(
           child: BackdropFilter(
-            filter: ui.ImageFilter.blur(sigmaX: 20.0, sigmaY: 20.0),
+            filter: ui.ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
             child: AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
+              duration: const Duration(milliseconds: 200),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: _isScrolling ? 0.90 : 0.75),
+                color: AppTheme.bgSurface.withValues(
+                  alpha: _isScrolled ? 0.82 : 0.72,
+                ),
                 border: Border(
                   bottom: BorderSide(
-                    color: const Color(0xFFE2E8F0).withValues(
-                      alpha: _isScrolling ? 0.8 : 0.4,
+                    color: AppTheme.border.withValues(
+                      alpha: _isScrolled ? 0.65 : 0.35,
                     ),
-                    width: 1,
+                    width: 0.8,
                   ),
                 ),
+                boxShadow: _isScrolled
+                    ? [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.04),
+                          blurRadius: 10,
+                          offset: const Offset(0, 2),
+                        ),
+                      ]
+                    : null,
               ),
             ),
           ),
@@ -1162,17 +1174,11 @@ class _DynamicAppBarWrapperState extends State<DynamicAppBarWrapper> {
       ),
       body: NotificationListener<ScrollNotification>(
         onNotification: (notification) {
-          if (notification is ScrollStartNotification) {
-            setState(() => _isScrolling = true);
-            _scrollTimer?.cancel();
-          } else if (notification is ScrollUpdateNotification) {
-            _scrollTimer?.cancel();
-            _scrollTimer = Timer(const Duration(milliseconds: 150), () {
-              if (mounted) setState(() => _isScrolling = false);
-            });
-          } else if (notification is ScrollEndNotification) {
-            _scrollTimer?.cancel();
-            if (mounted) setState(() => _isScrolling = false);
+          if (notification.metrics.axis == Axis.vertical) {
+            final scrolled = notification.metrics.pixels > 6.0;
+            if (scrolled != _isScrolled) {
+              setState(() => _isScrolled = scrolled);
+            }
           }
           return false;
         },

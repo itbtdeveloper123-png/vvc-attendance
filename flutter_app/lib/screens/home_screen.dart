@@ -420,23 +420,23 @@ class HomeScreenState extends State<HomeScreen> {
     final isVvc = theme.brand == CompanyBrand.vvc;
     final activeTextColor = isVvc ? const Color(0xFF0F172A) : Colors.white;
 
-    return ClipRRect(
+    return ClipRect(
       child: BackdropFilter(
-        filter: ui.ImageFilter.blur(sigmaX: 20.0, sigmaY: 20.0),
+        filter: ui.ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.78),
+            color: theme.backgroundColor.withValues(alpha: 0.78),
             border: Border(
               top: BorderSide(
-                color: Colors.white.withValues(alpha: 0.90),
-                width: 1.2,
+                color: theme.cardBorder.withValues(alpha: 0.65),
+                width: 0.8,
               ),
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF0F172A).withValues(alpha: 0.04),
-                blurRadius: 14,
-                offset: const Offset(0, -3),
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 16,
+                offset: const Offset(0, -4),
               ),
             ],
           ),
@@ -1079,7 +1079,7 @@ class _HomeContentState extends State<HomeContent> {
                     statusBarBrightness: Brightness.light,    // iOS: dark icons (black clock & battery)
                   ),
                   pinned: true,
-                  floating: true,
+                  floating: false,
                   elevation: 0,
                   backgroundColor: Colors.transparent,
                   surfaceTintColor: Colors.transparent,
@@ -1087,16 +1087,23 @@ class _HomeContentState extends State<HomeContent> {
                   titleSpacing: 16,
                   flexibleSpace: ClipRect(
                     child: BackdropFilter(
-                      filter: ui.ImageFilter.blur(sigmaX: 20.0, sigmaY: 20.0),
+                      filter: ui.ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
                       child: Container(
                         decoration: BoxDecoration(
-                          color: theme.backgroundColor.withValues(alpha: 0.88),
+                          color: theme.backgroundColor.withValues(alpha: 0.78),
                           border: Border(
                             bottom: BorderSide(
-                              color: theme.cardBorder,
+                              color: theme.cardBorder.withValues(alpha: 0.65),
                               width: 0.8,
                             ),
                           ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.03),
+                              blurRadius: 10,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
                         ),
                       ),
                     ),
