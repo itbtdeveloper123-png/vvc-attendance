@@ -1512,14 +1512,14 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
       decoration: BoxDecoration(
         color: AppTheme.bgCard,
         border: Border(
-          bottom: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+          bottom: BorderSide(color: AppTheme.border),
         ),
       ),
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                color: Colors.white, size: 20),
+            icon: Icon(Icons.arrow_back_ios_new_rounded,
+                color: AppTheme.textPrimary, size: 20),
             onPressed: () => Navigator.pop(context),
           ),
           Container(
@@ -1550,7 +1550,7 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
                     Text(
                       'AI Product Analyzer',
                       style: GoogleFonts.kantumruyPro(
-                        color: Colors.white,
+                        color: AppTheme.textPrimary,
                         fontWeight: FontWeight.bold,
                         fontSize: 15,
                       ),
@@ -1582,7 +1582,7 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
                       : 'ជំនួយការឆ្លាតវៃវិភាគផលិតផល',
                   style: GoogleFonts.kantumruyPro(
                     color: _currentFolderName != null
-                        ? const Color(0xFFA78BFA)
+                        ? const Color(0xFF7C3AED)
                         : AppTheme.textMuted,
                     fontSize: 11,
                   ),
@@ -1598,21 +1598,21 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: const Color(0xFF7C3AED).withValues(alpha: 0.18),
+                color: const Color(0xFF7C3AED).withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: const Color(0xFF7C3AED).withValues(alpha: 0.4),
+                  color: const Color(0xFF7C3AED).withValues(alpha: 0.35),
                 ),
               ),
               child: Row(
                 children: [
                   const Icon(Icons.folder_open_rounded,
-                      color: Color(0xFFA78BFA), size: 18),
+                      color: Color(0xFF7C3AED), size: 18),
                   const SizedBox(width: 5),
                   Text(
                     '${_savedHistory.length}',
                     style: GoogleFonts.inter(
-                      color: Colors.white,
+                      color: const Color(0xFF7C3AED),
                       fontWeight: FontWeight.bold,
                       fontSize: 12,
                     ),
@@ -1625,8 +1625,8 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
           // Reset / New Session
           IconButton(
             tooltip: 'ចាប់ផ្តើមថ្មី',
-            icon: const Icon(Icons.add_comment_outlined,
-                color: Colors.white70, size: 22),
+            icon: Icon(Icons.add_comment_outlined,
+                color: AppTheme.textSecondary, size: 22),
             onPressed: () {
               _hapticLight();
               setState(() {
@@ -2652,7 +2652,7 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
       decoration: BoxDecoration(
         color: AppTheme.bgCard,
         border: Border(
-          top: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+          top: BorderSide(color: AppTheme.border),
         ),
       ),
       child: Row(
@@ -2660,7 +2660,7 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
           // Attachment Menu Button
           IconButton(
             icon: const Icon(Icons.add_circle_outline_rounded,
-                color: Color(0xFFA78BFA), size: 26),
+                color: Color(0xFF7C3AED), size: 26),
             onPressed: _showAttachmentSheet,
           ),
           // Text Input Field
@@ -2668,19 +2668,19 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.06),
+                color: const Color(0xFFF1F5F9),
                 borderRadius: BorderRadius.circular(22),
                 border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.1)),
+                    color: AppTheme.border),
               ),
               child: TextField(
                 controller: _textCtrl,
                 style: GoogleFonts.kantumruyPro(
-                    color: Colors.white, fontSize: 13.5),
+                    color: AppTheme.textPrimary, fontSize: 13.5),
                 decoration: InputDecoration(
                   hintText: 'សួរបន្ថែមអំពីផលិតផលនេះ...',
                   hintStyle: GoogleFonts.kantumruyPro(
-                    color: Colors.white38,
+                    color: AppTheme.textMuted,
                     fontSize: 13,
                   ),
                   border: InputBorder.none,
@@ -2748,7 +2748,7 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
           color: AppTheme.bgCard,
           borderRadius:
               const BorderRadius.vertical(top: Radius.circular(24)),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+          border: Border.all(color: AppTheme.border),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -2758,7 +2758,7 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.white24,
+                  color: AppTheme.textMuted.withValues(alpha: 0.3),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -2767,7 +2767,7 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
             Text(
               'ជ្រើសរើសវិធីវិភាគផលិតផល',
               style: GoogleFonts.kantumruyPro(
-                color: Colors.white,
+                color: AppTheme.textPrimary,
                 fontWeight: FontWeight.bold,
                 fontSize: 16,
               ),
@@ -2781,13 +2781,13 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(Icons.camera_alt_rounded,
-                    color: Color(0xFFA78BFA)),
+                    color: Color(0xFF7C3AED)),
               ),
               title: Text('ថតរូបភាពថ្មី',
-                  style: GoogleFonts.kantumruyPro(color: Colors.white)),
+                  style: GoogleFonts.kantumruyPro(color: AppTheme.textPrimary)),
               subtitle: Text('ប្រើ Camera ថតរូបកញ្ចប់ ឬដបផលិតផល',
                   style: GoogleFonts.kantumruyPro(
-                      color: Colors.white54, fontSize: 12)),
+                      color: AppTheme.textSecondary, fontSize: 12)),
               onTap: () {
                 Navigator.pop(ctx);
                 _pickImage(ImageSource.camera);
@@ -2801,13 +2801,13 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(Icons.photo_library_rounded,
-                    color: Color(0xFF38BDF8)),
+                    color: Color(0xFF0284C7)),
               ),
               title: Text('ជ្រើសរូបពី Gallery',
-                  style: GoogleFonts.kantumruyPro(color: Colors.white)),
+                  style: GoogleFonts.kantumruyPro(color: AppTheme.textPrimary)),
               subtitle: Text('ជ្រើសរូបភាពដែលធ្លាប់បានថតទុក',
                   style: GoogleFonts.kantumruyPro(
-                      color: Colors.white54, fontSize: 12)),
+                      color: AppTheme.textSecondary, fontSize: 12)),
               onTap: () {
                 Navigator.pop(ctx);
                 _pickImage(ImageSource.gallery);
@@ -2821,13 +2821,13 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(Icons.qr_code_scanner_rounded,
-                    color: Color(0xFF34D399)),
+                    color: Color(0xFF059669)),
               ),
               title: Text('ស្កេន Barcode / QR Code',
-                  style: GoogleFonts.kantumruyPro(color: Colors.white)),
+                  style: GoogleFonts.kantumruyPro(color: AppTheme.textPrimary)),
               subtitle: Text('ស្កេនបាកូដនៅលើសម្បកផលិតផល',
                   style: GoogleFonts.kantumruyPro(
-                      color: Colors.white54, fontSize: 12)),
+                      color: AppTheme.textSecondary, fontSize: 12)),
               onTap: () {
                 Navigator.pop(ctx);
                 _openBarcodeScanner();
@@ -2952,9 +2952,9 @@ class _HistoryAndFoldersSheetState extends State<_HistoryAndFoldersSheet> {
     return Container(
       height: MediaQuery.of(context).size.height * 0.86,
       decoration: BoxDecoration(
-        color: AppTheme.bgDark,
+        color: AppTheme.bgCard,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+        border: Border.all(color: AppTheme.border),
       ),
       child: Column(
         children: [
@@ -2964,7 +2964,7 @@ class _HistoryAndFoldersSheetState extends State<_HistoryAndFoldersSheet> {
             width: 40,
             height: 4,
             decoration: BoxDecoration(
-              color: Colors.white24,
+              color: AppTheme.textMuted.withValues(alpha: 0.3),
               borderRadius: BorderRadius.circular(2),
             ),
           ),
@@ -2977,12 +2977,12 @@ class _HistoryAndFoldersSheetState extends State<_HistoryAndFoldersSheet> {
                 Row(
                   children: [
                     const Icon(Icons.folder_special_rounded,
-                        color: Color(0xFFA78BFA), size: 22),
+                        color: Color(0xFF7C3AED), size: 22),
                     const SizedBox(width: 8),
                     Text(
                       'ប្រវត្តិវិភាគ & Folders',
                       style: GoogleFonts.kantumruyPro(
-                        color: Colors.white,
+                        color: AppTheme.textPrimary,
                         fontWeight: FontWeight.bold,
                         fontSize: 17,
                       ),
@@ -2992,11 +2992,11 @@ class _HistoryAndFoldersSheetState extends State<_HistoryAndFoldersSheet> {
                 TextButton.icon(
                   onPressed: widget.onCreateFolder,
                   icon: const Icon(Icons.create_new_folder_rounded,
-                      color: Color(0xFF38BDF8), size: 18),
+                      color: Color(0xFF0284C7), size: 18),
                   label: Text(
                     '+ Folder ថ្មី',
                     style: GoogleFonts.kantumruyPro(
-                      color: const Color(0xFF38BDF8),
+                      color: const Color(0xFF0284C7),
                       fontWeight: FontWeight.bold,
                       fontSize: 13,
                     ),
@@ -3013,23 +3013,23 @@ class _HistoryAndFoldersSheetState extends State<_HistoryAndFoldersSheet> {
               height: 40,
               padding: const EdgeInsets.symmetric(horizontal: 12),
               decoration: BoxDecoration(
-                color: AppTheme.bgCard,
+                color: const Color(0xFFF1F5F9),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white12),
+                border: Border.all(color: AppTheme.border),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.search_rounded,
-                      color: Colors.white54, size: 18),
+                  Icon(Icons.search_rounded,
+                      color: AppTheme.textMuted, size: 18),
                   const SizedBox(width: 8),
                   Expanded(
                     child: TextField(
                       style: GoogleFonts.kantumruyPro(
-                          color: Colors.white, fontSize: 13),
+                          color: AppTheme.textPrimary, fontSize: 13),
                       decoration: InputDecoration(
                         hintText: 'ស្វែងរកតាមឈ្មោះ, ម៉ាក ឬ Barcode...',
                         hintStyle: GoogleFonts.kantumruyPro(
-                            color: Colors.white38, fontSize: 12.5),
+                            color: AppTheme.textMuted, fontSize: 12.5),
                         border: InputBorder.none,
                         isDense: true,
                         contentPadding: EdgeInsets.zero,
@@ -3041,8 +3041,8 @@ class _HistoryAndFoldersSheetState extends State<_HistoryAndFoldersSheet> {
                   if (_searchQuery.isNotEmpty)
                     GestureDetector(
                       onTap: () => setState(() => _searchQuery = ''),
-                      child: const Icon(Icons.close_rounded,
-                          color: Colors.white54, size: 16),
+                      child: Icon(Icons.close_rounded,
+                          color: AppTheme.textMuted, size: 16),
                     ),
                 ],
               ),
@@ -3160,13 +3160,13 @@ class _HistoryAndFoldersSheetState extends State<_HistoryAndFoldersSheet> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.folder_open_rounded,
-                            color: Colors.white24, size: 48),
+                        Icon(Icons.folder_open_rounded,
+                            color: AppTheme.textMuted.withValues(alpha: 0.4), size: 48),
                         const SizedBox(height: 10),
                         Text(
                           'គ្មានទិន្នន័យផលិតផលក្នុង Folder នេះឡើយ',
                           style: GoogleFonts.kantumruyPro(
-                              color: Colors.white54, fontSize: 13),
+                              color: AppTheme.textMuted, fontSize: 13),
                         ),
                       ],
                     ),
@@ -3198,11 +3198,11 @@ class _HistoryAndFoldersSheetState extends State<_HistoryAndFoldersSheet> {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
         decoration: BoxDecoration(
           color: isSelected
-              ? color.withValues(alpha: 0.3)
-              : Colors.white.withValues(alpha: 0.05),
+              ? color.withValues(alpha: 0.15)
+              : const Color(0xFFF1F5F9),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isSelected ? color : Colors.white12,
+            color: isSelected ? color : AppTheme.border,
             width: isSelected ? 1.5 : 1,
           ),
         ),
@@ -3211,14 +3211,14 @@ class _HistoryAndFoldersSheetState extends State<_HistoryAndFoldersSheet> {
           children: [
             Icon(
               id == null ? Icons.all_inbox_rounded : Icons.folder_rounded,
-              color: isSelected ? color : Colors.white60,
+              color: isSelected ? color : AppTheme.textSecondary,
               size: 14,
             ),
             const SizedBox(width: 5),
             Text(
               label,
               style: GoogleFonts.kantumruyPro(
-                color: isSelected ? Colors.white : Colors.white70,
+                color: isSelected ? color : AppTheme.textSecondary,
                 fontSize: 12,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
               ),
@@ -3235,7 +3235,7 @@ class _HistoryAndFoldersSheetState extends State<_HistoryAndFoldersSheet> {
       decoration: BoxDecoration(
         color: AppTheme.bgCard,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+        border: Border.all(color: AppTheme.border),
       ),
       child: ListTile(
         contentPadding:
@@ -3244,7 +3244,7 @@ class _HistoryAndFoldersSheetState extends State<_HistoryAndFoldersSheet> {
           width: 44,
           height: 44,
           decoration: BoxDecoration(
-            color: const Color(0xFF7C3AED).withValues(alpha: 0.15),
+            color: const Color(0xFF7C3AED).withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Center(
@@ -3257,7 +3257,7 @@ class _HistoryAndFoldersSheetState extends State<_HistoryAndFoldersSheet> {
         title: Text(
           item.title,
           style: GoogleFonts.kantumruyPro(
-            color: Colors.white,
+            color: AppTheme.textPrimary,
             fontWeight: FontWeight.bold,
             fontSize: 14,
           ),
@@ -3274,7 +3274,7 @@ class _HistoryAndFoldersSheetState extends State<_HistoryAndFoldersSheet> {
                   Text(
                     item.brand,
                     style: GoogleFonts.inter(
-                      color: const Color(0xFFA78BFA),
+                      color: const Color(0xFF7C3AED),
                       fontSize: 11.5,
                       fontWeight: FontWeight.w600,
                     ),
@@ -3284,7 +3284,7 @@ class _HistoryAndFoldersSheetState extends State<_HistoryAndFoldersSheet> {
                 Text(
                   item.country,
                   style: GoogleFonts.kantumruyPro(
-                    color: Colors.white54,
+                    color: AppTheme.textSecondary,
                     fontSize: 11,
                   ),
                 ),
@@ -3296,13 +3296,13 @@ class _HistoryAndFoldersSheetState extends State<_HistoryAndFoldersSheet> {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF7C3AED).withValues(alpha: 0.2),
+                  color: const Color(0xFF7C3AED).withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
                   '📁 ${item.folderName}',
                   style: GoogleFonts.kantumruyPro(
-                    color: const Color(0xFFA78BFA),
+                    color: const Color(0xFF7C3AED),
                     fontSize: 10.5,
                     fontWeight: FontWeight.w500,
                   ),
@@ -3312,8 +3312,8 @@ class _HistoryAndFoldersSheetState extends State<_HistoryAndFoldersSheet> {
           ],
         ),
         trailing: PopupMenuButton<String>(
-          icon: const Icon(Icons.more_vert_rounded,
-              color: Colors.white54, size: 20),
+          icon: Icon(Icons.more_vert_rounded,
+              color: AppTheme.textMuted, size: 20),
           color: const Color(0xFF1E1B4B),
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),

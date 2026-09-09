@@ -61,6 +61,7 @@ class AppTheme {
   // Additional theme colors for compatibility
   static Color get cardBg => bgCard;
   static Color get borderLight => borderDark;
+  static Color get border => borderColor;
 
   static Color textPrimary = const Color(0xFF0F172A); // High contrast dark slate (visible on white glass)
   static Color textSecondary = const Color(0xFF475569); // Slate-600

@@ -1909,7 +1909,7 @@ class _MeetingsScreenState extends State<MeetingsScreen>
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.white24,
+                  color: AppTheme.textSecondary.withValues(alpha: 0.3),
                   borderRadius: BorderRadius.circular(10),
                 ),
               ),
@@ -2269,16 +2269,16 @@ class _MeetingsScreenState extends State<MeetingsScreen>
                   const SizedBox(height: 25),
 
                   if (isLoading)
-                    const Column(
+                    Column(
                       children: [
-                        CircularProgressIndicator(
+                        const CircularProgressIndicator(
                           valueColor:
                               AlwaysStoppedAnimation<Color>(Color(0xFFF59E0B)),
                         ),
-                        SizedBox(height: 12),
+                        const SizedBox(height: 12),
                         Text(
                           "កំពុងទាញយកសំឡេង...",
-                          style: TextStyle(color: Colors.white70),
+                          style: GoogleFonts.kantumruyPro(color: AppTheme.textSecondary, fontSize: 13),
                         ),
                       ],
                     )
@@ -3391,7 +3391,7 @@ class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
             const SizedBox(height: 12),
             Text(
               'មិនទាន់មានសេចក្តីសង្ខេបនៅឡើយទេ',
-              style: GoogleFonts.kantumruyPro(color: AppTheme.textSecondary),
+              style: GoogleFonts.kantumruyPro(color: Colors.white70),
             ),
             const SizedBox(height: 14),
             ElevatedButton.icon(
@@ -3422,7 +3422,7 @@ class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
           text: text.substring(lastMatchEnd, match.start),
           style: GoogleFonts.kantumruyPro(
             fontSize: fontSize,
-            color: defaultColor ?? AppTheme.textPrimary,
+            color: defaultColor ?? const Color(0xFFCBD5E1),
             height: 1.85,
           ),
         ));
@@ -3444,7 +3444,7 @@ class _AiMeetingMinutesSheetState extends State<_AiMeetingMinutesSheet> {
         text: text.substring(lastMatchEnd),
         style: GoogleFonts.kantumruyPro(
           fontSize: fontSize,
-          color: defaultColor ?? AppTheme.textPrimary,
+          color: defaultColor ?? const Color(0xFFCBD5E1),
           height: 1.85,
         ),
       ));

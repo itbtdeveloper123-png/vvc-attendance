@@ -270,7 +270,7 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.white24,
+                    color: AppTheme.textMuted.withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -282,7 +282,7 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
                       Text(
                         "បន្ថែមការងារថ្មី",
                         style: GoogleFonts.kantumruyPro(
-                          color: Colors.white,
+                          color: AppTheme.textPrimary,
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
                         ),
@@ -292,18 +292,18 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
                       // Task Input
                       Container(
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.05),
+                          color: AppTheme.bgSurface,
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: Colors.white10),
+                          border: Border.all(color: AppTheme.border),
                         ),
                         child: TextField(
                           controller: _taskController,
                           autofocus: true,
-                          style: GoogleFonts.kantumruyPro(color: Colors.white),
+                          style: GoogleFonts.kantumruyPro(color: AppTheme.textPrimary),
                           decoration: InputDecoration(
                             hintText: "តើអ្នកចង់ធ្វើអ្វីនៅថ្ងៃនេះ?",
                             hintStyle: GoogleFonts.kantumruyPro(
-                              color: Colors.white24,
+                              color: AppTheme.textMuted,
                             ),
                             border: InputBorder.none,
                             contentPadding: const EdgeInsets.all(16),
@@ -432,10 +432,10 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
                           height: 100,
                           width: double.infinity,
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.05),
+                            color: AppTheme.bgSurface,
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.1),
+                              color: AppTheme.border,
                             ),
                           ),
                           child: _selectedImage != null
@@ -451,15 +451,13 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
                                   children: [
                                     Icon(
                                       Icons.add_photo_alternate_rounded,
-                                      color: Colors.white.withValues(
-                                        alpha: 0.3,
-                                      ),
+                                      color: AppTheme.textMuted,
                                     ),
                                     const SizedBox(height: 5),
                                     Text(
                                       "បន្ថែមរូបភាព",
                                       style: GoogleFonts.kantumruyPro(
-                                        color: Colors.white24,
+                                        color: AppTheme.textMuted,
                                         fontSize: 12,
                                       ),
                                     ),
@@ -513,9 +511,9 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.05),
+          color: AppTheme.bgSurface,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white10),
+          border: Border.all(color: AppTheme.border),
         ),
         child: Row(
           children: [
@@ -525,7 +523,7 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
               child: Text(
                 label,
                 style: GoogleFonts.kantumruyPro(
-                  color: Colors.white70,
+                  color: AppTheme.textPrimary,
                   fontSize: 13,
                 ),
                 overflow: TextOverflow.ellipsis,
@@ -551,7 +549,7 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
               (cat) => ListTile(
                 title: Text(
                   cat,
-                  style: GoogleFonts.kantumruyPro(color: Colors.white),
+                  style: GoogleFonts.kantumruyPro(color: AppTheme.textPrimary),
                 ),
                 onTap: () {
                   onSelected(cat);
@@ -577,7 +575,7 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
         title: Text(
           "កែសម្រួលការងារ",
           style: GoogleFonts.kantumruyPro(
-            color: Colors.white,
+            color: AppTheme.textPrimary,
             fontSize: 18,
             fontWeight: FontWeight.bold,
           ),
@@ -585,12 +583,12 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
         content: TextField(
           controller: editController,
           autofocus: true,
-          style: GoogleFonts.kantumruyPro(color: Colors.white),
+          style: GoogleFonts.kantumruyPro(color: AppTheme.textPrimary),
           decoration: InputDecoration(
             hintText: "បញ្ចូលការងារថ្មី...",
-            hintStyle: GoogleFonts.kantumruyPro(color: Colors.white24),
-            enabledBorder: const UnderlineInputBorder(
-              borderSide: BorderSide(color: Colors.white10),
+            hintStyle: GoogleFonts.kantumruyPro(color: AppTheme.textMuted),
+            enabledBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: AppTheme.border),
             ),
             focusedBorder: UnderlineInputBorder(
               borderSide: BorderSide(color: AppTheme.primary),
@@ -602,7 +600,7 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
             onPressed: () => Navigator.pop(context),
             child: Text(
               "បោះបង់",
-              style: GoogleFonts.kantumruyPro(color: Colors.white38),
+              style: GoogleFonts.kantumruyPro(color: AppTheme.textSecondary),
             ),
           ),
           ElevatedButton(
@@ -664,9 +662,9 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
               backgroundColor: Colors.transparent,
               elevation: 0,
               leading: IconButton(
-                icon: const Icon(
+                icon: Icon(
                   Icons.arrow_back_ios_new_rounded,
-                  color: Colors.white,
+                  color: AppTheme.textPrimary,
                   size: 20,
                 ),
                 onPressed: () => Navigator.pop(context),
@@ -674,7 +672,7 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
               title: Text(
                 "បញ្ជីការងារ",
                 style: GoogleFonts.kantumruyPro(
-                  color: Colors.white,
+                  color: AppTheme.textPrimary,
                   fontWeight: FontWeight.bold,
                   fontSize: 22,
                 ),
@@ -682,9 +680,9 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
               centerTitle: true,
               actions: [
                 IconButton(
-                  icon: const Icon(
+                  icon: Icon(
                     Icons.notifications_none_rounded,
-                    color: Colors.white24,
+                    color: AppTheme.textPrimary.withValues(alpha: 0.6),
                   ),
                   onPressed: _checkDeadlines,
                 ),
@@ -748,8 +746,8 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       decoration: BoxDecoration(
-        color: AppTheme.bgCard.withValues(alpha: 0.8),
-        border: const Border(top: BorderSide(color: Colors.white10)),
+        color: AppTheme.bgCard.withValues(alpha: 0.95),
+        border: Border(top: BorderSide(color: AppTheme.border)),
       ),
       child: SafeArea(
         top: false,
@@ -782,7 +780,7 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
                         ? "អ្នកមានការងារបន្ទាន់ $urgent"
                         : "អ្នកមានការងារសេសសល់ $remaining",
                     style: GoogleFonts.kantumruyPro(
-                      color: Colors.white,
+                      color: AppTheme.textPrimary,
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
                     ),
@@ -792,7 +790,7 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
                         ? "សូមបញ្ចប់ឱ្យបានមុនពេលកំណត់!"
                         : "ព្យាយាមឱ្យអស់ពីសមត្ថភាព!",
                     style: GoogleFonts.kantumruyPro(
-                      color: Colors.white38,
+                      color: AppTheme.textSecondary,
                       fontSize: 11,
                     ),
                   ),
@@ -1037,22 +1035,22 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
         margin: const EdgeInsets.only(bottom: 12),
         decoration: BoxDecoration(
           color: isDone
-              ? Colors.white.withValues(alpha: 0.02)
+              ? AppTheme.bgSurface.withValues(alpha: 0.5)
               : AppTheme.bgCard,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: isUrgent
-                ? AppTheme.warning.withValues(alpha: 0.3)
+                ? AppTheme.warning.withValues(alpha: 0.5)
                 : (isDone
-                      ? Colors.white.withValues(alpha: 0.02)
-                      : Colors.white.withValues(alpha: 0.05)),
+                      ? AppTheme.border.withValues(alpha: 0.5)
+                      : AppTheme.border),
             width: isUrgent ? 1.5 : 1,
           ),
           boxShadow: isDone
               ? []
               : [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.1),
+                    color: Colors.black.withValues(alpha: 0.04),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
@@ -1071,7 +1069,7 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
                   width: double.infinity,
                   fit: BoxFit.cover,
                   placeholder: (c, url) => Container(
-                    color: Colors.white.withValues(alpha: 0.05),
+                    color: AppTheme.bgSurface,
                     alignment: Alignment.center,
                     child: const CircularProgressIndicator(),
                   ),
@@ -1093,7 +1091,7 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
                     color: isDone ? AppTheme.success : Colors.transparent,
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: isDone ? AppTheme.success : Colors.white24,
+                      color: isDone ? AppTheme.success : AppTheme.textMuted.withValues(alpha: 0.35),
                       width: 2,
                     ),
                   ),
@@ -1110,11 +1108,11 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
                 item['task'] ?? '',
                 style: GoogleFonts.kantumruyPro(
                   color: isDone
-                      ? Colors.white.withValues(alpha: 0.2)
-                      : Colors.white,
+                      ? AppTheme.textMuted
+                      : AppTheme.textPrimary,
                   decoration: isDone ? TextDecoration.lineThrough : null,
                   fontSize: 16,
-                  fontWeight: isDone ? FontWeight.normal : FontWeight.w500,
+                  fontWeight: isDone ? FontWeight.normal : FontWeight.w600,
                 ),
               ),
               subtitle: Column(
@@ -1146,7 +1144,7 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
                         Icon(
                           Icons.calendar_today_rounded,
                           size: 10,
-                          color: isUrgent ? AppTheme.warning : Colors.white24,
+                          color: isUrgent ? AppTheme.warning : AppTheme.textMuted,
                         ),
                         const SizedBox(width: 4),
                         Flexible(
@@ -1155,7 +1153,7 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
                             style: GoogleFonts.inter(
                               color: isUrgent
                                   ? AppTheme.warning
-                                  : (isDone ? Colors.white10 : Colors.white24),
+                                  : (isDone ? AppTheme.textMuted.withValues(alpha: 0.5) : AppTheme.textMuted),
                               fontSize: 11,
                             ),
                             maxLines: 1,
@@ -1170,7 +1168,7 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
               trailing: IconButton(
                 icon: Icon(
                   Icons.more_vert_rounded,
-                  color: Colors.white.withValues(alpha: 0.2),
+                  color: AppTheme.textMuted,
                 ),
                 onPressed: () => _showEditDialog(item),
               ),
