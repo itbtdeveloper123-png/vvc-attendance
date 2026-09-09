@@ -170,9 +170,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   child: Row(
                     children: [
                       IconButton(
-                        icon: const Icon(
+                        icon: Icon(
                           Icons.arrow_back_ios_new_rounded,
-                          color: Colors.white,
+                          color: AppTheme.textPrimary,
                         ),
                         onPressed: () => Navigator.pop(context),
                       ),
@@ -180,7 +180,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       Text(
                         isMe ? "ប្រវត្តិរូបសង្ខេប" : "ព័ត៌មានបុគ្គលិក",
                         style: GoogleFonts.kantumruyPro(
-                          color: Colors.white,
+                          color: AppTheme.textPrimary,
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
@@ -467,7 +467,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               child: Icon(
                 Icons.calendar_month_rounded,
-                color: AppTheme.primaryLight,
+                color: AppTheme.primary,
                 size: 20,
               ),
             ),
@@ -515,8 +515,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       builder: (context) => Container(
         height: MediaQuery.of(context).size.height * 0.75,
         decoration: BoxDecoration(
-          color: AppTheme.bgDark,
+          color: Colors.white,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+          border: Border.all(color: AppTheme.borderColor),
         ),
         child: Column(
           children: [
@@ -661,7 +662,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       child: Text(
                         "$streak ថ្ងៃជាប់គ្នា",
                         style: GoogleFonts.kantumruyPro(
-                          color: AppTheme.primaryLight,
+                          color: AppTheme.primary,
                           fontSize: 10,
                           fontWeight: FontWeight.bold,
                         ),
@@ -867,7 +868,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             color: AppTheme.primary.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(10),
           ),
-          child: Icon(icon, color: AppTheme.primaryLight, size: 18),
+          child: Icon(icon, color: AppTheme.primary, size: 18),
         ),
         const SizedBox(width: 12),
         Column(
@@ -1154,9 +1155,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         builder: (ctx) => Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: AppTheme.bgCard,
+            color: Colors.white,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-            border: Border.all(color: Colors.white12),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1165,7 +1166,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.white24,
+                  color: AppTheme.textPrimary.withValues(alpha: 0.18),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -1188,21 +1189,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   child: const Icon(Icons.auto_awesome, color: Colors.white, size: 20),
                 ),
-                title: Text('✨ កាត់ Background ដោយ AI (Remove.bg)', style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold)),
+                title: Text('✨ កាត់ Background ដោយ AI (Remove.bg)', style: GoogleFonts.kantumruyPro(color: AppTheme.textPrimary, fontWeight: FontWeight.bold)),
                 subtitle: Text('កាត់ផ្ទៃខាងក្រោយឱ្យថ្លា ស្អាតកម្រិត Studio HD', style: GoogleFonts.kantumruyPro(color: AppTheme.textMuted, fontSize: 12)),
                 onTap: () => Navigator.pop(ctx, 'ai_remove_bg'),
               ),
-              const Divider(color: Colors.white12),
+              const Divider(color: Color(0xFFE2E8F0)),
               ListTile(
                 leading: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Colors.white12,
+                    color: const Color(0xFFF1F5F9),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.image_rounded, color: Colors.white70, size: 20),
+                  child: Icon(Icons.image_rounded, color: AppTheme.textSecondary, size: 20),
                 ),
-                title: Text('រក្សារូបភាពដើម (Original Photo)', style: GoogleFonts.kantumruyPro(color: Colors.white)),
+                title: Text('រក្សារូបភាពដើម (Original Photo)', style: GoogleFonts.kantumruyPro(color: AppTheme.textPrimary)),
                 subtitle: Text('ប្រើរូបភាពដើមទាំងស្រុងដោយមិនកាត់', style: GoogleFonts.kantumruyPro(color: AppTheme.textMuted, fontSize: 12)),
                 onTap: () => Navigator.pop(ctx, 'original'),
               ),
@@ -1221,9 +1222,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
             decoration: BoxDecoration(
-              color: AppTheme.bgCard,
+              color: Colors.white,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white12),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -1232,7 +1233,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 const SizedBox(height: 14),
                 Text(
                   choice == 'ai_remove_bg' ? 'កំពុងកាត់ Background ដោយ AI...' : 'កំពុងរក្សាទុករូបភាព...',
-                  style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 13),
+                  style: GoogleFonts.kantumruyPro(color: AppTheme.textPrimary, fontSize: 13),
                 ),
               ],
             ),
@@ -1310,7 +1311,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppTheme.bgDark,
+      backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -1328,7 +1329,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       width: 40,
                       height: 4,
                       decoration: BoxDecoration(
-                        color: Colors.white24,
+                        color: AppTheme.textPrimary.withValues(alpha: 0.18),
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
@@ -1649,7 +1650,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Text(
               "ចេញ",
               style: GoogleFonts.kantumruyPro(
-                color: AppTheme.textPrimary,
+                color: Colors.white,
                 fontWeight: FontWeight.bold,
               ),
             ),
