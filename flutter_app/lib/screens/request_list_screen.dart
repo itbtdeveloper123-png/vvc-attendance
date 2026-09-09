@@ -745,7 +745,7 @@ class _RequestListScreenState extends State<RequestListScreen> {
                                 ? Text(
                                     _initials(name),
                                     style: GoogleFonts.inter(
-                                      color: AppTheme.primaryLight,
+                                      color: AppTheme.primary,
                                       fontWeight: FontWeight.bold,
                                       fontSize: 12,
                                     ),
@@ -1879,12 +1879,12 @@ class _RequestListScreenState extends State<RequestListScreen> {
         children: [
           Row(
             children: [
-              Icon(icon, size: 16, color: AppTheme.primaryLight),
+              Icon(icon, size: 16, color: AppTheme.primary),
               const SizedBox(width: 8),
               Text(
                 title,
                 style: GoogleFonts.kantumruyPro(
-                  color: AppTheme.primaryLight,
+                  color: AppTheme.primary,
                   fontSize: 13,
                   fontWeight: FontWeight.bold,
                 ),
@@ -1919,7 +1919,7 @@ class _RequestListScreenState extends State<RequestListScreen> {
             child: Text(
               label,
               style: GoogleFonts.kantumruyPro(
-                color: AppTheme.textPrimary.withValues(alpha: 0.38),
+                color: AppTheme.textMuted,
                 fontSize: 12,
               ),
             ),
@@ -2006,7 +2006,7 @@ class _RequestListScreenState extends State<RequestListScreen> {
             child: Text(
               "បោះបង់",
               style: GoogleFonts.kantumruyPro(
-                color: AppTheme.textPrimary.withValues(alpha: 0.38),
+                color: AppTheme.textMuted,
               ),
             ),
           ),

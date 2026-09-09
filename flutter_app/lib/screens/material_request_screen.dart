@@ -657,7 +657,7 @@ class _MaterialRequestScreenState extends State<MaterialRequestScreen> {
                 children: [
                   Icon(
                     Icons.location_on_rounded,
-                    color: AppTheme.primaryLight,
+                    color: AppTheme.primary,
                     size: 20,
                   ),
                   const SizedBox(width: 16),

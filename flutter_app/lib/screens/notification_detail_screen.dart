@@ -23,17 +23,11 @@ class NotificationDetailSheet extends StatelessWidget {
         bottom: MediaQuery.of(context).padding.bottom + 20,
       ),
       decoration: BoxDecoration(
-        color: AppTheme.bgDark,
+        color: Colors.white,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(35)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.5),
-            blurRadius: 30,
-            offset: const Offset(0, -10),
-          ),
-        ],
+        boxShadow: AppTheme.cardShadow,
         border: Border.all(
-          color: AppTheme.borderColor.withValues(alpha: 0.5),
+          color: const Color(0xFFE2E8F0),
           width: 1,
         ),
       ),

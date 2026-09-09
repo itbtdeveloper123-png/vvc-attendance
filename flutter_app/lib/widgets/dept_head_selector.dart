@@ -515,7 +515,7 @@ class _DeptHeadSelectorState extends State<DeptHeadSelector> {
                           IconButton(
                             icon: Icon(
                               Icons.camera_alt_rounded,
-                              color: AppTheme.primaryLight,
+                              color: AppTheme.primary,
                               size: 20,
                             ),
                             onPressed: () async {

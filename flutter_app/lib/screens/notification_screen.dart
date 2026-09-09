@@ -267,7 +267,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
         child: Text(
           label,
           style: GoogleFonts.kantumruyPro(
-            color: selected ? AppTheme.primaryLight : AppTheme.textSecondary,
+            color: selected ? AppTheme.primary : AppTheme.textSecondary,
             fontSize: 12,
             fontWeight: FontWeight.bold,
           ),

@@ -282,7 +282,7 @@ class _KpiPerformanceScreenState extends State<KpiPerformanceScreen> with Single
                           ? '👍 ល្អ (Good Performance)'
                           : '⚠️ ត្រូវកែលម្អបន្ថែម (Needs Improvement)',
                   style: GoogleFonts.kantumruyPro(
-                    color: Colors.white,
+                    color: AppTheme.textPrimary,
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
                   ),
@@ -293,8 +293,8 @@ class _KpiPerformanceScreenState extends State<KpiPerformanceScreen> with Single
                   child: LinearProgressIndicator(
                     value: (score / 100).clamp(0.0, 1.0),
                     minHeight: 8,
-                    backgroundColor: Colors.white.withValues(alpha: 0.1),
-                    color: score >= 90 ? Colors.greenAccent : AppTheme.primary,
+                    backgroundColor: const Color(0xFFE2E8F0),
+                    color: score >= 90 ? const Color(0xFF16A34A) : AppTheme.primary,
                   ),
                 ),
               ],
@@ -318,7 +318,7 @@ class _KpiPerformanceScreenState extends State<KpiPerformanceScreen> with Single
             Text(
               'បញ្ជីគោលដៅ (${_goals.length})',
               style: GoogleFonts.kantumruyPro(
-                color: Colors.white,
+                color: AppTheme.textPrimary,
                 fontSize: 15,
                 fontWeight: FontWeight.bold,
               ),
@@ -388,7 +388,7 @@ class _KpiPerformanceScreenState extends State<KpiPerformanceScreen> with Single
                 child: Text(
                   '$category (${g['weight']}%)',
                   style: GoogleFonts.inter(
-                    color: AppTheme.primaryLight,
+                    color: AppTheme.primary,
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
                   ),
@@ -753,7 +753,7 @@ class _KpiPerformanceScreenState extends State<KpiPerformanceScreen> with Single
             decoration: BoxDecoration(
               color: AppTheme.bgCard,
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+              border: Border.all(color: AppTheme.borderColor),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -761,7 +761,7 @@ class _KpiPerformanceScreenState extends State<KpiPerformanceScreen> with Single
                 Text(
                   "មតិយោបល់បន្ថែម & គោលដៅត្រីមាសបន្ទាប់",
                   style: GoogleFonts.kantumruyPro(
-                    color: Colors.white,
+                    color: AppTheme.textPrimary,
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
                   ),
@@ -771,19 +771,19 @@ class _KpiPerformanceScreenState extends State<KpiPerformanceScreen> with Single
                   maxLines: 4,
                   onChanged: (val) => _selfFeedback = val,
                   controller: TextEditingController(text: _selfFeedback),
-                  style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 13.5),
+                  style: GoogleFonts.kantumruyPro(color: AppTheme.textPrimary, fontSize: 13.5),
                   decoration: InputDecoration(
                     hintText: "សរសេរមតិយោបល់ ឬសមិទ្ធផលដែលសម្រេចបាន...",
                     hintStyle: GoogleFonts.kantumruyPro(color: AppTheme.textMuted, fontSize: 13),
                     filled: true,
-                    fillColor: Colors.white.withValues(alpha: 0.04),
+                    fillColor: AppTheme.fieldFill,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                      borderSide: BorderSide(color: AppTheme.fieldBorder),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                      borderSide: BorderSide(color: AppTheme.fieldBorder),
                     ),
                   ),
                 ),
@@ -825,7 +825,7 @@ class _KpiPerformanceScreenState extends State<KpiPerformanceScreen> with Single
       decoration: BoxDecoration(
         color: AppTheme.bgCard,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        border: Border.all(color: AppTheme.borderColor),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -833,7 +833,7 @@ class _KpiPerformanceScreenState extends State<KpiPerformanceScreen> with Single
           Text(
             title,
             style: GoogleFonts.kantumruyPro(
-              color: Colors.white,
+              color: AppTheme.textPrimary,
               fontWeight: FontWeight.bold,
               fontSize: 14.5,
             ),
@@ -858,7 +858,7 @@ class _KpiPerformanceScreenState extends State<KpiPerformanceScreen> with Single
                     constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
                     icon: Icon(
                       starVal <= rating ? Icons.star_rounded : Icons.star_border_rounded,
-                      color: starVal <= rating ? Colors.amber : Colors.white24,
+                      color: starVal <= rating ? Colors.amber : const Color(0xFFCBD5E1),
                       size: 30,
                     ),
                     onPressed: isEditable && onChanged != null

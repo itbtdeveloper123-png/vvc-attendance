@@ -327,7 +327,7 @@ class _ScanHistoryScreenState extends State<ScanHistoryScreen> {
           children: [
             Icon(Icons.calendar_month_rounded,
                 size: 14,
-                color: hasDate ? AppTheme.primaryLight : AppTheme.textMuted),
+                color: hasDate ? AppTheme.primary : AppTheme.textMuted),
             const SizedBox(width: 6),
             Expanded(
               child: Column(

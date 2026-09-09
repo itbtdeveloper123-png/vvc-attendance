@@ -381,7 +381,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       children: [
                         Text("អត្តលេខ", style: GoogleFonts.kantumruyPro(fontSize: 11, color: AppTheme.textPrimary.withValues(alpha: 0.5))),
                         const SizedBox(height: 4),
-                        Text(_empIdController.text, style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: AppTheme.primaryLight)),
+                        Text(_empIdController.text, style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: AppTheme.primary)),
                       ],
                     ),
                     Container(width: 1, height: 28, color: AppTheme.textPrimary.withValues(alpha: 0.1)),
@@ -536,7 +536,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   color: AppTheme.primary.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(Icons.badge_rounded, color: AppTheme.primaryLight, size: 20),
+                child: Icon(Icons.badge_rounded, color: AppTheme.primary, size: 20),
               ),
               const SizedBox(width: 12),
               Text(
@@ -572,7 +572,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   padding: const EdgeInsets.all(12),
                 ),
-                icon: Icon(Icons.auto_mode_rounded, color: AppTheme.primaryLight, size: 20),
+                icon: Icon(Icons.auto_mode_rounded, color: AppTheme.primary, size: 20),
               ),
             ],
           ),
@@ -1188,7 +1188,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: isSelected
-                ? AppTheme.primaryLight
+                ? AppTheme.primary
                 : AppTheme.textPrimary.withValues(alpha: 0.12),
             width: isSelected ? 1.4 : 1,
           ),
@@ -1198,7 +1198,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           style: GoogleFonts.kantumruyPro(
             fontSize: 11.5,
             fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-            color: isSelected ? AppTheme.primaryLight : AppTheme.textPrimary.withValues(alpha: 0.8),
+            color: isSelected ? AppTheme.primary : AppTheme.textPrimary.withValues(alpha: 0.8),
           ),
         ),
       ),
@@ -1338,7 +1338,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: AppTheme.primaryLight, width: 1.5),
+          borderSide: BorderSide(color: AppTheme.primary, width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),

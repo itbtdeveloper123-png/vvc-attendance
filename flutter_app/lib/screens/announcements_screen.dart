@@ -174,14 +174,8 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
       decoration: BoxDecoration(
         color: AppTheme.bgCard,
         borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: AppTheme.textPrimary.withValues(alpha: 0.05)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.2),
-            blurRadius: 15,
-            offset: const Offset(0, 8),
-          ),
-        ],
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: AppTheme.cardShadow,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -196,7 +190,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                 ),
                 child: Icon(
                   Icons.campaign_rounded,
-                  color: AppTheme.primaryLight,
+                  color: AppTheme.primary,
                   size: 24,
                 ),
               ),

@@ -783,7 +783,7 @@ class _HomeContentState extends State<HomeContent> {
                   children: [
                     Icon(
                       Icons.sentiment_satisfied_alt_rounded,
-                      color: AppTheme.primaryLight,
+                      color: AppTheme.primary,
                       size: 36,
                     ),
                     const SizedBox(height: 12),
@@ -3376,7 +3376,7 @@ class _HomeContentState extends State<HomeContent> {
             ),
             child: Icon(
               Icons.visibility_off_rounded,
-              color: AppTheme.primaryLight,
+              color: AppTheme.primary,
               size: 24,
             ),
           ),

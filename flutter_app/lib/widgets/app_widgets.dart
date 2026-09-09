@@ -610,8 +610,9 @@ class SectionHeader extends StatelessWidget {
             child: Text(
               "មើលទាំងអស់",
               style: GoogleFonts.kantumruyPro(
-                color: AppTheme.primaryLight,
+                color: AppTheme.primary,
                 fontSize: 13,
+                fontWeight: FontWeight.bold,
               ),
             ),
           ),
@@ -1550,7 +1551,7 @@ class AppUserListTile extends StatelessWidget {
                       child: Text(
                         roleStr,
                         style: GoogleFonts.inter(
-                          color: AppTheme.primaryLight,
+                          color: AppTheme.primary,
                           fontSize: 11,
                           fontWeight: FontWeight.bold,
                         ),
@@ -1672,9 +1673,7 @@ class AppUserCard extends StatelessWidget {
                           Text(
                             posStr.toUpperCase(),
                             style: TextStyle(
-                              color: AppTheme.primaryLight.withValues(
-                                alpha: 0.8,
-                              ),
+                              color: AppTheme.primary,
                               fontSize: 10,
                               letterSpacing: 0.5,
                               fontWeight: FontWeight.w600,
@@ -1699,7 +1698,7 @@ class AppUserCard extends StatelessWidget {
                             child: Text(
                               roleStr,
                               style: GoogleFonts.inter(
-                                color: AppTheme.primaryLight,
+                                color: AppTheme.primary,
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
                               ),

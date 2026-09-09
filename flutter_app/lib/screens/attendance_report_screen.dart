@@ -435,7 +435,7 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
                     Text(
                       timeTxt,
                       style: GoogleFonts.inter(
-                        color: AppTheme.primaryLight,
+                        color: AppTheme.primary,
                         fontWeight: FontWeight.bold,
                         fontSize: 14,
                       ),
@@ -455,7 +455,7 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
                       child: Text(
                         isLate ? "យឺតយ៉ាវ (Late)" : "ទាន់ពេល (Good)",
                         style: GoogleFonts.kantumruyPro(
-                          color: isLate ? Colors.redAccent : Colors.greenAccent,
+                          color: isLate ? AppTheme.danger : const Color(0xFF16A34A),
                           fontSize: 10,
                           fontWeight: FontWeight.bold,
                         ),

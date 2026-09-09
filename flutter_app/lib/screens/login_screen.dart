@@ -265,13 +265,13 @@ class _LoginScreenState extends State<LoginScreen> {
                                     Icon(
                                       Icons.person_add_alt_1_rounded,
                                       size: 16,
-                                      color: AppTheme.primaryLight,
+                                      color: AppTheme.primary,
                                     ),
                                     const SizedBox(width: 8),
                                     Text(
                                       "មិនទាន់មានគណនី? ចុះឈ្មោះបុគ្គលិកថ្មី",
                                       style: GoogleFonts.kantumruyPro(
-                                        color: AppTheme.primaryLight,
+                                        color: AppTheme.primary,
                                         fontSize: 13,
                                         fontWeight: FontWeight.w600,
                                       ),

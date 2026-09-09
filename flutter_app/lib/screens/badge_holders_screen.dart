@@ -124,7 +124,7 @@ class BadgeHoldersScreen extends StatelessWidget {
                       child: Text(
                         "សកម្ម",
                         style: GoogleFonts.kantumruyPro(
-                          color: Colors.greenAccent,
+                          color: const Color(0xFF16A34A),
                           fontSize: 10,
                           fontWeight: FontWeight.bold,
                         ),
@@ -145,7 +145,7 @@ class BadgeHoldersScreen extends StatelessWidget {
       child: Text(
         name.isNotEmpty ? name.substring(0, 1).toUpperCase() : 'U',
         style: GoogleFonts.inter(
-          color: AppTheme.primaryLight,
+          color: AppTheme.primary,
           fontWeight: FontWeight.bold,
         ),
       ),

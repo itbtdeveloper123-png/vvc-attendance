@@ -840,7 +840,7 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
                                   style: GoogleFonts.kantumruyPro(fontSize: 12),
                                 ),
                                 style: TextButton.styleFrom(
-                                  foregroundColor: AppTheme.primaryLight,
+                                  foregroundColor: AppTheme.primary,
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 8,
                                   ),
@@ -874,11 +874,11 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
                           backgroundColor: AppTheme.primary,
                         ),
                         child: _isSubmitting
-                            ? SizedBox(
+                            ? const SizedBox(
                                 height: 24,
                                 width: 24,
                                 child: CircularProgressIndicator(
-                                  color: AppTheme.textPrimary,
+                                  color: Colors.white,
                                   strokeWidth: 2,
                                 ),
                               )
