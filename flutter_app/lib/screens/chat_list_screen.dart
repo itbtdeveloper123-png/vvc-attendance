@@ -391,22 +391,18 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
         filter: ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
         child: Container(
           decoration: BoxDecoration(
-            color: MessengerTheme.bg.withValues(alpha: 0.85),
+            color: Theme.of(context).brightness == Brightness.dark
+                ? const Color(0xFF18181A).withValues(alpha: _isScrolled ? 0.75 : 0.60)
+                : Colors.white.withValues(alpha: _isScrolled ? 0.70 : 0.55),
             border: Border(
               bottom: BorderSide(
-                color: MessengerTheme.border.withValues(alpha: 0.65),
-                width: 0.8,
+                color: (Theme.of(context).brightness == Brightness.dark
+                        ? Colors.white
+                        : Colors.black)
+                    .withValues(alpha: _isScrolled ? 0.12 : 0.06),
+                width: 0.5,
               ),
             ),
-            boxShadow: _isScrolled
-                ? [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.04),
-                      blurRadius: 10,
-                      offset: const Offset(0, 2),
-                    ),
-                  ]
-                : null,
           ),
           padding: EdgeInsets.fromLTRB(14.0, topSafeArea + 4.0, 14.0, 8.0),
           child: Column(
@@ -519,11 +515,16 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
         filter: ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
         child: Container(
           decoration: BoxDecoration(
-            color: MessengerTheme.bg.withValues(alpha: 0.85),
+            color: Theme.of(context).brightness == Brightness.dark
+                ? const Color(0xFF18181A).withValues(alpha: 0.75)
+                : Colors.white.withValues(alpha: 0.68),
             border: Border(
               top: BorderSide(
-                color: MessengerTheme.border.withValues(alpha: 0.65),
-                width: 0.8,
+                color: (Theme.of(context).brightness == Brightness.dark
+                        ? Colors.white
+                        : Colors.black)
+                    .withValues(alpha: 0.10),
+                width: 0.5,
               ),
             ),
           ),

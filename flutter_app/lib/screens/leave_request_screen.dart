@@ -230,73 +230,54 @@ class _LeaveRequestScreenState extends State<LeaveRequestScreen> {
         icon: const Icon(Icons.arrow_back_ios_new_rounded),
         onPressed: () => Navigator.pop(context),
       ),
-      bottomNavigationBar: Container(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-        decoration: BoxDecoration(
-          color: AppTheme.bgSurface.withValues(alpha: 0.82),
-          border: Border(
-            top: BorderSide(
-              color: AppTheme.border.withValues(alpha: 0.65),
-              width: 0.8,
-            ),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 12,
-              offset: const Offset(0, -4),
-            ),
-          ],
-        ),
-        child: SafeArea(
-          child: _isLoading
-              ? const SizedBox(
-                  height: 52,
-                  child: Center(child: CircularProgressIndicator()),
-                )
-              : Container(
-                  width: double.infinity,
-                  height: 52,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFFD97706).withValues(alpha: 0.35),
-                        blurRadius: 14,
-                        offset: const Offset(0, 6),
-                      ),
-                    ],
+      bottomNavigationBar: VvcFrostedBottomBar(
+        child: _isLoading
+            ? const SizedBox(
+                height: 52,
+                child: Center(child: CircularProgressIndicator()),
+              )
+            : Container(
+                width: double.infinity,
+                height: 52,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
                   ),
-                  child: ElevatedButton(
-                    onPressed: _submit,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.transparent,
-                      shadowColor: Colors.transparent,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFD97706).withValues(alpha: 0.35),
+                      blurRadius: 14,
+                      offset: const Offset(0, 6),
                     ),
-                    child: Text(
-                      widget.initialData != null
-                          ? "រក្សាទុកការកែសម្រួល"
-                          : "បញ្ជូនសំណើ",
-                      style: GoogleFonts.kantumruyPro(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
+                  ],
+                ),
+                child: ElevatedButton(
+                  onPressed: _submit,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    shadowColor: Colors.transparent,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  child: Text(
+                    widget.initialData != null
+                        ? "រក្សាទុកការកែសម្រួល"
+                        : "បញ្ជូនសំណើ",
+                    style: GoogleFonts.kantumruyPro(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
                     ),
                   ),
                 ),
-        ),
+              ),
       ),
       body: AppBackgroundShell(
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(20, 110, 20, 32),
+          padding: const EdgeInsets.fromLTRB(20, 100, 20, 140),
           child: Form(
                 key: _formKey,
                 child: Column(

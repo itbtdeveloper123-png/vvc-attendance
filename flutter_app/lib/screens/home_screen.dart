@@ -420,25 +420,21 @@ class HomeScreenState extends State<HomeScreen> {
     final isVvc = theme.brand == CompanyBrand.vvc;
     final activeTextColor = isVvc ? const Color(0xFF0F172A) : Colors.white;
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return ClipRect(
       child: BackdropFilter(
         filter: ui.ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
         child: Container(
           decoration: BoxDecoration(
-            color: theme.backgroundColor.withValues(alpha: 0.78),
+            color: isDark
+                ? const Color(0xFF18181A).withValues(alpha: 0.75)
+                : Colors.white.withValues(alpha: 0.68),
             border: Border(
               top: BorderSide(
-                color: theme.cardBorder.withValues(alpha: 0.65),
-                width: 0.8,
+                color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.10),
+                width: 0.5,
               ),
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 16,
-                offset: const Offset(0, -4),
-              ),
-            ],
           ),
           padding: EdgeInsets.only(
             bottom: bottomInset > 0 ? bottomInset : 12,
@@ -1090,20 +1086,18 @@ class _HomeContentState extends State<HomeContent> {
                       filter: ui.ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
                       child: Container(
                         decoration: BoxDecoration(
-                          color: theme.backgroundColor.withValues(alpha: 0.78),
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? const Color(0xFF18181A).withValues(alpha: 0.72)
+                              : Colors.white.withValues(alpha: 0.68),
                           border: Border(
                             bottom: BorderSide(
-                              color: theme.cardBorder.withValues(alpha: 0.65),
-                              width: 0.8,
+                              color: (Theme.of(context).brightness == Brightness.dark
+                                      ? Colors.white
+                                      : Colors.black)
+                                  .withValues(alpha: 0.10),
+                              width: 0.5,
                             ),
                           ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.03),
-                              blurRadius: 10,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
                         ),
                       ),
                     ),

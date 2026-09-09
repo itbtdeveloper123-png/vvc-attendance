@@ -1043,6 +1043,7 @@ class DynamicPremiumAppBar extends StatefulWidget
 class _DynamicPremiumAppBarState extends State<DynamicPremiumAppBar> {
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return AppBar(
       title: Text(
         widget.title,
@@ -1067,22 +1068,65 @@ class _DynamicPremiumAppBarState extends State<DynamicPremiumAppBar> {
           filter: ui.ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
           child: Container(
             decoration: BoxDecoration(
-              color: AppTheme.bgSurface.withValues(alpha: 0.80),
+              color: isDark
+                  ? const Color(0xFF18181A).withValues(alpha: 0.72)
+                  : Colors.white.withValues(alpha: 0.68),
               border: Border(
                 bottom: BorderSide(
-                  color: AppTheme.border.withValues(alpha: 0.65),
-                  width: 0.8,
+                  color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.10),
+                  width: 0.5,
                 ),
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.03),
-                  blurRadius: 10,
-                  offset: const Offset(0, 2),
-                ),
-              ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Telegram iOS 1:1 Frosted Glass Bottom Submit Bar / Floating Bar
+class VvcFrostedBottomBar extends StatelessWidget {
+  final Widget child;
+  final EdgeInsetsGeometry? padding;
+  final Color? backgroundColor;
+
+  const VvcFrostedBottomBar({
+    super.key,
+    required this.child,
+    this.padding,
+    this.backgroundColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
+
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ui.ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
+        child: Container(
+          padding: padding ??
+              EdgeInsets.fromLTRB(
+                20,
+                12,
+                20,
+                bottomInset > 0 ? bottomInset + 4 : 16,
+              ),
+          decoration: BoxDecoration(
+            color: backgroundColor ??
+                (isDark
+                    ? const Color(0xFF18181A).withValues(alpha: 0.75)
+                    : Colors.white.withValues(alpha: 0.70)),
+            border: Border(
+              top: BorderSide(
+                color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.10),
+                width: 0.5,
+              ),
+            ),
+          ),
+          child: child,
         ),
       ),
     );
@@ -1117,17 +1161,20 @@ class _DynamicAppBarWrapperState extends State<DynamicAppBarWrapper> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       backgroundColor: AppTheme.bgDark,
       extendBodyBehindAppBar: widget.extendBodyBehindAppBar,
       extendBody: true,
       bottomNavigationBar: widget.bottomNavigationBar != null
-          ? ClipRect(
-              child: BackdropFilter(
-                filter: ui.ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
-                child: widget.bottomNavigationBar!,
-              ),
-            )
+          ? (widget.bottomNavigationBar is VvcFrostedBottomBar
+              ? widget.bottomNavigationBar
+              : ClipRect(
+                  child: BackdropFilter(
+                    filter: ui.ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
+                    child: widget.bottomNavigationBar!,
+                  ),
+                ))
           : null,
       appBar: AppBar(
         title: Text(
@@ -1154,26 +1201,17 @@ class _DynamicAppBarWrapperState extends State<DynamicAppBarWrapper> {
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
               decoration: BoxDecoration(
-                color: AppTheme.bgSurface.withValues(
-                  alpha: _isScrolled ? 0.82 : 0.72,
-                ),
+                color: isDark
+                    ? const Color(0xFF18181A).withValues(alpha: _isScrolled ? 0.75 : 0.60)
+                    : Colors.white.withValues(alpha: _isScrolled ? 0.70 : 0.55),
                 border: Border(
                   bottom: BorderSide(
-                    color: AppTheme.border.withValues(
-                      alpha: _isScrolled ? 0.65 : 0.35,
+                    color: (isDark ? Colors.white : Colors.black).withValues(
+                      alpha: _isScrolled ? 0.12 : 0.06,
                     ),
-                    width: 0.8,
+                    width: 0.5,
                   ),
                 ),
-                boxShadow: _isScrolled
-                    ? [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.04),
-                          blurRadius: 10,
-                          offset: const Offset(0, 2),
-                        ),
-                      ]
-                    : null,
               ),
             ),
           ),
@@ -1833,20 +1871,19 @@ class VvcAppBar extends StatelessWidget implements PreferredSizeWidget {
           filter: ui.ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
           child: Container(
             decoration: BoxDecoration(
-              color: backgroundColor ?? AppTheme.bgSurface.withValues(alpha: 0.80),
+              color: backgroundColor ??
+                  (Theme.of(context).brightness == Brightness.dark
+                      ? const Color(0xFF18181A).withValues(alpha: 0.72)
+                      : Colors.white.withValues(alpha: 0.68)),
               border: Border(
                 bottom: BorderSide(
-                  color: AppTheme.border.withValues(alpha: 0.65),
-                  width: 0.8,
+                  color: (Theme.of(context).brightness == Brightness.dark
+                          ? Colors.white
+                          : Colors.black)
+                      .withValues(alpha: 0.10),
+                  width: 0.5,
                 ),
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.03),
-                  blurRadius: 10,
-                  offset: const Offset(0, 2),
-                ),
-              ],
             ),
           ),
         ),
