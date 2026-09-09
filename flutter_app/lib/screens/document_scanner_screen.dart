@@ -18,6 +18,7 @@ import '../widgets/export_modal.dart';
 import 'passport_photo_screen.dart';
 import 'digital_ink_screen.dart';
 import '../widgets/app_widgets.dart';
+import '../utils/app_theme.dart';
 
 /// Document Scanner Screen - Premium UI with Native Document Scanning
 /// 
@@ -861,9 +862,10 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
         minChildSize: 0.4,
         maxChildSize: 0.95,
         builder: (_, scrollController) => Container(
-          decoration: const BoxDecoration(
-            color: Color(0xFF1A1A2E),
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          decoration: BoxDecoration(
+            color: AppTheme.bgCard,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            border: Border.all(color: AppTheme.border),
           ),
           child: Column(
             children: [
@@ -873,7 +875,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.white24,
+                  color: AppTheme.textMuted.withValues(alpha: 0.3),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -885,20 +887,20 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
                     Text(
                       'ឯកសារទាំងអស់ (${_recentDocuments.length})',
                       style: GoogleFonts.kantumruyPro(
-                        color: Colors.white,
+                        color: AppTheme.textPrimary,
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                     const Spacer(),
                     IconButton(
-                      icon: const Icon(Icons.close_rounded, color: Colors.white54, size: 20),
+                      icon: Icon(Icons.close_rounded, color: AppTheme.textSecondary, size: 20),
                       onPressed: () => Navigator.pop(ctx),
                     ),
                   ],
                 ),
               ),
-              const Divider(color: Colors.white12, height: 1),
+              Divider(color: AppTheme.border, height: 1),
               // Documents grid
               Expanded(
                 child: _recentDocuments.isEmpty
@@ -906,13 +908,13 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.folder_open_rounded,
-                                size: 56, color: Colors.white24),
+                            Icon(Icons.folder_open_rounded,
+                                size: 56, color: AppTheme.textMuted.withValues(alpha: 0.4)),
                             const SizedBox(height: 12),
                             Text(
                               'មិនទាន់មានឯកសារទេ',
                               style: GoogleFonts.kantumruyPro(
-                                  color: Colors.white38, fontSize: 14),
+                                  color: AppTheme.textMuted, fontSize: 14),
                             ),
                           ],
                         ),
@@ -944,20 +946,20 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
                                 Expanded(
                                   child: Container(
                                     decoration: BoxDecoration(
-                                      color: Colors.white.withValues(alpha: 0.04),
+                                      color: AppTheme.bgSurface,
                                       borderRadius: BorderRadius.circular(10),
                                       border: Border.all(
-                                          color: Colors.white.withValues(alpha: 0.08)),
+                                          color: AppTheme.border),
                                     ),
                                     child: ClipRRect(
                                       borderRadius: BorderRadius.circular(9),
                                       child: fileExists
                                           ? Image.file(thumbnailFile, fit: BoxFit.cover)
                                           : Container(
-                                              color: Colors.teal.withValues(alpha: 0.1),
+                                              color: const Color(0xFF0D9488).withValues(alpha: 0.1),
                                               child: const Icon(
                                                 Icons.description_rounded,
-                                                color: Colors.tealAccent,
+                                                color: Color(0xFF0D9488),
                                                 size: 36,
                                               ),
                                             ),
@@ -971,8 +973,9 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
                                   overflow: TextOverflow.ellipsis,
                                   textAlign: TextAlign.center,
                                   style: GoogleFonts.kantumruyPro(
-                                    color: Colors.white70,
-                                    fontSize: 10,
+                                    color: AppTheme.textPrimary,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w500,
                                   ),
                                 ),
                               ],
@@ -990,12 +993,13 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final showFab = _currentStep == ScannerStep.selectImage && !_isProcessing;
+    final isDashboard = _currentStep == ScannerStep.selectImage;
+    final showFab = isDashboard && !_isProcessing;
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A), // Luxury Dark Slate
+      backgroundColor: isDashboard ? AppTheme.bgSurface : const Color(0xFF0F172A),
       extendBodyBehindAppBar: false,
       appBar: VvcAppBar(
-        backgroundColor: const Color(0xFF0F172A),
+        backgroundColor: isDashboard ? AppTheme.bgSurface : const Color(0xFF0F172A),
         elevation: 0,
         centerTitle: true,
         title: Text(
@@ -1007,11 +1011,15 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
           style: GoogleFonts.kantumruyPro(
             fontSize: 18,
             fontWeight: FontWeight.bold,
-            color: Colors.white,
+            color: isDashboard ? AppTheme.textPrimary : Colors.white,
           ),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+          icon: Icon(
+            Icons.arrow_back_ios_new_rounded,
+            size: 20,
+            color: isDashboard ? AppTheme.textPrimary : Colors.white,
+          ),
           onPressed: () {
             if (_currentStep != ScannerStep.selectImage) {
               _resetScanner();
@@ -1019,7 +1027,6 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
               Navigator.pop(context);
             }
           },
-          color: Colors.white,
         ),
         actions: [
           if (_currentStep != ScannerStep.selectImage)
@@ -1046,7 +1053,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
       floatingActionButton: showFab
           ? FloatingActionButton(
               onPressed: _openNativeScanner,
-              backgroundColor: const Color(0xFF0D9488), // Teal color like CamScanner
+              backgroundColor: AppTheme.primary,
               elevation: 4,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(50)),
               child: const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 28),
@@ -1188,27 +1195,27 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
                   child: TextField(
                     controller: _searchController,
                     onChanged: _onSearchChanged,
-                    style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 13.5),
-                    cursorColor: const Color(0xFF0E7490),
+                    style: GoogleFonts.kantumruyPro(color: AppTheme.textPrimary, fontSize: 13.5),
+                    cursorColor: AppTheme.primary,
                     decoration: InputDecoration(
                       hintText: 'ស្វែងរកឯកសារ...',
-                      hintStyle: GoogleFonts.kantumruyPro(color: Colors.white38, fontSize: 12.5),
-                      prefixIcon: const Icon(Icons.search_rounded, color: Colors.white38, size: 20),
+                      hintStyle: GoogleFonts.kantumruyPro(color: AppTheme.textMuted, fontSize: 12.5),
+                      prefixIcon: Icon(Icons.search_rounded, color: AppTheme.textMuted, size: 20),
                       filled: true,
-                      fillColor: Colors.white.withValues(alpha: 0.08),
+                      fillColor: AppTheme.bgCard,
                       isDense: true,
                       contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(22),
-                        borderSide: BorderSide.none,
+                        borderSide: BorderSide(color: AppTheme.border),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(22),
-                        borderSide: BorderSide.none,
+                        borderSide: BorderSide(color: AppTheme.border),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(22),
-                        borderSide: BorderSide(color: Colors.tealAccent.withValues(alpha: 0.5), width: 1.0),
+                        borderSide: BorderSide(color: AppTheme.primary, width: 1.2),
                       ),
                     ),
                   ),
@@ -1217,24 +1224,24 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
               const SizedBox(width: 12),
               // Cloud Sync icon
               IconButton(
-                icon: const Icon(Icons.cloud_done_rounded, color: Colors.tealAccent, size: 24),
+                icon: const Icon(Icons.cloud_done_rounded, color: Color(0xFF0D9488), size: 24),
                 onPressed: () {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text('ការរក្សាទុកពពកត្រូវបានធ្វើសមកាលកម្មរួចរាល់', style: GoogleFonts.kantumruyPro()),
-                      backgroundColor: Colors.teal,
+                      backgroundColor: const Color(0xFF0D9488),
                     ),
                   );
                 },
               ),
               // Premium Gold Badge
               IconButton(
-                icon: const Icon(Icons.workspace_premium_rounded, color: Colors.amber, size: 24),
+                icon: const Icon(Icons.workspace_premium_rounded, color: Color(0xFFD97706), size: 24),
                 onPressed: () {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text('អ្នកកំពុងប្រើប្រាស់ VVC Scanner Premium', style: GoogleFonts.kantumruyPro()),
-                      backgroundColor: Colors.amber.shade800,
+                      backgroundColor: const Color(0xFFD97706),
                     ),
                   );
                 },
@@ -1260,7 +1267,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
               Text(
                 'ឯកសារថ្មីៗ (${_filteredDocuments.length})',
                 style: GoogleFonts.kantumruyPro(
-                  color: Colors.white,
+                  color: AppTheme.textPrimary,
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
                 ),
@@ -1274,7 +1281,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
                   child: Text(
                     'សម្អាត',
                     style: GoogleFonts.kantumruyPro(
-                      color: Colors.tealAccent,
+                      color: AppTheme.primary,
                       fontSize: 12.5,
                       fontWeight: FontWeight.w600,
                     ),
@@ -1297,15 +1304,23 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
                         Container(
                           padding: const EdgeInsets.all(24),
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.02),
+                            color: AppTheme.bgCard,
                             shape: BoxShape.circle,
+                            border: Border.all(color: AppTheme.border),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.04),
+                                blurRadius: 12,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
                           ),
                           child: Icon(
                             _searchController.text.isNotEmpty
                                 ? Icons.search_off_rounded
                                 : Icons.document_scanner_outlined,
                             size: 60,
-                            color: Colors.white24,
+                            color: AppTheme.textMuted.withValues(alpha: 0.5),
                           ),
                         ),
                         const SizedBox(height: 16),
@@ -1314,9 +1329,9 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
                               ? 'រកមិនឃើញឯកសារដែលត្រូវគ្នាទេ'
                               : 'មិនទាន់មានឯកសារស្កេនទេ',
                           style: GoogleFonts.kantumruyPro(
-                            color: Colors.white38,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
+                            color: AppTheme.textPrimary,
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
                         const SizedBox(height: 8),
@@ -1326,7 +1341,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
                               : 'ចុចប៊ូតុងកាមេរ៉ាខាងក្រោមដើម្បីចាប់ផ្តើមស្កេន',
                           textAlign: TextAlign.center,
                           style: GoogleFonts.kantumruyPro(
-                            color: Colors.white24,
+                            color: AppTheme.textSecondary,
                             fontSize: 12,
                           ),
                         ),
@@ -1338,7 +1353,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
                   itemCount: _filteredDocuments.length,
                   separatorBuilder: (context, index) => Divider(
-                    color: Colors.white.withValues(alpha: 0.05),
+                    color: AppTheme.border,
                     height: 1,
                   ),
                   itemBuilder: (context, index) {
@@ -1360,13 +1375,13 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
             _buildQuickActionItem(
               icon: Icons.qr_code_scanner_rounded,
               label: 'ស្កេនឆ្លាតវៃ',
-              color: Colors.tealAccent,
+              color: const Color(0xFF0D9488),
               onTap: _openNativeScanner,
             ),
             _buildQuickActionItem(
               icon: Icons.picture_as_pdf_rounded,
               label: 'ឧបករណ៍ PDF',
-              color: Colors.redAccent,
+              color: const Color(0xFFE11D48),
               onTap: () async {
                 // Import image from gallery then export PDF directly
                 await _importFromGallery();
@@ -1378,13 +1393,13 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
             _buildQuickActionItem(
               icon: Icons.image_rounded,
               label: 'នាំចូលរូបភាព',
-              color: Colors.blueAccent,
+              color: const Color(0xFF2563EB),
               onTap: _importFromGallery,
             ),
             _buildQuickActionItem(
               icon: Icons.folder_copy_rounded,
               label: 'នាំចូលឯកសារ',
-              color: Colors.purpleAccent,
+              color: const Color(0xFF7C3AED),
               onTap: _importFromGallery, // Fallback: gallery is most compatible cross-platform
             ),
           ],
@@ -1396,7 +1411,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
             _buildQuickActionItem(
               icon: Icons.portrait_rounded,
               label: 'រូប 4x6 / 3x4',
-              color: Colors.cyanAccent,
+              color: const Color(0xFF0284C7),
               onTap: () {
                 Navigator.push(
                   context,
@@ -1411,7 +1426,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
             _buildQuickActionItem(
               icon: Icons.draw_rounded,
               label: 'សរសេរដៃ',
-              color: Colors.orangeAccent,
+              color: const Color(0xFFD97706),
               onTap: () {
                 Navigator.push(
                   context,
@@ -1422,7 +1437,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
             _buildQuickActionItem(
               icon: Icons.text_fields_rounded,
               label: 'អត្ថបទ OCR',
-              color: Colors.pinkAccent,
+              color: const Color(0xFFDB2777),
               onTap: () async {
                 if (_scannedImagePaths.isEmpty) {
                   await _importFromGallery();
@@ -1435,7 +1450,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
             _buildQuickActionItem(
               icon: Icons.grid_view_rounded,
               label: 'ទាំងអស់',
-              color: Colors.grey,
+              color: const Color(0xFF475569),
               onTap: () => _showAllDocumentsSheet(),
             ),
           ],
@@ -1458,12 +1473,12 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 50,
-              height: 50,
+              width: 52,
+              height: 52,
               decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.08),
+                color: color.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
-                border: Border.all(color: color.withValues(alpha: 0.12), width: 1.5),
+                border: Border.all(color: color.withValues(alpha: 0.25), width: 1.5),
               ),
               child: Icon(icon, color: color, size: 24),
             ),
@@ -1474,9 +1489,9 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: GoogleFonts.kantumruyPro(
-                color: Colors.white.withValues(alpha: 0.7),
-                fontSize: 10.5,
-                fontWeight: FontWeight.w500,
+                color: AppTheme.textPrimary,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ],
@@ -1515,17 +1530,17 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
               width: 58,
               height: 58,
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.04),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                color: AppTheme.bgCard,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppTheme.border),
               ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(7),
+                borderRadius: BorderRadius.circular(9),
                 child: fileExists
                     ? Image.file(thumbnailFile, fit: BoxFit.cover)
                     : Container(
-                        color: Colors.teal.withValues(alpha: 0.1),
-                        child: const Icon(Icons.description_rounded, color: Colors.tealAccent, size: 28),
+                        color: const Color(0xFF0D9488).withValues(alpha: 0.1),
+                        child: const Icon(Icons.description_rounded, color: Color(0xFF0D9488), size: 28),
                       ),
               ),
             ),
@@ -1540,9 +1555,9 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.kantumruyPro(
-                      color: Colors.white.withValues(alpha: 0.9),
+                      color: AppTheme.textPrimary,
                       fontSize: 14,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                   const SizedBox(height: 6),
@@ -1551,7 +1566,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
                       Text(
                         formattedDate,
                         style: GoogleFonts.kantumruyPro(
-                          color: Colors.white30,
+                          color: AppTheme.textMuted,
                           fontSize: 11.5,
                         ),
                       ),
@@ -1559,19 +1574,21 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.06),
+                          color: AppTheme.bgSurface,
                           borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: AppTheme.border),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.pages_rounded, size: 10, color: Colors.white38),
+                            Icon(Icons.pages_rounded, size: 10, color: AppTheme.textMuted),
                             const SizedBox(width: 4),
                             Text(
                               '$pageCount ទំព័រ',
                               style: GoogleFonts.kantumruyPro(
-                                color: Colors.white38,
+                                color: AppTheme.textMuted,
                                 fontSize: 10,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ],
@@ -1584,10 +1601,10 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
             ),
             // Actions Popup Menu
             PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert_rounded, color: Colors.white38, size: 20),
-              color: const Color(0xFF1E293B),
+              icon: Icon(Icons.more_vert_rounded, color: AppTheme.textMuted, size: 20),
+              color: AppTheme.bgCard,
               elevation: 4,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: AppTheme.border)),
               onSelected: (action) {
                 if (action == 'rename') {
                   _renameDocument(id, title);
@@ -1600,9 +1617,9 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
                   value: 'rename',
                   child: Row(
                     children: [
-                      const Icon(Icons.edit_rounded, color: Colors.white70, size: 16),
+                      Icon(Icons.edit_rounded, color: AppTheme.textSecondary, size: 16),
                       const SizedBox(width: 8),
-                      Text('ប្តូរឈ្មោះ', style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 13)),
+                      Text('ប្តូរឈ្មោះ', style: GoogleFonts.kantumruyPro(color: AppTheme.textPrimary, fontSize: 13)),
                     ],
                   ),
                 ),

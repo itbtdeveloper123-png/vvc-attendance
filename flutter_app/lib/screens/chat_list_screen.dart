@@ -15,20 +15,24 @@ import 'community_channel_screen.dart';
 import 'profile_screen.dart';
 import '../services/api_service.dart';
 import '../providers/user_provider.dart';
+import '../utils/app_theme.dart';
 
 
 // ==========================================
-// COLOR TOKENS (DARK ENTERPRISE THEME)
+// COLOR TOKENS (DYNAMIC COMPANY THEME)
 // ==========================================
 class MessengerTheme {
-  static const Color bg = Color(0xFF0F172A);
-  static const Color textPrimary = Color(0xFFFFFFFF);
-  static const Color textSecondary = Color(0xFF94A3B8);
-  static const Color activeBlue = Color(0xFFD4AF37);
-  static const Color onlineGreen = Color(0xFF10B981);
-  static const Color actionBtnBg = Color(0xFF1E293B);
-  static const Color adBadgeBg = Color(0xFF334155);
-  static const Color unreadDot = Color(0xFFD4AF37);
+  static Color get bg => AppTheme.bgSurface;
+  static Color get cardBg => AppTheme.bgCard;
+  static Color get textPrimary => AppTheme.textPrimary;
+  static Color get textSecondary => AppTheme.textSecondary;
+  static Color get textMuted => AppTheme.textMuted;
+  static Color get activeBlue => AppTheme.primary;
+  static Color get onlineGreen => const Color(0xFF10B981);
+  static Color get actionBtnBg => const Color(0xFFF1F5F9);
+  static Color get adBadgeBg => AppTheme.border;
+  static Color get unreadDot => AppTheme.primary;
+  static Color get border => AppTheme.border;
 }
 
 Color _getAvatarBgColor(String name) {
@@ -307,7 +311,7 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
             Expanded(
               child:
                   isLoading
-                      ? const Center(
+                      ? Center(
                         child: CircularProgressIndicator(
                           color: MessengerTheme.activeBlue,
                         ),
@@ -341,7 +345,7 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
         children: [
           // Back arrow navigation icon
           IconButton(
-            icon: const Icon(
+            icon: Icon(
               Icons.arrow_back_ios_new_rounded,
               color: MessengerTheme.textPrimary,
               size: 20,
@@ -427,7 +431,7 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
                                 ? const Color(0xFFEF4444)
                                 : const Color(0xFFFF9500),
                             borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: const Color(0xFF0F172A), width: 1.5),
+                            border: Border.all(color: MessengerTheme.bg, width: 1.5),
                           ),
                           child: Text(
                             _cacheSizeText,
@@ -474,9 +478,10 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
       child: Container(
         width: 36.0,
         height: 36.0,
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: MessengerTheme.actionBtnBg,
           shape: BoxShape.circle,
+          border: Border.all(color: MessengerTheme.border),
         ),
         child: Icon(icon, size: 18.0, color: MessengerTheme.textPrimary),
       ),
@@ -504,13 +509,13 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
               color: MessengerTheme.textSecondary,
               fontSize: 14.0,
             ),
-            prefixIcon: const Icon(
+            prefixIcon: Icon(
               Icons.search_rounded,
               color: MessengerTheme.textSecondary,
               size: 19.0,
             ),
             filled: true,
-            fillColor: MessengerTheme.actionBtnBg,
+            fillColor: MessengerTheme.cardBg,
             isDense: true,
             contentPadding: const EdgeInsets.symmetric(
               vertical: 8.0,
@@ -518,17 +523,17 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
             ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(19.0),
-              borderSide: BorderSide.none,
+              borderSide: BorderSide(color: MessengerTheme.border),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(19.0),
-              borderSide: BorderSide.none,
+              borderSide: BorderSide(color: MessengerTheme.border),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(19.0),
-              borderSide: const BorderSide(
+              borderSide: BorderSide(
                 color: MessengerTheme.activeBlue,
-                width: 1.0,
+                width: 1.2,
               ),
             ),
           ),
@@ -581,17 +586,17 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
                           width: 60.0,
                           height: 60.0,
                           decoration: BoxDecoration(
-                            color: MessengerTheme.actionBtnBg,
+                            color: MessengerTheme.cardBg,
                             shape: BoxShape.circle,
                             border: Border.all(
-                              color: const Color(0xFF334155),
+                              color: MessengerTheme.border,
                               width: 1.0,
                             ),
                           ),
-                          child: const Icon(
+                          child: Icon(
                             Icons.add_rounded,
                             size: 28.0,
-                            color: MessengerTheme.textPrimary,
+                            color: MessengerTheme.activeBlue,
                           ),
                         ),
                         const SizedBox(height: 8.0),
@@ -773,7 +778,7 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
                 ],
               ),
             ),
-            const Icon(Icons.arrow_forward_ios_rounded, size: 14.0, color: MessengerTheme.textSecondary),
+            Icon(Icons.arrow_forward_ios_rounded, size: 14.0, color: MessengerTheme.textSecondary),
           ],
         ),
       ),
@@ -822,10 +827,10 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
             ),
             child: Row(
               children: [
-                const CircleAvatar(
+                CircleAvatar(
                   radius: 30.0,
                   backgroundColor: MessengerTheme.activeBlue,
-                  child: Icon(
+                  child: const Icon(
                     Icons.groups_rounded,
                     color: Colors.white,
                     size: 30,
@@ -859,8 +864,8 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
                             ),
                           ),
                           if (timeStr.isNotEmpty) ...[
-                            const Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 6.0),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 6.0),
                               child: Text(
                                 '•',
                                 style: TextStyle(
@@ -882,10 +887,10 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
                     ],
                   ),
                 ),
-                const Icon(
+                Icon(
                   Icons.arrow_forward_ios_rounded,
                   size: 12.0,
-                  color: Colors.black26,
+                  color: MessengerTheme.textSecondary,
                 ),
               ],
             ),
@@ -955,8 +960,8 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
                         ),
                       ),
                       if (timeStr.isNotEmpty) ...[
-                        const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 6.0),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 6.0),
                           child: Text(
                             '•',
                             style: TextStyle(
@@ -978,10 +983,10 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
                 ],
               ),
             ),
-            const Icon(
+            Icon(
               Icons.arrow_forward_ios_rounded,
               size: 12.0,
-              color: Colors.black26,
+              color: MessengerTheme.textSecondary,
             ),
           ],
         ),
@@ -1100,8 +1105,8 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
                                           ? MessengerTheme.onlineGreen
                                           : const Color(0xFFB0B3B8),
                                   shape: BoxShape.circle,
-                                  border: const Border.fromBorderSide(
-                                    BorderSide(color: Colors.white, width: 2.5),
+                                  border: Border.fromBorderSide(
+                                    BorderSide(color: MessengerTheme.cardBg, width: 2.5),
                                   ),
                                 ),
                               ),
@@ -1147,8 +1152,8 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
                                     ),
                                   ),
                                   if (timeStr.isNotEmpty) ...[
-                                    const Padding(
-                                      padding: EdgeInsets.symmetric(
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
                                         horizontal: 6.0,
                                       ),
                                       child: Text(
@@ -1207,7 +1212,7 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
       return Container(
         width: 14.0,
         height: 14.0,
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: MessengerTheme.unreadDot,
           shape: BoxShape.circle,
         ),
@@ -1221,7 +1226,7 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
           color: Color(0xFF007AFF),
         );
       } else {
-        return const Icon(
+        return Icon(
           Icons.done_rounded,
           size: 16.0,
           color: MessengerTheme.textSecondary,
