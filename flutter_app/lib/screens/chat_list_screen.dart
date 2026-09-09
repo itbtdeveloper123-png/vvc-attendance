@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -76,6 +78,20 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
   int _cacheSizeBytes = 0;
   String _cacheSizeText = '';
 
+  final ScrollController _scrollController = ScrollController();
+  bool _isScrolled = false;
+  String _selectedFolder = 'all'; // 'all', 'direct', 'group', 'unread'
+
+  int get _totalUnreadCount {
+    int count = 0;
+    for (final entry in activeChatsData.values) {
+      if (entry['isRead'] == false && entry['lastSenderId'] != currentUserId) {
+        count++;
+      }
+    }
+    return count;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -83,6 +99,13 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
       vsync: this,
       duration: const Duration(milliseconds: 900),
     );
+
+    _scrollController.addListener(() {
+      final scrolled = _scrollController.hasClients && _scrollController.offset > 5;
+      if (scrolled != _isScrolled) {
+        setState(() => _isScrolled = scrolled);
+      }
+    });
 
     _loadCurrentUserId().then((_) {
       _fetchUsersList();
@@ -95,6 +118,7 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
   @override
   void dispose() {
     _broomAnimCtrl.dispose();
+    _scrollController.dispose();
     _groupsSubscription?.cancel();
     super.dispose();
   }
@@ -295,39 +319,357 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
   @override
   Widget build(BuildContext context) {
     final userProvider = Provider.of<UserProvider>(context);
+    final double topSafeArea = MediaQuery.of(context).padding.top;
+    final double bottomSafeArea = MediaQuery.of(context).padding.bottom;
+
+    // Top frosted header height: safeArea + top row (46) + search (36) + tabs (32) + vertical paddings (26)
+    final double topHeaderHeight = topSafeArea + 148.0;
+    // Bottom frosted bar height: bottomSafeArea + bar items (52) + vertical padding (14)
+    final double bottomBarHeight = (bottomSafeArea > 0 ? bottomSafeArea : 10.0) + 64.0;
 
     return Scaffold(
       backgroundColor: MessengerTheme.bg,
-      body: SafeArea(
-        child: Column(
-          children: [
-            // A. Top Messenger-Style Header Bar
-            _buildTopHeader(userProvider),
+      body: Stack(
+        children: [
+          // 1. Full-Bleed Scrollable Content Layer (Glides under top and bottom frosted glass bars)
+          Positioned.fill(
+            child: isLoading
+                ? Center(
+                    child: CircularProgressIndicator(
+                      color: MessengerTheme.activeBlue,
+                    ),
+                  )
+                : ListView(
+                    controller: _scrollController,
+                    physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+                    padding: EdgeInsets.fromLTRB(
+                      0,
+                      topHeaderHeight,
+                      0,
+                      bottomBarHeight,
+                    ),
+                    children: [
+                      // A. Stories horizontal row (Active team online colleagues)
+                      if (searchQuery.isEmpty && (_selectedFolder == 'all' || _selectedFolder == 'direct')) ...[
+                        const SizedBox(height: 6.0),
+                        _buildStoriesSection(),
+                        const SizedBox(height: 10.0),
+                      ],
 
-            // Search Bar Container
-            _buildSearchBar(),
+                      // B. Filtered Conversations List
+                      ..._buildFilteredChatItems(),
+                    ],
+                  ),
+          ),
 
-            // Conversations & Stories Area
-            Expanded(
-              child:
-                  isLoading
-                      ? Center(
-                        child: CircularProgressIndicator(
-                          color: MessengerTheme.activeBlue,
-                        ),
-                      )
-                      : ListView(
-                        physics: const BouncingScrollPhysics(),
-                        children: [
-                          const SizedBox(height: 8),
-                          // B. Stories horizontal row (Active team online colleagues)
-                          _buildStoriesSection(),
-                          const SizedBox(height: 16),
+          // 2. Top Floating Frosted Glass Header (Dynamically blurs conversations as they scroll underneath)
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: _buildTelegramFrostedHeader(userProvider, topSafeArea),
+          ),
 
-                          // C. Main conversations vertical list
-                          _buildChatListSection(),
-                        ],
+          // 3. Bottom Floating Frosted Glass Bar (Dynamically blurs conversations as they reach bottom edge)
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: _buildTelegramFrostedBottomBar(bottomSafeArea),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ==========================================
+  // TOP FROSTED GLASS HEADER (TELEGRAM STYLE)
+  // ==========================================
+  Widget _buildTelegramFrostedHeader(UserProvider user, double topSafeArea) {
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
+        child: Container(
+          decoration: BoxDecoration(
+            color: MessengerTheme.bg.withValues(alpha: 0.85),
+            border: Border(
+              bottom: BorderSide(
+                color: MessengerTheme.border.withValues(alpha: 0.65),
+                width: 0.8,
+              ),
+            ),
+            boxShadow: _isScrolled
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.04),
+                      blurRadius: 10,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
+          ),
+          padding: EdgeInsets.fromLTRB(14.0, topSafeArea + 4.0, 14.0, 8.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildTopHeader(user),
+              const SizedBox(height: 6.0),
+              _buildSearchBar(),
+              const SizedBox(height: 8.0),
+              _buildFolderTabs(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ==========================================
+  // TELEGRAM FOLDER FILTER TABS (CATEGORIES)
+  // ==========================================
+  Widget _buildFolderTabs() {
+    final int unreadCount = _totalUnreadCount;
+    final int directCount = filteredUsers.length;
+    final int groupCount = 2 + customGroups.length;
+
+    final tabs = [
+      {'id': 'all', 'label': 'ទាំងអស់', 'count': 0},
+      {'id': 'direct', 'label': 'ការងារ', 'count': directCount},
+      {'id': 'group', 'label': 'ក្រុម', 'count': groupCount},
+      if (unreadCount > 0)
+        {'id': 'unread', 'label': 'មិនទាន់អាន', 'count': unreadCount},
+    ];
+
+    return SizedBox(
+      height: 32.0,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        itemCount: tabs.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8.0),
+        itemBuilder: (context, index) {
+          final tab = tabs[index];
+          final String id = tab['id'] as String;
+          final String label = tab['label'] as String;
+          final int count = tab['count'] as int;
+          final bool isSelected = _selectedFolder == id;
+
+          return GestureDetector(
+            onTap: () {
+              HapticFeedback.selectionClick();
+              setState(() => _selectedFolder = id);
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 5.0),
+              decoration: BoxDecoration(
+                color: isSelected ? MessengerTheme.activeBlue : MessengerTheme.cardBg,
+                borderRadius: BorderRadius.circular(16.0),
+                border: Border.all(
+                  color: isSelected ? MessengerTheme.activeBlue : MessengerTheme.border,
+                  width: 0.8,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    label,
+                    style: GoogleFonts.kantumruyPro(
+                      color: isSelected ? Colors.white : MessengerTheme.textPrimary,
+                      fontSize: 12.5,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                    ),
+                  ),
+                  if (count > 0 && id != 'all') ...[
+                    const SizedBox(width: 6.0),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5.0, vertical: 1.0),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? Colors.white.withValues(alpha: 0.25)
+                            : MessengerTheme.activeBlue.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8.0),
                       ),
+                      child: Text(
+                        '$count',
+                        style: GoogleFonts.inter(
+                          color: isSelected ? Colors.white : MessengerTheme.activeBlue,
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  // ==========================================
+  // BOTTOM FROSTED GLASS BAR (TELEGRAM STYLE)
+  // ==========================================
+  Widget _buildTelegramFrostedBottomBar(double bottomSafeArea) {
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
+        child: Container(
+          decoration: BoxDecoration(
+            color: MessengerTheme.bg.withValues(alpha: 0.85),
+            border: Border(
+              top: BorderSide(
+                color: MessengerTheme.border.withValues(alpha: 0.65),
+                width: 0.8,
+              ),
+            ),
+          ),
+          padding: EdgeInsets.fromLTRB(16.0, 8.0, 16.0, bottomSafeArea > 0 ? bottomSafeArea : 10.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildBottomNavItem(
+                icon: Icons.people_alt_rounded,
+                label: 'បុគ្គលិក',
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => NewMessageScreen(
+                        allUsers: usersList,
+                        currentUserId: currentUserId,
+                      ),
+                    ),
+                  );
+                },
+              ),
+              _buildBottomNavItem(
+                icon: Icons.phone_rounded,
+                label: 'ការហៅ',
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('ប្រព័ន្ធទំនាក់ទំនង និងការហៅផ្ទៃក្នុង', style: GoogleFonts.kantumruyPro()),
+                      duration: const Duration(seconds: 1),
+                    ),
+                  );
+                },
+              ),
+              _buildBottomNavItem(
+                icon: Icons.chat_bubble_rounded,
+                label: 'សារ',
+                isActive: true,
+                badgeCount: _totalUnreadCount,
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  if (_scrollController.hasClients) {
+                    _scrollController.animateTo(
+                      0,
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeOut,
+                    );
+                  }
+                },
+              ),
+              _buildBottomNavItem(
+                icon: Icons.cleaning_services_rounded,
+                label: 'ទំហំផ្ទុក',
+                badgeText: _cacheSizeText.isNotEmpty ? _cacheSizeText : null,
+                onTap: () async {
+                  HapticFeedback.lightImpact();
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const StorageUsageScreen(),
+                    ),
+                  );
+                  _checkCacheSize();
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomNavItem({
+    required IconData icon,
+    required String label,
+    bool isActive = false,
+    int badgeCount = 0,
+    String? badgeText,
+    required VoidCallback onTap,
+  }) {
+    final color = isActive ? MessengerTheme.activeBlue : MessengerTheme.textSecondary;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Icon(icon, color: color, size: 22),
+                if (badgeCount > 0)
+                  Positioned(
+                    right: -8,
+                    top: -4,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFF3B30),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        badgeCount > 99 ? '99+' : '$badgeCount',
+                        style: GoogleFonts.inter(
+                          color: Colors.white,
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  )
+                else if (badgeText != null && badgeText.isNotEmpty)
+                  Positioned(
+                    right: -10,
+                    top: -4,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFF9500),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        badgeText,
+                        style: GoogleFonts.inter(
+                          color: Colors.white,
+                          fontSize: 8.5,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 3),
+            Text(
+              label,
+              style: GoogleFonts.kantumruyPro(
+                color: color,
+                fontSize: 11.0,
+                fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+              ),
             ),
           ],
         ),
@@ -336,136 +678,229 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
   }
 
   // ==========================================
-  // TOP APPMBAR HEADER
+  // FILTERED CONVERSATION LIST ITEMS
   // ==========================================
-  Widget _buildTopHeader(UserProvider user) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
-      child: Row(
-        children: [
-          // Back arrow navigation icon
-          IconButton(
-            icon: Icon(
-              Icons.arrow_back_ios_new_rounded,
-              color: MessengerTheme.textPrimary,
-              size: 20,
-            ),
-            onPressed: () => Navigator.pop(context),
-          ),
+  List<Widget> _buildFilteredChatItems() {
+    final List<Widget> items = [];
 
-          // User avatar (Clickable to open profile screen)
-          InkWell(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const ProfileScreen(),
-                ),
-              );
-            },
-            borderRadius: BorderRadius.circular(22),
-            child: CircleAvatar(
-              radius: 22.0,
-              backgroundImage:
-                  user.avatar != null && user.avatar!.isNotEmpty
-                      ? NetworkImage(ApiService.getFullImageUrl(user.avatar!))
-                      : null,
-              backgroundColor: _getAvatarBgColor(user.name ?? ''),
-              child:
-                  user.avatar == null || user.avatar!.isEmpty
-                      ? Text(
-                        (user.name ?? 'U').substring(0, 1).toUpperCase(),
-                        style: GoogleFonts.inter(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                          fontSize: 14,
-                        ),
-                      )
-                      : null,
-            ),
-          ),
-          const SizedBox(width: 10.0),
+    final bool showGroups = _selectedFolder == 'all' || _selectedFolder == 'group';
+    final bool showDirect = _selectedFolder == 'all' || _selectedFolder == 'direct';
+    final bool isUnreadOnly = _selectedFolder == 'unread';
 
-          // Title "Chats" (សារ)
-          Expanded(
-            child: Text(
-              'សារ',
-              style: GoogleFonts.kantumruyPro(
-                fontSize: 24.0,
-                fontWeight: FontWeight.bold,
-                color: MessengerTheme.textPrimary,
+    if (isUnreadOnly) {
+      for (final user in filteredUsers) {
+        final targetId = (user['employee_id'] ?? user['id'] ?? '').toString();
+        final chatData = activeChatsData[targetId];
+        if (chatData != null && chatData['isRead'] == false && chatData['lastSenderId'] != currentUserId) {
+          items.add(_buildUserConversationTile(user));
+        }
+      }
+      if (items.isEmpty) {
+        return [
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 50.0),
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.mark_chat_read_rounded, color: MessengerTheme.textMuted, size: 48),
+                  const SizedBox(height: 12),
+                  Text(
+                    'គ្មានសារមិនទាន់អានឡើយ',
+                    style: GoogleFonts.kantumruyPro(color: MessengerTheme.textMuted, fontSize: 14),
+                  ),
+                ],
               ),
             ),
           ),
+        ];
+      }
+      return items;
+    }
 
-          // Animated Broom / Clean Storage Action Button
-          AnimatedBuilder(
-            animation: _broomAnimCtrl,
-            builder: (context, child) {
-              final scale = 1.0 + (_broomAnimCtrl.value * 0.12);
-              return Transform.scale(
-                scale: _cacheSizeBytes > 15 * 1024 * 1024 ? scale : 1.0,
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    _buildActionButton(
-                      icon: Icons.cleaning_services_rounded,
-                      onTap: () async {
-                        await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const StorageUsageScreen(),
-                          ),
-                        );
-                        _checkCacheSize();
-                      },
-                    ),
-                    if (_cacheSizeText.isNotEmpty)
-                      Positioned(
-                        right: -4,
-                        top: -4,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: _cacheSizeBytes > 30 * 1024 * 1024
-                                ? const Color(0xFFEF4444)
-                                : const Color(0xFFFF9500),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: MessengerTheme.bg, width: 1.5),
-                          ),
-                          child: Text(
-                            _cacheSizeText,
-                            style: GoogleFonts.inter(
-                              color: Colors.white,
-                              fontSize: 9,
-                              fontWeight: FontWeight.bold,
-                            ),
+    // Add Groups first if All or Group selected, and no search query active
+    if (showGroups && searchQuery.isEmpty) {
+      items.add(_buildCommunityChannelTile());
+      items.add(_buildTeamGeneralGroupTile());
+      for (final group in customGroups) {
+        items.add(_buildCustomGroupTile(group));
+      }
+    }
+
+    // Add Direct chats
+    if (showDirect) {
+      for (final user in filteredUsers) {
+        items.add(_buildUserConversationTile(user));
+      }
+    }
+
+    if (items.isEmpty) {
+      return [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 50.0),
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.search_off_rounded, color: MessengerTheme.textMuted, size: 48),
+                const SizedBox(height: 12),
+                Text(
+                  'រកមិនឃើញការសន្ទនាឡើយ',
+                  style: GoogleFonts.kantumruyPro(color: MessengerTheme.textMuted, fontSize: 14),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ];
+    }
+
+    return items;
+  }
+
+  // ==========================================
+  // TOP APPMBAR HEADER
+  // ==========================================
+  Widget _buildTopHeader(UserProvider user) {
+    return Row(
+      children: [
+        // Back arrow navigation icon
+        IconButton(
+          icon: Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: MessengerTheme.textPrimary,
+            size: 19,
+          ),
+          onPressed: () => Navigator.pop(context),
+        ),
+
+        // User avatar (Clickable to open profile screen)
+        InkWell(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const ProfileScreen(),
+              ),
+            );
+          },
+          borderRadius: BorderRadius.circular(20),
+          child: CircleAvatar(
+            radius: 19.0,
+            backgroundImage:
+                user.avatar != null && user.avatar!.isNotEmpty
+                    ? NetworkImage(ApiService.getFullImageUrl(user.avatar!))
+                    : null,
+            backgroundColor: _getAvatarBgColor(user.name ?? ''),
+            child:
+                user.avatar == null || user.avatar!.isEmpty
+                    ? Text(
+                      (user.name ?? 'U').substring(0, 1).toUpperCase(),
+                      style: GoogleFonts.inter(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        fontSize: 13,
+                      ),
+                    )
+                    : null,
+          ),
+        ),
+        const SizedBox(width: 10.0),
+
+        // Title "Chats" (សារ)
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'សារ (Chats)',
+                style: GoogleFonts.kantumruyPro(
+                  fontSize: 19.0,
+                  fontWeight: FontWeight.bold,
+                  color: MessengerTheme.textPrimary,
+                ),
+              ),
+              if (_totalUnreadCount > 0)
+                Text(
+                  '$_totalUnreadCount សារមិនទាន់អាន',
+                  style: GoogleFonts.kantumruyPro(
+                    fontSize: 11.0,
+                    color: AppTheme.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+            ],
+          ),
+        ),
+
+        // Animated Broom / Clean Storage Action Button
+        AnimatedBuilder(
+          animation: _broomAnimCtrl,
+          builder: (context, child) {
+            final scale = 1.0 + (_broomAnimCtrl.value * 0.12);
+            return Transform.scale(
+              scale: _cacheSizeBytes > 15 * 1024 * 1024 ? scale : 1.0,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  _buildActionButton(
+                    icon: Icons.cleaning_services_rounded,
+                    onTap: () async {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const StorageUsageScreen(),
+                        ),
+                      );
+                      _checkCacheSize();
+                    },
+                  ),
+                  if (_cacheSizeText.isNotEmpty)
+                    Positioned(
+                      right: -4,
+                      top: -4,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: _cacheSizeBytes > 30 * 1024 * 1024
+                              ? const Color(0xFFEF4444)
+                              : const Color(0xFFFF9500),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: MessengerTheme.bg, width: 1.5),
+                        ),
+                        child: Text(
+                          _cacheSizeText,
+                          style: GoogleFonts.inter(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
                       ),
-                  ],
-                ),
-              );
-            },
-          ),
-          const SizedBox(width: 10.0),
-          _buildActionButton(
-            icon: Icons.edit_rounded,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder:
-                      (_) => NewMessageScreen(
-                        allUsers: usersList,
-                        currentUserId: currentUserId,
-                      ),
-                ),
-              );
-            },
-          ),
-        ],
-      ),
+                    ),
+                ],
+              ),
+            );
+          },
+        ),
+        const SizedBox(width: 8.0),
+        _buildActionButton(
+          icon: Icons.edit_rounded,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder:
+                    (_) => NewMessageScreen(
+                      allUsers: usersList,
+                      currentUserId: currentUserId,
+                    ),
+              ),
+            );
+          },
+        ),
+      ],
     );
   }
 
@@ -492,49 +927,46 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
   // SEARCH BAR
   // ==========================================
   Widget _buildSearchBar() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 6.0),
-      child: SizedBox(
-        height: 38.0,
-        child: TextField(
-          onChanged: _filterUsers,
-          cursorColor: MessengerTheme.activeBlue,
-          style: GoogleFonts.kantumruyPro(
-            color: MessengerTheme.textPrimary,
-            fontSize: 14.5,
+    return SizedBox(
+      height: 36.0,
+      child: TextField(
+        onChanged: _filterUsers,
+        cursorColor: MessengerTheme.activeBlue,
+        style: GoogleFonts.kantumruyPro(
+          color: MessengerTheme.textPrimary,
+          fontSize: 13.5,
+        ),
+        decoration: InputDecoration(
+          hintText: 'ស្វែងរកឈ្មោះបុគ្គលិក ឬផ្នែក...',
+          hintStyle: GoogleFonts.kantumruyPro(
+            color: MessengerTheme.textMuted,
+            fontSize: 13.0,
           ),
-          decoration: InputDecoration(
-            hintText: 'ស្វែងរកឈ្មោះបុគ្គលិក ឬផ្នែក...',
-            hintStyle: GoogleFonts.kantumruyPro(
-              color: MessengerTheme.textSecondary,
-              fontSize: 14.0,
-            ),
-            prefixIcon: Icon(
-              Icons.search_rounded,
-              color: MessengerTheme.textSecondary,
-              size: 19.0,
-            ),
-            filled: true,
-            fillColor: MessengerTheme.cardBg,
-            isDense: true,
-            contentPadding: const EdgeInsets.symmetric(
-              vertical: 8.0,
-              horizontal: 14.0,
-            ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(19.0),
-              borderSide: BorderSide(color: MessengerTheme.border),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(19.0),
-              borderSide: BorderSide(color: MessengerTheme.border),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(19.0),
-              borderSide: BorderSide(
-                color: MessengerTheme.activeBlue,
-                width: 1.2,
-              ),
+          prefixIcon: Icon(
+            Icons.search_rounded,
+            color: MessengerTheme.textMuted,
+            size: 18.0,
+          ),
+          filled: true,
+          fillColor: MessengerTheme.cardBg,
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(
+            vertical: 6.0,
+            horizontal: 12.0,
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(18.0),
+            borderSide: BorderSide(color: MessengerTheme.border, width: 0.8),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(18.0),
+            borderSide: BorderSide(color: MessengerTheme.border, width: 0.8),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(18.0),
+            borderSide: BorderSide(
+              color: MessengerTheme.activeBlue,
+              width: 1.2,
             ),
           ),
         ),
@@ -683,46 +1115,6 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
     );
   }
 
-  // ==========================================
-  // CONVERSATIONS LIST
-  // ==========================================
-  Widget _buildChatListSection() {
-    final int listLength = 2 + customGroups.length + filteredUsers.length;
-
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      cacheExtent: 500.0,
-      addAutomaticKeepAlives: true,
-      addRepaintBoundaries: true,
-      itemCount: listLength,
-      itemBuilder: (context, index) {
-        // 0. VVC Company Community & Announcements Channel
-        if (index == 0) {
-          return _buildCommunityChannelTile();
-        }
-
-        // 1. Team General Group Chat (Index 1)
-        if (index == 1) {
-          return _buildTeamGeneralGroupTile();
-        }
-
-        // 2. Custom created Groups
-        if (index > 1 && index <= customGroups.length + 1) {
-          return _buildCustomGroupTile(customGroups[index - 2]);
-        }
-
-        // 3. Team Members private chats
-        final int userIdx = index - 2 - customGroups.length;
-        if (userIdx >= 0 && userIdx < filteredUsers.length) {
-          final user = filteredUsers[userIdx];
-          return _buildUserConversationTile(user);
-        }
-
-        return const SizedBox.shrink();
-      },
-    );
-  }
 
   // Official VVC Community Channel Tile
   Widget _buildCommunityChannelTile() {
