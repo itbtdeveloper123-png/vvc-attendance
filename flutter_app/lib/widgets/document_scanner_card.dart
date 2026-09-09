@@ -80,8 +80,9 @@ class DocumentScannerCard extends StatelessWidget {
                       Text(
                         "ស្កេនឯកសារអាជីព",
                         style: GoogleFonts.kantumruyPro(
-                          color: AppTheme.primaryLight,
+                          color: AppTheme.primary,
                           fontSize: 13,
+                          fontWeight: FontWeight.w500,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,

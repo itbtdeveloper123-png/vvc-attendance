@@ -225,18 +225,19 @@ class _HrmPollManagementScreenState extends State<HrmPollManagementScreen> {
         backgroundColor: AppTheme.bgDark,
         elevation: 0,
         centerTitle: true,
+        iconTheme: IconThemeData(color: AppTheme.textPrimary),
         title: Text(
           'គ្រប់គ្រងការបោះឆ្នោត HRM',
           style: GoogleFonts.kantumruyPro(
             fontWeight: FontWeight.bold,
-            color: Colors.white,
+            color: AppTheme.textPrimary,
             fontSize: 17,
           ),
         ),
         actions: [
           IconButton(
             tooltip: 'Refresh',
-            icon: const Icon(Icons.refresh_rounded, color: Colors.white70),
+            icon: Icon(Icons.refresh_rounded, color: AppTheme.textPrimary.withValues(alpha: 0.7)),
             onPressed: _loadInitialData,
           ),
         ],

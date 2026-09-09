@@ -1752,7 +1752,7 @@ class _MeetingsScreenState extends State<MeetingsScreen>
                   children: [
                     Icon(
                       Icons.folder_shared_rounded,
-                      color: AppTheme.primaryLight,
+                      color: AppTheme.primary,
                       size: 18,
                     ),
                     const SizedBox(width: 8),
@@ -1760,7 +1760,7 @@ class _MeetingsScreenState extends State<MeetingsScreen>
                       dept,
                       style: GoogleFonts.kantumruyPro(
                         fontWeight: FontWeight.bold,
-                        color: AppTheme.primaryLight,
+                        color: AppTheme.primary,
                       ),
                     ),
                   ],

@@ -564,7 +564,8 @@ class _TeamChatScreenState extends State<TeamChatScreen>
                                 'ក្រុមការងារ',
                                 style: GoogleFonts.kantumruyPro(
                                   fontSize: 10,
-                                  color: AppTheme.primaryLight,
+                                  color: AppTheme.primary,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               );
                             }
@@ -712,7 +713,7 @@ class _TeamChatScreenState extends State<TeamChatScreen>
                           padding: const EdgeInsets.only(left: 12, right: 8),
                           child: Icon(
                             Icons.search,
-                            color: AppTheme.primaryLight,
+                            color: AppTheme.primary,
                           ),
                         ),
                         prefixIconConstraints: const BoxConstraints(

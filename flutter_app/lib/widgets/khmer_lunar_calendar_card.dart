@@ -289,7 +289,7 @@ class _KhmerLunarCalendarCardState extends State<KhmerLunarCalendarCard> {
             children: [
               IconButton(
                 onPressed: _prevMonth,
-                icon: Icon(Icons.chevron_left_rounded, color: AppTheme.primaryLight),
+                icon: Icon(Icons.chevron_left_rounded, color: AppTheme.primary),
               ),
               Expanded(
                 child: Column(
@@ -305,8 +305,9 @@ class _KhmerLunarCalendarCardState extends State<KhmerLunarCalendarCard> {
                     Text(
                       midMonthLunar.format("ខែm ឆ្នាំa e"),
                       style: GoogleFonts.kantumruyPro(
-                        color: AppTheme.primaryLight,
+                        color: AppTheme.primary,
                         fontSize: 13,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
@@ -314,7 +315,7 @@ class _KhmerLunarCalendarCardState extends State<KhmerLunarCalendarCard> {
               ),
               IconButton(
                 onPressed: _nextMonth,
-                icon: Icon(Icons.chevron_right_rounded, color: AppTheme.primaryLight),
+                icon: Icon(Icons.chevron_right_rounded, color: AppTheme.primary),
               ),
             ],
           ),
@@ -398,7 +399,7 @@ class _KhmerLunarCalendarCardState extends State<KhmerLunarCalendarCard> {
                             Text(
                               "$day",
                               style: GoogleFonts.inter(
-                                color: isToday ? AppTheme.primaryLight : (isSunday ? Colors.redAccent : AppTheme.textPrimary),
+                                color: isToday ? AppTheme.primary : (isSunday ? Colors.redAccent : AppTheme.textPrimary),
                                 fontWeight: (isToday || holiday != null) ? FontWeight.bold : FontWeight.normal,
                                 fontSize: 15,
                               ),
@@ -406,7 +407,8 @@ class _KhmerLunarCalendarCardState extends State<KhmerLunarCalendarCard> {
                             Text(
                               lunar.lunarDay.toString(),
                               style: GoogleFonts.kantumruyPro(
-                                color: isToday ? AppTheme.primaryLight : AppTheme.textMuted,
+                                color: isToday ? AppTheme.primary : AppTheme.textMuted,
+                                fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
                                 fontSize: 8,
                               ),
                             ),

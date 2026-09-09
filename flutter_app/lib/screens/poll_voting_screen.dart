@@ -167,11 +167,12 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
       appBar: AppBar(
         backgroundColor: AppTheme.bgDark,
         elevation: 0,
+        iconTheme: IconThemeData(color: AppTheme.textPrimary),
         title: Text(
           'បោះឆ្នោតបុគ្គលិកឆ្នើម',
           style: GoogleFonts.kantumruyPro(
             fontWeight: FontWeight.bold,
-            color: Colors.white,
+            color: AppTheme.textPrimary,
             fontSize: 18,
           ),
         ),
@@ -179,7 +180,7 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
           if (isHrmOrAdmin)
             IconButton(
               tooltip: 'ផ្ទាំងគ្រប់គ្រង HRM',
-              icon: const Icon(Icons.admin_panel_settings_rounded, color: Colors.amberAccent, size: 24),
+              icon: Icon(Icons.admin_panel_settings_rounded, color: AppTheme.primary, size: 24),
               onPressed: () {
                 Navigator.push(
                   context,
@@ -189,7 +190,7 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
             ),
           IconButton(
             tooltip: 'Refresh',
-            icon: const Icon(Icons.refresh_rounded, color: Colors.white70),
+            icon: Icon(Icons.refresh_rounded, color: AppTheme.textPrimary.withValues(alpha: 0.7)),
             onPressed: _loadInitialData,
           ),
         ],
@@ -200,7 +201,7 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
 
   Widget _buildBody(bool isHrmOrAdmin) {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator(color: Colors.amberAccent));
+      return Center(child: CircularProgressIndicator(color: AppTheme.primary));
     }
 
     if (_errorMessage != null) {
@@ -214,13 +215,13 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
               const SizedBox(height: 12),
               Text(
                 'មិនអាចទាញយកទិន្នន័យបានទេ',
-                style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                style: GoogleFonts.kantumruyPro(color: AppTheme.textPrimary, fontWeight: FontWeight.bold, fontSize: 16),
               ),
               const SizedBox(height: 6),
               Text(
                 _errorMessage!,
                 textAlign: TextAlign.center,
-                style: GoogleFonts.kantumruyPro(color: Colors.white60, fontSize: 13),
+                style: GoogleFonts.kantumruyPro(color: AppTheme.textSecondary, fontSize: 13),
               ),
               const SizedBox(height: 18),
               ElevatedButton.icon(

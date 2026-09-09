@@ -212,7 +212,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                       _isListView
                           ? Icons.grid_view_rounded
                           : Icons.view_list_rounded,
-                      color: AppTheme.primaryLight,
+                      color: AppTheme.primary,
                     ),
                     onPressed: () =>
                         setState(() => _isListView = !_isListView),

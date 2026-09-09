@@ -142,7 +142,7 @@ class _TrainingQuizScreenState extends State<TrainingQuizScreen> {
                 Text(
                   "លទ្ធផលរបស់អ្នក",
                   style: GoogleFonts.kantumruyPro(
-                    color: Colors.white,
+                    color: AppTheme.textPrimary,
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
                   ),
@@ -151,7 +151,7 @@ class _TrainingQuizScreenState extends State<TrainingQuizScreen> {
                 Text(
                   "$_score / ${_questions.length}",
                   style: GoogleFonts.inter(
-                    color: Colors.white,
+                    color: AppTheme.primary,
                     fontSize: 40,
                     fontWeight: FontWeight.w900,
                   ),
@@ -216,7 +216,7 @@ class _TrainingQuizScreenState extends State<TrainingQuizScreen> {
             children: [
               Text(
                 _errorMessage,
-                style: GoogleFonts.kantumruyPro(color: Colors.white),
+                style: GoogleFonts.kantumruyPro(color: Colors.redAccent),
               ),
               const SizedBox(height: 20),
               ElevatedButton(
@@ -236,7 +236,7 @@ class _TrainingQuizScreenState extends State<TrainingQuizScreen> {
         body: Center(
           child: Text(
             "មិនទាន់មានសំណួរនៅឡើយទេ",
-            style: GoogleFonts.kantumruyPro(color: Colors.white),
+            style: GoogleFonts.kantumruyPro(color: AppTheme.textMuted),
           ),
         ),
       );
@@ -267,7 +267,7 @@ class _TrainingQuizScreenState extends State<TrainingQuizScreen> {
                   Text(
                     "សំណួរទី ${_currentQuestionIndex + 1}/${_questions.length}",
                     style: GoogleFonts.kantumruyPro(
-                      color: AppTheme.primaryLight,
+                      color: AppTheme.primary,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -275,7 +275,7 @@ class _TrainingQuizScreenState extends State<TrainingQuizScreen> {
                   Text(
                     "ពិន្ទុ: $_score",
                     style: GoogleFonts.kantumruyPro(
-                      color: Colors.orangeAccent,
+                      color: AppTheme.primaryDark,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -284,7 +284,7 @@ class _TrainingQuizScreenState extends State<TrainingQuizScreen> {
               const SizedBox(height: 10),
               LinearProgressIndicator(
                 value: (_currentQuestionIndex + 1) / _questions.length,
-                backgroundColor: Colors.white.withValues(alpha: 0.1),
+                backgroundColor: AppTheme.textPrimary.withValues(alpha: 0.08),
                 color: AppTheme.primary,
                 minHeight: 8,
                 borderRadius: BorderRadius.circular(4),
@@ -300,20 +300,14 @@ class _TrainingQuizScreenState extends State<TrainingQuizScreen> {
                     color: AppTheme.bgCard,
                     borderRadius: BorderRadius.circular(24),
                     border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.05),
+                      color: AppTheme.textPrimary.withValues(alpha: 0.08),
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppTheme.primary.withValues(alpha: 0.05),
-                        blurRadius: 20,
-                        spreadRadius: 5,
-                      ),
-                    ],
+                    boxShadow: AppTheme.cardShadow,
                   ),
                   child: Text(
                     q['question'] ?? 'No Question',
                     style: GoogleFonts.kantumruyPro(
-                      color: Colors.white,
+                      color: AppTheme.textPrimary,
                       fontSize: 18,
                       height: 1.5,
                       fontWeight: FontWeight.w600,
@@ -334,14 +328,14 @@ class _TrainingQuizScreenState extends State<TrainingQuizScreen> {
                     final isSelected = index == _selectedAnswerIndex;
 
                     Color bgColor = AppTheme.bgCard;
-                    Color borderColor = Colors.white.withValues(alpha: 0.1);
+                    Color borderColor = AppTheme.textPrimary.withValues(alpha: 0.08);
 
                     if (_isAnswered) {
                       if (isCorrect) {
-                        bgColor = Colors.green.shade800.withValues(alpha: 0.3);
-                        borderColor = Colors.greenAccent;
+                        bgColor = Colors.green.shade50;
+                        borderColor = Colors.green;
                       } else if (isSelected) {
-                        bgColor = Colors.red.shade800.withValues(alpha: 0.3);
+                        bgColor = Colors.red.shade50;
                         borderColor = Colors.redAccent;
                       }
                     }
@@ -358,6 +352,7 @@ class _TrainingQuizScreenState extends State<TrainingQuizScreen> {
                             color: bgColor,
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(color: borderColor, width: 1.5),
+                            boxShadow: AppTheme.cardShadow,
                           ),
                           child: Row(
                             children: [
@@ -367,12 +362,10 @@ class _TrainingQuizScreenState extends State<TrainingQuizScreen> {
                                 decoration: BoxDecoration(
                                   color:
                                       _isAnswered && isCorrect
-                                          ? Colors.greenAccent.withValues(
-                                            alpha: 0.2,
-                                          )
-                                          : Colors.white.withValues(
-                                            alpha: 0.05,
-                                          ),
+                                          ? Colors.green.withValues(alpha: 0.2)
+                                          : (_isAnswered && isSelected && !isCorrect
+                                              ? Colors.redAccent.withValues(alpha: 0.2)
+                                              : AppTheme.textPrimary.withValues(alpha: 0.06)),
                                   shape: BoxShape.circle,
                                 ),
                                 child: Center(
@@ -381,8 +374,10 @@ class _TrainingQuizScreenState extends State<TrainingQuizScreen> {
                                     style: GoogleFonts.inter(
                                       color:
                                           _isAnswered && isCorrect
-                                              ? Colors.greenAccent
-                                              : Colors.white,
+                                              ? Colors.green.shade700
+                                              : (_isAnswered && isSelected && !isCorrect
+                                                  ? Colors.redAccent
+                                                  : AppTheme.textPrimary),
                                       fontWeight: FontWeight.bold,
                                     ),
                                   ),
@@ -393,15 +388,20 @@ class _TrainingQuizScreenState extends State<TrainingQuizScreen> {
                                 child: Text(
                                   q['options'][index] ?? '',
                                   style: GoogleFonts.kantumruyPro(
-                                    color: Colors.white,
+                                    color: _isAnswered && isCorrect
+                                        ? Colors.green.shade900
+                                        : (_isAnswered && isSelected && !isCorrect
+                                            ? Colors.red.shade900
+                                            : AppTheme.textPrimary),
                                     fontSize: 14,
+                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                                   ),
                                 ),
                               ),
                               if (_isAnswered && isCorrect)
                                 const Icon(
                                   Icons.check_circle_rounded,
-                                  color: Colors.greenAccent,
+                                  color: Colors.green,
                                   size: 20,
                                 )
                               else if (_isAnswered && isSelected && !isCorrect)
@@ -426,10 +426,10 @@ class _TrainingQuizScreenState extends State<TrainingQuizScreen> {
                     margin: const EdgeInsets.only(bottom: 20),
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.blueAccent.withValues(alpha: 0.1),
+                      color: const Color(0xFFEFF6FF),
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: Colors.blueAccent.withValues(alpha: 0.3),
+                        color: const Color(0xFF3B82F6).withValues(alpha: 0.3),
                       ),
                     ),
                     child: Column(
@@ -439,14 +439,14 @@ class _TrainingQuizScreenState extends State<TrainingQuizScreen> {
                           children: [
                             const Icon(
                               Icons.lightbulb_outline_rounded,
-                              color: Colors.blueAccent,
+                              color: Color(0xFF1D4ED8),
                               size: 18,
                             ),
                             const SizedBox(width: 8),
                             Text(
                               "ពន្យល់បកស្រាយ:",
                               style: GoogleFonts.kantumruyPro(
-                                color: Colors.blueAccent,
+                                color: const Color(0xFF1D4ED8),
                                 fontWeight: FontWeight.bold,
                                 fontSize: 13,
                               ),
@@ -457,7 +457,7 @@ class _TrainingQuizScreenState extends State<TrainingQuizScreen> {
                         Text(
                           q['explanation'] ?? '',
                           style: GoogleFonts.kantumruyPro(
-                            color: Colors.white.withValues(alpha: 0.8),
+                            color: AppTheme.textSecondary,
                             fontSize: 13,
                             height: 1.4,
                           ),

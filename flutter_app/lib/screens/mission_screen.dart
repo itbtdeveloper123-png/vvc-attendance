@@ -560,7 +560,7 @@ class _MissionScreenState extends State<MissionScreen> {
                   Text(
                     label,
                     style: GoogleFonts.kantumruyPro(
-                      color: Colors.white,
+                      color: AppTheme.textPrimary,
                       fontWeight: FontWeight.bold,
                       fontSize: 15,
                     ),
@@ -653,16 +653,10 @@ class _MissionScreenState extends State<MissionScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: AppTheme.bgCardLight.withValues(alpha: 0.15),
+        color: AppTheme.bgCard,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.2),
-            blurRadius: 15,
-            offset: const Offset(0, 8),
-          ),
-        ],
+        border: Border.all(color: AppTheme.textPrimary.withValues(alpha: 0.08)),
+        boxShadow: AppTheme.cardShadow,
       ),
       child: Material(
         color: Colors.transparent,
@@ -709,7 +703,7 @@ class _MissionScreenState extends State<MissionScreen> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: GoogleFonts.kantumruyPro(
-                          color: Colors.white,
+                          color: AppTheme.textPrimary,
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                           letterSpacing: 0.3,
@@ -721,8 +715,9 @@ class _MissionScreenState extends State<MissionScreen> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: GoogleFonts.kantumruyPro(
-                          color: AppTheme.primaryLight,
+                          color: AppTheme.primary,
                           fontSize: 13,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -757,15 +752,15 @@ class _MissionScreenState extends State<MissionScreen> {
                   width: 36,
                   height: 36,
                   decoration: BoxDecoration(
-                    color: AppTheme.bgDark.withValues(alpha: 0.6),
+                    color: AppTheme.textPrimary.withValues(alpha: 0.04),
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.05),
+                      color: AppTheme.textPrimary.withValues(alpha: 0.08),
                     ),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.arrow_forward_ios_rounded,
-                    color: Colors.white70,
+                    color: AppTheme.textPrimary.withValues(alpha: 0.6),
                     size: 16,
                   ),
                 ),
