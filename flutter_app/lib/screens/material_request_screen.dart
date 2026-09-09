@@ -467,16 +467,17 @@ class _MaterialRequestScreenState extends State<MaterialRequestScreen> {
           style: GoogleFonts.kantumruyPro(
             fontWeight: FontWeight.bold,
             fontSize: 20,
-            color: Colors.white,
+            color: AppTheme.textPrimary,
           ),
         ),
         elevation: 0,
-        backgroundColor: AppTheme.bgDark.withValues(alpha: 0.8),
-        foregroundColor: Colors.white,
+        foregroundColor: AppTheme.textPrimary,
         centerTitle: true,
       ),
-      body: SafeArea(
-        child: isDesktop ? _buildDesktopLayout(user) : _buildMobileLayout(user),
+      body: AppBackgroundShell(
+        child: SafeArea(
+          child: isDesktop ? _buildDesktopLayout(user) : _buildMobileLayout(user),
+        ),
       ),
     );
   }
@@ -560,7 +561,7 @@ class _MaterialRequestScreenState extends State<MaterialRequestScreen> {
               onChanged: onChanged,
               keyboardType: keyboardType,
               style: GoogleFonts.kantumruyPro(
-                color: Colors.white,
+                color: AppTheme.textPrimary,
                 fontSize: 14,
               ),
               decoration: InputDecoration.collapsed(
@@ -612,7 +613,7 @@ class _MaterialRequestScreenState extends State<MaterialRequestScreen> {
                       Text(
                         user.name ?? 'អ្នកប្រើប្រាស់',
                         style: GoogleFonts.kantumruyPro(
-                          color: Colors.white,
+                          color: AppTheme.textPrimary,
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
@@ -620,7 +621,7 @@ class _MaterialRequestScreenState extends State<MaterialRequestScreen> {
                       Text(
                         'អ្នកស្នើសុំ',
                         style: GoogleFonts.kantumruyPro(
-                          color: AppTheme.primaryLight,
+                          color: AppTheme.primary,
                           fontSize: 13,
                         ),
                       ),
@@ -636,7 +637,7 @@ class _MaterialRequestScreenState extends State<MaterialRequestScreen> {
           Text(
             'ទីតាំងស្នើសុំ',
             style: GoogleFonts.kantumruyPro(
-              color: Colors.white,
+              color: AppTheme.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.bold,
             ),
@@ -666,7 +667,7 @@ class _MaterialRequestScreenState extends State<MaterialRequestScreen> {
                       style: GoogleFonts.kantumruyPro(
                         color: _selectedLocation == null
                             ? AppTheme.textMuted
-                            : Colors.white,
+                            : AppTheme.textPrimary,
                         fontSize: 14,
                         fontWeight: _selectedLocation == null
                             ? FontWeight.normal
@@ -687,7 +688,7 @@ class _MaterialRequestScreenState extends State<MaterialRequestScreen> {
           Text(
             'បញ្ជីសម្ភារៈ',
             style: GoogleFonts.kantumruyPro(
-              color: Colors.white,
+              color: AppTheme.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.bold,
             ),
@@ -777,7 +778,7 @@ class _MaterialRequestScreenState extends State<MaterialRequestScreen> {
                                       style: GoogleFonts.kantumruyPro(
                                         color: item.material == null
                                             ? AppTheme.textMuted
-                                            : Colors.white,
+                                            : AppTheme.textPrimary,
                                         fontWeight: item.material == null
                                             ? FontWeight.normal
                                             : FontWeight.w600,
@@ -785,9 +786,9 @@ class _MaterialRequestScreenState extends State<MaterialRequestScreen> {
                                       ),
                                     ),
                                   ),
-                                  const Icon(
+                                  Icon(
                                     Icons.expand_more_rounded,
-                                    color: Colors.white54,
+                                    color: AppTheme.textMuted,
                                     size: 20,
                                   ),
                                 ],
@@ -850,26 +851,26 @@ class _MaterialRequestScreenState extends State<MaterialRequestScreen> {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 16),
               decoration: BoxDecoration(
-                color: Colors.cyanAccent.withValues(alpha: 0.05),
+                color: AppTheme.primary.withValues(alpha: 0.06),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: Colors.cyanAccent.withValues(alpha: 0.3),
+                  color: AppTheme.primary.withValues(alpha: 0.3),
                   style: BorderStyle.solid,
-                ), // In a real app we might use dotted border package, but solid light is very clean too
+                ),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.add_circle_rounded,
-                    color: Colors.cyanAccent,
+                    color: AppTheme.primary,
                     size: 20,
                   ),
                   const SizedBox(width: 8),
                   Text(
                     'បន្ថែមជួរថ្មី',
                     style: GoogleFonts.kantumruyPro(
-                      color: Colors.cyanAccent,
+                      color: AppTheme.primary,
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
                     ),
@@ -889,8 +890,8 @@ class _MaterialRequestScreenState extends State<MaterialRequestScreen> {
               onPressed: _isSubmitting ? null : _submitRequest,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppTheme.primary,
-                foregroundColor: AppTheme.textPrimary,
-                elevation: 8,
+                foregroundColor: Colors.white,
+                elevation: 4,
                 shadowColor: AppTheme.primary.withValues(alpha: 0.35),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(AppTheme.radiusLg),
@@ -908,13 +909,14 @@ class _MaterialRequestScreenState extends State<MaterialRequestScreen> {
                   : Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.send_rounded, size: 20),
+                        const Icon(Icons.send_rounded, size: 20, color: Colors.white),
                         const SizedBox(width: 10),
                         Text(
                           'បញ្ជូនសំណើ',
                           style: GoogleFonts.kantumruyPro(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
+                            color: Colors.white,
                           ),
                         ),
                       ],
@@ -1017,13 +1019,20 @@ class _MaterialRequestScreenState extends State<MaterialRequestScreen> {
                     itemCount: _filteredMaterials.length,
                     itemBuilder: (context, index) {
                       final mat = _filteredMaterials[index];
-                      // Use an elegant mini card
                       return Container(
                         margin: const EdgeInsets.only(bottom: 12),
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: AppTheme.bgCardLight.withValues(alpha: 0.1),
+                          color: Colors.white,
                           borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
                         ),
                         child: Row(
                           children: [
@@ -1031,7 +1040,7 @@ class _MaterialRequestScreenState extends State<MaterialRequestScreen> {
                               width: 40,
                               height: 40,
                               decoration: BoxDecoration(
-                                color: AppTheme.bgDark,
+                                color: const Color(0xFFF1F5F9),
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               alignment: Alignment.center,
@@ -1050,7 +1059,7 @@ class _MaterialRequestScreenState extends State<MaterialRequestScreen> {
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: GoogleFonts.kantumruyPro(
-                                      color: Colors.white,
+                                      color: AppTheme.textPrimary,
                                       fontWeight: FontWeight.w600,
                                       fontSize: 13,
                                     ),
@@ -1061,7 +1070,7 @@ class _MaterialRequestScreenState extends State<MaterialRequestScreen> {
                                     style: GoogleFonts.kantumruyPro(
                                       color: mat.stock <= 5
                                           ? Colors.redAccent
-                                          : Colors.tealAccent,
+                                          : const Color(0xFF059669),
                                       fontSize: 11,
                                       fontWeight: FontWeight.bold,
                                     ),

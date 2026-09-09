@@ -1,5 +1,6 @@
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'dart:async';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
@@ -41,8 +42,8 @@ class AppShimmer extends StatelessWidget {
   Widget build(BuildContext context) {
     if (!enabled) return child;
     return Shimmer.fromColors(
-      baseColor: AppTheme.bgCard,
-      highlightColor: AppTheme.bgCardLight.withValues(alpha: 0.5),
+      baseColor: const Color(0xFFE2E8F0),
+      highlightColor: Colors.white,
       child: child,
     );
   }
@@ -1044,13 +1045,38 @@ class _DynamicPremiumAppBarState extends State<DynamicPremiumAppBar> {
     return AppBar(
       title: Text(
         widget.title,
-        style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold),
+        style: GoogleFonts.kantumruyPro(
+          fontWeight: FontWeight.bold,
+          color: AppTheme.textPrimary,
+        ),
       ),
       centerTitle: widget.centerTitle,
       leading: widget.leading,
       actions: widget.actions,
-      backgroundColor: AppTheme.bgDark.withValues(alpha: 0.95),
+      backgroundColor: Colors.transparent,
       elevation: 0,
+      systemOverlayStyle: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarBrightness: Brightness.light,
+        statusBarIconBrightness: Brightness.dark,
+      ),
+      iconTheme: IconThemeData(color: AppTheme.textPrimary),
+      flexibleSpace: ClipRect(
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: 20.0, sigmaY: 20.0),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.85),
+              border: Border(
+                bottom: BorderSide(
+                  color: const Color(0xFFE2E8F0).withValues(alpha: 0.6),
+                  width: 1,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -1094,25 +1120,37 @@ class _DynamicAppBarWrapperState extends State<DynamicAppBarWrapper> {
       appBar: AppBar(
         title: Text(
           widget.title,
-          style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold),
+          style: GoogleFonts.kantumruyPro(
+            fontWeight: FontWeight.bold,
+            color: AppTheme.textPrimary,
+          ),
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: true,
         leading: widget.leading,
         actions: widget.actions,
-        flexibleSpace: AnimatedContainer(
-          duration: const Duration(milliseconds: 250),
-          decoration: BoxDecoration(
-            color: _isScrolling
-                ? AppTheme.bgDark.withValues(alpha: 0.92)
-                : AppTheme.bgDark.withValues(alpha: 0.98),
-            border: Border(
-              bottom: BorderSide(
-                color: _isScrolling
-                    ? AppTheme.textPrimary.withValues(alpha: 0.08)
-                    : AppTheme.textPrimary.withValues(alpha: 0.06),
-                width: 1,
+        systemOverlayStyle: const SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarBrightness: Brightness.light,
+          statusBarIconBrightness: Brightness.dark,
+        ),
+        iconTheme: IconThemeData(color: AppTheme.textPrimary),
+        flexibleSpace: ClipRect(
+          child: BackdropFilter(
+            filter: ui.ImageFilter.blur(sigmaX: 20.0, sigmaY: 20.0),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: _isScrolling ? 0.90 : 0.75),
+                border: Border(
+                  bottom: BorderSide(
+                    color: const Color(0xFFE2E8F0).withValues(
+                      alpha: _isScrolling ? 0.8 : 0.4,
+                    ),
+                    width: 1,
+                  ),
+                ),
               ),
             ),
           ),
@@ -1746,7 +1784,15 @@ class VvcAppBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     return AppBar(
-      title: title,
+      title: title != null
+          ? DefaultTextStyle.merge(
+              style: GoogleFonts.kantumruyPro(
+                color: foregroundColor ?? AppTheme.textPrimary,
+                fontWeight: FontWeight.bold,
+              ),
+              child: title!,
+            )
+          : null,
       actions: actions,
       leading: leading,
       leadingWidth: leadingWidth,
@@ -1754,23 +1800,28 @@ class VvcAppBar extends StatelessWidget implements PreferredSizeWidget {
       elevation: elevation,
       bottom: bottom,
       titleSpacing: titleSpacing,
-      iconTheme: iconTheme,
-      foregroundColor: foregroundColor,
+      iconTheme: iconTheme ?? IconThemeData(color: foregroundColor ?? AppTheme.textPrimary),
+      foregroundColor: foregroundColor ?? AppTheme.textPrimary,
       toolbarHeight: toolbarHeight,
       shape: shape,
       automaticallyImplyLeading: automaticallyImplyLeading,
       scrolledUnderElevation: scrolledUnderElevation,
       backgroundColor: Colors.transparent,
       surfaceTintColor: Colors.transparent,
+      systemOverlayStyle: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarBrightness: Brightness.light,
+        statusBarIconBrightness: Brightness.dark,
+      ),
       flexibleSpace: ClipRect(
         child: BackdropFilter(
           filter: ui.ImageFilter.blur(sigmaX: 20.0, sigmaY: 20.0),
           child: Container(
             decoration: BoxDecoration(
-              color: backgroundColor ?? AppTheme.bgDark.withValues(alpha: 0.75),
+              color: backgroundColor ?? Colors.white.withValues(alpha: 0.85),
               border: Border(
                 bottom: BorderSide(
-                  color: AppTheme.textPrimary.withValues(alpha: 0.05),
+                  color: const Color(0xFFE2E8F0).withValues(alpha: 0.6),
                   width: 0.5,
                 ),
               ),

@@ -724,16 +724,16 @@ class _DeptHeadSelectorState extends State<DeptHeadSelector> {
             duration: const Duration(milliseconds: 300),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
             decoration: BoxDecoration(
-              color: AppTheme.textPrimary.withValues(alpha: 0.05),
+              color: AppTheme.fieldFill,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: AppTheme.textPrimary.withValues(alpha: 0.12),
+                color: AppTheme.fieldBorder,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.2),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
+                  color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
                 ),
               ],
             ),
@@ -753,7 +753,7 @@ class _DeptHeadSelectorState extends State<DeptHeadSelector> {
                           _selectedName != null
                               ? Icons.how_to_reg_rounded
                               : Icons.person_search_rounded,
-                          color: AppTheme.primaryLight,
+                          color: AppTheme.primary,
                           size: 20,
                         ),
                       ),
@@ -763,7 +763,7 @@ class _DeptHeadSelectorState extends State<DeptHeadSelector> {
                         style: GoogleFonts.kantumruyPro(
                           color: _selectedName != null
                               ? AppTheme.textPrimary
-                              : AppTheme.textPrimary.withValues(alpha: 0.30),
+                              : AppTheme.fieldHintColor,
                           fontSize: 14,
                           fontWeight: _selectedName != null
                               ? FontWeight.bold
@@ -775,7 +775,7 @@ class _DeptHeadSelectorState extends State<DeptHeadSelector> {
                 ),
                 Icon(
                   Icons.keyboard_arrow_right_rounded,
-                  color: AppTheme.primaryLight.withValues(alpha: 0.5),
+                  color: AppTheme.primary.withValues(alpha: 0.7),
                 ),
               ],
             ),
@@ -799,13 +799,17 @@ class _DeptHeadSelectorState extends State<DeptHeadSelector> {
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: AppTheme.textPrimary,
+                color: Colors.white,
                 borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: const Color(0xFFE2E8F0),
+                  width: 1.2,
+                ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.3),
+                    color: const Color(0xFF0F172A).withValues(alpha: 0.06),
                     blurRadius: 15,
-                    offset: const Offset(0, 8),
+                    offset: const Offset(0, 6),
                   ),
                 ],
               ),

@@ -194,7 +194,7 @@ class _KpiPerformanceScreenState extends State<KpiPerformanceScreen> with Single
       actions: [
         IconButton(
           tooltip: 'រក្សាទុក',
-          icon: const Icon(Icons.save_rounded, color: Colors.white),
+          icon: Icon(Icons.save_rounded, color: AppTheme.textPrimary),
           onPressed: _saveEvaluation,
         ),
       ],
@@ -207,7 +207,7 @@ class _KpiPerformanceScreenState extends State<KpiPerformanceScreen> with Single
             TabBar(
               controller: _tabController,
               indicatorColor: AppTheme.primary,
-              labelColor: Colors.white,
+              labelColor: AppTheme.primary,
               unselectedLabelColor: AppTheme.textSecondary,
               labelStyle: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold, fontSize: 13.5),
               tabs: const [

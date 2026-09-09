@@ -1,14 +1,15 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
-  static bool isDarkMode = true;
+  static bool isDarkMode = false;
 
-  // === FLAT SOLID COLOR PALETTE ===
-  static Color primary = const Color(0xFFD4AF37); // Metallic Gold
-  static Color primaryDark = const Color(0xFFB8860B); // Dark Goldenrod
-  static Color primaryLight = const Color(0xFFF3E5AB); // Light Gold
+  // === BRAND COLOR PALETTE (Rich Amber/Gold matching HomeScreen) ===
+  static Color primary = const Color(0xFFD97706); // Rich Amber/Gold
+  static Color primaryDark = const Color(0xFFB45309);
+  static Color primaryLight = const Color(0xFFFDE68A);
   static Color secondary = const Color(0xFF2563EB); // Blue
   static Color accent = const Color(0xFFF59E0B); // Amber
   static Color success = const Color(0xFF16A34A); // Green
@@ -17,50 +18,55 @@ class AppTheme {
   static Color danger = const Color(0xFFDC2626);
   static Color info = const Color(0xFF3B82F6);
 
-  // Flat dark layers
-  static Color bgDark = const Color(0xFF0F172A); // Premium Midnight Slate
-  static Color bgCard = const Color(0xFF1F2937);
-  static Color bgCardLight = const Color(0xFF374151);
-  static Color bgSurface = const Color(0xFF0F172A);
-  static Color cardDark = const Color(0xFF111827);
-  static Color borderDark = const Color(0xFF475569);
+  // iOS Glassmorphism Canvas & Card Layers
+  static Color bgDark = const Color(0xFFF8FAFC); // Clean Canvas Slate-50
+  static Color bgCard = Colors.white; // Pure white glass cards
+  static Color bgCardLight = const Color(0xFFF1F5F9);
+  static Color bgSurface = const Color(0xFFF8FAFC);
+  static Color cardDark = Colors.white;
+  static Color borderDark = const Color(0xFFE2E8F0);
   
   // Additional theme colors for compatibility
   static Color get cardBg => bgCard;
   static Color get borderLight => borderDark;
 
-  static Color textPrimary = Colors.white;
-  static Color textSecondary = const Color(0xFFCBD5E1);
-  static Color textMuted = const Color(0xFF94A3B8);
-  static Color borderColor = const Color(0xFF475569);
+  static Color textPrimary = const Color(0xFF0F172A); // High contrast dark slate (visible on white glass)
+  static Color textSecondary = const Color(0xFF475569); // Slate-600
+  static Color textMuted = const Color(0xFF64748B); // Slate-500
+  static Color borderColor = const Color(0xFFE2E8F0);
 
   static const double radiusSm = 12;
   static const double radiusMd = 16;
   static const double radiusLg = 20;
   static const double radiusXl = 24;
 
-  static Color get labelColor => textPrimary.withValues(alpha: 0.82);
-  static Color get helperTextColor => textSecondary.withValues(alpha: 0.78);
-  static Color get fieldFill => textPrimary.withValues(alpha: 0.075);
-  static Color get fieldBorder => textPrimary.withValues(alpha: 0.14);
-  static Color get fieldIconColor => textSecondary.withValues(alpha: 0.9);
-  static Color get fieldHintColor => textSecondary.withValues(alpha: 0.72);
-  static Color get cardBorder => textPrimary.withValues(alpha: 0.10);
+  static Color get labelColor => const Color(0xFF1E293B);
+  static Color get helperTextColor => const Color(0xFF64748B);
+  static Color get fieldFill => Colors.white.withValues(alpha: 0.90);
+  static Color get fieldBorder => const Color(0xFFE2E8F0);
+  static Color get fieldIconColor => const Color(0xFF64748B);
+  static Color get fieldHintColor => const Color(0xFF94A3B8);
+  static Color get cardBorder => Colors.white;
 
   // === SHADOWS ===
   static List<BoxShadow> get primaryShadow => [
     BoxShadow(
-      color: primary.withValues(alpha: 0.3),
-      blurRadius: 20,
-      offset: const Offset(0, 8),
+      color: primary.withValues(alpha: 0.28),
+      blurRadius: 16,
+      offset: const Offset(0, 6),
     ),
   ];
 
   static List<BoxShadow> get cardShadow => [
     BoxShadow(
-      color: Colors.black.withValues(alpha: 0.24),
+      color: const Color(0xFF0F172A).withValues(alpha: 0.065),
       blurRadius: 18,
-      offset: const Offset(0, 8),
+      offset: const Offset(0, 6),
+    ),
+    BoxShadow(
+      color: const Color(0xFF0F172A).withValues(alpha: 0.025),
+      blurRadius: 4,
+      offset: const Offset(0, 1),
     ),
   ];
 
@@ -72,9 +78,12 @@ class AppTheme {
     List<BoxShadow>? shadows,
   }) {
     return BoxDecoration(
-      color: color ?? bgCard,
+      color: color ?? Colors.white.withValues(alpha: 0.94),
       borderRadius: BorderRadius.circular(radius),
-      border: Border.all(color: borderColor ?? cardBorder),
+      border: Border.all(
+        color: borderColor ?? Colors.white,
+        width: 1.5,
+      ),
       boxShadow: shadows ?? cardShadow,
     );
   }
@@ -88,36 +97,31 @@ class AppTheme {
     Gradient? gradient,
   }) {
     final baseColor = color ?? Colors.white;
-    final bool isDark = baseColor.computeLuminance() < 0.2;
-    final double surfaceAlpha = isDark ? 0.20 : 0.72;
-
     return BoxDecoration(
       gradient: gradient ??
           LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              baseColor.withValues(alpha: (surfaceAlpha * 1.05).clamp(0.0, 0.95)),
-              baseColor.withValues(alpha: surfaceAlpha),
-              baseColor.withValues(alpha: (surfaceAlpha * 0.90).clamp(0.0, 0.90)),
+              baseColor.withValues(alpha: 0.96),
+              baseColor.withValues(alpha: 0.90),
+              baseColor.withValues(alpha: 0.92),
             ],
           ),
       borderRadius: BorderRadius.circular(radius),
       border: Border.all(
-        color: borderColor ?? (isDark
-            ? Colors.white.withValues(alpha: 0.18)
-            : Colors.white.withValues(alpha: 0.88)),
-        width: 1.2,
+        color: borderColor ?? Colors.white,
+        width: 1.5,
       ),
       boxShadow: [
         BoxShadow(
-          color: const Color(0xFF0F172A).withValues(alpha: 0.04),
-          blurRadius: 16,
-          offset: const Offset(0, 4),
+          color: const Color(0xFF0F172A).withValues(alpha: 0.065),
+          blurRadius: 18,
+          offset: const Offset(0, 6),
         ),
         if (glow)
           BoxShadow(
-            color: (color ?? primary).withValues(alpha: 0.22),
+            color: primary.withValues(alpha: 0.20),
             blurRadius: 22,
             spreadRadius: -2,
           ),
@@ -166,8 +170,8 @@ class AppTheme {
     final bg = backgroundColor ?? primary;
     return ElevatedButton.styleFrom(
       backgroundColor: bg,
-      foregroundColor: foregroundColor ?? textPrimary,
-      elevation: 8,
+      foregroundColor: foregroundColor ?? Colors.white,
+      elevation: 2,
       shadowColor: bg.withValues(alpha: 0.35),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(radius),
@@ -196,7 +200,7 @@ class AppTheme {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(radiusMd),
-        borderSide: BorderSide(color: primaryLight, width: 1.5),
+        borderSide: BorderSide(color: primary, width: 1.5),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(radiusMd),
@@ -211,28 +215,74 @@ class AppTheme {
   }
 
   // === THEME DATA ===
-  static ThemeData get darkTheme => ThemeData(
-    brightness: Brightness.dark,
+  static ThemeData get lightTheme => ThemeData(
+    brightness: Brightness.light,
     scaffoldBackgroundColor: bgDark,
-    colorScheme: ColorScheme.dark(
+    appBarTheme: AppBarTheme(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      centerTitle: true,
+      systemOverlayStyle: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarBrightness: Brightness.light,
+        statusBarIconBrightness: Brightness.dark,
+      ),
+      titleTextStyle: GoogleFonts.kantumruyPro(
+        color: textPrimary,
+        fontWeight: FontWeight.bold,
+        fontSize: 18,
+      ),
+      iconTheme: IconThemeData(color: textPrimary),
+    ),
+    colorScheme: ColorScheme.light(
       primary: primary,
       secondary: secondary,
       surface: bgCard,
       error: error,
     ),
     inputDecorationTheme: InputDecorationTheme(
-      filled: false,
-      fillColor: Colors.transparent,
+      filled: true,
+      fillColor: fieldFill,
       hintStyle: GoogleFonts.kantumruyPro(color: fieldHintColor),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(radiusMd),
-        borderSide: BorderSide.none,
+        borderSide: BorderSide(color: fieldBorder),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(radiusMd),
-        borderSide: BorderSide.none,
+        borderSide: BorderSide(color: fieldBorder),
       ),
       focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(radiusMd),
+        borderSide: BorderSide(color: primary, width: 1.5),
+      ),
+    ),
+    elevatedButtonTheme: ElevatedButtonThemeData(style: filledButtonStyle()),
+    textTheme: GoogleFonts.kantumruyProTextTheme(ThemeData.light().textTheme)
+        .copyWith(
+          bodyLarge: GoogleFonts.kantumruyPro(color: textPrimary),
+          bodyMedium: GoogleFonts.kantumruyPro(color: textSecondary),
+          titleLarge: GoogleFonts.kantumruyPro(
+            color: textPrimary,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+  );
+
+  static ThemeData get darkTheme => ThemeData(
+    brightness: Brightness.dark,
+    scaffoldBackgroundColor: const Color(0xFF0F172A),
+    colorScheme: ColorScheme.dark(
+      primary: primary,
+      secondary: secondary,
+      surface: const Color(0xFF1F2937),
+      error: error,
+    ),
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: Colors.white.withValues(alpha: 0.08),
+      hintStyle: GoogleFonts.kantumruyPro(color: Colors.white54),
+      border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(radiusMd),
         borderSide: BorderSide.none,
       ),
@@ -241,14 +291,11 @@ class AppTheme {
     textTheme: GoogleFonts.kantumruyProTextTheme(ThemeData.dark().textTheme)
         .copyWith(
           bodyLarge: GoogleFonts.kantumruyPro(color: Colors.white),
-          bodyMedium: GoogleFonts.kantumruyPro(color: textSecondary),
+          bodyMedium: GoogleFonts.kantumruyPro(color: const Color(0xFFCBD5E1)),
           titleLarge: GoogleFonts.kantumruyPro(
             color: Colors.white,
             fontWeight: FontWeight.bold,
           ),
         ),
   );
-
-  static ThemeData get lightTheme =>
-      darkTheme; // Fallback for simple implementation
 }

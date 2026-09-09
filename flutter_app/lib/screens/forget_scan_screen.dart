@@ -217,16 +217,22 @@ class _ForgetScanScreenState extends State<ForgetScanScreen> {
                     Container(
                       padding: const EdgeInsets.all(24),
                       decoration: BoxDecoration(
-                        color: AppTheme.bgCard.withValues(alpha: 0.8),
-                        borderRadius: BorderRadius.circular(32),
+                        color: Colors.white.withValues(alpha: 0.94),
+                        borderRadius: BorderRadius.circular(28),
                         border: Border.all(
-                          color: AppTheme.textPrimary.withValues(alpha: 0.08),
+                          color: Colors.white,
+                          width: 1.5,
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.3),
+                            color: const Color(0xFF0F172A).withValues(alpha: 0.065),
                             blurRadius: 20,
-                            offset: const Offset(0, 10),
+                            offset: const Offset(0, 8),
+                          ),
+                          BoxShadow(
+                            color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+                            blurRadius: 4,
+                            offset: const Offset(0, 1),
                           ),
                         ],
                       ),
@@ -332,24 +338,54 @@ class _ForgetScanScreenState extends State<ForgetScanScreen> {
             bottom: 0,
             left: 0,
             right: 0,
-            child: Padding(
+            child: Container(
               padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.white.withValues(alpha: 0.0),
+                    Colors.white.withValues(alpha: 0.88),
+                    Colors.white,
+                  ],
+                  stops: const [0.0, 0.4, 1.0],
+                ),
+              ),
               child: SafeArea(
                 child: _isLoading
                     ? const Center(child: CircularProgressIndicator())
-                    : SizedBox(
+                    : Container(
                         width: double.infinity,
-                        height: 55,
+                        height: 52,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFFD97706).withValues(alpha: 0.35),
+                              blurRadius: 14,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
+                        ),
                         child: ElevatedButton(
                           onPressed: _submit,
-                          style: AppTheme.filledButtonStyle(
-                            backgroundColor: AppTheme.danger,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.transparent,
+                            shadowColor: Colors.transparent,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
                           ),
                           child: Text(
                             "បញ្ជូនសំណើភ្លេចស្កេន",
                             style: GoogleFonts.kantumruyPro(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
+                              color: Colors.white,
                             ),
                           ),
                         ),

@@ -63,19 +63,19 @@ class RequestsScreen extends StatelessWidget {
                             icon: Icon(
                               Icons.history_rounded,
                               size: 18,
-                              color: AppTheme.primaryLight,
+                              color: AppTheme.primary,
                             ),
                             label: Text(
                               "បញ្ជីសំណើ",
                               style: GoogleFonts.kantumruyPro(
-                                color: AppTheme.primaryLight,
+                                color: AppTheme.primary,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 13,
                               ),
                             ),
                             style: TextButton.styleFrom(
                               backgroundColor: AppTheme.primary.withValues(
-                                alpha: 0.1,
+                                alpha: 0.12,
                               ),
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 12,
@@ -83,6 +83,9 @@ class RequestsScreen extends StatelessWidget {
                               ),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(10),
+                                side: BorderSide(
+                                  color: AppTheme.primary.withValues(alpha: 0.25),
+                                ),
                               ),
                             ),
                           ),
