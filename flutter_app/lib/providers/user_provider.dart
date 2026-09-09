@@ -7,6 +7,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import '../services/api_service.dart';
 import '../services/secure_storage_service.dart';
 import '../utils/company_theme.dart';
+import '../utils/app_theme.dart';
 
 /// តួនាទីក្នុងប្រព័ន្ធ HRM
 enum SystemRole { employee, worker, skills, it, admin, hrm, accounting }
@@ -228,7 +229,11 @@ class UserProvider with ChangeNotifier {
         department: _department,
         branch: _branch,
       );
-  CompanyTheme get companyTheme => CompanyTheme.forBrand(companyBrand);
+  CompanyTheme get companyTheme {
+    final theme = CompanyTheme.forBrand(companyBrand);
+    AppTheme.applyCompanyTheme(theme);
+    return theme;
+  }
   bool get isSKCompany => companyBrand == CompanyBrand.sk;
 
   void setFaceRegistered(bool value) {
@@ -451,6 +456,7 @@ class UserProvider with ChangeNotifier {
 
       if (_token != null && _employeeId != null && _token!.isNotEmpty && _employeeId!.isNotEmpty) {
         _isLoggedIn = true;
+        AppTheme.applyCompanyTheme(companyTheme);
         _refreshFcmTokenSilently();
       }
     } finally {
@@ -627,6 +633,7 @@ class UserProvider with ChangeNotifier {
       );
 
       // ទាញយកការកំណត់ (Settings) ភ្លាមៗក្រោយពេល Login ជោគជ័យ
+      AppTheme.applyCompanyTheme(companyTheme);
       await refreshConfig();
       await refreshProfile();
 
@@ -665,6 +672,7 @@ class UserProvider with ChangeNotifier {
       _attendanceStreak =
           int.tryParse(user['attendance_streak']?.toString() ?? '0') ?? 0;
 
+      AppTheme.applyCompanyTheme(companyTheme);
       final prefs = await SharedPreferences.getInstance();
       if (_employeeId != null) {
         await prefs.setString('employee_id', _employeeId!);

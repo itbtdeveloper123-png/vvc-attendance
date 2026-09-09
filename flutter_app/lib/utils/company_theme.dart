@@ -53,7 +53,7 @@ class CompanyTheme {
   });
 
   /// ក្រុមហ៊ុនទី ១៖ Vvc
-  /// - Card Primary Gold: #F3D010
+  /// - Card Primary Rich Amber/Gold: #D97706
   /// - Background: White (#FFFFFF / #F8FAFC)
   static const CompanyTheme vvc = CompanyTheme(
     brand: CompanyBrand.vvc,
@@ -61,17 +61,17 @@ class CompanyTheme {
     brandLabel: 'Vvc HRM',
     passTitle: 'Vvc HRM EMPLOYEE PASS',
     backgroundColor: Color(0xFFF8FAFC),
-    cardPrimary: Color(0xFFF3D010),
-    cardSecondary: Color(0xFFDFBC00),
+    cardPrimary: Color(0xFFD97706),
+    cardSecondary: Color(0xFFB45309),
     cardBackground: Colors.white,
     cardBorder: Color(0xFFE2E8F0),
-    passCardColor: Color(0xFFF3D010),
+    passCardColor: Color(0xFFD97706),
     passCardTextColor: Colors.white,
     textPrimary: Color(0xFF0F172A),
     textSecondary: Color(0xFF475569),
     textMuted: Color(0xFF64748B),
-    glowColor: Color(0xFFF3D010),
-    orbPrimary: Color(0xFFF3D010),
+    glowColor: Color(0xFFD97706),
+    orbPrimary: Color(0xFFD97706),
     orbSecondary: Color(0xFF38BDF8),
     orbAccent: Color(0xFFA855F7),
     isDarkTheme: false,

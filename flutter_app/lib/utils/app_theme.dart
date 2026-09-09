@@ -2,9 +2,41 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'company_theme.dart';
 
 class AppTheme {
   static bool isDarkMode = false;
+
+  /// កំណត់ពណ៌ Theme ទៅតាម CompanyBrand (Vvc ឬ SK)
+  static void applyCompanyTheme(CompanyTheme companyTheme) {
+    if (companyTheme.brand == CompanyBrand.sk) {
+      primary = companyTheme.cardPrimary; // SK Deep Amber Gold #C08207
+      primaryDark = companyTheme.cardSecondary; // #A16207
+      primaryLight = const Color(0xFFFDE68A);
+      bgDark = companyTheme.backgroundColor; // #F7F1E4 (Warm light gold tint)
+      bgCard = companyTheme.cardBackground; // #FFFDF8 (Ivory card)
+      bgSurface = companyTheme.backgroundColor;
+      cardDark = companyTheme.cardBackground;
+      textPrimary = companyTheme.textPrimary; // #292524 (Warm deep stone)
+      textSecondary = companyTheme.textSecondary; // #78716C
+      textMuted = companyTheme.textMuted; // #A8A29E
+      borderColor = companyTheme.cardBorder; // #E8DCC2 (Warm champagne border)
+      borderDark = companyTheme.cardBorder;
+    } else {
+      primary = const Color(0xFFD97706); // VVC Rich Amber/Gold
+      primaryDark = const Color(0xFFB45309);
+      primaryLight = const Color(0xFFFDE68A);
+      bgDark = const Color(0xFFF8FAFC); // Clean Slate-50 Canvas
+      bgCard = Colors.white; // Pure white glass cards
+      bgSurface = const Color(0xFFF8FAFC);
+      cardDark = Colors.white;
+      textPrimary = const Color(0xFF0F172A); // High contrast dark slate
+      textSecondary = const Color(0xFF475569);
+      textMuted = const Color(0xFF64748B);
+      borderColor = const Color(0xFFE2E8F0);
+      borderDark = const Color(0xFFE2E8F0);
+    }
+  }
 
   // === BRAND COLOR PALETTE (Rich Amber/Gold matching HomeScreen) ===
   static Color primary = const Color(0xFFD97706); // Rich Amber/Gold

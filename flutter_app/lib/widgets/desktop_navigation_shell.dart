@@ -85,7 +85,7 @@ class _DesktopNavigationShellState extends State<DesktopNavigationShell> {
           ],
         ),
         content: Text(
-          'តើអ្នកប្រាកដជាចង់ចាកចេញពីប្រព័ន្ធ VVC HRM មែនទេ?',
+          'តើអ្នកប្រាកដជាចង់ចាកចេញពីប្រព័ន្ធ ${userProvider.companyTheme.brandLabel} មែនទេ?',
           style: GoogleFonts.kantumruyPro(
             color: Colors.white70,
             fontSize: 13.5,
@@ -221,7 +221,7 @@ class _DesktopNavigationShellState extends State<DesktopNavigationShell> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'VVC GROUP',
+                                  userProvider.isSKCompany ? 'SK GROUP' : 'VVC GROUP',
                                   style: GoogleFonts.outfit(
                                     color: Colors.white,
                                     fontSize: 16,
