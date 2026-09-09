@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../utils/app_theme.dart';
 
 // ============================================================================
 // MESSAGE TYPE ENUM
@@ -235,10 +236,10 @@ class _VvcContextMenuOverlayState extends State<_VvcContextMenuOverlay>
   late Animation<double> _scaleAnim;
   late Animation<double> _fadeAnim;
 
-  static const Color _cardBg = Color(0xFF2C2C2E);
-  static const Color _accentColor = Color(0xFF3388FF);
+  static Color get _cardBg => AppTheme.bgCard;
+  static Color get _accentColor => AppTheme.primary;
   static const Color _dangerColor = Color(0xFFFF453A);
-  static const Color _dividerColor = Color(0x1AFFFFFF);
+  static Color get _dividerColor => AppTheme.border;
 
   final List<String> _defaultEmojis = const ['⭐', '✏️', '💡', '📅', '🔥', '⚡', '👍', '❤️', '😆'];
 
@@ -432,7 +433,7 @@ class _VvcContextMenuOverlayState extends State<_VvcContextMenuOverlay>
               child: BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
                 child: Container(
-                  color: Colors.black.withValues(alpha: 0.55),
+                  color: Colors.black.withValues(alpha: 0.3),
                 ),
               ),
             ),
@@ -468,7 +469,7 @@ class _VvcContextMenuOverlayState extends State<_VvcContextMenuOverlay>
                           // 1. Focused Target Message Bubble Preview
                           constrainedChild,
                           const SizedBox(height: 8.0),
-                          // 2. Clean Context Action Menu Card (#2C2C2E)
+                          // 2. Clean Context Action Menu Card
                           _buildContextMenuCard(menuItems),
                         ],
                       ),
@@ -489,10 +490,10 @@ class _VvcContextMenuOverlayState extends State<_VvcContextMenuOverlay>
       decoration: BoxDecoration(
         color: _cardBg,
         borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.12), width: 0.8),
+        border: Border.all(color: _dividerColor, width: 0.8),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.4),
+            color: Colors.black.withValues(alpha: 0.12),
             blurRadius: 16,
             offset: const Offset(0, 4),
           ),
@@ -530,10 +531,10 @@ class _VvcContextMenuOverlayState extends State<_VvcContextMenuOverlay>
       decoration: BoxDecoration(
         color: _cardBg,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.12), width: 0.8),
+        border: Border.all(color: _dividerColor, width: 0.8),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.4),
+            color: Colors.black.withValues(alpha: 0.14),
             blurRadius: 20,
             offset: const Offset(0, 6),
           ),
@@ -543,10 +544,10 @@ class _VvcContextMenuOverlayState extends State<_VvcContextMenuOverlay>
         mainAxisSize: MainAxisSize.min,
         children: items.map((item) {
           if (item.isDivider) {
-            return const Divider(height: 1, color: _dividerColor);
+            return Divider(height: 1, color: _dividerColor);
           }
 
-          final Color textColor = item.isDestructive ? _dangerColor : Colors.white;
+          final Color textColor = item.isDestructive ? _dangerColor : AppTheme.textPrimary;
           final Color iconColor = item.isDestructive ? _dangerColor : _accentColor;
 
           return InkWell(

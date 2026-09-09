@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../utils/app_theme.dart';
 
 // ==========================================
 // CHAT WALLPAPER MANAGER & SELECTION SHEET
@@ -111,7 +112,7 @@ class _WallpaperPickerSheetState extends State<_WallpaperPickerSheet> {
             'បានប្តូរ Wallpaper Theme រួចរាល់!',
             style: GoogleFonts.kantumruyPro(color: Colors.white),
           ),
-          backgroundColor: const Color(0xFF0084FF),
+          backgroundColor: AppTheme.primary,
           duration: const Duration(seconds: 2),
         ),
       );
@@ -121,9 +122,10 @@ class _WallpaperPickerSheetState extends State<_WallpaperPickerSheet> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFF1C1C1E),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24.0)),
+      decoration: BoxDecoration(
+        color: AppTheme.bgCard,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24.0)),
+        border: Border(top: BorderSide(color: AppTheme.border, width: 1.0)),
       ),
       padding: const EdgeInsets.fromLTRB(16.0, 12.0, 16.0, 24.0),
       child: Column(
@@ -136,7 +138,7 @@ class _WallpaperPickerSheetState extends State<_WallpaperPickerSheet> {
               width: 38.0,
               height: 4.5,
               decoration: BoxDecoration(
-                color: Colors.white30,
+                color: AppTheme.border,
                 borderRadius: BorderRadius.circular(3.0),
               ),
             ),
@@ -146,7 +148,7 @@ class _WallpaperPickerSheetState extends State<_WallpaperPickerSheet> {
           // Sheet Title
           Row(
             children: [
-              const Icon(Icons.wallpaper_rounded, color: Color(0xFF0084FF), size: 24.0),
+              Icon(Icons.wallpaper_rounded, color: AppTheme.primary, size: 24.0),
               const SizedBox(width: 10.0),
               Expanded(
                 child: Column(
@@ -155,7 +157,7 @@ class _WallpaperPickerSheetState extends State<_WallpaperPickerSheet> {
                     Text(
                       'ប្តូរប្រធានបទសារ (Chat Theme)',
                       style: GoogleFonts.kantumruyPro(
-                        color: Colors.white,
+                        color: AppTheme.textPrimary,
                         fontSize: 17.0,
                         fontWeight: FontWeight.bold,
                       ),
@@ -163,7 +165,7 @@ class _WallpaperPickerSheetState extends State<_WallpaperPickerSheet> {
                     Text(
                       'សម្រាប់៖ ${widget.targetName}',
                       style: GoogleFonts.kantumruyPro(
-                        color: const Color(0xFFB0B3B8),
+                        color: AppTheme.textSecondary,
                         fontSize: 13.0,
                       ),
                     ),
@@ -197,10 +199,10 @@ class _WallpaperPickerSheetState extends State<_WallpaperPickerSheet> {
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(16.0),
                       border: Border.all(
-                        color: isSelected ? const Color(0xFF0084FF) : Colors.white12,
+                        color: isSelected ? AppTheme.primary : AppTheme.border,
                         width: isSelected ? 3.0 : 1.0,
                       ),
-                      color: const Color(0xFF242526),
+                      color: AppTheme.bgSurface,
                     ),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(13.0),
@@ -214,9 +216,9 @@ class _WallpaperPickerSheetState extends State<_WallpaperPickerSheet> {
                             )
                           else
                             Container(
-                              color: Colors.black,
-                              child: const Center(
-                                child: Icon(Icons.block_rounded, color: Colors.white38, size: 28.0),
+                              color: AppTheme.bgSurface,
+                              child: Center(
+                                child: Icon(Icons.block_rounded, color: AppTheme.textSecondary, size: 28.0),
                               ),
                             ),
 
@@ -247,8 +249,8 @@ class _WallpaperPickerSheetState extends State<_WallpaperPickerSheet> {
                               right: 6.0,
                               child: Container(
                                 padding: const EdgeInsets.all(3.0),
-                                decoration: const BoxDecoration(
-                                  color: Color(0xFF0084FF),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.primary,
                                   shape: BoxShape.circle,
                                 ),
                                 child: const Icon(Icons.check_rounded, color: Colors.white, size: 14.0),
@@ -271,14 +273,14 @@ class _WallpaperPickerSheetState extends State<_WallpaperPickerSheet> {
               children: [
                 Checkbox(
                   value: _applyToAll,
-                  activeColor: const Color(0xFF0084FF),
+                  activeColor: AppTheme.primary,
                   onChanged: (val) => setState(() => _applyToAll = val ?? false),
                 ),
                 Expanded(
                   child: Text(
                     'អនុវត្តប្រធានបទនេះទៅកាន់គ្រប់សារទាំងអស់ (Apply to all chats)',
                     style: GoogleFonts.kantumruyPro(
-                      color: const Color(0xFFB0B3B8),
+                      color: AppTheme.textSecondary,
                       fontSize: 13.0,
                     ),
                   ),
@@ -295,7 +297,7 @@ class _WallpaperPickerSheetState extends State<_WallpaperPickerSheet> {
             child: ElevatedButton(
               onPressed: _saveTheme,
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF0084FF),
+                backgroundColor: AppTheme.primary,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14.0)),
               ),
               child: Text(

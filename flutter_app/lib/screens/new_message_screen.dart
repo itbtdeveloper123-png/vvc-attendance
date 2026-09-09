@@ -168,7 +168,7 @@ class _NewMessageScreenState extends State<NewMessageScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.bgDark,
+      backgroundColor: AppTheme.bgSurface,
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -216,7 +216,7 @@ class _NewMessageScreenState extends State<NewMessageScreen> {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                               decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.06),
+                                color: AppTheme.primary.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Text(
@@ -316,12 +316,12 @@ class _NewMessageScreenState extends State<NewMessageScreen> {
                 color: AppTheme.bgCard,
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.1),
+                  color: AppTheme.border,
                 ),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.arrow_back_ios_new_rounded,
-                color: Colors.white,
+                color: AppTheme.textPrimary,
                 size: 17,
               ),
             ),
@@ -368,15 +368,15 @@ class _NewMessageScreenState extends State<NewMessageScreen> {
           color: AppTheme.bgCard,
           borderRadius: BorderRadius.circular(14.0),
           border: Border.all(
-            color: Colors.white.withValues(alpha: 0.08),
+            color: AppTheme.border,
           ),
         ),
         child: Row(
           children: [
             const SizedBox(width: 12),
-            const Icon(
+            Icon(
               Icons.search_rounded,
-              color: Color(0xFFD4AF37),
+              color: AppTheme.primary,
               size: 20,
             ),
             const SizedBox(width: 10),
@@ -518,11 +518,11 @@ class _NewMessageScreenState extends State<NewMessageScreen> {
           color: AppTheme.bgCard,
           borderRadius: BorderRadius.circular(16.0),
           border: Border.all(
-            color: Colors.white.withValues(alpha: 0.07),
+            color: AppTheme.border,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.15),
+              color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -574,9 +574,9 @@ class _NewMessageScreenState extends State<NewMessageScreen> {
                 ],
               ),
             ),
-            const Icon(
+            Icon(
               Icons.chevron_right_rounded,
-              color: Colors.white38,
+              color: AppTheme.textSecondary,
               size: 20.0,
             ),
           ],
@@ -608,7 +608,7 @@ class _NewMessageScreenState extends State<NewMessageScreen> {
             color: AppTheme.bgCard,
             borderRadius: BorderRadius.circular(16.0),
             border: Border.all(
-              color: Colors.white.withValues(alpha: 0.05),
+              color: AppTheme.border,
             ),
           ),
           child: Row(
@@ -624,7 +624,7 @@ class _NewMessageScreenState extends State<NewMessageScreen> {
                       border: Border.all(
                         color: isOnline
                             ? const Color(0xFF10B981)
-                            : Colors.white.withValues(alpha: 0.15),
+                            : AppTheme.border,
                         width: 1.5,
                       ),
                     ),
@@ -729,12 +729,12 @@ class _NewMessageScreenState extends State<NewMessageScreen> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.05),
+                  color: AppTheme.primary.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.chat_bubble_outline_rounded,
-                  color: Color(0xFFD4AF37),
+                  color: AppTheme.primary,
                   size: 18,
                 ),
               ),

@@ -35,6 +35,8 @@ import 'group_settings_screen.dart';
 import 'user_profile_screen.dart';
 import '../services/call_service.dart';
 import 'call/active_call_screen.dart';
+import '../utils/app_theme.dart';
+
 Color _getAvatarBgColor(String name) {
   if (name.isEmpty) return const Color(0xFF0084FF);
   const colors = [
@@ -90,14 +92,8 @@ MemoryImage _getMemoryImage(String base64Str) {
 }
 
 // ==========================================
-// MESSENGER DARK THEME TOKENS
+// CHAT DETAIL SCREEN
 // ==========================================
-class _MsgDark {
-  static const Color sentBubble = Color(0xFFD4AF37);
-  static const Color textMuted = Color(0xFF94A3B8);
-  static const Color iconColor = Color(0xFFD4AF37);
-}
-
 class ChatDetailScreen extends StatefulWidget {
   final String targetUserId;
   final String targetUserName;
@@ -497,32 +493,18 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       onTap: () => FocusScope.of(context).unfocus(),
       behavior: HitTestBehavior.opaque,
       child: Scaffold(
-        backgroundColor: const Color(0xFF0F172A),
+        backgroundColor: AppTheme.bgSurface,
         body: Stack(
           children: [
-            // 1. Background Wallpaper Layer with Dark Purple Overlay & Gradient
+            // 1. Background Wallpaper Layer with subtle clean pattern
             Positioned.fill(
               child: Container(
-                decoration: BoxDecoration(
-                  image: DecorationImage(
-                    image: AssetImage(_currentWallpaper.isNotEmpty ? _currentWallpaper : 'assets/wallpapers/01.jpg'),
+                color: AppTheme.bgSurface,
+                child: Opacity(
+                  opacity: 0.05,
+                  child: Image.asset(
+                    _currentWallpaper.isNotEmpty ? _currentWallpaper : 'assets/wallpapers/01.jpg',
                     fit: BoxFit.cover,
-                    colorFilter: const ColorFilter.mode(
-                      Color(0xFF2E1A47),
-                      BlendMode.color,
-                    ),
-                  ),
-                ),
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        const Color(0xFF1E112C).withValues(alpha: 0.85),
-                        const Color(0xFF0F081D).withValues(alpha: 0.92),
-                      ],
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                    ),
                   ),
                 ),
               ),
@@ -565,10 +547,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
   Widget _buildSelectionBottomBar() {
     return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFF1E2738),
+      decoration: BoxDecoration(
+        color: AppTheme.bgCard,
         border: Border(
-          top: BorderSide(color: Colors.white12, width: 0.5),
+          top: BorderSide(color: AppTheme.border, width: 0.8),
         ),
       ),
       padding: EdgeInsets.fromLTRB(16, 12, 16, MediaQuery.of(context).padding.bottom + 12),
@@ -582,8 +564,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                 _selectedDocIds.clear();
               });
             },
-            icon: const Icon(Icons.close_rounded, color: Colors.white70),
-            label: Text('បោះបង់', style: GoogleFonts.kantumruyPro(color: Colors.white70)),
+            icon: Icon(Icons.close_rounded, color: AppTheme.textSecondary),
+            label: Text('បោះបង់', style: GoogleFonts.kantumruyPro(color: AppTheme.textSecondary)),
           ),
           ElevatedButton.icon(
             onPressed: _confirmDeleteSelectedMessages,
@@ -710,41 +692,41 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
     if (_isSelectionMode) {
       return Container(
-        decoration: const BoxDecoration(
-          color: Color(0xFC1C1C1E),
+        decoration: BoxDecoration(
+          color: AppTheme.bgCard,
           border: Border(
-            bottom: BorderSide(color: Color(0x1FFFFFFF), width: 0.5),
+            bottom: BorderSide(color: AppTheme.border, width: 0.8),
           ),
         ),
         padding: EdgeInsets.fromLTRB(12.0, topPadding > 0 ? topPadding + 4.0 : 10.0, 12.0, 10.0),
         child: Row(
           children: [
-                IconButton(
-                  icon: const Icon(Icons.close_rounded, color: Colors.white, size: 24),
-                  onPressed: () {
-                    setState(() {
-                      _isSelectionMode = false;
-                      _selectedDocIds.clear();
-                    });
-                  },
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    '${_selectedDocIds.length} ត្រូវបានជ្រើសរើស',
-                    style: GoogleFonts.kantumruyPro(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.delete_rounded, color: Colors.redAccent, size: 24),
-                  onPressed: _confirmDeleteSelectedMessages,
-                ),
-              ],
+            IconButton(
+              icon: Icon(Icons.close_rounded, color: AppTheme.textPrimary, size: 24),
+              onPressed: () {
+                setState(() {
+                  _isSelectionMode = false;
+                  _selectedDocIds.clear();
+                });
+              },
             ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                '${_selectedDocIds.length} ត្រូវបានជ្រើសរើស',
+                style: GoogleFonts.kantumruyPro(
+                  color: AppTheme.textPrimary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete_rounded, color: Colors.redAccent, size: 24),
+              onPressed: _confirmDeleteSelectedMessages,
+            ),
+          ],
+        ),
       );
     }
 
@@ -753,10 +735,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
           child: Container(
-            decoration: const BoxDecoration(
-              color: Color(0xDC1C1C1E),
+            decoration: BoxDecoration(
+              color: AppTheme.bgCard.withValues(alpha: 0.95),
               border: Border(
-                bottom: BorderSide(color: Color(0x1FFFFFFF), width: 0.5),
+                bottom: BorderSide(color: AppTheme.border, width: 0.8),
               ),
             ),
             padding: EdgeInsets.fromLTRB(12.0, topPadding > 0 ? topPadding + 4.0 : 10.0, 12.0, 10.0),
@@ -766,24 +748,24 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                   child: Container(
                     height: 38,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF262629),
+                      color: const Color(0xFFF1F5F9),
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.08), width: 0.5),
+                      border: Border.all(color: AppTheme.border, width: 0.8),
                     ),
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     child: Row(
                       children: [
-                        const Icon(Icons.search_rounded, color: Color(0xFF8E8E93), size: 20),
+                        Icon(Icons.search_rounded, color: AppTheme.textSecondary, size: 20),
                         const SizedBox(width: 8),
                         Expanded(
                           child: TextField(
                             controller: _searchController,
                             autofocus: true,
-                            style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
-                            cursorColor: const Color(0xFF0A84FF),
+                            style: GoogleFonts.inter(color: AppTheme.textPrimary, fontSize: 15),
+                            cursorColor: AppTheme.primary,
                             decoration: InputDecoration(
                               hintText: 'Search this chat',
-                              hintStyle: GoogleFonts.inter(color: const Color(0xFF8E8E93), fontSize: 15),
+                              hintStyle: GoogleFonts.inter(color: AppTheme.textMuted, fontSize: 15),
                               border: InputBorder.none,
                               isDense: true,
                             ),
@@ -796,7 +778,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                               _searchController.clear();
                               setState(() {});
                             },
-                            child: const Icon(Icons.cancel_rounded, color: Color(0xFF8E8E93), size: 18),
+                            child: Icon(Icons.cancel_rounded, color: AppTheme.textSecondary, size: 18),
                           ),
                       ],
                     ),
@@ -811,9 +793,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                     });
                   },
                   borderRadius: BorderRadius.circular(16),
-                  child: const Padding(
-                    padding: EdgeInsets.all(4.0),
-                    child: Icon(Icons.close_rounded, color: Colors.white, size: 24),
+                  child: Padding(
+                    padding: const EdgeInsets.all(4.0),
+                    child: Icon(Icons.close_rounded, color: AppTheme.textPrimary, size: 24),
                   ),
                 ),
               ],
@@ -844,10 +826,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         filter: ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.28),
+            color: AppTheme.bgCard.withValues(alpha: 0.92),
             border: Border(
-              bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05), width: 0.5),
+              bottom: BorderSide(color: AppTheme.border, width: 0.8),
             ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
           padding: EdgeInsets.fromLTRB(12.0, topPadding > 0 ? topPadding + 6.0 : 12.0, 12.0, 10.0),
           child: Column(
@@ -864,7 +853,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(LucideIcons.arrowLeft, color: Colors.white, size: 20),
+                          Icon(LucideIcons.arrowLeft, color: AppTheme.textPrimary, size: 20),
                           StreamBuilder<QuerySnapshot>(
                             stream: _firestore
                                 .collection('chats')
@@ -884,7 +873,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                                 margin: const EdgeInsets.only(left: 6),
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF007AFF),
+                                  color: AppTheme.primary,
                                   borderRadius: BorderRadius.circular(10),
                                 ),
                                 child: Text(
@@ -920,7 +909,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                                       ? NetworkImage(ApiService.getFullImageUrl(widget.targetUserPhoto))
                                       : null,
                                   backgroundColor: widget.isGroup
-                                      ? const Color(0xFFFFB300)
+                                      ? AppTheme.primary
                                       : _getAvatarBgColor(widget.targetUserName),
                                   child: widget.targetUserPhoto.isEmpty
                                       ? (widget.isGroup
@@ -941,7 +930,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                                       decoration: BoxDecoration(
                                         color: const Color(0xFF10B981),
                                         shape: BoxShape.circle,
-                                        border: Border.all(color: Colors.black, width: 1.5),
+                                        border: Border.all(color: Colors.white, width: 1.5),
                                       ),
                                     ),
                                   ),
@@ -956,7 +945,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                                   Text(
                                     widget.targetUserName,
                                     style: GoogleFonts.kantumruyPro(
-                                      color: Colors.white,
+                                      color: AppTheme.textPrimary,
                                       fontWeight: FontWeight.w600,
                                       fontSize: 17.0,
                                     ),
@@ -966,8 +955,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                                   Text(
                                     statusText,
                                     style: GoogleFonts.inter(
-                                      color: const Color(0xFF8E8E93),
-                                      fontSize: 13.0,
+                                      color: _isTargetOnline ? const Color(0xFF10B981) : AppTheme.textSecondary,
+                                      fontSize: 12.5,
                                     ),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
@@ -986,9 +975,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                     InkWell(
                       onTap: () => _initiateCall('audio'),
                       borderRadius: BorderRadius.circular(20),
-                      child: const Padding(
-                        padding: EdgeInsets.all(6.0),
-                        child: Icon(LucideIcons.phone, color: Colors.white, size: 20),
+                      child: Padding(
+                        padding: const EdgeInsets.all(6.0),
+                        child: Icon(LucideIcons.phone, color: AppTheme.textPrimary, size: 20),
                       ),
                     ),
                   
@@ -997,9 +986,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                     InkWell(
                       onTap: () => _initiateCall('video'),
                       borderRadius: BorderRadius.circular(20),
-                      child: const Padding(
-                        padding: EdgeInsets.all(6.0),
-                        child: Icon(LucideIcons.video, color: Colors.white, size: 20),
+                      child: Padding(
+                        padding: const EdgeInsets.all(6.0),
+                        child: Icon(LucideIcons.video, color: AppTheme.textPrimary, size: 20),
                       ),
                     ),
 
@@ -1007,9 +996,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                   InkWell(
                     onTap: () => setState(() => _isSearchMode = true),
                     borderRadius: BorderRadius.circular(20),
-                    child: const Padding(
-                      padding: EdgeInsets.all(6.0),
-                      child: Icon(LucideIcons.search, color: Colors.white, size: 20),
+                    child: Padding(
+                      padding: const EdgeInsets.all(6.0),
+                      child: Icon(LucideIcons.search, color: AppTheme.textPrimary, size: 20),
                     ),
                   ),
                 ],
@@ -1021,9 +1010,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.1),
+                    color: AppTheme.bgSurface,
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.08), width: 0.5),
+                    border: Border.all(color: AppTheme.border, width: 0.8),
                   ),
                   child: Row(
                     children: [
@@ -1031,7 +1020,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                         width: 3,
                         height: 30,
                         decoration: BoxDecoration(
-                          color: const Color(0xFF007AFF),
+                          color: AppTheme.primary,
                           borderRadius: BorderRadius.circular(2),
                         ),
                       ),
@@ -1044,7 +1033,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                             Text(
                               'Pinned Message',
                               style: GoogleFonts.inter(
-                                color: Colors.white,
+                                color: AppTheme.primary,
                                 fontSize: 12.0,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -1053,7 +1042,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                             Text(
                               _pinnedMessage!,
                               style: GoogleFonts.inter(
-                                color: Colors.white70,
+                                color: AppTheme.textPrimary,
                                 fontSize: 11.5,
                               ),
                               maxLines: 1,
@@ -1065,9 +1054,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                       InkWell(
                         onTap: _unpinMessage,
                         borderRadius: BorderRadius.circular(12),
-                        child: const Padding(
-                          padding: EdgeInsets.all(4.0),
-                          child: Icon(Icons.close_rounded, color: Colors.white60, size: 18),
+                        child: Padding(
+                          padding: const EdgeInsets.all(4.0),
+                          child: Icon(Icons.close_rounded, color: AppTheme.textSecondary, size: 18),
                         ),
                       ),
                     ],
@@ -1138,21 +1127,29 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         margin: const EdgeInsets.symmetric(vertical: 4.0),
         padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
         decoration: BoxDecoration(
-          color: const Color(0xFF2C2C2E),
+          color: AppTheme.bgCard,
           borderRadius: BorderRadius.circular(18.0),
+          border: Border.all(color: AppTheme.border, width: 0.8),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+              blurRadius: 4,
+              offset: const Offset(0, 1),
+            ),
+          ],
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
               'កំពុងវាយ...',
-              style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 12.5),
+              style: GoogleFonts.kantumruyPro(color: AppTheme.textSecondary, fontSize: 12.5),
             ),
             const SizedBox(width: 8.0),
-            const SizedBox(
+            SizedBox(
               width: 14,
               height: 14,
-              child: CircularProgressIndicator(strokeWidth: 2.0, color: _MsgDark.iconColor),
+              child: CircularProgressIndicator(strokeWidth: 2.0, color: AppTheme.primary),
             ),
           ],
         ),
@@ -1167,8 +1164,16 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         margin: const EdgeInsets.symmetric(vertical: 4.0),
         padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
         decoration: BoxDecoration(
-          color: const Color(0xFF2C2C2E),
+          color: AppTheme.bgCard,
           borderRadius: BorderRadius.circular(18.0),
+          border: Border.all(color: AppTheme.border, width: 0.8),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+              blurRadius: 4,
+              offset: const Offset(0, 1),
+            ),
+          ],
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -1177,7 +1182,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             const SizedBox(width: 6.0),
             Text(
               'កំពុងថតសំឡេង...',
-              style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 12.5),
+              style: GoogleFonts.kantumruyPro(color: AppTheme.textSecondary, fontSize: 12.5),
             ),
           ],
         ),
@@ -1190,7 +1195,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   // ==========================================
   Widget _buildMessageFeed() {
     if (_isLoadingHistory) {
-      return const Center(child: CircularProgressIndicator(color: _MsgDark.iconColor));
+      return Center(child: CircularProgressIndicator(color: AppTheme.primary));
     }
     if (_messageDocs.isEmpty) {
       return Center(
@@ -1204,13 +1209,19 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                   ? NetworkImage(ApiService.getFullImageUrl(widget.targetUserPhoto))
                   : null,
               child: widget.targetUserPhoto.isEmpty
-                  ? Text(widget.targetUserName[0].toUpperCase(), style: GoogleFonts.inter(fontSize: 32, color: Colors.white, fontWeight: FontWeight.bold))
+                  ? Text(
+                      widget.targetUserName.isNotEmpty ? widget.targetUserName[0].toUpperCase() : 'U',
+                      style: GoogleFonts.kantumruyPro(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white),
+                    )
                   : null,
             ),
-            const SizedBox(height: 12),
-            Text(widget.targetUserName, style: GoogleFonts.kantumruyPro(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
-            const SizedBox(height: 4),
-            Text('ចាប់ផ្តើមការសន្ទនាជាមួយគ្នា!', style: GoogleFonts.kantumruyPro(color: _MsgDark.textMuted, fontSize: 13)),
+            const SizedBox(height: 16),
+            Text(
+              widget.targetUserName,
+              style: GoogleFonts.kantumruyPro(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.textPrimary),
+            ),
+            const SizedBox(height: 6),
+            Text('ចាប់ផ្តើមការសន្ទនាជាមួយគ្នា!', style: GoogleFonts.kantumruyPro(color: AppTheme.textMuted, fontSize: 13)),
           ],
         ),
       );
@@ -1307,7 +1318,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             },
             borderRadius: BorderRadius.circular(12),
             child: Container(
-              color: isSelected ? const Color(0xFF007AFF).withValues(alpha: 0.18) : Colors.transparent,
+              color: isSelected ? AppTheme.primary.withValues(alpha: 0.15) : Colors.transparent,
               padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
               child: Row(
                 children: [
@@ -1315,7 +1326,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                     padding: const EdgeInsets.only(right: 10, left: 4),
                     child: Icon(
                       isSelected ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
-                      color: isSelected ? const Color(0xFF007AFF) : Colors.white38,
+                      color: isSelected ? AppTheme.primary : AppTheme.textSecondary,
                       size: 24,
                     ),
                   ),
@@ -1361,16 +1372,23 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         margin: const EdgeInsets.symmetric(vertical: 14.0),
         padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 5.0),
         decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.35),
+          color: AppTheme.bgCard,
           borderRadius: BorderRadius.circular(14.0),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.08), width: 0.5),
+          border: Border.all(color: AppTheme.border, width: 0.8),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Text(
           dateStr,
           style: GoogleFonts.kantumruyPro(
-            color: Colors.white.withValues(alpha: 0.9),
+            color: AppTheme.textSecondary,
             fontSize: 12.0,
-            fontWeight: FontWeight.w500,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ),
@@ -1379,9 +1397,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
   Widget _buildReadStatusIcon(bool isRead, {bool isMine = false}) {
     if (isRead) {
-      return Icon(Icons.done_all_rounded, size: 15, color: isMine ? Colors.white : const Color(0xFF007AFF));
+      return Icon(Icons.done_all_rounded, size: 15, color: isMine ? Colors.white : AppTheme.primary);
     }
-    return Icon(Icons.done_rounded, size: 15, color: isMine ? Colors.white70 : Colors.white54);
+    return Icon(Icons.done_rounded, size: 15, color: isMine ? Colors.white70 : AppTheme.textSecondary);
   }
 
   // Text Message Bubble
@@ -1423,13 +1441,21 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
       constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.72),
       decoration: BoxDecoration(
-        color: isMine ? const Color(0xFF007AFF) : const Color(0xFF2C2C2E),
+        color: isMine ? AppTheme.primary : AppTheme.bgCard,
         borderRadius: BorderRadius.only(
           topLeft: const Radius.circular(18.0),
           topRight: const Radius.circular(18.0),
           bottomLeft: Radius.circular(isMine ? 18.0 : 4.0),
           bottomRight: Radius.circular(isMine ? 4.0 : 18.0),
         ),
+        border: isMine ? null : Border.all(color: AppTheme.border, width: 0.8),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1437,7 +1463,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           if (forwardedFrom != null && forwardedFrom.isNotEmpty) ...[
             Text(
               '↪️ បញ្ជូនបន្តពី $forwardedFrom',
-              style: GoogleFonts.kantumruyPro(fontSize: 11.0, color: Colors.white70, fontStyle: FontStyle.italic),
+              style: GoogleFonts.kantumruyPro(fontSize: 11.0, color: isMine ? Colors.white70 : AppTheme.textSecondary, fontStyle: FontStyle.italic),
             ),
             const SizedBox(height: 4),
           ],
@@ -1446,12 +1472,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               padding: const EdgeInsets.all(6),
               margin: const EdgeInsets.only(bottom: 6),
               decoration: BoxDecoration(
-                color: Colors.black26,
+                color: isMine ? Colors.black.withValues(alpha: 0.15) : AppTheme.bgSurface,
                 borderRadius: BorderRadius.circular(8),
+                border: isMine ? null : Border.all(color: AppTheme.border, width: 0.6),
               ),
               child: Text(
                 '↩️ $replyTo',
-                style: GoogleFonts.kantumruyPro(fontSize: 11.5, color: Colors.white70),
+                style: GoogleFonts.kantumruyPro(fontSize: 11.5, color: isMine ? Colors.white70 : AppTheme.textSecondary),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -1463,7 +1490,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             children: [
               Text(
                 text,
-                style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 15.5, height: 1.35),
+                style: GoogleFonts.kantumruyPro(
+                  color: isMine ? Colors.white : AppTheme.textPrimary,
+                  fontSize: 15.5,
+                  height: 1.35,
+                ),
               ),
               const SizedBox(width: 8.0),
               Padding(
@@ -1473,7 +1504,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                   children: [
                     Text(
                       DateFormat('h:mm a').format(time),
-                      style: GoogleFonts.inter(fontSize: 10.5, color: isMine ? Colors.white70 : Colors.white54),
+                      style: GoogleFonts.inter(fontSize: 10.5, color: isMine ? Colors.white70 : AppTheme.textSecondary),
                     ),
                     if (isMine) ...[
                       const SizedBox(width: 4.0),
@@ -1536,7 +1567,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               }
             }
 
-            final cardColor = isMine ? const Color(0xFF8B5CF6) : const Color(0xFF2C2C2E);
+            final cardColor = isMine ? AppTheme.primary : AppTheme.bgCard;
 
             return GestureDetector(
               onLongPress: () => _showMessageOptionsModal(
@@ -1549,9 +1580,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                 decoration: BoxDecoration(
                   color: cardColor,
                   borderRadius: BorderRadius.circular(18.0),
+                  border: isMine ? null : Border.all(color: AppTheme.border, width: 0.8),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.15),
+                      color: const Color(0xFF0F172A).withValues(alpha: 0.04),
                       blurRadius: 6,
                       offset: const Offset(0, 2),
                     ),
@@ -1566,7 +1598,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                       child: Text(
                         fullLink,
                         style: GoogleFonts.inter(
-                          color: Colors.white,
+                          color: isMine ? Colors.white : AppTheme.primary,
                           fontSize: 13.5,
                           decoration: TextDecoration.underline,
                           fontWeight: FontWeight.w500,
@@ -1574,12 +1606,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                       ),
                     ),
 
-                    // Inner Preview Card with Left White Line
+                    // Inner Preview Card with Left Line
                     Container(
                       margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.12),
+                        color: isMine ? Colors.white.withValues(alpha: 0.12) : AppTheme.bgSurface,
                         borderRadius: BorderRadius.circular(12),
+                        border: isMine ? null : Border.all(color: AppTheme.border, width: 0.6),
                       ),
                       child: IntrinsicHeight(
                         child: Row(
@@ -1587,9 +1620,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                             // Left Accent Stripe
                             Container(
                               width: 3.5,
-                              decoration: const BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.only(
+                              decoration: BoxDecoration(
+                                color: isMine ? Colors.white : AppTheme.primary,
+                                borderRadius: const BorderRadius.only(
                                   topLeft: Radius.circular(12),
                                   bottomLeft: Radius.circular(12),
                                 ),
@@ -1608,7 +1641,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                                     Text(
                                       groupName,
                                       style: GoogleFonts.kantumruyPro(
-                                        color: Colors.white,
+                                        color: isMine ? Colors.white : AppTheme.textPrimary,
                                         fontSize: 14.5,
                                         fontWeight: FontWeight.bold,
                                       ),
@@ -1619,7 +1652,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                                     Text(
                                       '$senderName invites you to join this group.',
                                       style: GoogleFonts.inter(
-                                        color: Colors.white.withValues(alpha: 0.85),
+                                        color: isMine ? Colors.white.withValues(alpha: 0.85) : AppTheme.textSecondary,
                                         fontSize: 12,
                                       ),
                                       maxLines: 2,
@@ -1656,7 +1689,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                     ),
 
                     const SizedBox(height: 6),
-                    const Divider(color: Colors.white24, height: 1, thickness: 0.7),
+                    Divider(color: isMine ? Colors.white24 : AppTheme.border, height: 1, thickness: 0.7),
 
                     // Action Button: VIEW GROUP
                     InkWell(
@@ -1681,7 +1714,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                           child: Text(
                             'VIEW GROUP',
                             style: GoogleFonts.inter(
-                              color: Colors.white,
+                              color: isMine ? Colors.white : AppTheme.primary,
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
                               letterSpacing: 0.8,
@@ -1699,11 +1732,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                         children: [
                           Text(
                             DateFormat('h:mm a').format(time),
-                            style: GoogleFonts.inter(fontSize: 10.0, color: Colors.white60),
+                            style: GoogleFonts.inter(fontSize: 10.0, color: isMine ? Colors.white60 : AppTheme.textSecondary),
                           ),
                           if (isMine) ...[
                             const SizedBox(width: 4.0),
-                            _buildReadStatusIcon(isRead),
+                            _buildReadStatusIcon(isRead, isMine: isMine),
                           ],
                         ],
                       ),
@@ -1886,7 +1919,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         title = isVideo ? 'ការខលវីដេអូបានបោះបង់' : 'ការខលបានបោះបង់ (Cancelled)';
         icon = isVideo ? Icons.videocam_off_rounded : Icons.call_made_rounded;
         iconColor = const Color(0xFF94A3B8);
-        iconBg = const Color(0xFF334155);
+        iconBg = const Color(0xFFF1F5F9);
       } else {
         title = isVideo ? 'ការខលវីដេអូចេញ' : 'ការខលចេញ (Outgoing Call)';
         icon = isVideo ? Icons.videocam_rounded : Icons.call_made_rounded;
@@ -1935,19 +1968,19 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           margin: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 4.0),
           width: 250.0,
           decoration: BoxDecoration(
-            color: const Color(0xFF1E293B),
+            color: AppTheme.bgCard,
             borderRadius: BorderRadius.circular(18.0),
             border: Border.all(
               color: isMissed && !isMine
-                  ? const Color(0xFFFF3B30).withValues(alpha: 0.4)
-                  : const Color(0xFF334155),
+                  ? const Color(0xFFFF3B30).withValues(alpha: 0.5)
+                  : AppTheme.border,
               width: 1.0,
             ),
-            boxShadow: const [
+            boxShadow: [
               BoxShadow(
-                color: Colors.black26,
+                color: const Color(0xFF0F172A).withValues(alpha: 0.05),
                 blurRadius: 8,
-                offset: Offset(0, 2),
+                offset: const Offset(0, 2),
               ),
             ],
           ),
@@ -1975,7 +2008,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                           Text(
                             title,
                             style: GoogleFonts.kantumruyPro(
-                              color: isMissed && !isMine ? const Color(0xFFFF3B30) : Colors.white,
+                              color: isMissed && !isMine ? const Color(0xFFFF3B30) : AppTheme.textPrimary,
                               fontWeight: FontWeight.w600,
                               fontSize: 13.5,
                             ),
@@ -1987,7 +2020,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                             subtitle,
                             style: GoogleFonts.inter(
                               fontSize: 11.5,
-                              color: const Color(0xFF94A3B8),
+                              color: AppTheme.textSecondary,
                             ),
                           ),
                         ],
@@ -1996,7 +2029,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                   ],
                 ),
               ),
-              const Divider(height: 1.0, color: Color(0xFF334155)),
+              Divider(height: 1.0, color: AppTheme.border),
               InkWell(
                 onTap: () {
                   _initiateCall(isVideo ? 'video' : 'audio');
@@ -2015,13 +2048,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                       Icon(
                         isVideo ? Icons.videocam_rounded : Icons.phone_callback_rounded,
                         size: 15,
-                        color: const Color(0xFF0A84FF),
+                        color: AppTheme.primary,
                       ),
                       const SizedBox(width: 6),
                       Text(
                         'ខលត្រឡប់ទៅវិញ (Call back)',
                         style: GoogleFonts.kantumruyPro(
-                          color: const Color(0xFF0A84FF),
+                          color: AppTheme.primary,
                           fontWeight: FontWeight.w600,
                           fontSize: 12.5,
                         ),
@@ -2064,7 +2097,15 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       ),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16.0),
-        color: isMine ? _MsgDark.sentBubble : const Color(0xFF2C2C2E),
+        color: isMine ? AppTheme.primary : AppTheme.bgCard,
+        border: isMine ? null : Border.all(color: AppTheme.border, width: 0.8),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
+          ),
+        ],
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16.0),
@@ -2106,11 +2147,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               children: [
                 Text(
                   DateFormat('h:mm a').format(time),
-                  style: GoogleFonts.inter(fontSize: 10.0, color: _MsgDark.textMuted),
+                  style: GoogleFonts.inter(fontSize: 10.0, color: AppTheme.textSecondary),
                 ),
                 if (isMine) ...[
                   const SizedBox(width: 4.0),
-                  _buildReadStatusIcon(isRead),
+                  _buildReadStatusIcon(isRead, isMine: isMine),
                 ],
               ],
             ),
@@ -2284,13 +2325,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                             final confirm = await showDialog<bool>(
                               context: ctx,
                               builder: (c) => AlertDialog(
-                                backgroundColor: const Color(0xFF1E293B),
-                                title: Text('លុបរូបភាព', style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold)),
-                                content: Text('តើអ្នកពិតជាចង់លុបរូបភាពនេះមែនទេ?', style: GoogleFonts.kantumruyPro(color: Colors.white70)),
+                                backgroundColor: AppTheme.bgCard,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                title: Text('លុបរូបភាព', style: GoogleFonts.kantumruyPro(color: AppTheme.textPrimary, fontWeight: FontWeight.bold)),
+                                content: Text('តើអ្នកពិតជាចង់លុបរូបភាពនេះមែនទេ?', style: GoogleFonts.kantumruyPro(color: AppTheme.textSecondary)),
                                 actions: [
-                                  TextButton(onPressed: () => Navigator.pop(c, false), child: Text('បោះបង់', style: GoogleFonts.kantumruyPro(color: const Color(0xFF94A3B8)))),
+                                  TextButton(onPressed: () => Navigator.pop(c, false), child: Text('បោះបង់', style: GoogleFonts.kantumruyPro(color: AppTheme.textSecondary))),
                                   ElevatedButton(
-                                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF3B30)),
+                                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF3B30), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
                                     onPressed: () => Navigator.pop(c, true),
                                     child: Text('លុប', style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold)),
                                   ),
@@ -2331,7 +2373,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   void _showTelegramImageShareSheet(BuildContext parentCtx, String rawUrl) {
     showModalBottomSheet(
       context: parentCtx,
-      backgroundColor: const Color(0xFF1C1C1E),
+      backgroundColor: AppTheme.bgCard,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -2346,14 +2388,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Icon(Icons.search_rounded, color: Color(0xFF0A84FF), size: 22),
+                  Icon(Icons.search_rounded, color: AppTheme.primary, size: 22),
                   Column(
                     children: [
-                      Text('Share with', style: GoogleFonts.inter(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                      Text('Select chats', style: GoogleFonts.inter(color: const Color(0xFF8E8E93), fontSize: 12)),
+                      Text('Share with', style: GoogleFonts.inter(color: AppTheme.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
+                      Text('Select chats', style: GoogleFonts.inter(color: AppTheme.textSecondary, fontSize: 12)),
                     ],
                   ),
-                  const Icon(Icons.ios_share_rounded, color: Color(0xFF0A84FF), size: 22),
+                  Icon(Icons.ios_share_rounded, color: AppTheme.primary, size: 22),
                 ],
               ),
               const SizedBox(height: 16),
@@ -2363,7 +2405,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                 child: StreamBuilder<QuerySnapshot>(
                   stream: _firestore.collection('users').snapshots(),
                   builder: (context, snap) {
-                    if (!snap.hasData) return const Center(child: CircularProgressIndicator(color: Color(0xFF0A84FF)));
+                    if (!snap.hasData) return Center(child: CircularProgressIndicator(color: AppTheme.primary));
                     final users = snap.data!.docs.where((d) => d.id != currentUserId).toList();
 
                     return GridView.builder(
@@ -2383,15 +2425,15 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                             },
                             child: Column(
                               children: [
-                                const CircleAvatar(
+                                CircleAvatar(
                                   radius: 26,
-                                  backgroundColor: Color(0xFF0A84FF),
-                                  child: Icon(Icons.bookmark_rounded, color: Colors.white, size: 26),
+                                  backgroundColor: AppTheme.primary,
+                                  child: const Icon(Icons.bookmark_rounded, color: Colors.white, size: 26),
                                 ),
                                 const SizedBox(height: 6),
                                 Text(
                                   'Saved Messages',
-                                  style: GoogleFonts.inter(color: Colors.white, fontSize: 10),
+                                  style: GoogleFonts.inter(color: AppTheme.textPrimary, fontSize: 10),
                                   textAlign: TextAlign.center,
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
@@ -2422,7 +2464,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                               const SizedBox(height: 6),
                               Text(
                                 name,
-                                style: GoogleFonts.inter(color: Colors.white, fontSize: 10.5),
+                                style: GoogleFonts.inter(color: AppTheme.textPrimary, fontSize: 10.5),
                                 textAlign: TextAlign.center,
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
@@ -2449,13 +2491,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF2C2C2E),
+                    color: AppTheme.bgSurface,
                     borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppTheme.border, width: 0.8),
                   ),
                   child: Text(
                     'Save Image',
                     textAlign: TextAlign.center,
-                    style: GoogleFonts.inter(color: const Color(0xFF0A84FF), fontSize: 16, fontWeight: FontWeight.bold),
+                    style: GoogleFonts.inter(color: AppTheme.primary, fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                 ),
               ),
@@ -2468,13 +2511,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF2C2C2E),
+                    color: AppTheme.bgSurface,
                     borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppTheme.border, width: 0.8),
                   ),
                   child: Text(
                     'Cancel',
                     textAlign: TextAlign.center,
-                    style: GoogleFonts.inter(color: const Color(0xFF0A84FF), fontSize: 16, fontWeight: FontWeight.w600),
+                    style: GoogleFonts.inter(color: AppTheme.textSecondary, fontSize: 16, fontWeight: FontWeight.w600),
                   ),
                 ),
               ),
@@ -2489,7 +2533,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   void _showTelegramImage3DotsMenu(BuildContext parentCtx, String rawUrl, String docId) {
     showModalBottomSheet(
       context: parentCtx,
-      backgroundColor: const Color(0xFF1C1C1E),
+      backgroundColor: AppTheme.bgCard,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -2499,19 +2543,19 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(width: 36, height: 4, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(10))),
+              Container(width: 36, height: 4, decoration: BoxDecoration(color: AppTheme.border, borderRadius: BorderRadius.circular(10))),
               const SizedBox(height: 10),
               ListTile(
-                leading: const Icon(Icons.chat_bubble_outline_rounded, color: Colors.white),
-                title: Text('Show in Chat', style: GoogleFonts.inter(color: Colors.white, fontSize: 15)),
+                leading: Icon(Icons.chat_bubble_outline_rounded, color: AppTheme.primary),
+                title: Text('Show in Chat', style: GoogleFonts.inter(color: AppTheme.textPrimary, fontSize: 15)),
                 onTap: () {
                   Navigator.pop(menuCtx);
                   Navigator.pop(parentCtx);
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.sentiment_satisfied_alt_rounded, color: Colors.white),
-                title: Text('Create Sticker', style: GoogleFonts.inter(color: Colors.white, fontSize: 15)),
+                leading: Icon(Icons.sentiment_satisfied_alt_rounded, color: AppTheme.primary),
+                title: Text('Create Sticker', style: GoogleFonts.inter(color: AppTheme.textPrimary, fontSize: 15)),
                 onTap: () {
                   Navigator.pop(menuCtx);
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -2520,8 +2564,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.arrow_downward_rounded, color: Colors.white),
-                title: Text('Save Image', style: GoogleFonts.inter(color: Colors.white, fontSize: 15)),
+                leading: Icon(Icons.arrow_downward_rounded, color: AppTheme.primary),
+                title: Text('Save Image', style: GoogleFonts.inter(color: AppTheme.textPrimary, fontSize: 15)),
                 onTap: () {
                   Navigator.pop(menuCtx);
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -2530,8 +2574,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.reply_rounded, color: Colors.white),
-                title: Text('Reply', style: GoogleFonts.inter(color: Colors.white, fontSize: 15)),
+                leading: Icon(Icons.reply_rounded, color: AppTheme.primary),
+                title: Text('Reply', style: GoogleFonts.inter(color: AppTheme.textPrimary, fontSize: 15)),
                 onTap: () {
                   Navigator.pop(menuCtx);
                   Navigator.pop(parentCtx);
@@ -2626,8 +2670,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         final isPlayed = isPlaying && barProgress <= progress;
 
         final Color barColor = isMine
-            ? (isPlayed ? const Color(0xFF1E1E1E) : Colors.black38)
-            : (isPlayed ? Colors.white : Colors.white38);
+            ? (isPlayed ? Colors.white : Colors.white60)
+            : (isPlayed ? AppTheme.primary : AppTheme.primary.withValues(alpha: 0.28));
 
         return Container(
           width: 3.0,
@@ -2737,7 +2781,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF2C2C2E),
+      backgroundColor: AppTheme.bgCard,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20.0)),
       ),
@@ -2747,11 +2791,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               const SizedBox(height: 8),
-              Container(width: 36, height: 4, decoration: BoxDecoration(color: Colors.white30, borderRadius: BorderRadius.circular(2))),
+              Container(width: 36, height: 4, decoration: BoxDecoration(color: AppTheme.border, borderRadius: BorderRadius.circular(2))),
               const SizedBox(height: 12),
               ListTile(
-                leading: const Icon(Icons.reply_rounded, color: Colors.white),
-                title: Text('ឆ្លើយតប (Reply)', style: GoogleFonts.kantumruyPro(color: Colors.white)),
+                leading: Icon(Icons.reply_rounded, color: AppTheme.primary),
+                title: Text('ឆ្លើយតប (Reply)', style: GoogleFonts.kantumruyPro(color: AppTheme.textPrimary)),
                 onTap: () {
                   Navigator.pop(ctx);
                   String summary = content;
@@ -2762,16 +2806,16 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.shortcut_rounded, color: Colors.white),
-                title: Text('បញ្ជូនបន្ត (Forward)', style: GoogleFonts.kantumruyPro(color: Colors.white)),
+                leading: Icon(Icons.shortcut_rounded, color: AppTheme.primary),
+                title: Text('បញ្ជូនបន្ត (Forward)', style: GoogleFonts.kantumruyPro(color: AppTheme.textPrimary)),
                 onTap: () {
                   Navigator.pop(ctx);
                   _showForwardModal(content, type, originalSenderName: senderName);
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.push_pin_rounded, color: Colors.white),
-                title: Text('ប៉ិនទុក (Pin)', style: GoogleFonts.kantumruyPro(color: Colors.white)),
+                leading: Icon(Icons.push_pin_rounded, color: AppTheme.primary),
+                title: Text('ប៉ិនទុក (Pin)', style: GoogleFonts.kantumruyPro(color: AppTheme.textPrimary)),
                 onTap: () async {
                   Navigator.pop(ctx);
                   String summary = content;
@@ -2815,7 +2859,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     bool showSenderName = true;
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1E1E2E),
+      backgroundColor: AppTheme.bgCard,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20.0)),
@@ -2825,15 +2869,15 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           builder: (context, setModalState) {
             return Container(
               height: MediaQuery.of(context).size.height * 0.75,
-              color: const Color(0xFF1E1E2E),
+              color: AppTheme.bgCard,
               child: Column(
                 children: [
                   const SizedBox(height: 8),
-                  Container(width: 36, height: 4, decoration: BoxDecoration(color: Colors.white30, borderRadius: BorderRadius.circular(2))),
+                  Container(width: 36, height: 4, decoration: BoxDecoration(color: AppTheme.border, borderRadius: BorderRadius.circular(2))),
                   const SizedBox(height: 12),
                   Text(
                     'បញ្ជូនបន្តទៅកាន់ (Forward to)',
-                    style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                    style: GoogleFonts.kantumruyPro(color: AppTheme.textPrimary, fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 4),
                   SwitchListTile(
@@ -2841,17 +2885,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                     onChanged: (val) => setModalState(() => showSenderName = val),
                     title: Text(
                       'បង្ហាញឈ្មោះអ្នកផ្ញើដើម (Show original sender)',
-                      style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 13.5),
+                      style: GoogleFonts.kantumruyPro(color: AppTheme.textPrimary, fontSize: 13.5),
                     ),
-                    activeThumbColor: const Color(0xFF0084FF),
+                    activeTrackColor: AppTheme.primary,
                     dense: true,
                   ),
-                  const Divider(color: Colors.white24, height: 1),
+                  Divider(color: AppTheme.border, height: 1),
                   Expanded(
                     child: StreamBuilder<QuerySnapshot>(
                       stream: _firestore.collection('users').snapshots(),
                       builder: (context, snap) {
-                        if (!snap.hasData) return const Center(child: CircularProgressIndicator(color: Colors.white));
+                        if (!snap.hasData) return Center(child: CircularProgressIndicator(color: AppTheme.primary));
                         final users = snap.data!.docs.where((d) => d.id != currentUserId).toList();
 
                         return ListView.builder(
@@ -2868,9 +2912,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                                 backgroundColor: _getAvatarBgColor(name),
                                 child: avatar.isEmpty ? Text(name[0].toUpperCase(), style: const TextStyle(color: Colors.white)) : null,
                               ),
-                              title: Text(name, style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.w600)),
-                              subtitle: Text(u['position'] ?? u['department'] ?? '', style: GoogleFonts.inter(color: Colors.white70, fontSize: 12)),
-                              trailing: const Icon(Icons.send_rounded, color: Color(0xFF0084FF)),
+                              title: Text(name, style: GoogleFonts.kantumruyPro(color: AppTheme.textPrimary, fontWeight: FontWeight.w600)),
+                              subtitle: Text(u['position'] ?? u['department'] ?? '', style: GoogleFonts.inter(color: AppTheme.textSecondary, fontSize: 12)),
+                              trailing: Icon(Icons.send_rounded, color: AppTheme.primary),
                               onTap: () async {
                                 Navigator.pop(ctx);
                                 final userProvider = Provider.of<UserProvider>(context, listen: false);
@@ -2977,13 +3021,21 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       margin: const EdgeInsets.symmetric(vertical: 4.0),
       padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
       decoration: BoxDecoration(
-        color: isMine ? _MsgDark.sentBubble : const Color(0xFF2C2C2E),
+        color: isMine ? AppTheme.primary : AppTheme.bgCard,
         borderRadius: BorderRadius.circular(16.0),
+        border: isMine ? null : Border.all(color: AppTheme.border, width: 0.8),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
+          ),
+        ],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.insert_drive_file_rounded, color: Colors.white, size: 28.0),
+          Icon(Icons.insert_drive_file_rounded, color: isMine ? Colors.white : AppTheme.primary, size: 28.0),
           const SizedBox(width: 10.0),
           Flexible(
             child: Column(
@@ -2991,14 +3043,21 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               children: [
                 Text(
                   fileName,
-                  style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14.0),
+                  style: GoogleFonts.inter(
+                    color: isMine ? Colors.white : AppTheme.textPrimary,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14.0,
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
                 if (fileSize.isNotEmpty)
                   Text(
                     fileSize,
-                    style: GoogleFonts.inter(color: Colors.white70, fontSize: 11.0),
+                    style: GoogleFonts.inter(
+                      color: isMine ? Colors.white70 : AppTheme.textSecondary,
+                      fontSize: 11.0,
+                    ),
                   ),
               ],
             ),
@@ -3031,11 +3090,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               children: [
                 Text(
                   DateFormat('h:mm a').format(time),
-                  style: GoogleFonts.inter(fontSize: 10.0, color: _MsgDark.textMuted),
+                  style: GoogleFonts.inter(fontSize: 10.0, color: AppTheme.textSecondary),
                 ),
                 if (isMine) ...[
                   const SizedBox(width: 4.0),
-                  _buildReadStatusIcon(isRead),
+                  _buildReadStatusIcon(isRead, isMine: isMine),
                 ],
               ],
             ),
@@ -3085,7 +3144,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     final List<String> tileUrls = [];
     for (int dy = -1; dy <= 1; dy++) {
       for (int dx = -1; dx <= 1; dx++) {
-        tileUrls.add('https://a.basemaps.cartocdn.com/dark_all/$zoom/${tileX + dx}/${tileY + dy}.png');
+        tileUrls.add('https://a.basemaps.cartocdn.com/rastertiles/voyager/$zoom/${tileX + dx}/${tileY + dy}.png');
       }
     }
 
@@ -3094,13 +3153,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       height: 150,
       margin: const EdgeInsets.symmetric(vertical: 4),
       decoration: BoxDecoration(
-        color: const Color(0xFF151D2A),
+        color: AppTheme.bgCard,
         borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppTheme.border, width: 0.8),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.35),
+            color: Colors.black.withValues(alpha: 0.08),
             blurRadius: 10,
-            offset: const Offset(0, 4),
+            offset: const Offset(0, 3),
           ),
         ],
       ),
@@ -3108,7 +3168,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         borderRadius: BorderRadius.circular(18),
         child: Stack(
           children: [
-            // A. Dark CartoDB Map Background (3x3 Grid centered)
+            // A. Clean Map Background (3x3 Grid centered)
             Positioned.fill(
               child: OverflowBox(
                 maxWidth: 768,
@@ -3123,7 +3183,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                       return Image.network(
                         url,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(color: const Color(0xFF151D2A)),
+                        errorBuilder: (_, __, ___) => Container(color: AppTheme.bgSurface),
                       );
                     }).toList(),
                   ),
@@ -3131,22 +3191,15 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               ),
             ),
 
-            // Slight dark tint overlay
-            Positioned.fill(
-              child: Container(
-                color: Colors.black.withValues(alpha: 0.15),
-              ),
-            ),
-
-            // B. Center Blue Pin (Telegram Pin Style)
+            // B. Center Pin (Company Brand Pin Style)
             Center(
               child: Container(
                 padding: const EdgeInsets.all(4),
-                decoration: const BoxDecoration(
-                  color: Color(0xFF3388FF),
+                decoration: BoxDecoration(
+                  color: AppTheme.primary,
                   shape: BoxShape.circle,
                   boxShadow: [
-                    BoxShadow(color: Colors.black54, blurRadius: 8, offset: Offset(0, 3)),
+                    BoxShadow(color: Colors.black.withValues(alpha: 0.25), blurRadius: 8, offset: const Offset(0, 3)),
                   ],
                 ),
                 child: const Icon(Icons.push_pin_rounded, color: Colors.white, size: 22),
@@ -3704,7 +3757,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   }) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1E2738),
+      backgroundColor: AppTheme.bgCard,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -3725,10 +3778,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                         width: 32,
                         height: 32,
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.12),
+                          color: AppTheme.bgSurface,
                           shape: BoxShape.circle,
+                          border: Border.all(color: AppTheme.border, width: 0.8),
                         ),
-                        child: const Icon(Icons.close_rounded, color: Colors.white, size: 18),
+                        child: Icon(Icons.close_rounded, color: AppTheme.textSecondary, size: 18),
                       ),
                     ),
                     Expanded(
@@ -3736,7 +3790,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                         'Open In',
                         textAlign: TextAlign.center,
                         style: GoogleFonts.inter(
-                          color: Colors.white,
+                          color: AppTheme.textPrimary,
                           fontSize: 17,
                           fontWeight: FontWeight.bold,
                         ),
@@ -3767,19 +3821,20 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                             width: 64,
                             height: 64,
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: AppTheme.bgSurface,
                               borderRadius: BorderRadius.circular(18),
+                              border: Border.all(color: AppTheme.border, width: 0.8),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.2),
+                                  color: const Color(0xFF0F172A).withValues(alpha: 0.06),
                                   blurRadius: 8,
                                   offset: const Offset(0, 3),
                                 ),
                               ],
                             ),
-                            child: const Icon(
+                            child: Icon(
                               Icons.explore_rounded,
-                              color: Color(0xFF007AFF),
+                              color: AppTheme.primary,
                               size: 40,
                             ),
                           ),
@@ -3787,7 +3842,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                           Text(
                             'Maps',
                             style: GoogleFonts.inter(
-                              color: Colors.white,
+                              color: AppTheme.textSecondary,
                               fontSize: 12.5,
                               fontWeight: FontWeight.w500,
                             ),
@@ -3813,11 +3868,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                             width: 64,
                             height: 64,
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: AppTheme.bgSurface,
                               borderRadius: BorderRadius.circular(18),
+                              border: Border.all(color: AppTheme.border, width: 0.8),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.2),
+                                  color: const Color(0xFF0F172A).withValues(alpha: 0.06),
                                   blurRadius: 8,
                                   offset: const Offset(0, 3),
                                 ),
@@ -3833,7 +3889,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                           Text(
                             'Google Maps',
                             style: GoogleFonts.inter(
-                              color: Colors.white,
+                              color: AppTheme.textSecondary,
                               fontSize: 12.5,
                               fontWeight: FontWeight.w500,
                             ),
@@ -3878,13 +3934,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       width: 250,
       margin: const EdgeInsets.symmetric(vertical: 4),
       decoration: BoxDecoration(
-        color: isMine ? const Color(0xFF229ED9) : const Color(0xFF2C2C2E),
+        color: isMine ? AppTheme.primary : AppTheme.bgCard,
         borderRadius: BorderRadius.circular(16),
+        border: isMine ? null : Border.all(color: AppTheme.border, width: 0.8),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.3),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -3897,10 +3954,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               children: [
                 CircleAvatar(
                   radius: 22,
-                  backgroundColor: Colors.white24,
+                  backgroundColor: isMine ? Colors.white24 : AppTheme.primary.withValues(alpha: 0.15),
                   child: Text(
                     contactName.isNotEmpty ? contactName[0].toUpperCase() : 'C',
-                    style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+                    style: GoogleFonts.inter(
+                      color: isMine ? Colors.white : AppTheme.primary,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -3910,7 +3971,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                     children: [
                       Text(
                         contactName,
-                        style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                        style: GoogleFonts.inter(
+                          color: isMine ? Colors.white : AppTheme.textPrimary,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                        ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -3918,7 +3983,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                         const SizedBox(height: 2),
                         Text(
                           contactSubtitle,
-                          style: GoogleFonts.inter(color: Colors.white70, fontSize: 12),
+                          style: GoogleFonts.inter(
+                            color: isMine ? Colors.white70 : AppTheme.textSecondary,
+                            fontSize: 12,
+                          ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -3929,7 +3997,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               ],
             ),
             const SizedBox(height: 12),
-            const Divider(height: 1, color: Colors.white24),
+            Divider(height: 1, color: isMine ? Colors.white24 : AppTheme.border),
             const SizedBox(height: 8),
             Row(
               children: [
@@ -3946,15 +4014,15 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(Icons.chat_bubble_outline_rounded, color: Colors.white, size: 16),
+                          Icon(Icons.chat_bubble_outline_rounded, color: isMine ? Colors.white : AppTheme.primary, size: 16),
                           const SizedBox(width: 6),
-                          Text('💬 Chat', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                          Text('💬 Chat', style: GoogleFonts.inter(color: isMine ? Colors.white : AppTheme.primary, fontWeight: FontWeight.bold, fontSize: 12)),
                         ],
                       ),
                     ),
                   ),
                 ),
-                Container(width: 1, height: 20, color: Colors.white24),
+                Container(width: 1, height: 20, color: isMine ? Colors.white24 : AppTheme.border),
                 Expanded(
                   child: InkWell(
                     onTap: () async {
@@ -3977,9 +4045,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(Icons.phone_outlined, color: Colors.white, size: 16),
+                          Icon(Icons.phone_outlined, color: isMine ? Colors.white : AppTheme.primary, size: 16),
                           const SizedBox(width: 6),
-                          Text('📞 Call', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                          Text('📞 Call', style: GoogleFonts.inter(color: isMine ? Colors.white : AppTheme.primary, fontWeight: FontWeight.bold, fontSize: 12)),
                         ],
                       ),
                     ),
@@ -4016,11 +4084,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               children: [
                 Text(
                   DateFormat('h:mm a').format(time),
-                  style: GoogleFonts.inter(fontSize: 10.0, color: _MsgDark.textMuted),
+                  style: GoogleFonts.inter(fontSize: 10.0, color: AppTheme.textSecondary),
                 ),
                 if (isMine) ...[
                   const SizedBox(width: 4.0),
-                  _buildReadStatusIcon(isRead),
+                  _buildReadStatusIcon(isRead, isMine: isMine),
                 ],
               ],
             ),
@@ -4185,20 +4253,25 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
   Widget _buildReplyPreviewBanner() {
     return Container(
-      color: const Color(0xFF2C2C2E),
+      decoration: BoxDecoration(
+        color: AppTheme.bgCard,
+        border: Border(
+          top: BorderSide(color: AppTheme.border, width: 0.8),
+        ),
+      ),
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
       child: Row(
         children: [
           Expanded(
             child: Text(
               'កំពុងឆ្លើយតបទៅកាន់៖ $_replyingToMessage',
-              style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 12.5),
+              style: GoogleFonts.kantumruyPro(color: AppTheme.textPrimary, fontSize: 12.5),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.close_rounded, color: Colors.white70, size: 18),
+            icon: Icon(Icons.close_rounded, color: AppTheme.textSecondary, size: 18),
             onPressed: () => setState(() => _replyingToMessage = null),
           ),
         ],
@@ -4214,10 +4287,15 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         margin: const EdgeInsets.only(left: 12.0, bottom: 8.0),
         width: 210.0,
         decoration: BoxDecoration(
-          color: const Color(0xFF2C2C2E),
+          color: AppTheme.bgCard,
           borderRadius: BorderRadius.circular(16.0),
-          boxShadow: const [
-            BoxShadow(color: Colors.black54, blurRadius: 12, offset: Offset(0, 4)),
+          border: Border.all(color: AppTheme.border, width: 0.8),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF0F172A).withValues(alpha: 0.12),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
+            ),
           ],
         ),
         child: Column(
@@ -4228,7 +4306,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               icon: Icons.insert_drive_file_rounded,
               onTap: _pickAndSendFile,
             ),
-            const Divider(height: 1.0, color: Color(0xFF38383A)),
+            Divider(height: 1.0, color: AppTheme.border),
             _buildPlusMenuItem(
               title: 'Location',
               icon: Icons.near_me_rounded,
@@ -4256,12 +4334,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             Text(
               title,
               style: GoogleFonts.inter(
-                color: Colors.white,
+                color: AppTheme.textPrimary,
                 fontSize: 15.0,
                 fontWeight: FontWeight.w500,
               ),
             ),
-            Icon(icon, color: Colors.white70, size: 20.0),
+            Icon(icon, color: AppTheme.primary, size: 20.0),
           ],
         ),
       ),
@@ -4382,19 +4460,20 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
           child: Container(
-            color: Colors.black.withValues(alpha: 0.20),
+            color: AppTheme.bgCard.withValues(alpha: 0.95),
             padding: const EdgeInsets.fromLTRB(12.0, 8.0, 12.0, 12.0),
             child: Container(
               height: 48.0,
               decoration: BoxDecoration(
-                color: const Color(0xFF2C2C2E),
+                color: AppTheme.bgSurface,
                 borderRadius: BorderRadius.circular(24.0),
+                border: Border.all(color: AppTheme.border, width: 0.8),
               ),
               padding: const EdgeInsets.symmetric(horizontal: 10.0),
               child: Row(
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.delete_outline_rounded, color: Colors.white70, size: 24),
+                    icon: Icon(Icons.delete_outline_rounded, color: AppTheme.textSecondary, size: 24),
                     onPressed: _cancelRecording,
                   ),
                   const SizedBox(width: 4.0),
@@ -4418,7 +4497,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                           height: h,
                           margin: const EdgeInsets.symmetric(horizontal: 1.5),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF0084FF),
+                            color: AppTheme.primary,
                             borderRadius: BorderRadius.circular(2.0),
                           ),
                         );
@@ -4428,7 +4507,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                   const SizedBox(width: 8.0),
                   Text(
                     _formatDuration(_recordingSeconds),
-                    style: GoogleFonts.inter(color: Colors.white, fontSize: 13.0, fontWeight: FontWeight.w600),
+                    style: GoogleFonts.inter(color: AppTheme.textPrimary, fontSize: 13.0, fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(width: 10.0),
                   GestureDetector(
@@ -4436,8 +4515,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                     child: Container(
                       width: 36.0,
                       height: 36.0,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF0084FF),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primary,
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(Icons.send_rounded, color: Colors.white, size: 18),
@@ -4458,9 +4537,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         filter: ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.28),
+            color: AppTheme.bgCard.withValues(alpha: 0.95),
             border: Border(
-              top: BorderSide(color: Colors.white.withValues(alpha: 0.05), width: 0.5),
+              top: BorderSide(color: AppTheme.border, width: 0.8),
             ),
           ),
           padding: EdgeInsets.fromLTRB(10.0, 8.0, 10.0, bottomPadding > 0 ? bottomPadding + 4.0 : 12.0),
@@ -4474,16 +4553,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                 child: Container(
                   width: 38,
                   height: 38,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF262629),
+                  decoration: BoxDecoration(
+                    color: AppTheme.bgSurface,
                     shape: BoxShape.circle,
+                    border: Border.all(color: AppTheme.border, width: 0.8),
                   ),
                   child: Center(
                     child: Transform.rotate(
                       angle: -0.75,
-                      child: const Icon(
+                      child: Icon(
                         LucideIcons.paperclip,
-                        color: Color(0xFF8E8E93),
+                        color: AppTheme.textSecondary,
                         size: 20,
                       ),
                     ),
@@ -4497,9 +4577,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                 child: Container(
                   constraints: const BoxConstraints(minHeight: 38.0, maxHeight: 130.0),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF262629),
+                    color: AppTheme.bgSurface,
                     borderRadius: BorderRadius.circular(20.0),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.08), width: 0.5),
+                    border: Border.all(color: AppTheme.border, width: 0.8),
                   ),
                   padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 2.0),
                   child: Row(
@@ -4509,11 +4589,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                         child: TextField(
                           controller: _msgController,
                           maxLines: null,
-                          style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 15.5, height: 1.3),
-                          cursorColor: const Color(0xFF0A84FF),
+                          style: GoogleFonts.kantumruyPro(color: AppTheme.textPrimary, fontSize: 15.5, height: 1.3),
+                          cursorColor: AppTheme.primary,
                           decoration: InputDecoration(
                             hintText: 'Message',
-                            hintStyle: GoogleFonts.inter(color: const Color(0xFF8E8E93), fontSize: 16.0),
+                            hintStyle: GoogleFonts.inter(color: AppTheme.textSecondary, fontSize: 16.0),
                             border: InputBorder.none,
                             enabledBorder: InputBorder.none,
                             focusedBorder: InputBorder.none,
@@ -4527,11 +4607,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                       InkWell(
                         onTap: _showGiphyStickerPicker,
                         borderRadius: BorderRadius.circular(16),
-                        child: const Padding(
-                          padding: EdgeInsets.all(4.0),
+                        child: Padding(
+                          padding: const EdgeInsets.all(4.0),
                           child: Icon(
                             Icons.sticky_note_2_rounded,
-                            color: Color(0xFF8E8E93),
+                            color: AppTheme.textSecondary,
                             size: 22.0,
                           ),
                         ),
@@ -4558,12 +4638,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                         width: 38,
                         height: 38,
                         decoration: BoxDecoration(
-                          color: hasText ? const Color(0xFF0A84FF) : const Color(0xFF262629),
+                          color: hasText ? AppTheme.primary : AppTheme.bgSurface,
                           shape: BoxShape.circle,
+                          border: Border.all(color: hasText ? Colors.transparent : AppTheme.border, width: 0.8),
                         ),
                         child: Icon(
                           hasText ? LucideIcons.send : LucideIcons.mic,
-                          color: hasText ? Colors.white : const Color(0xFF8E8E93),
+                          color: hasText ? Colors.white : AppTheme.primary,
                           size: 19.0,
                         ),
                       ),
@@ -4685,7 +4766,7 @@ class _VoiceBubbleWidget extends StatefulWidget {
   final String? currentlyPlayingAudio;
   final bool isPlayingAudio;
   final Function(GlobalKey, Widget) onLongPressModal;
-  final Widget Function(bool) buildReadStatusIcon;
+  final Widget Function(bool, {bool isMine}) buildReadStatusIcon;
 
   const _VoiceBubbleWidget({
     required this.docId,
@@ -4752,10 +4833,10 @@ class _VoiceBubbleWidgetState extends State<_VoiceBubbleWidget> {
       progress = (_pos.inMilliseconds / totalMs).clamp(0.0, 1.0);
     }
 
-    final Color bubbleBg = widget.isMine ? const Color(0xFFF29BB8) : const Color(0xDD4E1025);
-    final Color textColor = widget.isMine ? const Color(0xFF1E1E1E) : Colors.white;
-    final Color playBg = widget.isMine ? Colors.black.withValues(alpha: 0.25) : Colors.white.withValues(alpha: 0.25);
-    final Color playIconColor = widget.isMine ? const Color(0xFF1E1E1E) : Colors.white;
+    final Color bubbleBg = widget.isMine ? AppTheme.primary : AppTheme.bgCard;
+    final Color textColor = widget.isMine ? Colors.white : AppTheme.textPrimary;
+    final Color playBg = widget.isMine ? Colors.white.withValues(alpha: 0.25) : AppTheme.primary.withValues(alpha: 0.12);
+    final Color playIconColor = widget.isMine ? Colors.white : AppTheme.primary;
 
     final bubbleKey = GlobalKey();
     final bubbleChild = Container(
@@ -4769,9 +4850,10 @@ class _VoiceBubbleWidgetState extends State<_VoiceBubbleWidget> {
           bottomLeft: Radius.circular(widget.isMine ? 22.0 : 4.0),
           bottomRight: Radius.circular(widget.isMine ? 4.0 : 22.0),
         ),
+        border: widget.isMine ? null : Border.all(color: AppTheme.border, width: 0.8),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.15),
+            color: const Color(0xFF0F172A).withValues(alpha: 0.04),
             blurRadius: 6,
             offset: const Offset(0, 2),
           ),
@@ -4835,8 +4917,9 @@ class _VoiceBubbleWidgetState extends State<_VoiceBubbleWidget> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 3.0),
               decoration: BoxDecoration(
-                color: widget.isMine ? Colors.black.withValues(alpha: 0.18) : Colors.white.withValues(alpha: 0.22),
+                color: widget.isMine ? Colors.white.withValues(alpha: 0.22) : AppTheme.bgSurface,
                 borderRadius: BorderRadius.circular(10.0),
+                border: widget.isMine ? null : Border.all(color: AppTheme.border, width: 0.6),
               ),
               child: Text(
                 '${widget.playbackSpeed.toStringAsFixed(1).replaceAll('.0', '')}x',
@@ -4869,11 +4952,11 @@ class _VoiceBubbleWidgetState extends State<_VoiceBubbleWidget> {
               children: [
                 Text(
                   DateFormat('h:mm a').format(widget.time),
-                  style: GoogleFonts.inter(fontSize: 10.0, color: _MsgDark.textMuted),
+                  style: GoogleFonts.inter(fontSize: 10.0, color: AppTheme.textSecondary),
                 ),
                 if (widget.isMine) ...[
                   const SizedBox(width: 4.0),
-                  widget.buildReadStatusIcon(widget.isRead),
+                  widget.buildReadStatusIcon(widget.isRead, isMine: widget.isMine),
                 ],
               ],
             ),
@@ -4904,8 +4987,8 @@ class _VoiceBubbleWidgetState extends State<_VoiceBubbleWidget> {
         final isPlayed = isPlaying && barProgress <= progress;
 
         final Color barColor = isMine
-            ? (isPlayed ? const Color(0xFF1E1E1E) : Colors.black38)
-            : (isPlayed ? Colors.white : Colors.white38);
+            ? (isPlayed ? Colors.white : Colors.white60)
+            : (isPlayed ? AppTheme.primary : AppTheme.primary.withValues(alpha: 0.28));
 
         return Container(
           width: 3.0,

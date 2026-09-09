@@ -135,7 +135,7 @@ class _ChatCreateGroupScreenState extends State<ChatCreateGroupScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
-            const Icon(Icons.edit_rounded, color: Color(0xFFD4AF37), size: 22),
+            Icon(Icons.edit_rounded, color: AppTheme.primary, size: 22),
             const SizedBox(width: 10),
             Text(
               'បញ្ចូលឈ្មោះក្រុម',
@@ -156,7 +156,7 @@ class _ChatCreateGroupScreenState extends State<ChatCreateGroupScreen> {
             onPressed: () => Navigator.pop(ctx),
             child: Text(
               'យល់ព្រម',
-              style: GoogleFonts.kantumruyPro(color: const Color(0xFFD4AF37), fontWeight: FontWeight.bold),
+              style: GoogleFonts.kantumruyPro(color: AppTheme.primary, fontWeight: FontWeight.bold),
             ),
           ),
         ],
@@ -288,9 +288,9 @@ class _ChatCreateGroupScreenState extends State<ChatCreateGroupScreen> {
               decoration: BoxDecoration(
                 color: AppTheme.bgCard,
                 shape: BoxShape.circle,
-                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                border: Border.all(color: AppTheme.border),
               ),
-              child: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 17),
+              child: Icon(Icons.arrow_back_ios_new_rounded, color: AppTheme.textPrimary, size: 17),
             ),
           ),
           const SizedBox(width: 14),
@@ -325,19 +325,13 @@ class _ChatCreateGroupScreenState extends State<ChatCreateGroupScreen> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
-                gradient: canCreate
-                    ? const LinearGradient(
-                        colors: [Color(0xFFD4AF37), Color(0xFFB8860B)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      )
-                    : null,
-                color: canCreate ? null : Colors.white.withValues(alpha: 0.08),
+                color: canCreate ? AppTheme.primary : AppTheme.bgSurface,
                 borderRadius: BorderRadius.circular(12),
+                border: canCreate ? null : Border.all(color: AppTheme.border),
                 boxShadow: canCreate
                     ? [
                         BoxShadow(
-                          color: const Color(0xFFD4AF37).withValues(alpha: 0.35),
+                          color: AppTheme.primary.withValues(alpha: 0.35),
                           blurRadius: 10,
                           offset: const Offset(0, 3),
                         ),
@@ -353,7 +347,7 @@ class _ChatCreateGroupScreenState extends State<ChatCreateGroupScreen> {
                   : Text(
                       'បង្កើតក្រុម',
                       style: GoogleFonts.kantumruyPro(
-                        color: canCreate ? Colors.white : Colors.white38,
+                        color: canCreate ? Colors.white : AppTheme.textMuted,
                         fontSize: 12.5,
                         fontWeight: FontWeight.bold,
                       ),
@@ -379,12 +373,12 @@ class _ChatCreateGroupScreenState extends State<ChatCreateGroupScreen> {
             decoration: BoxDecoration(
               color: AppTheme.bgCard,
               borderRadius: BorderRadius.circular(14.0),
-              border: Border.all(color: const Color(0xFFD4AF37).withValues(alpha: 0.3)),
+              border: Border.all(color: AppTheme.border),
             ),
             child: Row(
               children: [
                 const SizedBox(width: 12),
-                const Icon(Icons.group_work_rounded, color: Color(0xFFD4AF37), size: 20),
+                Icon(Icons.group_work_rounded, color: AppTheme.primary, size: 20),
                 const SizedBox(width: 10),
                 Expanded(
                   child: TextField(
@@ -462,9 +456,9 @@ class _ChatCreateGroupScreenState extends State<ChatCreateGroupScreen> {
             margin: const EdgeInsets.only(right: 8.0),
             padding: const EdgeInsets.fromLTRB(10, 4, 6, 4),
             decoration: BoxDecoration(
-              color: const Color(0xFFD4AF37).withValues(alpha: 0.15),
+              color: AppTheme.primary.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(20.0),
-              border: Border.all(color: const Color(0xFFD4AF37).withValues(alpha: 0.4)),
+              border: Border.all(color: AppTheme.primary.withValues(alpha: 0.35)),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -472,7 +466,7 @@ class _ChatCreateGroupScreenState extends State<ChatCreateGroupScreen> {
                 Text(
                   name,
                   style: GoogleFonts.kantumruyPro(
-                    color: const Color(0xFFD4AF37),
+                    color: AppTheme.primary,
                     fontSize: 12.0,
                     fontWeight: FontWeight.bold,
                   ),
@@ -483,7 +477,7 @@ class _ChatCreateGroupScreenState extends State<ChatCreateGroupScreen> {
                     _hapticLight();
                     setState(() => _selectedUserIds.remove(id));
                   },
-                  child: const Icon(Icons.cancel_rounded, color: Color(0xFFD4AF37), size: 16.0),
+                  child: Icon(Icons.cancel_rounded, color: AppTheme.primary, size: 16.0),
                 ),
               ],
             ),
@@ -514,13 +508,13 @@ class _ChatCreateGroupScreenState extends State<ChatCreateGroupScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
           decoration: BoxDecoration(
             color: isSelected
-                ? const Color(0xFFD4AF37).withValues(alpha: 0.1)
+                ? AppTheme.primary.withValues(alpha: 0.1)
                 : AppTheme.bgCard,
             borderRadius: BorderRadius.circular(16.0),
             border: Border.all(
               color: isSelected
-                  ? const Color(0xFFD4AF37).withValues(alpha: 0.5)
-                  : Colors.white.withValues(alpha: 0.05),
+                  ? AppTheme.primary
+                  : AppTheme.border,
             ),
           ),
           child: Row(
@@ -533,8 +527,8 @@ class _ChatCreateGroupScreenState extends State<ChatCreateGroupScreen> {
                   shape: BoxShape.circle,
                   border: Border.all(
                     color: isSelected
-                        ? const Color(0xFFD4AF37)
-                        : Colors.white.withValues(alpha: 0.15),
+                        ? AppTheme.primary
+                        : AppTheme.border,
                     width: 1.5,
                   ),
                 ),
@@ -587,9 +581,9 @@ class _ChatCreateGroupScreenState extends State<ChatCreateGroupScreen> {
                 height: 24,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: isSelected ? const Color(0xFFD4AF37) : Colors.transparent,
+                  color: isSelected ? AppTheme.primary : Colors.transparent,
                   border: Border.all(
-                    color: isSelected ? const Color(0xFFD4AF37) : Colors.white38,
+                    color: isSelected ? AppTheme.primary : AppTheme.border,
                     width: 1.8,
                   ),
                 ),

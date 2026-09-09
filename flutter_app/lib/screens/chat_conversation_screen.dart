@@ -66,20 +66,20 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     return ChangeNotifierProvider.value(
       value: _controller,
       child: Scaffold(
-        backgroundColor: const Color(0xFF0F172A),
+        backgroundColor: AppTheme.bgSurface,
         appBar: VvcAppBar(
-          backgroundColor: const Color(0xFF1E293B),
-          elevation: 1,
+          backgroundColor: AppTheme.bgCard,
+          elevation: 0.5,
           title: Text(
             widget.title,
             style: GoogleFonts.kantumruyPro(
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              color: Colors.white,
+              color: AppTheme.textPrimary,
             ),
           ),
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            icon: Icon(Icons.arrow_back, color: AppTheme.textPrimary),
             onPressed: () => Navigator.of(context).pop(),
           ),
         ),
@@ -97,7 +97,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                         'មិនទាន់មានសារនៅឡើយទេ\nផ្ញើសារដំបូងរបស់អ្នកឥឡូវនេះ',
                         textAlign: TextAlign.center,
                         style: GoogleFonts.kantumruyPro(
-                          color: Colors.white38,
+                          color: AppTheme.textMuted,
                           fontSize: 13,
                         ),
                       ),
@@ -144,16 +144,17 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.76),
         decoration: BoxDecoration(
-          color: isMe ? const Color(0xFF2563EB) : const Color(0xFF1E293B),
+          color: isMe ? AppTheme.primary : AppTheme.bgCard,
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(16),
             topRight: const Radius.circular(16),
             bottomLeft: isMe ? const Radius.circular(16) : const Radius.circular(4),
             bottomRight: isMe ? const Radius.circular(4) : const Radius.circular(16),
           ),
+          border: isMe ? null : Border.all(color: AppTheme.border, width: 0.8),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.15),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 4,
               offset: const Offset(0, 2),
             ),
@@ -168,7 +169,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                 child: Text(
                   msg.senderName!,
                   style: GoogleFonts.kantumruyPro(
-                    color: Colors.amberAccent,
+                    color: AppTheme.primary,
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
                   ),
@@ -177,7 +178,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
             Text(
               msg.content,
               style: GoogleFonts.kantumruyPro(
-                color: Colors.white,
+                color: isMe ? Colors.white : AppTheme.textPrimary,
                 fontSize: 13.5,
                 height: 1.3,
               ),
@@ -189,7 +190,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                 Text(
                   timeStr,
                   style: GoogleFonts.kantumruyPro(
-                    color: Colors.white54,
+                    color: isMe ? Colors.white70 : AppTheme.textSecondary,
                     fontSize: 10,
                   ),
                 ),
@@ -198,7 +199,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                   Icon(
                     msg.isSent ? Icons.done_all : Icons.access_time,
                     size: 13,
-                    color: msg.isSent ? Colors.lightBlueAccent : Colors.white38,
+                    color: Colors.white70,
                   ),
                 ],
               ],
@@ -212,15 +213,15 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   Widget _buildInputBar() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: const BoxDecoration(
-        color: Color(0xFF1E293B),
-        border: Border(top: BorderSide(color: Colors.white10, width: 1)),
+      decoration: BoxDecoration(
+        color: AppTheme.bgCard,
+        border: Border(top: BorderSide(color: AppTheme.border, width: 0.8)),
       ),
       child: SafeArea(
         child: Row(
           children: [
             IconButton(
-              icon: const Icon(Icons.attach_file, color: Colors.white70),
+              icon: Icon(Icons.attach_file, color: AppTheme.textSecondary),
               onPressed: () {
                 // Media selection dialog
               },
@@ -229,16 +230,16 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF0F172A),
+                  color: AppTheme.bgSurface,
                   borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: Colors.white12),
+                  border: Border.all(color: AppTheme.border, width: 0.8),
                 ),
                 child: TextField(
                   controller: _textCtrl,
-                  style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 14),
+                  style: GoogleFonts.kantumruyPro(color: AppTheme.textPrimary, fontSize: 14),
                   decoration: InputDecoration(
                     hintText: 'សរសេរសារ...',
-                    hintStyle: GoogleFonts.kantumruyPro(color: Colors.white38, fontSize: 14),
+                    hintStyle: GoogleFonts.kantumruyPro(color: AppTheme.textMuted, fontSize: 14),
                     border: InputBorder.none,
                   ),
                   maxLines: null,
