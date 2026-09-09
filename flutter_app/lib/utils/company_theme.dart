@@ -102,13 +102,36 @@ class CompanyTheme {
     isDarkTheme: false,
   );
 
+  /// ក្រុមហ៊ុនទី ៣៖ Vvc Dark Luxury Obsidian & Gold (Telegram Style)
+  static const CompanyTheme vvcDark = CompanyTheme(
+    brand: CompanyBrand.vvc,
+    name: 'Vvc Obsidian Gold',
+    brandLabel: 'Vvc HRM',
+    passTitle: 'Vvc HRM EMPLOYEE PASS',
+    backgroundColor: Color(0xFF0F1115),
+    cardPrimary: Color(0xFFF59E0B),
+    cardSecondary: Color(0xFFD97706),
+    cardBackground: Color(0xFF191B22),
+    cardBorder: Color(0x1FFFFFFF),
+    passCardColor: Color(0xFF191B22),
+    passCardTextColor: Color(0xFFF59E0B),
+    textPrimary: Colors.white,
+    textSecondary: Color(0xFF94A3B8),
+    textMuted: Color(0xFF64748B),
+    glowColor: Color(0xFFF59E0B),
+    orbPrimary: Color(0xFFF59E0B),
+    orbSecondary: Color(0xFFD97706),
+    orbAccent: Color(0xFFB45309),
+    isDarkTheme: true,
+  );
+
   /// ជ្រើសរើស Theme តាម CompanyBrand
-  static CompanyTheme forBrand(CompanyBrand brand) {
+  static CompanyTheme forBrand(CompanyBrand brand, {bool isDark = true}) {
     switch (brand) {
       case CompanyBrand.sk:
         return sk;
       case CompanyBrand.vvc:
-        return vvc;
+        return isDark ? vvcDark : vvc;
     }
   }
 }

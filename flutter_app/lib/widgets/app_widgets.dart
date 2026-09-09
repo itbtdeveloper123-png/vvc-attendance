@@ -479,6 +479,7 @@ class AppGridAction extends StatelessWidget {
   final Color? textColor;
   final Color? cardColor;
   final Color? borderColor;
+  final bool? isDark;
 
   const AppGridAction({
     super.key,
@@ -490,10 +491,16 @@ class AppGridAction extends StatelessWidget {
     this.textColor,
     this.cardColor,
     this.borderColor,
+    this.isDark,
   });
 
   @override
   Widget build(BuildContext context) {
+    final dark = isDark ??
+        (Theme.of(context).brightness == Brightness.dark ||
+            (cardColor != null && cardColor!.computeLuminance() < 0.2));
+    const goldColor = Color(0xFFD4AF37); // Luxury VVC Gold
+
     return GestureDetector(
       onTap: onTap,
       child: ClipRRect(
@@ -503,32 +510,42 @@ class AppGridAction extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 12),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  (cardColor ?? Colors.white).withValues(alpha: 0.94),
-                  (cardColor ?? Colors.white).withValues(alpha: 0.85),
-                  (cardColor ?? Colors.white).withValues(alpha: 0.90),
-                ],
-                stops: const [0.0, 0.55, 1.0],
-              ),
+              color: dark
+                  ? (cardColor ?? const Color(0xFF191B22))
+                  : (cardColor ?? Colors.white).withValues(alpha: 0.94),
+              gradient: dark
+                  ? null
+                  : LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        (cardColor ?? Colors.white).withValues(alpha: 0.94),
+                        (cardColor ?? Colors.white).withValues(alpha: 0.85),
+                        (cardColor ?? Colors.white).withValues(alpha: 0.90),
+                      ],
+                      stops: const [0.0, 0.55, 1.0],
+                    ),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: Colors.white,
-                width: 1.5,
+                color: dark
+                    ? Colors.white.withValues(alpha: 0.08)
+                    : (borderColor ?? Colors.white),
+                width: dark ? 0.8 : 1.5,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF0F172A).withValues(alpha: 0.06),
+                  color: dark
+                      ? Colors.black.withValues(alpha: 0.35)
+                      : const Color(0xFF0F172A).withValues(alpha: 0.06),
                   blurRadius: 14,
                   offset: const Offset(0, 4),
                 ),
-                BoxShadow(
-                  color: const Color(0xFF0F172A).withValues(alpha: 0.025),
-                  blurRadius: 4,
-                  offset: const Offset(0, 1),
-                ),
+                if (!dark)
+                  BoxShadow(
+                    color: const Color(0xFF0F172A).withValues(alpha: 0.025),
+                    blurRadius: 4,
+                    offset: const Offset(0, 1),
+                  ),
               ],
             ),
             child: Column(
@@ -536,24 +553,34 @@ class AppGridAction extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Container(
-                  width: 44,
-                  height: 44,
+                  width: 46,
+                  height: 46,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFFFBEB),
+                    color: dark ? Colors.transparent : const Color(0xFFFFFBEB),
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: const Color(0xFFFDE68A),
-                      width: 1.2,
+                      color: dark ? goldColor : const Color(0xFFFDE68A),
+                      width: dark ? 1.5 : 1.2,
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF0F172A).withValues(alpha: 0.03),
-                        blurRadius: 4,
-                        offset: const Offset(0, 1),
-                      ),
-                    ],
+                    boxShadow: dark
+                        ? null
+                        : [
+                            BoxShadow(
+                              color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+                              blurRadius: 4,
+                              offset: const Offset(0, 1),
+                            ),
+                          ],
                   ),
-                  child: Icon(icon, color: color == const Color(0xFF6366F1) ? const Color(0xFFD97706) : color, size: 22),
+                  child: Icon(
+                    icon,
+                    color: dark
+                        ? goldColor
+                        : (color == const Color(0xFF6366F1)
+                            ? const Color(0xFFD97706)
+                            : color),
+                    size: 24,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Flexible(
@@ -563,7 +590,9 @@ class AppGridAction extends StatelessWidget {
                     child: Text(
                       label,
                       style: GoogleFonts.kantumruyPro(
-                        color: textColor ?? const Color(0xFF0F172A),
+                        color: dark
+                            ? Colors.white
+                            : (textColor ?? const Color(0xFF0F172A)),
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                         height: 1.25,

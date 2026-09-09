@@ -6,7 +6,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:intl/intl.dart';
-import 'package:google_nav_bar/google_nav_bar.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/user_provider.dart';
@@ -353,142 +352,180 @@ class HomeScreenState extends State<HomeScreen> {
     final screens = _getScreens(userProvider);
     final theme = userProvider.companyTheme;
 
+    final isDark = theme.isDarkTheme;
+
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: const SystemUiOverlayStyle(
+      value: SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.dark, // Android: dark icons (black clock/battery)
-        statusBarBrightness: Brightness.light,    // iOS: dark icons (black clock/battery)
-        systemNavigationBarColor: Colors.white,
-        systemNavigationBarIconBrightness: Brightness.dark,
+        statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+        statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
+        systemNavigationBarColor: isDark ? const Color(0xFF0F1115) : Colors.white,
+        systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
       ),
       child: Scaffold(
         extendBody: true,
         backgroundColor: theme.backgroundColor,
         body: IndexedStack(index: _currentIndex, children: screens),
-      bottomNavigationBar: _buildBottomNav(userProvider),
-      floatingActionButton:
-          _currentIndex == 0
-              ? Transform.translate(
-                offset: const Offset(0, 6),
-                child: Container(
-                  width: 50,
-                  height: 50,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: theme.cardPrimary.withValues(alpha: 0.45),
-                        blurRadius: 18,
-                        spreadRadius: -2,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: FloatingActionButton(
-                    backgroundColor: theme.cardPrimary,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      side: BorderSide(
-                        color: Colors.white.withValues(alpha: 0.35),
-                        width: 1.2,
-                      ),
-                    ),
-                    onPressed: () {
-                      _hapticLight();
-                      Navigator.push(
-                        context,
-                        _slideRoute(const AiChatScreen()),
-                      );
-                    },
-                    child: Icon(
-                      Icons.smart_toy_rounded,
-                      color: theme.brand == CompanyBrand.vvc ? const Color(0xFF0F172A) : Colors.white,
-                      size: 24,
-                    ),
-                  ),
-                ),
-              )
-              : null,
+        bottomNavigationBar: _buildBottomNav(userProvider),
       ),
     );
   }
 
   Widget _buildBottomNav(UserProvider user) {
-    final theme = user.companyTheme;
     final bottomInset = MediaQuery.paddingOf(context).bottom;
-    final isVvc = theme.brand == CompanyBrand.vvc;
-    final activeTextColor = isVvc ? const Color(0xFF0F172A) : Colors.white;
 
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ui.ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
-        child: Container(
-          decoration: BoxDecoration(
-            color: isDark
-                ? const Color(0xFF18181A).withValues(alpha: 0.75)
-                : Colors.white.withValues(alpha: 0.68),
-            border: Border(
-              top: BorderSide(
-                color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.10),
-                width: 0.5,
+    return Container(
+      margin: EdgeInsets.fromLTRB(20, 0, 20, bottomInset > 0 ? bottomInset + 4 : 14),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(36),
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: 30, sigmaY: 30),
+          child: Container(
+            height: 62,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.92),
+              borderRadius: BorderRadius.circular(36),
+              border: Border.all(
+                color: const Color(0xFFD4AF37).withValues(alpha: 0.5),
+                width: 1.2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFD4AF37).withValues(alpha: 0.22),
+                  blurRadius: 22,
+                  spreadRadius: -2,
+                  offset: const Offset(0, 8),
+                ),
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.35),
+                  blurRadius: 18,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                // 1. Home / Dashboard
+                _buildDockItem(
+                  icon: Icons.dashboard_rounded,
+                  isSelected: _currentIndex == 0,
+                  onTap: () => setState(() => _currentIndex = 0),
+                ),
+                // 2. Requests
+                _buildDockItem(
+                  icon: user.isHRM ? Icons.list_alt_rounded : Icons.layers_rounded,
+                  isSelected: _currentIndex == 1,
+                  onTap: () => setState(() => _currentIndex = 1),
+                ),
+                // 3. Center Chat Bubble (with red 3.9K badge)
+                _buildDockItem(
+                  icon: Icons.chat_bubble_rounded,
+                  isSelected: false,
+                  isCenter: true,
+                  badgeText: '3.9K',
+                  onTap: () {
+                    _hapticLight();
+                    Navigator.push(context, _slideRoute(const ChatListScreen()));
+                  },
+                ),
+                // 4. App Settings
+                _buildDockItem(
+                  icon: Icons.settings_rounded,
+                  isSelected: false,
+                  onTap: () {
+                    _hapticLight();
+                    Navigator.push(context, _slideRoute(const AppSettingsScreen()));
+                  },
+                ),
+                // 5. Profile
+                _buildDockItem(
+                  icon: Icons.person_rounded,
+                  isSelected: _currentIndex == 2,
+                  onTap: () => setState(() => _currentIndex = 2),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDockItem({
+    required IconData icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+    bool isCenter = false,
+    String? badgeText,
+  }) {
+    return GestureDetector(
+      onTap: () {
+        _hapticLight();
+        onTap();
+      },
+      behavior: HitTestBehavior.opaque,
+      child: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.center,
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 240),
+            curve: Curves.easeOutCubic,
+            width: isSelected ? 44 : 38,
+            height: isSelected ? 44 : 38,
+            decoration: BoxDecoration(
+              color: isSelected ? const Color(0xFF0F1115) : Colors.transparent,
+              shape: BoxShape.circle,
+              boxShadow: isSelected
+                  ? [
+                      BoxShadow(
+                        color: const Color(0xFFD4AF37).withValues(alpha: 0.35),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Center(
+              child: Icon(
+                icon,
+                color: isSelected ? const Color(0xFFD4AF37) : const Color(0xFF475569),
+                size: isCenter ? 24 : 22,
               ),
             ),
           ),
-          padding: EdgeInsets.only(
-            bottom: bottomInset > 0 ? bottomInset : 12,
-            top: 10,
-            left: 20,
-            right: 20,
-          ),
-          child: GNav(
-            rippleColor: theme.cardPrimary.withValues(alpha: 0.2),
-            hoverColor: theme.cardPrimary.withValues(alpha: 0.1),
-            gap: 6,
-            activeColor: activeTextColor,
-            iconSize: 24,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            duration: const Duration(milliseconds: 300),
-            tabBackgroundColor: theme.cardPrimary,
-            color: const Color(0xFF64748B),
-            tabs: [
-              GButton(
-                icon: Icons.dashboard_rounded,
-                text: 'ទំព័រដើម',
-                textStyle: GoogleFonts.kantumruyPro(
-                  color: activeTextColor,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
+          if (badgeText != null)
+            Positioned(
+              top: -3,
+              right: -8,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEF4444),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.white, width: 1.5),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFEF4444).withValues(alpha: 0.4),
+                      blurRadius: 4,
+                      offset: const Offset(0, 1),
+                    ),
+                  ],
+                ),
+                child: Text(
+                  badgeText,
+                  style: GoogleFonts.inter(
+                    color: Colors.white,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.2,
+                  ),
                 ),
               ),
-              GButton(
-                icon: user.isHRM ? Icons.list_alt_rounded : Icons.layers_rounded,
-                text: user.isHRM ? "បញ្ជីសំណើ" : "សំណើ",
-                textStyle: GoogleFonts.kantumruyPro(
-                  color: activeTextColor,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
-                ),
-              ),
-              GButton(
-                icon: Icons.person_rounded,
-                text: 'គណនី',
-                textStyle: GoogleFonts.kantumruyPro(
-                  color: activeTextColor,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
-                ),
-              ),
-            ],
-            selectedIndex: _currentIndex,
-            onTabChange: (index) {
-              setState(() {
-                _currentIndex = index;
-              });
-            },
-          ),
-        ),
+            ),
+        ],
       ),
     );
   }
@@ -556,6 +593,17 @@ class _HomeContentState extends State<HomeContent> {
   // ===== Feature #8: Weather =====
   String _weatherText = '';
   String _weatherIcon = '☀️';
+
+  // ===== Category Filter Tabs =====
+  String _selectedCategory = 'All';
+  final List<String> _categories = [
+    'All',
+    'ការងារ',
+    'វត្តមាន',
+    'របាយការណ៍',
+    'សំណើ',
+    'សម្ភារៈ',
+  ];
 
   void _safeSetState(VoidCallback fn) {
     if (!mounted) return;
@@ -1069,10 +1117,10 @@ class _HomeContentState extends State<HomeContent> {
               ),
               slivers: [
                 SliverAppBar(
-                  systemOverlayStyle: const SystemUiOverlayStyle(
+                  systemOverlayStyle: SystemUiOverlayStyle(
                     statusBarColor: Colors.transparent,
-                    statusBarIconBrightness: Brightness.dark, // Android: dark icons
-                    statusBarBrightness: Brightness.light,    // iOS: dark icons (black clock & battery)
+                    statusBarIconBrightness: theme.isDarkTheme ? Brightness.light : Brightness.dark,
+                    statusBarBrightness: theme.isDarkTheme ? Brightness.dark : Brightness.light,
                   ),
                   pinned: true,
                   floating: false,
@@ -1086,15 +1134,15 @@ class _HomeContentState extends State<HomeContent> {
                       filter: ui.ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
                       child: Container(
                         decoration: BoxDecoration(
-                          color: Theme.of(context).brightness == Brightness.dark
-                              ? const Color(0xFF18181A).withValues(alpha: 0.72)
+                          color: theme.isDarkTheme
+                              ? const Color(0xFF0F1115).withValues(alpha: 0.85)
                               : Colors.white.withValues(alpha: 0.68),
                           border: Border(
                             bottom: BorderSide(
-                              color: (Theme.of(context).brightness == Brightness.dark
+                              color: (theme.isDarkTheme
                                       ? Colors.white
                                       : Colors.black)
-                                  .withValues(alpha: 0.10),
+                                  .withValues(alpha: 0.08),
                               width: 0.5,
                             ),
                           ),
@@ -1114,17 +1162,24 @@ class _HomeContentState extends State<HomeContent> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           _buildWeatherAndQuoteRow(theme),
-                          const SizedBox(height: 14),
-                          _buildWelcomeBanner(user),
-                          const SizedBox(height: 18),
-                          _buildBentoDashboard(user),
-                          const SizedBox(height: 24),
+                          const SizedBox(height: 12),
+                          _buildCategoryFilterTabs(theme),
+                          const SizedBox(height: 16),
+                          if (_selectedCategory == 'All') ...[
+                            _buildWelcomeBanner(user),
+                            const SizedBox(height: 16),
+                            _buildBentoDashboard(user),
+                            const SizedBox(height: 20),
+                          ] else if (_selectedCategory == 'វត្តមាន') ...[
+                            _buildBentoHeroAttendanceCard(user),
+                            const SizedBox(height: 20),
+                          ],
                           _buildRoleBasedActions(user),
                           SizedBox(
                             height: AppResponsive.bottomPadding(
                               context,
                               hasBottomNav: true,
-                              extra: 18,
+                              extra: 80,
                             ),
                           ),
                         ],
@@ -1138,6 +1193,125 @@ class _HomeContentState extends State<HomeContent> {
         ],
       ),
     );
+  }
+
+  // ===== Category Filter Tabs =====
+  Widget _buildCategoryFilterTabs(CompanyTheme theme) {
+    return SizedBox(
+      height: 38,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        itemCount: _categories.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final cat = _categories[index];
+          final isSelected = cat == _selectedCategory;
+          return GestureDetector(
+            onTap: () {
+              _hapticLight();
+              setState(() {
+                _selectedCategory = cat;
+              });
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? Colors.white
+                    : const Color(0xFF191B22),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: isSelected
+                      ? Colors.white
+                      : (theme.isDarkTheme
+                          ? Colors.white.withValues(alpha: 0.10)
+                          : Colors.black.withValues(alpha: 0.08)),
+                  width: 1,
+                ),
+                boxShadow: isSelected
+                    ? [
+                        BoxShadow(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          blurRadius: 10,
+                          offset: const Offset(0, 2),
+                        ),
+                      ]
+                    : null,
+              ),
+              child: Center(
+                child: Text(
+                  cat,
+                  style: GoogleFonts.kantumruyPro(
+                    color: isSelected
+                        ? const Color(0xFF0F1115)
+                        : (theme.isDarkTheme
+                            ? const Color(0xFF94A3B8)
+                            : const Color(0xFF64748B)),
+                    fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                    fontSize: 12.5,
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  bool _matchesCategory(String key, String category) {
+    if (category == 'All') return true;
+    switch (category) {
+      case 'ការងារ':
+        return [
+          'checklist',
+          'meetings',
+          'mission',
+          'trip',
+          'kpi',
+          'training_quiz',
+          'poll_voting',
+          'announcements',
+          'product_analyzer',
+          'document_scanner',
+          'app_settings',
+          'user_management',
+        ].contains(key);
+      case 'វត្តមាន':
+        return [
+          'attendance',
+          'outside_attendance',
+          'reports',
+          'employee_report',
+          'trip',
+        ].contains(key);
+      case 'របាយការណ៍':
+        return [
+          'daily_report',
+          'reports',
+          'employee_report',
+          'trip',
+          'kpi',
+          'payroll',
+        ].contains(key);
+      case 'សំណើ':
+        return [
+          'request_form',
+          'material_request',
+          'mission',
+        ].contains(key);
+      case 'សម្ភារៈ':
+        return [
+          'material_request',
+          'product_analyzer',
+          'document_scanner',
+        ].contains(key);
+      default:
+        return true;
+    }
   }
 
   // ===== Feature #1 + #5 + #8: Weather, Streak & Live Timer Row =====
@@ -1156,22 +1330,19 @@ class _HomeContentState extends State<HomeContent> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        Colors.white.withValues(alpha: 0.85),
-                        Colors.white.withValues(alpha: 0.65),
-                      ],
-                    ),
+                    color: theme.isDarkTheme
+                        ? const Color(0xFF191B22)
+                        : Colors.white.withValues(alpha: 0.85),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.95),
+                      color: theme.isDarkTheme
+                          ? Colors.white.withValues(alpha: 0.10)
+                          : Colors.white.withValues(alpha: 0.95),
                       width: 1.2,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF0F172A).withValues(alpha: 0.035),
+                        color: Colors.black.withValues(alpha: theme.isDarkTheme ? 0.2 : 0.035),
                         blurRadius: 8,
                         offset: const Offset(0, 2),
                       ),
@@ -1185,7 +1356,7 @@ class _HomeContentState extends State<HomeContent> {
                       Text(
                         'ភ្នំពេញ $_weatherText',
                         style: GoogleFonts.kantumruyPro(
-                          color: const Color(0xFF0F172A),
+                          color: theme.isDarkTheme ? Colors.white : const Color(0xFF0F172A),
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
                         ),
@@ -1232,215 +1403,274 @@ class _HomeContentState extends State<HomeContent> {
 
   Widget _buildTopBar(UserProvider user) {
     final theme = user.companyTheme;
+    final isDark = theme.isDarkTheme;
+
     return FadeInDown(
       duration: const Duration(milliseconds: 400),
       child: Row(
         children: [
-          // User Avatar & Greeting
-          Expanded(
-            child: GestureDetector(
-              onTap: widget.onProfileTap,
-              behavior: HitTestBehavior.opaque,
+          // 1. Left Edit Action Button
+          GestureDetector(
+            onTap: () {
+              _hapticLight();
+              Navigator.push(
+                context,
+                _slideRoute(const AppSettingsScreen()),
+              );
+            },
+            behavior: HitTestBehavior.opaque,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFD4AF37).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: const Color(0xFFD4AF37).withValues(alpha: 0.35),
+                  width: 1,
+                ),
+              ),
               child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      Container(
-                        width: 42,
-                        height: 42,
-                        decoration: BoxDecoration(
-                          color: theme.cardPrimary,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: theme.cardPrimary.withValues(alpha: 0.35),
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: ClipOval(
-                          child:
-                              user.avatarUrl != null &&
-                                      user.avatarUrl!.isNotEmpty
-                                  ? Image.network(
-                                    user.avatarUrl!,
-                                    fit: BoxFit.cover,
-                                    errorBuilder:
-                                        (context, error, stackTrace) =>
-                                            _buildInitialsAvatar(user, theme),
-                                  )
-                                  : _buildInitialsAvatar(user, theme),
-                        ),
-                      ),
-                      if (user.isVerified)
-                        Positioned(
-                          bottom: -2,
-                          right: -2,
-                          child: Container(
-                            decoration: const BoxDecoration(
-                              color: Colors.white,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.verified,
-                              color: Colors.blueAccent,
-                              size: 14,
-                            ),
-                          ),
-                        ),
-                    ],
+                  const Icon(
+                    Icons.check_circle_outline_rounded,
+                    color: Color(0xFFD4AF37),
+                    size: 15,
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          _greeting,
-                          style: GoogleFonts.kantumruyPro(
-                            color: const Color(0xFF64748B),
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w500,
-                            letterSpacing: 0.3,
-                            height: 1.4,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        Row(
-                          children: [
-                            Flexible(
-                              child: Text(
-                                user.name ?? 'បុគ្គលិក',
-                                style: GoogleFonts.kantumruyPro(
-                                  color: const Color(0xFF0F172A),
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: theme.cardPrimary,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                theme.brand == CompanyBrand.sk ? 'SK' : 'VVC',
-                                style: GoogleFonts.inter(
-                                  color: theme.brand == CompanyBrand.vvc ? const Color(0xFF0F172A) : Colors.white,
-                                  fontWeight: FontWeight.w900,
-                                  fontSize: 10,
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
+                  const SizedBox(width: 4),
+                  Text(
+                    'Edit',
+                    style: GoogleFonts.inter(
+                      color: const Color(0xFFD4AF37),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
                     ),
                   ),
                 ],
               ),
             ),
           ),
-          const SizedBox(width: 2),
-          // Action Icons Group
+
+          const Spacer(),
+
+          // 2. Center Profile & Team (Overlapping 3 Avatar Bubbles + Name + [VVC] Badge)
+          GestureDetector(
+            onTap: widget.onProfileTap,
+            behavior: HitTestBehavior.opaque,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // 3 Overlapping Avatar Bubbles
+                SizedBox(
+                  width: 68,
+                  height: 28,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      // Bubble 3 (Rightmost/Bottom)
+                      Positioned(
+                        left: 36,
+                        child: Container(
+                          width: 28,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: const Color(0xFF3B82F6),
+                            border: Border.all(color: const Color(0xFF0F1115), width: 2),
+                          ),
+                          child: const Center(
+                            child: Icon(Icons.group_rounded, color: Colors.white, size: 14),
+                          ),
+                        ),
+                      ),
+                      // Bubble 2 (Center)
+                      Positioned(
+                        left: 18,
+                        child: Container(
+                          width: 28,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: const Color(0xFFD4AF37),
+                            border: Border.all(color: const Color(0xFF0F1115), width: 2),
+                          ),
+                          child: Center(
+                            child: Text(
+                              'V',
+                              style: GoogleFonts.inter(
+                                color: const Color(0xFF0F1115),
+                                fontWeight: FontWeight.w900,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      // Bubble 1 (User / Leftmost / Top)
+                      Positioned(
+                        left: 0,
+                        child: Container(
+                          width: 28,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: theme.cardPrimary,
+                            border: Border.all(color: const Color(0xFF0F1115), width: 2),
+                          ),
+                          child: ClipOval(
+                            child: user.avatarUrl != null && user.avatarUrl!.isNotEmpty
+                                ? Image.network(
+                                    user.avatarUrl!,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => _buildInitialsAvatar(user, theme),
+                                  )
+                                : _buildInitialsAvatar(user, theme),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 3),
+                // Name + VVC Gold Badge
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      user.name ?? 'បុគ្គលិក',
+                      style: GoogleFonts.kantumruyPro(
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(width: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFD4AF37),
+                        borderRadius: BorderRadius.circular(5),
+                      ),
+                      child: Text(
+                        theme.brand == CompanyBrand.sk ? 'SK' : 'VVC',
+                        style: GoogleFonts.inter(
+                          color: const Color(0xFF0F1115),
+                          fontWeight: FontWeight.w900,
+                          fontSize: 9,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _greeting,
+                  style: GoogleFonts.kantumruyPro(
+                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+
+          const Spacer(),
+
+          // 3. Right Quick Actions: White Pill with Pen & Dark Pill with Gold Plus
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _buildTopIcon(
-                Icons.psychology_rounded,
-                () => Navigator.push(
-                  context,
-                  _slideRoute(const TrainingQuizScreen()),
+              // White Pill with Pen
+              GestureDetector(
+                onTap: () {
+                  _hapticLight();
+                  Navigator.push(
+                    context,
+                    _slideRoute(const DailyReportScreen()),
+                  );
+                },
+                child: Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.15),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.edit_note_rounded,
+                    color: Color(0xFF0F172A),
+                    size: 20,
+                  ),
                 ),
               ),
-              _buildTopIcon(
-                Icons.forum_rounded,
-                () => Navigator.push(
-                  context,
-                  _slideRoute(const ChatListScreen()),
+              const SizedBox(width: 8),
+              // Dark Pill with Gold Border & Gold Plus
+              GestureDetector(
+                onTap: () {
+                  _hapticLight();
+                  Navigator.push(
+                    context,
+                    _slideRoute(const LeaveRequestScreen()),
+                  );
+                },
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF191B22),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: const Color(0xFFD4AF37),
+                          width: 1.5,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFFD4AF37).withValues(alpha: 0.2),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.add_rounded,
+                        color: Color(0xFFD4AF37),
+                        size: 20,
+                      ),
+                    ),
+                    if (_unreadNotifications > 0)
+                      Positioned(
+                        top: -2,
+                        right: -2,
+                        child: Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFFEF4444),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
-              ),
-              _buildTopIcon(
-                Icons.notifications_rounded,
-                () => Navigator.push(
-                  context,
-                  _slideRoute(const NotificationScreen()),
-                ),
-                badge: _unreadNotifications > 0,
               ),
             ],
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildTopIcon(
-    IconData icon,
-    VoidCallback onTap, {
-    bool badge = false,
-  }) {
-    return GestureDetector(
-      onTap: () {
-        _hapticLight();
-        onTap();
-      },
-      child: Container(
-        margin: const EdgeInsets.only(left: 6),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(19),
-          child: BackdropFilter(
-            filter: ui.ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-            child: Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.72),
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.88),
-                  width: 1.2,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF0F172A).withValues(alpha: 0.035),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  Icon(icon, color: const Color(0xFF334155), size: 20),
-                  if (badge)
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: Container(
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color: Colors.redAccent,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 1.5),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
-        ),
       ),
     );
   }
@@ -1488,6 +1718,7 @@ class _HomeContentState extends State<HomeContent> {
   // ─── 1. HERO BENTO CARD (Full Width) ──────────────────────────────────────
   Widget _buildBentoHeroAttendanceCard(UserProvider user) {
     final theme = user.companyTheme;
+    final isDark = theme.isDarkTheme;
     final bool isCheckedIn = _checkInTime != null;
     final bool isNextCheckIn = _nextAction == 'Check-In';
 
@@ -1497,33 +1728,36 @@ class _HomeContentState extends State<HomeContent> {
         filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
         child: Container(
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                (theme.brand == CompanyBrand.vvc ? Colors.white : theme.cardBackground).withValues(alpha: 0.94),
-                (theme.brand == CompanyBrand.vvc ? Colors.white : theme.cardBackground).withValues(alpha: 0.85),
-                (theme.brand == CompanyBrand.vvc ? Colors.white : theme.cardBackground).withValues(alpha: 0.90),
-              ],
-              stops: const [0.0, 0.55, 1.0],
-            ),
+            gradient: isDark
+                ? const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Color(0xFF1E222B),
+                      Color(0xFF16181F),
+                    ],
+                  )
+                : LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      (theme.brand == CompanyBrand.vvc ? Colors.white : theme.cardBackground).withValues(alpha: 0.94),
+                      (theme.brand == CompanyBrand.vvc ? Colors.white : theme.cardBackground).withValues(alpha: 0.85),
+                      (theme.brand == CompanyBrand.vvc ? Colors.white : theme.cardBackground).withValues(alpha: 0.90),
+                    ],
+                    stops: const [0.0, 0.55, 1.0],
+                  ),
             borderRadius: BorderRadius.circular(24),
             border: Border.all(
-              color: Colors.white,
+              color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.white,
               width: 1.5,
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF0F172A).withValues(alpha: 0.065),
+                color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.065),
                 blurRadius: 18,
                 spreadRadius: 0,
                 offset: const Offset(0, 6),
-              ),
-              BoxShadow(
-                color: const Color(0xFF0F172A).withValues(alpha: 0.03),
-                blurRadius: 4,
-                spreadRadius: 0,
-                offset: const Offset(0, 1),
               ),
             ],
           ),
@@ -1540,13 +1774,13 @@ class _HomeContentState extends State<HomeContent> {
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
                       color: isCheckedIn
-                          ? const Color(0xFF10B981).withValues(alpha: 0.12)
-                          : Colors.white.withValues(alpha: 0.85),
+                          ? const Color(0xFF10B981).withValues(alpha: 0.15)
+                          : (isDark ? const Color(0xFF232733) : Colors.white.withValues(alpha: 0.85)),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
                         color: isCheckedIn
-                            ? const Color(0xFF10B981).withValues(alpha: 0.3)
-                            : Colors.white,
+                            ? const Color(0xFF10B981).withValues(alpha: 0.35)
+                            : (isDark ? Colors.white.withValues(alpha: 0.12) : Colors.white),
                         width: 1.2,
                       ),
                       boxShadow: [
@@ -1577,8 +1811,8 @@ class _HomeContentState extends State<HomeContent> {
                               : 'មិនទាន់ Check-In',
                           style: GoogleFonts.kantumruyPro(
                             color: isCheckedIn
-                                ? const Color(0xFF059669)
-                                : const Color(0xFF1E293B),
+                                ? const Color(0xFF10B981)
+                                : (isDark ? Colors.white : const Color(0xFF1E293B)),
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
                           ),
@@ -1628,10 +1862,10 @@ class _HomeContentState extends State<HomeContent> {
                         child: Container(
                           padding: const EdgeInsets.all(7),
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.85),
+                            color: isDark ? const Color(0xFF232733) : Colors.white.withValues(alpha: 0.85),
                             shape: BoxShape.circle,
                             border: Border.all(
-                              color: Colors.white,
+                              color: isDark ? Colors.white.withValues(alpha: 0.12) : Colors.white,
                               width: 1.2,
                             ),
                             boxShadow: [
@@ -1642,9 +1876,9 @@ class _HomeContentState extends State<HomeContent> {
                               ),
                             ],
                           ),
-                          child: const Icon(
+                          child: Icon(
                             Icons.history_rounded,
-                            color: Color(0xFF1E293B),
+                            color: isDark ? Colors.white70 : const Color(0xFF1E293B),
                             size: 18,
                           ),
                         ),
@@ -1734,10 +1968,10 @@ class _HomeContentState extends State<HomeContent> {
                       child: Container(
                         height: 48,
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.75),
+                          color: isDark ? const Color(0xFF232733) : Colors.white.withValues(alpha: 0.75),
                           borderRadius: BorderRadius.circular(14),
                           border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.95),
+                            color: isDark ? Colors.white.withValues(alpha: 0.12) : Colors.white.withValues(alpha: 0.95),
                             width: 1.2,
                           ),
                         ),
@@ -1755,7 +1989,7 @@ class _HomeContentState extends State<HomeContent> {
                             Text(
                               'ក្រៅទីតាំង',
                               style: GoogleFonts.kantumruyPro(
-                                color: const Color(0xFF0F172A),
+                                color: isDark ? Colors.white : const Color(0xFF0F172A),
                                 fontSize: 12.5,
                                 fontWeight: FontWeight.w700,
                               ),
@@ -1837,10 +2071,8 @@ class _HomeContentState extends State<HomeContent> {
     required String actionText,
     required VoidCallback onTap,
   }) {
-    // Unified core branding accent color
-    final brandAccent = theme.brand == CompanyBrand.vvc
-        ? const Color(0xFFD97706)
-        : theme.cardPrimary;
+    const brandAccent = Color(0xFFD4AF37);
+    final isDark = theme.isDarkTheme;
 
     return GestureDetector(
       onTap: onTap,
@@ -1851,31 +2083,33 @@ class _HomeContentState extends State<HomeContent> {
           child: Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  (theme.brand == CompanyBrand.vvc ? Colors.white : theme.cardBackground).withValues(alpha: 0.94),
-                  (theme.brand == CompanyBrand.vvc ? Colors.white : theme.cardBackground).withValues(alpha: 0.85),
-                  (theme.brand == CompanyBrand.vvc ? Colors.white : theme.cardBackground).withValues(alpha: 0.90),
-                ],
-                stops: const [0.0, 0.55, 1.0],
-              ),
+              gradient: isDark
+                  ? const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Color(0xFF1C1E26),
+                        Color(0xFF16181F),
+                      ],
+                    )
+                  : LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        (theme.brand == CompanyBrand.vvc ? Colors.white : theme.cardBackground).withValues(alpha: 0.94),
+                        (theme.brand == CompanyBrand.vvc ? Colors.white : theme.cardBackground).withValues(alpha: 0.85),
+                      ],
+                    ),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: Colors.white,
-                width: 1.5,
+                color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.white,
+                width: 1.2,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF0F172A).withValues(alpha: 0.065),
+                  color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.065),
                   blurRadius: 16,
                   offset: const Offset(0, 5),
-                ),
-                BoxShadow(
-                  color: const Color(0xFF0F172A).withValues(alpha: 0.03),
-                  blurRadius: 4,
-                  offset: const Offset(0, 1),
                 ),
               ],
             ),
@@ -1886,30 +2120,23 @@ class _HomeContentState extends State<HomeContent> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Container(
-                      width: 40,
-                      height: 40,
+                      width: 38,
+                      height: 38,
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFFFBEB),
-                        borderRadius: BorderRadius.circular(13),
+                        color: isDark ? const Color(0xFF232733) : const Color(0xFFFFFBEB),
+                        shape: BoxShape.circle,
                         border: Border.all(
-                          color: const Color(0xFFFDE68A),
+                          color: const Color(0xFFD4AF37),
                           width: 1.2,
                         ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF0F172A).withValues(alpha: 0.03),
-                            blurRadius: 4,
-                            offset: const Offset(0, 1),
-                          ),
-                        ],
                       ),
-                      child: Icon(icon, color: brandAccent, size: 21),
+                      child: Icon(icon, color: brandAccent, size: 20),
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4.5),
                       decoration: BoxDecoration(
                         gradient: const LinearGradient(
-                          colors: [Color(0xFFEAB308), Color(0xFFD97706)],
+                          colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
                         ),
                         borderRadius: BorderRadius.circular(12),
                         boxShadow: [
@@ -1923,8 +2150,8 @@ class _HomeContentState extends State<HomeContent> {
                       child: Text(
                         actionText,
                         style: GoogleFonts.kantumruyPro(
-                          color: Colors.white,
-                          fontSize: 11.5,
+                          color: const Color(0xFF0F1115),
+                          fontSize: 11,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
@@ -1935,8 +2162,8 @@ class _HomeContentState extends State<HomeContent> {
                 Text(
                   value,
                   style: GoogleFonts.kantumruyPro(
-                    color: const Color(0xFF0F172A),
-                    fontSize: 17,
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                    fontSize: 16.5,
                     fontWeight: FontWeight.w800,
                   ),
                   maxLines: 1,
@@ -1946,12 +2173,26 @@ class _HomeContentState extends State<HomeContent> {
                 Text(
                   subtitle,
                   style: GoogleFonts.kantumruyPro(
-                    color: const Color(0xFF475569),
-                    fontSize: 12,
+                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569),
+                    fontSize: 11.5,
                     fontWeight: FontWeight.w600,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 10),
+                // Gold underline highlight bar (as seen in screenshot)
+                Container(
+                  height: 2.5,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        const Color(0xFFD4AF37),
+                        const Color(0xFFF59E0B).withValues(alpha: 0.1),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
               ],
             ),
@@ -2033,10 +2274,8 @@ class _HomeContentState extends State<HomeContent> {
     required String subtitle,
     required VoidCallback onTap,
   }) {
-    // Unified core branding accent color
-    final brandAccent = theme.brand == CompanyBrand.vvc
-        ? const Color(0xFFD97706)
-        : theme.cardPrimary;
+    const brandAccent = Color(0xFFD4AF37);
+    final isDark = theme.isDarkTheme;
 
     return GestureDetector(
       onTap: onTap,
@@ -2047,31 +2286,33 @@ class _HomeContentState extends State<HomeContent> {
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  (theme.brand == CompanyBrand.vvc ? Colors.white : theme.cardBackground).withValues(alpha: 0.94),
-                  (theme.brand == CompanyBrand.vvc ? Colors.white : theme.cardBackground).withValues(alpha: 0.85),
-                  (theme.brand == CompanyBrand.vvc ? Colors.white : theme.cardBackground).withValues(alpha: 0.90),
-                ],
-                stops: const [0.0, 0.55, 1.0],
-              ),
+              gradient: isDark
+                  ? const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Color(0xFF1C1E26),
+                        Color(0xFF16181F),
+                      ],
+                    )
+                  : LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        (theme.brand == CompanyBrand.vvc ? Colors.white : theme.cardBackground).withValues(alpha: 0.94),
+                        (theme.brand == CompanyBrand.vvc ? Colors.white : theme.cardBackground).withValues(alpha: 0.85),
+                      ],
+                    ),
               borderRadius: BorderRadius.circular(18),
               border: Border.all(
-                color: Colors.white,
-                width: 1.5,
+                color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.white,
+                width: 1.2,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF0F172A).withValues(alpha: 0.06),
+                  color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.06),
                   blurRadius: 14,
                   offset: const Offset(0, 4),
-                ),
-                BoxShadow(
-                  color: const Color(0xFF0F172A).withValues(alpha: 0.025),
-                  blurRadius: 4,
-                  offset: const Offset(0, 1),
                 ),
               ],
             ),
@@ -2081,19 +2322,12 @@ class _HomeContentState extends State<HomeContent> {
                   width: 38,
                   height: 38,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFFFBEB),
+                    color: isDark ? const Color(0xFF232733) : const Color(0xFFFFFBEB),
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: const Color(0xFFFDE68A),
-                      width: 1.2,
+                      color: const Color(0xFFD4AF37),
+                      width: 1.4,
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF0F172A).withValues(alpha: 0.03),
-                        blurRadius: 4,
-                        offset: const Offset(0, 1),
-                      ),
-                    ],
                   ),
                   child: Icon(icon, color: brandAccent, size: 20),
                 ),
@@ -2101,7 +2335,7 @@ class _HomeContentState extends State<HomeContent> {
                 Text(
                   title,
                   style: GoogleFonts.kantumruyPro(
-                    color: const Color(0xFF0F172A),
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
                     fontSize: 12.5,
                     fontWeight: FontWeight.w700,
                   ),
@@ -2113,9 +2347,9 @@ class _HomeContentState extends State<HomeContent> {
                 Text(
                   subtitle,
                   style: GoogleFonts.kantumruyPro(
-                    color: const Color(0xFF475569),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
+                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w500,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -3143,6 +3377,7 @@ class _HomeContentState extends State<HomeContent> {
     for (var key in keys) {
       if (bentoDuplicates.contains(key)) continue;
       if (!actionBuilders.containsKey(key)) continue;
+      if (!_matchesCategory(key, _selectedCategory)) continue;
 
       // Pre-check visibility: skip hidden items (SizedBox.shrink has null width)
       final bool isFullWidth = key == 'attendance' || key == 'stats_slider';
@@ -3189,7 +3424,7 @@ class _HomeContentState extends State<HomeContent> {
         padding: const EdgeInsets.only(bottom: 12),
         child: SectionHeader(
           title: "⚡ សេវាកម្ម និងមុខងារ",
-          textColor: theme.textPrimary,
+          textColor: theme.isDarkTheme ? Colors.white : theme.textPrimary,
         ),
       ),
     );
