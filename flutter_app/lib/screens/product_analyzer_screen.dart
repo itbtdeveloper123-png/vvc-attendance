@@ -2645,12 +2645,19 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
     return Container(
       padding: EdgeInsets.fromLTRB(
         12,
-        8,
+        10,
         12,
-        MediaQuery.paddingOf(context).bottom + 8,
+        MediaQuery.paddingOf(context).bottom + 10,
       ),
       decoration: BoxDecoration(
         color: AppTheme.bgCard,
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, -3),
+          ),
+        ],
         border: Border(
           top: BorderSide(color: AppTheme.border),
         ),
@@ -2666,12 +2673,14 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
           // Text Input Field
           Expanded(
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
                 color: const Color(0xFFF1F5F9),
-                borderRadius: BorderRadius.circular(22),
+                borderRadius: BorderRadius.circular(24),
                 border: Border.all(
-                    color: AppTheme.border),
+                  color: AppTheme.border,
+                  width: 1,
+                ),
               ),
               child: TextField(
                 controller: _textCtrl,
@@ -2683,8 +2692,16 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
                     color: AppTheme.textMuted,
                     fontSize: 13,
                   ),
+                  filled: false,
+                  fillColor: Colors.transparent,
                   border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  disabledBorder: InputBorder.none,
+                  errorBorder: InputBorder.none,
+                  focusedErrorBorder: InputBorder.none,
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 11),
                 ),
                 onSubmitted: _sendFollowUpMessage,
               ),
@@ -2711,8 +2728,9 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
                 boxShadow: [
                   if (!_isAnalyzing && !_isAiResponding)
                     BoxShadow(
-                      color: const Color(0xFF7C3AED).withValues(alpha: 0.4),
+                      color: const Color(0xFF7C3AED).withValues(alpha: 0.35),
                       blurRadius: 8,
+                      offset: const Offset(0, 2),
                     )
                 ],
               ),
