@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:convert';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -425,9 +426,26 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             slivers: [
               // Top App Bar with Edit Capsule (Matching Screenshot 1)
               SliverAppBar(
-                backgroundColor: const Color(0xFF0F172A),
+                backgroundColor: Colors.transparent,
+                surfaceTintColor: Colors.transparent,
                 elevation: 0,
                 pinned: true,
+                flexibleSpace: ClipRect(
+                  child: BackdropFilter(
+                    filter: ui.ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0F172A).withValues(alpha: 0.82),
+                        border: const Border(
+                          bottom: BorderSide(
+                            color: Colors.white12,
+                            width: 0.8,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
                 leading: Padding(
                   padding: const EdgeInsets.all(8.0),
                   child: InkWell(

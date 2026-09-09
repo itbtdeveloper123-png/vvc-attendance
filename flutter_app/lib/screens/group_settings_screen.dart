@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:convert';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -135,9 +136,26 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
             slivers: [
               // Top AppBar with Edit Capsule Button (Matching Screenshot)
               SliverAppBar(
-                backgroundColor: _GSDark.bg,
+                backgroundColor: Colors.transparent,
+                surfaceTintColor: Colors.transparent,
                 elevation: 0,
                 pinned: true,
+                flexibleSpace: ClipRect(
+                  child: BackdropFilter(
+                    filter: ui.ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: _GSDark.bg.withValues(alpha: 0.82),
+                        border: const Border(
+                          bottom: BorderSide(
+                            color: _GSDark.divider,
+                            width: 0.8,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
                 leading: Padding(
                   padding: const EdgeInsets.all(8.0),
                   child: InkWell(

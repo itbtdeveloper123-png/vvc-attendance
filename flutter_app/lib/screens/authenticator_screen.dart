@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import '../providers/user_provider.dart';
 import '../services/authenticator_service.dart';
 import '../utils/app_theme.dart';
+import '../widgets/app_widgets.dart';
 
 class AuthenticatorScreen extends StatefulWidget {
   const AuthenticatorScreen({super.key});
@@ -508,9 +509,7 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
 
     return Scaffold(
       backgroundColor: AppTheme.bgDark,
-      appBar: AppBar(
-        backgroundColor: AppTheme.bgCard,
-        elevation: 0,
+      appBar: VvcAppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
           onPressed: () => Navigator.pop(context),

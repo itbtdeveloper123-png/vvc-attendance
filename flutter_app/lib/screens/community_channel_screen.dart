@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:convert';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -1936,13 +1937,23 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
       backgroundColor: _CommunityDark.bg,
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(110),
-        child: Container(
-          decoration: const BoxDecoration(
-            color: _CommunityDark.bg,
-            border: Border(
-              bottom: BorderSide(color: Color(0xFF1E293B), width: 1),
-            ),
-          ),
+        child: ClipRect(
+          child: BackdropFilter(
+            filter: ui.ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
+            child: Container(
+              decoration: BoxDecoration(
+                color: _CommunityDark.bg.withValues(alpha: 0.82),
+                border: const Border(
+                  bottom: BorderSide(color: Color(0xFF1E293B), width: 0.8),
+                ),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Colors.black12,
+                    blurRadius: 10,
+                    offset: Offset(0, 2),
+                  ),
+                ],
+              ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
@@ -2131,6 +2142,8 @@ class _CommunityChannelScreenState extends State<CommunityChannelScreen> {
           ),
         ),
       ),
+    ),
+  ),
       floatingActionButton: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(30),

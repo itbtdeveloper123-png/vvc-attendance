@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/api_service.dart';
 import '../utils/app_theme.dart';
+import '../widgets/app_widgets.dart';
 import '../widgets/vvc_global_alert.dart';
 import '../widgets/vvc_dropdown.dart';
 import 'certificate_editor_screen.dart';
@@ -221,11 +222,7 @@ class _HrmPollManagementScreenState extends State<HrmPollManagementScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.bgDark,
-      appBar: AppBar(
-        backgroundColor: AppTheme.bgDark,
-        elevation: 0,
-        centerTitle: true,
-        iconTheme: IconThemeData(color: AppTheme.textPrimary),
+      appBar: VvcAppBar(
         title: Text(
           'គ្រប់គ្រងការបោះឆ្នោត HRM',
           style: GoogleFonts.kantumruyPro(

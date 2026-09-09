@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../providers/user_provider.dart';
 import '../services/api_service.dart';
 import '../utils/app_theme.dart';
+import '../widgets/app_widgets.dart';
 import '../widgets/responsive_layout.dart';
 import '../widgets/vvc_global_alert.dart';
 import 'hrm_poll_management_screen.dart';
@@ -164,10 +165,7 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
 
     return Scaffold(
       backgroundColor: AppTheme.bgDark,
-      appBar: AppBar(
-        backgroundColor: AppTheme.bgDark,
-        elevation: 0,
-        iconTheme: IconThemeData(color: AppTheme.textPrimary),
+      appBar: VvcAppBar(
         title: Text(
           'បោះឆ្នោតបុគ្គលិកឆ្នើម',
           style: GoogleFonts.kantumruyPro(
