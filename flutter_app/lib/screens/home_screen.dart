@@ -351,8 +351,8 @@ class HomeScreenState extends State<HomeScreen> {
 
     final screens = _getScreens(userProvider);
     final theme = userProvider.companyTheme;
-
     final isDark = theme.isDarkTheme;
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle(
@@ -367,6 +367,44 @@ class HomeScreenState extends State<HomeScreen> {
         backgroundColor: theme.backgroundColor,
         body: IndexedStack(index: _currentIndex, children: screens),
         bottomNavigationBar: _buildBottomNav(userProvider),
+        floatingActionButton: _currentIndex == 0
+            ? Padding(
+                padding: EdgeInsets.only(
+                  bottom: bottomInset > 0 ? bottomInset + 54 : 64,
+                ),
+                child: GestureDetector(
+                  onTap: () {
+                    _hapticLight();
+                    Navigator.push(
+                      context,
+                      _slideRoute(const AiChatScreen()),
+                    );
+                  },
+                  child: Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.22),
+                          blurRadius: 14,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: const Center(
+                      child: Icon(
+                        Icons.smart_toy_rounded,
+                        color: Color(0xFF0F172A),
+                        size: 24,
+                      ),
+                    ),
+                  ),
+                ),
+              )
+            : null,
       ),
     );
   }
@@ -419,27 +457,7 @@ class HomeScreenState extends State<HomeScreen> {
                   isSelected: _currentIndex == 1,
                   onTap: () => setState(() => _currentIndex = 1),
                 ),
-                // 3. Center Chat Bubble (with red 3.9K badge)
-                _buildDockItem(
-                  icon: Icons.chat_bubble_rounded,
-                  isSelected: false,
-                  isCenter: true,
-                  badgeText: '3.9K',
-                  onTap: () {
-                    _hapticLight();
-                    Navigator.push(context, _slideRoute(const ChatListScreen()));
-                  },
-                ),
-                // 4. App Settings
-                _buildDockItem(
-                  icon: Icons.settings_rounded,
-                  isSelected: false,
-                  onTap: () {
-                    _hapticLight();
-                    Navigator.push(context, _slideRoute(const AppSettingsScreen()));
-                  },
-                ),
-                // 5. Profile
+                // 3. Profile
                 _buildDockItem(
                   icon: Icons.person_rounded,
                   isSelected: _currentIndex == 2,
@@ -1127,7 +1145,7 @@ class _HomeContentState extends State<HomeContent> {
                   elevation: 0,
                   backgroundColor: Colors.transparent,
                   surfaceTintColor: Colors.transparent,
-                  toolbarHeight: 70,
+                  toolbarHeight: 74,
                   titleSpacing: 16,
                   flexibleSpace: ClipRect(
                     child: BackdropFilter(
@@ -1409,7 +1427,7 @@ class _HomeContentState extends State<HomeContent> {
       duration: const Duration(milliseconds: 400),
       child: Row(
         children: [
-          // 1. Left Edit Action Button
+          // 1. Left Action Button (Settings / Tune)
           GestureDetector(
             onTap: () {
               _hapticLight();
@@ -1420,119 +1438,102 @@ class _HomeContentState extends State<HomeContent> {
             },
             behavior: HitTestBehavior.opaque,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              width: 38,
+              height: 38,
               decoration: BoxDecoration(
-                color: const Color(0xFFD4AF37).withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(16),
+                color: isDark ? const Color(0xFF191B22) : Colors.white,
+                shape: BoxShape.circle,
                 border: Border.all(
-                  color: const Color(0xFFD4AF37).withValues(alpha: 0.35),
-                  width: 1,
+                  color: const Color(0xFFD4AF37).withValues(alpha: 0.4),
+                  width: 1.2,
                 ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.check_circle_outline_rounded,
-                    color: Color(0xFFD4AF37),
-                    size: 15,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Edit',
-                    style: GoogleFonts.inter(
-                      color: const Color(0xFFD4AF37),
-                      fontWeight: FontWeight.w700,
-                      fontSize: 12,
-                    ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.15),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
                   ),
                 ],
+              ),
+              child: const Center(
+                child: Icon(
+                  Icons.tune_rounded,
+                  color: Color(0xFFD4AF37),
+                  size: 19,
+                ),
               ),
             ),
           ),
 
           const Spacer(),
 
-          // 2. Center Profile & Team (Overlapping 3 Avatar Bubbles + Name + [VVC] Badge)
+          // 2. Center Profile (Enlarged Avatar + Verified Badge + Name + VVC Tag + Greeting)
           GestureDetector(
             onTap: widget.onProfileTap,
             behavior: HitTestBehavior.opaque,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // 3 Overlapping Avatar Bubbles
-                SizedBox(
-                  width: 68,
-                  height: 28,
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      // Bubble 3 (Rightmost/Bottom)
-                      Positioned(
-                        left: 36,
-                        child: Container(
-                          width: 28,
-                          height: 28,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: const Color(0xFF3B82F6),
-                            border: Border.all(color: const Color(0xFF0F1115), width: 2),
+                // Single Enlarged Avatar with Verified Badge
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: theme.cardPrimary,
+                        border: Border.all(
+                          color: const Color(0xFFD4AF37),
+                          width: 1.8,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFFD4AF37).withValues(alpha: 0.3),
+                            blurRadius: 10,
+                            offset: const Offset(0, 2),
                           ),
-                          child: const Center(
-                            child: Icon(Icons.group_rounded, color: Colors.white, size: 14),
+                        ],
+                      ),
+                      child: ClipOval(
+                        child: user.avatarUrl != null && user.avatarUrl!.isNotEmpty
+                            ? Image.network(
+                                user.avatarUrl!,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => _buildInitialsAvatar(user, theme),
+                              )
+                            : _buildInitialsAvatar(user, theme),
+                      ),
+                    ),
+                    // Verified Badge
+                    Positioned(
+                      bottom: -1,
+                      right: -1,
+                      child: Container(
+                        width: 16,
+                        height: 16,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0EA5E9),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: isDark ? const Color(0xFF0F1115) : Colors.white,
+                            width: 1.6,
+                          ),
+                        ),
+                        child: const Center(
+                          child: Icon(
+                            Icons.check_rounded,
+                            color: Colors.white,
+                            size: 10,
                           ),
                         ),
                       ),
-                      // Bubble 2 (Center)
-                      Positioned(
-                        left: 18,
-                        child: Container(
-                          width: 28,
-                          height: 28,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: const Color(0xFFD4AF37),
-                            border: Border.all(color: const Color(0xFF0F1115), width: 2),
-                          ),
-                          child: Center(
-                            child: Text(
-                              'V',
-                              style: GoogleFonts.inter(
-                                color: const Color(0xFF0F1115),
-                                fontWeight: FontWeight.w900,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      // Bubble 1 (User / Leftmost / Top)
-                      Positioned(
-                        left: 0,
-                        child: Container(
-                          width: 28,
-                          height: 28,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: theme.cardPrimary,
-                            border: Border.all(color: const Color(0xFF0F1115), width: 2),
-                          ),
-                          child: ClipOval(
-                            child: user.avatarUrl != null && user.avatarUrl!.isNotEmpty
-                                ? Image.network(
-                                    user.avatarUrl!,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => _buildInitialsAvatar(user, theme),
-                                  )
-                                : _buildInitialsAvatar(user, theme),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 3),
-                // Name + VVC Gold Badge
+                // Name + Verified Badge + VVC Gold Tag
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -1545,6 +1546,12 @@ class _HomeContentState extends State<HomeContent> {
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(width: 4),
+                    const Icon(
+                      Icons.verified_rounded,
+                      color: Color(0xFF0EA5E9),
+                      size: 14,
                     ),
                     const SizedBox(width: 4),
                     Container(
@@ -1581,38 +1588,74 @@ class _HomeContentState extends State<HomeContent> {
 
           const Spacer(),
 
-          // 3. Right Quick Actions: White Pill with Pen & Dark Pill with Gold Plus
+          // 3. Right Quick Actions: Chat (with 3.9K badge) + Gold Plus
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // White Pill with Pen
+              // Chat Button with 3.9K Badge
               GestureDetector(
                 onTap: () {
                   _hapticLight();
                   Navigator.push(
                     context,
-                    _slideRoute(const DailyReportScreen()),
+                    _slideRoute(const ChatListScreen()),
                   );
                 },
-                child: Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.15),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.15),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.edit_note_rounded,
-                    color: Color(0xFF0F172A),
-                    size: 20,
-                  ),
+                      child: const Icon(
+                        Icons.chat_bubble_rounded,
+                        color: Color(0xFF0F172A),
+                        size: 18,
+                      ),
+                    ),
+                    Positioned(
+                      top: -3,
+                      right: -6,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1.5),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEF4444),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: isDark ? const Color(0xFF0F1115) : Colors.white,
+                            width: 1.2,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFFEF4444).withValues(alpha: 0.4),
+                              blurRadius: 4,
+                              offset: const Offset(0, 1),
+                            ),
+                          ],
+                        ),
+                        child: Text(
+                          '3.9K',
+                          style: GoogleFonts.inter(
+                            color: Colors.white,
+                            fontSize: 8.5,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -0.2,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(width: 8),
