@@ -1109,41 +1109,16 @@ class _HomeContentState extends State<HomeContent> {
                 parent: BouncingScrollPhysics(),
               ),
               slivers: [
-                SliverAppBar(
-                  systemOverlayStyle: SystemUiOverlayStyle(
-                    statusBarColor: Colors.transparent,
-                    statusBarIconBrightness: theme.isDarkTheme ? Brightness.light : Brightness.dark,
-                    statusBarBrightness: theme.isDarkTheme ? Brightness.dark : Brightness.light,
-                  ),
+                SliverPersistentHeader(
                   pinned: true,
-                  floating: false,
-                  elevation: 0,
-                  backgroundColor: Colors.transparent,
-                  surfaceTintColor: Colors.transparent,
-                  toolbarHeight: 74,
-                  titleSpacing: 16,
-                  flexibleSpace: ClipRect(
-                    child: BackdropFilter(
-                      filter: ui.ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: theme.isDarkTheme
-                              ? const Color(0xFF0F1115).withValues(alpha: 0.85)
-                              : Colors.white.withValues(alpha: 0.68),
-                          border: Border(
-                            bottom: BorderSide(
-                              color: (theme.isDarkTheme
-                                      ? Colors.white
-                                      : Colors.black)
-                                  .withValues(alpha: 0.08),
-                              width: 0.5,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
+                  delegate: _HomeHeaderDelegate(
+                    user: user,
+                    theme: theme,
+                    greeting: _greeting,
+                    unreadNotifications: _unreadNotifications,
+                    onProfileTap: widget.onProfileTap,
+                    topPadding: MediaQuery.paddingOf(context).top,
                   ),
-                  title: _buildTopBar(user),
                 ),
                 SliverToBoxAdapter(
                   child: SafeArea(
@@ -1402,300 +1377,9 @@ class _HomeContentState extends State<HomeContent> {
     );
   }
 
-  Widget _buildTopBar(UserProvider user) {
-    final theme = user.companyTheme;
-    final isDark = theme.isDarkTheme;
 
-    return FadeInDown(
-      duration: const Duration(milliseconds: 400),
-      child: Row(
-        children: [
-          // 1. Left Action Button: Settings / Tune (#F3D010 with white icon)
-          GestureDetector(
-            onTap: () {
-              _hapticLight();
-              Navigator.push(
-                context,
-                _slideRoute(const AppSettingsScreen()),
-              );
-            },
-            behavior: HitTestBehavior.opaque,
-            child: Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                color: const Color(0xFFF3D010),
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFFF3D010).withValues(alpha: 0.35),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: const Center(
-                child: Icon(
-                  Icons.tune_rounded,
-                  color: Colors.white,
-                  size: 19,
-                ),
-              ),
-            ),
-          ),
 
-          const Spacer(),
 
-          // 2. Center Profile (Enlarged Avatar + Verified Badge + Name + VVC Tag + Greeting)
-          GestureDetector(
-            onTap: widget.onProfileTap,
-            behavior: HitTestBehavior.opaque,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Single Enlarged Avatar with Verified Badge
-                Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: theme.cardPrimary,
-                        border: Border.all(
-                          color: const Color(0xFFD4AF37),
-                          width: 1.8,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFFD4AF37).withValues(alpha: 0.3),
-                            blurRadius: 10,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: ClipOval(
-                        child: user.avatarUrl != null && user.avatarUrl!.isNotEmpty
-                            ? Image.network(
-                                user.avatarUrl!,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => _buildInitialsAvatar(user, theme),
-                              )
-                            : _buildInitialsAvatar(user, theme),
-                      ),
-                    ),
-                    // Verified Badge
-                    Positioned(
-                      bottom: -1,
-                      right: -1,
-                      child: Container(
-                        width: 16,
-                        height: 16,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF0EA5E9),
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: isDark ? const Color(0xFF0F1115) : Colors.white,
-                            width: 1.6,
-                          ),
-                        ),
-                        child: const Center(
-                          child: Icon(
-                            Icons.check_rounded,
-                            color: Colors.white,
-                            size: 10,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 3),
-                // Name + Verified Badge + VVC Gold Tag
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      user.name ?? 'បុគ្គលិក',
-                      style: GoogleFonts.kantumruyPro(
-                        color: isDark ? Colors.white : const Color(0xFF0F172A),
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(width: 4),
-                    const Icon(
-                      Icons.verified_rounded,
-                      color: Color(0xFF0EA5E9),
-                      size: 14,
-                    ),
-                    const SizedBox(width: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFD4AF37),
-                        borderRadius: BorderRadius.circular(5),
-                      ),
-                      child: Text(
-                        theme.brand == CompanyBrand.sk ? 'SK' : 'VVC',
-                        style: GoogleFonts.inter(
-                          color: const Color(0xFF0F1115),
-                          fontWeight: FontWeight.w900,
-                          fontSize: 9,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  _greeting,
-                  style: GoogleFonts.kantumruyPro(
-                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w500,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-
-          const Spacer(),
-
-          // 3. Right Quick Actions: Chat (#F3D010 with 3.9K badge) + Plus (#F3D010)
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Chat Button with 3.9K Badge
-              GestureDetector(
-                onTap: () {
-                  _hapticLight();
-                  Navigator.push(
-                    context,
-                    _slideRoute(const ChatListScreen()),
-                  );
-                },
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Container(
-                      width: 38,
-                      height: 38,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF3D010),
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFFF3D010).withValues(alpha: 0.35),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.chat_bubble_rounded,
-                        color: Colors.white,
-                        size: 18,
-                      ),
-                    ),
-                    Positioned(
-                      top: -3,
-                      right: -6,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1.5),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFEF4444),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.white, width: 1.2),
-                        ),
-                        child: Text(
-                          '3.9K',
-                          style: GoogleFonts.inter(
-                            color: Colors.white,
-                            fontSize: 8.5,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              // Plus Button (#F3D010 with white icon)
-              GestureDetector(
-                onTap: () {
-                  _hapticLight();
-                  Navigator.push(
-                    context,
-                    _slideRoute(const LeaveRequestScreen()),
-                  );
-                },
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Container(
-                      width: 38,
-                      height: 38,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF3D010),
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFFF3D010).withValues(alpha: 0.35),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.add_rounded,
-                        color: Colors.white,
-                        size: 22,
-                      ),
-                    ),
-                    if (_unreadNotifications > 0)
-                      Positioned(
-                        top: -2,
-                        right: -2,
-                        child: Container(
-                          width: 8,
-                          height: 8,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFFEF4444),
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInitialsAvatar(UserProvider user, CompanyTheme theme) {
-    return Center(
-      child: Text(
-        (user.name ?? 'U').isNotEmpty
-            ? user.name!.substring(0, 1).toUpperCase()
-            : 'U',
-        style: GoogleFonts.inter(
-          color: theme.passCardTextColor,
-          fontWeight: FontWeight.bold,
-          fontSize: 18,
-        ),
-      ),
-    );
-  }
 
   // ═════════════════════════════════════════════════════════════════════════════
   // ─── BENTO GRID DASHBOARD (Apple / Linear Style) ────────────────────────────
@@ -3743,5 +3427,402 @@ class BannerDetailView extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// ─── DYNAMIC COLLAPSIBLE HEADER (Apple / Telegram Luxury 1:1) ─────────────────
+// ═════════════════════════════════════════════════════════════════════════════
+
+class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
+  final UserProvider user;
+  final CompanyTheme theme;
+  final String greeting;
+  final int unreadNotifications;
+  final VoidCallback? onProfileTap;
+  final double topPadding;
+
+  _HomeHeaderDelegate({
+    required this.user,
+    required this.theme,
+    required this.greeting,
+    required this.unreadNotifications,
+    this.onProfileTap,
+    required this.topPadding,
+  });
+
+  @override
+  double get minExtent => topPadding + 58.0;
+
+  @override
+  double get maxExtent => topPadding + 104.0;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    final progress = ((shrinkOffset) / (maxExtent - minExtent)).clamp(0.0, 1.0);
+    final isDark = theme.isDarkTheme;
+
+    // Smooth dimensions interpolated based on scroll progress
+    final avatarSize = ui.lerpDouble(44.0, 32.0, progress)!;
+    final actionBtnSize = ui.lerpDouble(38.0, 34.0, progress)!;
+    final greetingOpacity = (1.0 - progress * 2.5).clamp(0.0, 1.0);
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+        statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
+      ),
+      child: ClipRect(
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
+          child: Container(
+            padding: EdgeInsets.only(top: topPadding),
+            decoration: BoxDecoration(
+              color: isDark
+                  ? const Color(0xFF0F1115).withValues(alpha: 0.85 + 0.10 * progress)
+                  : Colors.white.withValues(alpha: 0.72 + 0.22 * progress),
+              border: Border(
+                bottom: BorderSide(
+                  color: (isDark ? Colors.white : Colors.black)
+                      .withValues(alpha: 0.05 + 0.06 * progress),
+                  width: 0.6,
+                ),
+              ),
+              boxShadow: progress > 0.08
+                  ? [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: isDark ? 0.30 : 0.05),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: SizedBox(
+              height: double.infinity,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    // 1. Left Action Button: Settings / Tune
+                    GestureDetector(
+                      onTap: () {
+                        _hapticLight();
+                        Navigator.push(
+                          context,
+                          _slideRoute(const AppSettingsScreen()),
+                        );
+                      },
+                      behavior: HitTestBehavior.opaque,
+                      child: Container(
+                        width: actionBtnSize,
+                        height: actionBtnSize,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF3D010),
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFFF3D010).withValues(alpha: 0.35),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Center(
+                          child: Icon(
+                            Icons.tune_rounded,
+                            color: Colors.white,
+                            size: ui.lerpDouble(19.0, 16.5, progress)!,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // 2. Center Profile (Scales down smoothly on scroll)
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: onProfileTap,
+                        behavior: HitTestBehavior.opaque,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Avatar with Verified Badge
+                            Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                Container(
+                                  width: avatarSize,
+                                  height: avatarSize,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: theme.cardPrimary,
+                                    border: Border.all(
+                                      color: const Color(0xFFD4AF37),
+                                      width: ui.lerpDouble(1.8, 1.4, progress)!,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: const Color(0xFFD4AF37).withValues(alpha: 0.3),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: ClipOval(
+                                    child: user.avatarUrl != null && user.avatarUrl!.isNotEmpty
+                                        ? Image.network(
+                                            user.avatarUrl!,
+                                            fit: BoxFit.cover,
+                                            alignment: const Alignment(0, -0.25),
+                                            errorBuilder: (_, __, ___) =>
+                                                _buildInitials(user, theme),
+                                          )
+                                        : _buildInitials(user, theme),
+                                  ),
+                                ),
+                                Positioned(
+                                  bottom: -1,
+                                  right: -1,
+                                  child: Container(
+                                    width: ui.lerpDouble(16.0, 12.0, progress)!,
+                                    height: ui.lerpDouble(16.0, 12.0, progress)!,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF0EA5E9),
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: isDark ? const Color(0xFF0F1115) : Colors.white,
+                                        width: 1.4,
+                                      ),
+                                    ),
+                                    child: Center(
+                                      child: Icon(
+                                        Icons.check_rounded,
+                                        color: Colors.white,
+                                        size: ui.lerpDouble(10.0, 8.0, progress)!,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            SizedBox(height: ui.lerpDouble(4.0, 2.0, progress)!),
+                            // Name + Verified Badge + VVC Gold Tag
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    user.name ?? 'បុគ្គលិក',
+                                    style: GoogleFonts.kantumruyPro(
+                                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: ui.lerpDouble(13.0, 12.0, progress)!,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Icon(
+                                  Icons.verified_rounded,
+                                  color: const Color(0xFF0EA5E9),
+                                  size: ui.lerpDouble(14.0, 12.0, progress)!,
+                                ),
+                                const SizedBox(width: 4),
+                                Container(
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: ui.lerpDouble(5.0, 4.0, progress)!,
+                                    vertical: 1,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFD4AF37),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    theme.brand == CompanyBrand.sk ? 'SK' : 'VVC',
+                                    style: GoogleFonts.inter(
+                                      color: const Color(0xFF0F1115),
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: ui.lerpDouble(9.0, 8.0, progress)!,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            // Greeting text (Fades out when scrolled)
+                            if (greetingOpacity > 0.01) ...[
+                              SizedBox(height: ui.lerpDouble(2.0, 0.0, progress)!),
+                              Opacity(
+                                opacity: greetingOpacity,
+                                child: Text(
+                                  greeting,
+                                  style: GoogleFonts.kantumruyPro(
+                                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    // 3. Right Quick Actions: Chat (3.9K) + Add (+)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Chat Button with 3.9K Badge
+                        GestureDetector(
+                          onTap: () {
+                            _hapticLight();
+                            Navigator.push(
+                              context,
+                              _slideRoute(const ChatListScreen()),
+                            );
+                          },
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              Container(
+                                width: actionBtnSize,
+                                height: actionBtnSize,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF3D010),
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(0xFFF3D010).withValues(alpha: 0.35),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: Center(
+                                  child: Icon(
+                                    Icons.chat_bubble_rounded,
+                                    color: Colors.white,
+                                    size: ui.lerpDouble(18.0, 15.5, progress)!,
+                                  ),
+                                ),
+                              ),
+                              Positioned(
+                                top: -3,
+                                right: -6,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1.5),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFEF4444),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: Colors.white, width: 1.2),
+                                  ),
+                                  child: Text(
+                                    '3.9K',
+                                    style: GoogleFonts.inter(
+                                      color: Colors.white,
+                                      fontSize: 8.5,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        SizedBox(width: ui.lerpDouble(8.0, 6.0, progress)!),
+                        // Plus Button
+                        GestureDetector(
+                          onTap: () {
+                            _hapticLight();
+                            Navigator.push(
+                              context,
+                              _slideRoute(const LeaveRequestScreen()),
+                            );
+                          },
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              Container(
+                                width: actionBtnSize,
+                                height: actionBtnSize,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF3D010),
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(0xFFF3D010).withValues(alpha: 0.35),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: Center(
+                                  child: Icon(
+                                    Icons.add_rounded,
+                                    color: Colors.white,
+                                    size: ui.lerpDouble(22.0, 19.0, progress)!,
+                                  ),
+                                ),
+                              ),
+                              if (unreadNotifications > 0)
+                                Positioned(
+                                  top: -2,
+                                  right: -2,
+                                  child: Container(
+                                    width: 8,
+                                    height: 8,
+                                    decoration: const BoxDecoration(
+                                      color: Color(0xFFEF4444),
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInitials(UserProvider user, CompanyTheme theme) {
+    return Center(
+      child: Text(
+        (user.name ?? 'U').isNotEmpty
+            ? user.name!.substring(0, 1).toUpperCase()
+            : 'U',
+        style: GoogleFonts.inter(
+          color: theme.passCardTextColor,
+          fontWeight: FontWeight.bold,
+          fontSize: 18,
+        ),
+      ),
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant _HomeHeaderDelegate oldDelegate) {
+    return oldDelegate.user != user ||
+        oldDelegate.theme != theme ||
+        oldDelegate.greeting != greeting ||
+        oldDelegate.unreadNotifications != unreadNotifications ||
+        oldDelegate.topPadding != topPadding;
   }
 }
