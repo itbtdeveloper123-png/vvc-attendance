@@ -352,6 +352,7 @@ class HomeScreenState extends State<HomeScreen> {
     final screens = _getScreens(userProvider);
     final theme = userProvider.companyTheme;
     final isDark = theme.isDarkTheme;
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle(
@@ -364,8 +365,173 @@ class HomeScreenState extends State<HomeScreen> {
       child: Scaffold(
         extendBody: true,
         backgroundColor: theme.backgroundColor,
-        body: IndexedStack(index: _currentIndex, children: screens),
+        body: Stack(
+          children: [
+            IndexedStack(index: _currentIndex, children: screens),
+            _buildFloatingActionBubbles(bottomInset),
+          ],
+        ),
         bottomNavigationBar: _buildBottomNav(userProvider),
+      ),
+    );
+  }
+
+  /// Floating Quick Action Bubbles (AI Assistant & Chat) at bottom-right above the Dock
+  Widget _buildFloatingActionBubbles(double bottomInset) {
+    final double bottomMargin =
+        (bottomInset > 0 ? bottomInset + 4.0 : 14.0) + 62.0 + 12.0;
+
+    return Positioned(
+      right: 18,
+      bottom: bottomMargin,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          // 1. AI Assistant Floating Bubble
+          GestureDetector(
+            onTap: () {
+              _hapticLight();
+              Navigator.push(
+                context,
+                _slideRoute(const AiChatScreen()),
+              );
+            },
+            behavior: HitTestBehavior.opaque,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF3D010),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFF3D010).withValues(alpha: 0.45),
+                        blurRadius: 10,
+                        spreadRadius: 1,
+                        offset: const Offset(0, 3),
+                      ),
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.14),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: const Center(
+                    child: Icon(
+                      Icons.smart_toy_rounded,
+                      color: Colors.white,
+                      size: 23,
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: -4,
+                  right: -4,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEF4444),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.white, width: 1.5),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFEF4444).withValues(alpha: 0.4),
+                          blurRadius: 4,
+                          offset: const Offset(0, 1),
+                        ),
+                      ],
+                    ),
+                    child: Text(
+                      'AI',
+                      style: GoogleFonts.inter(
+                        color: Colors.white,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          // 2. Chat Floating Bubble (with 3.9K Badge)
+          GestureDetector(
+            onTap: () {
+              _hapticLight();
+              Navigator.push(
+                context,
+                _slideRoute(const ChatListScreen()),
+              );
+            },
+            behavior: HitTestBehavior.opaque,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF3D010),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFF3D010).withValues(alpha: 0.45),
+                        blurRadius: 10,
+                        spreadRadius: 1,
+                        offset: const Offset(0, 3),
+                      ),
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.14),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: const Center(
+                    child: Icon(
+                      Icons.chat_bubble_rounded,
+                      color: Colors.white,
+                      size: 22,
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: -4,
+                  right: -6,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEF4444),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.white, width: 1.5),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFEF4444).withValues(alpha: 0.4),
+                          blurRadius: 4,
+                          offset: const Offset(0, 1),
+                        ),
+                      ],
+                    ),
+                    child: Text(
+                      '3.9K',
+                      style: GoogleFonts.inter(
+                        color: Colors.white,
+                        fontSize: 8.5,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -406,37 +572,24 @@ class HomeScreenState extends State<HomeScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                // 1. Home / Dashboard
+                // 1. Home / Dashboard (Left)
                 _buildDockItem(
                   icon: Icons.dashboard_rounded,
                   isSelected: _currentIndex == 0,
                   onTap: () => setState(() => _currentIndex = 0),
                 ),
-                // 2. Requests
+                // 2. Profile (Center Item - Beautifully highlighted)
+                _buildDockItem(
+                  icon: Icons.person_rounded,
+                  isSelected: _currentIndex == 2,
+                  isCenter: true,
+                  onTap: () => setState(() => _currentIndex = 2),
+                ),
+                // 3. Requests (Right)
                 _buildDockItem(
                   icon: user.isHRM ? Icons.list_alt_rounded : Icons.layers_rounded,
                   isSelected: _currentIndex == 1,
                   onTap: () => setState(() => _currentIndex = 1),
-                ),
-                // 3. AI Assistant Chat
-                _buildDockItem(
-                  icon: Icons.smart_toy_rounded,
-                  isSelected: false,
-                  isCenter: true,
-                  badgeText: 'AI',
-                  onTap: () {
-                    _hapticLight();
-                    Navigator.push(
-                      context,
-                      _slideRoute(const AiChatScreen()),
-                    );
-                  },
-                ),
-                // 4. Profile
-                _buildDockItem(
-                  icon: Icons.person_rounded,
-                  isSelected: _currentIndex == 2,
-                  onTap: () => setState(() => _currentIndex = 2),
                 ),
               ],
             ),
@@ -3678,119 +3831,55 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
                       ),
                     ),
 
-                    // 3. Right Quick Actions: Chat (3.9K) + Add (+)
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Chat Button with 3.9K Badge
-                        GestureDetector(
-                          onTap: () {
-                            _hapticLight();
-                            Navigator.push(
-                              context,
-                              _slideRoute(const ChatListScreen()),
-                            );
-                          },
-                          child: Stack(
-                            clipBehavior: Clip.none,
-                            children: [
-                              Container(
-                                width: actionBtnSize,
-                                height: actionBtnSize,
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFF3D010),
-                                  shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: const Color(0xFFF3D010).withValues(alpha: 0.35),
-                                      blurRadius: 8,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ],
+                    // 3. Right Quick Action: Plus (+)
+                    GestureDetector(
+                      onTap: () {
+                        _hapticLight();
+                        Navigator.push(
+                          context,
+                          _slideRoute(const LeaveRequestScreen()),
+                        );
+                      },
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Container(
+                            width: actionBtnSize,
+                            height: actionBtnSize,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF3D010),
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFFF3D010).withValues(alpha: 0.35),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
                                 ),
-                                child: Center(
-                                  child: Icon(
-                                    Icons.chat_bubble_rounded,
-                                    color: Colors.white,
-                                    size: ui.lerpDouble(18.0, 15.5, progress)!,
-                                  ),
-                                ),
+                              ],
+                            ),
+                            child: Center(
+                              child: Icon(
+                                Icons.add_rounded,
+                                color: Colors.white,
+                                size: ui.lerpDouble(22.0, 19.0, progress)!,
                               ),
-                              Positioned(
-                                top: -3,
-                                right: -6,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1.5),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFEF4444),
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(color: Colors.white, width: 1.2),
-                                  ),
-                                  child: Text(
-                                    '3.9K',
-                                    style: GoogleFonts.inter(
-                                      color: Colors.white,
-                                      fontSize: 8.5,
-                                      fontWeight: FontWeight.w900,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
+                            ),
                           ),
-                        ),
-                        SizedBox(width: ui.lerpDouble(8.0, 6.0, progress)!),
-                        // Plus Button
-                        GestureDetector(
-                          onTap: () {
-                            _hapticLight();
-                            Navigator.push(
-                              context,
-                              _slideRoute(const LeaveRequestScreen()),
-                            );
-                          },
-                          child: Stack(
-                            clipBehavior: Clip.none,
-                            children: [
-                              Container(
-                                width: actionBtnSize,
-                                height: actionBtnSize,
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFF3D010),
+                          if (unreadNotifications > 0)
+                            Positioned(
+                              top: -2,
+                              right: -2,
+                              child: Container(
+                                width: 8,
+                                height: 8,
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFFEF4444),
                                   shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: const Color(0xFFF3D010).withValues(alpha: 0.35),
-                                      blurRadius: 8,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ],
-                                ),
-                                child: Center(
-                                  child: Icon(
-                                    Icons.add_rounded,
-                                    color: Colors.white,
-                                    size: ui.lerpDouble(22.0, 19.0, progress)!,
-                                  ),
                                 ),
                               ),
-                              if (unreadNotifications > 0)
-                                Positioned(
-                                  top: -2,
-                                  right: -2,
-                                  child: Container(
-                                    width: 8,
-                                    height: 8,
-                                    decoration: const BoxDecoration(
-                                      color: Color(0xFFEF4444),
-                                      shape: BoxShape.circle,
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                      ],
+                            ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
