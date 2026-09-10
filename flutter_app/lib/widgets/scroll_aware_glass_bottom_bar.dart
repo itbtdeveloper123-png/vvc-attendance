@@ -65,13 +65,16 @@ class ScrollAwareGlassBottomBar extends StatelessWidget {
   }
 
   /// 1. Localized Bottom Edge Transition Zone:
-  /// Gradient Mask + Localized BackdropFilter blur (No global blur).
-  /// Content approaching the bottom navigation bar gracefully fades and blurs.
+  /// Smooth Ambient Gradient Mask (Clear -> Soft Fade -> Deep Fade)
+  /// Content approaching the bottom navigation bar gracefully fades into the background.
+  /// (No ShaderMask or nested BackdropFilter, guaranteeing zero washed out global blur artifacts).
   Widget buildTransitionZone({
     required BuildContext context,
     Color? maskColor,
   }) {
-    final effectiveMask = maskColor ?? Colors.white;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final effectiveMask = maskColor ??
+        (isDark ? const Color(0xFF0F1115) : const Color(0xFFF8FAFC));
     final double totalHeight = transitionHeight + bottomInset;
 
     return Positioned(
@@ -80,60 +83,26 @@ class ScrollAwareGlassBottomBar extends StatelessWidget {
       bottom: 0,
       height: totalHeight,
       child: IgnorePointer(
-        child: ClipRect(
-          child: Stack(
-            children: [
-              // 1a. Gradual Localized BackdropFilter Blur (faded with ShaderMask)
-              Positioned.fill(
-                child: ShaderMask(
-                  shaderCallback: (Rect bounds) {
-                    return const LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.transparent,
-                        Colors.black45,
-                        Colors.black,
-                      ],
-                      stops: [0.0, 0.40, 1.0],
-                    ).createShader(bounds);
-                  },
-                  blendMode: BlendMode.dstIn,
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 16.0, sigmaY: 16.0),
-                    child: Container(
-                      color: Colors.transparent,
-                    ),
-                  ),
-                ),
-              ),
-
-              // 1b. Smooth Ambient Gradient Mask (Clear -> Soft Fade -> Deep Fade)
-              Positioned.fill(
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        effectiveMask.withValues(alpha: 0.0),
-                        effectiveMask.withValues(alpha: 0.30),
-                        effectiveMask.withValues(alpha: 0.75),
-                        effectiveMask.withValues(alpha: 0.95),
-                      ],
-                      stops: const [0.0, 0.40, 0.80, 1.0],
-                    ),
-                  ),
-                ),
-              ),
-            ],
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                effectiveMask.withValues(alpha: 0.0),
+                effectiveMask.withValues(alpha: 0.35),
+                effectiveMask.withValues(alpha: 0.75),
+                effectiveMask.withValues(alpha: 0.95),
+              ],
+              stops: const [0.0, 0.40, 0.80, 1.0],
+            ),
           ),
         ),
       ),
     );
   }
 
-  /// 2. Floating Frosted Glass Dock Container
+  /// 2. Floating Frosted Glass Dock Container (Properly formatted for Scaffold bottomNavigationBar)
   Widget buildFloatingDock({required BuildContext context}) {
     final double bottomMargin = bottomInset > 0 ? bottomInset + 4.0 : 14.0;
     final primaryGold = accentColor ?? const Color(0xFFF3D010);
@@ -141,68 +110,64 @@ class ScrollAwareGlassBottomBar extends StatelessWidget {
 
     final dockBgColor = backgroundColor ??
         (isDark
-            ? const Color(0xFF181A20).withValues(alpha: 0.86)
-            : Colors.white.withValues(alpha: 0.88));
+            ? const Color(0xFF181A20).withValues(alpha: 0.88)
+            : Colors.white.withValues(alpha: 0.92));
 
     final effectiveBorder = borderColor ??
         (isDark
             ? primaryGold.withValues(alpha: 0.35)
-            : primaryGold.withValues(alpha: 0.45));
+            : const Color(0xFFD4AF37).withValues(alpha: 0.50));
 
-    return Positioned(
-      left: 20,
-      right: 20,
-      bottom: bottomMargin,
-      child: Container(
-        height: 64,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(36),
-          boxShadow: [
-            BoxShadow(
-              color: primaryGold.withValues(alpha: 0.18),
-              blurRadius: 22,
-              spreadRadius: -2,
-              offset: const Offset(0, 6),
-            ),
-            BoxShadow(
-              color: Colors.black.withValues(alpha: isDark ? 0.45 : 0.09),
-              blurRadius: 18,
-              offset: const Offset(0, 5),
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(36),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
-            child: Container(
-              height: 64,
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              decoration: BoxDecoration(
-                color: dockBgColor,
-                borderRadius: BorderRadius.circular(36),
-                border: Border.all(
-                  color: effectiveBorder,
-                  width: 1.2,
-                ),
+    return Container(
+      margin: EdgeInsets.fromLTRB(20, 0, 20, bottomMargin),
+      height: 64,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(36),
+        boxShadow: [
+          BoxShadow(
+            color: primaryGold.withValues(alpha: 0.20),
+            blurRadius: 22,
+            spreadRadius: -2,
+            offset: const Offset(0, 6),
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.45 : 0.10),
+            blurRadius: 18,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(36),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
+          child: Container(
+            height: 64,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            decoration: BoxDecoration(
+              color: dockBgColor,
+              borderRadius: BorderRadius.circular(36),
+              border: Border.all(
+                color: effectiveBorder,
+                width: 1.2,
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: List.generate(items.length, (index) {
-                  final item = items[index];
-                  final isSelected = index == currentIndex;
-                  return _buildDockItem(
-                    context: context,
-                    item: item,
-                    isSelected: isSelected,
-                    primaryGold: primaryGold,
-                    onItemTap: () {
-                      _triggerHaptic();
-                      onTap(index);
-                    },
-                  );
-                }),
-              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: List.generate(items.length, (index) {
+                final item = items[index];
+                final isSelected = index == currentIndex;
+                return _buildDockItem(
+                  context: context,
+                  item: item,
+                  isSelected: isSelected,
+                  primaryGold: primaryGold,
+                  onItemTap: () {
+                    _triggerHaptic();
+                    onTap(index);
+                  },
+                );
+              }),
             ),
           ),
         ),
@@ -267,7 +232,7 @@ class ScrollAwareGlassBottomBar extends StatelessWidget {
               child: Center(
                 child: Icon(
                   iconData,
-                  color: isSelected ? const Color(0xFF0F172A) : const Color(0xFF854D0E),
+                  color: isSelected ? Colors.white : const Color(0xFFB45309),
                   size: 24,
                 ),
               ),
@@ -327,7 +292,7 @@ class ScrollAwareGlassBottomBar extends StatelessWidget {
             child: Center(
               child: Icon(
                 iconData,
-                color: isSelected ? const Color(0xFF0F172A) : unselectedColor,
+                color: isSelected ? Colors.white : unselectedColor,
                 size: 22,
               ),
             ),

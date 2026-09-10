@@ -416,7 +416,7 @@ class HomeScreenState extends State<HomeScreen> {
   /// Floating Quick Action Bubbles (AI Assistant & Chat) at bottom-right above the Dock
   Widget _buildFloatingActionBubbles(double bottomInset) {
     final double bottomMargin =
-        (bottomInset > 0 ? bottomInset + 4.0 : 14.0) + 62.0 + 12.0;
+        (bottomInset > 0 ? bottomInset + 4.0 : 14.0) + 64.0 + 12.0;
 
     return Positioned(
       right: 18,
