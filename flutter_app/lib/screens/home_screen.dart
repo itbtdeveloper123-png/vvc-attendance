@@ -352,7 +352,6 @@ class HomeScreenState extends State<HomeScreen> {
     final screens = _getScreens(userProvider);
     final theme = userProvider.companyTheme;
     final isDark = theme.isDarkTheme;
-    final bottomInset = MediaQuery.paddingOf(context).bottom;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle(
@@ -367,44 +366,6 @@ class HomeScreenState extends State<HomeScreen> {
         backgroundColor: theme.backgroundColor,
         body: IndexedStack(index: _currentIndex, children: screens),
         bottomNavigationBar: _buildBottomNav(userProvider),
-        floatingActionButton: _currentIndex == 0
-            ? Padding(
-                padding: EdgeInsets.only(
-                  bottom: bottomInset > 0 ? bottomInset + 54 : 64,
-                ),
-                child: GestureDetector(
-                  onTap: () {
-                    _hapticLight();
-                    Navigator.push(
-                      context,
-                      _slideRoute(const AiChatScreen()),
-                    );
-                  },
-                  child: Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.22),
-                          blurRadius: 14,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: const Center(
-                      child: Icon(
-                        Icons.smart_toy_rounded,
-                        color: Color(0xFF0F172A),
-                        size: 24,
-                      ),
-                    ),
-                  ),
-                ),
-              )
-            : null,
       ),
     );
   }
@@ -457,7 +418,21 @@ class HomeScreenState extends State<HomeScreen> {
                   isSelected: _currentIndex == 1,
                   onTap: () => setState(() => _currentIndex = 1),
                 ),
-                // 3. Profile
+                // 3. AI Assistant Chat
+                _buildDockItem(
+                  icon: Icons.smart_toy_rounded,
+                  isSelected: false,
+                  isCenter: true,
+                  badgeText: 'AI',
+                  onTap: () {
+                    _hapticLight();
+                    Navigator.push(
+                      context,
+                      _slideRoute(const AiChatScreen()),
+                    );
+                  },
+                ),
+                // 4. Profile
                 _buildDockItem(
                   icon: Icons.person_rounded,
                   isSelected: _currentIndex == 2,
@@ -494,12 +469,12 @@ class HomeScreenState extends State<HomeScreen> {
             width: isSelected ? 44 : 38,
             height: isSelected ? 44 : 38,
             decoration: BoxDecoration(
-              color: isSelected ? const Color(0xFF0F1115) : Colors.transparent,
+              color: isSelected ? const Color(0xFFF3D010) : Colors.transparent,
               shape: BoxShape.circle,
               boxShadow: isSelected
                   ? [
                       BoxShadow(
-                        color: const Color(0xFFD4AF37).withValues(alpha: 0.35),
+                        color: const Color(0xFFF3D010).withValues(alpha: 0.35),
                         blurRadius: 8,
                         offset: const Offset(0, 2),
                       ),
@@ -509,7 +484,7 @@ class HomeScreenState extends State<HomeScreen> {
             child: Center(
               child: Icon(
                 icon,
-                color: isSelected ? const Color(0xFFD4AF37) : const Color(0xFF475569),
+                color: isSelected ? Colors.white : const Color(0xFF64748B),
                 size: isCenter ? 24 : 22,
               ),
             ),
@@ -1238,33 +1213,41 @@ class _HomeContentState extends State<HomeContent> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
                 color: isSelected
-                    ? Colors.white
-                    : const Color(0xFF191B22),
+                    ? const Color(0xFFF3D010)
+                    : (theme.isDarkTheme
+                        ? const Color(0xFF191B22)
+                        : Colors.white),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
                   color: isSelected
-                      ? Colors.white
+                      ? const Color(0xFFF3D010)
                       : (theme.isDarkTheme
                           ? Colors.white.withValues(alpha: 0.10)
-                          : Colors.black.withValues(alpha: 0.08)),
+                          : const Color(0xFFE2E8F0)),
                   width: 1,
                 ),
                 boxShadow: isSelected
                     ? [
                         BoxShadow(
-                          color: Colors.white.withValues(alpha: 0.2),
-                          blurRadius: 10,
+                          color: const Color(0xFFF3D010).withValues(alpha: 0.3),
+                          blurRadius: 8,
                           offset: const Offset(0, 2),
                         ),
                       ]
-                    : null,
+                    : [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.03),
+                          blurRadius: 4,
+                          offset: const Offset(0, 1),
+                        ),
+                      ],
               ),
               child: Center(
                 child: Text(
                   cat,
                   style: GoogleFonts.kantumruyPro(
                     color: isSelected
-                        ? const Color(0xFF0F1115)
+                        ? Colors.white
                         : (theme.isDarkTheme
                             ? const Color(0xFF94A3B8)
                             : const Color(0xFF64748B)),
@@ -1427,7 +1410,7 @@ class _HomeContentState extends State<HomeContent> {
       duration: const Duration(milliseconds: 400),
       child: Row(
         children: [
-          // 1. Left Action Button (Settings / Tune)
+          // 1. Left Action Button: Settings / Tune (#F3D010 with white icon)
           GestureDetector(
             onTap: () {
               _hapticLight();
@@ -1441,15 +1424,11 @@ class _HomeContentState extends State<HomeContent> {
               width: 38,
               height: 38,
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF191B22) : Colors.white,
+                color: const Color(0xFFF3D010),
                 shape: BoxShape.circle,
-                border: Border.all(
-                  color: const Color(0xFFD4AF37).withValues(alpha: 0.4),
-                  width: 1.2,
-                ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.15),
+                    color: const Color(0xFFF3D010).withValues(alpha: 0.35),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
@@ -1458,7 +1437,7 @@ class _HomeContentState extends State<HomeContent> {
               child: const Center(
                 child: Icon(
                   Icons.tune_rounded,
-                  color: Color(0xFFD4AF37),
+                  color: Colors.white,
                   size: 19,
                 ),
               ),
@@ -1588,7 +1567,7 @@ class _HomeContentState extends State<HomeContent> {
 
           const Spacer(),
 
-          // 3. Right Quick Actions: Chat (with 3.9K badge) + Gold Plus
+          // 3. Right Quick Actions: Chat (#F3D010 with 3.9K badge) + Plus (#F3D010)
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -1605,14 +1584,14 @@ class _HomeContentState extends State<HomeContent> {
                   clipBehavior: Clip.none,
                   children: [
                     Container(
-                      width: 36,
-                      height: 36,
+                      width: 38,
+                      height: 38,
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: const Color(0xFFF3D010),
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.15),
+                            color: const Color(0xFFF3D010).withValues(alpha: 0.35),
                             blurRadius: 8,
                             offset: const Offset(0, 2),
                           ),
@@ -1620,7 +1599,7 @@ class _HomeContentState extends State<HomeContent> {
                       ),
                       child: const Icon(
                         Icons.chat_bubble_rounded,
-                        color: Color(0xFF0F172A),
+                        color: Colors.white,
                         size: 18,
                       ),
                     ),
@@ -1632,17 +1611,7 @@ class _HomeContentState extends State<HomeContent> {
                         decoration: BoxDecoration(
                           color: const Color(0xFFEF4444),
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: isDark ? const Color(0xFF0F1115) : Colors.white,
-                            width: 1.2,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFFEF4444).withValues(alpha: 0.4),
-                              blurRadius: 4,
-                              offset: const Offset(0, 1),
-                            ),
-                          ],
+                          border: Border.all(color: Colors.white, width: 1.2),
                         ),
                         child: Text(
                           '3.9K',
@@ -1650,7 +1619,6 @@ class _HomeContentState extends State<HomeContent> {
                             color: Colors.white,
                             fontSize: 8.5,
                             fontWeight: FontWeight.w900,
-                            letterSpacing: -0.2,
                           ),
                         ),
                       ),
@@ -1659,7 +1627,7 @@ class _HomeContentState extends State<HomeContent> {
                 ),
               ),
               const SizedBox(width: 8),
-              // Dark Pill with Gold Border & Gold Plus
+              // Plus Button (#F3D010 with white icon)
               GestureDetector(
                 onTap: () {
                   _hapticLight();
@@ -1672,18 +1640,14 @@ class _HomeContentState extends State<HomeContent> {
                   clipBehavior: Clip.none,
                   children: [
                     Container(
-                      width: 36,
-                      height: 36,
+                      width: 38,
+                      height: 38,
                       decoration: BoxDecoration(
-                        color: const Color(0xFF191B22),
+                        color: const Color(0xFFF3D010),
                         shape: BoxShape.circle,
-                        border: Border.all(
-                          color: const Color(0xFFD4AF37),
-                          width: 1.5,
-                        ),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFFD4AF37).withValues(alpha: 0.2),
+                            color: const Color(0xFFF3D010).withValues(alpha: 0.35),
                             blurRadius: 8,
                             offset: const Offset(0, 2),
                           ),
@@ -1691,8 +1655,8 @@ class _HomeContentState extends State<HomeContent> {
                       ),
                       child: const Icon(
                         Icons.add_rounded,
-                        color: Color(0xFFD4AF37),
-                        size: 20,
+                        color: Colors.white,
+                        size: 22,
                       ),
                     ),
                     if (_unreadNotifications > 0)
@@ -1948,7 +1912,7 @@ class _HomeContentState extends State<HomeContent> {
                         decoration: BoxDecoration(
                           gradient: isNextCheckIn
                               ? const LinearGradient(
-                                  colors: [Color(0xFFEAB308), Color(0xFFD97706)],
+                                  colors: [Color(0xFFF3D010), Color(0xFFE5BF00)],
                                 )
                               : const LinearGradient(
                                   colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
@@ -1957,7 +1921,7 @@ class _HomeContentState extends State<HomeContent> {
                           boxShadow: [
                             BoxShadow(
                               color: (isNextCheckIn
-                                      ? const Color(0xFFD97706)
+                                      ? const Color(0xFFF3D010)
                                       : const Color(0xFFEF4444))
                                   .withValues(alpha: 0.35),
                               blurRadius: 10,
@@ -2178,13 +2142,11 @@ class _HomeContentState extends State<HomeContent> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4.5),
                       decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
-                        ),
+                        color: const Color(0xFFF3D010),
                         borderRadius: BorderRadius.circular(12),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFFD97706).withValues(alpha: 0.35),
+                            color: const Color(0xFFF3D010).withValues(alpha: 0.35),
                             blurRadius: 6,
                             offset: const Offset(0, 2),
                           ),
@@ -2193,7 +2155,7 @@ class _HomeContentState extends State<HomeContent> {
                       child: Text(
                         actionText,
                         style: GoogleFonts.kantumruyPro(
-                          color: const Color(0xFF0F1115),
+                          color: Colors.white,
                           fontSize: 11,
                           fontWeight: FontWeight.w800,
                         ),

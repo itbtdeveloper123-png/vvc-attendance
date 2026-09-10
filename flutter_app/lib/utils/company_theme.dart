@@ -53,7 +53,7 @@ class CompanyTheme {
   });
 
   /// ក្រុមហ៊ុនទី ១៖ Vvc
-  /// - Card Primary Rich Amber/Gold: #D97706
+  /// - Card Primary Rich Yellow/Gold: #F3D010
   /// - Background: White (#FFFFFF / #F8FAFC)
   static const CompanyTheme vvc = CompanyTheme(
     brand: CompanyBrand.vvc,
@@ -61,19 +61,19 @@ class CompanyTheme {
     brandLabel: 'Vvc HRM',
     passTitle: 'Vvc HRM EMPLOYEE PASS',
     backgroundColor: Color(0xFFF8FAFC),
-    cardPrimary: Color(0xFFD97706),
-    cardSecondary: Color(0xFFB45309),
+    cardPrimary: Color(0xFFF3D010),
+    cardSecondary: Color(0xFFE5BF00),
     cardBackground: Colors.white,
     cardBorder: Color(0xFFE2E8F0),
-    passCardColor: Color(0xFFD97706),
+    passCardColor: Color(0xFFF3D010),
     passCardTextColor: Colors.white,
     textPrimary: Color(0xFF0F172A),
     textSecondary: Color(0xFF475569),
     textMuted: Color(0xFF64748B),
-    glowColor: Color(0xFFD97706),
-    orbPrimary: Color(0xFFD97706),
-    orbSecondary: Color(0xFF38BDF8),
-    orbAccent: Color(0xFFA855F7),
+    glowColor: Color(0xFFF3D010),
+    orbPrimary: Color(0xFFF3D010),
+    orbSecondary: Color(0xFFFBBF24),
+    orbAccent: Color(0xFFF59E0B),
     isDarkTheme: false,
   );
 
@@ -109,24 +109,24 @@ class CompanyTheme {
     brandLabel: 'Vvc HRM',
     passTitle: 'Vvc HRM EMPLOYEE PASS',
     backgroundColor: Color(0xFF0F1115),
-    cardPrimary: Color(0xFFF59E0B),
-    cardSecondary: Color(0xFFD97706),
+    cardPrimary: Color(0xFFF3D010),
+    cardSecondary: Color(0xFFE5BF00),
     cardBackground: Color(0xFF191B22),
     cardBorder: Color(0x1FFFFFFF),
     passCardColor: Color(0xFF191B22),
-    passCardTextColor: Color(0xFFF59E0B),
+    passCardTextColor: Color(0xFFF3D010),
     textPrimary: Colors.white,
     textSecondary: Color(0xFF94A3B8),
     textMuted: Color(0xFF64748B),
-    glowColor: Color(0xFFF59E0B),
-    orbPrimary: Color(0xFFF59E0B),
-    orbSecondary: Color(0xFFD97706),
+    glowColor: Color(0xFFF3D010),
+    orbPrimary: Color(0xFFF3D010),
+    orbSecondary: Color(0xFFE5BF00),
     orbAccent: Color(0xFFB45309),
     isDarkTheme: true,
   );
 
   /// ជ្រើសរើស Theme តាម CompanyBrand
-  static CompanyTheme forBrand(CompanyBrand brand, {bool isDark = true}) {
+  static CompanyTheme forBrand(CompanyBrand brand, {bool isDark = false}) {
     switch (brand) {
       case CompanyBrand.sk:
         return sk;

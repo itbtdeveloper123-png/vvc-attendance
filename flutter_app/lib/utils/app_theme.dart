@@ -23,9 +23,9 @@ class AppTheme {
       borderColor = companyTheme.cardBorder; // #E8DCC2 (Warm champagne border)
       borderDark = companyTheme.cardBorder;
     } else {
-      primary = const Color(0xFFD97706); // VVC Rich Amber/Gold
-      primaryDark = const Color(0xFFB45309);
-      primaryLight = const Color(0xFFFDE68A);
+      primary = const Color(0xFFF3D010); // VVC Vibrant Gold #F3D010
+      primaryDark = const Color(0xFFE5BF00);
+      primaryLight = const Color(0xFFFEF08A);
       bgDark = const Color(0xFFF8FAFC); // Clean Slate-50 Canvas
       bgCard = Colors.white; // Pure white glass cards
       bgSurface = const Color(0xFFF8FAFC);
@@ -38,10 +38,10 @@ class AppTheme {
     }
   }
 
-  // === BRAND COLOR PALETTE (Rich Amber/Gold matching HomeScreen) ===
-  static Color primary = const Color(0xFFD97706); // Rich Amber/Gold
-  static Color primaryDark = const Color(0xFFB45309);
-  static Color primaryLight = const Color(0xFFFDE68A);
+  // === BRAND COLOR PALETTE (Vibrant Gold #F3D010 matching HomeScreen) ===
+  static Color primary = const Color(0xFFF3D010); // Vibrant Gold
+  static Color primaryDark = const Color(0xFFE5BF00);
+  static Color primaryLight = const Color(0xFFFEF08A);
   static Color secondary = const Color(0xFF2563EB); // Blue
   static Color accent = const Color(0xFFF59E0B); // Amber
   static Color success = const Color(0xFF16A34A); // Green
