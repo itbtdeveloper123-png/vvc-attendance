@@ -54,6 +54,7 @@ import 'certificate_editor_screen.dart';
 import '../widgets/responsive_layout.dart';
 import '../widgets/desktop_navigation_shell.dart';
 import '../widgets/desktop_dashboard_view.dart';
+import '../widgets/scroll_aware_glass_bottom_bar.dart';
 
 // ========== SLIDE PAGE ROUTE (Feature #9) ==========
 PageRouteBuilder _slideRoute(Widget page) {
@@ -354,6 +355,33 @@ class HomeScreenState extends State<HomeScreen> {
     final isDark = theme.isDarkTheme;
     final bottomInset = MediaQuery.paddingOf(context).bottom;
 
+    final scrollAwareNavBar = ScrollAwareGlassBottomBar(
+      currentIndex: _currentIndex,
+      onTap: (index) => setState(() => _currentIndex = index),
+      bottomInset: bottomInset,
+      backgroundColor: isDark ? const Color(0xFF181A20) : Colors.white,
+      accentColor: const Color(0xFFF3D010),
+      borderColor: const Color(0xFFF3D010),
+      items: [
+        // 1. Home / Dashboard (Left)
+        const ScrollAwareBottomBarItem(
+          icon: Icons.dashboard_rounded,
+          label: 'ទំព័រដើម',
+        ),
+        // 2. សំណើ / Requests (Center Item - Highlighted & Elevated)
+        ScrollAwareBottomBarItem(
+          icon: userProvider.isHRM ? Icons.list_alt_rounded : Icons.layers_rounded,
+          label: 'សំណើ',
+          isCenter: true,
+        ),
+        // 3. Profile / គណនី (Right)
+        const ScrollAwareBottomBarItem(
+          icon: Icons.person_rounded,
+          label: 'គណនី',
+        ),
+      ],
+    );
+
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
@@ -367,11 +395,20 @@ class HomeScreenState extends State<HomeScreen> {
         backgroundColor: theme.backgroundColor,
         body: Stack(
           children: [
+            // 1. Content Screens
             IndexedStack(index: _currentIndex, children: screens),
+
+            // 2. Scroll-Aware Localized Fade & Blur Transition Zone (Requirements 3-7)
+            scrollAwareNavBar.buildTransitionZone(
+              context: context,
+              maskColor: theme.backgroundColor,
+            ),
+
+            // 3. Floating Quick Action Bubbles (AI Assistant & Chat)
             _buildFloatingActionBubbles(bottomInset),
           ],
         ),
-        bottomNavigationBar: _buildBottomNav(userProvider),
+        bottomNavigationBar: scrollAwareNavBar.buildFloatingDock(context: context),
       ),
     );
   }
@@ -536,145 +573,6 @@ class HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildBottomNav(UserProvider user) {
-    final bottomInset = MediaQuery.paddingOf(context).bottom;
-
-    return Container(
-      margin: EdgeInsets.fromLTRB(20, 0, 20, bottomInset > 0 ? bottomInset + 4 : 14),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(36),
-        child: BackdropFilter(
-          filter: ui.ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-          child: Container(
-            height: 62,
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.92),
-              borderRadius: BorderRadius.circular(36),
-              border: Border.all(
-                color: const Color(0xFFD4AF37).withValues(alpha: 0.5),
-                width: 1.2,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFFD4AF37).withValues(alpha: 0.22),
-                  blurRadius: 22,
-                  spreadRadius: -2,
-                  offset: const Offset(0, 8),
-                ),
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.35),
-                  blurRadius: 18,
-                  offset: const Offset(0, 6),
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                // 1. Home / Dashboard (Left)
-                _buildDockItem(
-                  icon: Icons.dashboard_rounded,
-                  isSelected: _currentIndex == 0,
-                  onTap: () => setState(() => _currentIndex = 0),
-                ),
-                // 2. Profile (Center Item - Beautifully highlighted)
-                _buildDockItem(
-                  icon: Icons.person_rounded,
-                  isSelected: _currentIndex == 2,
-                  isCenter: true,
-                  onTap: () => setState(() => _currentIndex = 2),
-                ),
-                // 3. Requests (Right)
-                _buildDockItem(
-                  icon: user.isHRM ? Icons.list_alt_rounded : Icons.layers_rounded,
-                  isSelected: _currentIndex == 1,
-                  onTap: () => setState(() => _currentIndex = 1),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDockItem({
-    required IconData icon,
-    required bool isSelected,
-    required VoidCallback onTap,
-    bool isCenter = false,
-    String? badgeText,
-  }) {
-    return GestureDetector(
-      onTap: () {
-        _hapticLight();
-        onTap();
-      },
-      behavior: HitTestBehavior.opaque,
-      child: Stack(
-        clipBehavior: Clip.none,
-        alignment: Alignment.center,
-        children: [
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 240),
-            curve: Curves.easeOutCubic,
-            width: isSelected ? 44 : 38,
-            height: isSelected ? 44 : 38,
-            decoration: BoxDecoration(
-              color: isSelected ? const Color(0xFFF3D010) : Colors.transparent,
-              shape: BoxShape.circle,
-              boxShadow: isSelected
-                  ? [
-                      BoxShadow(
-                        color: const Color(0xFFF3D010).withValues(alpha: 0.35),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ]
-                  : null,
-            ),
-            child: Center(
-              child: Icon(
-                icon,
-                color: isSelected ? Colors.white : const Color(0xFF64748B),
-                size: isCenter ? 24 : 22,
-              ),
-            ),
-          ),
-          if (badgeText != null)
-            Positioned(
-              top: -3,
-              right: -8,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEF4444),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.white, width: 1.5),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFFEF4444).withValues(alpha: 0.4),
-                      blurRadius: 4,
-                      offset: const Offset(0, 1),
-                    ),
-                  ],
-                ),
-                child: Text(
-                  badgeText,
-                  style: GoogleFonts.inter(
-                    color: Colors.white,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: -0.2,
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
 }
 
 class _PushUpdatePayload {
