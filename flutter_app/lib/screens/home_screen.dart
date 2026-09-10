@@ -3530,29 +3530,44 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
       ),
       child: ClipRect(
         child: BackdropFilter(
-          filter: ui.ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
+          filter: ui.ImageFilter.blur(sigmaX: 28.0, sigmaY: 28.0),
           child: Container(
             padding: EdgeInsets.only(top: topPadding),
             decoration: BoxDecoration(
-              color: isDark
-                  ? const Color(0xFF0F1115).withValues(alpha: 0.85 + 0.10 * progress)
-                  : Colors.white.withValues(alpha: 0.72 + 0.22 * progress),
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: isDark
+                    ? [
+                        const Color(0xFF1E293B).withValues(alpha: 0.88 + 0.06 * progress),
+                        const Color(0xFF0F172A).withValues(alpha: 0.80 + 0.12 * progress),
+                      ]
+                    : [
+                        const Color(0xFFF8FAFC).withValues(alpha: 0.88 + 0.06 * progress),
+                        const Color(0xFFF1F5F9).withValues(alpha: 0.78 + 0.14 * progress),
+                      ],
+              ),
               border: Border(
                 bottom: BorderSide(
-                  color: (isDark ? Colors.white : Colors.black)
-                      .withValues(alpha: 0.05 + 0.06 * progress),
-                  width: 0.6,
+                  color: isDark
+                      ? const Color(0xFF475569).withValues(alpha: 0.45 + 0.20 * progress)
+                      : const Color(0xFFCBD5E1).withValues(alpha: 0.55 + 0.25 * progress),
+                  width: 1.0,
                 ),
               ),
-              boxShadow: progress > 0.08
-                  ? [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: isDark ? 0.30 : 0.05),
-                        blurRadius: 10,
-                        offset: const Offset(0, 3),
-                      ),
-                    ]
-                  : null,
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFF3D010).withValues(alpha: 0.07 + 0.04 * progress),
+                  blurRadius: 18,
+                  spreadRadius: -2,
+                  offset: const Offset(0, 4),
+                ),
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.03 + 0.02 * progress),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
             child: SizedBox(
               height: double.infinity,
@@ -3561,7 +3576,7 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    // 1. Left Action Button: Settings / Tune
+                    // 1. Left Action Button: Settings / Tune (Frosted Gold Ring)
                     GestureDetector(
                       onTap: () {
                         _hapticLight();
@@ -3575,13 +3590,22 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
                         width: actionBtnSize,
                         height: actionBtnSize,
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF3D010),
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFF3D010), Color(0xFFE5BF00)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
                           shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.80),
+                            width: 1.4,
+                          ),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFFF3D010).withValues(alpha: 0.35),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
+                              color: const Color(0xFFF3D010).withValues(alpha: 0.40),
+                              blurRadius: 10,
+                              spreadRadius: 0,
+                              offset: const Offset(0, 3),
                             ),
                           ],
                         ),
@@ -3745,13 +3769,22 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
                             width: actionBtnSize,
                             height: actionBtnSize,
                             decoration: BoxDecoration(
-                              color: const Color(0xFFF3D010),
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFFF3D010), Color(0xFFE5BF00)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
                               shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.80),
+                                width: 1.4,
+                              ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: const Color(0xFFF3D010).withValues(alpha: 0.35),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 2),
+                                  color: const Color(0xFFF3D010).withValues(alpha: 0.40),
+                                  blurRadius: 10,
+                                  spreadRadius: 0,
+                                  offset: const Offset(0, 3),
                                 ),
                               ],
                             ),

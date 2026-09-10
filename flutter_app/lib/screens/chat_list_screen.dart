@@ -383,26 +383,62 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
   }
 
   // ==========================================
-  // TOP FROSTED GLASS HEADER (TELEGRAM STYLE)
+  // TOP FROSTED GLASS HEADER (LUXURY GLASSMORPHISM)
   // ==========================================
   Widget _buildTelegramFrostedHeader(UserProvider user, double topSafeArea) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return ClipRect(
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
+        filter: ImageFilter.blur(sigmaX: 28.0, sigmaY: 28.0),
         child: Container(
           decoration: BoxDecoration(
-            color: Theme.of(context).brightness == Brightness.dark
-                ? const Color(0xFF18181A).withValues(alpha: _isScrolled ? 0.75 : 0.60)
-                : Colors.white.withValues(alpha: _isScrolled ? 0.70 : 0.55),
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: isDark
+                  ? [
+                      const Color(0xFF1E293B)
+                          .withValues(alpha: _isScrolled ? 0.90 : 0.82),
+                      const Color(0xFF0F172A)
+                          .withValues(alpha: _isScrolled ? 0.84 : 0.72),
+                    ]
+                  : [
+                      const Color(0xFFF8FAFC)
+                          .withValues(alpha: _isScrolled ? 0.90 : 0.80),
+                      const Color(0xFFF1F5F9)
+                          .withValues(alpha: _isScrolled ? 0.82 : 0.70),
+                    ],
+            ),
             border: Border(
               bottom: BorderSide(
-                color: (Theme.of(context).brightness == Brightness.dark
-                        ? Colors.white
-                        : Colors.black)
-                    .withValues(alpha: _isScrolled ? 0.12 : 0.06),
-                width: 0.5,
+                color: isDark
+                    ? const Color(0xFF475569).withValues(
+                        alpha: _isScrolled ? 0.50 : 0.30,
+                      )
+                    : const Color(0xFFCBD5E1).withValues(
+                        alpha: _isScrolled ? 0.65 : 0.40,
+                      ),
+                width: 1.0,
               ),
             ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFF3D010).withValues(
+                  alpha: _isScrolled ? 0.07 : 0.03,
+                ),
+                blurRadius: 18,
+                spreadRadius: -2,
+                offset: const Offset(0, 4),
+              ),
+              BoxShadow(
+                color: Colors.black.withValues(
+                  alpha: isDark ? 0.35 : (_isScrolled ? 0.03 : 0.01),
+                ),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
           padding: EdgeInsets.fromLTRB(14.0, topSafeArea + 4.0, 14.0, 8.0),
           child: Column(
@@ -424,6 +460,7 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
   // TELEGRAM FOLDER FILTER TABS (CATEGORIES)
   // ==========================================
   Widget _buildFolderTabs() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final int unreadCount = _totalUnreadCount;
     final int directCount = filteredUsers.length;
     final int groupCount = 2 + customGroups.length;
@@ -459,12 +496,34 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
               duration: const Duration(milliseconds: 180),
               padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 5.0),
               decoration: BoxDecoration(
-                color: isSelected ? MessengerTheme.activeBlue : MessengerTheme.cardBg,
+                gradient: isSelected
+                    ? const LinearGradient(
+                        colors: [Color(0xFFF3D010), Color(0xFFE5BF00)],
+                      )
+                    : null,
+                color: isSelected
+                    ? null
+                    : (isDark
+                        ? const Color(0xFF1E293B).withValues(alpha: 0.75)
+                        : const Color(0xFFF1F5F9).withValues(alpha: 0.85)),
                 borderRadius: BorderRadius.circular(16.0),
                 border: Border.all(
-                  color: isSelected ? MessengerTheme.activeBlue : MessengerTheme.border,
-                  width: 0.8,
+                  color: isSelected
+                      ? const Color(0xFFFDE047)
+                      : (isDark
+                          ? const Color(0xFF475569).withValues(alpha: 0.45)
+                          : const Color(0xFFCBD5E1).withValues(alpha: 0.60)),
+                  width: 1.0,
                 ),
+                boxShadow: isSelected
+                    ? [
+                        BoxShadow(
+                          color: const Color(0xFFF3D010).withValues(alpha: 0.35),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ]
+                    : null,
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -484,13 +543,13 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
                       decoration: BoxDecoration(
                         color: isSelected
                             ? Colors.white.withValues(alpha: 0.25)
-                            : MessengerTheme.activeBlue.withValues(alpha: 0.12),
+                            : const Color(0xFFF3D010).withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(8.0),
                       ),
                       child: Text(
                         '$count',
                         style: GoogleFonts.inter(
-                          color: isSelected ? Colors.white : MessengerTheme.activeBlue,
+                          color: isSelected ? Colors.white : const Color(0xFFB45309),
                           fontSize: 10.5,
                           fontWeight: FontWeight.bold,
                         ),
@@ -510,23 +569,47 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
   // BOTTOM FROSTED GLASS BAR (TELEGRAM STYLE)
   // ==========================================
   Widget _buildTelegramFrostedBottomBar(double bottomSafeArea) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return ClipRect(
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
+        filter: ImageFilter.blur(sigmaX: 28.0, sigmaY: 28.0),
         child: Container(
           decoration: BoxDecoration(
-            color: Theme.of(context).brightness == Brightness.dark
-                ? const Color(0xFF18181A).withValues(alpha: 0.75)
-                : Colors.white.withValues(alpha: 0.68),
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: isDark
+                  ? [
+                      const Color(0xFF1E293B).withValues(alpha: 0.88),
+                      const Color(0xFF0F172A).withValues(alpha: 0.82),
+                    ]
+                  : [
+                      const Color(0xFFF8FAFC).withValues(alpha: 0.90),
+                      const Color(0xFFF1F5F9).withValues(alpha: 0.84),
+                    ],
+            ),
             border: Border(
               top: BorderSide(
-                color: (Theme.of(context).brightness == Brightness.dark
-                        ? Colors.white
-                        : Colors.black)
-                    .withValues(alpha: 0.10),
-                width: 0.5,
+                color: isDark
+                    ? const Color(0xFF475569).withValues(alpha: 0.45)
+                    : const Color(0xFFCBD5E1).withValues(alpha: 0.60),
+                width: 1.0,
               ),
             ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFF3D010).withValues(alpha: 0.07),
+                blurRadius: 18,
+                spreadRadius: -2,
+                offset: const Offset(0, -4),
+              ),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.03),
+                blurRadius: 10,
+                offset: const Offset(0, -2),
+              ),
+            ],
           ),
           padding: EdgeInsets.fromLTRB(16.0, 8.0, 16.0, bottomSafeArea > 0 ? bottomSafeArea : 10.0),
           child: Row(
@@ -765,12 +848,39 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
   Widget _buildTopHeader(UserProvider user) {
     return Row(
       children: [
-        // Back arrow navigation icon
+        // Back arrow navigation icon (Frosted Circular Glass)
         IconButton(
-          icon: Icon(
-            Icons.arrow_back_ios_new_rounded,
-            color: MessengerTheme.textPrimary,
-            size: 19,
+          icon: Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? const Color(0xFF1E293B).withValues(alpha: 0.80)
+                  : const Color(0xFFF8FAFC).withValues(alpha: 0.85),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? const Color(0xFF475569).withValues(alpha: 0.50)
+                    : const Color(0xFFCBD5E1).withValues(alpha: 0.60),
+                width: 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(
+                    alpha: Theme.of(context).brightness == Brightness.dark ? 0.20 : 0.03,
+                  ),
+                  blurRadius: 6,
+                  offset: const Offset(0, 1),
+                ),
+              ],
+            ),
+            child: Center(
+              child: Icon(
+                Icons.arrow_back_ios_new_rounded,
+                color: MessengerTheme.textPrimary,
+                size: 15,
+              ),
+            ),
           ),
           onPressed: () => Navigator.pop(context),
         ),
@@ -909,15 +1019,30 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
     required IconData icon,
     required VoidCallback onTap,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return GestureDetector(
       onTap: onTap,
       child: Container(
         width: 36.0,
         height: 36.0,
         decoration: BoxDecoration(
-          color: MessengerTheme.actionBtnBg,
+          color: isDark
+              ? const Color(0xFF1E293B).withValues(alpha: 0.80)
+              : const Color(0xFFF8FAFC).withValues(alpha: 0.85),
           shape: BoxShape.circle,
-          border: Border.all(color: MessengerTheme.border),
+          border: Border.all(
+            color: isDark
+                ? const Color(0xFF475569).withValues(alpha: 0.50)
+                : const Color(0xFFCBD5E1).withValues(alpha: 0.60),
+            width: 1.0,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFFF3D010).withValues(alpha: 0.08),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Icon(icon, size: 18.0, color: MessengerTheme.textPrimary),
       ),
@@ -928,11 +1053,12 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
   // SEARCH BAR
   // ==========================================
   Widget _buildSearchBar() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return SizedBox(
       height: 36.0,
       child: TextField(
         onChanged: _filterUsers,
-        cursorColor: MessengerTheme.activeBlue,
+        cursorColor: const Color(0xFFF3D010),
         style: GoogleFonts.kantumruyPro(
           color: MessengerTheme.textPrimary,
           fontSize: 13.5,
@@ -949,7 +1075,9 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
             size: 18.0,
           ),
           filled: true,
-          fillColor: MessengerTheme.cardBg,
+          fillColor: isDark
+              ? const Color(0xFF1E293B).withValues(alpha: 0.60)
+              : const Color(0xFFF1F5F9).withValues(alpha: 0.85),
           isDense: true,
           contentPadding: const EdgeInsets.symmetric(
             vertical: 6.0,
@@ -957,16 +1085,26 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
           ),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(18.0),
-            borderSide: BorderSide(color: MessengerTheme.border, width: 0.8),
+            borderSide: BorderSide(
+              color: isDark
+                  ? const Color(0xFF475569).withValues(alpha: 0.45)
+                  : const Color(0xFFCBD5E1).withValues(alpha: 0.65),
+              width: 1.0,
+            ),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(18.0),
-            borderSide: BorderSide(color: MessengerTheme.border, width: 0.8),
+            borderSide: BorderSide(
+              color: isDark
+                  ? const Color(0xFF475569).withValues(alpha: 0.45)
+                  : const Color(0xFFCBD5E1).withValues(alpha: 0.65),
+              width: 1.0,
+            ),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(18.0),
-            borderSide: BorderSide(
-              color: MessengerTheme.activeBlue,
+            borderSide: const BorderSide(
+              color: Color(0xFFF3D010),
               width: 1.2,
             ),
           ),

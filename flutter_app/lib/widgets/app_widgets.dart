@@ -1134,7 +1134,7 @@ class VvcFrostedBottomBar extends StatelessWidget {
 
     return ClipRect(
       child: BackdropFilter(
-        filter: ui.ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
+        filter: ui.ImageFilter.blur(sigmaX: 28.0, sigmaY: 28.0),
         child: Container(
           padding: padding ??
               EdgeInsets.fromLTRB(
@@ -1144,16 +1144,40 @@ class VvcFrostedBottomBar extends StatelessWidget {
                 bottomInset > 0 ? bottomInset + 4 : 16,
               ),
           decoration: BoxDecoration(
-            color: backgroundColor ??
-                (isDark
-                    ? const Color(0xFF18181A).withValues(alpha: 0.75)
-                    : Colors.white.withValues(alpha: 0.70)),
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: isDark
+                  ? [
+                      const Color(0xFF1E293B).withValues(alpha: 0.88),
+                      const Color(0xFF0F172A).withValues(alpha: 0.82),
+                    ]
+                  : [
+                      const Color(0xFFF8FAFC).withValues(alpha: 0.90),
+                      const Color(0xFFF1F5F9).withValues(alpha: 0.84),
+                    ],
+            ),
             border: Border(
               top: BorderSide(
-                color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.10),
-                width: 0.5,
+                color: isDark
+                    ? const Color(0xFF475569).withValues(alpha: 0.45)
+                    : const Color(0xFFCBD5E1).withValues(alpha: 0.60),
+                width: 1.0,
               ),
             ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFF3D010).withValues(alpha: 0.07),
+                blurRadius: 18,
+                spreadRadius: -2,
+                offset: const Offset(0, -4),
+              ),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.03),
+                blurRadius: 10,
+                offset: const Offset(0, -2),
+              ),
+            ],
           ),
           child: child,
         ),
@@ -1200,7 +1224,7 @@ class _DynamicAppBarWrapperState extends State<DynamicAppBarWrapper> {
               ? widget.bottomNavigationBar
               : ClipRect(
                   child: BackdropFilter(
-                    filter: ui.ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
+                    filter: ui.ImageFilter.blur(sigmaX: 28.0, sigmaY: 28.0),
                     child: widget.bottomNavigationBar!,
                   ),
                 ))
@@ -1210,37 +1234,107 @@ class _DynamicAppBarWrapperState extends State<DynamicAppBarWrapper> {
           widget.title,
           style: GoogleFonts.kantumruyPro(
             fontWeight: FontWeight.bold,
+            fontSize: 17,
             color: AppTheme.textPrimary,
           ),
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: true,
-        leading: widget.leading,
+        leading: widget.leading ??
+            IconButton(
+              icon: Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? const Color(0xFF1E293B).withValues(alpha: 0.80)
+                      : const Color(0xFFF8FAFC).withValues(alpha: 0.85),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: isDark
+                        ? const Color(0xFF475569).withValues(alpha: 0.50)
+                        : const Color(0xFFCBD5E1).withValues(alpha: 0.60),
+                    width: 1,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: isDark ? 0.20 : 0.03),
+                      blurRadius: 6,
+                      offset: const Offset(0, 1),
+                    ),
+                  ],
+                ),
+                child: Center(
+                  child: Icon(
+                    Icons.arrow_back_ios_new_rounded,
+                    size: 15,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
+              ),
+              onPressed: () => Navigator.maybePop(context),
+            ),
         actions: widget.actions,
-        systemOverlayStyle: const SystemUiOverlayStyle(
+        systemOverlayStyle: SystemUiOverlayStyle(
           statusBarColor: Colors.transparent,
-          statusBarBrightness: Brightness.light,
-          statusBarIconBrightness: Brightness.dark,
+          statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
+          statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
         ),
         iconTheme: IconThemeData(color: AppTheme.textPrimary),
         flexibleSpace: ClipRect(
           child: BackdropFilter(
-            filter: ui.ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
+            filter: ui.ImageFilter.blur(sigmaX: 28.0, sigmaY: 28.0),
             child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
               decoration: BoxDecoration(
-                color: isDark
-                    ? const Color(0xFF18181A).withValues(alpha: _isScrolled ? 0.75 : 0.60)
-                    : Colors.white.withValues(alpha: _isScrolled ? 0.70 : 0.55),
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: isDark
+                      ? [
+                          const Color(0xFF1E293B)
+                              .withValues(alpha: _isScrolled ? 0.90 : 0.82),
+                          const Color(0xFF0F172A)
+                              .withValues(alpha: _isScrolled ? 0.84 : 0.72),
+                        ]
+                      : [
+                          const Color(0xFFF8FAFC)
+                              .withValues(alpha: _isScrolled ? 0.90 : 0.80),
+                          const Color(0xFFF1F5F9)
+                              .withValues(alpha: _isScrolled ? 0.82 : 0.70),
+                        ],
+                ),
                 border: Border(
                   bottom: BorderSide(
-                    color: (isDark ? Colors.white : Colors.black).withValues(
-                      alpha: _isScrolled ? 0.12 : 0.06,
-                    ),
-                    width: 0.5,
+                    color: isDark
+                        ? const Color(0xFF475569).withValues(
+                            alpha: _isScrolled ? 0.50 : 0.30,
+                          )
+                        : const Color(0xFFCBD5E1).withValues(
+                            alpha: _isScrolled ? 0.65 : 0.40,
+                          ),
+                    width: 1.0,
                   ),
                 ),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFF3D010).withValues(
+                      alpha: _isScrolled ? 0.07 : 0.03,
+                    ),
+                    blurRadius: 18,
+                    spreadRadius: -2,
+                    offset: const Offset(0, 4),
+                  ),
+                  BoxShadow(
+                    color: Colors.black.withValues(
+                      alpha: isDark ? 0.35 : (_isScrolled ? 0.03 : 0.01),
+                    ),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
             ),
           ),

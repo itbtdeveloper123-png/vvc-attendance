@@ -110,13 +110,13 @@ class ScrollAwareGlassBottomBar extends StatelessWidget {
 
     final dockBgColor = backgroundColor ??
         (isDark
-            ? const Color(0xFF181A20).withValues(alpha: 0.88)
-            : Colors.white.withValues(alpha: 0.92));
+            ? const Color(0xFF1E293B).withValues(alpha: 0.85)
+            : const Color(0xFFF8FAFC).withValues(alpha: 0.90));
 
     final effectiveBorder = borderColor ??
         (isDark
-            ? primaryGold.withValues(alpha: 0.35)
-            : const Color(0xFFD4AF37).withValues(alpha: 0.50));
+            ? const Color(0xFF475569).withValues(alpha: 0.50)
+            : const Color(0xFFCBD5E1).withValues(alpha: 0.65));
 
     return Container(
       margin: EdgeInsets.fromLTRB(20, 0, 20, bottomMargin),
@@ -125,13 +125,13 @@ class ScrollAwareGlassBottomBar extends StatelessWidget {
         borderRadius: BorderRadius.circular(36),
         boxShadow: [
           BoxShadow(
-            color: primaryGold.withValues(alpha: 0.20),
-            blurRadius: 22,
+            color: primaryGold.withValues(alpha: 0.08),
+            blurRadius: 20,
             spreadRadius: -2,
-            offset: const Offset(0, 6),
+            offset: const Offset(0, 4),
           ),
           BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.45 : 0.10),
+            color: Colors.black.withValues(alpha: isDark ? 0.40 : 0.06),
             blurRadius: 18,
             offset: const Offset(0, 5),
           ),
