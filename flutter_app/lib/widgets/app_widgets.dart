@@ -10,6 +10,8 @@ import '../utils/app_theme.dart';
 import 'vvc_global_alert.dart';
 import 'glass_widgets.dart';
 export 'glass_widgets.dart';
+import 'vvc_liquid_glass_scaffold.dart';
+export 'vvc_liquid_glass_scaffold.dart';
 
 /// A reusable flat or ambient glass background shell for app screens.
 class AppBackgroundShell extends StatelessWidget {
@@ -1119,75 +1121,74 @@ class VvcFrostedBottomBar extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry? padding;
   final Color? backgroundColor;
+  final double? borderRadius;
 
   const VvcFrostedBottomBar({
     super.key,
     required this.child,
     this.padding,
     this.backgroundColor,
+    this.borderRadius,
   });
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bottomInset = MediaQuery.paddingOf(context).bottom;
+    final double bottomMargin = bottomInset > 0 ? bottomInset + 4.0 : 14.0;
+    const primaryGold = Color(0xFFF3D010);
 
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ui.ImageFilter.blur(sigmaX: 28.0, sigmaY: 28.0),
-        child: Container(
-          padding: padding ??
-              EdgeInsets.fromLTRB(
-                20,
-                12,
-                20,
-                bottomInset > 0 ? bottomInset + 4 : 16,
-              ),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: isDark
-                  ? [
-                      const Color(0xFF1E293B).withValues(alpha: 0.88),
-                      const Color(0xFF0F172A).withValues(alpha: 0.82),
-                    ]
-                  : [
-                      const Color(0xFFF8FAFC).withValues(alpha: 0.90),
-                      const Color(0xFFF1F5F9).withValues(alpha: 0.84),
-                    ],
-            ),
-            border: Border(
-              top: BorderSide(
-                color: isDark
-                    ? const Color(0xFF475569).withValues(alpha: 0.45)
-                    : const Color(0xFFCBD5E1).withValues(alpha: 0.60),
-                width: 1.0,
-              ),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFFF3D010).withValues(alpha: 0.07),
-                blurRadius: 18,
-                spreadRadius: -2,
-                offset: const Offset(0, -4),
-              ),
-              BoxShadow(
-                color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.03),
-                blurRadius: 10,
-                offset: const Offset(0, -2),
-              ),
-            ],
+    final dockBgColor = backgroundColor ??
+        (isDark
+            ? const Color(0xFF1E293B).withValues(alpha: 0.85)
+            : const Color(0xFFF8FAFC).withValues(alpha: 0.90));
+
+    final effectiveBorder = isDark
+        ? const Color(0xFF475569).withValues(alpha: 0.50)
+        : const Color(0xFFCBD5E1).withValues(alpha: 0.65);
+
+    return Container(
+      margin: EdgeInsets.fromLTRB(20, 0, 20, bottomMargin),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(borderRadius ?? 32),
+        boxShadow: [
+          BoxShadow(
+            color: primaryGold.withValues(alpha: 0.08),
+            blurRadius: 20,
+            spreadRadius: -2,
+            offset: const Offset(0, 4),
           ),
-          child: child,
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.40 : 0.06),
+            blurRadius: 18,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(borderRadius ?? 32),
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
+          child: Container(
+            padding: padding ?? const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: dockBgColor,
+              borderRadius: BorderRadius.circular(borderRadius ?? 32),
+              border: Border.all(
+                color: effectiveBorder,
+                width: 1.2,
+              ),
+            ),
+            child: child,
+          ),
         ),
       ),
     );
   }
 }
 
-// A wrapper for screens to handle the dynamic app bar state
-class DynamicAppBarWrapper extends StatefulWidget {
+// A luxury floating scroll-aware liquid glass app bar wrapper powered by VvcLiquidGlassScaffold
+class DynamicAppBarWrapper extends StatelessWidget {
   final String title;
   final List<Widget>? actions;
   final Widget? leading;
@@ -1206,152 +1207,13 @@ class DynamicAppBarWrapper extends StatefulWidget {
   });
 
   @override
-  State<DynamicAppBarWrapper> createState() => _DynamicAppBarWrapperState();
-}
-
-class _DynamicAppBarWrapperState extends State<DynamicAppBarWrapper> {
-  bool _isScrolled = false;
-
-  @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Scaffold(
-      backgroundColor: AppTheme.bgDark,
-      extendBodyBehindAppBar: widget.extendBodyBehindAppBar,
-      extendBody: true,
-      bottomNavigationBar: widget.bottomNavigationBar != null
-          ? (widget.bottomNavigationBar is VvcFrostedBottomBar
-              ? widget.bottomNavigationBar
-              : ClipRect(
-                  child: BackdropFilter(
-                    filter: ui.ImageFilter.blur(sigmaX: 28.0, sigmaY: 28.0),
-                    child: widget.bottomNavigationBar!,
-                  ),
-                ))
-          : null,
-      appBar: AppBar(
-        title: Text(
-          widget.title,
-          style: GoogleFonts.kantumruyPro(
-            fontWeight: FontWeight.bold,
-            fontSize: 17,
-            color: AppTheme.textPrimary,
-          ),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        centerTitle: true,
-        leading: widget.leading ??
-            IconButton(
-              icon: Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? const Color(0xFF1E293B).withValues(alpha: 0.80)
-                      : const Color(0xFFF8FAFC).withValues(alpha: 0.85),
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: isDark
-                        ? const Color(0xFF475569).withValues(alpha: 0.50)
-                        : const Color(0xFFCBD5E1).withValues(alpha: 0.60),
-                    width: 1,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: isDark ? 0.20 : 0.03),
-                      blurRadius: 6,
-                      offset: const Offset(0, 1),
-                    ),
-                  ],
-                ),
-                child: Center(
-                  child: Icon(
-                    Icons.arrow_back_ios_new_rounded,
-                    size: 15,
-                    color: AppTheme.textPrimary,
-                  ),
-                ),
-              ),
-              onPressed: () => Navigator.maybePop(context),
-            ),
-        actions: widget.actions,
-        systemOverlayStyle: SystemUiOverlayStyle(
-          statusBarColor: Colors.transparent,
-          statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
-          statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
-        ),
-        iconTheme: IconThemeData(color: AppTheme.textPrimary),
-        flexibleSpace: ClipRect(
-          child: BackdropFilter(
-            filter: ui.ImageFilter.blur(sigmaX: 28.0, sigmaY: 28.0),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeOutCubic,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: isDark
-                      ? [
-                          const Color(0xFF1E293B)
-                              .withValues(alpha: _isScrolled ? 0.90 : 0.82),
-                          const Color(0xFF0F172A)
-                              .withValues(alpha: _isScrolled ? 0.84 : 0.72),
-                        ]
-                      : [
-                          const Color(0xFFF8FAFC)
-                              .withValues(alpha: _isScrolled ? 0.90 : 0.80),
-                          const Color(0xFFF1F5F9)
-                              .withValues(alpha: _isScrolled ? 0.82 : 0.70),
-                        ],
-                ),
-                border: Border(
-                  bottom: BorderSide(
-                    color: isDark
-                        ? const Color(0xFF475569).withValues(
-                            alpha: _isScrolled ? 0.50 : 0.30,
-                          )
-                        : const Color(0xFFCBD5E1).withValues(
-                            alpha: _isScrolled ? 0.65 : 0.40,
-                          ),
-                    width: 1.0,
-                  ),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFFF3D010).withValues(
-                      alpha: _isScrolled ? 0.07 : 0.03,
-                    ),
-                    blurRadius: 18,
-                    spreadRadius: -2,
-                    offset: const Offset(0, 4),
-                  ),
-                  BoxShadow(
-                    color: Colors.black.withValues(
-                      alpha: isDark ? 0.35 : (_isScrolled ? 0.03 : 0.01),
-                    ),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-      body: NotificationListener<ScrollNotification>(
-        onNotification: (notification) {
-          if (notification.metrics.axis == Axis.vertical) {
-            final scrolled = notification.metrics.pixels > 6.0;
-            if (scrolled != _isScrolled) {
-              setState(() => _isScrolled = scrolled);
-            }
-          }
-          return false;
-        },
-        child: widget.body,
-      ),
+    return VvcLiquidGlassScaffold(
+      title: title,
+      body: body,
+      actions: actions,
+      leading: leading,
+      bottomNavigationBar: bottomNavigationBar,
     );
   }
 }

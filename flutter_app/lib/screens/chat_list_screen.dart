@@ -362,7 +362,44 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
                   ),
           ),
 
-          // 2. Top Floating Frosted Glass Header (Dynamically blurs conversations as they scroll underneath)
+          // 2. Top Transition Zone (Gradient Mask)
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: topHeaderHeight + 24.0,
+            child: IgnorePointer(
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      (Theme.of(context).brightness == Brightness.dark
+                              ? const Color(0xFF0F1115)
+                              : const Color(0xFFF8FAFC))
+                          .withValues(alpha: 0.95),
+                      (Theme.of(context).brightness == Brightness.dark
+                              ? const Color(0xFF0F1115)
+                              : const Color(0xFFF8FAFC))
+                          .withValues(alpha: 0.70),
+                      (Theme.of(context).brightness == Brightness.dark
+                              ? const Color(0xFF0F1115)
+                              : const Color(0xFFF8FAFC))
+                          .withValues(alpha: 0.25),
+                      (Theme.of(context).brightness == Brightness.dark
+                              ? const Color(0xFF0F1115)
+                              : const Color(0xFFF8FAFC))
+                          .withValues(alpha: 0.0),
+                    ],
+                    stops: const [0.0, 0.45, 0.80, 1.0],
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          // 3. Top Floating Frosted Glass Header (Dynamically blurs conversations as they scroll underneath)
           Positioned(
             top: 0,
             left: 0,
@@ -370,7 +407,7 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
             child: _buildTelegramFrostedHeader(userProvider, topSafeArea),
           ),
 
-          // 3. Bottom Floating Frosted Glass Bar (Dynamically blurs conversations as they reach bottom edge)
+          // 4. Bottom Floating Frosted Glass Bar (Dynamically blurs conversations as they reach bottom edge)
           Positioned(
             bottom: 0,
             left: 0,
@@ -387,60 +424,43 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
   // ==========================================
   Widget _buildTelegramFrostedHeader(UserProvider user, double topSafeArea) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    const primaryGold = Color(0xFFF3D010);
 
-    return ClipRect(
+    return ClipRRect(
+      borderRadius: const BorderRadius.vertical(bottom: Radius.circular(28.0)),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 28.0, sigmaY: 28.0),
+        filter: ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
         child: Container(
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: isDark
-                  ? [
-                      const Color(0xFF1E293B)
-                          .withValues(alpha: _isScrolled ? 0.90 : 0.82),
-                      const Color(0xFF0F172A)
-                          .withValues(alpha: _isScrolled ? 0.84 : 0.72),
-                    ]
-                  : [
-                      const Color(0xFFF8FAFC)
-                          .withValues(alpha: _isScrolled ? 0.90 : 0.80),
-                      const Color(0xFFF1F5F9)
-                          .withValues(alpha: _isScrolled ? 0.82 : 0.70),
-                    ],
-            ),
-            border: Border(
-              bottom: BorderSide(
-                color: isDark
-                    ? const Color(0xFF475569).withValues(
-                        alpha: _isScrolled ? 0.50 : 0.30,
-                      )
-                    : const Color(0xFFCBD5E1).withValues(
-                        alpha: _isScrolled ? 0.65 : 0.40,
-                      ),
-                width: 1.0,
-              ),
+            color: isDark
+                ? const Color(0xFF1E293B).withValues(alpha: _isScrolled ? 0.88 : 0.78)
+                : const Color(0xFFF8FAFC).withValues(alpha: _isScrolled ? 0.92 : 0.82),
+            borderRadius: const BorderRadius.vertical(bottom: Radius.circular(28.0)),
+            border: Border.all(
+              color: isDark
+                  ? (_isScrolled
+                      ? primaryGold.withValues(alpha: 0.45)
+                      : const Color(0xFF475569).withValues(alpha: 0.50))
+                  : (_isScrolled
+                      ? primaryGold.withValues(alpha: 0.60)
+                      : const Color(0xFFCBD5E1).withValues(alpha: 0.65)),
+              width: 1.2,
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFFF3D010).withValues(
-                  alpha: _isScrolled ? 0.07 : 0.03,
-                ),
+                color: primaryGold.withValues(alpha: _isScrolled ? 0.14 : 0.06),
                 blurRadius: 18,
                 spreadRadius: -2,
                 offset: const Offset(0, 4),
               ),
               BoxShadow(
-                color: Colors.black.withValues(
-                  alpha: isDark ? 0.35 : (_isScrolled ? 0.03 : 0.01),
-                ),
-                blurRadius: 10,
-                offset: const Offset(0, 2),
+                color: Colors.black.withValues(alpha: isDark ? 0.38 : (_isScrolled ? 0.07 : 0.03)),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
               ),
             ],
           ),
-          padding: EdgeInsets.fromLTRB(14.0, topSafeArea + 4.0, 14.0, 8.0),
+          padding: EdgeInsets.fromLTRB(14.0, topSafeArea + 4.0, 14.0, 10.0),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -570,49 +590,46 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
   // ==========================================
   Widget _buildTelegramFrostedBottomBar(double bottomSafeArea) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final double bottomMargin = bottomSafeArea > 0 ? bottomSafeArea + 4.0 : 12.0;
+    const primaryGold = Color(0xFFF3D010);
 
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 28.0, sigmaY: 28.0),
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: isDark
-                  ? [
-                      const Color(0xFF1E293B).withValues(alpha: 0.88),
-                      const Color(0xFF0F172A).withValues(alpha: 0.82),
-                    ]
-                  : [
-                      const Color(0xFFF8FAFC).withValues(alpha: 0.90),
-                      const Color(0xFFF1F5F9).withValues(alpha: 0.84),
-                    ],
-            ),
-            border: Border(
-              top: BorderSide(
-                color: isDark
-                    ? const Color(0xFF475569).withValues(alpha: 0.45)
-                    : const Color(0xFFCBD5E1).withValues(alpha: 0.60),
-                width: 1.0,
-              ),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFFF3D010).withValues(alpha: 0.07),
-                blurRadius: 18,
-                spreadRadius: -2,
-                offset: const Offset(0, -4),
-              ),
-              BoxShadow(
-                color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.03),
-                blurRadius: 10,
-                offset: const Offset(0, -2),
-              ),
-            ],
+    return Container(
+      margin: EdgeInsets.fromLTRB(16.0, 0, 16.0, bottomMargin),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(32.0),
+        boxShadow: [
+          BoxShadow(
+            color: primaryGold.withValues(alpha: 0.08),
+            blurRadius: 20,
+            spreadRadius: -2,
+            offset: const Offset(0, 4),
           ),
-          padding: EdgeInsets.fromLTRB(16.0, 8.0, 16.0, bottomSafeArea > 0 ? bottomSafeArea : 10.0),
-          child: Row(
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.40 : 0.06),
+            blurRadius: 18,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(32.0),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+            decoration: BoxDecoration(
+              color: isDark
+                  ? const Color(0xFF1E293B).withValues(alpha: 0.85)
+                  : const Color(0xFFF8FAFC).withValues(alpha: 0.90),
+              borderRadius: BorderRadius.circular(32.0),
+              border: Border.all(
+                color: isDark
+                    ? const Color(0xFF475569).withValues(alpha: 0.50)
+                    : const Color(0xFFCBD5E1).withValues(alpha: 0.65),
+                width: 1.2,
+              ),
+            ),
+            child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               _buildBottomNavItem(
@@ -679,8 +696,9 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildBottomNavItem({
     required IconData icon,

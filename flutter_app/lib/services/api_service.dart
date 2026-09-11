@@ -120,8 +120,7 @@ class ApiService {
   static String getFullImageUrl(String? relativePath) {
     if (relativePath == null || relativePath.isEmpty) return '';
     if (relativePath.startsWith('http')) return relativePath;
-    if (relativePath.startsWith('/') ||
-        relativePath.startsWith('C:') ||
+    if (relativePath.startsWith('C:') ||
         relativePath.contains('/data/user/') ||
         relativePath.contains('/storage/')) {
       return relativePath;
