@@ -101,15 +101,17 @@ class VvcLiquidGlassBottomBar extends StatelessWidget {
     final double bottomMargin = bottomInset > 0 ? bottomInset + 4.0 : 14.0;
     const primaryGold = Color(0xFFF3D010);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final hasAnyLabel = items.any((i) => i.label != null && i.label!.isNotEmpty);
+    final double dockHeight = hasAnyLabel ? 65.0 : 60.0;
 
     final effectiveBorder = borderColor ??
         (isDark
-            ? const Color(0xFF475569).withValues(alpha: 0.50)
-            : const Color(0xFFCBD5E1).withValues(alpha: 0.65));
+            ? Colors.white.withValues(alpha: 0.22)
+            : Colors.white.withValues(alpha: 0.70));
 
     return Container(
       margin: EdgeInsets.fromLTRB(16.0, 0, 16.0, bottomMargin),
-      height: 64.0,
+      height: dockHeight,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(36.0),
         boxShadow: [
@@ -133,23 +135,23 @@ class VvcLiquidGlassBottomBar extends StatelessWidget {
         child: BackdropFilter(
           filter: ui.ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
           child: Container(
-            height: 64.0,
-            padding: const EdgeInsets.symmetric(horizontal: 14.0),
+            height: dockHeight,
+            padding: const EdgeInsets.symmetric(horizontal: 12.0),
             decoration: BoxDecoration(
-              // Specular Top-Rim Light (Liquid Glass Highlight)
+              // Specular Top-Rim Light (Authentic Cupertino Liquid Glass)
               gradient: LinearGradient(
                 begin: const Alignment(-0.5, -1.0),
                 end: const Alignment(0.5, 1.0),
                 colors: isDark
                     ? [
-                        Colors.white.withValues(alpha: 0.22),
-                        const Color(0xFF1E293B).withValues(alpha: 0.82),
-                        const Color(0xFF0F172A).withValues(alpha: 0.88),
+                        Colors.white.withValues(alpha: 0.18),
+                        const Color(0xFF1E293B).withValues(alpha: 0.55),
+                        const Color(0xFF0F172A).withValues(alpha: 0.65),
                       ]
                     : [
-                        Colors.white.withValues(alpha: 0.95),
-                        const Color(0xFFF8FAFC).withValues(alpha: 0.88),
-                        const Color(0xFFF1F5F9).withValues(alpha: 0.80),
+                        Colors.white.withValues(alpha: 0.75),
+                        Colors.white.withValues(alpha: 0.38),
+                        const Color(0xFFF1F5F9).withValues(alpha: 0.30),
                       ],
                 stops: const [0.0, 0.25, 1.0],
               ),
@@ -189,151 +191,193 @@ class VvcLiquidGlassBottomBar extends StatelessWidget {
     required Color primaryGold,
     required VoidCallback onItemTap,
   }) {
-    final unselectedColor = unselectedItemColor ?? const Color(0xFF64748B);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final unselectedColor = unselectedItemColor ??
+        (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B));
     final iconData = (isSelected && item.selectedIcon != null)
         ? item.selectedIcon!
         : item.icon;
+    final hasLabel = item.label != null && item.label!.isNotEmpty;
 
     // Center Item: Elevated Liquid Golden Droplet
     if (item.isCenter) {
       return GestureDetector(
         onTap: onItemTap,
         behavior: HitTestBehavior.opaque,
-        child: Stack(
-          clipBehavior: Clip.none,
-          alignment: Alignment.center,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 240),
-              curve: Curves.easeOutBack,
-              width: isSelected ? 48.0 : 42.0,
-              height: isSelected ? 48.0 : 42.0,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: isSelected
-                      ? const [Color(0xFFFDE047), Color(0xFFF3D010), Color(0xFFCA8A04)]
-                      : [
-                          primaryGold.withValues(alpha: 0.22),
-                          primaryGold.withValues(alpha: 0.12),
-                        ],
-                  begin: const Alignment(-0.6, -1.0),
-                  end: const Alignment(0.6, 1.0),
-                ),
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: isSelected
-                      ? Colors.white.withValues(alpha: 0.90)
-                      : primaryGold.withValues(alpha: 0.45),
-                  width: 1.4,
-                ),
-                boxShadow: isSelected
-                    ? [
-                        BoxShadow(
-                          color: primaryGold.withValues(alpha: 0.45),
-                          blurRadius: 12.0,
-                          offset: const Offset(0, 3),
-                        ),
-                      ]
-                    : null,
-              ),
-              child: Center(
-                child: Icon(
-                  iconData,
-                  color: isSelected ? Colors.white : const Color(0xFFB45309),
-                  size: 24.0,
-                ),
-              ),
-            ),
-            if (item.badgeText != null && item.badgeText!.isNotEmpty)
-              Positioned(
-                top: -2.0,
-                right: -4.0,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 5.0, vertical: 1.5),
+            Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.center,
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 240),
+                  curve: Curves.easeOutBack,
+                  width: isSelected ? 46.0 : 42.0,
+                  height: isSelected ? 46.0 : 42.0,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFDC2626),
-                    borderRadius: BorderRadius.circular(10.0),
-                    border: Border.all(color: Colors.white, width: 1.2),
+                    gradient: LinearGradient(
+                      colors: isSelected
+                          ? const [Color(0xFFFDE047), Color(0xFFF3D010), Color(0xFFCA8A04)]
+                          : [
+                              primaryGold.withValues(alpha: isDark ? 0.25 : 0.18),
+                              primaryGold.withValues(alpha: isDark ? 0.15 : 0.10),
+                            ],
+                      begin: const Alignment(-0.6, -1.0),
+                      end: const Alignment(0.6, 1.0),
+                    ),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: isSelected
+                          ? Colors.white.withValues(alpha: 0.95)
+                          : primaryGold.withValues(alpha: 0.45),
+                      width: isSelected ? 1.5 : 1.2,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: primaryGold.withValues(alpha: isSelected ? 0.40 : 0.15),
+                        blurRadius: isSelected ? 14.0 : 6.0,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
                   ),
-                  child: Text(
-                    item.badgeText!,
-                    style: GoogleFonts.inter(
-                      color: Colors.white,
-                      fontSize: 9.0,
-                      fontWeight: FontWeight.bold,
+                  child: Center(
+                    child: Icon(
+                      iconData,
+                      color: isSelected
+                          ? Colors.white
+                          : (isDark ? const Color(0xFFFDE047) : const Color(0xFFD97706)),
+                      size: 22.0,
                     ),
                   ),
                 ),
+                if (item.badgeText != null && item.badgeText!.isNotEmpty)
+                  Positioned(
+                    top: -2.0,
+                    right: -4.0,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5.0, vertical: 1.5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFDC2626),
+                        borderRadius: BorderRadius.circular(10.0),
+                        border: Border.all(color: Colors.white, width: 1.2),
+                      ),
+                      child: Text(
+                        item.badgeText!,
+                        style: GoogleFonts.inter(
+                          color: Colors.white,
+                          fontSize: 9.0,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            if (hasLabel) ...[
+              const SizedBox(height: 2.0),
+              Text(
+                item.label!,
+                style: GoogleFonts.kantumruyPro(
+                  fontSize: 10.0,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                  color: isSelected
+                      ? (isDark ? const Color(0xFFFDE047) : const Color(0xFFD97706))
+                      : unselectedColor,
+                ),
               ),
+            ],
           ],
         ),
       );
     }
 
-    // Standard Tab Item: Liquid Spring Capsule
+    // Standard Tab Item: Cupertino Fluid Capsule Pill
     return GestureDetector(
       onTap: onItemTap,
       behavior: HitTestBehavior.opaque,
-      child: Stack(
-        clipBehavior: Clip.none,
-        alignment: Alignment.center,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 240),
-            curve: Curves.easeOutBack,
-            width: isSelected ? 46.0 : 38.0,
-            height: isSelected ? 46.0 : 38.0,
-            decoration: BoxDecoration(
-              gradient: isSelected
-                  ? const LinearGradient(
-                      colors: [Color(0xFFFDE047), Color(0xFFF3D010)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    )
-                  : null,
-              shape: BoxShape.circle,
-              border: isSelected
-                  ? Border.all(color: Colors.white.withValues(alpha: 0.85), width: 1.2)
-                  : null,
-              boxShadow: isSelected
-                  ? [
-                      BoxShadow(
-                        color: primaryGold.withValues(alpha: 0.38),
-                        blurRadius: 10.0,
-                        offset: const Offset(0, 2),
-                      ),
-                    ]
-                  : null,
-            ),
-            child: Center(
-              child: Icon(
-                iconData,
-                color: isSelected ? Colors.white : unselectedColor,
-                size: 22.0,
-              ),
-            ),
-          ),
-          if (item.badgeText != null && item.badgeText!.isNotEmpty)
-            Positioned(
-              top: -3.0,
-              right: -6.0,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 5.0, vertical: 1.5),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFDC2626),
-                  borderRadius: BorderRadius.circular(10.0),
-                  border: Border.all(color: Colors.white, width: 1.2),
+          Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.center,
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 240),
+                curve: Curves.easeOutBack,
+                padding: EdgeInsets.symmetric(
+                  horizontal: isSelected ? 14.0 : 8.0,
+                  vertical: hasLabel ? 3.0 : 6.0,
                 ),
-                child: Text(
-                  item.badgeText!,
-                  style: GoogleFonts.inter(
-                    color: Colors.white,
-                    fontSize: 9.0,
-                    fontWeight: FontWeight.bold,
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? primaryGold.withValues(alpha: isDark ? 0.22 : 0.16)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(20.0),
+                  border: isSelected
+                      ? Border.all(
+                          color: primaryGold.withValues(alpha: isDark ? 0.45 : 0.35),
+                          width: 1.2,
+                        )
+                      : null,
+                  boxShadow: isSelected
+                      ? [
+                          BoxShadow(
+                            color: primaryGold.withValues(alpha: isDark ? 0.20 : 0.12),
+                            blurRadius: 10.0,
+                            offset: const Offset(0, 2),
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Icon(
+                  iconData,
+                  color: isSelected
+                      ? (isDark ? const Color(0xFFFDE047) : const Color(0xFFD97706))
+                      : unselectedColor,
+                  size: isSelected ? 22.0 : 20.0,
+                ),
+              ),
+              if (item.badgeText != null && item.badgeText!.isNotEmpty)
+                Positioned(
+                  top: -2.0,
+                  right: -4.0,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 4.5, vertical: 1.2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFDC2626),
+                      borderRadius: BorderRadius.circular(10.0),
+                      border: Border.all(color: Colors.white, width: 1.2),
+                    ),
+                    child: Text(
+                      item.badgeText!,
+                      style: GoogleFonts.inter(
+                        color: Colors.white,
+                        fontSize: 8.5,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 ),
+            ],
+          ),
+          if (hasLabel) ...[
+            const SizedBox(height: 2.0),
+            Text(
+              item.label!,
+              style: GoogleFonts.kantumruyPro(
+                fontSize: 10.0,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                color: isSelected
+                    ? (isDark ? const Color(0xFFFDE047) : const Color(0xFFD97706))
+                    : unselectedColor,
               ),
             ),
+          ],
         ],
       ),
     );
@@ -352,7 +396,175 @@ class VvcLiquidGlassBottomBar extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// 3. GLOBAL LIQUID GLASS SCAFFOLD (Reusable Master Shell for all Screens)
+// 3. GLOBAL LIQUID GLASS CIRCLE BUTTON (Cupertino Action Button)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class VvcLiquidGlassCircleButton extends StatelessWidget {
+  final VoidCallback? onTap;
+  final Widget child;
+  final double size;
+  final Color? borderColor;
+
+  const VvcLiquidGlassCircleButton({
+    super.key,
+    required this.onTap,
+    required this.child,
+    this.size = 38.0,
+    this.borderColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return GestureDetector(
+      onTap: () {
+        if (onTap != null) {
+          HapticFeedback.lightImpact();
+          onTap!();
+        }
+      },
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.05),
+              blurRadius: 8.0,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(size / 2),
+          child: BackdropFilter(
+            filter: ui.ImageFilter.blur(sigmaX: 16.0, sigmaY: 16.0),
+            child: Container(
+              width: size,
+              height: size,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  begin: const Alignment(-0.5, -1.0),
+                  end: const Alignment(0.5, 1.0),
+                  colors: isDark
+                      ? [
+                          Colors.white.withValues(alpha: 0.20),
+                          const Color(0xFF1E293B).withValues(alpha: 0.60),
+                        ]
+                      : [
+                          Colors.white.withValues(alpha: 0.75),
+                          Colors.white.withValues(alpha: 0.35),
+                        ],
+                ),
+                border: Border.all(
+                  color: borderColor ??
+                      (isDark
+                          ? Colors.white.withValues(alpha: 0.22)
+                          : Colors.white.withValues(alpha: 0.75)),
+                  width: 1.1,
+                ),
+              ),
+              child: Center(child: child),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 4. GLOBAL LIQUID GLASS PINNED HEADER (Cupertino / Telegram Pinned Top Header)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class VvcLiquidGlassPinnedHeader extends StatelessWidget {
+  final Widget child;
+  final EdgeInsetsGeometry? padding;
+  final double borderRadius;
+  final bool isScrolled;
+  final Color? borderColor;
+  final double blurSigma;
+
+  const VvcLiquidGlassPinnedHeader({
+    super.key,
+    required this.child,
+    this.padding,
+    this.borderRadius = 28.0,
+    this.isScrolled = false,
+    this.borderColor,
+    this.blurSigma = 25.0,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    const primaryGold = Color(0xFFF3D010);
+
+    final effectiveBorder = borderColor ??
+        (isDark
+            ? (isScrolled
+                ? primaryGold.withValues(alpha: 0.45)
+                : Colors.white.withValues(alpha: 0.20))
+            : (isScrolled
+                ? primaryGold.withValues(alpha: 0.40)
+                : Colors.white.withValues(alpha: 0.70)));
+
+    return ClipRRect(
+      borderRadius: BorderRadius.vertical(bottom: Radius.circular(borderRadius)),
+      child: BackdropFilter(
+        filter: ui.ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
+        child: Container(
+          padding: padding,
+          decoration: BoxDecoration(
+            // Liquid Glass Specular Rim Highlight
+            gradient: LinearGradient(
+              begin: const Alignment(-0.5, -1.0),
+              end: const Alignment(0.5, 1.0),
+              colors: isDark
+                  ? [
+                      Colors.white.withValues(alpha: 0.18),
+                      const Color(0xFF1E293B).withValues(alpha: isScrolled ? 0.65 : 0.50),
+                      const Color(0xFF0F172A).withValues(alpha: isScrolled ? 0.70 : 0.55),
+                    ]
+                  : [
+                      Colors.white.withValues(alpha: 0.75),
+                      Colors.white.withValues(alpha: isScrolled ? 0.45 : 0.35),
+                      const Color(0xFFF1F5F9).withValues(alpha: isScrolled ? 0.40 : 0.30),
+                    ],
+              stops: const [0.0, 0.30, 1.0],
+            ),
+            borderRadius: BorderRadius.vertical(bottom: Radius.circular(borderRadius)),
+            border: Border.all(
+              color: effectiveBorder,
+              width: 1.2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: primaryGold.withValues(alpha: isScrolled ? 0.14 : 0.05),
+                blurRadius: 18.0,
+                spreadRadius: -2.0,
+                offset: const Offset(0, 4),
+              ),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.38 : (isScrolled ? 0.06 : 0.02)),
+                blurRadius: 16.0,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 5. GLOBAL LIQUID GLASS SCAFFOLD (Reusable Master Shell for all Screens)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 class VvcLiquidGlassScaffold extends StatefulWidget {
@@ -394,49 +606,13 @@ class VvcLiquidGlassScaffold extends StatefulWidget {
 class _VvcLiquidGlassScaffoldState extends State<VvcLiquidGlassScaffold> {
   bool _isScrolled = false;
 
-  Widget _buildGlassCircleButton({
-    required VoidCallback? onTap,
-    required Widget child,
-    required bool isDark,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        width: 38.0,
-        height: 38.0,
-        decoration: BoxDecoration(
-          color: isDark
-              ? const Color(0xFF1E293B).withValues(alpha: 0.85)
-              : const Color(0xFFF8FAFC).withValues(alpha: 0.90),
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: isDark
-                ? const Color(0xFF475569).withValues(alpha: 0.50)
-                : const Color(0xFFCBD5E1).withValues(alpha: 0.60),
-            width: 1.1,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.04),
-              blurRadius: 6.0,
-              offset: const Offset(0, 1),
-            ),
-          ],
-        ),
-        child: Center(child: child),
-      ),
-    );
-  }
-
   Widget _buildLeading(BuildContext context, bool isDark) {
     if (widget.leading != null) {
       if (widget.leading is IconButton) {
         final btn = widget.leading as IconButton;
-        return _buildGlassCircleButton(
+        return VvcLiquidGlassCircleButton(
           onTap: btn.onPressed,
           child: btn.icon,
-          isDark: isDark,
         );
       }
       return widget.leading!;
@@ -444,14 +620,13 @@ class _VvcLiquidGlassScaffoldState extends State<VvcLiquidGlassScaffold> {
     final canPop = ModalRoute.of(context)?.canPop ?? false;
     if (!canPop) return const SizedBox(width: 38.0);
 
-    return _buildGlassCircleButton(
+    return VvcLiquidGlassCircleButton(
       onTap: () => Navigator.maybePop(context),
       child: Icon(
         Icons.arrow_back_ios_new_rounded,
         size: 15.0,
         color: AppTheme.textPrimary,
       ),
-      isDark: isDark,
     );
   }
 
@@ -464,7 +639,7 @@ class _VvcLiquidGlassScaffoldState extends State<VvcLiquidGlassScaffold> {
       left: 0,
       right: 0,
       top: 0,
-      height: topInset + 75.0,
+      height: topInset + 16.0,
       child: IgnorePointer(
         child: Container(
           decoration: BoxDecoration(
@@ -472,12 +647,11 @@ class _VvcLiquidGlassScaffoldState extends State<VvcLiquidGlassScaffold> {
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               colors: [
-                maskColor.withValues(alpha: 0.95),
-                maskColor.withValues(alpha: 0.70),
-                maskColor.withValues(alpha: 0.25),
+                maskColor.withValues(alpha: 0.35),
+                maskColor.withValues(alpha: 0.12),
                 maskColor.withValues(alpha: 0.0),
               ],
-              stops: const [0.0, 0.45, 0.80, 1.0],
+              stops: const [0.0, 0.55, 1.0],
             ),
           ),
         ),
@@ -521,11 +695,11 @@ class _VvcLiquidGlassScaffoldState extends State<VvcLiquidGlassScaffold> {
 
     final effectiveBorder = isDark
         ? (_isScrolled
-            ? primaryGold.withValues(alpha: 0.50)
-            : const Color(0xFF475569).withValues(alpha: 0.50))
+            ? primaryGold.withValues(alpha: 0.45)
+            : Colors.white.withValues(alpha: 0.20))
         : (_isScrolled
-            ? primaryGold.withValues(alpha: 0.65)
-            : const Color(0xFFCBD5E1).withValues(alpha: 0.70));
+            ? primaryGold.withValues(alpha: 0.40)
+            : Colors.white.withValues(alpha: 0.70));
 
     return Positioned(
       top: topInset + 6.0,
@@ -565,14 +739,14 @@ class _VvcLiquidGlassScaffoldState extends State<VvcLiquidGlassScaffold> {
                   end: const Alignment(0.5, 1.0),
                   colors: isDark
                       ? [
-                          Colors.white.withValues(alpha: 0.20),
-                          const Color(0xFF1E293B).withValues(alpha: _isScrolled ? 0.88 : 0.78),
-                          const Color(0xFF0F172A).withValues(alpha: _isScrolled ? 0.85 : 0.75),
+                          Colors.white.withValues(alpha: 0.18),
+                          const Color(0xFF1E293B).withValues(alpha: _isScrolled ? 0.65 : 0.50),
+                          const Color(0xFF0F172A).withValues(alpha: _isScrolled ? 0.70 : 0.55),
                         ]
                       : [
-                          Colors.white.withValues(alpha: 0.95),
-                          const Color(0xFFF8FAFC).withValues(alpha: _isScrolled ? 0.92 : 0.82),
-                          const Color(0xFFF1F5F9).withValues(alpha: _isScrolled ? 0.86 : 0.76),
+                          Colors.white.withValues(alpha: 0.70),
+                          Colors.white.withValues(alpha: _isScrolled ? 0.45 : 0.35),
+                          const Color(0xFFF1F5F9).withValues(alpha: _isScrolled ? 0.40 : 0.30),
                         ],
                   stops: const [0.0, 0.30, 1.0],
                 ),

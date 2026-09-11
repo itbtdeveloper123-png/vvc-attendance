@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -15,6 +14,7 @@ import 'storage_usage_screen.dart';
 import 'add_story_screen.dart';
 import 'community_channel_screen.dart';
 import 'profile_screen.dart';
+import '../widgets/vvc_liquid_glass_scaffold.dart';
 import '../services/api_service.dart';
 import '../providers/user_provider.dart';
 import '../utils/app_theme.dart';
@@ -362,44 +362,7 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
                   ),
           ),
 
-          // 2. Top Transition Zone (Gradient Mask)
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            height: topHeaderHeight + 24.0,
-            child: IgnorePointer(
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      (Theme.of(context).brightness == Brightness.dark
-                              ? const Color(0xFF0F1115)
-                              : const Color(0xFFF8FAFC))
-                          .withValues(alpha: 0.95),
-                      (Theme.of(context).brightness == Brightness.dark
-                              ? const Color(0xFF0F1115)
-                              : const Color(0xFFF8FAFC))
-                          .withValues(alpha: 0.70),
-                      (Theme.of(context).brightness == Brightness.dark
-                              ? const Color(0xFF0F1115)
-                              : const Color(0xFFF8FAFC))
-                          .withValues(alpha: 0.25),
-                      (Theme.of(context).brightness == Brightness.dark
-                              ? const Color(0xFF0F1115)
-                              : const Color(0xFFF8FAFC))
-                          .withValues(alpha: 0.0),
-                    ],
-                    stops: const [0.0, 0.45, 0.80, 1.0],
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-          // 3. Top Floating Frosted Glass Header (Dynamically blurs conversations as they scroll underneath)
+          // 2. Top Floating Frosted Glass Header (Dynamically blurs conversations as they scroll underneath)
           Positioned(
             top: 0,
             left: 0,
@@ -407,7 +370,7 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
             child: _buildTelegramFrostedHeader(userProvider, topSafeArea),
           ),
 
-          // 4. Bottom Floating Frosted Glass Bar (Dynamically blurs conversations as they reach bottom edge)
+          // 3. Bottom Floating Frosted Glass Bar (Authentic Cupertino Liquid Glass)
           Positioned(
             bottom: 0,
             left: 0,
@@ -420,58 +383,21 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
   }
 
   // ==========================================
-  // TOP FROSTED GLASS HEADER (LUXURY GLASSMORPHISM)
+  // TOP FROSTED GLASS HEADER (GLOBAL LIQUID GLASS PINNED)
   // ==========================================
   Widget _buildTelegramFrostedHeader(UserProvider user, double topSafeArea) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    const primaryGold = Color(0xFFF3D010);
-
-    return ClipRRect(
-      borderRadius: const BorderRadius.vertical(bottom: Radius.circular(28.0)),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
-        child: Container(
-          decoration: BoxDecoration(
-            color: isDark
-                ? const Color(0xFF1E293B).withValues(alpha: _isScrolled ? 0.88 : 0.78)
-                : const Color(0xFFF8FAFC).withValues(alpha: _isScrolled ? 0.92 : 0.82),
-            borderRadius: const BorderRadius.vertical(bottom: Radius.circular(28.0)),
-            border: Border.all(
-              color: isDark
-                  ? (_isScrolled
-                      ? primaryGold.withValues(alpha: 0.45)
-                      : const Color(0xFF475569).withValues(alpha: 0.50))
-                  : (_isScrolled
-                      ? primaryGold.withValues(alpha: 0.60)
-                      : const Color(0xFFCBD5E1).withValues(alpha: 0.65)),
-              width: 1.2,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: primaryGold.withValues(alpha: _isScrolled ? 0.14 : 0.06),
-                blurRadius: 18,
-                spreadRadius: -2,
-                offset: const Offset(0, 4),
-              ),
-              BoxShadow(
-                color: Colors.black.withValues(alpha: isDark ? 0.38 : (_isScrolled ? 0.07 : 0.03)),
-                blurRadius: 16,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          padding: EdgeInsets.fromLTRB(14.0, topSafeArea + 4.0, 14.0, 10.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _buildTopHeader(user),
-              const SizedBox(height: 6.0),
-              _buildSearchBar(),
-              const SizedBox(height: 8.0),
-              _buildFolderTabs(),
-            ],
-          ),
-        ),
+    return VvcLiquidGlassPinnedHeader(
+      isScrolled: _isScrolled,
+      padding: EdgeInsets.fromLTRB(14.0, topSafeArea + 4.0, 14.0, 10.0),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildTopHeader(user),
+          const SizedBox(height: 6.0),
+          _buildSearchBar(),
+          const SizedBox(height: 8.0),
+          _buildFolderTabs(),
+        ],
       ),
     );
   }
@@ -524,15 +450,15 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
                 color: isSelected
                     ? null
                     : (isDark
-                        ? const Color(0xFF1E293B).withValues(alpha: 0.75)
-                        : const Color(0xFFF1F5F9).withValues(alpha: 0.85)),
+                        ? const Color(0xFF1E293B).withValues(alpha: 0.50)
+                        : Colors.white.withValues(alpha: 0.55)),
                 borderRadius: BorderRadius.circular(16.0),
                 border: Border.all(
                   color: isSelected
                       ? const Color(0xFFFDE047)
                       : (isDark
-                          ? const Color(0xFF475569).withValues(alpha: 0.45)
-                          : const Color(0xFFCBD5E1).withValues(alpha: 0.60)),
+                          ? Colors.white.withValues(alpha: 0.18)
+                          : Colors.white.withValues(alpha: 0.70)),
                   width: 1.0,
                 ),
                 boxShadow: isSelected
@@ -586,196 +512,73 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
   }
 
   // ==========================================
-  // BOTTOM FROSTED GLASS BAR (TELEGRAM STYLE)
+  // BOTTOM FROSTED GLASS BAR (GLOBAL VvcLiquidGlassBottomBar)
   // ==========================================
   Widget _buildTelegramFrostedBottomBar(double bottomSafeArea) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final double bottomMargin = bottomSafeArea > 0 ? bottomSafeArea + 4.0 : 12.0;
-    const primaryGold = Color(0xFFF3D010);
-
-    return Container(
-      margin: EdgeInsets.fromLTRB(16.0, 0, 16.0, bottomMargin),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(32.0),
-        boxShadow: [
-          BoxShadow(
-            color: primaryGold.withValues(alpha: 0.08),
-            blurRadius: 20,
-            spreadRadius: -2,
-            offset: const Offset(0, 4),
-          ),
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.40 : 0.06),
-            blurRadius: 18,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(32.0),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
-            decoration: BoxDecoration(
-              color: isDark
-                  ? const Color(0xFF1E293B).withValues(alpha: 0.85)
-                  : const Color(0xFFF8FAFC).withValues(alpha: 0.90),
-              borderRadius: BorderRadius.circular(32.0),
-              border: Border.all(
-                color: isDark
-                    ? const Color(0xFF475569).withValues(alpha: 0.50)
-                    : const Color(0xFFCBD5E1).withValues(alpha: 0.65),
-                width: 1.2,
+    return VvcLiquidGlassBottomBar(
+      currentIndex: 2,
+      bottomInset: bottomSafeArea,
+      onTap: (index) {
+        if (index == 0) {
+          HapticFeedback.lightImpact();
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => NewMessageScreen(
+                allUsers: usersList,
+                currentUserId: currentUserId,
               ),
             ),
-            child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildBottomNavItem(
-                icon: Icons.people_alt_rounded,
-                label: 'បុគ្គលិក',
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => NewMessageScreen(
-                        allUsers: usersList,
-                        currentUserId: currentUserId,
-                      ),
-                    ),
-                  );
-                },
-              ),
-              _buildBottomNavItem(
-                icon: Icons.phone_rounded,
-                label: 'ការហៅ',
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('ប្រព័ន្ធទំនាក់ទំនង និងការហៅផ្ទៃក្នុង', style: GoogleFonts.kantumruyPro()),
-                      duration: const Duration(seconds: 1),
-                    ),
-                  );
-                },
-              ),
-              _buildBottomNavItem(
-                icon: Icons.chat_bubble_rounded,
-                label: 'សារ',
-                isActive: true,
-                badgeCount: _totalUnreadCount,
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  if (_scrollController.hasClients) {
-                    _scrollController.animateTo(
-                      0,
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeOut,
-                    );
-                  }
-                },
-              ),
-              _buildBottomNavItem(
-                icon: Icons.cleaning_services_rounded,
-                label: 'ទំហំផ្ទុក',
-                badgeText: _cacheSizeText.isNotEmpty ? _cacheSizeText : null,
-                onTap: () async {
-                  HapticFeedback.lightImpact();
-                  await Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const StorageUsageScreen(),
-                    ),
-                  );
-                  _checkCacheSize();
-                },
-              ),
-            ],
-          ),
+          );
+        } else if (index == 1) {
+          HapticFeedback.lightImpact();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('ប្រព័ន្ធទំនាក់ទំនង និងការហៅផ្ទៃក្នុង', style: GoogleFonts.kantumruyPro()),
+              duration: const Duration(seconds: 1),
+            ),
+          );
+        } else if (index == 2) {
+          HapticFeedback.lightImpact();
+          if (_scrollController.hasClients) {
+            _scrollController.animateTo(
+              0,
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOut,
+            );
+          }
+        } else if (index == 3) {
+          HapticFeedback.lightImpact();
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const StorageUsageScreen(),
+            ),
+          ).then((_) => _checkCacheSize());
+        }
+      },
+      items: [
+        const LiquidGlassItem(
+          icon: Icons.people_alt_rounded,
+          label: 'បុគ្គលិក',
         ),
-      ),
-    ),
-  );
-}
-
-  Widget _buildBottomNavItem({
-    required IconData icon,
-    required String label,
-    bool isActive = false,
-    int badgeCount = 0,
-    String? badgeText,
-    required VoidCallback onTap,
-  }) {
-    final color = isActive ? MessengerTheme.activeBlue : MessengerTheme.textSecondary;
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Icon(icon, color: color, size: 22),
-                if (badgeCount > 0)
-                  Positioned(
-                    right: -8,
-                    top: -4,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFF3B30),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        badgeCount > 99 ? '99+' : '$badgeCount',
-                        style: GoogleFonts.inter(
-                          color: Colors.white,
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  )
-                else if (badgeText != null && badgeText.isNotEmpty)
-                  Positioned(
-                    right: -10,
-                    top: -4,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFF9500),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        badgeText,
-                        style: GoogleFonts.inter(
-                          color: Colors.white,
-                          fontSize: 8.5,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 3),
-            Text(
-              label,
-              style: GoogleFonts.kantumruyPro(
-                color: color,
-                fontSize: 11.0,
-                fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-              ),
-            ),
-          ],
+        const LiquidGlassItem(
+          icon: Icons.phone_rounded,
+          label: 'ការហៅ',
         ),
-      ),
+        LiquidGlassItem(
+          icon: Icons.chat_bubble_rounded,
+          label: 'សារ',
+          badgeText: _totalUnreadCount > 0
+              ? (_totalUnreadCount > 99 ? '99+' : '$_totalUnreadCount')
+              : null,
+        ),
+        LiquidGlassItem(
+          icon: Icons.cleaning_services_rounded,
+          label: 'ទំហំផ្ទុក',
+          badgeText: _cacheSizeText.isNotEmpty ? _cacheSizeText : null,
+        ),
+      ],
     );
   }
 
@@ -867,41 +670,16 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
     return Row(
       children: [
         // Back arrow navigation icon (Frosted Circular Glass)
-        IconButton(
-          icon: Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: Theme.of(context).brightness == Brightness.dark
-                  ? const Color(0xFF1E293B).withValues(alpha: 0.80)
-                  : const Color(0xFFF8FAFC).withValues(alpha: 0.85),
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: Theme.of(context).brightness == Brightness.dark
-                    ? const Color(0xFF475569).withValues(alpha: 0.50)
-                    : const Color(0xFFCBD5E1).withValues(alpha: 0.60),
-                width: 1,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(
-                    alpha: Theme.of(context).brightness == Brightness.dark ? 0.20 : 0.03,
-                  ),
-                  blurRadius: 6,
-                  offset: const Offset(0, 1),
-                ),
-              ],
-            ),
-            child: Center(
-              child: Icon(
-                Icons.arrow_back_ios_new_rounded,
-                color: MessengerTheme.textPrimary,
-                size: 15,
-              ),
-            ),
+        VvcLiquidGlassCircleButton(
+          size: 36.0,
+          onTap: () => Navigator.pop(context),
+          child: Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: MessengerTheme.textPrimary,
+            size: 15,
           ),
-          onPressed: () => Navigator.pop(context),
         ),
+        const SizedBox(width: 8.0),
 
         // User avatar (Clickable to open profile screen)
         InkWell(
@@ -1037,33 +815,10 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
     required IconData icon,
     required VoidCallback onTap,
   }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return GestureDetector(
+    return VvcLiquidGlassCircleButton(
+      size: 36.0,
       onTap: onTap,
-      child: Container(
-        width: 36.0,
-        height: 36.0,
-        decoration: BoxDecoration(
-          color: isDark
-              ? const Color(0xFF1E293B).withValues(alpha: 0.80)
-              : const Color(0xFFF8FAFC).withValues(alpha: 0.85),
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: isDark
-                ? const Color(0xFF475569).withValues(alpha: 0.50)
-                : const Color(0xFFCBD5E1).withValues(alpha: 0.60),
-            width: 1.0,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFFF3D010).withValues(alpha: 0.08),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Icon(icon, size: 18.0, color: MessengerTheme.textPrimary),
-      ),
+      child: Icon(icon, size: 18.0, color: MessengerTheme.textPrimary),
     );
   }
 
@@ -1094,8 +849,8 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
           ),
           filled: true,
           fillColor: isDark
-              ? const Color(0xFF1E293B).withValues(alpha: 0.60)
-              : const Color(0xFFF1F5F9).withValues(alpha: 0.85),
+              ? const Color(0xFF1E293B).withValues(alpha: 0.50)
+              : Colors.white.withValues(alpha: 0.45),
           isDense: true,
           contentPadding: const EdgeInsets.symmetric(
             vertical: 6.0,
@@ -1105,8 +860,8 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
             borderRadius: BorderRadius.circular(18.0),
             borderSide: BorderSide(
               color: isDark
-                  ? const Color(0xFF475569).withValues(alpha: 0.45)
-                  : const Color(0xFFCBD5E1).withValues(alpha: 0.65),
+                  ? Colors.white.withValues(alpha: 0.15)
+                  : Colors.white.withValues(alpha: 0.70),
               width: 1.0,
             ),
           ),
@@ -1114,8 +869,8 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
             borderRadius: BorderRadius.circular(18.0),
             borderSide: BorderSide(
               color: isDark
-                  ? const Color(0xFF475569).withValues(alpha: 0.45)
-                  : const Color(0xFFCBD5E1).withValues(alpha: 0.65),
+                  ? Colors.white.withValues(alpha: 0.15)
+                  : Colors.white.withValues(alpha: 0.70),
               width: 1.0,
             ),
           ),
@@ -1123,7 +878,7 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
             borderRadius: BorderRadius.circular(18.0),
             borderSide: const BorderSide(
               color: Color(0xFFF3D010),
-              width: 1.2,
+              width: 1.3,
             ),
           ),
         ),

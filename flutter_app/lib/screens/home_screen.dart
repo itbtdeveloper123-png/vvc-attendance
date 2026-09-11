@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
@@ -360,22 +361,23 @@ class HomeScreenState extends State<HomeScreen> {
       bottomInset: bottomInset,
       backgroundColor: isDark ? const Color(0xFF181A20) : Colors.white,
       accentColor: const Color(0xFFF3D010),
-      borderColor: const Color(0xFFF3D010),
       items: [
         // 1. Home / Dashboard (Left)
         const LiquidGlassItem(
-          icon: Icons.dashboard_rounded,
+          icon: CupertinoIcons.square_grid_2x2_fill,
           label: 'ទំព័រដើម',
         ),
         // 2. សំណើ / Requests (Center Item - Elevated Liquid Droplet)
         LiquidGlassItem(
-          icon: userProvider.isHRM ? Icons.list_alt_rounded : Icons.layers_rounded,
+          icon: userProvider.isHRM
+              ? CupertinoIcons.doc_text_fill
+              : CupertinoIcons.layers_alt_fill,
           label: 'សំណើ',
           isCenter: true,
         ),
         // 3. Profile / គណនី (Right)
         const LiquidGlassItem(
-          icon: Icons.person_rounded,
+          icon: CupertinoIcons.person_fill,
           label: 'គណនី',
         ),
       ],
@@ -3518,16 +3520,16 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
     const primaryGold = Color(0xFFF3D010);
 
     final headerBgColor = isDark
-        ? const Color(0xFF1E293B).withValues(alpha: isScrolled ? 0.88 : 0.78)
-        : const Color(0xFFF8FAFC).withValues(alpha: isScrolled ? 0.92 : 0.82);
+        ? const Color(0xFF1E293B).withValues(alpha: isScrolled ? 0.65 : 0.50)
+        : Colors.white.withValues(alpha: isScrolled ? 0.45 : 0.35);
 
     final effectiveBorder = isDark
         ? (isScrolled
-            ? primaryGold.withValues(alpha: 0.45)
-            : const Color(0xFF475569).withValues(alpha: 0.50))
+            ? Colors.white.withValues(alpha: 0.35)
+            : Colors.white.withValues(alpha: 0.18))
         : (isScrolled
-            ? primaryGold.withValues(alpha: 0.60)
-            : const Color(0xFFCBD5E1).withValues(alpha: 0.65));
+            ? Colors.white.withValues(alpha: 0.85)
+            : Colors.white.withValues(alpha: 0.65));
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle(
@@ -3538,12 +3540,12 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          // 1. Top Transition Zone (Clear -> Soft Fade -> Deep Fade Mask)
+          // 1. Top Transition Zone (Soft Ambient Gradient Mask)
           Positioned(
             left: 0,
             right: 0,
             top: 0,
-            height: topPadding + 75.0,
+            height: topPadding + 16.0,
             child: IgnorePointer(
               child: Container(
                 decoration: BoxDecoration(
@@ -3551,302 +3553,600 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: [
-                      theme.backgroundColor.withValues(alpha: 0.95),
-                      theme.backgroundColor.withValues(alpha: 0.70),
-                      theme.backgroundColor.withValues(alpha: 0.25),
+                      theme.backgroundColor.withValues(alpha: 0.35),
+                      theme.backgroundColor.withValues(alpha: 0.12),
                       theme.backgroundColor.withValues(alpha: 0.0),
                     ],
-                    stops: const [0.0, 0.45, 0.80, 1.0],
+                    stops: const [0.0, 0.55, 1.0],
                   ),
                 ),
               ),
             ),
           ),
 
-          // 2. Floating Luxury Glass Dock Header (Matches Bottom Bar 1:1)
+          // 2. Three Standalone Floating Glass Pods (Left Island, Center Capsule, Right Island)
           Positioned(
             top: topPadding + 6.0,
-            left: 16.0,
-            right: 16.0,
-            child: Container(
-              height: 58.0,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(32.0),
-                boxShadow: [
-                  BoxShadow(
-                    color: primaryGold.withValues(alpha: isScrolled ? 0.14 : 0.06),
-                    blurRadius: 18,
-                    spreadRadius: -2,
-                    offset: const Offset(0, 4),
-                  ),
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: isDark ? 0.38 : (isScrolled ? 0.07 : 0.03)),
-                    blurRadius: 16,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(32.0),
-                child: BackdropFilter(
-                  filter: ui.ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 220),
-                    curve: Curves.easeOutCubic,
-                    height: 58.0,
-                    padding: const EdgeInsets.symmetric(horizontal: 10.0),
-                    decoration: BoxDecoration(
-                      color: headerBgColor,
-                      borderRadius: BorderRadius.circular(32.0),
-                      border: Border.all(
-                        color: effectiveBorder,
-                        width: 1.2,
-                      ),
+            left: 14.0,
+            right: 14.0,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // [POD 1] Left Standalone Circular Glass Pod: Quick Add / Leave Request & Others (+)
+                _buildCircularGlassPod(
+                  size: 48.0,
+                  isDark: isDark,
+                  isScrolled: isScrolled,
+                  headerBgColor: headerBgColor,
+                  effectiveBorder: effectiveBorder,
+                  primaryGold: primaryGold,
+                  onTap: () => _showQuickRequestSheet(context, isDark, primaryGold),
+                  child: const Center(
+                    child: Icon(
+                      Icons.add_rounded,
+                      color: primaryGold,
+                      size: 24.0,
                     ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        // Left Action: Settings / Tune
-                        GestureDetector(
-                          onTap: () {
-                            _hapticLight();
-                            Navigator.push(
-                              context,
-                              _slideRoute(const AppSettingsScreen()),
-                            );
-                          },
-                          behavior: HitTestBehavior.opaque,
+                  ),
+                ),
+
+                const SizedBox(width: 8.0),
+
+                // [POD 2] Center Standalone Capsule Glass Pod: Profile Avatar + Name + VVC Tag + Greeting
+                Expanded(
+                  child: _buildProfileCapsulePod(
+                    context: context,
+                    isDark: isDark,
+                    isScrolled: isScrolled,
+                    headerBgColor: headerBgColor,
+                    effectiveBorder: effectiveBorder,
+                    primaryGold: primaryGold,
+                  ),
+                ),
+
+                const SizedBox(width: 8.0),
+
+                // [POD 3] Right Standalone Circular Glass Pod: Notifications Bell
+                _buildCircularGlassPod(
+                  size: 48.0,
+                  isDark: isDark,
+                  isScrolled: isScrolled,
+                  headerBgColor: headerBgColor,
+                  effectiveBorder: effectiveBorder,
+                  primaryGold: primaryGold,
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    Navigator.push(
+                      context,
+                      _slideRoute(const NotificationScreen()),
+                    );
+                  },
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    alignment: Alignment.center,
+                    children: [
+                      const Center(
+                        child: Icon(
+                          Icons.notifications_rounded,
+                          color: primaryGold,
+                          size: 22.0,
+                        ),
+                      ),
+                      if (unreadNotifications > 0)
+                        Positioned(
+                          top: 4,
+                          right: 4,
                           child: Container(
-                            width: 38.0,
-                            height: 38.0,
+                            width: 8.5,
+                            height: 8.5,
                             decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFFF3D010), Color(0xFFE5BF00)],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
+                              color: const Color(0xFFEF4444),
                               shape: BoxShape.circle,
                               border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.80),
+                                color: isDark ? const Color(0xFF0F1115) : Colors.white,
                                 width: 1.4,
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: const Color(0xFFF3D010).withValues(alpha: 0.35),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: const Center(
-                              child: Icon(
-                                Icons.tune_rounded,
-                                color: Colors.white,
-                                size: 18.0,
-                              ),
-                            ),
-                          ),
-                        ),
-
-                        // Center: Profile Avatar + Verified Name + VVC Tag
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: onProfileTap,
-                            behavior: HitTestBehavior.opaque,
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Stack(
-                                  clipBehavior: Clip.none,
-                                  children: [
-                                    Container(
-                                      width: 36.0,
-                                      height: 36.0,
-                                      decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        color: theme.cardPrimary,
-                                        border: Border.all(
-                                          color: const Color(0xFFD4AF37),
-                                          width: 1.5,
-                                        ),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: const Color(0xFFD4AF37).withValues(alpha: 0.3),
-                                            blurRadius: 6,
-                                            offset: const Offset(0, 1),
-                                          ),
-                                        ],
-                                      ),
-                                      child: ClipOval(
-                                        child: user.avatarUrl != null && user.avatarUrl!.isNotEmpty
-                                            ? Image.network(
-                                                user.avatarUrl!,
-                                                fit: BoxFit.cover,
-                                                alignment: const Alignment(0, -0.25),
-                                                errorBuilder: (_, __, ___) =>
-                                                    _buildInitials(user, theme),
-                                              )
-                                            : _buildInitials(user, theme),
-                                      ),
-                                    ),
-                                    Positioned(
-                                      bottom: -1,
-                                      right: -1,
-                                      child: Container(
-                                        width: 13.0,
-                                        height: 13.0,
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFF0EA5E9),
-                                          shape: BoxShape.circle,
-                                          border: Border.all(
-                                            color: isDark ? const Color(0xFF0F1115) : Colors.white,
-                                            width: 1.2,
-                                          ),
-                                        ),
-                                        child: const Center(
-                                          child: Icon(
-                                            Icons.check_rounded,
-                                            color: Colors.white,
-                                            size: 8.0,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(width: 8.0),
-                                Flexible(
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Flexible(
-                                            child: Text(
-                                              user.name ?? 'បុគ្គលិក',
-                                              style: GoogleFonts.kantumruyPro(
-                                                color: isDark ? Colors.white : const Color(0xFF0F172A),
-                                                fontWeight: FontWeight.w700,
-                                                fontSize: 12.5,
-                                              ),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 3.0),
-                                          const Icon(
-                                            Icons.verified_rounded,
-                                            color: Color(0xFF0EA5E9),
-                                            size: 13.0,
-                                          ),
-                                          const SizedBox(width: 4.0),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 4.5,
-                                              vertical: 1.0,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: const Color(0xFFD4AF37),
-                                              borderRadius: BorderRadius.circular(4.0),
-                                            ),
-                                            child: Text(
-                                              theme.brand == CompanyBrand.sk ? 'SK' : 'VVC',
-                                              style: GoogleFonts.inter(
-                                                color: const Color(0xFF0F1115),
-                                                fontWeight: FontWeight.w900,
-                                                fontSize: 8.0,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      Text(
-                                        greeting,
-                                        style: GoogleFonts.kantumruyPro(
-                                          color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                                          fontSize: 9.5,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ],
-                                  ),
+                                  color: const Color(0xFFEF4444).withValues(alpha: 0.6),
+                                  blurRadius: 4,
                                 ),
                               ],
                             ),
                           ),
                         ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-                        // Right Action: Add (+)
-                        GestureDetector(
-                          onTap: () {
-                            _hapticLight();
-                            Navigator.push(
-                              context,
-                              _slideRoute(const LeaveRequestScreen()),
-                            );
-                          },
-                          behavior: HitTestBehavior.opaque,
-                          child: Stack(
-                            clipBehavior: Clip.none,
-                            children: [
-                              Container(
-                                width: 38.0,
-                                height: 38.0,
-                                decoration: BoxDecoration(
-                                  gradient: const LinearGradient(
-                                    colors: [Color(0xFFF3D010), Color(0xFFE5BF00)],
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                  ),
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: Colors.white.withValues(alpha: 0.80),
-                                    width: 1.4,
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: const Color(0xFFF3D010).withValues(alpha: 0.35),
-                                      blurRadius: 8,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ],
-                                ),
-                                child: const Center(
-                                  child: Icon(
-                                    Icons.add_rounded,
-                                    color: Colors.white,
-                                    size: 21.0,
-                                  ),
-                                ),
-                              ),
-                              if (unreadNotifications > 0)
-                                Positioned(
-                                  top: -2,
-                                  right: -2,
-                                  child: Container(
-                                    width: 9,
-                                    height: 9,
-                                    decoration: const BoxDecoration(
-                                      color: Color(0xFFEF4444),
-                                      shape: BoxShape.circle,
-                                    ),
-                                  ),
-                                ),
-                            ],
+  void _showQuickRequestSheet(BuildContext context, bool isDark, Color primaryGold) {
+    HapticFeedback.lightImpact();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return Container(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF181A20) : Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            border: Border(
+              top: BorderSide(
+                color: primaryGold.withValues(alpha: 0.45),
+                width: 1.5,
+              ),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.15),
+                blurRadius: 30,
+                offset: const Offset(0, -6),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Center(
+                child: Container(
+                  width: 38,
+                  height: 4.5,
+                  margin: const EdgeInsets.only(bottom: 18),
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.white24 : Colors.black12,
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                ),
+              ),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: primaryGold.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(Icons.post_add_rounded, color: primaryGold, size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'ស្នើសុំ & បន្ថែមសំណើ',
+                          style: GoogleFonts.kantumruyPro(
+                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                            fontWeight: FontWeight.w700,
+                            fontSize: 16.5,
+                          ),
+                        ),
+                        Text(
+                          'ជ្រើសរើសប្រភេទសំណើដែលលោកអ្នកចង់ស្នើសុំ',
+                          style: GoogleFonts.kantumruyPro(
+                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                            fontSize: 11.5,
                           ),
                         ),
                       ],
                     ),
                   ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              _buildRequestTile(
+                ctx: ctx,
+                title: 'ស្នើសុំច្បាប់ឈប់សម្រាក (Leave Request)',
+                subtitle: 'ច្បាប់ឈប់សម្រាកប្រចាំឆ្នាំ ឬ ឈឺ',
+                icon: Icons.beach_access_rounded,
+                iconColor: primaryGold,
+                isDark: isDark,
+                isPrimary: true,
+                primaryGold: primaryGold,
+                onTap: () {
+                  Navigator.pop(ctx);
+                  Navigator.push(context, _slideRoute(const LeaveRequestScreen()));
+                },
+              ),
+              const SizedBox(height: 8),
+              _buildRequestTile(
+                ctx: ctx,
+                title: 'ស្នើសុំសម្ភារៈការិយាល័យ (Material Request)',
+                subtitle: 'សម្ភារៈ និងបរិក្ខារប្រើប្រាស់',
+                icon: Icons.inventory_2_rounded,
+                iconColor: const Color(0xFF38BDF8),
+                isDark: isDark,
+                onTap: () {
+                  Navigator.pop(ctx);
+                  Navigator.push(context, _slideRoute(const MaterialRequestScreen()));
+                },
+              ),
+              const SizedBox(height: 8),
+              _buildRequestTile(
+                ctx: ctx,
+                title: 'ស្នើសុំបេសកកម្មការងារ (Mission)',
+                subtitle: 'ចុះបំពេញបេសកកម្មការងារក្រៅ',
+                icon: Icons.flight_takeoff_rounded,
+                iconColor: const Color(0xFF34D399),
+                isDark: isDark,
+                onTap: () {
+                  Navigator.pop(ctx);
+                  Navigator.push(context, _slideRoute(const MissionScreen()));
+                },
+              ),
+              const SizedBox(height: 8),
+              _buildRequestTile(
+                ctx: ctx,
+                title: 'សំណើផ្សេងៗទាំងអស់ (All Requests)',
+                subtitle: 'ពិនិត្យប្រវត្តិ និងបញ្ជីសំណើទាំងអស់',
+                icon: Icons.assignment_rounded,
+                iconColor: const Color(0xFFA78BFA),
+                isDark: isDark,
+                onTap: () {
+                  Navigator.pop(ctx);
+                  Navigator.push(
+                    context,
+                    _slideRoute(user.isHRM ? const RequestListScreen() : const RequestsScreen()),
+                  );
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildRequestTile({
+    required BuildContext ctx,
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Color iconColor,
+    required bool isDark,
+    bool isPrimary = false,
+    Color? primaryGold,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: isPrimary
+              ? (primaryGold ?? const Color(0xFFF3D010)).withValues(alpha: isDark ? 0.16 : 0.10)
+              : (isDark ? Colors.white.withValues(alpha: 0.05) : const Color(0xFFF8FAFC)),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isPrimary
+                ? (primaryGold ?? const Color(0xFFF3D010)).withValues(alpha: 0.40)
+                : (isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFE2E8F0)),
+            width: isPrimary ? 1.4 : 1.0,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: iconColor.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Icon(icon, color: iconColor, size: 20),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: GoogleFonts.kantumruyPro(
+                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      fontWeight: isPrimary ? FontWeight.w700 : FontWeight.w600,
+                      fontSize: 13.5,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: GoogleFonts.kantumruyPro(
+                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                      fontSize: 11.0,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.chevron_right_rounded,
+              color: isDark ? Colors.white38 : Colors.black38,
+              size: 20,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCircularGlassPod({
+    required double size,
+    required bool isDark,
+    required bool isScrolled,
+    required Color headerBgColor,
+    required Color effectiveBorder,
+    required Color primaryGold,
+    required VoidCallback onTap,
+    required Widget child,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: primaryGold.withValues(alpha: isScrolled ? 0.14 : 0.05),
+              blurRadius: 16,
+              spreadRadius: -2,
+              offset: const Offset(0, 4),
+            ),
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.38 : (isScrolled ? 0.06 : 0.02)),
+              blurRadius: 14,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(size / 2),
+          child: BackdropFilter(
+            filter: ui.ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
+            child: Container(
+              width: size,
+              height: size,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  begin: const Alignment(-0.5, -1.0),
+                  end: const Alignment(0.5, 1.0),
+                  colors: isDark
+                      ? [
+                          Colors.white.withValues(alpha: 0.18),
+                          headerBgColor,
+                          const Color(0xFF0F172A).withValues(alpha: isScrolled ? 0.65 : 0.50),
+                        ]
+                      : [
+                          Colors.white.withValues(alpha: 0.75),
+                          headerBgColor,
+                          const Color(0xFFF1F5F9).withValues(alpha: isScrolled ? 0.35 : 0.25),
+                        ],
+                  stops: const [0.0, 0.30, 1.0],
                 ),
+                border: Border.all(
+                  color: effectiveBorder,
+                  width: 1.2,
+                ),
+              ),
+              child: child,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProfileCapsulePod({
+    required BuildContext context,
+    required bool isDark,
+    required bool isScrolled,
+    required Color headerBgColor,
+    required Color effectiveBorder,
+    required Color primaryGold,
+  }) {
+    return Container(
+      height: 54.0,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(30.0),
+        boxShadow: [
+          BoxShadow(
+            color: primaryGold.withValues(alpha: isScrolled ? 0.14 : 0.05),
+            blurRadius: 18,
+            spreadRadius: -2,
+            offset: const Offset(0, 4),
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.38 : (isScrolled ? 0.06 : 0.02)),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(30.0),
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
+          child: GestureDetector(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              onProfileTap?.call();
+            },
+            behavior: HitTestBehavior.opaque,
+            child: Container(
+              height: 54.0,
+              padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(30.0),
+                gradient: LinearGradient(
+                  begin: const Alignment(-0.5, -1.0),
+                  end: const Alignment(0.5, 1.0),
+                  colors: isDark
+                      ? [
+                          Colors.white.withValues(alpha: 0.18),
+                          headerBgColor,
+                          const Color(0xFF0F172A).withValues(alpha: isScrolled ? 0.65 : 0.50),
+                        ]
+                      : [
+                          Colors.white.withValues(alpha: 0.75),
+                          headerBgColor,
+                          const Color(0xFFF1F5F9).withValues(alpha: isScrolled ? 0.35 : 0.25),
+                        ],
+                  stops: const [0.0, 0.30, 1.0],
+                ),
+                border: Border.all(
+                  color: effectiveBorder,
+                  width: 1.2,
+                ),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  // Profile Photo with Gold rim + check badge
+                  Stack(
+                    clipBehavior: Clip.none,
+                    alignment: Alignment.center,
+                    children: [
+                      Container(
+                        width: 38.0,
+                        height: 38.0,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: theme.cardPrimary,
+                          border: Border.all(
+                            color: const Color(0xFFD4AF37),
+                            width: 1.8,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFFD4AF37).withValues(alpha: 0.35),
+                              blurRadius: 8,
+                              offset: const Offset(0, 1),
+                            ),
+                          ],
+                        ),
+                        child: ClipOval(
+                          child: user.avatarUrl != null && user.avatarUrl!.isNotEmpty
+                              ? Image.network(
+                                  user.avatarUrl!,
+                                  fit: BoxFit.cover,
+                                  alignment: const Alignment(0, -0.25),
+                                  errorBuilder: (_, __, ___) => _buildInitials(user, theme),
+                                )
+                              : _buildInitials(user, theme),
+                        ),
+                      ),
+                      Positioned(
+                        bottom: -1,
+                        right: -1,
+                        child: Container(
+                          width: 13.5,
+                          height: 13.5,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0EA5E9),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: isDark ? const Color(0xFF0F1115) : Colors.white,
+                              width: 1.3,
+                            ),
+                          ),
+                          child: const Center(
+                            child: Icon(
+                              Icons.check_rounded,
+                              color: Colors.white,
+                              size: 8.5,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(width: 8.0),
+
+                  // Column: Name + Verified + VVC outlined tag & Greeting
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                user.name ?? 'បុគ្គលិក',
+                                style: GoogleFonts.kantumruyPro(
+                                  color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 12.5,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            const SizedBox(width: 3.5),
+                            const Icon(
+                              Icons.verified_rounded,
+                              color: Color(0xFF0EA5E9),
+                              size: 13.5,
+                            ),
+                            const SizedBox(width: 4.0),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4.5,
+                                vertical: 1.0,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.transparent,
+                                borderRadius: BorderRadius.circular(4.5),
+                                border: Border.all(
+                                  color: const Color(0xFFD4AF37),
+                                  width: 1.1,
+                                ),
+                              ),
+                              child: Text(
+                                theme.brand == CompanyBrand.sk ? 'SK' : 'VVC',
+                                style: GoogleFonts.inter(
+                                  color: const Color(0xFFD4AF37),
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 8.5,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 1.0),
+                        Text(
+                          greeting,
+                          style: GoogleFonts.kantumruyPro(
+                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
-        ],
+        ),
       ),
     );
   }

@@ -1116,7 +1116,7 @@ class _DynamicPremiumAppBarState extends State<DynamicPremiumAppBar> {
   }
 }
 
-/// Telegram iOS 1:1 Frosted Glass Bottom Submit Bar / Floating Bar
+/// Authentic Cupertino Liquid Glass Bottom Action Bar / Floating Bar
 class VvcFrostedBottomBar extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry? padding;
@@ -1138,28 +1138,19 @@ class VvcFrostedBottomBar extends StatelessWidget {
     final double bottomMargin = bottomInset > 0 ? bottomInset + 4.0 : 14.0;
     const primaryGold = Color(0xFFF3D010);
 
-    final dockBgColor = backgroundColor ??
-        (isDark
-            ? const Color(0xFF1E293B).withValues(alpha: 0.85)
-            : const Color(0xFFF8FAFC).withValues(alpha: 0.90));
-
-    final effectiveBorder = isDark
-        ? const Color(0xFF475569).withValues(alpha: 0.50)
-        : const Color(0xFFCBD5E1).withValues(alpha: 0.65);
-
     return Container(
       margin: EdgeInsets.fromLTRB(20, 0, 20, bottomMargin),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(borderRadius ?? 32),
         boxShadow: [
           BoxShadow(
-            color: primaryGold.withValues(alpha: 0.08),
-            blurRadius: 20,
+            color: primaryGold.withValues(alpha: isDark ? 0.16 : 0.10),
+            blurRadius: 24,
             spreadRadius: -2,
-            offset: const Offset(0, 4),
+            offset: const Offset(0, 5),
           ),
           BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.40 : 0.06),
+            color: Colors.black.withValues(alpha: isDark ? 0.45 : 0.07),
             blurRadius: 18,
             offset: const Offset(0, 5),
           ),
@@ -1172,10 +1163,28 @@ class VvcFrostedBottomBar extends StatelessWidget {
           child: Container(
             padding: padding ?? const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
-              color: dockBgColor,
+              // Authentic Cupertino Liquid Glass
+              gradient: LinearGradient(
+                begin: const Alignment(-0.5, -1.0),
+                end: const Alignment(0.5, 1.0),
+                colors: isDark
+                    ? [
+                        Colors.white.withValues(alpha: 0.18),
+                        const Color(0xFF1E293B).withValues(alpha: 0.55),
+                        const Color(0xFF0F172A).withValues(alpha: 0.65),
+                      ]
+                    : [
+                        Colors.white.withValues(alpha: 0.70),
+                        Colors.white.withValues(alpha: 0.35),
+                        const Color(0xFFF1F5F9).withValues(alpha: 0.30),
+                      ],
+                stops: const [0.0, 0.25, 1.0],
+              ),
               borderRadius: BorderRadius.circular(borderRadius ?? 32),
               border: Border.all(
-                color: effectiveBorder,
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.22)
+                    : Colors.white.withValues(alpha: 0.70),
                 width: 1.2,
               ),
             ),
@@ -1856,17 +1865,31 @@ class VvcAppBar extends StatelessWidget implements PreferredSizeWidget {
           filter: ui.ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
           child: Container(
             decoration: BoxDecoration(
-              color: backgroundColor ??
-                  (Theme.of(context).brightness == Brightness.dark
-                      ? const Color(0xFF18181A).withValues(alpha: 0.72)
-                      : Colors.white.withValues(alpha: 0.68)),
+              gradient: backgroundColor != null
+                  ? null
+                  : LinearGradient(
+                      begin: const Alignment(-0.5, -1.0),
+                      end: const Alignment(0.5, 1.0),
+                      colors: Theme.of(context).brightness == Brightness.dark
+                          ? [
+                              Colors.white.withValues(alpha: 0.18),
+                              const Color(0xFF18181A).withValues(alpha: 0.65),
+                              const Color(0xFF0F172A).withValues(alpha: 0.75),
+                            ]
+                          : [
+                              Colors.white.withValues(alpha: 0.78),
+                              Colors.white.withValues(alpha: 0.42),
+                              const Color(0xFFF8FAFC).withValues(alpha: 0.30),
+                            ],
+                      stops: const [0.0, 0.35, 1.0],
+                    ),
+              color: backgroundColor,
               border: Border(
                 bottom: BorderSide(
                   color: (Theme.of(context).brightness == Brightness.dark
-                          ? Colors.white
-                          : Colors.black)
-                      .withValues(alpha: 0.10),
-                  width: 0.5,
+                          ? Colors.white.withValues(alpha: 0.18)
+                          : Colors.white.withValues(alpha: 0.70)),
+                  width: 1.0,
                 ),
               ),
             ),
