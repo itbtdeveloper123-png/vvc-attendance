@@ -1006,6 +1006,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
             endIndent: 16,
           ),
           _buildSwitchMenuItem(
+            icon: user.isDarkMode ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+            label: "ទម្រង់ងងឹត (Dark Mode)",
+            color: const Color(0xFFF3D010),
+            value: user.isDarkMode,
+            onChanged: (val) async {
+              await user.setDarkMode(val);
+            },
+          ),
+          Divider(
+            color: AppTheme.textPrimary.withValues(alpha: 0.12),
+            height: 1,
+            indent: 16,
+            endIndent: 16,
+          ),
+          _buildSwitchMenuItem(
             icon: Icons.calendar_month_rounded,
             label: "ជូនដំណឹងថ្ងៃបុណ្យ/ថ្ងៃសីល",
             color: Colors.orange,

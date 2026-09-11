@@ -10,6 +10,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import 'package:vvc_hrm/providers/user_provider.dart';
 import 'package:vvc_hrm/core/theme/theme_provider.dart';
+import 'package:vvc_hrm/utils/app_theme.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 // Screens
@@ -195,10 +196,18 @@ class VvcHrmApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer2<UserProvider, SeasonalThemeProvider>(
       builder: (context, userProvider, seasonalTheme, child) {
+        final currentTheme = userProvider.isDarkMode
+            ? AppTheme.darkTheme
+            : (seasonalTheme.backendTheme != null
+                ? seasonalTheme.backendTheme!.toThemeData()
+                : AppTheme.lightTheme);
+
         return MaterialApp(
           title: 'VVC Attendance',
           debugShowCheckedModeBanner: false,
-          theme: seasonalTheme.themeData,
+          theme: currentTheme,
+          darkTheme: AppTheme.darkTheme,
+          themeMode: userProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
           home: GlobalCallObserver(
             child: !userProvider.isInitialized
                 ? const VvcAppSplashScreen()

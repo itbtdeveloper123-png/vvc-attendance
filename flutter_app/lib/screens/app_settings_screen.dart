@@ -177,20 +177,22 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
             ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _isSaving
-              ? const Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      CircularProgressIndicator(),
-                      SizedBox(height: 16),
-                      Text('កំពុងរក្សាទុក...'),
-                    ],
-                  ),
-                )
-              : _buildSettingsContent(),
+      body: AppBackgroundShell(
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : _isSaving
+                ? const Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        CircularProgressIndicator(),
+                        SizedBox(height: 16),
+                        Text('កំពុងរក្សាទុក...'),
+                      ],
+                    ),
+                  )
+                : _buildSettingsContent(),
+      ),
     );
   }
 
@@ -198,6 +200,46 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        _buildSectionHeader('ការរចនា និងពន្លឺ (Theme & Appearance)'),
+        const SizedBox(height: 8),
+        Consumer<UserProvider>(
+          builder: (context, user, _) {
+            return Card(
+              color: AppTheme.bgCard,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(color: AppTheme.borderColor),
+              ),
+              child: SwitchListTile(
+                secondary: Icon(
+                  user.isDarkMode
+                      ? Icons.dark_mode_rounded
+                      : Icons.light_mode_rounded,
+                  color: AppTheme.primary,
+                ),
+                title: Text(
+                  'ទម្រង់ងងឹត (Dark Mode)',
+                  style: GoogleFonts.kantumruyPro(
+                    color: AppTheme.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                subtitle: Text(
+                  'ប្តូរផ្ទៃកម្មវិធីទៅជា Obsidian & Royal Gold',
+                  style: GoogleFonts.kantumruyPro(
+                    color: AppTheme.textSecondary,
+                    fontSize: 12,
+                  ),
+                ),
+                value: user.isDarkMode,
+                onChanged: (val) async {
+                  await user.setDarkMode(val);
+                },
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 24),
         _buildSectionHeader('ការកំណត់មុខងារតាមតួនាទី'),
         const SizedBox(height: 16),
         

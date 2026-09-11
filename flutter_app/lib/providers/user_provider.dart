@@ -202,6 +202,7 @@ class UserProvider with ChangeNotifier {
   bool _isVerified = false;
   bool _faceScanEnabled = true;
   bool _faceRegistered = false;
+  bool _isDarkMode = false;
   int _attendanceStreak = 0;
   Map<String, dynamic> _settings = {};
 
@@ -221,6 +222,7 @@ class UserProvider with ChangeNotifier {
   bool get isInitialized => _isInitialized;
   bool get faceScanEnabled => _faceScanEnabled;
   bool get faceRegistered => _faceRegistered;
+  bool get isDarkMode => _isDarkMode;
   int get attendanceStreak => _attendanceStreak;
   Map<String, dynamic> get settings => _settings;
 
@@ -230,11 +232,24 @@ class UserProvider with ChangeNotifier {
         branch: _branch,
       );
   CompanyTheme get companyTheme {
-    final theme = CompanyTheme.forBrand(companyBrand);
+    final theme = CompanyTheme.forBrand(companyBrand, isDark: _isDarkMode);
     AppTheme.applyCompanyTheme(theme);
     return theme;
   }
   bool get isSKCompany => companyBrand == CompanyBrand.sk;
+
+  Future<void> setDarkMode(bool value) async {
+    if (_isDarkMode == value) return;
+    _isDarkMode = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('is_dark_mode', value);
+    AppTheme.applyCompanyTheme(companyTheme);
+    notifyListeners();
+  }
+
+  Future<void> toggleDarkMode() async {
+    await setDarkMode(!_isDarkMode);
+  }
 
   void setFaceRegistered(bool value) {
     _faceRegistered = value;
@@ -445,6 +460,7 @@ class UserProvider with ChangeNotifier {
       _isVerified = prefs.getBool('is_verified') ?? false;
       _faceScanEnabled = prefs.getBool('face_scan_enabled') ?? true;
       _faceRegistered = prefs.getBool('face_registered') ?? false;
+      _isDarkMode = prefs.getBool('is_dark_mode') ?? false;
       _attendanceStreak = prefs.getInt('attendance_streak') ?? 0;
 
       final savedSettings = prefs.getString('app_settings');
@@ -454,9 +470,10 @@ class UserProvider with ChangeNotifier {
         } catch (_) {}
       }
 
+      AppTheme.applyCompanyTheme(companyTheme);
+
       if (_token != null && _employeeId != null && _token!.isNotEmpty && _employeeId!.isNotEmpty) {
         _isLoggedIn = true;
-        AppTheme.applyCompanyTheme(companyTheme);
         _refreshFcmTokenSilently();
       }
     } finally {

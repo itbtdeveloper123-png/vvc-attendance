@@ -29,7 +29,132 @@ class AppBackgroundShell extends StatelessWidget {
     if (!showGlows) {
       return ColoredBox(color: AppTheme.bgSurface, child: child);
     }
-    return GlassOrbBackground(child: child);
+    return GlassOrbBackground(
+      baseColor: AppTheme.bgDark,
+      primaryOrbColor: AppTheme.primary,
+      child: child,
+    );
+  }
+}
+
+/// ═══════════════════════════════════════════════════════════════════════════════
+/// VVC GLOBAL PAGE (Universal Liquid Glass & Obsidian Page Shell)
+/// ═══════════════════════════════════════════════════════════════════════════════
+/// ប្រើជា Global Shell សម្រាប់គ្រប់ Page ទាំងអស់ក្នុងកម្មវិធី។
+/// ផ្តល់ជូននូវ Ambient Canvas (Light/Dark), Status Bar Overlay,
+/// Pinned Glass Header, និង Safe Area ដោយស្វ័យប្រវត្តិ។
+class VvcGlobalPage extends StatelessWidget {
+  final Widget child;
+  final String? title;
+  final Widget? titleWidget;
+  final Widget? leading;
+  final List<Widget>? actions;
+  final bool showHeader;
+  final bool showGlows;
+  final Widget? floatingActionButton;
+  final Widget? bottomNavigationBar;
+  final bool resizeToAvoidBottomInset;
+  final EdgeInsetsGeometry? contentPadding;
+
+  const VvcGlobalPage({
+    super.key,
+    required this.child,
+    this.title,
+    this.titleWidget,
+    this.leading,
+    this.actions,
+    this.showHeader = false,
+    this.showGlows = true,
+    this.floatingActionButton,
+    this.bottomNavigationBar,
+    this.resizeToAvoidBottomInset = true,
+    this.contentPadding,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = AppTheme.isDarkMode || Theme.of(context).brightness == Brightness.dark;
+    final overlayStyle = SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
+      statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+      systemNavigationBarColor: isDark ? const Color(0xFF0F1115) : Colors.white,
+      systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+    );
+
+    Widget content = child;
+    if (contentPadding != null) {
+      content = Padding(padding: contentPadding!, child: content);
+    }
+
+    Widget bodyWidget;
+    if (showHeader) {
+      bodyWidget = Column(
+        children: [
+          VvcLiquidGlassPinnedHeader(
+            child: SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                child: Row(
+                  children: [
+                    if (leading != null)
+                      leading!
+                    else if (Navigator.canPop(context))
+                      VvcLiquidGlassCircleButton(
+                        size: 38,
+                        onTap: () => Navigator.pop(context),
+                        child: Icon(
+                          Icons.arrow_back_ios_new_rounded,
+                          size: 17,
+                          color: isDark ? Colors.white : const Color(0xFF0F172A),
+                        ),
+                      ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: titleWidget ??
+                          Text(
+                            title ?? '',
+                            style: GoogleFonts.kantumruyPro(
+                              color: isDark ? Colors.white : const Color(0xFF0F172A),
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                    ),
+                    if (actions != null) ...actions!,
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Expanded(child: content),
+        ],
+      );
+    } else {
+      bodyWidget = content;
+    }
+
+    final shell = showGlows
+        ? GlassOrbBackground(
+            baseColor: AppTheme.bgDark,
+            primaryOrbColor: AppTheme.primary,
+            child: bodyWidget,
+          )
+        : ColoredBox(color: AppTheme.bgDark, child: bodyWidget);
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: overlayStyle,
+      child: Scaffold(
+        backgroundColor: AppTheme.bgDark,
+        resizeToAvoidBottomInset: resizeToAvoidBottomInset,
+        body: shell,
+        floatingActionButton: floatingActionButton,
+        bottomNavigationBar: bottomNavigationBar,
+      ),
+    );
   }
 }
 

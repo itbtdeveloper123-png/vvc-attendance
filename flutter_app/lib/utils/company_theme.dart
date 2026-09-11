@@ -125,11 +125,34 @@ class CompanyTheme {
     isDarkTheme: true,
   );
 
-  /// ជ្រើសរើស Theme តាម CompanyBrand
+  /// ក្រុមហ៊ុនទី ៤៖ SK Dark Luxury Obsidian & Amber Gold
+  static const CompanyTheme skDark = CompanyTheme(
+    brand: CompanyBrand.sk,
+    name: 'SK Obsidian Gold',
+    brandLabel: 'SK HRM',
+    passTitle: 'SK HRM EMPLOYEE PASS',
+    backgroundColor: Color(0xFF0F1115),
+    cardPrimary: Color(0xFFC08207),
+    cardSecondary: Color(0xFFA16207),
+    cardBackground: Color(0xFF191B22),
+    cardBorder: Color(0x1FFFFFFF),
+    passCardColor: Color(0xFF191B22),
+    passCardTextColor: Color(0xFFC08207),
+    textPrimary: Colors.white,
+    textSecondary: Color(0xFF94A3B8),
+    textMuted: Color(0xFFA8A29E),
+    glowColor: Color(0xFFC08207),
+    orbPrimary: Color(0xFFC08207),
+    orbSecondary: Color(0xFFD97706),
+    orbAccent: Color(0xFFB45309),
+    isDarkTheme: true,
+  );
+
+  /// ជ្រើសរើស Theme តាម CompanyBrand និង Dark Mode Status
   static CompanyTheme forBrand(CompanyBrand brand, {bool isDark = false}) {
     switch (brand) {
       case CompanyBrand.sk:
-        return sk;
+        return isDark ? skDark : sk;
       case CompanyBrand.vvc:
         return isDark ? vvcDark : vvc;
     }
