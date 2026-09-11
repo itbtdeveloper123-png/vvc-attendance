@@ -150,8 +150,8 @@ class VvcLiquidGlassBottomBar extends StatelessWidget {
                       ]
                     : [
                         Colors.white.withValues(alpha: 0.75),
-                        Colors.white.withValues(alpha: 0.38),
-                        const Color(0xFFF1F5F9).withValues(alpha: 0.30),
+                        const Color(0xFFE2E8F0).withValues(alpha: 0.42),
+                        const Color(0xFFCBD5E1).withValues(alpha: 0.32),
                       ],
                 stops: const [0.0, 0.25, 1.0],
               ),
@@ -457,7 +457,7 @@ class VvcLiquidGlassCircleButton extends StatelessWidget {
                         ]
                       : [
                           Colors.white.withValues(alpha: 0.75),
-                          Colors.white.withValues(alpha: 0.35),
+                          const Color(0xFFE2E8F0).withValues(alpha: 0.40),
                         ],
                 ),
                 border: Border.all(
@@ -532,8 +532,8 @@ class VvcLiquidGlassPinnedHeader extends StatelessWidget {
                     ]
                   : [
                       Colors.white.withValues(alpha: 0.75),
-                      Colors.white.withValues(alpha: isScrolled ? 0.45 : 0.35),
-                      const Color(0xFFF1F5F9).withValues(alpha: isScrolled ? 0.40 : 0.30),
+                      const Color(0xFFE2E8F0).withValues(alpha: isScrolled ? 0.45 : 0.35),
+                      const Color(0xFFCBD5E1).withValues(alpha: isScrolled ? 0.38 : 0.30),
                     ],
               stops: const [0.0, 0.30, 1.0],
             ),
@@ -745,8 +745,8 @@ class _VvcLiquidGlassScaffoldState extends State<VvcLiquidGlassScaffold> {
                         ]
                       : [
                           Colors.white.withValues(alpha: 0.70),
-                          Colors.white.withValues(alpha: _isScrolled ? 0.45 : 0.35),
-                          const Color(0xFFF1F5F9).withValues(alpha: _isScrolled ? 0.40 : 0.30),
+                          const Color(0xFFE2E8F0).withValues(alpha: _isScrolled ? 0.45 : 0.35),
+                          const Color(0xFFCBD5E1).withValues(alpha: _isScrolled ? 0.38 : 0.30),
                         ],
                   stops: const [0.0, 0.30, 1.0],
                 ),

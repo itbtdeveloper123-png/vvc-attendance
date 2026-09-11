@@ -359,7 +359,7 @@ class HomeScreenState extends State<HomeScreen> {
       currentIndex: _currentIndex,
       onTap: (index) => setState(() => _currentIndex = index),
       bottomInset: bottomInset,
-      backgroundColor: isDark ? const Color(0xFF181A20) : Colors.white,
+      backgroundColor: isDark ? const Color(0xFF181A20) : const Color(0xFFE2E8F0),
       accentColor: const Color(0xFFF3D010),
       items: [
         // 1. Home / Dashboard (Left)
@@ -638,6 +638,9 @@ class _HomeContentState extends State<HomeContent> {
   // ===== Feature #8: Weather =====
   String _weatherText = '';
   String _weatherIcon = '☀️';
+
+  // ===== Scroll-Aware Header Glassmorphism State =====
+  bool _isHeaderScrolled = false;
 
   // ===== Category Filter Tabs =====
   String _selectedCategory = 'All';
@@ -1138,76 +1141,88 @@ class _HomeContentState extends State<HomeContent> {
       accentOrbColor: theme.orbAccent,
       child: Stack(
         children: [
-          RefreshIndicator(
-            onRefresh: () async {
-              final seasonalThemeProvider = Provider.of<SeasonalThemeProvider>(
-                context,
-                listen: false,
-              );
-              await user.refreshConfig();
-              final themeSeason = user.getConfig('app_theme_season');
-              if (themeSeason.isNotEmpty && mounted) {
-                seasonalThemeProvider.updateFromBackend(themeSeason);
+          NotificationListener<ScrollNotification>(
+            onNotification: (notification) {
+              if (notification.metrics.axis == Axis.vertical) {
+                final scrolled = notification.metrics.pixels > 6.0;
+                if (scrolled != _isHeaderScrolled) {
+                  setState(() => _isHeaderScrolled = scrolled);
+                }
               }
-              await _loadStats();
-              await _loadWeather();
-              _loadNextAction();
-              if (mounted) user.refreshProfile();
+              return false;
             },
-            color: theme.cardPrimary,
-            backgroundColor: theme.backgroundColor,
-            child: CustomScrollView(
-              physics: const AlwaysScrollableScrollPhysics(
-                parent: BouncingScrollPhysics(),
-              ),
-              slivers: [
-                SliverPersistentHeader(
-                  pinned: true,
-                  delegate: _HomeHeaderDelegate(
-                    user: user,
-                    theme: theme,
-                    greeting: _greeting,
-                    unreadNotifications: _unreadNotifications,
-                    onProfileTap: widget.onProfileTap,
-                    topPadding: MediaQuery.paddingOf(context).top,
-                  ),
+            child: RefreshIndicator(
+              onRefresh: () async {
+                final seasonalThemeProvider = Provider.of<SeasonalThemeProvider>(
+                  context,
+                  listen: false,
+                );
+                await user.refreshConfig();
+                final themeSeason = user.getConfig('app_theme_season');
+                if (themeSeason.isNotEmpty && mounted) {
+                  seasonalThemeProvider.updateFromBackend(themeSeason);
+                }
+                await _loadStats();
+                await _loadWeather();
+                _loadNextAction();
+                if (mounted) user.refreshProfile();
+              },
+              color: theme.cardPrimary,
+              backgroundColor: theme.backgroundColor,
+              child: CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(
+                  parent: BouncingScrollPhysics(),
                 ),
-                SliverToBoxAdapter(
-                  child: SafeArea(
-                    top: false,
-                    bottom: false,
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildWeatherAndQuoteRow(theme),
-                          const SizedBox(height: 12),
-                          _buildCategoryFilterTabs(theme),
-                          const SizedBox(height: 16),
-                          if (_selectedCategory == 'All') ...[
-                            _buildWelcomeBanner(user),
+                slivers: [
+                  SliverPersistentHeader(
+                    pinned: true,
+                    delegate: _HomeHeaderDelegate(
+                      user: user,
+                      theme: theme,
+                      greeting: _greeting,
+                      unreadNotifications: _unreadNotifications,
+                      onProfileTap: widget.onProfileTap,
+                      topPadding: MediaQuery.paddingOf(context).top,
+                      isScrolledState: _isHeaderScrolled,
+                    ),
+                  ),
+                  SliverToBoxAdapter(
+                    child: SafeArea(
+                      top: false,
+                      bottom: false,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildWeatherAndQuoteRow(theme),
+                            const SizedBox(height: 12),
+                            _buildCategoryFilterTabs(theme),
                             const SizedBox(height: 16),
-                            _buildBentoDashboard(user),
-                            const SizedBox(height: 20),
-                          ] else if (_selectedCategory == 'វត្តមាន') ...[
-                            _buildBentoHeroAttendanceCard(user),
-                            const SizedBox(height: 20),
-                          ],
-                          _buildRoleBasedActions(user),
-                          SizedBox(
-                            height: AppResponsive.bottomPadding(
-                              context,
-                              hasBottomNav: true,
-                              extra: 80,
+                            if (_selectedCategory == 'All') ...[
+                              _buildWelcomeBanner(user),
+                              const SizedBox(height: 16),
+                              _buildBentoDashboard(user),
+                              const SizedBox(height: 20),
+                            ] else if (_selectedCategory == 'វត្តមាន') ...[
+                              _buildBentoHeroAttendanceCard(user),
+                              const SizedBox(height: 20),
+                            ],
+                            _buildRoleBasedActions(user),
+                            SizedBox(
+                              height: AppResponsive.bottomPadding(
+                                context,
+                                hasBottomNav: true,
+                                extra: 80,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ],
@@ -3493,6 +3508,7 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
   final int unreadNotifications;
   final VoidCallback? onProfileTap;
   final double topPadding;
+  final bool isScrolledState;
 
   _HomeHeaderDelegate({
     required this.user,
@@ -3501,6 +3517,7 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
     required this.unreadNotifications,
     this.onProfileTap,
     required this.topPadding,
+    this.isScrolledState = false,
   });
 
   @override
@@ -3515,13 +3532,13 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
     double shrinkOffset,
     bool overlapsContent,
   ) {
-    final isScrolled = overlapsContent || shrinkOffset > 2.0;
+    final isScrolled = isScrolledState || overlapsContent || shrinkOffset > 2.0;
     final isDark = theme.isDarkTheme;
     const primaryGold = Color(0xFFF3D010);
 
     final headerBgColor = isDark
         ? const Color(0xFF1E293B).withValues(alpha: isScrolled ? 0.65 : 0.50)
-        : Colors.white.withValues(alpha: isScrolled ? 0.45 : 0.35);
+        : const Color(0xFFE2E8F0).withValues(alpha: isScrolled ? 0.45 : 0.35);
 
     final effectiveBorder = isDark
         ? (isScrolled
@@ -3530,6 +3547,8 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
         : (isScrolled
             ? Colors.white.withValues(alpha: 0.85)
             : Colors.white.withValues(alpha: 0.65));
+
+    final totalHeaderHeight = topPadding + 68.0;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle(
@@ -3540,31 +3559,95 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          // 1. Top Transition Zone (Soft Ambient Gradient Mask)
+          // 1. Scroll-Aware Top Transition Zone (Soft Gradient Fade Mask like Footer)
           Positioned(
             left: 0,
             right: 0,
             top: 0,
-            height: topPadding + 16.0,
+            height: totalHeaderHeight + 36.0,
             child: IgnorePointer(
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      theme.backgroundColor.withValues(alpha: 0.35),
-                      theme.backgroundColor.withValues(alpha: 0.12),
-                      theme.backgroundColor.withValues(alpha: 0.0),
-                    ],
-                    stops: const [0.0, 0.55, 1.0],
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                opacity: isScrolled ? 1.0 : 0.0,
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        theme.backgroundColor.withValues(alpha: 0.95),
+                        theme.backgroundColor.withValues(alpha: 0.75),
+                        theme.backgroundColor.withValues(alpha: 0.35),
+                        theme.backgroundColor.withValues(alpha: 0.0),
+                      ],
+                      stops: const [0.0, 0.45, 0.75, 1.0],
+                    ),
                   ),
                 ),
               ),
             ),
           ),
 
-          // 2. Three Standalone Floating Glass Pods (Left Island, Center Capsule, Right Island)
+          // 2. Full-Width Scroll-Aware Liquid Glass Backdrop (BackdropFilter across Header Bar)
+          Positioned(
+            left: 0,
+            right: 0,
+            top: 0,
+            height: totalHeaderHeight,
+            child: AnimatedOpacity(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+              opacity: isScrolled ? 1.0 : 0.0,
+              child: ClipRect(
+                child: BackdropFilter(
+                  filter: ui.ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: isDark
+                            ? [
+                                const Color(0xFF0F1115).withValues(alpha: 0.85),
+                                const Color(0xFF181A20).withValues(alpha: 0.75),
+                                const Color(0xFF1E293B).withValues(alpha: 0.58),
+                              ]
+                            : [
+                                const Color(0xFFCBD5E1).withValues(alpha: 0.45),
+                                const Color(0xFFE2E8F0).withValues(alpha: 0.38),
+                                const Color(0xFFF1F5F9).withValues(alpha: 0.30),
+                              ],
+                        stops: const [0.0, 0.65, 1.0],
+                      ),
+                      border: Border(
+                        bottom: BorderSide(
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.12)
+                              : const Color(0xFFCBD5E1).withValues(alpha: 0.55),
+                          width: 1.0,
+                        ),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: primaryGold.withValues(alpha: 0.06),
+                          blurRadius: 18,
+                          offset: const Offset(0, 4),
+                        ),
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.04),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          // 3. Three Standalone Floating Glass Pods (Left Island, Center Capsule, Right Island)
           Positioned(
             top: topPadding + 6.0,
             left: 14.0,
@@ -3934,7 +4017,7 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
                       : [
                           Colors.white.withValues(alpha: 0.75),
                           headerBgColor,
-                          const Color(0xFFF1F5F9).withValues(alpha: isScrolled ? 0.35 : 0.25),
+                          const Color(0xFFCBD5E1).withValues(alpha: isScrolled ? 0.40 : 0.30),
                         ],
                   stops: const [0.0, 0.30, 1.0],
                 ),
@@ -4004,7 +4087,7 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
                       : [
                           Colors.white.withValues(alpha: 0.75),
                           headerBgColor,
-                          const Color(0xFFF1F5F9).withValues(alpha: isScrolled ? 0.35 : 0.25),
+                          const Color(0xFFCBD5E1).withValues(alpha: isScrolled ? 0.40 : 0.30),
                         ],
                   stops: const [0.0, 0.30, 1.0],
                 ),
@@ -4172,6 +4255,7 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
         oldDelegate.theme != theme ||
         oldDelegate.greeting != greeting ||
         oldDelegate.unreadNotifications != unreadNotifications ||
-        oldDelegate.topPadding != topPadding;
+        oldDelegate.topPadding != topPadding ||
+        oldDelegate.isScrolledState != isScrolledState;
   }
 }
