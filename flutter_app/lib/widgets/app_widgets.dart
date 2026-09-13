@@ -13,6 +13,7 @@ import 'glass_widgets.dart';
 export 'glass_widgets.dart';
 import 'vvc_liquid_glass_scaffold.dart';
 export 'vvc_liquid_glass_scaffold.dart';
+export 'vvc_cupertino_components.dart';
 
 /// A reusable flat clean background shell for app screens.
 class AppBackgroundShell extends StatelessWidget {
@@ -2009,6 +2010,8 @@ class VvcAppBar extends StatelessWidget implements PreferredSizeWidget {
           titleWidget: title,
           leading: leading,
           actions: actions,
+          alwaysShowTitle: true,
+          alwaysShowGlass: true,
         ),
       ),
       bottom: bottom,

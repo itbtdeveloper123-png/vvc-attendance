@@ -54,39 +54,15 @@ class RequestsScreen extends StatelessWidget {
                               ),
                             ),
                           ),
-                          TextButton.icon(
+                          VvcButton(
+                            height: 38,
+                            variant: VvcButtonVariant.tinted,
+                            icon: CupertinoIcons.list_bullet_below_rectangle,
+                            label: "បញ្ជីសំណើ",
                             onPressed: () => Navigator.push(
                               context,
                               MaterialPageRoute(
                                 builder: (_) => const RequestListScreen(),
-                              ),
-                            ),
-                            icon: Icon(
-                              CupertinoIcons.list_bullet_below_rectangle,
-                              size: 18,
-                              color: AppTheme.primary,
-                            ),
-                            label: Text(
-                              "បញ្ជីសំណើ",
-                              style: GoogleFonts.kantumruyPro(
-                                color: AppTheme.primary,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                              ),
-                            ),
-                            style: TextButton.styleFrom(
-                              backgroundColor: AppTheme.primary.withValues(
-                                alpha: 0.12,
-                              ),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 8,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
-                                side: BorderSide(
-                                  color: AppTheme.primary.withValues(alpha: 0.25),
-                                ),
                               ),
                             ),
                           ),

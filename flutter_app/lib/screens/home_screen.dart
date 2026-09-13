@@ -359,25 +359,36 @@ class HomeScreenState extends State<HomeScreen> {
       currentIndex: _currentIndex,
       onTap: (index) => setState(() => _currentIndex = index),
       bottomInset: bottomInset,
-      backgroundColor: isDark ? const Color(0xFF222630) : const Color(0xFFF1F3F6),
-      accentColor: const Color(0xFFF3D010),
+      backgroundColor: isDark ? const Color(0xFF1C1C1E) : const Color(0xFFF1F3F6),
+      accentColor: const Color(0xFF0A84FF),
+      trailingAction: const Icon(
+        CupertinoIcons.qrcode_viewfinder,
+        color: Colors.white,
+        size: 26.0,
+      ),
+      onTrailingActionTap: () {
+        _hapticMedium();
+        Navigator.push(
+          context,
+          _slideRoute(const AttendanceScreen()),
+        );
+      },
       items: [
         // 1. Home / Dashboard (Left)
         const LiquidGlassItem(
-          icon: CupertinoIcons.square_grid_2x2_fill,
+          icon: CupertinoIcons.house_fill,
           label: 'ទំព័រដើម',
         ),
-        // 2. សំណើ / Requests (Center Item - Elevated Liquid Droplet)
+        // 2. សំណើ / Requests (Center)
         LiquidGlassItem(
           icon: userProvider.isHRM
               ? CupertinoIcons.doc_text_fill
-              : CupertinoIcons.layers_alt_fill,
+              : CupertinoIcons.doc_plaintext,
           label: 'សំណើ',
-          isCenter: true,
         ),
         // 3. Profile / គណនី (Right)
         const LiquidGlassItem(
-          icon: CupertinoIcons.person_fill,
+          icon: CupertinoIcons.person_crop_circle_fill,
           label: 'គណនី',
         ),
       ],

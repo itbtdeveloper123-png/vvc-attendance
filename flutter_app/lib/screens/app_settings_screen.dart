@@ -4,8 +4,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../providers/user_provider.dart';
 import '../services/api_service.dart';
+import 'package:flutter/cupertino.dart';
 import '../utils/app_theme.dart';
 import '../widgets/app_widgets.dart';
+import 'cupertino_components_showcase_screen.dart';
 
 /// App Settings Screen - Admin panel for controlling feature visibility
 /// Allows HRM and Admin users to control which features are shown to different roles
@@ -210,27 +212,16 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
                 borderRadius: BorderRadius.circular(16),
                 side: BorderSide(color: AppTheme.borderColor),
               ),
-              child: SwitchListTile(
-                secondary: Icon(
+              child: VvcSwitchTile(
+                leading: Icon(
                   user.isDarkMode
-                      ? Icons.dark_mode_rounded
-                      : Icons.light_mode_rounded,
-                  color: AppTheme.primary,
+                      ? CupertinoIcons.moon_fill
+                      : CupertinoIcons.sun_max_fill,
+                  color: CupertinoTokens.appleBlue,
+                  size: 22,
                 ),
-                title: Text(
-                  'ទម្រង់ងងឹត (Dark Mode)',
-                  style: GoogleFonts.kantumruyPro(
-                    color: AppTheme.textPrimary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                subtitle: Text(
-                  'ប្តូរផ្ទៃកម្មវិធីទៅជា Obsidian & Royal Gold',
-                  style: GoogleFonts.kantumruyPro(
-                    color: AppTheme.textSecondary,
-                    fontSize: 12,
-                  ),
-                ),
+                title: 'ទម្រង់ងងឹត (Dark Mode)',
+                subtitle: 'ប្តូរផ្ទៃកម្មវិធីទៅជា Cupertino Obsidian Dark Mode',
                 value: user.isDarkMode,
                 onChanged: (val) async {
                   await user.setDarkMode(val);
@@ -238,6 +229,19 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
               ),
             );
           },
+        ),
+        const SizedBox(height: 12),
+        VvcButton(
+          height: 48,
+          variant: VvcButtonVariant.tinted,
+          icon: CupertinoIcons.sparkles,
+          label: 'Apple Cupertino Components Suite (Showcase)',
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const CupertinoComponentsShowcaseScreen(),
+            ),
+          ),
         ),
         const SizedBox(height: 24),
         _buildSectionHeader('ការកំណត់មុខងារតាមតួនាទី'),
@@ -422,10 +426,10 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
               ),
             ),
           ),
-          Switch(
+          VvcSwitch(
             value: isEnabled,
             onChanged: (value) => _toggleSetting(featureKey, value),
-            activeTrackColor: AppTheme.primary,
+            activeColor: CupertinoTokens.appleBlue,
           ),
         ],
       ),
