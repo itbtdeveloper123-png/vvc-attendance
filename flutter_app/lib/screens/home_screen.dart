@@ -1187,6 +1187,7 @@ class _HomeContentState extends State<HomeContent> {
                     onProfileTap: widget.onProfileTap,
                     topPadding: MediaQuery.paddingOf(context).top,
                     isScrolled: _isHeaderScrolled,
+                    scrollController: _homeScrollController,
                   ),
                 ),
                 SliverToBoxAdapter(
@@ -3511,6 +3512,7 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
   final VoidCallback? onProfileTap;
   final double topPadding;
   final bool isScrolled;
+  final ScrollController? scrollController;
 
   _HomeHeaderDelegate({
     required this.user,
@@ -3520,6 +3522,7 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
     this.onProfileTap,
     required this.topPadding,
     this.isScrolled = false,
+    this.scrollController,
   });
 
   @override
@@ -3556,31 +3559,51 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          // ── Frosted Scroll Blur & Dissolve Underlay behind the 3 Pods ──
-          Positioned.fill(
-            child: IgnorePointer(
-              child: ClipRect(
-                child: BackdropFilter(
-                  filter: ui.ImageFilter.blur(sigmaX: 20.0, sigmaY: 20.0),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          theme.backgroundColor,
-                          theme.backgroundColor.withValues(alpha: 0.96),
-                          theme.backgroundColor.withValues(alpha: 0.60),
-                          theme.backgroundColor.withValues(alpha: 0.0),
-                        ],
-                        stops: const [0.0, 0.40, 0.78, 1.0],
+          // ── Frosted Scroll Blur & Dissolve Underlay (Active ONLY during scroll, NO background at rest!) ──
+          if (scrollController != null)
+            AnimatedBuilder(
+              animation: scrollController!,
+              builder: (context, _) {
+                final offset = scrollController!.hasClients ? scrollController!.offset : 0.0;
+                final progress = (offset / 32.0).clamp(0.0, 1.0);
+
+                // At rest (offset <= 0): ZERO background! The 3 Pods float completely cleanly.
+                if (progress <= 0.0) {
+                  return const SizedBox.shrink();
+                }
+
+                return Positioned.fill(
+                  child: IgnorePointer(
+                    child: Opacity(
+                      opacity: progress,
+                      child: ClipRect(
+                        child: BackdropFilter(
+                          filter: ui.ImageFilter.blur(
+                            sigmaX: 18.0 * progress,
+                            sigmaY: 18.0 * progress,
+                          ),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  theme.backgroundColor,
+                                  theme.backgroundColor.withValues(alpha: 0.95),
+                                  theme.backgroundColor.withValues(alpha: 0.45),
+                                  theme.backgroundColor.withValues(alpha: 0.0),
+                                ],
+                                stops: const [0.0, 0.35, 0.72, 1.0],
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ),
+                );
+              },
             ),
-          ),
 
           // ── Three Standalone Floating Glass Pods (Left Island, Center Capsule, Right Island) ──
           Positioned(
@@ -3933,9 +3956,9 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
           shape: BoxShape.circle,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.05),
-              blurRadius: 12,
-              offset: const Offset(0, 3),
+              color: Colors.black.withValues(alpha: isDark ? 0.40 : 0.09),
+              blurRadius: 15,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
@@ -4115,9 +4138,9 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
         borderRadius: BorderRadius.circular(30.0),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.05),
-            blurRadius: 14,
-            offset: const Offset(0, 3),
+            color: Colors.black.withValues(alpha: isDark ? 0.40 : 0.09),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
