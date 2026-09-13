@@ -256,24 +256,17 @@ class _ChangeDayOffScreenState extends State<ChangeDayOffScreen> {
                     Container(
                       padding: const EdgeInsets.all(24),
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.94),
+                        color: AppTheme.isDarkMode
+                            ? const Color(0xFF1C1C1E)
+                            : Colors.white.withValues(alpha: 0.94),
                         borderRadius: BorderRadius.circular(28),
                         border: Border.all(
-                          color: Colors.white,
+                          color: AppTheme.isDarkMode
+                              ? const Color(0x38545458)
+                              : Colors.white,
                           width: 1.5,
                         ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF0F172A).withValues(alpha: 0.065),
-                            blurRadius: 20,
-                            offset: const Offset(0, 8),
-                          ),
-                          BoxShadow(
-                            color: const Color(0xFF0F172A).withValues(alpha: 0.03),
-                            blurRadius: 4,
-                            offset: const Offset(0, 1),
-                          ),
-                        ],
+                        boxShadow: AppTheme.cardShadow,
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,

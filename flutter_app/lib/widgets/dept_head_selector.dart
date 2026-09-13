@@ -599,10 +599,12 @@ class _DeptHeadSelectorState extends State<DeptHeadSelector> {
                           Signature(
                             controller: sigController,
                             height: 150,
-                            backgroundColor: AppTheme.textPrimary,
+                            backgroundColor: Colors.white,
                           ),
                           Container(
-                            color: Colors.grey[100],
+                            color: AppTheme.isDarkMode
+                                ? const Color(0xFF2C2C2E)
+                                : const Color(0xFFF1F5F9),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.end,
                               children: [
@@ -799,19 +801,13 @@ class _DeptHeadSelectorState extends State<DeptHeadSelector> {
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: AppTheme.isDarkMode ? const Color(0xFF1C1C1E) : Colors.white,
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: const Color(0xFFE2E8F0),
+                  color: AppTheme.cardBorder,
                   width: 1.2,
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF0F172A).withValues(alpha: 0.06),
-                    blurRadius: 15,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
+                boxShadow: AppTheme.cardShadow,
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -830,7 +826,7 @@ class _DeptHeadSelectorState extends State<DeptHeadSelector> {
                           Text(
                             "ហត្ថលេខាត្រូវបានភ្ជាប់",
                             style: GoogleFonts.kantumruyPro(
-                              color: Colors.black87,
+                              color: AppTheme.textPrimary,
                               fontSize: 13,
                               fontWeight: FontWeight.bold,
                             ),
@@ -845,25 +841,32 @@ class _DeptHeadSelectorState extends State<DeptHeadSelector> {
                           });
                           widget.onSelected("", null);
                         },
-                        child: const Icon(
+                        child: Icon(
                           Icons.close_rounded,
-                          color: Colors.black26,
+                          color: AppTheme.textMuted,
                           size: 20,
                         ),
                       ),
                     ],
                   ),
-                  const Divider(height: 24, thickness: 0.5),
+                  Divider(height: 24, thickness: 0.5, color: AppTheme.borderColor),
                   Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxHeight: 120),
-                      child: Image.memory(
-                        base64Decode(
-                          _selectedSignature!.contains(',')
-                              ? _selectedSignature!.split(',').last
-                              : _selectedSignature!,
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxHeight: 120),
+                        child: Image.memory(
+                          base64Decode(
+                            _selectedSignature!.contains(',')
+                                ? _selectedSignature!.split(',').last
+                                : _selectedSignature!,
+                          ),
+                          fit: BoxFit.contain,
                         ),
-                        fit: BoxFit.contain,
                       ),
                     ),
                   ),

@@ -1260,14 +1260,14 @@ class _HomeContentState extends State<HomeContent> {
                 color: isSelected
                     ? const Color(0xFFF3D010)
                     : (theme.isDarkTheme
-                        ? const Color(0xFF191B22)
+                        ? const Color(0xFF1C1C1E)
                         : Colors.white),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
                   color: isSelected
                       ? const Color(0xFFF3D010)
                       : (theme.isDarkTheme
-                          ? Colors.white.withValues(alpha: 0.10)
+                          ? const Color(0x38545458)
                           : const Color(0xFFE2E8F0)),
                   width: 1,
                 ),
@@ -1377,12 +1377,12 @@ class _HomeContentState extends State<HomeContent> {
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
                     color: theme.isDarkTheme
-                        ? const Color(0xFF191B22)
+                        ? const Color(0xFF1C1C1E)
                         : Colors.white.withValues(alpha: 0.85),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
                       color: theme.isDarkTheme
-                          ? Colors.white.withValues(alpha: 0.10)
+                          ? const Color(0x38545458)
                           : Colors.white.withValues(alpha: 0.95),
                       width: 1.2,
                     ),
@@ -1489,15 +1489,9 @@ class _HomeContentState extends State<HomeContent> {
         filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
         child: Container(
           decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1C1C1E) : null,
             gradient: isDark
-                ? const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Color(0xFF1E222B),
-                      Color(0xFF16181F),
-                    ],
-                  )
+                ? null
                 : LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
@@ -1510,7 +1504,7 @@ class _HomeContentState extends State<HomeContent> {
                   ),
             borderRadius: BorderRadius.circular(24),
             border: Border.all(
-              color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.white,
+              color: isDark ? const Color(0x38545458) : Colors.white,
               width: 1.5,
             ),
             boxShadow: [
@@ -1536,12 +1530,12 @@ class _HomeContentState extends State<HomeContent> {
                     decoration: BoxDecoration(
                       color: isCheckedIn
                           ? const Color(0xFF10B981).withValues(alpha: 0.15)
-                          : (isDark ? const Color(0xFF232733) : Colors.white.withValues(alpha: 0.85)),
+                          : (isDark ? const Color(0xFF2C2C2E) : Colors.white.withValues(alpha: 0.85)),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
                         color: isCheckedIn
                             ? const Color(0xFF10B981).withValues(alpha: 0.35)
-                            : (isDark ? Colors.white.withValues(alpha: 0.12) : Colors.white),
+                            : (isDark ? const Color(0x38545458) : Colors.white),
                         width: 1.2,
                       ),
                       boxShadow: [
@@ -1623,10 +1617,10 @@ class _HomeContentState extends State<HomeContent> {
                         child: Container(
                           padding: const EdgeInsets.all(7),
                           decoration: BoxDecoration(
-                            color: isDark ? const Color(0xFF232733) : Colors.white.withValues(alpha: 0.85),
+                            color: isDark ? const Color(0xFF2C2C2E) : Colors.white.withValues(alpha: 0.85),
                             shape: BoxShape.circle,
                             border: Border.all(
-                              color: isDark ? Colors.white.withValues(alpha: 0.12) : Colors.white,
+                              color: isDark ? const Color(0x38545458) : Colors.white,
                               width: 1.2,
                             ),
                             boxShadow: [
@@ -1844,15 +1838,9 @@ class _HomeContentState extends State<HomeContent> {
           child: Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1C1C1E) : null,
               gradient: isDark
-                  ? const LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        Color(0xFF1C1E26),
-                        Color(0xFF16181F),
-                      ],
-                    )
+                  ? null
                   : LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
@@ -1863,7 +1851,7 @@ class _HomeContentState extends State<HomeContent> {
                     ),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.white,
+                color: isDark ? const Color(0x38545458) : Colors.white,
                 width: 1.2,
               ),
               boxShadow: [
@@ -1884,10 +1872,10 @@ class _HomeContentState extends State<HomeContent> {
                       width: 38,
                       height: 38,
                       decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF232733) : const Color(0xFFFFFBEB),
+                        color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFFFFBEB),
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: const Color(0xFFD4AF37),
+                          color: isDark ? const Color(0x38545458) : const Color(0xFFD4AF37),
                           width: 1.2,
                         ),
                       ),
@@ -2045,15 +2033,9 @@ class _HomeContentState extends State<HomeContent> {
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
             decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1C1C1E) : null,
               gradient: isDark
-                  ? const LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        Color(0xFF1C1E26),
-                        Color(0xFF16181F),
-                      ],
-                    )
+                  ? null
                   : LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
@@ -2064,7 +2046,7 @@ class _HomeContentState extends State<HomeContent> {
                     ),
               borderRadius: BorderRadius.circular(18),
               border: Border.all(
-                color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.white,
+                color: isDark ? const Color(0x38545458) : Colors.white,
                 width: 1.2,
               ),
               boxShadow: [
@@ -2081,10 +2063,10 @@ class _HomeContentState extends State<HomeContent> {
                   width: 38,
                   height: 38,
                   decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF232733) : const Color(0xFFFFFBEB),
+                    color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFFFFBEB),
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: const Color(0xFFD4AF37),
+                      color: isDark ? const Color(0x38545458) : const Color(0xFFD4AF37),
                       width: 1.4,
                     ),
                   ),
@@ -3696,11 +3678,11 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
         return Container(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
           decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF181A20) : Colors.white,
+            color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
             border: Border(
               top: BorderSide(
-                color: primaryGold.withValues(alpha: 0.45),
+                color: isDark ? const Color(0x38545458) : primaryGold.withValues(alpha: 0.45),
                 width: 1.5,
               ),
             ),

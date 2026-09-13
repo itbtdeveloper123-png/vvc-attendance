@@ -1170,9 +1170,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         builder: (ctx) => Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: AppTheme.isDarkMode ? const Color(0xFF1C1C1E) : Colors.white,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
+            border: Border.all(color: AppTheme.cardBorder),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1208,12 +1208,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 subtitle: Text('កាត់ផ្ទៃខាងក្រោយឱ្យថ្លា ស្អាតកម្រិត Studio HD', style: GoogleFonts.kantumruyPro(color: AppTheme.textMuted, fontSize: 12)),
                 onTap: () => Navigator.pop(ctx, 'ai_remove_bg'),
               ),
-              const Divider(color: Color(0xFFE2E8F0)),
+              Divider(color: AppTheme.borderColor),
               ListTile(
                 leading: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF1F5F9),
+                    color: AppTheme.isDarkMode ? const Color(0xFF2C2C2E) : const Color(0xFFF1F5F9),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(Icons.image_rounded, color: AppTheme.textSecondary, size: 20),
@@ -1237,9 +1237,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: AppTheme.isDarkMode ? const Color(0xFF1C1C1E) : Colors.white,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
+              border: Border.all(color: AppTheme.cardBorder),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -1326,9 +1326,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      backgroundColor: AppTheme.isDarkMode ? const Color(0xFF1C1C1E) : Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        side: BorderSide(
+          color: AppTheme.isDarkMode ? const Color(0x38545458) : Colors.transparent,
+          width: 0.5,
+        ),
       ),
       builder: (ctx) {
         return SafeArea(

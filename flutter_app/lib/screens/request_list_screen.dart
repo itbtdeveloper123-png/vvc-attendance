@@ -624,9 +624,16 @@ class _RequestListScreenState extends State<RequestListScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.94),
+        color: AppTheme.isDarkMode
+            ? const Color(0xFF1C1C1E)
+            : Colors.white.withValues(alpha: 0.94),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white, width: 1.5),
+        border: Border.all(
+          color: AppTheme.isDarkMode
+              ? const Color(0x38545458)
+              : Colors.white,
+          width: 1.5,
+        ),
         boxShadow: AppTheme.cardShadow,
       ),
       child: ClipRRect(

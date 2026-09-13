@@ -141,11 +141,11 @@ class VvcLiquidGlassBottomBar extends StatelessWidget {
 
     final effectiveBorder = borderColor ??
         (isDark
-            ? Colors.white.withValues(alpha: 0.12)
+            ? const Color(0x38545458)
             : const Color(0xFFE2E8F0));
 
     final dockBgColor = backgroundColor ??
-        (isDark ? const Color(0xFF222630) : const Color(0xFFF1F3F6));
+        (isDark ? const Color(0xFF1C1C1E) : const Color(0xFFF1F3F6));
 
     return Container(
       margin: EdgeInsets.fromLTRB(16.0, 0, 16.0, bottomMargin),
@@ -447,9 +447,9 @@ class VvcLiquidGlassCircleButton extends StatelessWidget {
           shape: BoxShape.circle,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.05),
-              blurRadius: 8.0,
-              offset: const Offset(0, 2),
+              color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.06),
+              blurRadius: 10.0,
+              offset: const Offset(0, 3),
             ),
           ],
         ),
@@ -462,25 +462,13 @@ class VvcLiquidGlassCircleButton extends StatelessWidget {
               height: size,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                gradient: LinearGradient(
-                  begin: const Alignment(-0.5, -1.0),
-                  end: const Alignment(0.5, 1.0),
-                  colors: isDark
-                      ? [
-                          Colors.white.withValues(alpha: 0.20),
-                          const Color(0xFF1E293B).withValues(alpha: 0.60),
-                        ]
-                      : [
-                          Colors.white.withValues(alpha: 0.75),
-                          const Color(0xFFE2E8F0).withValues(alpha: 0.40),
-                        ],
-                ),
+                color: isDark ? const Color(0xFF222630) : const Color(0xFFF1F3F6),
                 border: Border.all(
                   color: borderColor ??
                       (isDark
-                          ? Colors.white.withValues(alpha: 0.22)
-                          : Colors.white.withValues(alpha: 0.75)),
-                  width: 1.1,
+                          ? Colors.white.withValues(alpha: 0.12)
+                          : const Color(0xFFE2E8F0)),
+                  width: 1.2,
                 ),
               ),
               child: Center(child: child),
@@ -517,16 +505,15 @@ class VvcLiquidGlassPinnedHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    const primaryGold = Color(0xFFF3D010);
 
     final effectiveBorder = borderColor ??
         (isDark
-            ? (isScrolled
-                ? primaryGold.withValues(alpha: 0.45)
-                : Colors.white.withValues(alpha: 0.20))
-            : (isScrolled
-                ? primaryGold.withValues(alpha: 0.40)
-                : Colors.white.withValues(alpha: 0.70)));
+            ? Colors.white.withValues(alpha: 0.12)
+            : const Color(0xFFE2E8F0));
+
+    final headerBgColor = isDark
+        ? const Color(0xFF222630)
+        : const Color(0xFFF1F3F6);
 
     return ClipRRect(
       borderRadius: BorderRadius.vertical(bottom: Radius.circular(borderRadius)),
@@ -535,23 +522,7 @@ class VvcLiquidGlassPinnedHeader extends StatelessWidget {
         child: Container(
           padding: padding,
           decoration: BoxDecoration(
-            // Liquid Glass Specular Rim Highlight
-            gradient: LinearGradient(
-              begin: const Alignment(-0.5, -1.0),
-              end: const Alignment(0.5, 1.0),
-              colors: isDark
-                  ? [
-                      Colors.white.withValues(alpha: 0.18),
-                      const Color(0xFF1E293B).withValues(alpha: isScrolled ? 0.65 : 0.50),
-                      const Color(0xFF0F172A).withValues(alpha: isScrolled ? 0.70 : 0.55),
-                    ]
-                  : [
-                      Colors.white.withValues(alpha: 0.75),
-                      const Color(0xFFE2E8F0).withValues(alpha: isScrolled ? 0.45 : 0.35),
-                      const Color(0xFFCBD5E1).withValues(alpha: isScrolled ? 0.38 : 0.30),
-                    ],
-              stops: const [0.0, 0.30, 1.0],
-            ),
+            color: headerBgColor,
             borderRadius: BorderRadius.vertical(bottom: Radius.circular(borderRadius)),
             border: Border.all(
               color: effectiveBorder,
@@ -559,13 +530,7 @@ class VvcLiquidGlassPinnedHeader extends StatelessWidget {
             ),
             boxShadow: [
               BoxShadow(
-                color: primaryGold.withValues(alpha: isScrolled ? 0.14 : 0.05),
-                blurRadius: 18.0,
-                spreadRadius: -2.0,
-                offset: const Offset(0, 4),
-              ),
-              BoxShadow(
-                color: Colors.black.withValues(alpha: isDark ? 0.38 : (isScrolled ? 0.06 : 0.02)),
+                color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.06),
                 blurRadius: 16.0,
                 offset: const Offset(0, 4),
               ),
@@ -640,7 +605,7 @@ class _VvcLiquidGlassScaffoldState extends State<VvcLiquidGlassScaffold> {
       child: Icon(
         Icons.arrow_back_ios_new_rounded,
         size: 15.0,
-        color: AppTheme.textPrimary,
+        color: isDark ? Colors.white : const Color(0xFF0F172A),
       ),
     );
   }
@@ -649,12 +614,13 @@ class _VvcLiquidGlassScaffoldState extends State<VvcLiquidGlassScaffold> {
     final topInset = MediaQuery.paddingOf(context).top;
     final maskColor = widget.transitionMaskColor ??
         (isDark ? const Color(0xFF0F1115) : const Color(0xFFF8FAFC));
+    final double zoneHeight = topInset + 72.0;
 
     return Positioned(
       left: 0,
       right: 0,
       top: 0,
-      height: topInset + 16.0,
+      height: zoneHeight,
       child: IgnorePointer(
         child: Container(
           decoration: BoxDecoration(
@@ -662,11 +628,12 @@ class _VvcLiquidGlassScaffoldState extends State<VvcLiquidGlassScaffold> {
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               colors: [
-                maskColor.withValues(alpha: 0.35),
-                maskColor.withValues(alpha: 0.12),
+                maskColor.withValues(alpha: 0.98),
+                maskColor.withValues(alpha: 0.75),
+                maskColor.withValues(alpha: 0.30),
                 maskColor.withValues(alpha: 0.0),
               ],
-              stops: const [0.0, 0.55, 1.0],
+              stops: const [0.0, 0.40, 0.75, 1.0],
             ),
           ),
         ),
@@ -706,15 +673,14 @@ class _VvcLiquidGlassScaffoldState extends State<VvcLiquidGlassScaffold> {
 
   Widget _buildFloatingGlassHeader(BuildContext context, bool isDark) {
     final topInset = MediaQuery.paddingOf(context).top;
-    const primaryGold = Color(0xFFF3D010);
 
     final effectiveBorder = isDark
-        ? (_isScrolled
-            ? primaryGold.withValues(alpha: 0.45)
-            : Colors.white.withValues(alpha: 0.20))
-        : (_isScrolled
-            ? primaryGold.withValues(alpha: 0.40)
-            : Colors.white.withValues(alpha: 0.70));
+        ? Colors.white.withValues(alpha: 0.12)
+        : const Color(0xFFE2E8F0);
+
+    final headerBgColor = isDark
+        ? const Color(0xFF222630)
+        : const Color(0xFFF1F3F6);
 
     return Positioned(
       top: topInset + 6.0,
@@ -726,13 +692,7 @@ class _VvcLiquidGlassScaffoldState extends State<VvcLiquidGlassScaffold> {
           borderRadius: BorderRadius.circular(32.0),
           boxShadow: [
             BoxShadow(
-              color: primaryGold.withValues(alpha: _isScrolled ? 0.16 : 0.06),
-              blurRadius: 18.0,
-              spreadRadius: -2.0,
-              offset: const Offset(0, 4),
-            ),
-            BoxShadow(
-              color: Colors.black.withValues(alpha: isDark ? 0.40 : (_isScrolled ? 0.07 : 0.03)),
+              color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.06),
               blurRadius: 16.0,
               offset: const Offset(0, 4),
             ),
@@ -742,29 +702,11 @@ class _VvcLiquidGlassScaffoldState extends State<VvcLiquidGlassScaffold> {
           borderRadius: BorderRadius.circular(32.0),
           child: BackdropFilter(
             filter: ui.ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeOutCubic,
+            child: Container(
               height: 58.0,
               padding: const EdgeInsets.symmetric(horizontal: 10.0),
               decoration: BoxDecoration(
-                // Liquid Glass Specular Rim Highlight
-                gradient: LinearGradient(
-                  begin: const Alignment(-0.5, -1.0),
-                  end: const Alignment(0.5, 1.0),
-                  colors: isDark
-                      ? [
-                          Colors.white.withValues(alpha: 0.18),
-                          const Color(0xFF1E293B).withValues(alpha: _isScrolled ? 0.65 : 0.50),
-                          const Color(0xFF0F172A).withValues(alpha: _isScrolled ? 0.70 : 0.55),
-                        ]
-                      : [
-                          Colors.white.withValues(alpha: 0.70),
-                          const Color(0xFFE2E8F0).withValues(alpha: _isScrolled ? 0.45 : 0.35),
-                          const Color(0xFFCBD5E1).withValues(alpha: _isScrolled ? 0.38 : 0.30),
-                        ],
-                  stops: const [0.0, 0.30, 1.0],
-                ),
+                color: headerBgColor,
                 borderRadius: BorderRadius.circular(32.0),
                 border: Border.all(
                   color: effectiveBorder,
@@ -782,7 +724,7 @@ class _VvcLiquidGlassScaffoldState extends State<VvcLiquidGlassScaffold> {
                             style: GoogleFonts.kantumruyPro(
                               fontWeight: FontWeight.bold,
                               fontSize: 16.5,
-                              color: AppTheme.textPrimary,
+                              color: isDark ? Colors.white : const Color(0xFF0F172A),
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -812,7 +754,7 @@ class _VvcLiquidGlassScaffoldState extends State<VvcLiquidGlassScaffold> {
         statusBarColor: Colors.transparent,
         statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
         statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
-        systemNavigationBarColor: isDark ? const Color(0xFF0F1115) : Colors.white,
+        systemNavigationBarColor: isDark ? const Color(0xFF000000) : Colors.white,
         systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
       ),
       child: Scaffold(

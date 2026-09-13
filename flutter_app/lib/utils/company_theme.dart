@@ -102,22 +102,22 @@ class CompanyTheme {
     isDarkTheme: false,
   );
 
-  /// ក្រុមហ៊ុនទី ៣៖ Vvc Dark Luxury Obsidian & Gold (Telegram Style)
+  /// ក្រុមហ៊ុនទី ៣៖ Vvc Dark Cupertino Native (Apple iOS Standard)
   static const CompanyTheme vvcDark = CompanyTheme(
     brand: CompanyBrand.vvc,
-    name: 'Vvc Obsidian Gold',
+    name: 'Vvc Cupertino Dark',
     brandLabel: 'Vvc HRM',
     passTitle: 'Vvc HRM EMPLOYEE PASS',
-    backgroundColor: Color(0xFF0F1115),
+    backgroundColor: Color(0xFF000000), // Apple OLED Pure Black
     cardPrimary: Color(0xFFF3D010),
     cardSecondary: Color(0xFFE5BF00),
-    cardBackground: Color(0xFF191B22),
-    cardBorder: Color(0x1FFFFFFF),
-    passCardColor: Color(0xFF191B22),
+    cardBackground: Color(0xFF1C1C1E), // Apple Secondary System Background
+    cardBorder: Color(0x38545458), // Apple Cupertino Separator
+    passCardColor: Color(0xFF1C1C1E),
     passCardTextColor: Color(0xFFF3D010),
     textPrimary: Colors.white,
-    textSecondary: Color(0xFF94A3B8),
-    textMuted: Color(0xFF64748B),
+    textSecondary: Color(0xFF98989D), // Apple Secondary Label
+    textMuted: Color(0xFF636366), // Apple Tertiary Label
     glowColor: Color(0xFFF3D010),
     orbPrimary: Color(0xFFF3D010),
     orbSecondary: Color(0xFFE5BF00),
@@ -125,22 +125,22 @@ class CompanyTheme {
     isDarkTheme: true,
   );
 
-  /// ក្រុមហ៊ុនទី ៤៖ SK Dark Luxury Obsidian & Amber Gold
+  /// ក្រុមហ៊ុនទី ៤៖ SK Dark Cupertino Native (Apple iOS Standard)
   static const CompanyTheme skDark = CompanyTheme(
     brand: CompanyBrand.sk,
-    name: 'SK Obsidian Gold',
+    name: 'SK Cupertino Dark',
     brandLabel: 'SK HRM',
     passTitle: 'SK HRM EMPLOYEE PASS',
-    backgroundColor: Color(0xFF0F1115),
+    backgroundColor: Color(0xFF000000), // Apple OLED Pure Black
     cardPrimary: Color(0xFFC08207),
     cardSecondary: Color(0xFFA16207),
-    cardBackground: Color(0xFF191B22),
-    cardBorder: Color(0x1FFFFFFF),
-    passCardColor: Color(0xFF191B22),
+    cardBackground: Color(0xFF1C1C1E), // Apple Secondary System Background
+    cardBorder: Color(0x38545458), // Apple Cupertino Separator
+    passCardColor: Color(0xFF1C1C1E),
     passCardTextColor: Color(0xFFC08207),
     textPrimary: Colors.white,
-    textSecondary: Color(0xFF94A3B8),
-    textMuted: Color(0xFFA8A29E),
+    textSecondary: Color(0xFF98989D), // Apple Secondary Label
+    textMuted: Color(0xFF636366), // Apple Tertiary Label
     glowColor: Color(0xFFC08207),
     orbPrimary: Color(0xFFC08207),
     orbSecondary: Color(0xFFD97706),

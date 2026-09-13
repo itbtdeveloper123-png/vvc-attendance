@@ -174,7 +174,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
       decoration: BoxDecoration(
         color: AppTheme.bgCard,
         borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: AppTheme.cardBorder),
         boxShadow: AppTheme.cardShadow,
       ),
       child: Column(

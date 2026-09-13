@@ -13,7 +13,7 @@ export 'glass_widgets.dart';
 import 'vvc_liquid_glass_scaffold.dart';
 export 'vvc_liquid_glass_scaffold.dart';
 
-/// A reusable flat or ambient glass background shell for app screens.
+/// A reusable flat clean background shell for app screens.
 class AppBackgroundShell extends StatelessWidget {
   final Widget child;
   final bool showGlows;
@@ -26,12 +26,10 @@ class AppBackgroundShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (!showGlows) {
-      return ColoredBox(color: AppTheme.bgSurface, child: child);
-    }
-    return GlassOrbBackground(
-      baseColor: AppTheme.bgDark,
-      primaryOrbColor: AppTheme.primary,
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF000000) : const Color(0xFFF8FAFC);
+    return ColoredBox(
+      color: bgColor,
       child: child,
     );
   }
@@ -498,6 +496,10 @@ class AppStatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final effectiveCardColor = cardColor ?? (isDark ? const Color(0xFF1C1C1E) : Colors.white);
+    final effectiveBorderColor = borderColor ?? (isDark ? const Color(0x38545458) : Colors.white);
+
     return AppShimmer(
       enabled: isLoading,
       child: ClipRRect(
@@ -507,32 +509,36 @@ class AppStatCard extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  (cardColor ?? Colors.white).withValues(alpha: 0.94),
-                  (cardColor ?? Colors.white).withValues(alpha: 0.85),
-                  (cardColor ?? Colors.white).withValues(alpha: 0.90),
-                ],
-                stops: const [0.0, 0.55, 1.0],
-              ),
+              color: isDark ? const Color(0xFF1C1C1E) : null,
+              gradient: isDark
+                  ? null
+                  : LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        effectiveCardColor.withValues(alpha: 0.94),
+                        effectiveCardColor.withValues(alpha: 0.85),
+                        effectiveCardColor.withValues(alpha: 0.90),
+                      ],
+                      stops: const [0.0, 0.55, 1.0],
+                    ),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: Colors.white,
-                width: 1.5,
+                color: effectiveBorderColor,
+                width: isDark ? 1.0 : 1.5,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF0F172A).withValues(alpha: 0.065),
+                  color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.065),
                   blurRadius: 16,
                   offset: const Offset(0, 5),
                 ),
-                BoxShadow(
-                  color: const Color(0xFF0F172A).withValues(alpha: 0.03),
-                  blurRadius: 4,
-                  offset: const Offset(0, 1),
-                ),
+                if (!isDark)
+                  BoxShadow(
+                    color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+                    blurRadius: 4,
+                    offset: const Offset(0, 1),
+                  ),
               ],
             ),
             child: Column(
@@ -543,21 +549,23 @@ class AppStatCard extends StatelessWidget {
                   width: 38,
                   height: 38,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFFFBEB),
+                    color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFFFFBEB),
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: const Color(0xFFFDE68A),
+                      color: isDark ? const Color(0x38545458) : const Color(0xFFFDE68A),
                       width: 1.2,
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF0F172A).withValues(alpha: 0.03),
-                        blurRadius: 4,
-                        offset: const Offset(0, 1),
-                      ),
-                    ],
+                    boxShadow: isDark
+                        ? null
+                        : [
+                            BoxShadow(
+                              color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+                              blurRadius: 4,
+                              offset: const Offset(0, 1),
+                            ),
+                          ],
                   ),
-                  child: Icon(icon, color: const Color(0xFFD97706), size: 20),
+                  child: Icon(icon, color: isDark ? const Color(0xFFF3D010) : const Color(0xFFD97706), size: 20),
                 ),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -568,7 +576,7 @@ class AppStatCard extends StatelessWidget {
                       Text(
                         value,
                         style: GoogleFonts.inter(
-                          color: const Color(0xFF0F172A),
+                          color: isDark ? Colors.white : const Color(0xFF0F172A),
                           fontSize: 26,
                           fontWeight: FontWeight.w800,
                         ),
@@ -580,7 +588,7 @@ class AppStatCard extends StatelessWidget {
                       Text(
                         label,
                         style: GoogleFonts.kantumruyPro(
-                          color: const Color(0xFF64748B),
+                          color: isDark ? const Color(0xFF98989D) : const Color(0xFF64748B),
                           fontSize: 12.5,
                           fontWeight: FontWeight.w600,
                         ),
@@ -807,6 +815,10 @@ class AttendanceScanCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     bool isCheckIn = nextAction == 'Check-In';
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final effectiveCardColor = cardColor ?? (isDark ? const Color(0xFF1C1C1E) : Colors.white);
+    final effectiveBorderColor = borderColor ?? (isDark ? const Color(0x38545458) : Colors.white);
+
     return GestureDetector(
       onTap: onTap,
       child: ClipRRect(
@@ -815,32 +827,36 @@ class AttendanceScanCard extends StatelessWidget {
           filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
           child: Container(
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  (cardColor ?? Colors.white).withValues(alpha: 0.94),
-                  (cardColor ?? Colors.white).withValues(alpha: 0.85),
-                  (cardColor ?? Colors.white).withValues(alpha: 0.90),
-                ],
-                stops: const [0.0, 0.55, 1.0],
-              ),
+              color: isDark ? const Color(0xFF1C1C1E) : null,
+              gradient: isDark
+                  ? null
+                  : LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        effectiveCardColor.withValues(alpha: 0.94),
+                        effectiveCardColor.withValues(alpha: 0.85),
+                        effectiveCardColor.withValues(alpha: 0.90),
+                      ],
+                      stops: const [0.0, 0.55, 1.0],
+                    ),
               borderRadius: BorderRadius.circular(24),
               border: Border.all(
-                color: Colors.white,
-                width: 1.5,
+                color: effectiveBorderColor,
+                width: isDark ? 1.0 : 1.5,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF0F172A).withValues(alpha: 0.065),
+                  color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.065),
                   blurRadius: 18,
                   offset: const Offset(0, 6),
                 ),
-                BoxShadow(
-                  color: const Color(0xFF0F172A).withValues(alpha: 0.03),
-                  blurRadius: 4,
-                  offset: const Offset(0, 1),
-                ),
+                if (!isDark)
+                  BoxShadow(
+                    color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+                    blurRadius: 4,
+                    offset: const Offset(0, 1),
+                  ),
               ],
             ),
             padding: const EdgeInsets.all(20),
@@ -853,23 +869,25 @@ class AttendanceScanCard extends StatelessWidget {
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFFFBEB),
+                    color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFFFFBEB),
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: const Color(0xFFFDE68A),
+                      color: isDark ? const Color(0x38545458) : const Color(0xFFFDE68A),
                       width: 1.2,
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF0F172A).withValues(alpha: 0.03),
-                        blurRadius: 4,
-                        offset: const Offset(0, 1),
-                      ),
-                    ],
+                    boxShadow: isDark
+                        ? null
+                        : [
+                            BoxShadow(
+                              color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+                              blurRadius: 4,
+                              offset: const Offset(0, 1),
+                            ),
+                          ],
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.qr_code_scanner_rounded,
-                    color: Color(0xFFD97706),
+                    color: isDark ? const Color(0xFFF3D010) : const Color(0xFFD97706),
                     size: 22,
                   ),
                 ),
@@ -881,7 +899,7 @@ class AttendanceScanCard extends StatelessWidget {
                       Text(
                         "ស្កេនវត្តមាន",
                         style: GoogleFonts.kantumruyPro(
-                          color: const Color(0xFF0F172A),
+                          color: isDark ? Colors.white : const Color(0xFF0F172A),
                           fontSize: 17,
                           fontWeight: FontWeight.bold,
                         ),
@@ -889,7 +907,7 @@ class AttendanceScanCard extends StatelessWidget {
                       Text(
                         "បន្ទាប់: $nextAction",
                         style: GoogleFonts.kantumruyPro(
-                          color: const Color(0xFF64748B),
+                          color: isDark ? const Color(0xFF98989D) : const Color(0xFF64748B),
                           fontSize: 12.5,
                           fontWeight: FontWeight.w500,
                         ),
@@ -1074,6 +1092,10 @@ class AppActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final effectiveCardColor = cardColor ?? (isDark ? const Color(0xFF1C1C1E) : Colors.white);
+    final effectiveBorderColor = borderColor ?? (isDark ? const Color(0x38545458) : Colors.white);
+
     return GestureDetector(
       onTap: onTap,
       child: ClipRRect(
@@ -1083,32 +1105,36 @@ class AppActionButton extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  (cardColor ?? Colors.white).withValues(alpha: 0.94),
-                  (cardColor ?? Colors.white).withValues(alpha: 0.85),
-                  (cardColor ?? Colors.white).withValues(alpha: 0.90),
-                ],
-                stops: const [0.0, 0.55, 1.0],
-              ),
+              color: isDark ? const Color(0xFF1C1C1E) : null,
+              gradient: isDark
+                  ? null
+                  : LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        effectiveCardColor.withValues(alpha: 0.94),
+                        effectiveCardColor.withValues(alpha: 0.85),
+                        effectiveCardColor.withValues(alpha: 0.90),
+                      ],
+                      stops: const [0.0, 0.55, 1.0],
+                    ),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: Colors.white,
-                width: 1.5,
+                color: effectiveBorderColor,
+                width: isDark ? 1.0 : 1.5,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF0F172A).withValues(alpha: 0.06),
+                  color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.06),
                   blurRadius: 14,
                   offset: const Offset(0, 4),
                 ),
-                BoxShadow(
-                  color: const Color(0xFF0F172A).withValues(alpha: 0.025),
-                  blurRadius: 4,
-                  offset: const Offset(0, 1),
-                ),
+                if (!isDark)
+                  BoxShadow(
+                    color: const Color(0xFF0F172A).withValues(alpha: 0.025),
+                    blurRadius: 4,
+                    offset: const Offset(0, 1),
+                  ),
               ],
             ),
             child: Row(
@@ -1117,19 +1143,21 @@ class AppActionButton extends StatelessWidget {
                   width: 46,
                   height: 46,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFFFBEB),
+                    color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFFFFBEB),
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
-                      color: const Color(0xFFFDE68A),
+                      color: isDark ? const Color(0x38545458) : const Color(0xFFFDE68A),
                       width: 1.2,
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF0F172A).withValues(alpha: 0.03),
-                        blurRadius: 4,
-                        offset: const Offset(0, 1),
-                      ),
-                    ],
+                    boxShadow: isDark
+                        ? null
+                        : [
+                            BoxShadow(
+                              color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+                              blurRadius: 4,
+                              offset: const Offset(0, 1),
+                            ),
+                          ],
                   ),
                   child: Icon(icon, color: iconColor, size: 24),
                 ),
@@ -1141,7 +1169,7 @@ class AppActionButton extends StatelessWidget {
                       Text(
                         title,
                         style: GoogleFonts.kantumruyPro(
-                          color: textColor ?? const Color(0xFF0F172A),
+                          color: textColor ?? (isDark ? Colors.white : const Color(0xFF0F172A)),
                           fontSize: 15,
                           fontWeight: FontWeight.bold,
                         ),
@@ -1150,7 +1178,7 @@ class AppActionButton extends StatelessWidget {
                       Text(
                         subtitle,
                         style: GoogleFonts.kantumruyPro(
-                          color: subtitleColor ?? const Color(0xFF64748B),
+                          color: subtitleColor ?? (isDark ? const Color(0xFF98989D) : const Color(0xFF64748B)),
                           fontSize: 12,
                         ),
                         maxLines: 1,
@@ -1159,9 +1187,9 @@ class AppActionButton extends StatelessWidget {
                     ],
                   ),
                 ),
-                const Icon(
+                Icon(
                   Icons.arrow_forward_ios_rounded,
-                  color: Color(0xFF94A3B8),
+                  color: isDark ? const Color(0xFF98989D) : const Color(0xFF94A3B8),
                   size: 14,
                 ),
               ],
@@ -1213,10 +1241,10 @@ class _DynamicPremiumAppBarState extends State<DynamicPremiumAppBar> {
       actions: widget.actions,
       backgroundColor: Colors.transparent,
       elevation: 0,
-      systemOverlayStyle: const SystemUiOverlayStyle(
+      systemOverlayStyle: SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        statusBarBrightness: Brightness.light,
-        statusBarIconBrightness: Brightness.dark,
+        statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
+        statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
       ),
       iconTheme: IconThemeData(color: AppTheme.textPrimary),
       flexibleSpace: ClipRect(
@@ -1603,18 +1631,20 @@ class AppUserListTile extends StatelessWidget {
     final finalAvatarUrl = avatarUrl.isNotEmpty ? avatarUrl : null;
     final posStr = (user['position'] ?? '').toString().trim();
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: const Color(0xFF131F33),
+          color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
+          border: Border.all(color: isDark ? const Color(0x38545458) : const Color(0xFFE2E8F0)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.15),
+              color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.05),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -1768,17 +1798,19 @@ class AppUserCard extends StatelessWidget {
     final finalAvatarUrl = avatarUrl.isNotEmpty ? avatarUrl : null;
     final posStr = (user['position'] ?? '').toString().trim();
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.fromLTRB(12, 18, 12, 18),
         decoration: BoxDecoration(
-          color: const Color(0xFF131F33),
+          color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
           borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+          border: Border.all(color: isDark ? const Color(0x38545458) : const Color(0xFFE2E8F0)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.18),
+              color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.05),
               blurRadius: 12,
               offset: const Offset(0, 5),
             ),
@@ -1980,10 +2012,10 @@ class VvcAppBar extends StatelessWidget implements PreferredSizeWidget {
       scrolledUnderElevation: scrolledUnderElevation,
       backgroundColor: Colors.transparent,
       surfaceTintColor: Colors.transparent,
-      systemOverlayStyle: const SystemUiOverlayStyle(
+      systemOverlayStyle: SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        statusBarBrightness: Brightness.light,
-        statusBarIconBrightness: Brightness.dark,
+        statusBarBrightness: Theme.of(context).brightness == Brightness.dark ? Brightness.dark : Brightness.light,
+        statusBarIconBrightness: Theme.of(context).brightness == Brightness.dark ? Brightness.light : Brightness.dark,
       ),
       flexibleSpace: ClipRect(
         child: BackdropFilter(

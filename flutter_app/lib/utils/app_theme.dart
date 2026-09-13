@@ -17,15 +17,15 @@ class AppTheme {
         : (companyTheme.brand == CompanyBrand.sk
             ? const Color(0xFFFDE68A)
             : const Color(0xFFFEF08A));
-    bgDark = companyTheme.backgroundColor;
-    bgCard = companyTheme.cardBackground;
-    bgSurface = companyTheme.backgroundColor;
-    cardDark = companyTheme.cardBackground;
-    textPrimary = companyTheme.textPrimary;
-    textSecondary = companyTheme.textSecondary;
-    textMuted = companyTheme.textMuted;
-    borderColor = companyTheme.cardBorder;
-    borderDark = companyTheme.cardBorder;
+    _bgDark = companyTheme.backgroundColor;
+    _bgCard = companyTheme.cardBackground;
+    _bgSurface = companyTheme.backgroundColor;
+    _cardDark = companyTheme.cardBackground;
+    _textPrimary = companyTheme.textPrimary;
+    _textSecondary = companyTheme.textSecondary;
+    _textMuted = companyTheme.textMuted;
+    _borderColor = companyTheme.cardBorder;
+    _borderDark = companyTheme.cardBorder;
   }
 
   // === BRAND COLOR PALETTE (Vibrant Gold #F3D010 matching HomeScreen) ===
@@ -40,23 +40,52 @@ class AppTheme {
   static Color danger = const Color(0xFFDC2626);
   static Color info = const Color(0xFF3B82F6);
 
-  // iOS Glassmorphism Canvas & Card Layers
-  static Color bgDark = const Color(0xFFF8FAFC); // Clean Canvas Slate-50
-  static Color bgCard = Colors.white; // Pure white glass cards
-  static Color bgCardLight = const Color(0xFFF1F5F9);
-  static Color bgSurface = const Color(0xFFF8FAFC);
-  static Color cardDark = Colors.white;
-  static Color borderDark = const Color(0xFFE2E8F0);
-  
+  // Private storage fields
+  static Color _bgDark = const Color(0xFFF8FAFC);
+  static Color _bgCard = Colors.white;
+  static Color _bgSurface = const Color(0xFFF8FAFC);
+  static Color _cardDark = Colors.white;
+  static Color _borderDark = const Color(0xFFE2E8F0);
+  static Color _borderColor = const Color(0xFFE2E8F0);
+  static Color _textPrimary = const Color(0xFF0F172A);
+  static Color _textSecondary = const Color(0xFF475569);
+  static Color _textMuted = const Color(0xFF64748B);
+
+  // Apple Cupertino Native Dark Mode dynamic getters
+  static Color get bgDark => isDarkMode ? const Color(0xFF000000) : _bgDark;
+  static set bgDark(Color v) => _bgDark = v;
+
+  static Color get bgCard => isDarkMode ? const Color(0xFF1C1C1E) : _bgCard;
+  static set bgCard(Color v) => _bgCard = v;
+
+  static Color get bgCardLight => isDarkMode ? const Color(0xFF2C2C2E) : const Color(0xFFF1F5F9);
+  static set bgCardLight(Color _) {}
+
+  static Color get bgSurface => isDarkMode ? const Color(0xFF000000) : _bgSurface;
+  static set bgSurface(Color v) => _bgSurface = v;
+
+  static Color get cardDark => isDarkMode ? const Color(0xFF1C1C1E) : _cardDark;
+  static set cardDark(Color v) => _cardDark = v;
+
+  static Color get borderDark => isDarkMode ? const Color(0x38545458) : _borderDark;
+  static set borderDark(Color v) => _borderDark = v;
+
+  static Color get borderColor => isDarkMode ? const Color(0x38545458) : _borderColor;
+  static set borderColor(Color v) => _borderColor = v;
+
+  static Color get textPrimary => isDarkMode ? Colors.white : _textPrimary;
+  static set textPrimary(Color v) => _textPrimary = v;
+
+  static Color get textSecondary => isDarkMode ? const Color(0xFF98989D) : _textSecondary;
+  static set textSecondary(Color v) => _textSecondary = v;
+
+  static Color get textMuted => isDarkMode ? const Color(0xFF636366) : _textMuted;
+  static set textMuted(Color v) => _textMuted = v;
+
   // Additional theme colors for compatibility
   static Color get cardBg => bgCard;
   static Color get borderLight => borderDark;
   static Color get border => borderColor;
-
-  static Color textPrimary = const Color(0xFF0F172A); // High contrast dark slate (visible on white glass)
-  static Color textSecondary = const Color(0xFF475569); // Slate-600
-  static Color textMuted = const Color(0xFF64748B); // Slate-500
-  static Color borderColor = const Color(0xFFE2E8F0);
 
   static const double radiusSm = 12;
   static const double radiusMd = 16;
@@ -66,19 +95,19 @@ class AppTheme {
   static Color get labelColor =>
       isDarkMode ? Colors.white : const Color(0xFF1E293B);
   static Color get helperTextColor =>
-      isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+      isDarkMode ? const Color(0xFF98989D) : const Color(0xFF64748B);
   static Color get fieldFill => isDarkMode
-      ? const Color(0xFF1E222B)
+      ? const Color(0xFF2C2C2E)
       : Colors.white.withValues(alpha: 0.90);
   static Color get fieldBorder => isDarkMode
-      ? const Color(0x2EFFFFFF)
+      ? const Color(0x38545458)
       : const Color(0xFFE2E8F0);
   static Color get fieldIconColor =>
-      isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+      isDarkMode ? const Color(0xFF98989D) : const Color(0xFF64748B);
   static Color get fieldHintColor =>
-      isDarkMode ? const Color(0xFF64748B) : const Color(0xFF94A3B8);
+      isDarkMode ? const Color(0xFF636366) : const Color(0xFF94A3B8);
   static Color get cardBorder =>
-      isDarkMode ? const Color(0x1FFFFFFF) : Colors.white;
+      isDarkMode ? const Color(0x38545458) : const Color(0xFFE2E8F0);
 
   // === SHADOWS ===
   static List<BoxShadow> get primaryShadow => [
@@ -124,11 +153,11 @@ class AppTheme {
   }) {
     return BoxDecoration(
       color: color ??
-          (isDarkMode ? bgCard : Colors.white.withValues(alpha: 0.94)),
+          (isDarkMode ? const Color(0xFF1C1C1E) : Colors.white.withValues(alpha: 0.94)),
       borderRadius: BorderRadius.circular(radius),
       border: Border.all(
         color: borderColor ??
-            (isDarkMode ? const Color(0x1FFFFFFF) : Colors.white),
+            (isDarkMode ? const Color(0x38545458) : Colors.white),
         width: 1.5,
       ),
       boxShadow: shadows ?? cardShadow,
@@ -144,27 +173,25 @@ class AppTheme {
     Gradient? gradient,
   }) {
     final baseColor =
-        color ?? (isDarkMode ? const Color(0xFF191B22) : Colors.white);
+        color ?? (isDarkMode ? const Color(0xFF1C1C1E) : Colors.white);
     return BoxDecoration(
+      color: isDarkMode && gradient == null ? const Color(0xFF1C1C1E) : null,
       gradient: gradient ??
-          LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: isDarkMode
-                ? [
-                    const Color(0xFF1E222B).withValues(alpha: 0.85),
-                    const Color(0xFF14161E).withValues(alpha: 0.92),
-                  ]
-                : [
+          (isDarkMode
+              ? null
+              : LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
                     baseColor.withValues(alpha: 0.96),
                     baseColor.withValues(alpha: 0.90),
                     baseColor.withValues(alpha: 0.92),
                   ],
-          ),
+                )),
       borderRadius: BorderRadius.circular(radius),
       border: Border.all(
         color: borderColor ??
-            (isDarkMode ? const Color(0x26FFFFFF) : Colors.white),
+            (isDarkMode ? const Color(0x38545458) : Colors.white),
         width: 1.5,
       ),
       boxShadow: [
@@ -321,9 +348,9 @@ class AppTheme {
 
   static ThemeData get darkTheme => ThemeData(
     brightness: Brightness.dark,
-    scaffoldBackgroundColor: const Color(0xFF0F1115),
-    cardColor: const Color(0xFF191B22),
-    dividerColor: const Color(0x1FFFFFFF),
+    scaffoldBackgroundColor: const Color(0xFF000000), // Apple OLED Pure Black
+    cardColor: const Color(0xFF1C1C1E), // Apple Secondary System Background
+    dividerColor: const Color(0x38545458), // Apple Cupertino Separator
     appBarTheme: AppBarTheme(
       backgroundColor: Colors.transparent,
       elevation: 0,
@@ -343,22 +370,22 @@ class AppTheme {
     colorScheme: ColorScheme.dark(
       primary: primary,
       secondary: secondary,
-      surface: const Color(0xFF191B22),
+      surface: const Color(0xFF1C1C1E),
       onSurface: Colors.white,
       onPrimary: Colors.black,
       error: error,
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: const Color(0xFF1E222B),
-      hintStyle: GoogleFonts.kantumruyPro(color: const Color(0xFF64748B)),
+      fillColor: const Color(0xFF2C2C2E), // Apple Tertiary Fill
+      hintStyle: GoogleFonts.kantumruyPro(color: const Color(0xFF636366)),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(radiusMd),
-        borderSide: const BorderSide(color: Color(0x2EFFFFFF)),
+        borderSide: const BorderSide(color: Color(0x38545458)),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(radiusMd),
-        borderSide: const BorderSide(color: Color(0x2EFFFFFF)),
+        borderSide: const BorderSide(color: Color(0x38545458)),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(radiusMd),
@@ -369,7 +396,7 @@ class AppTheme {
     textTheme: GoogleFonts.kantumruyProTextTheme(ThemeData.dark().textTheme)
         .copyWith(
           bodyLarge: GoogleFonts.kantumruyPro(color: Colors.white),
-          bodyMedium: GoogleFonts.kantumruyPro(color: const Color(0xFF94A3B8)),
+          bodyMedium: GoogleFonts.kantumruyPro(color: const Color(0xFF98989D)),
           titleLarge: GoogleFonts.kantumruyPro(
             color: Colors.white,
             fontWeight: FontWeight.bold,
